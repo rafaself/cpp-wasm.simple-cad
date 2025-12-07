@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../../stores/useAppStore';
-import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp } from 'lucide-react';
+import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 
 const EditorStatusBar: React.FC = () => {
@@ -48,6 +48,12 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2">
+         <button onClick={store.undo} className={`p-1 hover:bg-slate-700 rounded ${store.past.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={store.past.length === 0} title="Undo (Ctrl+Z)"><Undo size={14} /></button>
+         <button onClick={store.redo} className={`p-1 hover:bg-slate-700 rounded ${store.future.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={store.future.length === 0} title="Redo (Ctrl+Y)"><Redo size={14} /></button>
+         
+         <div className="h-4 w-px bg-slate-600 mx-2" />
+         
+         <button onClick={store.zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={store.selectedShapeIds.size > 0 ? "Zoom to Selection" : "Zoom to Fit"}><Scan size={14} /></button>
          <span>{(store.viewTransform.scale * 100).toFixed(0)}%</span>
          <button onClick={handleZoomOut} className="p-1 hover:bg-slate-700 rounded"><ZoomOut size={14} /></button>
          <button onClick={handleZoomIn} className="p-1 hover:bg-slate-700 rounded"><ZoomIn size={14} /></button>

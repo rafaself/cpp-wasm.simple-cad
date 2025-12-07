@@ -47,9 +47,11 @@ export const MENU_CONFIG: MenuTab[] = [
       {
         title: 'Modify',
         layout: 'grid',
-        columns: 2,
+        columns: 3,
         items: [
             { id: 'select', label: 'Select', icon: 'Select', type: 'tool', tool: 'select', shortcut: 'V' },
+            { id: 'move', label: 'Move', icon: 'Move', type: 'tool', tool: 'move' },
+            { id: 'rotate', label: 'Rotate', icon: 'Rotate', type: 'tool', tool: 'rotate' },
             { id: 'delete', label: 'Delete', icon: 'Delete', type: 'action', action: 'delete', shortcut: 'Del' },
             { id: 'join', label: 'Join', icon: 'Join', type: 'action', action: 'join' },
             { id: 'explode', label: 'Explode', icon: 'Explode', type: 'action', action: 'explode' },
@@ -61,6 +63,14 @@ export const MENU_CONFIG: MenuTab[] = [
           items: [
               { id: 'measure', label: 'Measure', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
           ]
+      },
+      {
+        title: 'Text',
+        layout: 'row',
+        items: [
+            { id: 'text-tool', label: 'Text', icon: 'Text', type: 'tool', tool: 'text' },
+            { id: 'text-format', label: 'Format', icon: 'Type', type: 'component', componentName: 'TextFormatControl' }
+        ]
       },
       {
           title: 'Layers',
@@ -89,6 +99,21 @@ export const MENU_CONFIG: MenuTab[] = [
         items: [
           { id: 'pan', label: 'Pan', icon: 'Hand', type: 'tool', tool: 'pan', shortcut: 'H' },
           { id: 'zoom-fit', label: 'Zoom Fit', icon: 'Scan', type: 'action', action: 'zoom-fit', shortcut: 'Z' }
+        ]
+      },
+      {
+        title: 'History',
+        layout: 'row',
+        items: [
+            { id: 'undo', label: 'Undo', icon: 'Undo', type: 'action', action: 'undo', shortcut: 'Ctrl+Z' },
+            { id: 'redo', label: 'Redo', icon: 'Redo', type: 'action', action: 'redo', shortcut: 'Ctrl+Y' },
+        ]
+      },
+      {
+        title: 'Window',
+        layout: 'row',
+        items: [
+            { id: 'settings', label: 'Settings', icon: 'Settings', type: 'action', action: 'open-settings' }
         ]
       }
     ]

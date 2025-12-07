@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import EditorRibbon from './features/editor/components/EditorRibbon';
 import EditorCanvas from './features/editor/components/EditorCanvas';
 import EditorStatusBar from './features/editor/components/EditorStatusBar';
+import SettingsModal from './features/editor/components/SettingsModal';
 import { useAppStore } from './stores/useAppStore';
 
 const App: React.FC = () => {
@@ -12,6 +13,21 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
+
+      // Undo / Redo
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+           e.preventDefault();
+           if (e.shiftKey) store.redo();
+           else store.undo();
+           return;
+        }
+        if (e.key.toLowerCase() === 'y') {
+           e.preventDefault();
+           store.redo();
+           return;
+        }
+      }
 
       // Pan shortcut (Space)
       if (e.code === 'Space' && !e.repeat) {
@@ -61,6 +77,7 @@ const App: React.FC = () => {
       <EditorRibbon />
       <div className="flex-grow relative bg-slate-200 overflow-hidden">
         <EditorCanvas />
+        <SettingsModal />
       </div>
       <EditorStatusBar />
     </div>

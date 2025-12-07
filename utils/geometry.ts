@@ -1,7 +1,19 @@
+
 import { Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
 
 export const getDistance = (p1: Point, p2: Point): number => {
   return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+};
+
+export const rotatePoint = (point: Point, center: Point, angle: number): Point => {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + (dx * cos - dy * sin),
+    y: center.y + (dx * sin + dy * cos),
+  };
 };
 
 export const screenToWorld = (point: Point, transform: ViewTransform): Point => {
@@ -38,6 +50,10 @@ export const getSnapPoint = (
   };
 
   shapes.forEach(shape => {
+    // Note: This simple snap logic checks raw points. 
+    // If a shape is rotated via 'rotation' prop, the points in 'points' array might not reflect world space.
+    // For simplicity in this iteration, we assume 'points' are the source of truth for lines/polylines.
+    
     if (shape.points && shape.points.length > 0) {
       if (snapOptions.endpoint) {
         if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc') {
@@ -60,6 +76,7 @@ export const getSnapPoint = (
     }
 
     if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+       // Snap to unrotated rect corners for now
        const p1 = { x: shape.x, y: shape.y };
        const p2 = { x: shape.x + shape.width, y: shape.y };
        const p3 = { x: shape.x + shape.width, y: shape.y + shape.height };
@@ -99,13 +116,18 @@ export const getSnapPoint = (
 };
 
 // Hit Test
-export const isPointInShape = (point: Point, shape: Shape): boolean => {
-  const threshold = 5;
+export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): boolean => {
+  const hitToleranceScreen = 10; // pixels on screen
+  const threshold = hitToleranceScreen / scale; // converted to world units
+
+  // Note: Hit testing ignores rotation in this simplified version. 
+  // For production CAD, you'd rotate the click point inversely by the shape's rotation around its center before testing.
 
   switch (shape.type) {
     case 'circle':
       if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
       const dist = getDistance(point, { x: shape.x, y: shape.y });
+      if (shape.fillColor !== 'transparent') return dist <= shape.radius + threshold;
       return Math.abs(dist - shape.radius) <= threshold;
 
     case 'rect':
@@ -114,6 +136,8 @@ export const isPointInShape = (point: Point, shape: Shape): boolean => {
       const inY = point.y >= shape.y - threshold && point.y <= shape.y + shape.height + threshold;
       if (!inX || !inY) return false;
       
+      if (shape.fillColor !== 'transparent') return true; // Inside check passed above
+
       const nearLeft = Math.abs(point.x - shape.x) < threshold;
       const nearRight = Math.abs(point.x - (shape.x + shape.width)) < threshold;
       const nearTop = Math.abs(point.y - shape.y) < threshold;
@@ -138,7 +162,9 @@ export const isPointInShape = (point: Point, shape: Shape): boolean => {
 
     case 'polygon': 
       if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
-      return Math.abs(getDistance(point, { x: shape.x, y: shape.y }) - shape.radius) <= threshold;
+      const pDist = getDistance(point, { x: shape.x, y: shape.y });
+      if (shape.fillColor !== 'transparent') return pDist <= shape.radius + threshold;
+      return Math.abs(pDist - shape.radius) <= threshold;
 
     case 'polyline':
       for (let i = 0; i < shape.points.length - 1; i++) {
@@ -152,6 +178,26 @@ export const isPointInShape = (point: Point, shape: Shape): boolean => {
       }
       return false;
 
+    case 'arc':
+        if(shape.points.length < 2) return false;
+        // Simple bounding box check for hit test approximation (improved slightly for larger threshold)
+        const ax = Math.min(shape.points[0].x, shape.points[1].x) - threshold;
+        const ay = Math.min(shape.points[0].y, shape.points[1].y) - 50 - threshold;
+        const bx = Math.max(shape.points[0].x, shape.points[1].x) + threshold;
+        const by = Math.max(shape.points[0].y, shape.points[1].y) + threshold;
+        return (point.x >= ax && point.x <= bx && point.y >= ay && point.y <= by);
+
+    case 'text':
+        if (shape.x === undefined || shape.y === undefined || !shape.text || !shape.fontSize) return false;
+        const estimatedWidth = shape.text.length * shape.fontSize * 0.6;
+        const estimatedHeight = shape.fontSize;
+        return (
+          point.x >= shape.x - threshold && 
+          point.x <= shape.x + estimatedWidth + threshold && 
+          point.y >= shape.y - estimatedHeight - threshold && 
+          point.y <= shape.y + threshold
+        );
+
     default:
       return false;
   }
@@ -163,7 +209,7 @@ const isPointInRect = (p: Point, r: Rect) => {
   return p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
 };
 
-// Helper: Line-Line intersection (simplified for rect edges)
+// Helper: Line-Line intersection
 const lineIntersectsLine = (p1: Point, p2: Point, p3: Point, p4: Point) => {
   const det = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
   if (det === 0) return false;
@@ -196,65 +242,68 @@ export const getSelectionRect = (start: Point, end: Point): { rect: Rect, direct
 };
 
 export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'CROSSING'): boolean => {
-  const pts = shape.points || [];
   
-  // Logic varies by shape type
+  // 1. Quick Bounding Box Check (Optimization)
+  const bounds = getShapeBounds(shape);
+  if (!bounds) return false;
+
+  const rectRight = rect.x + rect.width;
+  const rectBottom = rect.y + rect.height;
+  const shapeRight = bounds.x + bounds.width;
+  const shapeBottom = bounds.y + bounds.height;
+
+  // If disjoint, return false immediately
+  if (shapeRight < rect.x || bounds.x > rectRight || shapeBottom < rect.y || bounds.y > rectBottom) {
+      return false;
+  }
+
+  // If shape is fully inside rect
+  const isFullyInside = bounds.x >= rect.x && shapeRight <= rectRight && bounds.y >= rect.y && shapeBottom <= rectBottom;
+  if (isFullyInside) return true;
+
+  // If mode is WINDOW, strictly require fully inside
+  if (mode === 'WINDOW') {
+      return isFullyInside;
+  }
+
+  // If mode is CROSSING, we already know they intersect (via bbox check above) 
+  // but we need to be more precise for "hollow" shapes or diagonal lines to ensure 
+  // the rect actually touches the shape geometry, not just the bounding box.
+  
+  // For CROSSING:
+  const pts = shape.points || [];
+
   if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline') {
-     if (mode === 'WINDOW') {
-        return pts.every(p => isPointInRect(p, rect));
-     } else {
-        if (pts.some(p => isPointInRect(p, rect))) return true;
-        for (let i = 0; i < pts.length - 1; i++) {
-           if (isLineIntersectingRect(pts[i], pts[i+1], rect)) return true;
-        }
-        return false;
-     }
+      // Check if any point is inside
+      if (pts.some(p => isPointInRect(p, rect))) return true;
+      // Check for edge intersections
+      for (let i = 0; i < pts.length - 1; i++) {
+          if (isLineIntersectingRect(pts[i], pts[i+1], rect)) return true;
+      }
+      return false;
   }
 
   if (shape.type === 'rect' && shape.width && shape.height && shape.x !== undefined && shape.y !== undefined) {
-     const p1 = { x: shape.x, y: shape.y };
-     const p2 = { x: shape.x + shape.width, y: shape.y };
-     const p3 = { x: shape.x + shape.width, y: shape.y + shape.height };
-     const p4 = { x: shape.x, y: shape.y + shape.height };
-     const corners = [p1, p2, p3, p4];
-
-     if (mode === 'WINDOW') {
-        return corners.every(p => isPointInRect(p, rect));
-     } else {
-        if (corners.some(p => isPointInRect(p, rect))) return true;
-        if (isPointInRect({x: rect.x, y: rect.y}, {x: shape.x, y: shape.y, width: shape.width, height: shape.height})) return true;
-        const shapeEdges = [
-           [p1, p2], [p2, p3], [p3, p4], [p4, p1]
-        ];
-        return shapeEdges.some(se => 
-           rectEdges(rect).some(re => lineIntersectsLine(se[0], se[1], re[0], re[1]))
-        );
-     }
+      return true;
+  }
+  
+  if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) {
+      return true; // Overlap confirmed by bbox
   }
 
   if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-      const minX = shape.x - shape.radius;
-      const maxX = shape.x + shape.radius;
-      const minY = shape.y - shape.radius;
-      const maxY = shape.y + shape.radius;
-      
-      const bboxCorners = [
-        {x: minX, y: minY}, {x: maxX, y: minY}, {x: maxX, y: maxY}, {x: minX, y: maxY}
-      ];
-
-      if (mode === 'WINDOW') {
-         return bboxCorners.every(p => isPointInRect(p, rect));
-      } else {
-         if (isPointInRect({x: shape.x, y: shape.y}, rect)) return true;
-         if (bboxCorners.some(p => isPointInRect(p, rect))) return true;
-         if (isPointInShape({x: rect.x, y: rect.y}, shape)) return true;
-         
-         const disjoint = (minX > rect.x + rect.width) || (maxX < rect.x) || (minY > rect.y + rect.height) || (maxY < rect.y);
-         return !disjoint;
-      }
+     // Center inside?
+     if (isPointInRect({x: shape.x, y: shape.y}, rect)) return true;
+     // BBox overlaps (already checked) implies potential intersection.
+     // Precise check: closest point on rect to circle center <= radius
+     const closestX = Math.max(rect.x, Math.min(shape.x, rect.x + rect.width));
+     const closestY = Math.max(rect.y, Math.min(shape.y, rect.y + rect.height));
+     const dist = getDistance({x: shape.x, y: shape.y}, {x: closestX, y: closestY});
+     return dist <= shape.radius;
   }
-
-  return false;
+  
+  // Fallback for arcs (treating as bbox for now)
+  return true;
 };
 
 // --- Bounding Box Helpers ---
@@ -279,7 +328,14 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
     else if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
         addPoint({ x: shape.x - shape.radius, y: shape.y - shape.radius });
         addPoint({ x: shape.x + shape.radius, y: shape.y + shape.radius });
-    } else {
+    } 
+    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined && shape.text && shape.fontSize) {
+        const estimatedWidth = shape.text.length * shape.fontSize * 0.6;
+        // Text origin is bottom-left usually
+        addPoint({ x: shape.x, y: shape.y });
+        addPoint({ x: shape.x + estimatedWidth, y: shape.y - shape.fontSize });
+    }
+    else {
         return null;
     }
 

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../../stores/useAppStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough } from 'lucide-react';
 
 const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="flex flex-col h-full border-r border-slate-700">
@@ -30,6 +30,9 @@ const EditorRibbon: React.FC = () => {
       if (action === 'join') store.joinSelected();
       if (action === 'explode') store.explodeSelected();
       if (action === 'zoom-fit') store.zoomToFit();
+      if (action === 'undo') store.undo();
+      if (action === 'redo') store.redo();
+      if (action === 'open-settings') store.setSettingsModalOpen(true);
   };
 
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];
@@ -143,6 +146,67 @@ const EditorRibbon: React.FC = () => {
       </div>
   );
 
+  const renderTextFormatControl = () => (
+    <div className="flex flex-col gap-1.5 w-44">
+       {/* Row 1: Font and Size */}
+       <div className="flex items-center gap-1">
+           <select 
+             value={store.fontFamily} 
+             onChange={(e) => store.setFontFamily(e.target.value)}
+             className="h-6 flex-grow bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500"
+           >
+               <option value="sans-serif">Sans Serif</option>
+               <option value="serif">Serif</option>
+               <option value="monospace">Monospace</option>
+               <option value="Arial">Arial</option>
+               <option value="Times New Roman">Times New Roman</option>
+               <option value="Courier New">Courier New</option>
+           </select>
+           <input 
+              type="number" 
+              min="1" 
+              max="200" 
+              value={store.textSize} 
+              onChange={(e) => store.setTextSize(parseInt(e.target.value))}
+              className="w-12 h-6 bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500 text-center"
+           />
+       </div>
+
+       {/* Row 2: Styling Buttons */}
+       <div className="flex items-center gap-1 justify-between bg-slate-700/50 p-0.5 rounded border border-slate-600/50">
+           <button 
+             onClick={store.toggleFontBold} 
+             className={`p-1 rounded hover:bg-slate-600 ${store.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             title="Bold"
+           >
+               <Bold size={14} />
+           </button>
+           <button 
+             onClick={store.toggleFontItalic} 
+             className={`p-1 rounded hover:bg-slate-600 ${store.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             title="Italic"
+           >
+               <Italic size={14} />
+           </button>
+           <div className="w-px h-4 bg-slate-600" />
+           <button 
+             onClick={store.toggleFontUnderline} 
+             className={`p-1 rounded hover:bg-slate-600 ${store.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             title="Underline"
+           >
+               <Underline size={14} />
+           </button>
+           <button 
+             onClick={store.toggleFontStrike} 
+             className={`p-1 rounded hover:bg-slate-600 ${store.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             title="Strikethrough"
+           >
+               <Strikethrough size={14} />
+           </button>
+       </div>
+    </div>
+  );
+
   return (
     <div className="w-full bg-slate-800 text-slate-100 flex flex-col border-b border-slate-600 shadow-md select-none z-50">
       {/* Tabs */}
@@ -191,6 +255,7 @@ const EditorRibbon: React.FC = () => {
                                     if (item.componentName === 'LayerControl') return <React.Fragment key={item.id}>{renderLayerControl()}</React.Fragment>;
                                     if (item.componentName === 'ColorControl') return <React.Fragment key={item.id}>{renderColorControl()}</React.Fragment>;
                                     if (item.componentName === 'LineWidthControl') return <React.Fragment key={item.id}>{renderLineWidthControl()}</React.Fragment>;
+                                    if (item.componentName === 'TextFormatControl') return <React.Fragment key={item.id}>{renderTextFormatControl()}</React.Fragment>;
                                     return null;
                                 }
                                 return (

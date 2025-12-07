@@ -1,3 +1,4 @@
+
 export type ToolType = 
   | 'select' 
   | 'pan' 
@@ -7,7 +8,10 @@ export type ToolType =
   | 'polygon' 
   | 'polyline' 
   | 'arc' 
-  | 'measure';
+  | 'measure'
+  | 'text'
+  | 'move'
+  | 'rotate';
 
 export interface Point {
   x: number;
@@ -53,7 +57,18 @@ export interface Shape {
   strokeColor: string;
   strokeWidth?: number;
   fillColor: string;
-  label?: string;
+  
+  // Text specific
+  label?: string; // For measurements
+  text?: string; // For text tool
+  fontSize?: number; 
+  fontFamily?: string;
+  fontBold?: boolean;
+  fontItalic?: boolean;
+  fontUnderline?: boolean;
+  fontStrike?: boolean;
+  
+  rotation?: number; // Rotation in radians
 }
 
 export interface ViewTransform {
