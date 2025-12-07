@@ -3,7 +3,9 @@ import EditorRibbon from './features/editor/components/EditorRibbon';
 import EditorCanvas from './features/editor/components/EditorCanvas';
 import EditorStatusBar from './features/editor/components/EditorStatusBar';
 import EditorSidebar from './features/editor/components/EditorSidebar';
+import QuickAccessToolbar from './features/editor/components/QuickAccessToolbar';
 import SettingsModal from './features/editor/components/SettingsModal';
+import LayerManagerModal from './features/editor/components/LayerManagerModal';
 import { useAppStore } from './stores/useAppStore';
 
 const App: React.FC = () => {
@@ -82,7 +84,9 @@ const App: React.FC = () => {
         {/* Main Content Area */}
         <div className="flex-grow relative overflow-hidden">
             <EditorCanvas />
+            <QuickAccessToolbar />
             <SettingsModal />
+            <LayerManagerModal />
         </div>
         {/* Sidebar moved to right */}
         <EditorSidebar />

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../../stores/useAppStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough, Settings2 } from 'lucide-react';
 
 const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="flex flex-col h-full border-r border-slate-700">
@@ -16,7 +16,7 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
 );
 
 const EditorRibbon: React.FC = () => {
-  const [activeTabId, setActiveTabId] = useState('home');
+  const [activeTabId, setActiveTabId] = useState('draw'); // Default to Draw (formerly Home)
   const store = useAppStore();
   
   // Layer Dropdown State
@@ -64,46 +64,57 @@ const EditorRibbon: React.FC = () => {
   }, []);
 
   const renderLayerControl = () => (
-    <div className="flex flex-col justify-center gap-1 w-32">
-        <div className="flex items-center gap-1">
-        <div 
-            ref={layerButtonRef}
-            className="bg-slate-700 px-2 py-1 rounded flex-grow flex items-center border border-slate-600 cursor-pointer relative hover:bg-slate-600 transition-colors"
-            onMouseEnter={openLayerDropdown}
-            onMouseLeave={closeLayerDropdown}
-            onClick={() => setLayerDropdownOpen(!isLayerDropdownOpen)}
-        >
-            <Layers size={16} className="mr-2 text-yellow-500" />
-            <span className="text-sm font-medium truncate select-none" style={{color: activeLayer?.color}}>{activeLayer?.name}</span>
-            
-            {isLayerDropdownOpen && (
-                <div 
-                    className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[100] mt-1 max-h-64 overflow-y-auto"
-                    style={{ top: dropdownPos.top, left: dropdownPos.left }}
-                    onMouseEnter={openLayerDropdown}
-                    onMouseLeave={closeLayerDropdown}
-                >
-                    {store.layers.map(layer => (
-                        <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === store.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); store.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
-                            <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
-                            <span className="flex-grow text-xs">{layer.name}</span>
-                            <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                            <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+    <div className="flex items-center gap-1 h-full py-1">
+        <div className="flex flex-col justify-center gap-1 w-32">
+            <div className="flex items-center gap-1">
+            <div 
+                ref={layerButtonRef}
+                className="bg-slate-700 px-2 py-1 rounded flex-grow flex items-center border border-slate-600 cursor-pointer relative hover:bg-slate-600 transition-colors"
+                onMouseEnter={openLayerDropdown}
+                onMouseLeave={closeLayerDropdown}
+                onClick={() => setLayerDropdownOpen(!isLayerDropdownOpen)}
+            >
+                <Layers size={16} className="mr-2 text-yellow-500" />
+                <span className="text-sm font-medium truncate select-none" style={{color: activeLayer?.color}}>{activeLayer?.name}</span>
+                
+                {isLayerDropdownOpen && (
+                    <div 
+                        className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[100] mt-1 max-h-64 overflow-y-auto"
+                        style={{ top: dropdownPos.top, left: dropdownPos.left }}
+                        onMouseEnter={openLayerDropdown}
+                        onMouseLeave={closeLayerDropdown}
+                    >
+                        {store.layers.map(layer => (
+                            <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === store.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); store.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
+                                <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
+                                <span className="flex-grow text-xs">{layer.name}</span>
+                                <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                                <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                            </div>
+                        ))}
+                        <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); store.addLayer(); }}>
+                            <Plus size={14} /> <span className="text-xs">Criar Nova Camada</span>
                         </div>
-                    ))}
-                    <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); store.addLayer(); }}>
-                        <Plus size={14} /> <span className="text-xs">Criar Nova Camada</span>
                     </div>
+                )}
+            </div>
+            </div>
+            <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                    <button onClick={() => activeLayer && store.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                    <button onClick={() => activeLayer && store.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
                 </div>
-            )}
-        </div>
-        </div>
-        <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-                <button onClick={() => activeLayer && store.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                <button onClick={() => activeLayer && store.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
             </div>
         </div>
+        
+        {/* Layer Manager Button */}
+        <button 
+            onClick={() => store.setLayerManagerOpen(true)}
+            className="h-full px-1.5 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors border-l border-slate-700/50 ml-1"
+            title="Gerenciador de Camadas"
+        >
+            <Settings2 size={22} className="mb-0.5" />
+        </button>
     </div>
   );
 
@@ -235,10 +246,16 @@ const EditorRibbon: React.FC = () => {
                                     if(item.type === 'tool' && item.tool) store.setTool(item.tool);
                                     if(item.type === 'action' && item.action) handleAction(item.action);
                                 }}
-                                className={`flex items-center justify-center p-2 rounded hover:bg-slate-700 transition-colors ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-200'}`}
+                                className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-colors 
+                                    ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-200'}
+                                    ${activeTabId === 'file' ? 'h-full w-16' : ''}
+                                `}
                                 title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
                             >
                                 {getIcon(item.icon)}
+                                {activeTabId === 'file' && (
+                                    <span className="text-[10px] mt-1 text-center leading-tight">{item.label}</span>
+                                )}
                             </button>
                         ))}
                         {section.items.some(i => i.tool === 'polygon') && store.activeTool === 'polygon' && (
@@ -249,7 +266,7 @@ const EditorRibbon: React.FC = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 h-full items-center">
                             {section.items.map(item => {
                                 if (item.type === 'component') {
                                     if (item.componentName === 'LayerControl') return <React.Fragment key={item.id}>{renderLayerControl()}</React.Fragment>;
@@ -265,10 +282,16 @@ const EditorRibbon: React.FC = () => {
                                         if(item.type === 'tool' && item.tool) store.setTool(item.tool);
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
-                                    className={`flex items-center justify-center p-2 rounded hover:bg-slate-700 transition-colors ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-200'}`}
+                                    className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-colors 
+                                        ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-200'}
+                                        ${activeTabId === 'file' ? 'h-full w-16' : ''}
+                                    `}
                                     title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
                                 >
                                     {getIcon(item.icon)}
+                                    {activeTabId === 'file' && (
+                                        <span className="text-[10px] mt-1 text-center leading-tight">{item.label}</span>
+                                    )}
                                 </button>
                                 )
                             })}

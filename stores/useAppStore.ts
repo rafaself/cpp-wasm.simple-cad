@@ -13,6 +13,7 @@ interface AppState {
   mousePos: Point | null;
   canvasSize: { width: number; height: number };
   isSettingsModalOpen: boolean;
+  isLayerManagerOpen: boolean;
   
   // Creation Settings
   strokeColor: string;
@@ -69,6 +70,7 @@ interface AppState {
   toggleFontUnderline: () => void;
   toggleFontStrike: () => void;
   setSettingsModalOpen: (isOpen: boolean) => void;
+  setLayerManagerOpen: (isOpen: boolean) => void;
 
   // Shape Operations
   addShape: (shape: Shape) => void;
@@ -78,6 +80,8 @@ interface AppState {
   // Selection & Layers
   setActiveLayerId: (id: string) => void;
   addLayer: () => void;
+  deleteLayer: (id: string) => void;
+  setLayerColor: (id: string, color: string) => void;
   toggleLayerVisibility: (id: string) => void;
   toggleLayerLock: (id: string) => void;
   setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
@@ -94,6 +98,9 @@ interface AppState {
   
   // Helper to sync QuadTree
   syncQuadTree: () => void;
+
+  // Internal helper
+  _applyTextStyle: (diff: Partial<Shape>) => void;
 }
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
@@ -106,6 +113,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   mousePos: null,
   canvasSize: { width: 0, height: 0 },
   isSettingsModalOpen: false,
+  isLayerManagerOpen: false,
 
   strokeColor: '#000000',
   strokeWidth: 2,
@@ -212,6 +220,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGridSize: (size) => set({ gridSize: size }),
   setGridColor: (color) => set({ gridColor: color }),
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
+  setLayerManagerOpen: (isOpen: boolean) => set({ isLayerManagerOpen: isOpen }),
 
   addShape: (shape) => {
       const { shapes, saveToHistory, spatialIndex } = get();
@@ -319,7 +328,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   // Shortcuts for font styles (repetitive logic, simplified)
   setFontFamily: (font) => { set({ fontFamily: font }); get()._applyTextStyle({ fontFamily: font }); },
-  toggleFontBold: () => { set(s => ({ fontBold: !s.fontBold })); get()._applyTextStyle({ fontBold: !get().fontBold }); }, // Bug: accessing prev state
+  toggleFontBold: () => { set(s => ({ fontBold: !s.fontBold })); get()._applyTextStyle({ fontBold: !get().fontBold }); }, 
   toggleFontItalic: () => { set(s => ({ fontItalic: !s.fontItalic })); get()._applyTextStyle({ fontItalic: !get().fontItalic }); },
   toggleFontUnderline: () => { set(s => ({ fontUnderline: !s.fontUnderline })); get()._applyTextStyle({ fontUnderline: !get().fontUnderline }); },
   toggleFontStrike: () => { set(s => ({ fontStrike: !s.fontStrike })); get()._applyTextStyle({ fontStrike: !get().fontStrike }); },
@@ -349,6 +358,42 @@ export const useAppStore = create<AppState>((set, get) => ({
     const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, color: '#' + Math.floor(Math.random()*16777215).toString(16), visible: true, locked: false };
     return { layers: [...state.layers, newLayer], activeLayerId: newId };
   }),
+  deleteLayer: (id) => {
+    const { layers, shapes, activeLayerId, saveToHistory, syncQuadTree } = get();
+    // Prevent deleting the last layer or the active layer
+    if (layers.length <= 1 || id === activeLayerId) return;
+
+    const newLayers = layers.filter(l => l.id !== id);
+    const newShapes = { ...shapes };
+    const patches: Patch[] = [];
+    const idsToDelete: string[] = [];
+
+    // Identify shapes to delete
+    Object.values(shapes).forEach((s: Shape) => {
+      if (s.layerId === id) {
+        idsToDelete.push(s.id);
+        patches.push({ type: 'DELETE', id: s.id, prev: s });
+        delete newShapes[s.id];
+      }
+    });
+
+    set({ layers: newLayers, shapes: newShapes });
+    
+    // We also need to remove these from selectedShapeIds if present
+    set(state => {
+        const newSelected = new Set(state.selectedShapeIds);
+        idsToDelete.forEach(did => newSelected.delete(did));
+        return { selectedShapeIds: newSelected };
+    });
+
+    if (patches.length > 0) {
+      saveToHistory(patches);
+    }
+    syncQuadTree();
+  },
+  setLayerColor: (id, color) => set(state => ({
+      layers: state.layers.map(l => l.id === id ? { ...l, color } : l)
+  })),
   toggleLayerVisibility: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l) })),
   toggleLayerLock: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, locked: !l.locked } : l) })),
   setSelectedShapeIds: (ids) => set((state) => ({ selectedShapeIds: typeof ids === 'function' ? ids(state.selectedShapeIds) : ids })),

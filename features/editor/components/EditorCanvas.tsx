@@ -22,6 +22,25 @@ const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: 
     return lines;
 };
 
+// Custom cursor SVGs (Black fill, White border 1.5px for better visibility)
+const CURSOR_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M5.5 2L12.5 19.5L15.5 12.5L22.5 9.5L5.5 2Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>`;
+
+// Standard Open Hand (Palm)
+const HAND_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M12.5 4C11.67 4 11 4.67 11 5.5V9.5H10V6.5C10 5.67 9.33 5 8.5 5C7.67 5 7 5.67 7 6.5V13L4.93 11.46C4.54 11.17 4 11.16 3.61 11.44L3 12L8.5 19.5C9.2 20.3 10.3 21 11.5 21H16.5C18.16 21 19.5 19.66 19.5 18V9.5C19.5 8.67 18.83 8 18 8C17.17 8 16.5 8.67 16.5 9.5V10.5H15.5V6.5C15.5 5.67 14.83 5 14 5C13.17 5 12.5 5.67 12.5 6.5V4.8C12.5 4.36 12.28 4 12 4Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>`;
+
+// Standard Closed Hand (Fist) - Faithful to system grabbing cursor
+const GRABBING_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M17.5 9.5H16.5V6.5C16.5 5.67 15.83 5 15 5C14.17 5 13.5 5.67 13.5 6.5V6.8C13.2 6.6 12.87 6.5 12.5 6.5C11.67 6.5 11 7.17 11 8V9.5H10V8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5V15.5C7 18.5 9.5 21 12.5 21H14.5C17.5 21 20 18.5 20 15.5V9.5C20 8.67 19.33 8 18.5 8C18.13 8 17.8 8.14 17.5 8.37V9.5Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>`;
+
+const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 2 2, default`;
+const GRAB_CURSOR = `url('data:image/svg+xml;base64,${btoa(HAND_SVG)}') 12 12, grab`;
+const GRABBING_CURSOR = `url('data:image/svg+xml;base64,${btoa(GRABBING_SVG)}') 12 12, grabbing`;
+
 const EditorCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -242,7 +261,7 @@ const EditorCanvas: React.FC = () => {
     ctx.fillStyle = store.gridColor;
     for(let x = startX; x < endX; x += gridSize) { for(let y = startY; y < endY; y += gridSize) ctx.fillRect(x, y, 2 / store.viewTransform.scale, 2 / store.viewTransform.scale); }
 
-    // Optimization: Use Spatial Index to query only visible shapes
+    // Optimization: Use Spatial Index to query visible shapes candidates
     const viewRect: Rect = {
         x: -store.viewTransform.x / store.viewTransform.scale,
         y: -store.viewTransform.y / store.viewTransform.scale,
@@ -250,8 +269,13 @@ const EditorCanvas: React.FC = () => {
         height: canvas.height / store.viewTransform.scale
     };
     
-    // Performance: Query Quadtree instead of iterating all shapes
-    const visibleShapes = store.spatialIndex.query(viewRect);
+    // CRITICAL FIX: The QuadTree might hold stale shape references. 
+    // We must use the IDs from the QuadTree to fetch the *latest* shape state from the store.shapes map.
+    const visibleCandidates = store.spatialIndex.query(viewRect);
+    
+    const visibleShapes = visibleCandidates
+        .map(candidate => store.shapes[candidate.id])
+        .filter(s => !!s); // Filter out any that might have been deleted
 
     visibleShapes.forEach(shape => {
         const isSelected = store.selectedShapeIds.has(shape.id);
@@ -373,12 +397,10 @@ const EditorCanvas: React.FC = () => {
       if (store.activeTool !== 'select') { finishPolyline(); return; }
       const raw = getMousePos(e); const wr = screenToWorld(raw, store.viewTransform);
       
-      // Optimization: Hit test only visible/nearby shapes using Quadtree
-      // Create a small rect around mouse for query
       const queryRect = { x: wr.x - 5, y: wr.y - 5, width: 10, height: 10 };
-      const candidates = store.spatialIndex.query(queryRect);
-      let hitShape: Shape | null = null;
+      const candidates = store.spatialIndex.query(queryRect).map(c => store.shapes[c.id]).filter(s => !!s);
       
+      let hitShape: Shape | null = null;
       for (let i = candidates.length - 1; i >= 0; i--) {
         const s = candidates[i];
         const l = store.layers.find(lay => lay.id === s.layerId);
@@ -398,9 +420,10 @@ const EditorCanvas: React.FC = () => {
     hasSavedHistoryRef.current = false;
 
     if (store.snapOptions.enabled && !['pan','select','text'].includes(store.activeTool) && !e.ctrlKey) {
-       // Query nearby shapes for snapping
        const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
-       const visible = store.spatialIndex.query(queryRect).filter(s => { const l = store.layers.find(l => l.id === s.layerId); return l && l.visible && !l.locked; });
+       const visible = store.spatialIndex.query(queryRect)
+           .map(s => store.shapes[s.id])
+           .filter(s => { const l = store.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
        const snap = getSnapPoint(wr, visible, store.snapOptions, 15 / store.viewTransform.scale);
        if (snap) { snapped = snap; eff = worldToScreen(snap, store.viewTransform); }
     }
@@ -429,23 +452,16 @@ const EditorCanvas: React.FC = () => {
         else {
             if (store.activeTool === 'move') {
                 const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y;
-                // Move Logic moved to Patch update inside hook if needed, but for complex move we batch
-                // Here we commit the move
                 store.selectedShapeIds.forEach(id => {
                      const s = store.shapes[id];
                      if(s) {
-                         const n = { ...s };
-                         if (n.x !== undefined) n.x += dx; if (n.y !== undefined) n.y += dy;
-                         if (n.points) n.points = n.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                         // Commit patch? Ideally we do this in store
-                         // For now, this is legacy visual feedback logic which was modifying store directly in old code
-                         // New code should dispatch action
+                         const diff: Partial<Shape> = {};
+                         if (s.x !== undefined) diff.x = s.x + dx;
+                         if (s.y !== undefined) diff.y = s.y + dy;
+                         if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                         store.updateShape(id, diff, true); // Commit history on click-move
                      }
                 });
-                // Since this logic was just "visual commit", we need to actually call store.updateShape
-                // But let's assume the user implemented Move via drag, this is "click-click" move
-                // We'll implement a simple batch update here or call a store action
-                // store.moveSelected(dx, dy); // Need to implement this if not exists, or manual loop
             } else if (store.activeTool === 'rotate') {
                 const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y; const angle = Math.atan2(dy, dx);
                 store.rotateSelected(transformationBase, angle);
@@ -457,9 +473,8 @@ const EditorCanvas: React.FC = () => {
 
     if (store.activeTool === 'select') {
       const selectWorld = screenToWorld(raw, store.viewTransform);
-      // Quadtree optimization
       const queryRect = { x: selectWorld.x - 5, y: selectWorld.y - 5, width: 10, height: 10 };
-      const candidates = store.spatialIndex.query(queryRect);
+      const candidates = store.spatialIndex.query(queryRect).map(c => store.shapes[c.id]).filter(s => !!s);
       let hitShapeId = null;
       for (let i = candidates.length - 1; i >= 0; i--) {
         const s = candidates[i];
@@ -510,8 +525,7 @@ const EditorCanvas: React.FC = () => {
            const mode = direction === 'LTR' ? 'WINDOW' : 'CROSSING';
            const nSel = e.shiftKey ? new Set(store.selectedShapeIds) : new Set<string>();
            
-           // Query QuadTree for selection candidates
-           const candidates = store.spatialIndex.query(rect);
+           const candidates = store.spatialIndex.query(rect).map(c => store.shapes[c.id]).filter(s => !!s);
            candidates.forEach(s => {
                const l = store.layers.find(lay => lay.id === s.layerId);
                if (l && (!l.visible || l.locked)) return;
@@ -531,6 +545,11 @@ const EditorCanvas: React.FC = () => {
         let boxWidth = undefined; if (dist > 10) boxWidth = Math.abs(we.x - ws.x);
         setTextInputValue(""); setTextEntry({ x: Math.min(ws.x, we.x), y: Math.min(ws.y, we.y), rotation: 0, boxWidth: boxWidth });
         setIsDragging(false); setStartPoint(null); return;
+    }
+
+    // End drag - sync QuadTree if needed
+    if(isDragging && (store.activeTool === 'select' || activeHandle)) {
+        store.syncQuadTree();
     }
 
     setIsDragging(false); setActiveHandle(null); 
@@ -562,10 +581,26 @@ const EditorCanvas: React.FC = () => {
     }
 
     let eff = raw;
-    if (store.snapOptions.enabled && !['pan', 'select'].includes(store.activeTool) && !e.ctrlKey) {
-        // Quadtree Snap Query
+    
+    // Check if we should attempt snapping
+    // Snapping is enabled if:
+    // 1. Options enabled AND
+    // 2. Ctrl key is NOT pressed AND
+    // 3. (We are not in 'pan'/'select' mode OR We are currently dragging a handle/node)
+    const isHandleDrag = !!activeHandle;
+    const shouldSnap = store.snapOptions.enabled && !e.ctrlKey && 
+                       (!['pan', 'select'].includes(store.activeTool) || isHandleDrag);
+
+    if (shouldSnap) {
         const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
-        const visible = store.spatialIndex.query(queryRect).filter(s => { const l = store.layers.find(l => l.id === s.layerId); return l && l.visible && !l.locked; });
+        const visible = store.spatialIndex.query(queryRect)
+            .map(s => store.shapes[s.id])
+            .filter(s => { 
+                const l = store.layers.find(l => l.id === s.layerId); 
+                // Don't snap to the shape currently being modified to avoid self-interference jitter
+                if (activeHandle && s.id === activeHandle.shapeId) return false;
+                return s && l && l.visible && !l.locked; 
+            });
         const snap = getSnapPoint(worldPos, visible, store.snapOptions, 15 / store.viewTransform.scale);
         if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, store.viewTransform); } else { setSnapMarker(null); }
     } else { setSnapMarker(null); }
@@ -575,34 +610,24 @@ const EditorCanvas: React.FC = () => {
     if (isDragging && startPoint) {
         if (activeHandle) {
             const ws = screenToWorld(eff, store.viewTransform);
-            // We use updateShape with recordHistory=false during drag
-            // But complex resizing logic is here. Ideally move to store.
-            // For MVP, we manually construct the diff
             const s = store.shapes[activeHandle.shapeId];
             if(s) {
-                 const n = { ...s };
-                 if (activeHandle.handle.type === 'vertex' && n.points) {
-                    n.points = n.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
-                 } else if (activeHandle.handle.type === 'resize' && n.type === 'rect') {
-                    if (n.x !== undefined && n.y !== undefined && n.width !== undefined && n.height !== undefined) {
+                 if (activeHandle.handle.type === 'vertex' && s.points) {
+                    const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
+                    store.updateShape(s.id, { points: newPoints }, false);
+                 } else if (activeHandle.handle.type === 'resize' && s.type === 'rect') {
+                    if (s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined) {
                         const idx = activeHandle.handle.index;
-                        const oldX = n.x; const oldY = n.y; const oldR = n.x + n.width; const oldB = n.y + n.height;
-                        let newX = oldX, newY = oldY, newW = n.width, newH = n.height;
+                        const oldX = s.x; const oldY = s.y; const oldR = s.x + s.width; const oldB = s.y + s.height;
+                        let newX = oldX, newY = oldY, newW = s.width, newH = s.height;
                         if (idx === 0) { newX = ws.x; newY = ws.y; newW = oldR - newX; newH = oldB - newY; }
                         else if (idx === 1) { newY = ws.y; newW = ws.x - oldX; newH = oldB - newY; }
                         else if (idx === 2) { newW = ws.x - oldX; newH = ws.y - oldY; }
                         else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
                         if (newW < 0) { newX += newW; newW = Math.abs(newW); }
                         if (newH < 0) { newY += newH; newH = Math.abs(newH); }
-                        // Construct diff
-                        const diff = { x: newX, y: newY, width: newW, height: newH };
-                        store.updateShape(s.id, diff, false);
+                        store.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
                     }
-                 } else {
-                     // Generic vertex update
-                     const diff: Partial<Shape> = {};
-                     if(n.points) diff.points = n.points;
-                     store.updateShape(s.id, diff, false);
                  }
             }
             return;
@@ -644,12 +669,10 @@ const EditorCanvas: React.FC = () => {
     store.setViewTransform({ scale: newScale, x: newX, y: newY });
   };
 
-  let cursorClass = 'default';
-  if (isMiddlePanning || (isDragging && store.activeTool === 'pan')) cursorClass = 'grabbing';
-  else if (store.activeTool === 'pan') cursorClass = 'grab';
-  else if (isDragging && store.activeTool === 'select') cursorClass = 'default';
-  else if (store.activeTool === 'select') cursorClass = 'default';
-  else if (['line', 'polyline', 'circle', 'rect', 'polygon', 'arc', 'measure', 'text', 'move', 'rotate'].includes(store.activeTool)) cursorClass = 'crosshair'; 
+  let cursorClass = DEFAULT_CURSOR;
+  if (isMiddlePanning || (isDragging && store.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
+  else if (store.activeTool === 'pan') cursorClass = GRAB_CURSOR;
+  else if (store.activeTool === 'text') cursorClass = 'text'; 
   
   let hintMessage = "";
   if (store.activeTool === 'polyline' && polylinePoints.length > 0) hintMessage = "Enter para completar";

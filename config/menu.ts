@@ -51,11 +51,11 @@ export const MENU_CONFIG: MenuTab[] = [
     ]
   },
   {
-    id: 'home',
-    label: 'INÍCIO',
+    id: 'draw',
+    label: 'DESENHO',
     sections: [
       {
-        title: 'Desenho',
+        title: 'Formas',
         layout: 'grid',
         columns: 3,
         items: [
@@ -65,19 +65,6 @@ export const MENU_CONFIG: MenuTab[] = [
           { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: 'A' },
           { id: 'rect', label: 'Retângulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: 'R' },
           { id: 'polygon', label: 'Polígono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: 'G' },
-        ]
-      },
-      {
-        title: 'Modificar',
-        layout: 'grid',
-        columns: 3,
-        items: [
-            { id: 'select', label: 'Selecionar', icon: 'Select', type: 'tool', tool: 'select', shortcut: 'V' },
-            { id: 'move', label: 'Mover', icon: 'Move', type: 'tool', tool: 'move' },
-            { id: 'rotate', label: 'Rotacionar', icon: 'Rotate', type: 'tool', tool: 'rotate' },
-            { id: 'delete', label: 'Excluir', icon: 'Delete', type: 'action', action: 'delete', shortcut: 'Del' },
-            { id: 'join', label: 'Unir', icon: 'Join', type: 'action', action: 'join' },
-            { id: 'explode', label: 'Explodir', icon: 'Explode', type: 'action', action: 'explode' },
         ]
       },
       {
@@ -105,9 +92,22 @@ export const MENU_CONFIG: MenuTab[] = [
     ]
   },
   {
-    id: 'view',
-    label: 'EXIBIR',
+    id: 'tools',
+    label: 'FERRAMENTAS',
     sections: [
+      {
+        title: 'Modificar',
+        layout: 'grid',
+        columns: 3,
+        items: [
+            { id: 'select', label: 'Selecionar', icon: 'Select', type: 'tool', tool: 'select', shortcut: 'V' },
+            { id: 'move', label: 'Mover', icon: 'Move', type: 'tool', tool: 'move' },
+            { id: 'rotate', label: 'Rotacionar', icon: 'Rotate', type: 'tool', tool: 'rotate' },
+            { id: 'delete', label: 'Excluir', icon: 'Delete', type: 'action', action: 'delete', shortcut: 'Del' },
+            { id: 'join', label: 'Unir', icon: 'Join', type: 'action', action: 'join' },
+            { id: 'explode', label: 'Explodir', icon: 'Explode', type: 'action', action: 'explode' },
+        ]
+      },
       {
         title: 'Navegar',
         layout: 'row',
