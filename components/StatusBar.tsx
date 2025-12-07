@@ -1,0 +1,1 @@
+// Deprecated. See src/features/editor/components/EditorStatusBar.tsx
