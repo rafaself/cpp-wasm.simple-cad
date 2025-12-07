@@ -11,7 +11,7 @@ const SettingsModal: React.FC = () => {
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
       <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-80 text-slate-100">
         <div className="flex items-center justify-between p-3 border-b border-slate-700">
-          <h2 className="font-semibold text-sm uppercase tracking-wide">Settings</h2>
+          <h2 className="font-semibold text-sm uppercase tracking-wide">Configurações</h2>
           <button 
             onClick={() => store.setSettingsModalOpen(false)}
             className="text-slate-400 hover:text-white"
@@ -23,7 +23,7 @@ const SettingsModal: React.FC = () => {
         <div className="p-4 flex flex-col gap-4">
           
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-slate-400 font-bold uppercase">Grid Size (px)</label>
+            <label className="text-xs text-slate-400 font-bold uppercase">Tamanho da Grade (px)</label>
             <div className="flex items-center gap-2">
                 <input 
                     type="range" 
@@ -39,7 +39,7 @@ const SettingsModal: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-slate-400 font-bold uppercase">Grid Color</label>
+            <label className="text-xs text-slate-400 font-bold uppercase">Cor da Grade</label>
             <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-700">
                 <input 
                     type="color" 
@@ -58,7 +58,7 @@ const SettingsModal: React.FC = () => {
                 onClick={() => store.setSettingsModalOpen(false)}
                 className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-medium"
             >
-                Done
+                Concluir
             </button>
         </div>
       </div>

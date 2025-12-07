@@ -1,5 +1,5 @@
 {
-  "name": "GeoCanvas React",
+  "name": "ProtonCanvas",
   "description": "A vector drawing application with support for geometric shapes, measurements, pan, zoom, and drag-and-drop.",
   "requestFramePermissions": []
 }

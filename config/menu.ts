@@ -28,92 +28,107 @@ export interface MenuTab {
 
 export const MENU_CONFIG: MenuTab[] = [
   {
-    id: 'home',
-    label: 'HOME',
+    id: 'file',
+    label: 'ARQUIVO',
     sections: [
       {
-        title: 'Draw',
-        layout: 'grid',
-        columns: 3,
-        items: [
-          { id: 'line', label: 'Line', icon: 'Line', type: 'tool', tool: 'line', shortcut: 'L' },
-          { id: 'polyline', label: 'Polyline', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: 'P' },
-          { id: 'circle', label: 'Circle', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: 'C' },
-          { id: 'arc', label: 'Arc', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: 'A' },
-          { id: 'rect', label: 'Rect', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: 'R' },
-          { id: 'polygon', label: 'Polygon', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: 'G' },
-        ]
-      },
-      {
-        title: 'Modify',
-        layout: 'grid',
-        columns: 3,
-        items: [
-            { id: 'select', label: 'Select', icon: 'Select', type: 'tool', tool: 'select', shortcut: 'V' },
-            { id: 'move', label: 'Move', icon: 'Move', type: 'tool', tool: 'move' },
-            { id: 'rotate', label: 'Rotate', icon: 'Rotate', type: 'tool', tool: 'rotate' },
-            { id: 'delete', label: 'Delete', icon: 'Delete', type: 'action', action: 'delete', shortcut: 'Del' },
-            { id: 'join', label: 'Join', icon: 'Join', type: 'action', action: 'join' },
-            { id: 'explode', label: 'Explode', icon: 'Explode', type: 'action', action: 'explode' },
-        ]
-      },
-      {
-          title: 'Annotation',
-          layout: 'row',
-          items: [
-              { id: 'measure', label: 'Measure', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
-          ]
-      },
-      {
-        title: 'Text',
+        title: 'Operações',
         layout: 'row',
         items: [
-            { id: 'text-tool', label: 'Text', icon: 'Text', type: 'tool', tool: 'text' },
-            { id: 'text-format', label: 'Format', icon: 'Type', type: 'component', componentName: 'TextFormatControl' }
+          { id: 'new', label: 'Novo', icon: 'New', type: 'action', action: 'new-file' },
+          { id: 'open', label: 'Abrir', icon: 'Open', type: 'action', action: 'open-file' },
+          { id: 'save', label: 'Salvar', icon: 'Save', type: 'action', action: 'save-file' },
         ]
       },
       {
-          title: 'Layers',
-          layout: 'column',
+        title: 'Exportar',
+        layout: 'row',
+        items: [
+           { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
+           { id: 'report-csv', label: 'Relatório CSV', icon: 'ExportCSV', type: 'action', action: 'export-csv' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'home',
+    label: 'INÍCIO',
+    sections: [
+      {
+        title: 'Desenho',
+        layout: 'grid',
+        columns: 3,
+        items: [
+          { id: 'line', label: 'Linha', icon: 'Line', type: 'tool', tool: 'line', shortcut: 'L' },
+          { id: 'polyline', label: 'Polilinha', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: 'P' },
+          { id: 'circle', label: 'Círculo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: 'C' },
+          { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: 'A' },
+          { id: 'rect', label: 'Retângulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: 'R' },
+          { id: 'polygon', label: 'Polígono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: 'G' },
+        ]
+      },
+      {
+        title: 'Modificar',
+        layout: 'grid',
+        columns: 3,
+        items: [
+            { id: 'select', label: 'Selecionar', icon: 'Select', type: 'tool', tool: 'select', shortcut: 'V' },
+            { id: 'move', label: 'Mover', icon: 'Move', type: 'tool', tool: 'move' },
+            { id: 'rotate', label: 'Rotacionar', icon: 'Rotate', type: 'tool', tool: 'rotate' },
+            { id: 'delete', label: 'Excluir', icon: 'Delete', type: 'action', action: 'delete', shortcut: 'Del' },
+            { id: 'join', label: 'Unir', icon: 'Join', type: 'action', action: 'join' },
+            { id: 'explode', label: 'Explodir', icon: 'Explode', type: 'action', action: 'explode' },
+        ]
+      },
+      {
+          title: 'Anotação',
+          layout: 'row',
           items: [
-              { id: 'layer-control', label: 'Layers', icon: 'Layers', type: 'component', componentName: 'LayerControl' }
+              { id: 'measure', label: 'Medir', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
           ]
       },
       {
-          title: 'Properties',
+        title: 'Texto',
+        layout: 'row',
+        items: [
+            { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text' },
+            { id: 'text-format', label: 'Formatar', icon: 'Type', type: 'component', componentName: 'TextFormatControl' }
+        ]
+      },
+      {
+          title: 'Camadas',
           layout: 'column',
           items: [
-              { id: 'prop-color', label: 'Color', icon: 'Palette', type: 'component', componentName: 'ColorControl' },
-              { id: 'prop-width', label: 'Stroke', icon: 'Activity', type: 'component', componentName: 'LineWidthControl' }
+              { id: 'layer-control', label: 'Camadas', icon: 'Layers', type: 'component', componentName: 'LayerControl' }
           ]
       }
     ]
   },
   {
     id: 'view',
-    label: 'VIEW',
+    label: 'EXIBIR',
     sections: [
       {
-        title: 'Navigate',
+        title: 'Navegar',
         layout: 'row',
         items: [
           { id: 'pan', label: 'Pan', icon: 'Hand', type: 'tool', tool: 'pan', shortcut: 'H' },
-          { id: 'zoom-fit', label: 'Zoom Fit', icon: 'Scan', type: 'action', action: 'zoom-fit', shortcut: 'Z' }
+          { id: 'zoom-fit', label: 'Ajustar Zoom', icon: 'Scan', type: 'action', action: 'zoom-fit', shortcut: 'Z' }
         ]
       },
       {
-        title: 'History',
+        title: 'Histórico',
         layout: 'row',
         items: [
-            { id: 'undo', label: 'Undo', icon: 'Undo', type: 'action', action: 'undo', shortcut: 'Ctrl+Z' },
-            { id: 'redo', label: 'Redo', icon: 'Redo', type: 'action', action: 'redo', shortcut: 'Ctrl+Y' },
+            { id: 'undo', label: 'Desfazer', icon: 'Undo', type: 'action', action: 'undo', shortcut: 'Ctrl+Z' },
+            { id: 'redo', label: 'Refazer', icon: 'Redo', type: 'action', action: 'redo', shortcut: 'Ctrl+Y' },
         ]
       },
       {
-        title: 'Window',
+        title: 'Janela',
         layout: 'row',
         items: [
-            { id: 'settings', label: 'Settings', icon: 'Settings', type: 'action', action: 'open-settings' }
+            { id: 'settings', label: 'Configurações', icon: 'Settings', type: 'action', action: 'open-settings' }
         ]
       }
     ]

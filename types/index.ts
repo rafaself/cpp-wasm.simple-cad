@@ -76,3 +76,14 @@ export interface ViewTransform {
   y: number;
   scale: number;
 }
+
+// History Patch Types
+export type PatchType = 'ADD' | 'UPDATE' | 'DELETE';
+
+export interface Patch {
+  type: PatchType;
+  id: string;
+  data?: Shape; // For ADD
+  diff?: Partial<Shape>; // For UPDATE
+  prev?: Partial<Shape> | Shape; // For UNDO
+}

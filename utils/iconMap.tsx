@@ -5,11 +5,12 @@ import {
   Scan, Expand, Settings, Undo, Redo,
   AlignLeft, AlignCenterHorizontal, AlignRight,
   AlignVerticalJustifyStart, AlignCenterVertical, AlignVerticalJustifyEnd,
-  Type, Move, RotateCw
+  Type, Move, RotateCw, FilePlus, FolderOpen, Save, FileJson, FileSpreadsheet
 } from 'lucide-react';
 
 export const IconMap: Record<string, React.ReactNode> = {
-  'Line': <Minus size={20} className="transform -rotate-45" />,
+  // Increased size for Line as requested
+  'Line': <Minus size={28} className="transform -rotate-45" />,
   'Polyline': <Activity size={20} />,
   'Circle': <Circle size={20} />,
   'Arc': <Spline size={20} />,
@@ -36,6 +37,13 @@ export const IconMap: Record<string, React.ReactNode> = {
   'Text': <Type size={20} />,
   'Move': <Move size={20} />,
   'Rotate': <RotateCw size={20} />,
+  
+  // New File Menu Icons
+  'New': <FilePlus size={20} />,
+  'Open': <FolderOpen size={20} />,
+  'Save': <Save size={20} />,
+  'ExportJSON': <FileJson size={20} />,
+  'ExportCSV': <FileSpreadsheet size={20} />,
 };
 
 export const getIcon = (key: string) => IconMap[key] || <div className="w-4 h-4 bg-red-500" />;

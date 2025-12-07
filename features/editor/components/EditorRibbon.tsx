@@ -92,7 +92,7 @@ const EditorRibbon: React.FC = () => {
                         </div>
                     ))}
                     <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); store.addLayer(); }}>
-                        <Plus size={14} /> <span className="text-xs">Create New Layer</span>
+                        <Plus size={14} /> <span className="text-xs">Criar Nova Camada</span>
                     </div>
                 </div>
             )}
@@ -100,8 +100,8 @@ const EditorRibbon: React.FC = () => {
         </div>
         <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
-                <button onClick={() => activeLayer && store.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Toggle Visibility">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                <button onClick={() => activeLayer && store.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Toggle Lock">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                <button onClick={() => activeLayer && store.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                <button onClick={() => activeLayer && store.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
             </div>
         </div>
     </div>
@@ -110,13 +110,13 @@ const EditorRibbon: React.FC = () => {
   const renderColorControl = () => (
       <div className="flex flex-col gap-1 w-24">
         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Color</span>
+            <span className="text-[10px] text-slate-300">Cor</span>
             <div className="relative w-4 h-4 rounded-full border border-slate-500 overflow-hidden">
                 <input type="color" value={store.strokeColor} onChange={(e) => store.setStrokeColor(e.target.value)} className="absolute -top-1 -left-1 w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" />
             </div>
         </div>
         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Fill</span>
+            <span className="text-[10px] text-slate-300">Fundo</span>
             <div className="flex items-center gap-1">
                 <input type="checkbox" checked={store.fillColor !== 'transparent'} onChange={(e) => store.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')} className="w-3 h-3" />
                 <div className={`relative w-4 h-4 rounded-full border border-slate-500 overflow-hidden ${store.fillColor === 'transparent' ? 'opacity-30' : ''}`}>
@@ -130,7 +130,7 @@ const EditorRibbon: React.FC = () => {
   const renderLineWidthControl = () => (
       <div className="flex flex-col gap-1 w-24">
          <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Width: {store.strokeWidth}px</span>
+            <span className="text-[10px] text-slate-300">Largura: {store.strokeWidth}px</span>
          </div>
          <div className="px-1 pt-1">
             <input 
@@ -177,14 +177,14 @@ const EditorRibbon: React.FC = () => {
            <button 
              onClick={store.toggleFontBold} 
              className={`p-1 rounded hover:bg-slate-600 ${store.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Bold"
+             title="Negrito"
            >
                <Bold size={14} />
            </button>
            <button 
              onClick={store.toggleFontItalic} 
              className={`p-1 rounded hover:bg-slate-600 ${store.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Italic"
+             title="Itálico"
            >
                <Italic size={14} />
            </button>
@@ -192,14 +192,14 @@ const EditorRibbon: React.FC = () => {
            <button 
              onClick={store.toggleFontUnderline} 
              className={`p-1 rounded hover:bg-slate-600 ${store.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Underline"
+             title="Sublinhado"
            >
                <Underline size={14} />
            </button>
            <button 
              onClick={store.toggleFontStrike} 
              className={`p-1 rounded hover:bg-slate-600 ${store.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Strikethrough"
+             title="Tachado"
            >
                <Strikethrough size={14} />
            </button>
@@ -243,7 +243,7 @@ const EditorRibbon: React.FC = () => {
                         ))}
                         {section.items.some(i => i.tool === 'polygon') && store.activeTool === 'polygon' && (
                             <div className="absolute top-full bg-slate-700 p-1 rounded z-50 mt-1 shadow-lg border border-slate-600">
-                                <span className="text-[10px] text-slate-300 mr-1">Sides:</span>
+                                <span className="text-[10px] text-slate-300 mr-1">Lados:</span>
                                 <input type="number" value={store.polygonSides} onChange={e => store.setPolygonSides(parseInt(e.target.value))} className="w-10 text-xs bg-slate-900 border border-slate-600 text-center" />
                             </div>
                         )}

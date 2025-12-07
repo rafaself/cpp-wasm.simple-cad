@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import EditorRibbon from './features/editor/components/EditorRibbon';
 import EditorCanvas from './features/editor/components/EditorCanvas';
 import EditorStatusBar from './features/editor/components/EditorStatusBar';
+import EditorSidebar from './features/editor/components/EditorSidebar';
 import SettingsModal from './features/editor/components/SettingsModal';
 import { useAppStore } from './stores/useAppStore';
 
@@ -12,7 +13,9 @@ const App: React.FC = () => {
   // Keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      // Ignore shortcuts if user is typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
       // Undo / Redo
       if (e.ctrlKey || e.metaKey) {
@@ -75,9 +78,14 @@ const App: React.FC = () => {
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
       <EditorRibbon />
-      <div className="flex-grow relative bg-slate-200 overflow-hidden">
-        <EditorCanvas />
-        <SettingsModal />
+      <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
+        {/* Main Content Area */}
+        <div className="flex-grow relative overflow-hidden">
+            <EditorCanvas />
+            <SettingsModal />
+        </div>
+        {/* Sidebar moved to right */}
+        <EditorSidebar />
       </div>
       <EditorStatusBar />
     </div>
