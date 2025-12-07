@@ -22,26 +22,30 @@ const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: 
     return lines;
 };
 
-// Custom cursor SVGs (Black fill, White border 1.5px for better visibility)
+// Custom cursor SVGs (Bold, Rounded, Consistent Size)
+// Pointer (Standard Selection)
 const CURSOR_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M5.5 2L12.5 19.5L15.5 12.5L22.5 9.5L5.5 2Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M5.5 3.5L11.5 19.5L14.5 13.5L20.5 10.5L5.5 3.5Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
 </svg>`;
 
-// Standard Open Hand (Palm)
+// Modern Hand (Open) - Material Design Style (Single Path for clean stroke)
 const HAND_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M12.5 4C11.67 4 11 4.67 11 5.5V9.5H10V6.5C10 5.67 9.33 5 8.5 5C7.67 5 7 5.67 7 6.5V13L4.93 11.46C4.54 11.17 4 11.16 3.61 11.44L3 12L8.5 19.5C9.2 20.3 10.3 21 11.5 21H16.5C18.16 21 19.5 19.66 19.5 18V9.5C19.5 8.67 18.83 8 18 8C17.17 8 16.5 8.67 16.5 9.5V10.5H15.5V6.5C15.5 5.67 14.83 5 14 5C13.17 5 12.5 5.67 12.5 6.5V4.8C12.5 4.36 12.28 4 12 4Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M21 9V6C21 4.34 19.66 3 18 3C17.76 3 17.53 3.03 17.3 3.08C16.92 1.83 15.76 1 14.5 1C12.84 1 11.5 2.34 11.5 4V4.28C11.19 4.1 10.86 4 10.5 4C8.84 4 7.5 5.34 7.5 7V10.38L6.44 9.87C6.31 9.8 6.16 9.78 6 9.78C5.54 9.78 5.12 10.03 4.9 10.43L4 12L10.5 18.5C11.39 19.39 12.63 20 14 20H18C19.66 20 21 18.66 21 17V9Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
 </svg>`;
 
-// Standard Closed Hand (Fist) - Faithful to system grabbing cursor
+// Closed Hand (Grabbing) - Material Design Style
 const GRABBING_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M17.5 9.5H16.5V6.5C16.5 5.67 15.83 5 15 5C14.17 5 13.5 5.67 13.5 6.5V6.8C13.2 6.6 12.87 6.5 12.5 6.5C11.67 6.5 11 7.17 11 8V9.5H10V8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5V15.5C7 18.5 9.5 21 12.5 21H14.5C17.5 21 20 18.5 20 15.5V9.5C20 8.67 19.33 8 18.5 8C18.13 8 17.8 8.14 17.5 8.37V9.5Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M18 9V6C18 4.34 16.66 3 15 3C14.76 3 14.53 3.03 14.3 3.08C13.92 1.83 12.76 1 11.5 1C9.84 1 8.5 2.34 8.5 4V4.28C8.19 4.1 7.86 4 7.5 4C5.84 4 4.5 5.34 4.5 7V12L14 12V7C14 6.72 14.22 6.5 14.5 6.5C14.78 6.5 15 6.72 15 7V12H16V7.5L16.2 7.58C16.48 7.9 17 8.1 17 8.5V12H18V9Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="5.5" y="7" width="13" height="10" rx="2" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
 </svg>`;
 
-const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 2 2, default`;
+const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = `url('data:image/svg+xml;base64,${btoa(HAND_SVG)}') 12 12, grab`;
 const GRABBING_CURSOR = `url('data:image/svg+xml;base64,${btoa(GRABBING_SVG)}') 12 12, grabbing`;
 
 const EditorCanvas: React.FC = () => {
+
+
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
@@ -673,6 +677,7 @@ const EditorCanvas: React.FC = () => {
   if (isMiddlePanning || (isDragging && store.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
   else if (store.activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (store.activeTool === 'text') cursorClass = 'text'; 
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure'].includes(store.activeTool)) cursorClass = 'crosshair'; 
   
   let hintMessage = "";
   if (store.activeTool === 'polyline' && polylinePoints.length > 0) hintMessage = "Enter para completar";

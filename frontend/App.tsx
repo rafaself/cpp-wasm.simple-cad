@@ -8,6 +8,8 @@ import SettingsModal from './features/editor/components/SettingsModal';
 import LayerManagerModal from './features/editor/components/LayerManagerModal';
 import { useAppStore } from './stores/useAppStore';
 
+import Header from './features/editor/components/Header';
+
 const App: React.FC = () => {
   const store = useAppStore();
   const prevToolRef = useRef<string | null>(null);
@@ -79,19 +81,23 @@ const App: React.FC = () => {
 
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
+      <Header />
       <EditorRibbon />
       <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
-        {/* Main Content Area */}
-        <div className="flex-grow relative overflow-hidden">
-            <EditorCanvas />
-            <QuickAccessToolbar />
-            <SettingsModal />
-            <LayerManagerModal />
+        {/* Main Content Area (Canvas + Status Bar) */}
+        <div className="flex-grow flex flex-col relative overflow-hidden">
+            <div className="flex-grow relative overflow-hidden">
+                <EditorCanvas />
+                <QuickAccessToolbar />
+                <SettingsModal />
+                <LayerManagerModal />
+            </div>
+            <EditorStatusBar />
         </div>
+        
         {/* Sidebar moved to right */}
         <EditorSidebar />
       </div>
-      <EditorStatusBar />
     </div>
   );
 };

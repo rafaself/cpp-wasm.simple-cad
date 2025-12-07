@@ -238,7 +238,7 @@ const EditorRibbon: React.FC = () => {
          {activeTab.sections.map((section, idx) => (
              <RibbonSectionComponent key={idx} title={section.title}>
                 {section.layout === 'grid' ? (
-                    <div className={`grid grid-cols-${section.columns || 2} gap-1`}>
+                    <div className="grid grid-rows-2 grid-flow-col gap-1 auto-cols-max">
                         {section.items.map(item => (
                             <button
                                 key={item.id}

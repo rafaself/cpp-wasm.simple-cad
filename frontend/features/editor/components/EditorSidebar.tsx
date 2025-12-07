@@ -415,7 +415,7 @@ const EditorSidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-64 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40">
+    <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden">
       {/* Header */}
       <div className="h-10 border-b border-slate-200 flex items-center px-3 gap-2 bg-slate-50 shrink-0">
         {headerConfig.icon}
