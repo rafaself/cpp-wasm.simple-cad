@@ -10,7 +10,7 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
     <div className="flex-grow flex items-center justify-center px-3 gap-2">
       {children}
     </div>
-    <div className="h-[20px] min-w-[80px] flex items-center justify-center bg-slate-900/30 text-[10px] text-slate-400 font-medium uppercase tracking-wider select-none border-t border-slate-700/50">
+    <div className="h-[20px] min-w-[80px] flex items-center justify-center bg-slate-900/30 text-[10px] text-slate-400 font-medium uppercase tracking-wider cursor-default border-t border-slate-700/50">
       {title}
     </div>
   </div>
@@ -76,28 +76,7 @@ const EditorRibbon: React.FC = () => {
                 onClick={() => setLayerDropdownOpen(!isLayerDropdownOpen)}
             >
                 <Layers size={16} className="mr-2 text-yellow-500" />
-                <span className="text-sm font-medium truncate select-none" style={{color: activeLayer?.color}}>{activeLayer?.name}</span>
-                
-                {isLayerDropdownOpen && (
-                    <div 
-                        className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[100] mt-1 max-h-64 overflow-y-auto menu-transition"
-                        style={{ top: dropdownPos.top, left: dropdownPos.left }}
-                        onMouseEnter={openLayerDropdown}
-                        onMouseLeave={closeLayerDropdown}
-                    >
-                        {store.layers.map(layer => (
-                            <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === store.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); store.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
-                                <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
-                                <span className="flex-grow text-xs">{layer.name}</span>
-                                <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                                <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
-                            </div>
-                        ))}
-                        <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); store.addLayer(); }}>
-                            <Plus size={14} /> <span className="text-xs">Criar Nova Camada</span>
-                        </div>
-                    </div>
-                )}
+                <span className="text-sm font-medium truncate cursor-default" style={{color: activeLayer?.color}}>{activeLayer?.name || 'Camada'}</span>
             </div>
             </div>
             <div className="flex items-center justify-between px-1">
@@ -108,14 +87,36 @@ const EditorRibbon: React.FC = () => {
             </div>
         </div>
         
-        {/* Layer Manager Button */}
+        {/* Layer Manager Button - reduced right spacing */}
         <button 
             onClick={() => store.setLayerManagerOpen(true)}
-            className="h-full px-1.5 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors border-l border-slate-700/50 ml-1"
+            className="h-full px-1 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors border-l border-slate-700/50"
             title="Gerenciador de Camadas"
         >
-            <Settings2 size={22} className="mb-0.5" />
+            <Settings2 size={20} className="mb-0.5" />
         </button>
+
+        {/* Layer Dropdown Portal */}
+        {isLayerDropdownOpen && (
+            <div 
+                className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[9999] max-h-64 overflow-y-auto menu-transition"
+                style={{ top: dropdownPos.top + 4, left: dropdownPos.left }}
+                onMouseEnter={openLayerDropdown}
+                onMouseLeave={closeLayerDropdown}
+            >
+                {store.layers.map(layer => (
+                    <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === store.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); store.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
+                        <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
+                        <span className="flex-grow text-xs cursor-default">{layer.name}</span>
+                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                    </div>
+                ))}
+                <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); store.addLayer(); }}>
+                    <Plus size={14} /> <span className="text-xs cursor-default">Criar Nova Camada</span>
+                </div>
+            </div>
+        )}
     </div>
   );
 

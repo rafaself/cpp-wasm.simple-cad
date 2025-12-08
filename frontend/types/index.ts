@@ -3,6 +3,7 @@ export type ToolType =
   | 'select' 
   | 'pan' 
   | 'line' 
+  | 'arrow'
   | 'circle' 
   | 'rect' 
   | 'polygon' 
@@ -54,9 +55,13 @@ export interface Shape {
   sides?: number;
   startAngle?: number;
   endAngle?: number;
+  arrowHeadSize?: number; // Size of arrow head for arrow type
   strokeColor: string;
   strokeWidth?: number;
+  strokeOpacity?: number; // 0-100
+  strokeEnabled?: boolean; // false = no stroke
   fillColor: string;
+  fillOpacity?: number; // 0-100
   
   // Text specific
   label?: string; // For measurements

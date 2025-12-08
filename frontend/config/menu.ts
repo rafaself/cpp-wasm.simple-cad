@@ -60,6 +60,7 @@ export const MENU_CONFIG: MenuTab[] = [
         columns: 3,
         items: [
           { id: 'line', label: 'Linha', icon: 'Line', type: 'tool', tool: 'line', shortcut: 'L' },
+          { id: 'arrow', label: 'Seta', icon: 'Arrow', type: 'tool', tool: 'arrow' },
           { id: 'polyline', label: 'Polilinha', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: 'P' },
           { id: 'circle', label: 'Círculo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: 'C' },
           { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: 'A' },

@@ -5,12 +5,14 @@ import {
   Scan, Expand, Settings, Undo, Redo,
   AlignLeft, AlignCenterHorizontal, AlignRight,
   AlignVerticalJustifyStart, AlignCenterVertical, AlignVerticalJustifyEnd,
-  Type, Move, RotateCw, FilePlus, FolderOpen, Save, FileJson, FileSpreadsheet
+  Type, Move, RotateCw, FilePlus, FolderOpen, Save, FileJson, FileSpreadsheet,
+  MoveUpRight
 } from 'lucide-react';
 
 export const IconMap: Record<string, React.ReactNode> = {
   // Increased size for Line as requested
   'Line': <Minus size={28} className="transform -rotate-45" />,
+  'Arrow': <MoveUpRight size={22} />,
   'Polyline': <Activity size={20} />,
   'Circle': <Circle size={20} />,
   'Arc': <Spline size={20} />,
