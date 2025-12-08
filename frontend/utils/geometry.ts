@@ -268,14 +268,15 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
         return false;
 
     case 'text':
-        if (shape.x === undefined || shape.y === undefined || !shape.text || !shape.fontSize) return false;
-        const estimatedWidth = shape.text.length * shape.fontSize * 0.6;
-        const estimatedHeight = shape.fontSize;
+        if (shape.x === undefined || shape.y === undefined || !shape.fontSize) return false;
+        // Use width if set, otherwise estimate from text length
+        const textWidth = shape.width || (shape.text ? shape.text.length * shape.fontSize * 0.6 : shape.fontSize * 5);
+        const textHeight = shape.fontSize * 1.2; // lineHeight approximation
         return (
           checkPoint.x >= shape.x - threshold && 
-          checkPoint.x <= shape.x + estimatedWidth + threshold && 
-          checkPoint.y >= shape.y - estimatedHeight - threshold && 
-          checkPoint.y <= shape.y + threshold
+          checkPoint.x <= shape.x + textWidth + threshold && 
+          checkPoint.y >= shape.y - threshold && 
+          checkPoint.y <= shape.y + textHeight + threshold
         );
 
     default: return false;
@@ -371,10 +372,10 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         addPoint({ x: shape.x - shape.radius, y: shape.y - shape.radius });
         addPoint({ x: shape.x + shape.radius, y: shape.y + shape.radius });
     } 
-    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined && shape.text && shape.fontSize) {
-        const estimatedWidth = shape.text.length * shape.fontSize * 0.6;
+    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined && shape.fontSize) {
+        const textWidth = shape.width || (shape.text ? shape.text.length * shape.fontSize * 0.6 : shape.fontSize * 5);
         addPoint({ x: shape.x, y: shape.y });
-        addPoint({ x: shape.x + estimatedWidth, y: shape.y - shape.fontSize });
+        addPoint({ x: shape.x + textWidth, y: shape.y + shape.fontSize * 1.2 });
     }
     else { return null; }
 

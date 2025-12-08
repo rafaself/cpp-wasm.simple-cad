@@ -84,18 +84,18 @@ export const MENU_CONFIG: MenuTab[] = [
         ]
       },
       {
-          title: 'Camadas',
-          layout: 'column',
-          items: [
-              { id: 'layer-control', label: 'Camadas', icon: 'Layers', type: 'component', componentName: 'LayerControl' }
-          ]
-      },
-      {
           title: 'Aparência',
           layout: 'row',
           items: [
               { id: 'color-control', label: 'Cores', icon: 'Palette', type: 'component', componentName: 'ColorControl' },
               { id: 'line-width-control', label: 'Largura', icon: 'Line', type: 'component', componentName: 'LineWidthControl' }
+          ]
+      },
+      {
+          title: 'Camadas',
+          layout: 'column',
+          items: [
+              { id: 'layer-control', label: 'Camadas', icon: 'Layers', type: 'component', componentName: 'LayerControl' }
           ]
       }
     ]

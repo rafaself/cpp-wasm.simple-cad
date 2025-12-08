@@ -95,16 +95,34 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
            }
         } else if (shape.type === 'text') {
            if (shape.x !== undefined && shape.y !== undefined) {
+               // Calculate text dimensions for background
+               let totalWidth = 0;
+               let totalHeight = 0;
+               const lineHeight = (shape.fontSize || 20) * 1.2;
+
                // Render Simple Text (Legacy) or Single Segment
                if (!shape.segments && shape.text) {
                    ctx.font = `${shape.fontItalic ? 'italic' : 'normal'} ${shape.fontBold ? 'bold' : 'normal'} ${shape.fontSize}px "${shape.fontFamily || 'sans-serif'}"`;
                    ctx.textBaseline = 'top';
-                   ctx.fillStyle = shape.strokeColor;
                    let lines: string[] = [];
                    const hasFixedWidth = shape.width && shape.width > 0;
                    if (hasFixedWidth) lines = getWrappedLines(ctx, shape.text, shape.width!); else lines = shape.text.split('\n');
-                   const lineHeight = shape.fontSize! * 1.2;
 
+                   // Calculate dimensions
+                   lines.forEach((line) => {
+                       const w = ctx.measureText(line).width;
+                       if (w > totalWidth) totalWidth = w;
+                   });
+                   totalHeight = lines.length * lineHeight;
+
+                   // Draw background if fillColor is set
+                   if (shape.fillColor && shape.fillColor !== 'transparent') {
+                       ctx.fillStyle = shape.fillColor;
+                       ctx.fillRect(shape.x! - 2, shape.y! - 2, totalWidth + 4, totalHeight + 4);
+                   }
+
+                   // Draw text
+                   ctx.fillStyle = shape.strokeColor;
                    lines.forEach((line, index) => {
                        ctx.fillText(line, shape.x!, shape.y! + (index * lineHeight));
                        if (shape.fontUnderline) {
@@ -118,7 +136,26 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
                    });
                }
                else if (shape.segments) {
-                   // Rich Text Rendering (Linear, No Wrap for MVP as discussed)
+                   // Calculate total width for background (for rich text)
+                   let maxHeight = 0;
+                   shape.segments.forEach(seg => {
+                       const fontSize = seg.fontSize || shape.fontSize || 20;
+                       const fontFam = seg.fontFamily || shape.fontFamily || 'sans-serif';
+                       const fontStyle = seg.fontItalic || (seg.fontItalic === undefined && shape.fontItalic) ? 'italic' : 'normal';
+                       const fontWeight = seg.fontBold || (seg.fontBold === undefined && shape.fontBold) ? 'bold' : 'normal';
+                       ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFam}"`;
+                       totalWidth += ctx.measureText(seg.text).width;
+                       if (fontSize > maxHeight) maxHeight = fontSize;
+                   });
+                   totalHeight = maxHeight * 1.2;
+
+                   // Draw background if fillColor is set
+                   if (shape.fillColor && shape.fillColor !== 'transparent') {
+                       ctx.fillStyle = shape.fillColor;
+                       ctx.fillRect(shape.x! - 2, shape.y! - 2, totalWidth + 4, totalHeight + 4);
+                   }
+
+                   // Rich Text Rendering
                    let cursorX = shape.x;
                    let cursorY = shape.y; // Top baseline
                    ctx.textBaseline = 'top';

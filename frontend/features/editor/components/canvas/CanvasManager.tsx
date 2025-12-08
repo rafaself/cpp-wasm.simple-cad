@@ -115,7 +115,7 @@ const CanvasManager: React.FC = () => {
     // Helper to render Segments to HTML for initialization
     const renderSegmentsToHtml = (segments: TextSpan[]): string => {
         return segments.map(s => {
-            let style = `color:${s.fillColor || '#000'}; font-size:${s.fontSize || 20}px; font-family:${s.fontFamily || 'sans-serif'};`;
+            let style = `color:${s.fillColor || uiStore.strokeColor}; font-size:${s.fontSize || uiStore.textSize}px; font-family:${s.fontFamily || uiStore.fontFamily};`;
             if (s.fontBold) style += 'font-weight:bold;';
             if (s.fontItalic) style += 'font-style:italic;';
             let deco = '';
@@ -176,7 +176,11 @@ const CanvasManager: React.FC = () => {
                        fontSize: uiStore.textSize, // Base Default
                        fontFamily: uiStore.fontFamily,
                        strokeColor: uiStore.strokeColor,
-                       fillColor: 'transparent',
+                       fillColor: uiStore.fillColor, // Background color from appearance section
+                       fontBold: uiStore.fontBold,
+                       fontItalic: uiStore.fontItalic,
+                       fontUnderline: uiStore.fontUnderline,
+                       fontStrike: uiStore.fontStrike,
                        points: [],
                        rotation: textEntry.rotation
                     });
@@ -204,11 +208,17 @@ const CanvasManager: React.FC = () => {
         width: textEntry.boxWidth ? textEntry.boxWidth * uiStore.viewTransform.scale : 'auto',
         outline: 'none',
         border: '1px dashed #3b82f6',
-        padding: '0',
+        padding: '2px 4px',
         margin: '0',
         lineHeight: '1.2',
         whiteSpace: textEntry.boxWidth ? 'pre-wrap' : 'pre',
-        overflow: 'hidden' // Hide scrollbars
+        overflow: 'hidden', // Hide scrollbars
+        color: uiStore.strokeColor,
+        backgroundColor: uiStore.fillColor === 'transparent' ? 'transparent' : uiStore.fillColor,
+        fontSize: `${uiStore.textSize * uiStore.viewTransform.scale}px`,
+        fontFamily: uiStore.fontFamily,
+        fontWeight: uiStore.fontBold ? 'bold' : 'normal',
+        fontStyle: uiStore.fontItalic ? 'italic' : 'normal',
     } : {};
 
     return (
@@ -229,7 +239,9 @@ const CanvasManager: React.FC = () => {
                     style={textAreaStyle}
                     onBlur={commitTextEntry}
                     onKeyDown={(e) => {
-                        if(e.key === 'Escape') { setTextEntry(null); }
+                        if(e.key === 'Escape') { 
+                            commitTextEntry(); // Save text on ESC instead of discarding
+                        }
                         // Stop propagation of delete so we don't delete shape
                         e.stopPropagation();
                     }}
