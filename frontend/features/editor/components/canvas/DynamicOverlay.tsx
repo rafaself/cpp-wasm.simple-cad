@@ -13,11 +13,9 @@ const GRABBING_CURSOR = 'grabbing';
 interface DynamicOverlayProps {
   width: number;
   height: number;
-  onTextEntryStart: (data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string }) => void;
-  isTextEditing: boolean;
 }
 
-const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEntryStart, isTextEditing }) => {
+const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const uiStore = useUIStore();
   const dataStore = useDataStore();
@@ -78,7 +76,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
   // Handle keys (local to canvas interactions)
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
-          if (isTextEditing) return;
           if (e.key === 'Enter') { if (uiStore.activeTool === 'polyline') finishPolyline(); }
           if (e.key === 'Escape') {
               setLineStart(null); setMeasureStart(null); setPolylinePoints([]);
@@ -92,7 +89,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
       };
       window.addEventListener('keydown', handleKeyDown, true);
       return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [uiStore, isTextEditing, finishPolyline]);
+  }, [uiStore, finishPolyline]);
 
 
   // --- Drawing Helpers ---
@@ -119,8 +116,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
         ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         } else if (shape.type === 'rect') {
         ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!); ctx.fill(); ctx.stroke();
-        } else if (shape.type === 'text' && shape.width) {
-            ctx.strokeRect(shape.x!, shape.y!, shape.width, shape.fontSize! * 1.5);
         }
         // ... Add other types if necessary
     } finally {
@@ -139,19 +134,10 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 1 / uiStore.viewTransform.scale;
 
-        // For text, we might want a box. For others, maybe re-trace shape or bounding box?
         ctx.beginPath();
         if (shape.type === 'rect') {
             if (shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
                  ctx.rect(shape.x, shape.y, shape.width, shape.height);
-            }
-        }
-        else if (shape.type === 'text') {
-            if (shape.x !== undefined && shape.y !== undefined) {
-                 // Safe guard for text width/height
-                 const w = shape.width || 0;
-                 const h = shape.height || 0;
-                 ctx.rect(shape.x, shape.y, w, h);
             }
         }
         else if (shape.type === 'circle') ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI*2);
@@ -222,7 +208,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
                 ctx.beginPath(); ctx.moveTo(transformationBase.x, transformationBase.y); ctx.lineTo(wm.x, wm.y); ctx.strokeStyle = '#f59e0b'; ctx.setLineDash([2, 2]); ctx.stroke();
                 if (ghost.points) ghost.points = ghost.points.map(p => rotatePoint(p, transformationBase, angle));
                 if (ghost.x !== undefined && ghost.y !== undefined) { const np = rotatePoint({x: ghost.x, y: ghost.y}, transformationBase, angle); ghost.x = np.x; ghost.y = np.y; }
-                if (ghost.type === 'rect' || ghost.type === 'text') ghost.rotation = (ghost.rotation || 0) + angle;
+                if (ghost.type === 'rect') ghost.rotation = (ghost.rotation || 0) + angle;
             }
             drawGhostShape(ctx, ghost);
         });
@@ -245,7 +231,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
         }
     }
 
-    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure','text', 'move', 'rotate'].includes(uiStore.activeTool)) {
+    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate'].includes(uiStore.activeTool)) {
       const ws = screenToWorld(startPoint, uiStore.viewTransform); const wc = screenToWorld(currentPoint, uiStore.viewTransform);
       const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
       if (uiStore.activeTool === 'arc') {
@@ -258,12 +244,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
       else if (uiStore.activeTool === 'polygon') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = uiStore.polygonSides; }
       else if (uiStore.activeTool === 'arrow') { temp.points = [ws, wc]; temp.arrowHeadSize = 15; }
       drawGhostShape(ctx, temp);
-    }
-
-    if (isDragging && uiStore.activeTool === 'text' && startPoint && currentPoint) {
-        const w = currentPoint.x - startPoint.x; const h = currentPoint.y - startPoint.y;
-        ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1 / uiStore.viewTransform.scale; ctx.setLineDash([4, 2]);
-        const ws = screenToWorld(startPoint, uiStore.viewTransform); ctx.strokeRect(ws.x, ws.y, w / uiStore.viewTransform.scale, h / uiStore.viewTransform.scale); ctx.setLineDash([]);
     }
 
     // 4. Snap Marker
@@ -310,11 +290,10 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
 
   // --- Event Handlers ---
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isTextEditing) return;
     const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, uiStore.viewTransform); let snapped: Point | null = null;
 
     // Snapping logic
-    if (uiStore.snapOptions.enabled && !['pan','select','text'].includes(uiStore.activeTool) && !e.ctrlKey) {
+    if (uiStore.snapOptions.enabled && !['pan','select'].includes(uiStore.activeTool) && !e.ctrlKey) {
        const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
        const visible = dataStore.spatialIndex.query(queryRect)
            .map(s => dataStore.shapes[s.id])
@@ -328,8 +307,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     if (e.button === 1 || uiStore.activeTool === 'pan') { if(e.button === 1) e.preventDefault(); setIsMiddlePanning(e.button === 1); setIsDragging(true); return; }
 
     const wPos = snapped || wr;
-
-    if (uiStore.activeTool === 'text') { setIsDragging(true); return; }
 
     if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
         for (const id of uiStore.selectedShapeIds) {
@@ -423,8 +400,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     const raw = getMousePos(e); const worldPos = screenToWorld(raw, uiStore.viewTransform);
     uiStore.setMousePos(worldPos);
 
-    if (isTextEditing) return;
-
     if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) {
         if (startPoint) {
             const dx = raw.x - startPoint.x; const dy = raw.y - startPoint.y;
@@ -460,7 +435,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
                  if (activeHandle.handle.type === 'vertex' && s.points) {
                     const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
                     dataStore.updateShape(s.id, { points: newPoints }, false);
-                 } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect' || s.type === 'text')) {
+                 } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect')) {
                     // Added support for text resize
                     if (s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined) {
                         const idx = activeHandle.handle.index;
@@ -472,12 +447,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
                         else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
                         if (newW < 0) { newX += newW; newW = Math.abs(newW); }
                         if (newH < 0) { newY += newH; newH = Math.abs(newH); }
-
-                        // For Text, we want to enforce min size?
-                        if (s.type === 'text') {
-                            newW = Math.max(10, newW);
-                            newH = Math.max(10, newH);
-                        }
 
                         dataStore.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
                     }
@@ -512,7 +481,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
-    if (isTextEditing) return;
     if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); return; }
 
     if (isSelectionBox && startPoint && currentPoint) {
@@ -538,12 +506,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     const ws = screenToWorld(startPoint, uiStore.viewTransform); const we = screenToWorld(currentPoint, uiStore.viewTransform);
     const dist = getDistance(startPoint, currentPoint);
 
-    if (uiStore.activeTool === 'text') {
-        let boxWidth = undefined; if (dist > 10) boxWidth = Math.abs(we.x - ws.x);
-        onTextEntryStart({ x: Math.min(ws.x, we.x), y: Math.min(ws.y, we.y), rotation: 0, boxWidth: boxWidth });
-        setIsDragging(false); setStartPoint(null); return;
-    }
-
     if(isDragging && (uiStore.activeTool === 'select' || activeHandle)) {
         // Just sync QuadTree, history was handled in mouse move?
         // No, mouse move used `recordHistory=false`.
@@ -564,7 +526,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc', 'arrow'];
     const isSingleClick = dist < 5;
 
-    if (!['select','pan','polyline','measure','line','text', 'move', 'rotate'].includes(uiStore.activeTool)) {
+    if (!['select','pan','polyline','measure','line', 'move', 'rotate'].includes(uiStore.activeTool)) {
 
       if (uiStore.activeTool === 'arc') {
           // Special handling for Arc: Phase 1 complete (Drag A-B)
@@ -602,33 +564,9 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
 
   const handleDoubleClick = (e: React.MouseEvent) => {
       if (uiStore.activeTool !== 'select') { finishPolyline(); return; }
-      const raw = getMousePos(e); const wr = screenToWorld(raw, uiStore.viewTransform);
-
-      const queryRect = { x: wr.x - 5, y: wr.y - 5, width: 10, height: 10 };
-      const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
-
-      let hitShape: Shape | null = null;
-      for (let i = candidates.length - 1; i >= 0; i--) {
-        const s = candidates[i];
-        const l = dataStore.layers.find(lay => lay.id === s.layerId);
-        if (l && (!l.visible || l.locked)) continue;
-        if (isPointInShape(wr, s, uiStore.viewTransform.scale)) { hitShape = s; break; }
-      }
-
-      if (hitShape && hitShape.type === 'text' && hitShape.x !== undefined && hitShape.y !== undefined) {
-          onTextEntryStart({
-              id: hitShape.id,
-              x: hitShape.x,
-              y: hitShape.y,
-              rotation: hitShape.rotation || 0,
-              boxWidth: hitShape.width,
-              initialText: hitShape.text
-          });
-      }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    if (isTextEditing) return;
     e.preventDefault();
     const scaleFactor = 1.1; const direction = e.deltaY > 0 ? -1 : 1;
     let newScale = uiStore.viewTransform.scale * (direction > 0 ? scaleFactor : 1/scaleFactor);
@@ -641,7 +579,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
   let cursorClass = DEFAULT_CURSOR;
   if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
   else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
-  else if (uiStore.activeTool === 'text') cursorClass = 'text';
   else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
 
   return (

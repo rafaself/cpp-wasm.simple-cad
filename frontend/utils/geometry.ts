@@ -31,24 +31,6 @@ export const worldToScreen = (point: Point, transform: ViewTransform): Point => 
   };
 };
 
-export const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
-    const paragraphs = text.split('\n');
-    const lines: string[] = [];
-    paragraphs.forEach(para => {
-        if (!para) { lines.push(''); return; }
-        const words = para.split(' ');
-        let currentLine = words[0];
-        for (let i = 1; i < words.length; i++) {
-            const word = words[i];
-            const width = ctx.measureText(currentLine + " " + word).width;
-            if (width < maxWidth) currentLine += " " + word;
-            else { lines.push(currentLine); currentLine = word; }
-        }
-        lines.push(currentLine);
-    });
-    return lines;
-};
-
 export const getSnapPoint = (
   point: Point, 
   shapes: Shape[], 
@@ -152,7 +134,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
   const hitToleranceScreen = 10; 
   const threshold = hitToleranceScreen / scale; 
   let checkPoint = point;
-  if (shape.rotation && shape.x !== undefined && shape.y !== undefined && (shape.type === 'rect' || shape.type === 'text')) {
+    if (shape.rotation && shape.x !== undefined && shape.y !== undefined && (shape.type === 'rect')) {
       checkPoint = rotatePoint(point, { x: shape.x, y: shape.y }, -shape.rotation);
   }
 
@@ -240,16 +222,6 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
         if (Math.abs(distToCenter - r) <= threshold) return true; 
         return false;
 
-    case 'text':
-        if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return false;
-        // Strict box check
-        return (
-          checkPoint.x >= shape.x - threshold && 
-          checkPoint.x <= shape.x + shape.width + threshold &&
-          checkPoint.y >= shape.y - threshold && 
-          checkPoint.y <= shape.y + shape.height + threshold
-        );
-
     default: return false;
   }
 };
@@ -311,7 +283,6 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
       return false;
   }
   if (shape.type === 'rect' && shape.width && shape.height && shape.x !== undefined && shape.y !== undefined) return true;
-  if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) return true; 
 
   if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
      if (isPointInRect({x: shape.x, y: shape.y}, rect)) return true;
@@ -343,10 +314,6 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         addPoint({ x: shape.x - shape.radius, y: shape.y - shape.radius });
         addPoint({ x: shape.x + shape.radius, y: shape.y + shape.radius });
     } 
-    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined && shape.width && shape.height) {
-        addPoint({ x: shape.x, y: shape.y });
-        addPoint({ x: shape.x + shape.width, y: shape.y + shape.height });
-    }
     else { return null; }
 
     if (minX === Infinity) return null;
@@ -379,7 +346,7 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
             handles.push({ x: p.x, y: p.y, cursor: 'move', index: i, type: 'vertex' });
         });
     }
-    else if ((shape.type === 'rect' || shape.type === 'text') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined && !isNaN(shape.width) && !isNaN(shape.height)) {
+    else if ((shape.type === 'rect') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined && !isNaN(shape.width) && !isNaN(shape.height)) {
         const p1 = { x: shape.x, y: shape.y };
         const p2 = { x: shape.x + shape.width, y: shape.y };
         const p3 = { x: shape.x + shape.width, y: shape.y + shape.height };

@@ -76,14 +76,6 @@ export const MENU_CONFIG: MenuTab[] = [
           ]
       },
       {
-        title: 'Texto',
-        layout: 'row',
-        items: [
-            { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text' },
-            { id: 'text-format', label: 'Formatar', icon: 'Type', type: 'component', componentName: 'TextFormatControl' }
-        ]
-      },
-      {
           title: 'Aparência',
           layout: 'row',
           items: [

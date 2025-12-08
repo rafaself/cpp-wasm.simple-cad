@@ -157,12 +157,6 @@ export const useDataStore = create<DataState>((set, get) => ({
   addShape: (shape) => {
       const { shapes, saveToHistory, spatialIndex } = get();
 
-      // Safety Check: Ensure text has valid dimensions
-      if (shape.type === 'text') {
-          if (!shape.width || isNaN(shape.width) || shape.width <= 0) shape.width = 10;
-          if (!shape.height || isNaN(shape.height) || shape.height <= 0) shape.height = 10;
-      }
-
       const newShapes = { ...shapes, [shape.id]: shape };
       spatialIndex.insert(shape);
       set({ shapes: newShapes });
@@ -175,12 +169,6 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (!oldShape) return;
 
       const newShape = { ...oldShape, ...diff };
-
-      // Safety Check: Ensure text has valid dimensions
-      if (newShape.type === 'text') {
-          if (!newShape.width || isNaN(newShape.width) || newShape.width <= 0) newShape.width = 10;
-          if (!newShape.height || isNaN(newShape.height) || newShape.height <= 0) newShape.height = 10;
-      }
 
       const newShapes = { ...shapes, [id]: newShape };
 
@@ -342,7 +330,7 @@ export const useDataStore = create<DataState>((set, get) => ({
              const np = rotatePoint({x: s.x, y: s.y!}, pivot, angle);
              diff.x = np.x; diff.y = np.y;
          }
-         if (s.type === 'rect' || s.type === 'text') diff.rotation = (s.rotation || 0) + angle;
+         if (s.type === 'rect') diff.rotation = (s.rotation || 0) + angle;
 
          const prev: Partial<Shape> = { points: s.points, x: s.x, y: s.y, rotation: s.rotation };
          patches.push({ type: 'UPDATE', id, diff, prev });

@@ -3,7 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough, Settings2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2 } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 
 // Component Registry for Config-Driven UI
@@ -118,64 +118,6 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                     className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500 my-auto block"
                 />
             </div>
-        </div>
-    ),
-    'TextFormatControl': ({ uiStore }) => (
-        <div className="flex flex-col gap-1.5 w-44">
-           <div className="flex items-center gap-1">
-               <select
-                 value={uiStore.fontFamily}
-                 onChange={(e) => uiStore.setFontFamily(e.target.value)}
-                 className="h-6 flex-grow bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500"
-               >
-                   <option value="sans-serif">Sans Serif</option>
-                   <option value="serif">Serif</option>
-                   <option value="monospace">Monospace</option>
-                   <option value="Arial">Arial</option>
-                   <option value="Times New Roman">Times New Roman</option>
-                   <option value="Courier New">Courier New</option>
-               </select>
-               <input
-                  type="number"
-                  min="1"
-                  max="200"
-                  value={uiStore.textSize}
-                  onChange={(e) => uiStore.setTextSize(parseInt(e.target.value))}
-                  className="w-12 h-6 bg-slate-800 text-slate-200 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500 text-center font-semibold"
-               />
-           </div>
-
-           <div className="flex items-center gap-1 justify-between bg-slate-700/50 p-0.5 rounded border border-slate-600/50">
-               <button
-                 onClick={uiStore.toggleFontBold}
-                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-                 title="Negrito"
-               >
-                   <Bold size={14} />
-               </button>
-               <button
-                 onClick={uiStore.toggleFontItalic}
-                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-                 title="Itálico"
-               >
-                   <Italic size={14} />
-               </button>
-               <div className="w-px h-4 bg-slate-600" />
-               <button
-                 onClick={uiStore.toggleFontUnderline}
-                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-                 title="Sublinhado"
-               >
-                   <Underline size={14} />
-               </button>
-               <button
-                 onClick={uiStore.toggleFontStrike}
-                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-                 title="Tachado"
-               >
-                   <Strikethrough size={14} />
-               </button>
-           </div>
         </div>
     )
 };
