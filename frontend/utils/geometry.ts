@@ -69,38 +69,14 @@ export const getSnapPoint = (
     }
   };
 
-  // 1. Grid Snap (Lower priority, so checked first, but overridden by object snap if closer/valid)
-  // Actually, standard CAD behavior: object snap > grid snap.
-  // We can just set closestPoint to grid snap initially if valid, then let checkPoint override it if object point is found.
-
   if (snapOptions.grid) {
      const gx = Math.round(point.x / gridSize) * gridSize;
      const gy = Math.round(point.y / gridSize) * gridSize;
-     const gridPoint = { x: gx, y: gy };
-     // Grid snap usually has a smaller "magnetic" radius or just snaps if you are close enough.
-     // Or it is "always on" meaning the cursor jumps grid to grid.
-     // "Snap to Grid" functionality usually means your cursor IS the grid point close to mouse.
-     // But here we are returning a "snap marker".
-     // Let's use threshold.
-     if (getDistance(point, gridPoint) < threshold) {
-         closestPoint = gridPoint;
-         // We do NOT update minDistance here because we want object snap (which might be slightly further but more important)
-         // to NOT necessarily override grid snap if grid is closer?
-         // Actually, Object Snap > Grid Snap.
-         // So if we find an object point within threshold, it should win.
-         // If we have a grid point within threshold, and NO object point, grid wins.
-         // So: Initialize with grid point if within threshold.
-         // But reset minDistance to threshold so checkPoint works normally.
-         // Wait, if grid point is dist=2, and endpoint is dist=5. Should we snap to grid?
-         // Usually Object snap takes precedence even if further away (within threshold).
-         // So let's keep grid separate or check it last?
-         // Checking it first:
-         minDistance = threshold; // Reset
+     if (getDistance(point, {x: gx, y: gy}) < threshold) {
+         closestPoint = {x: gx, y: gy};
+         minDistance = threshold;
      }
   }
-
-  // Optimization: If shape count > 1000, maybe skip midpoints for performance unless zoomed in?
-  // For now, keeping logic standard but acknowledging input 'shapes' should be pre-filtered by Quadtree ideally.
 
   shapes.forEach(shape => {
     if (shape.points && shape.points.length > 0) {
@@ -160,7 +136,6 @@ export const getSnapPoint = (
     }
   });
 
-  // Final check: If no object snap found, try grid snap again (cleaner logic)
   if (!closestPoint && snapOptions.grid) {
      const gx = Math.round(point.x / gridSize) * gridSize;
      const gy = Math.round(point.y / gridSize) * gridSize;
@@ -172,8 +147,6 @@ export const getSnapPoint = (
   return closestPoint;
 };
 
-// ... (Rest of hit testing, isPointInShape, getSelectionRect, isShapeInSelection, getShapeBounds, getCombinedBounds, getShapeHandles)
-// Ensure types are imported correctly above.
 
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): boolean => {
   const hitToleranceScreen = 10; 
@@ -268,15 +241,13 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
         return false;
 
     case 'text':
-        if (shape.x === undefined || shape.y === undefined || !shape.fontSize) return false;
-        // Use width if set, otherwise estimate from text length
-        const textWidth = shape.width || (shape.text ? shape.text.length * shape.fontSize * 0.6 : shape.fontSize * 5);
-        const textHeight = shape.fontSize * 1.2; // lineHeight approximation
+        if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return false;
+        // Strict box check
         return (
           checkPoint.x >= shape.x - threshold && 
-          checkPoint.x <= shape.x + textWidth + threshold && 
+          checkPoint.x <= shape.x + shape.width + threshold &&
           checkPoint.y >= shape.y - threshold && 
-          checkPoint.y <= shape.y + textHeight + threshold
+          checkPoint.y <= shape.y + shape.height + threshold
         );
 
     default: return false;
@@ -372,10 +343,9 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         addPoint({ x: shape.x - shape.radius, y: shape.y - shape.radius });
         addPoint({ x: shape.x + shape.radius, y: shape.y + shape.radius });
     } 
-    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined && shape.fontSize) {
-        const textWidth = shape.width || (shape.text ? shape.text.length * shape.fontSize * 0.6 : shape.fontSize * 5);
+    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined && shape.width && shape.height) {
         addPoint({ x: shape.x, y: shape.y });
-        addPoint({ x: shape.x + textWidth, y: shape.y + shape.fontSize * 1.2 });
+        addPoint({ x: shape.x + shape.width, y: shape.y + shape.height });
     }
     else { return null; }
 
@@ -409,7 +379,7 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
             handles.push({ x: p.x, y: p.y, cursor: 'move', index: i, type: 'vertex' });
         });
     }
-    else if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+    else if ((shape.type === 'rect' || shape.type === 'text') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
         handles.push({ x: shape.x, y: shape.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
         handles.push({ x: shape.x + shape.width, y: shape.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
         handles.push({ x: shape.x + shape.width, y: shape.y + shape.height, cursor: 'nwse-resize', index: 2, type: 'resize' });

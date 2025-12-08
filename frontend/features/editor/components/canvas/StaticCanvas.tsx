@@ -25,8 +25,11 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         const layer = layers.find(l => l.id === shape.layerId);
         if (layer && !layer.visible) return;
 
+        // Safety checks for rendering
+        if (shape.x === undefined || shape.y === undefined || isNaN(shape.x) || isNaN(shape.y)) return;
+
         ctx.save();
-        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
+        if (shape.rotation) {
             let pivotX = shape.x; let pivotY = shape.y;
             ctx.translate(pivotX, pivotY); ctx.rotate(shape.rotation); ctx.translate(-pivotX, -pivotY);
         }
@@ -94,94 +97,73 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
               ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, endAngle, false); ctx.stroke();
            }
         } else if (shape.type === 'text') {
-           if (shape.x !== undefined && shape.y !== undefined) {
-               // Calculate text dimensions for background
-               let totalWidth = 0;
-               let totalHeight = 0;
+           if (shape.text) {
+               ctx.font = `${shape.fontItalic ? 'italic' : 'normal'} ${shape.fontBold ? 'bold' : 'normal'} ${shape.fontSize || 20}px "${shape.fontFamily || 'sans-serif'}"`;
+               ctx.textBaseline = 'top';
+
+               // Use stored width if available (Fixed Width from drag or previous commit), otherwise treat as auto but wrapped?
+               // The Shape should have a width stored.
+               let lines: string[] = [];
+
+               // If we have a shape.width, we respect it for wrapping only if it was intended as a limit.
+               // However, in our new CanvasManager, we calculate strict width/height on commit.
+               // So we can just trust the newlines in shape.text mostly?
+               // But if the user resized the text box using handles (if we implement that), we need to re-wrap.
+               // For now, let's rely on explicit newlines in `shape.text` which `CanvasManager` produces unless we add wrapping logic there.
+               // Actually `CanvasManager` wraps using `getWrappedLines` if `boxWidth` was set.
+               // So `shape.text` should already contain the correct newlines if it was auto-wrapped on commit.
+               // BUT, if we resize the box later, we want reflow?
+               // Simplest MVP: Trust `shape.text` newlines.
+
+               lines = shape.text.split('\n');
+
                const lineHeight = (shape.fontSize || 20) * 1.2;
 
-               // Render Simple Text (Legacy) or Single Segment
-               if (!shape.segments && shape.text) {
-                   ctx.font = `${shape.fontItalic ? 'italic' : 'normal'} ${shape.fontBold ? 'bold' : 'normal'} ${shape.fontSize}px "${shape.fontFamily || 'sans-serif'}"`;
-                   ctx.textBaseline = 'top';
-                   let lines: string[] = [];
-                   const hasFixedWidth = shape.width && shape.width > 0;
-                   if (hasFixedWidth) lines = getWrappedLines(ctx, shape.text, shape.width!); else lines = shape.text.split('\n');
+               // Draw Background if set
+               // We use shape.width and shape.height which should be accurate from the store
+               if (shape.fillColor && shape.fillColor !== 'transparent') {
+                   ctx.fillStyle = shape.fillColor;
+                   // Use shape.width/height if valid, otherwise measure
+                   let bgW = shape.width;
+                   let bgH = shape.height;
 
-                   // Calculate dimensions
-                   lines.forEach((line) => {
-                       const w = ctx.measureText(line).width;
-                       if (w > totalWidth) totalWidth = w;
-                   });
-                   totalHeight = lines.length * lineHeight;
-
-                   // Draw background if fillColor is set
-                   if (shape.fillColor && shape.fillColor !== 'transparent') {
-                       ctx.fillStyle = shape.fillColor;
-                       ctx.fillRect(shape.x! - 2, shape.y! - 2, totalWidth + 4, totalHeight + 4);
+                   if (!bgW || !bgH) {
+                       // Fallback measure
+                       let maxW = 0;
+                       lines.forEach(l => {
+                           const w = ctx.measureText(l).width;
+                           if(w > maxW) maxW = w;
+                       });
+                       bgW = maxW;
+                       bgH = lines.length * lineHeight;
                    }
 
-                   // Draw text
-                   ctx.fillStyle = shape.strokeColor;
-                   lines.forEach((line, index) => {
-                       ctx.fillText(line, shape.x!, shape.y! + (index * lineHeight));
-                       if (shape.fontUnderline) {
-                          const w = ctx.measureText(line).width; const ly = shape.y! + (index * lineHeight) + shape.fontSize! + 2;
-                          ctx.beginPath(); ctx.lineWidth = Math.max(1, shape.fontSize! / 15); ctx.moveTo(shape.x!, ly); ctx.lineTo(shape.x! + w, ly); ctx.stroke();
-                       }
-                       if (shape.fontStrike) {
-                          const w = ctx.measureText(line).width; const ly = shape.y! + (index * lineHeight) + (shape.fontSize! / 2);
-                          ctx.beginPath(); ctx.lineWidth = Math.max(1, shape.fontSize! / 15); ctx.moveTo(shape.x!, ly); ctx.lineTo(shape.x! + w, ly); ctx.stroke();
-                       }
-                   });
+                   ctx.fillRect(shape.x!, shape.y!, bgW, bgH);
                }
-               else if (shape.segments) {
-                   // Calculate total width for background (for rich text)
-                   let maxHeight = 0;
-                   shape.segments.forEach(seg => {
-                       const fontSize = seg.fontSize || shape.fontSize || 20;
-                       const fontFam = seg.fontFamily || shape.fontFamily || 'sans-serif';
-                       const fontStyle = seg.fontItalic || (seg.fontItalic === undefined && shape.fontItalic) ? 'italic' : 'normal';
-                       const fontWeight = seg.fontBold || (seg.fontBold === undefined && shape.fontBold) ? 'bold' : 'normal';
-                       ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFam}"`;
-                       totalWidth += ctx.measureText(seg.text).width;
-                       if (fontSize > maxHeight) maxHeight = fontSize;
-                   });
-                   totalHeight = maxHeight * 1.2;
 
-                   // Draw background if fillColor is set
-                   if (shape.fillColor && shape.fillColor !== 'transparent') {
-                       ctx.fillStyle = shape.fillColor;
-                       ctx.fillRect(shape.x! - 2, shape.y! - 2, totalWidth + 4, totalHeight + 4);
+               // Draw Text
+               ctx.fillStyle = shape.strokeColor; // Text Color
+               lines.forEach((line, index) => {
+                   ctx.fillText(line, shape.x!, shape.y! + (index * lineHeight));
+
+                   const ly = shape.y! + (index * lineHeight);
+                   const w = ctx.measureText(line).width;
+
+                   if (shape.fontUnderline) {
+                      ctx.beginPath();
+                      ctx.lineWidth = Math.max(1, (shape.fontSize || 20) / 15);
+                      ctx.moveTo(shape.x!, ly + (shape.fontSize || 20));
+                      ctx.lineTo(shape.x! + w, ly + (shape.fontSize || 20));
+                      ctx.stroke();
                    }
-
-                   // Rich Text Rendering
-                   let cursorX = shape.x;
-                   let cursorY = shape.y; // Top baseline
-                   ctx.textBaseline = 'top';
-
-                   shape.segments.forEach(seg => {
-                       const fontSize = seg.fontSize || shape.fontSize || 20;
-                       const fontFam = seg.fontFamily || shape.fontFamily || 'sans-serif';
-                       const fontStyle = seg.fontItalic || (seg.fontItalic === undefined && shape.fontItalic) ? 'italic' : 'normal';
-                       const fontWeight = seg.fontBold || (seg.fontBold === undefined && shape.fontBold) ? 'bold' : 'normal';
-
-                       ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFam}"`;
-                       ctx.fillStyle = seg.fillColor || shape.strokeColor;
-
-                       ctx.fillText(seg.text, cursorX, cursorY);
-                       const m = ctx.measureText(seg.text);
-
-                       if (seg.fontUnderline || (seg.fontUnderline === undefined && shape.fontUnderline)) {
-                           ctx.fillRect(cursorX, cursorY + fontSize + 2, m.width, Math.max(1, fontSize/15));
-                       }
-                       if (seg.fontStrike || (seg.fontStrike === undefined && shape.fontStrike)) {
-                           ctx.fillRect(cursorX, cursorY + fontSize/2, m.width, Math.max(1, fontSize/15));
-                       }
-
-                       cursorX += m.width;
-                   });
-               }
+                   if (shape.fontStrike) {
+                      ctx.beginPath();
+                      ctx.lineWidth = Math.max(1, (shape.fontSize || 20) / 15);
+                      ctx.moveTo(shape.x!, ly + (shape.fontSize || 20) / 2);
+                      ctx.lineTo(shape.x! + w, ly + (shape.fontSize || 20) / 2);
+                      ctx.stroke();
+                   }
+               });
            }
         }
         ctx.restore();
@@ -192,6 +174,12 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+
+        // Safety check for viewTransform
+        if (isNaN(viewTransform.x) || isNaN(viewTransform.y) || isNaN(viewTransform.scale) || viewTransform.scale === 0) {
+            console.error("Invalid ViewTransform", viewTransform);
+            return;
+        }
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -207,7 +195,10 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         const endY = startY + (canvas.height / viewTransform.scale) + gridSize;
 
         ctx.fillStyle = gridColor;
-        for(let x = startX; x < endX; x += gridSize) { for(let y = startY; y < endY; y += gridSize) ctx.fillRect(x, y, 2 / viewTransform.scale, 2 / viewTransform.scale); }
+        // Check for infinite loops
+        if (gridSize > 0) {
+             for(let x = startX; x < endX; x += gridSize) { for(let y = startY; y < endY; y += gridSize) ctx.fillRect(x, y, 2 / viewTransform.scale, 2 / viewTransform.scale); }
+        }
 
         // Query Visible Shapes
         const viewRect: Rect = {
@@ -225,7 +216,11 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             .filter(s => !!s);
 
         visibleShapes.forEach(shape => {
-            drawShape(ctx, shape);
+            try {
+                drawShape(ctx, shape);
+            } catch (e) {
+                console.error("Error drawing shape", shape.id, e);
+            }
         });
 
         ctx.restore();

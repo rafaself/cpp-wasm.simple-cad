@@ -13,7 +13,7 @@ const GRABBING_CURSOR = 'grabbing';
 interface DynamicOverlayProps {
   width: number;
   height: number;
-  onTextEntryStart: (data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string, segments?: any[] }) => void;
+  onTextEntryStart: (data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string }) => void;
   isTextEditing: boolean;
 }
 
@@ -134,12 +134,11 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     }
     ctx.strokeStyle = '#3b82f6';
     ctx.lineWidth = 1 / uiStore.viewTransform.scale;
+
     // For text, we might want a box. For others, maybe re-trace shape or bounding box?
-    // Bounding box is easier for performance in overlay
-    // But re-tracing exact shape is nicer UI.
-    // Let's re-trace exact shape but only stroke.
     ctx.beginPath();
     if (shape.type === 'rect') ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!);
+    else if (shape.type === 'text') ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!); // Text now has explicit width/height
     else if (shape.type === 'circle') ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI*2);
     else if (shape.type === 'line' && shape.points.length>=2) { ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); }
     // ...
@@ -438,7 +437,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
                  if (activeHandle.handle.type === 'vertex' && s.points) {
                     const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
                     dataStore.updateShape(s.id, { points: newPoints }, false);
-                 } else if (activeHandle.handle.type === 'resize' && s.type === 'rect') {
+                 } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect' || s.type === 'text')) {
+                    // Added support for text resize
                     if (s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined) {
                         const idx = activeHandle.handle.index;
                         const oldX = s.x; const oldY = s.y; const oldR = s.x + s.width; const oldB = s.y + s.height;
@@ -449,6 +449,13 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
                         else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
                         if (newW < 0) { newX += newW; newW = Math.abs(newW); }
                         if (newH < 0) { newY += newH; newH = Math.abs(newH); }
+
+                        // For Text, we want to enforce min size?
+                        if (s.type === 'text') {
+                            newW = Math.max(10, newW);
+                            newH = Math.max(10, newH);
+                        }
+
                         dataStore.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
                     }
                  }
@@ -592,8 +599,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
               y: hitShape.y,
               rotation: hitShape.rotation || 0,
               boxWidth: hitShape.width,
-              initialText: hitShape.text,
-              segments: hitShape.segments
+              initialText: hitShape.text
           });
       }
   };

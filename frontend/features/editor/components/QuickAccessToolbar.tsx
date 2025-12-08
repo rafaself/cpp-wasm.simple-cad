@@ -10,7 +10,7 @@ const TOOLS = [
   { id: 'line', icon: 'Line', label: 'Linha' },
   { id: 'rect', icon: 'Rect', label: 'Retângulo' },
   { id: 'circle', icon: 'Circle', label: 'Círculo' },
-  { id: 'text-tool', icon: 'Text', label: 'Texto' },
+  { id: 'text', icon: 'Text', label: 'Texto' },
   { id: 'move', icon: 'Move', label: 'Mover' },
 ];
 

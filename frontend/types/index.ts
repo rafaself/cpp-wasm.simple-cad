@@ -43,17 +43,6 @@ export interface SnapOptions {
   grid: boolean; // Added
 }
 
-export interface TextSpan {
-  text: string;
-  fontBold?: boolean;
-  fontItalic?: boolean;
-  fontUnderline?: boolean;
-  fontStrike?: boolean;
-  fillColor?: string;
-  fontFamily?: string;
-  fontSize?: number;
-}
-
 export interface Shape {
   id: string;
   layerId: string;
@@ -72,13 +61,12 @@ export interface Shape {
   strokeWidth?: number;
   strokeOpacity?: number; // 0-100
   strokeEnabled?: boolean; // false = no stroke
-  fillColor: string;
+  fillColor: string; // Background color for text
   fillOpacity?: number; // 0-100
   
   // Text specific
   label?: string; // For measurements
-  text?: string; // For text tool (Legacy/Simple)
-  segments?: TextSpan[]; // For Rich Text
+  text?: string; // For text tool
   fontSize?: number; 
   fontFamily?: string;
   fontBold?: boolean;
