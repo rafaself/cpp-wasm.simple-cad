@@ -380,10 +380,23 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
         });
     }
     else if ((shape.type === 'rect' || shape.type === 'text') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-        handles.push({ x: shape.x, y: shape.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
-        handles.push({ x: shape.x + shape.width, y: shape.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
-        handles.push({ x: shape.x + shape.width, y: shape.y + shape.height, cursor: 'nwse-resize', index: 2, type: 'resize' });
-        handles.push({ x: shape.x, y: shape.y + shape.height, cursor: 'nesw-resize', index: 3, type: 'resize' });
+        const p1 = { x: shape.x, y: shape.y };
+        const p2 = { x: shape.x + shape.width, y: shape.y };
+        const p3 = { x: shape.x + shape.width, y: shape.y + shape.height };
+        const p4 = { x: shape.x, y: shape.y + shape.height };
+
+        const basePoints = [p1, p2, p3, p4];
+        let finalPoints = basePoints;
+
+        if (shape.rotation) {
+            const pivot = { x: shape.x, y: shape.y };
+            finalPoints = basePoints.map(p => rotatePoint(p, pivot, shape.rotation!));
+        }
+
+        handles.push({ x: finalPoints[0].x, y: finalPoints[0].y, cursor: 'nwse-resize', index: 0, type: 'resize' });
+        handles.push({ x: finalPoints[1].x, y: finalPoints[1].y, cursor: 'nesw-resize', index: 1, type: 'resize' });
+        handles.push({ x: finalPoints[2].x, y: finalPoints[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
+        handles.push({ x: finalPoints[3].x, y: finalPoints[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
     }
     return handles;
 };
