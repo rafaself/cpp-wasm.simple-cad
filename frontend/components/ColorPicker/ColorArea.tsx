@@ -1,10 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { HSV } from './utils';
-import { cn } from '@/lib/utils'; // Assuming this exists, if not I'll just use template literals or check for it.
-
-// Fallback for cn if it doesn't exist (I'll check project structure later but usually valid in these setups)
-// Actually, I should verify if 'cn' exists. I saw 'utils' folder in frontend. 
-// Let's assume standard Tailwind class merging. If not I'll replace it.
 
 interface ColorAreaProps {
   hsv: HSV;
@@ -31,25 +26,27 @@ const ColorArea: React.FC<ColorAreaProps> = ({ hsv, onChange, className }) => {
     const s = Math.round(x * 100);
     const v = Math.round((1 - y) * 100);
 
-    onChange({ ...hsv, s, v });
-  }, [hsv, onChange]);
+    // Preserve the current hue - only change S and V
+    onChange({ h: hsv.h, s, v, a: hsv.a });
+  }, [hsv.h, hsv.a, onChange]);
 
   const onMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent text selection
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
     handleMove(e.clientX, e.clientY);
   };
 
   useEffect(() => {
+    if (!isDragging) return;
+
     const onMouseUp = () => setIsDragging(false);
     const onMouseMove = (e: MouseEvent) => {
-      if (isDragging) handleMove(e.clientX, e.clientY);
+      handleMove(e.clientX, e.clientY);
     };
 
-    if (isDragging) {
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    }
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
 
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
@@ -62,34 +59,28 @@ const ColorArea: React.FC<ColorAreaProps> = ({ hsv, onChange, className }) => {
     backgroundColor: `hsl(${hsv.h}, 100%, 50%)`,
   };
 
-  const handleStyle = {
-    left: `${hsv.s}%`,
-    top: `${100 - hsv.v}%`,
-  };
-
   return (
     <div 
-      className={`relative w-full h-48 rounded-lg overflow-hidden cursor-crosshair touch-none select-none ${className || ''}`}
+      className={`relative w-full h-44 rounded-lg overflow-hidden cursor-crosshair touch-none select-none ${className || ''}`}
       ref={containerRef}
       onMouseDown={onMouseDown}
       style={hueStyle}
     >
-      {/* Gradients */}
+      {/* Saturation gradient (white to transparent) */}
       <div className="absolute inset-0 bg-gradient-to-r from-white to-transparent" />
+      {/* Value gradient (transparent to black) */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
 
-      {/* Handle */}
+      {/* Handle/Selector */}
       <div 
-        className="absolute w-4 h-4 rounded-full border-2 border-white shadow-sm -translate-x-1/2 -translate-y-1/2 pointer-events-none box-border z-10"
+        className="absolute w-4 h-4 rounded-full border-2 border-white pointer-events-none"
         style={{ 
-            ...handleStyle,
-            backgroundColor: `transparent`, // Or the actual color? Figma shows generic circle.
-            // Let's make it look like the picture: White ring, empty inside or color inside? 
-            // In the picture it looks like a black/white ring. Let's stick to standard ring.
+          left: `${hsv.s}%`,
+          top: `${100 - hsv.v}%`,
+          transform: 'translate(-50%, -50%)',
+          boxShadow: '0 0 0 1px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.3)'
         }} 
-      >
-          {/* Inner ring for contrast if needed */}
-      </div>
+      />
     </div>
   );
 };

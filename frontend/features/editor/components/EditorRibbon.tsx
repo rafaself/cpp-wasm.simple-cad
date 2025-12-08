@@ -341,17 +341,12 @@ const EditorRibbon: React.FC = () => {
       {colorPickerTarget && (
         <>
             <div className="fixed inset-0 z-[60]" onClick={() => setColorPickerTarget(null)} />
-            <div 
-                className="fixed z-[70] shadow-2xl rounded-xl"
-                style={{ top: colorPickerPos.top, left: colorPickerPos.left }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <ColorPicker 
-                    color={activeColor === 'transparent' ? '#FFFFFF' : activeColor}
-                    onChange={handleColorChange}
-                    onClose={() => setColorPickerTarget(null)}
-                />
-            </div>
+            <ColorPicker 
+                color={activeColor === 'transparent' ? '#FFFFFF' : activeColor}
+                onChange={handleColorChange}
+                onClose={() => setColorPickerTarget(null)}
+                initialPosition={colorPickerPos}
+            />
         </>
       )}
     </div>

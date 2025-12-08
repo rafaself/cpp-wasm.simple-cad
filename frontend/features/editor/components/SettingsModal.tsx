@@ -1,9 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../../../stores/useAppStore';
 import { X } from 'lucide-react';
+import ColorPicker from '../../../components/ColorPicker';
 
 const SettingsModal: React.FC = () => {
   const store = useAppStore();
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
+
+  const openColorPicker = (e: React.MouseEvent) => {
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setColorPickerPos({ top: rect.bottom + 5, left: rect.left - 100 });
+    setShowColorPicker(true);
+  };
 
   if (!store.isSettingsModalOpen) return null;
 
@@ -41,11 +50,10 @@ const SettingsModal: React.FC = () => {
           <div className="flex flex-col gap-2">
             <label className="text-xs text-slate-400 font-bold uppercase">Cor da Grade</label>
             <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-700">
-                <input 
-                    type="color" 
-                    value={store.gridColor} 
-                    onChange={(e) => store.setGridColor(e.target.value)}
-                    className="w-8 h-8 rounded border-none bg-transparent cursor-pointer"
+                <div 
+                    className="w-8 h-8 rounded border border-slate-600 cursor-pointer hover:scale-105 transition-transform"
+                    style={{ backgroundColor: store.gridColor }}
+                    onClick={openColorPicker}
                 />
                 <span className="text-xs font-mono text-slate-400">{store.gridColor}</span>
             </div>
@@ -62,6 +70,19 @@ const SettingsModal: React.FC = () => {
             </button>
         </div>
       </div>
+
+      {/* Color Picker Popup */}
+      {showColorPicker && (
+        <>
+          <div className="fixed inset-0 z-[110]" onClick={() => setShowColorPicker(false)} />
+          <ColorPicker 
+            color={store.gridColor}
+            onChange={(c) => store.setGridColor(c)}
+            onClose={() => setShowColorPicker(false)}
+            initialPosition={colorPickerPos}
+          />
+        </>
+      )}
     </div>
   );
 };

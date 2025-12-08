@@ -1,11 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../../../stores/useAppStore';
 import { X, Plus, Trash2, Check, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import ColorPicker from '../../../components/ColorPicker';
 
 const LayerManagerModal: React.FC = () => {
   const store = useAppStore();
+  const [colorPickerLayerId, setColorPickerLayerId] = useState<string | null>(null);
+  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
+
+  const openColorPicker = (e: React.MouseEvent, layerId: string) => {
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setColorPickerPos({ top: rect.bottom + 5, left: rect.left - 100 });
+    setColorPickerLayerId(layerId);
+  };
+
+  const handleColorChange = (newColor: string) => {
+    if (colorPickerLayerId) {
+      store.setLayerColor(colorPickerLayerId, newColor);
+    }
+  };
 
   if (!store.isLayerManagerOpen) return null;
+
+  const activeLayer = colorPickerLayerId ? store.layers.find(l => l.id === colorPickerLayerId) : null;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm backdrop-enter">
@@ -63,15 +81,11 @@ const LayerManagerModal: React.FC = () => {
                     </div>
                     
                     <div className="flex justify-center">
-                        <div className="w-4 h-4 rounded-sm border border-slate-500 overflow-hidden relative cursor-pointer hover:scale-110 transition-transform shadow-sm">
-                             <input 
-                                type="color" 
-                                value={layer.color} 
-                                onChange={(e) => { e.stopPropagation(); store.setLayerColor(layer.id, e.target.value); }} 
-                                className="absolute -top-2 -left-2 w-8 h-8 p-0 cursor-pointer" 
-                                onClick={(e) => e.stopPropagation()}
-                             />
-                        </div>
+                        <div 
+                            className="w-5 h-5 rounded-sm border border-slate-500 cursor-pointer hover:scale-110 transition-transform shadow-sm"
+                            style={{ backgroundColor: layer.color }}
+                            onClick={(e) => openColorPicker(e, layer.id)}
+                        />
                     </div>
 
                     <div className="flex justify-center">
@@ -89,6 +103,19 @@ const LayerManagerModal: React.FC = () => {
              ))}
           </div>
        </div>
+
+       {/* Color Picker Popup */}
+       {colorPickerLayerId && (
+         <>
+           <div className="fixed inset-0 z-[110]" onClick={() => setColorPickerLayerId(null)} />
+           <ColorPicker 
+             color={activeLayer?.color || '#FFFFFF'}
+             onChange={handleColorChange}
+             onClose={() => setColorPickerLayerId(null)}
+             initialPosition={colorPickerPos}
+           />
+         </>
+       )}
     </div>
   )
 }

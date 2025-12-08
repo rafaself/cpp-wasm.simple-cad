@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../../stores/useAppStore';
 import { Shape } from '../../../types';
+import ColorPicker from '../../../components/ColorPicker';
 
 const EditorSidebar: React.FC = () => {
   const store = useAppStore();
@@ -18,6 +19,23 @@ const EditorSidebar: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const isDownRef = useRef(false);
   const dragStartRef = useRef<{x: number, scrollLeft: number} | null>(null);
+  
+  // Color Picker State
+  const [colorPickerTarget, setColorPickerTarget] = useState<'fill' | 'stroke' | null>(null);
+  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
+
+  const openSidebarColorPicker = (e: React.MouseEvent, target: 'fill' | 'stroke') => {
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setColorPickerPos({ top: rect.top, left: rect.left - 270 });
+    setColorPickerTarget(target);
+  };
+
+  const handleSidebarColorChange = (newColor: string) => {
+    if (!selectedShape) return;
+    if (colorPickerTarget === 'fill') updateProp('fillColor', newColor);
+    if (colorPickerTarget === 'stroke') updateProp('strokeColor', newColor);
+  };
 
   // Helper to get selected shape (Single selection focus for MVP)
   const selectedShapeId = store.selectedShapeIds.values().next().value;
@@ -320,40 +338,87 @@ const EditorSidebar: React.FC = () => {
         <div className="p-3 border-b border-slate-100">
              <div className="flex justify-between items-center mb-2">
                 <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">Preenchimento</h3>
-                <button className="text-slate-400 hover:text-slate-900"><Plus size={12} /></button>
             </div>
-            <div className="flex items-center gap-2 group">
-                <div className="w-5 h-5 rounded border border-slate-300 relative overflow-hidden flex-shrink-0">
-                    <input 
-                        type="color" 
-                        value={selectedShape.fillColor === 'transparent' ? '#ffffff' : selectedShape.fillColor} 
-                        onChange={(e) => updateProp('fillColor', e.target.value)}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    />
-                    <div 
-                        className="w-full h-full" 
-                        style={{backgroundColor: selectedShape.fillColor === 'transparent' ? 'transparent' : selectedShape.fillColor}} 
-                    />
+            <div className="flex items-center gap-2">
+                {/* Color swatch with toggle */}
+                <div 
+                    className={`w-6 h-6 rounded border-2 flex-shrink-0 cursor-pointer transition-all ${
+                      selectedShape.fillColor === 'transparent' 
+                        ? 'border-slate-300 bg-white' 
+                        : 'border-slate-400 hover:scale-105'
+                    }`}
+                    style={{backgroundColor: selectedShape.fillColor === 'transparent' ? 'transparent' : selectedShape.fillColor}}
+                    onClick={(e) => selectedShape.fillColor !== 'transparent' && openSidebarColorPicker(e, 'fill')}
+                >
                     {selectedShape.fillColor === 'transparent' && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-full h-[1px] bg-red-500 rotate-45 transform"></div>
+                        <div className="w-full h-full flex items-center justify-center relative">
+                            <div className="w-[120%] h-[2px] bg-red-500 rotate-45 absolute"></div>
                         </div>
                     )}
                 </div>
-                <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-1.5 h-6 focus-within:border-blue-500">
-                    <span className="text-[11px] text-slate-700 font-mono uppercase flex-grow">
-                        {selectedShape.fillColor === 'transparent' ? 'Nenhum' : selectedShape.fillColor}
-                    </span>
+                
+                {/* HEX Input */}
+                <div className="flex-grow">
+                    <input 
+                        type="text"
+                        value={selectedShape.fillColor === 'transparent' ? '' : selectedShape.fillColor}
+                        onChange={(e) => {
+                            let val = e.target.value.toUpperCase();
+                            // Remove any # except at start
+                            val = val.replace(/#/g, '');
+                            // Keep only valid hex chars
+                            val = val.replace(/[^0-9A-F]/g, '');
+                            // Limit to 6 chars
+                            val = val.slice(0, 6);
+                            if (val.length > 0) {
+                                updateProp('fillColor', '#' + val);
+                            }
+                        }}
+                        onBlur={(e) => {
+                            // Ensure valid hex on blur
+                            let val = e.target.value.replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+                            if (val.length === 3) {
+                                val = val.split('').map(c => c + c).join('');
+                            }
+                            if (val.length === 6) {
+                                updateProp('fillColor', '#' + val);
+                            }
+                        }}
+                        disabled={selectedShape.fillColor === 'transparent'}
+                        placeholder="Sem cor"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 h-7 text-[11px] text-slate-700 font-mono uppercase focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
                 </div>
-                <div className="w-10 flex items-center bg-slate-50 border border-slate-200 rounded px-1 h-6 focus-within:border-blue-500">
+                
+                {/* Opacity */}
+                <div className="w-12 flex items-center bg-slate-50 border border-slate-200 rounded h-7 px-1.5">
                      <input 
                         type="number" 
+                        min={0}
+                        max={100}
                         value={selectedShape.fillColor === 'transparent' ? 0 : 100}
                         disabled
-                        className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 text-right focus:ring-0 font-mono"
+                        className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 text-right focus:ring-0 focus:outline-none font-mono"
                      />
-                     <span className="text-[9px] text-slate-400 ml-0.5">%</span>
+                     <span className="text-[10px] text-slate-400 ml-0.5">%</span>
                 </div>
+                
+                {/* Toggle transparent */}
+                <button 
+                    onClick={() => updateProp('fillColor', selectedShape.fillColor === 'transparent' ? '#CCCCCC' : 'transparent')}
+                    className={`w-7 h-7 rounded border flex items-center justify-center transition-colors ${
+                      selectedShape.fillColor === 'transparent' 
+                        ? 'bg-slate-200 border-slate-300 text-slate-500' 
+                        : 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
+                    }`}
+                    title={selectedShape.fillColor === 'transparent' ? 'Ativar preenchimento' : 'Desativar preenchimento'}
+                >
+                    {selectedShape.fillColor === 'transparent' ? (
+                        <div className="w-3 h-[2px] bg-slate-400"></div>
+                    ) : (
+                        <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
+                    )}
+                </button>
             </div>
         </div>
 
@@ -361,51 +426,74 @@ const EditorSidebar: React.FC = () => {
         <div className="p-3 border-b border-slate-100">
              <div className="flex justify-between items-center mb-2">
                 <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">Traço</h3>
-                <button className="text-slate-400 hover:text-slate-900"><Plus size={12} /></button>
             </div>
             <div className="flex flex-col gap-2">
+                {/* Color row */}
                 <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded border border-slate-300 relative overflow-hidden flex-shrink-0">
+                    <div 
+                        className="w-6 h-6 rounded border-2 border-slate-400 flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                        style={{backgroundColor: selectedShape.strokeColor}}
+                        onClick={(e) => openSidebarColorPicker(e, 'stroke')}
+                    />
+                    
+                    {/* HEX Input */}
+                    <div className="flex-grow">
                         <input 
-                            type="color" 
-                            value={selectedShape.strokeColor} 
-                            onChange={(e) => updateProp('strokeColor', e.target.value)}
-                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        />
-                        <div 
-                            className="w-full h-full" 
-                            style={{backgroundColor: selectedShape.strokeColor}} 
+                            type="text"
+                            value={selectedShape.strokeColor}
+                            onChange={(e) => {
+                                let val = e.target.value.toUpperCase();
+                                val = val.replace(/#/g, '');
+                                val = val.replace(/[^0-9A-F]/g, '');
+                                val = val.slice(0, 6);
+                                if (val.length > 0) {
+                                    updateProp('strokeColor', '#' + val);
+                                }
+                            }}
+                            onBlur={(e) => {
+                                let val = e.target.value.replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+                                if (val.length === 3) {
+                                    val = val.split('').map(c => c + c).join('');
+                                }
+                                if (val.length === 6) {
+                                    updateProp('strokeColor', '#' + val);
+                                }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded px-2 h-7 text-[11px] text-slate-700 font-mono uppercase focus:outline-none focus:border-blue-500"
                         />
                     </div>
-                    <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-1.5 h-6 focus-within:border-blue-500">
-                        <span className="text-[11px] text-slate-700 font-mono uppercase flex-grow">
-                            {selectedShape.strokeColor}
-                        </span>
-                    </div>
-                    <div className="w-10 flex items-center bg-slate-50 border border-slate-200 rounded px-1 h-6 focus-within:border-blue-500">
+                    
+                    {/* Opacity */}
+                    <div className="w-12 flex items-center bg-slate-50 border border-slate-200 rounded h-7 px-1.5">
                         <input 
                             type="number" 
                             value={100}
                             disabled
-                            className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 text-right focus:ring-0 font-mono"
+                            className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 text-right focus:ring-0 focus:outline-none font-mono"
                         />
-                        <span className="text-[9px] text-slate-400 ml-0.5">%</span>
+                        <span className="text-[10px] text-slate-400 ml-0.5">%</span>
                     </div>
                 </div>
                 
-                {/* Stroke Width */}
-                <div className="flex items-center gap-2 mt-1">
-                     <div className="flex items-center bg-slate-50 border border-slate-200 rounded px-1.5 h-6 w-full focus-within:border-blue-500">
-                        <Minus size={10} className="text-slate-400 mr-2" />
+                {/* Stroke Width - clearly labeled */}
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 w-14 shrink-0">Espessura</span>
+                    <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-2 h-7 focus-within:border-blue-500">
                         <input 
                             type="number" 
-                            min="1"
+                            min={1}
+                            max={100}
                             value={selectedShape.strokeWidth || 1}
-                            onChange={(e) => updateProp('strokeWidth', parseInt(e.target.value))}
-                            className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 focus:ring-0 font-mono"
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                if (!isNaN(val) && val >= 1 && val <= 100) {
+                                    updateProp('strokeWidth', val);
+                                }
+                            }}
+                            className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 focus:ring-0 focus:outline-none font-mono"
                         />
-                        <span className="text-[9px] text-slate-400 ml-1">px</span>
-                     </div>
+                        <span className="text-[10px] text-slate-400 ml-1">px</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -491,6 +579,22 @@ const EditorSidebar: React.FC = () => {
         </button>
 
       </div>
+
+      {/* Color Picker Popup */}
+      {colorPickerTarget && selectedShape && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setColorPickerTarget(null)} />
+          <ColorPicker 
+            color={colorPickerTarget === 'fill' 
+              ? (selectedShape.fillColor === 'transparent' ? '#FFFFFF' : selectedShape.fillColor)
+              : selectedShape.strokeColor
+            }
+            onChange={handleSidebarColorChange}
+            onClose={() => setColorPickerTarget(null)}
+            initialPosition={colorPickerPos}
+          />
+        </>
+      )}
     </div>
   );
 };
