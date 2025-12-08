@@ -31,6 +31,9 @@ interface AppState {
   gridSize: number;
   gridColor: string;
   
+  // World Scale (Intelligence POC)
+  worldScale: number; // pixels per meter (default 50)
+
   // Document State (Data)
   shapes: Record<string, Shape>; // Normalized Data
   layers: Layer[];
@@ -63,6 +66,7 @@ interface AppState {
   setFillColor: (color: string) => void;
   setGridSize: (size: number) => void;
   setGridColor: (color: string) => void;
+  setWorldScale: (scale: number) => void;
   setTextSize: (size: number) => void;
   setFontFamily: (font: string) => void;
   toggleFontBold: () => void;
@@ -130,6 +134,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   gridSize: 50,
   gridColor: '#e5e7eb',
   
+  worldScale: 50, // 50px = 1 meter
+
   shapes: {}, // Hash Map
   layers: [{ id: '0', name: 'Layer 0', color: '#ffffff', visible: true, locked: false }],
   activeLayerId: '0',
@@ -219,6 +225,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPolygonSides: (sides) => set({ polygonSides: sides }),
   setGridSize: (size) => set({ gridSize: size }),
   setGridColor: (color) => set({ gridColor: color }),
+  setWorldScale: (scale) => set({ worldScale: scale }),
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen: boolean) => set({ isLayerManagerOpen: isOpen }),
 
