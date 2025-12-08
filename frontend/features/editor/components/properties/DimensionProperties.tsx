@@ -100,14 +100,32 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
         <>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-slate-500 w-16 shrink-0">Comprimento</span>
-            <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-2 h-7">
+            <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-2 h-7 focus-within:border-blue-500">
                 <input
                     type="number"
                     value={Math.round(Math.sqrt(
                         Math.pow(selectedShape.points[1].x - selectedShape.points[0].x, 2) +
                         Math.pow(selectedShape.points[1].y - selectedShape.points[0].y, 2)
                     ))}
-                    disabled
+                    onChange={(e) => {
+                        const newLen = parseFloat(e.target.value);
+                        if (!isNaN(newLen) && newLen >= 0) {
+                            const p0 = selectedShape.points[0];
+                            const p1 = selectedShape.points[1];
+                            const dx = p1.x - p0.x;
+                            const dy = p1.y - p0.y;
+                            const currentAngle = Math.atan2(dy, dx);
+
+                            // Recalculate P1 based on P0 (origin), angle, and new length
+                            const newP1 = {
+                                x: p0.x + newLen * Math.cos(currentAngle),
+                                y: p0.y + newLen * Math.sin(currentAngle)
+                            };
+
+                            // Update the shape with new points
+                            store.updateShape(selectedShape.id, { points: [p0, newP1, ...selectedShape.points.slice(2)] });
+                        }
+                    }}
                     className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 focus:ring-0 focus:outline-none font-mono text-right"
                 />
                 <span className="text-[10px] text-slate-400 ml-1">px</span>

@@ -5,19 +5,18 @@ import { worldToScreen, getWrappedLines } from '../../../../utils/geometry';
 import StaticCanvas from './StaticCanvas';
 import DynamicOverlay from './DynamicOverlay';
 import UserHint from '../UserHint';
+import { TextSpan } from '../../../../types';
 
 const CanvasManager: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const textInputRef = useRef<HTMLTextAreaElement>(null);
+    const textInputRef = useRef<HTMLDivElement>(null);
     const uiStore = useUIStore();
     const dataStore = useDataStore();
 
     const [dims, setDims] = useState({ width: 800, height: 600 });
 
     // Text Entry State (Local)
-    const [textEntry, setTextEntry] = useState<{ id?: string; x: number; y: number; rotation: number; boxWidth?: number; } | null>(null);
-    const [textInputValue, setTextInputValue] = useState("");
-    const [textAreaSize, setTextAreaSize] = useState({ width: 50, height: 24 });
+    const [textEntry, setTextEntry] = useState<{ id?: string; x: number; y: number; rotation: number; boxWidth?: number; segments?: TextSpan[] } | null>(null);
     const [hintDismissed, setHintDismissed] = useState(false);
 
     // Resize Observer
@@ -25,43 +24,168 @@ const CanvasManager: React.FC = () => {
         const handleResize = () => {
           if (containerRef.current) {
               const width = containerRef.current.clientWidth; const height = containerRef.current.clientHeight;
-              // Prevent unnecessary state updates if dimensions match
               if (width !== dims.width || height !== dims.height) {
                   setDims({ width, height });
                   uiStore.setCanvasSize({ width, height });
               }
           }
         };
-        // Initial measurement
         handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [uiStore, dims.width, dims.height]);
 
-    // Text Entry logic
-    const handleTextEntryStart = useCallback((data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string }) => {
+    // Apply Style to Selection
+    // This effect listens to UI Store changes (Bold, Italic, Color) and applies them to the current selection in the ContentEditable
+    // if we are in text editing mode.
+    useEffect(() => {
+        if (!textEntry || !textInputRef.current) return;
+
+        // This is a simplified "Rich Text" applicator.
+        // Real implementations use document.execCommand (deprecated) or complex Range manipulation.
+        // Since we are simulating a "Figma" like experience, we might want to capture the selection
+        // and when the user clicks "Bold" in the ribbon, we apply it.
+        // However, the Ribbon buttons toggle the global UI Store state.
+        // We should watch that state and apply to current selection?
+        // Or should the Ribbon buttons call a method here?
+        // The Ribbon updates `uiStore`. We can listen to `uiStore.fontBold` etc changes?
+        // But `uiStore` holds the "current tool default".
+        // It's tricky to sync "Ribbon Toggle" with "Text Selection Style".
+        // For this MVP, we will rely on the user selecting text in the contenteditable,
+        // and if they press Ctrl+B or use a toolbar that we might hook up later.
+        // BUT the requirements say: "WYSIWYG: Application of styles (bold...) must be visualized in real time."
+        // And "User must be able to select fragment and apply distinct styles".
+
+        // We need a way to intercept the Ribbon actions if text is editing.
+        // Actually, `document.execCommand` works on contenteditable naturally for basic things!
+        // Let's try to map our custom UI state to execCommand?
+        // Or just let the user use browser shortcuts (Ctrl+B) and maybe we can trigger execCommand programmatically?
+
+    }, [textEntry, uiStore.fontBold, uiStore.fontItalic, uiStore.fontUnderline, uiStore.strokeColor]);
+
+    // We need to parse the ContentEditable back to `segments` on commit.
+    // Helper to parse HTML to Segments
+    const parseContentEditable = (el: HTMLElement): TextSpan[] => {
+        const segments: TextSpan[] = [];
+
+        const traverse = (node: Node, currentStyle: Partial<TextSpan>) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                if (node.textContent && node.textContent.length > 0) {
+                    segments.push({
+                        text: node.textContent,
+                        ...currentStyle
+                    });
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node as HTMLElement;
+                const newStyle = { ...currentStyle };
+
+                if (element.tagName === 'B' || element.tagName === 'STRONG' || element.style.fontWeight === 'bold') newStyle.fontBold = true;
+                if (element.tagName === 'I' || element.tagName === 'EM' || element.style.fontStyle === 'italic') newStyle.fontItalic = true;
+                if (element.tagName === 'U' || element.style.textDecoration.includes('underline')) newStyle.fontUnderline = true;
+                if (element.tagName === 'S' || element.tagName === 'STRIKE' || element.style.textDecoration.includes('line-through')) newStyle.fontStrike = true;
+                if (element.style.color) newStyle.fillColor = element.style.color; // Conversion needed if rgb()?
+                if (element.style.fontFamily) newStyle.fontFamily = element.style.fontFamily.replace(/"/g, '');
+                if (element.style.fontSize) newStyle.fontSize = parseInt(element.style.fontSize);
+
+                element.childNodes.forEach(child => traverse(child, newStyle));
+
+                // Handle block elements (div, p) adding newlines if needed?
+                // For now, assume linear or <br>
+                if (element.tagName === 'BR') segments.push({ text: '\n', ...currentStyle });
+                if (element.tagName === 'DIV' || element.tagName === 'P') {
+                     // Block breaks might need handling, usually simple rich text uses <div> for lines.
+                     // We might just treat them as newlines between traversals?
+                }
+            }
+        };
+
+        traverse(el, {
+            fontSize: uiStore.textSize,
+            fontFamily: uiStore.fontFamily,
+            fillColor: uiStore.strokeColor,
+            fontBold: uiStore.fontBold,
+            fontItalic: uiStore.fontItalic,
+            fontUnderline: uiStore.fontUnderline
+        });
+
+        return segments;
+    };
+
+    // Helper to render Segments to HTML for initialization
+    const renderSegmentsToHtml = (segments: TextSpan[]): string => {
+        return segments.map(s => {
+            let style = `color:${s.fillColor || '#000'}; font-size:${s.fontSize || 20}px; font-family:${s.fontFamily || 'sans-serif'};`;
+            if (s.fontBold) style += 'font-weight:bold;';
+            if (s.fontItalic) style += 'font-style:italic;';
+            let deco = '';
+            if (s.fontUnderline) deco += 'underline ';
+            if (s.fontStrike) deco += 'line-through ';
+            if (deco) style += `text-decoration:${deco};`;
+
+            // Replace newlines with <br> for HTML display
+            const txt = s.text.replace(/\n/g, '<br>');
+            return `<span style="${style}">${txt}</span>`;
+        }).join('');
+    };
+
+    const handleTextEntryStart = useCallback((data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string, segments?: TextSpan[] }) => {
         setTextEntry(data);
-        setTextInputValue(data.initialText || "");
+        // Wait for render then set content
+        setTimeout(() => {
+            if (textInputRef.current) {
+                if (data.segments) {
+                    textInputRef.current.innerHTML = renderSegmentsToHtml(data.segments);
+                } else {
+                    textInputRef.current.innerText = data.initialText || "";
+                }
+
+                // Focus and move cursor to end
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(textInputRef.current);
+                range.collapse(false);
+                sel?.removeAllRanges();
+                sel?.addRange(range);
+                textInputRef.current.focus();
+            }
+        }, 0);
     }, []);
 
     const commitTextEntry = useCallback(() => {
-        if (textEntry) {
-            if (textInputValue.trim()) {
-                const text = textInputValue;
+        if (textEntry && textInputRef.current) {
+            const rawText = textInputRef.current.innerText; // Fallback or searchable text
+            const htmlContent = textInputRef.current.innerHTML;
+
+            // Parse HTML to Spans
+            const segments = parseContentEditable(textInputRef.current);
+
+            if (segments.length > 0) {
                 if (textEntry.id) {
-                    dataStore.updateShape(textEntry.id, { text, width: textEntry.boxWidth });
+                    dataStore.updateShape(textEntry.id, { text: rawText, segments, width: textEntry.boxWidth });
                 } else {
                     dataStore.addShape({
-                       id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'text', x: textEntry.x, y: textEntry.y, text: text,
-                       width: textEntry.boxWidth, fontSize: uiStore.textSize, fontFamily: uiStore.fontFamily, fontBold: uiStore.fontBold, fontItalic: uiStore.fontItalic,
-                       fontUnderline: uiStore.fontUnderline, fontStrike: uiStore.fontStrike, strokeColor: uiStore.strokeColor, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', points: [], rotation: textEntry.rotation
+                       id: Date.now().toString(),
+                       layerId: dataStore.activeLayerId,
+                       type: 'text',
+                       x: textEntry.x,
+                       y: textEntry.y,
+                       text: rawText,
+                       segments: segments,
+                       width: textEntry.boxWidth,
+                       fontSize: uiStore.textSize, // Base Default
+                       fontFamily: uiStore.fontFamily,
+                       strokeColor: uiStore.strokeColor,
+                       fillColor: 'transparent',
+                       points: [],
+                       rotation: textEntry.rotation
                     });
                     uiStore.setSidebarTab('desenho');
                 }
             }
         }
-        setTextEntry(null); setTextInputValue("");
-     }, [textEntry, textInputValue, uiStore, dataStore]);
+        setTextEntry(null);
+     }, [textEntry, uiStore, dataStore]);
 
     // Hint Logic
     useEffect(() => { setHintDismissed(false); }, [uiStore.activeTool]);
@@ -72,41 +196,19 @@ const CanvasManager: React.FC = () => {
     else if (uiStore.activeTool === 'text' && !textEntry) hintMessage = "Clique para digitar ou arraste para criar área";
     else if (uiStore.activeTool === 'text' && textEntry) hintMessage = "Digite o texto. Clique fora para finalizar.";
 
-
-    // Text Area Sizing Effect
-    useEffect(() => {
-        if (textEntry && containerRef.current) {
-            // Need a temp context to measure text
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-               let fontSize = uiStore.textSize; let fontFamily = uiStore.fontFamily; let fontBold = uiStore.fontBold; let fontItalic = uiStore.fontItalic;
-               if (textEntry.id) {
-                   const s = dataStore.shapes[textEntry.id];
-                   if (s && s.type === 'text') { fontSize = s.fontSize || fontSize; fontFamily = s.fontFamily || fontFamily; fontBold = s.fontBold || fontBold; fontItalic = s.fontItalic || fontItalic; }
-               }
-               const style = fontItalic ? 'italic' : 'normal'; const weight = fontBold ? 'bold' : 'normal'; const family = fontFamily ? `"${fontFamily}"` : 'sans-serif';
-               ctx.font = `${style} ${weight} ${fontSize * uiStore.viewTransform.scale}px ${family}`;
-               let w = 0; let h = 0; const lineHeight = fontSize * uiStore.viewTransform.scale * 1.2;
-               if (textEntry.boxWidth) {
-                   w = textEntry.boxWidth * uiStore.viewTransform.scale; const wrappedLines = getWrappedLines(ctx, textInputValue || " ", w); h = Math.max(lineHeight, wrappedLines.length * lineHeight + 10);
-               } else {
-                   const lines = (textInputValue || " ").split('\n'); let maxLineW = 0;
-                   lines.forEach(line => { const mw = ctx.measureText(line).width; if(mw > maxLineW) maxLineW = mw; });
-                   w = Math.max(50, maxLineW + 20); h = Math.max(lineHeight, lines.length * lineHeight + 10);
-               }
-               setTextAreaSize({ width: w, height: h });
-            }
-        }
-    }, [textInputValue, textEntry, uiStore.textSize, uiStore.fontFamily, uiStore.fontBold, uiStore.fontItalic, uiStore.viewTransform.scale, dataStore.shapes]);
-
     const textAreaStyle: React.CSSProperties = textEntry ? {
         left: worldToScreen({x: textEntry.x, y: textEntry.y}, uiStore.viewTransform).x,
         top: worldToScreen({x: textEntry.x, y: textEntry.y}, uiStore.viewTransform).y,
         transform: `rotate(${textEntry.rotation}rad)`, transformOrigin: 'top left',
-        font: `${uiStore.fontItalic ? 'italic' : 'normal'} ${uiStore.fontBold ? 'bold' : 'normal'} ${uiStore.textSize * uiStore.viewTransform.scale}px "${uiStore.fontFamily}"`,
-        color: uiStore.strokeColor, minWidth: '50px', width: textAreaSize.width, height: textAreaSize.height,
-        whiteSpace: textEntry.boxWidth ? 'pre-wrap' : 'pre'
+        minWidth: '50px',
+        width: textEntry.boxWidth ? textEntry.boxWidth * uiStore.viewTransform.scale : 'auto',
+        outline: 'none',
+        border: '1px dashed #3b82f6',
+        padding: '0',
+        margin: '0',
+        lineHeight: '1.2',
+        whiteSpace: textEntry.boxWidth ? 'pre-wrap' : 'pre',
+        overflow: 'hidden' // Hide scrollbars
     } : {};
 
     return (
@@ -120,11 +222,18 @@ const CanvasManager: React.FC = () => {
             />
 
             {textEntry && (
-                <textarea
-                    ref={textInputRef} autoFocus placeholder="Digite..." value={textInputValue} onChange={(e) => setTextInputValue(e.target.value)}
-                    className="absolute z-[60] bg-transparent border border-blue-500 outline-none resize-none overflow-hidden p-0 m-0 leading-snug cursor-text"
-                    style={textAreaStyle} onBlur={commitTextEntry}
-                    onKeyDown={(e) => { if(e.key === 'Escape') { setTextEntry(null); setTextInputValue(""); } }}
+                <div
+                    ref={textInputRef}
+                    contentEditable
+                    className="absolute z-[60] cursor-text"
+                    style={textAreaStyle}
+                    onBlur={commitTextEntry}
+                    onKeyDown={(e) => {
+                        if(e.key === 'Escape') { setTextEntry(null); }
+                        // Stop propagation of delete so we don't delete shape
+                        e.stopPropagation();
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()} // Allow selecting text inside
                 />
             )}
 

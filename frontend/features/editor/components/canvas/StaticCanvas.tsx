@@ -16,8 +16,6 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const gridColor = useUIStore(s => s.gridColor);
 
     // Subscribe to necessary data stores.
-    // Optimization: We can't easily deep compare shapes object without performance cost.
-    // Zustand triggers on reference change.
     const shapes = useDataStore(s => s.shapes);
     const layers = useDataStore(s => s.layers);
     const spatialIndex = useDataStore(s => s.spatialIndex);
@@ -96,29 +94,58 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
               ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, endAngle, false); ctx.stroke();
            }
         } else if (shape.type === 'text') {
-            if (shape.text && shape.fontSize && shape.x !== undefined && shape.y !== undefined) {
-                ctx.fillStyle = shape.strokeColor;
-                const style = shape.fontItalic ? 'italic' : 'normal'; const weight = shape.fontBold ? 'bold' : 'normal';
-                const family = shape.fontFamily ? `"${shape.fontFamily}"` : 'sans-serif';
-                ctx.font = `${style} ${weight} ${shape.fontSize}px ${family}`; ctx.textBaseline = 'top';
-                let lines: string[] = [];
-                const hasFixedWidth = shape.width && shape.width > 0;
-                if (hasFixedWidth) lines = getWrappedLines(ctx, shape.text, shape.width!); else lines = shape.text.split('\n');
-                const lineHeight = shape.fontSize * 1.2;
-                lines.forEach((line, index) => ctx.fillText(line, shape.x!, shape.y! + (index * lineHeight)));
-                if (shape.fontUnderline) {
-                     lines.forEach((line, index) => {
-                        const w = ctx.measureText(line).width; const ly = shape.y! + (index * lineHeight) + shape.fontSize! + 2;
-                        ctx.beginPath(); ctx.lineWidth = Math.max(1, shape.fontSize! / 15); ctx.moveTo(shape.x!, ly); ctx.lineTo(shape.x! + w, ly); ctx.stroke();
-                     });
-                }
-                if (shape.fontStrike) {
-                     lines.forEach((line, index) => {
-                        const w = ctx.measureText(line).width; const ly = shape.y! + (index * lineHeight) + (shape.fontSize! / 2);
-                        ctx.beginPath(); ctx.lineWidth = Math.max(1, shape.fontSize! / 15); ctx.moveTo(shape.x!, ly); ctx.lineTo(shape.x! + w, ly); ctx.stroke();
-                     });
-                }
-            }
+           if (shape.x !== undefined && shape.y !== undefined) {
+               // Render Simple Text (Legacy) or Single Segment
+               if (!shape.segments && shape.text) {
+                   ctx.font = `${shape.fontItalic ? 'italic' : 'normal'} ${shape.fontBold ? 'bold' : 'normal'} ${shape.fontSize}px "${shape.fontFamily || 'sans-serif'}"`;
+                   ctx.textBaseline = 'top';
+                   ctx.fillStyle = shape.strokeColor;
+                   let lines: string[] = [];
+                   const hasFixedWidth = shape.width && shape.width > 0;
+                   if (hasFixedWidth) lines = getWrappedLines(ctx, shape.text, shape.width!); else lines = shape.text.split('\n');
+                   const lineHeight = shape.fontSize! * 1.2;
+
+                   lines.forEach((line, index) => {
+                       ctx.fillText(line, shape.x!, shape.y! + (index * lineHeight));
+                       if (shape.fontUnderline) {
+                          const w = ctx.measureText(line).width; const ly = shape.y! + (index * lineHeight) + shape.fontSize! + 2;
+                          ctx.beginPath(); ctx.lineWidth = Math.max(1, shape.fontSize! / 15); ctx.moveTo(shape.x!, ly); ctx.lineTo(shape.x! + w, ly); ctx.stroke();
+                       }
+                       if (shape.fontStrike) {
+                          const w = ctx.measureText(line).width; const ly = shape.y! + (index * lineHeight) + (shape.fontSize! / 2);
+                          ctx.beginPath(); ctx.lineWidth = Math.max(1, shape.fontSize! / 15); ctx.moveTo(shape.x!, ly); ctx.lineTo(shape.x! + w, ly); ctx.stroke();
+                       }
+                   });
+               }
+               else if (shape.segments) {
+                   // Rich Text Rendering (Linear, No Wrap for MVP as discussed)
+                   let cursorX = shape.x;
+                   let cursorY = shape.y; // Top baseline
+                   ctx.textBaseline = 'top';
+
+                   shape.segments.forEach(seg => {
+                       const fontSize = seg.fontSize || shape.fontSize || 20;
+                       const fontFam = seg.fontFamily || shape.fontFamily || 'sans-serif';
+                       const fontStyle = seg.fontItalic || (seg.fontItalic === undefined && shape.fontItalic) ? 'italic' : 'normal';
+                       const fontWeight = seg.fontBold || (seg.fontBold === undefined && shape.fontBold) ? 'bold' : 'normal';
+
+                       ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFam}"`;
+                       ctx.fillStyle = seg.fillColor || shape.strokeColor;
+
+                       ctx.fillText(seg.text, cursorX, cursorY);
+                       const m = ctx.measureText(seg.text);
+
+                       if (seg.fontUnderline || (seg.fontUnderline === undefined && shape.fontUnderline)) {
+                           ctx.fillRect(cursorX, cursorY + fontSize + 2, m.width, Math.max(1, fontSize/15));
+                       }
+                       if (seg.fontStrike || (seg.fontStrike === undefined && shape.fontStrike)) {
+                           ctx.fillRect(cursorX, cursorY + fontSize/2, m.width, Math.max(1, fontSize/15));
+                       }
+
+                       cursorX += m.width;
+                   });
+               }
+           }
         }
         ctx.restore();
     };

@@ -57,36 +57,41 @@ const LayerManagerModal: React.FC = () => {
 
           {/* List */}
           <div className="flex-grow overflow-y-auto p-0 bg-slate-800 custom-scrollbar">
-             {dataStore.layers.map(layer => (
+             {dataStore.layers.map(layer => {
+                const visibleColor = !layer.visible ? 'text-red-400' : 'text-blue-400';
+                const lockColor = layer.locked ? 'text-red-400' : 'text-slate-600';
+
+                return (
                 <div key={layer.id} 
                      className={`grid grid-cols-[40px_1fr_60px_60px_60px_40px] gap-1 px-4 py-2 border-b border-slate-700 items-center hover:bg-slate-700/50 transition-colors text-xs cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-blue-900/20' : ''}`}
                      onClick={() => dataStore.setActiveLayerId(layer.id)}
                 >
                     <div className="flex justify-center">
-                        {layer.id === dataStore.activeLayerId && <Check size={14} className="text-green-500" />}
+                        {layer.id === dataStore.activeLayerId ? <Check size={14} className="text-green-500" /> : <div className="w-3 h-3 rounded-full" style={{backgroundColor: layer.color, opacity: 0.5}}></div>}
                     </div>
                     
-                    <div className="font-medium truncate flex items-center h-full">
+                    <div className="font-medium truncate flex items-center h-full text-slate-200">
                        {layer.name}
                     </div>
                     
                     <div className="flex justify-center">
-                        <button onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }} className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700/50 transition-colors">
-                           {layer.visible ? <Eye size={16} className="text-blue-400" /> : <EyeOff size={16} className="text-slate-600" />}
+                        <button onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }} className={`hover:text-white p-1 rounded hover:bg-slate-700/50 transition-colors ${visibleColor}`}>
+                           {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                         </button>
                     </div>
                     
                     <div className="flex justify-center">
-                        <button onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }} className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700/50 transition-colors">
-                           {layer.locked ? <Lock size={16} className="text-yellow-500" /> : <Unlock size={16} className="text-slate-600" />}
+                        <button onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }} className={`hover:text-white p-1 rounded hover:bg-slate-700/50 transition-colors ${lockColor}`}>
+                           {layer.locked ? <Lock size={16} /> : <Unlock size={16} />}
                         </button>
                     </div>
                     
                     <div className="flex justify-center">
                         <div 
                             className="w-5 h-5 rounded-sm border border-slate-500 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                            style={{ backgroundColor: layer.color }}
+                            style={{ backgroundColor: layer.color, opacity: Math.max(0.05, 1) }}
                             onClick={(e) => openColorPicker(e, layer.id)}
+                            title="Cor da Camada"
                         />
                     </div>
 
@@ -102,7 +107,8 @@ const LayerManagerModal: React.FC = () => {
                          )}
                     </div>
                 </div>
-             ))}
+             );
+            })}
           </div>
        </div>
 

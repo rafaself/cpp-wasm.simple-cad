@@ -43,6 +43,7 @@ interface DataState {
   alignSelected: (ids: string[], alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
   deleteSelected: (ids: string[]) => void;
   rotateSelected: (ids: string[], pivot: Point, angle: number) => void;
+  joinSelected: (ids: string[]) => void;
   zoomToFit: () => void; // Updates UI Store
 
   // History Ops
@@ -334,6 +335,96 @@ export const useDataStore = create<DataState>((set, get) => ({
          updateShape(id, diff, false);
      });
      saveToHistory(patches);
+  },
+
+  joinSelected: (ids) => {
+    const { shapes, addShape, deleteShape, saveToHistory } = get();
+    // 1. Filter valid candidates (Line or Polyline)
+    const candidates = ids.map(id => shapes[id]).filter(s => s && (s.type === 'line' || s.type === 'polyline'));
+    if (candidates.length < 2) return;
+
+    // 2. Start with the first shape as the base for properties
+    const baseShape = candidates[0];
+    let mergedPoints = [...baseShape.points];
+    const tolerance = 10; // Connection tolerance in World Units
+
+    // 3. Iteratively try to attach other candidates
+    const processedIds = new Set([baseShape.id]);
+
+    // We try to merge until no more merges occur in a pass
+    let changed = true;
+    while(changed) {
+        changed = false;
+        for (let i = 0; i < candidates.length; i++) {
+            const current = candidates[i];
+            if (processedIds.has(current.id)) continue;
+
+            const currentPoints = current.points;
+            if (!currentPoints || currentPoints.length < 2) continue;
+
+            const startP = currentPoints[0];
+            const endP = currentPoints[currentPoints.length - 1];
+
+            // Check connection against the current merged chain (start or end)
+            const chainStart = mergedPoints[0];
+            const chainEnd = mergedPoints[mergedPoints.length - 1];
+
+            const distStartStart = Math.hypot(startP.x - chainStart.x, startP.y - chainStart.y);
+            const distStartEnd = Math.hypot(startP.x - chainEnd.x, startP.y - chainEnd.y);
+            const distEndStart = Math.hypot(endP.x - chainStart.x, endP.y - chainStart.y);
+            const distEndEnd = Math.hypot(endP.x - chainEnd.x, endP.y - chainEnd.y);
+
+            if (distStartEnd < tolerance) {
+                // Append current to end
+                mergedPoints = [...mergedPoints, ...currentPoints.slice(1)];
+                processedIds.add(current.id); changed = true;
+            } else if (distEndStart < tolerance) {
+                // Prepend current to start
+                mergedPoints = [...currentPoints.slice(0, -1), ...mergedPoints];
+                processedIds.add(current.id); changed = true;
+            } else if (distStartStart < tolerance) {
+                // Flip current and prepend
+                const reversed = [...currentPoints].reverse();
+                mergedPoints = [...reversed.slice(0, -1), ...mergedPoints];
+                processedIds.add(current.id); changed = true;
+            } else if (distEndEnd < tolerance) {
+                // Flip current and append
+                const reversed = [...currentPoints].reverse();
+                mergedPoints = [...mergedPoints, ...reversed.slice(1)];
+                processedIds.add(current.id); changed = true;
+            }
+        }
+    }
+
+    if (processedIds.size > 1) {
+        // Create new Polyline
+        const newPolyline: Shape = {
+            ...baseShape,
+            id: Date.now().toString(),
+            type: 'polyline',
+            points: mergedPoints
+        };
+
+        // Delete old shapes and add new one
+        // History batching logic manually
+        const historyPatches: Patch[] = [];
+        processedIds.forEach(id => {
+             const s = shapes[id];
+             historyPatches.push({ type: 'DELETE', id, prev: s });
+             deleteShape(id);
+        });
+        addShape(newPolyline); // This adds an ADD patch
+
+        // Consolidate history? The above `deleteShape` and `addShape` calls will trigger `saveToHistory` individually.
+        // For a clean Undo, we might want to manually manage patches, but `deleteShape` implementation calls `saveToHistory`.
+        // This is a limitation of the current simple store.
+        // Ideally, we'd pass a "silent" flag to atomic ops and then save one big batch.
+        // Given the constraints, allowing multiple history entries is acceptable for now,
+        // or we just accept the separate undo steps.
+
+        const { setSelectedShapeIds } = useUIStore.getState();
+        setSelectedShapeIds(new Set([newPolyline.id]));
+    }
   },
 
   zoomToFit: () => {

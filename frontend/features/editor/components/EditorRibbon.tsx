@@ -6,6 +6,180 @@ import { getIcon } from '../../../utils/iconMap.tsx';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough, Settings2 } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 
+// Component Registry for Config-Driven UI
+const ComponentRegistry: Record<string, React.FC<any>> = {
+    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, closeLayerDropdown, layerButtonRef, dropdownPos, dataStore, uiStore }) => (
+        <div className="flex items-center gap-1 h-full py-1">
+            <div className="flex flex-col justify-center gap-1 w-32">
+                <div className="flex items-center gap-1">
+                <div
+                    ref={layerButtonRef}
+                    className="bg-slate-700 px-2 py-1 rounded flex-grow flex items-center border border-slate-600 cursor-pointer relative hover:bg-slate-600 transition-colors"
+                    onMouseEnter={openLayerDropdown}
+                    onMouseLeave={closeLayerDropdown}
+                    onClick={(e) => { e.stopPropagation(); setLayerDropdownOpen(!isLayerDropdownOpen); }}
+                >
+                    <Layers size={16} className="mr-2 text-yellow-500" />
+                    <span className="text-sm font-medium truncate cursor-default" style={{color: activeLayer?.color}}>{activeLayer?.name || 'Camada'}</span>
+                </div>
+                </div>
+                <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => activeLayer && dataStore.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                        <button onClick={() => activeLayer && dataStore.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                    </div>
+                </div>
+            </div>
+
+            <button
+                onClick={() => uiStore.setLayerManagerOpen(true)}
+                className="h-full px-1 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors border-l border-slate-700/50"
+                title="Gerenciador de Camadas"
+            >
+                <Settings2 size={20} className="mb-0.5" />
+            </button>
+
+            {isLayerDropdownOpen && (
+                <div
+                    className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[9999] max-h-64 overflow-y-auto menu-transition"
+                    style={{ top: dropdownPos.top + 4, left: dropdownPos.left }}
+                    onMouseEnter={openLayerDropdown}
+                    onMouseLeave={closeLayerDropdown}
+                >
+                    {dataStore.layers.map((layer: any) => (
+                        <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e: any) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
+                            <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
+                            <span className="flex-grow text-xs cursor-default">{layer.name}</span>
+                            <button className="p-1 hover:text-white text-slate-400" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                            <button className="p-1 hover:text-white text-slate-400" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                        </div>
+                    ))}
+                    <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e: any) => { e.stopPropagation(); dataStore.addLayer(); }}>
+                        <Plus size={14} /> <span className="text-xs cursor-default">Criar Nova Camada</span>
+                    </div>
+                </div>
+            )}
+        </div>
+    ),
+    'ColorControl': ({ uiStore, openColorPicker }) => (
+        <div className="flex flex-col gap-1 w-24">
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <div className="flex items-center gap-1">
+                    <input
+                        type="checkbox"
+                        checked={uiStore.strokeEnabled !== false}
+                        onChange={(e) => uiStore.setStrokeEnabled(e.target.checked)}
+                        className="w-3 h-3 cursor-pointer"
+                    />
+                    <span className="text-[10px] text-slate-300">Cor</span>
+                </div>
+                <div
+                    className={`w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${uiStore.strokeEnabled === false ? 'opacity-50' : ''}`}
+                    style={{ backgroundColor: uiStore.strokeColor }}
+                    onClick={(e) => uiStore.strokeEnabled !== false && openColorPicker(e, 'stroke')}
+                />
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <div className="flex items-center gap-1">
+                    <input
+                        type="checkbox"
+                        checked={uiStore.fillColor !== 'transparent'}
+                        onChange={(e) => uiStore.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')}
+                        className="w-3 h-3 cursor-pointer"
+                    />
+                    <span className="text-[10px] text-slate-300">Fundo</span>
+                </div>
+                <div
+                    className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${uiStore.fillColor === 'transparent' ? 'opacity-50' : ''}`}
+                    style={{
+                        backgroundColor: uiStore.fillColor === 'transparent' ? 'transparent' : uiStore.fillColor,
+                        backgroundImage: uiStore.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
+                        backgroundSize: '4px 4px'
+                    }}
+                    onClick={(e) => uiStore.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
+                />
+            </div>
+        </div>
+    ),
+    'LineWidthControl': ({ uiStore }) => (
+        <div className="flex flex-col gap-1 w-24">
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <span className="text-[10px] text-slate-300">Largura: {uiStore.strokeWidth}px</span>
+            </div>
+            <div className="px-1 pt-1 flex items-center h-full">
+                <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={uiStore.strokeWidth}
+                    onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
+                    className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500 my-auto block"
+                />
+            </div>
+        </div>
+    ),
+    'TextFormatControl': ({ uiStore }) => (
+        <div className="flex flex-col gap-1.5 w-44">
+           <div className="flex items-center gap-1">
+               <select
+                 value={uiStore.fontFamily}
+                 onChange={(e) => uiStore.setFontFamily(e.target.value)}
+                 className="h-6 flex-grow bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500"
+               >
+                   <option value="sans-serif">Sans Serif</option>
+                   <option value="serif">Serif</option>
+                   <option value="monospace">Monospace</option>
+                   <option value="Arial">Arial</option>
+                   <option value="Times New Roman">Times New Roman</option>
+                   <option value="Courier New">Courier New</option>
+               </select>
+               <input
+                  type="number"
+                  min="1"
+                  max="200"
+                  value={uiStore.textSize}
+                  onChange={(e) => uiStore.setTextSize(parseInt(e.target.value))}
+                  className="w-12 h-6 bg-slate-800 text-slate-200 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500 text-center font-semibold"
+               />
+           </div>
+
+           <div className="flex items-center gap-1 justify-between bg-slate-700/50 p-0.5 rounded border border-slate-600/50">
+               <button
+                 onClick={uiStore.toggleFontBold}
+                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+                 title="Negrito"
+               >
+                   <Bold size={14} />
+               </button>
+               <button
+                 onClick={uiStore.toggleFontItalic}
+                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+                 title="Itálico"
+               >
+                   <Italic size={14} />
+               </button>
+               <div className="w-px h-4 bg-slate-600" />
+               <button
+                 onClick={uiStore.toggleFontUnderline}
+                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+                 title="Sublinhado"
+               >
+                   <Underline size={14} />
+               </button>
+               <button
+                 onClick={uiStore.toggleFontStrike}
+                 className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+                 title="Tachado"
+               >
+                   <Strikethrough size={14} />
+               </button>
+           </div>
+        </div>
+    )
+};
+
 const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="flex flex-col h-full border-r border-slate-700">
     <div className="flex-grow flex items-center justify-center px-3 gap-2">
@@ -31,7 +205,7 @@ const EditorRibbon: React.FC = () => {
   const handleAction = (action?: string) => {
       const selectedIds = Array.from(uiStore.selectedShapeIds);
       if (action === 'delete') dataStore.deleteSelected(selectedIds);
-      if (action === 'join') { /* TODO: Implement join */ }
+      if (action === 'join') dataStore.joinSelected(selectedIds);
       if (action === 'explode') { /* TODO: Implement explode */ }
       if (action === 'zoom-fit') dataStore.zoomToFit();
       if (action === 'undo') dataStore.undo();
@@ -60,74 +234,17 @@ const EditorRibbon: React.FC = () => {
     }, 200);
   };
   
-  // Cleanup timeout
   useEffect(() => {
     return () => {
         if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
     };
   }, []);
 
-  const renderLayerControl = () => (
-    <div className="flex items-center gap-1 h-full py-1">
-        <div className="flex flex-col justify-center gap-1 w-32">
-            <div className="flex items-center gap-1">
-            <div 
-                ref={layerButtonRef}
-                className="bg-slate-700 px-2 py-1 rounded flex-grow flex items-center border border-slate-600 cursor-pointer relative hover:bg-slate-600 transition-colors"
-                onMouseEnter={openLayerDropdown}
-                onMouseLeave={closeLayerDropdown}
-                onClick={() => setLayerDropdownOpen(!isLayerDropdownOpen)}
-            >
-                <Layers size={16} className="mr-2 text-yellow-500" />
-                <span className="text-sm font-medium truncate cursor-default" style={{color: activeLayer?.color}}>{activeLayer?.name || 'Camada'}</span>
-            </div>
-            </div>
-            <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                    <button onClick={() => activeLayer && dataStore.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                    <button onClick={() => activeLayer && dataStore.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
-                </div>
-            </div>
-        </div>
-        
-        {/* Layer Manager Button - reduced right spacing */}
-        <button 
-            onClick={() => uiStore.setLayerManagerOpen(true)}
-            className="h-full px-1 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors border-l border-slate-700/50"
-            title="Gerenciador de Camadas"
-        >
-            <Settings2 size={20} className="mb-0.5" />
-        </button>
-
-        {/* Layer Dropdown Portal */}
-        {isLayerDropdownOpen && (
-            <div 
-                className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[9999] max-h-64 overflow-y-auto menu-transition"
-                style={{ top: dropdownPos.top + 4, left: dropdownPos.left }}
-                onMouseEnter={openLayerDropdown}
-                onMouseLeave={closeLayerDropdown}
-            >
-                {dataStore.layers.map(layer => (
-                    <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
-                        <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
-                        <span className="flex-grow text-xs cursor-default">{layer.name}</span>
-                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
-                    </div>
-                ))}
-                <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); dataStore.addLayer(); }}>
-                    <Plus size={14} /> <span className="text-xs cursor-default">Criar Nova Camada</span>
-                </div>
-            </div>
-        )}
-    </div>
-  );
-
   const [colorPickerTarget, setColorPickerTarget] = useState<'stroke' | 'fill' | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
   const openColorPicker = (e: React.MouseEvent, target: 'stroke' | 'fill') => {
-      e.stopPropagation(); // Prevent closing immediately if clicking toggle
+      e.stopPropagation();
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setColorPickerPos({ top: rect.bottom + 5, left: rect.left });
       setColorPickerTarget(target);
@@ -140,129 +257,19 @@ const EditorRibbon: React.FC = () => {
       if (colorPickerTarget === 'fill') uiStore.setFillColor(newColor);
   };
 
-  const renderColorControl = () => (
-      <div className="flex flex-col gap-1 w-24">
-        {/* Stroke Color */}
-        <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <div className="flex items-center gap-1">
-                <input 
-                    type="checkbox" 
-                    checked={uiStore.strokeEnabled !== false}
-                    onChange={(e) => uiStore.setStrokeEnabled(e.target.checked)}
-                    className="w-3 h-3 cursor-pointer" 
-                />
-                <span className="text-[10px] text-slate-300">Cor</span>
-            </div>
-            <div 
-                className={`w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${uiStore.strokeEnabled === false ? 'opacity-50' : ''}`}
-                style={{ backgroundColor: uiStore.strokeColor }}
-                onClick={(e) => uiStore.strokeEnabled !== false && openColorPicker(e, 'stroke')}
-            />
-        </div>
-        
-        {/* Fill Color */}
-        <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <div className="flex items-center gap-1">
-                <input 
-                    type="checkbox" 
-                    checked={uiStore.fillColor !== 'transparent'}
-                    onChange={(e) => uiStore.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')}
-                    className="w-3 h-3 cursor-pointer" 
-                />
-                <span className="text-[10px] text-slate-300">Fundo</span>
-            </div>
-            <div 
-                className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${uiStore.fillColor === 'transparent' ? 'opacity-50' : ''}`}
-                style={{ 
-                    backgroundColor: uiStore.fillColor === 'transparent' ? 'transparent' : uiStore.fillColor,
-                    backgroundImage: uiStore.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
-                    backgroundSize: '4px 4px'
-                }}
-                onClick={(e) => uiStore.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
-            />
-        </div>
-      </div>
-  );
-
-  const renderLineWidthControl = () => (
-      <div className="flex flex-col gap-1 w-24">
-         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Largura: {uiStore.strokeWidth}px</span>
-         </div>
-         <div className="px-1 pt-1">
-            <input 
-                type="range" 
-                min="1" 
-                max="20" 
-                step="1" 
-                value={uiStore.strokeWidth}
-                onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
-                className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-            />
-         </div>
-      </div>
-  );
-
-  const renderTextFormatControl = () => (
-    <div className="flex flex-col gap-1.5 w-44">
-       {/* Row 1: Font and Size */}
-       <div className="flex items-center gap-1">
-           <select 
-             value={uiStore.fontFamily}
-             onChange={(e) => uiStore.setFontFamily(e.target.value)}
-             className="h-6 flex-grow bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500"
-           >
-               <option value="sans-serif">Sans Serif</option>
-               <option value="serif">Serif</option>
-               <option value="monospace">Monospace</option>
-               <option value="Arial">Arial</option>
-               <option value="Times New Roman">Times New Roman</option>
-               <option value="Courier New">Courier New</option>
-           </select>
-           <input 
-              type="number" 
-              min="1" 
-              max="200" 
-              value={uiStore.textSize}
-              onChange={(e) => uiStore.setTextSize(parseInt(e.target.value))}
-              className="w-12 h-6 bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500 text-center"
-           />
-       </div>
-
-       {/* Row 2: Styling Buttons */}
-       <div className="flex items-center gap-1 justify-between bg-slate-700/50 p-0.5 rounded border border-slate-600/50">
-           <button 
-             onClick={uiStore.toggleFontBold}
-             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Negrito"
-           >
-               <Bold size={14} />
-           </button>
-           <button 
-             onClick={uiStore.toggleFontItalic}
-             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Itálico"
-           >
-               <Italic size={14} />
-           </button>
-           <div className="w-px h-4 bg-slate-600" />
-           <button 
-             onClick={uiStore.toggleFontUnderline}
-             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Sublinhado"
-           >
-               <Underline size={14} />
-           </button>
-           <button 
-             onClick={uiStore.toggleFontStrike}
-             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-             title="Tachado"
-           >
-               <Strikethrough size={14} />
-           </button>
-       </div>
-    </div>
-  );
+  // Props to pass to generic components
+  const componentProps = {
+      activeLayer,
+      isLayerDropdownOpen,
+      setLayerDropdownOpen,
+      openLayerDropdown,
+      closeLayerDropdown,
+      layerButtonRef,
+      dropdownPos,
+      dataStore,
+      uiStore,
+      openColorPicker
+  };
 
   return (
     <div className="w-full bg-slate-800 text-slate-100 flex flex-col border-b border-slate-600 shadow-md select-none z-50">
@@ -315,11 +322,9 @@ const EditorRibbon: React.FC = () => {
                     ) : (
                         <div className="flex gap-2 h-full items-center">
                                 {section.items.map(item => {
-                                    if (item.type === 'component') {
-                                        if (item.componentName === 'LayerControl') return <React.Fragment key={item.id}>{renderLayerControl()}</React.Fragment>;
-                                        if (item.componentName === 'ColorControl') return <React.Fragment key={item.id}>{renderColorControl()}</React.Fragment>;
-                                        if (item.componentName === 'LineWidthControl') return <React.Fragment key={item.id}>{renderLineWidthControl()}</React.Fragment>;
-                                        if (item.componentName === 'TextFormatControl') return <React.Fragment key={item.id}>{renderTextFormatControl()}</React.Fragment>;
+                                    if (item.type === 'component' && item.componentName) {
+                                        const Component = ComponentRegistry[item.componentName];
+                                        if (Component) return <React.Fragment key={item.id}><Component {...componentProps} /></React.Fragment>;
                                         return null;
                                     }
                                     return (

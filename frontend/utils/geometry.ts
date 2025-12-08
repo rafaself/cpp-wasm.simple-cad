@@ -53,6 +53,7 @@ export const getSnapPoint = (
   point: Point, 
   shapes: Shape[], 
   snapOptions: SnapOptions,
+  gridSize: number,
   threshold: number = 10
 ): Point | null => {
   if (!snapOptions.enabled) return null;
@@ -67,6 +68,36 @@ export const getSnapPoint = (
       closestPoint = p;
     }
   };
+
+  // 1. Grid Snap (Lower priority, so checked first, but overridden by object snap if closer/valid)
+  // Actually, standard CAD behavior: object snap > grid snap.
+  // We can just set closestPoint to grid snap initially if valid, then let checkPoint override it if object point is found.
+
+  if (snapOptions.grid) {
+     const gx = Math.round(point.x / gridSize) * gridSize;
+     const gy = Math.round(point.y / gridSize) * gridSize;
+     const gridPoint = { x: gx, y: gy };
+     // Grid snap usually has a smaller "magnetic" radius or just snaps if you are close enough.
+     // Or it is "always on" meaning the cursor jumps grid to grid.
+     // "Snap to Grid" functionality usually means your cursor IS the grid point close to mouse.
+     // But here we are returning a "snap marker".
+     // Let's use threshold.
+     if (getDistance(point, gridPoint) < threshold) {
+         closestPoint = gridPoint;
+         // We do NOT update minDistance here because we want object snap (which might be slightly further but more important)
+         // to NOT necessarily override grid snap if grid is closer?
+         // Actually, Object Snap > Grid Snap.
+         // So if we find an object point within threshold, it should win.
+         // If we have a grid point within threshold, and NO object point, grid wins.
+         // So: Initialize with grid point if within threshold.
+         // But reset minDistance to threshold so checkPoint works normally.
+         // Wait, if grid point is dist=2, and endpoint is dist=5. Should we snap to grid?
+         // Usually Object snap takes precedence even if further away (within threshold).
+         // So let's keep grid separate or check it last?
+         // Checking it first:
+         minDistance = threshold; // Reset
+     }
+  }
 
   // Optimization: If shape count > 1000, maybe skip midpoints for performance unless zoomed in?
   // For now, keeping logic standard but acknowledging input 'shapes' should be pre-filtered by Quadtree ideally.
@@ -128,6 +159,15 @@ export const getSnapPoint = (
        }
     }
   });
+
+  // Final check: If no object snap found, try grid snap again (cleaner logic)
+  if (!closestPoint && snapOptions.grid) {
+     const gx = Math.round(point.x / gridSize) * gridSize;
+     const gy = Math.round(point.y / gridSize) * gridSize;
+     if (getDistance(point, {x: gx, y: gy}) < threshold) {
+         return { x: gx, y: gy };
+     }
+  }
 
   return closestPoint;
 };
