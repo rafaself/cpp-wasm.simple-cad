@@ -137,8 +137,19 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
 
     // For text, we might want a box. For others, maybe re-trace shape or bounding box?
     ctx.beginPath();
-    if (shape.type === 'rect') ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!);
-    else if (shape.type === 'text') ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!); // Text now has explicit width/height
+    if (shape.type === 'rect') {
+        if (shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+             ctx.rect(shape.x, shape.y, shape.width, shape.height);
+        }
+    }
+    else if (shape.type === 'text') {
+        if (shape.x !== undefined && shape.y !== undefined) {
+             // Safe guard for text width/height
+             const w = shape.width || 0;
+             const h = shape.height || 0;
+             ctx.rect(shape.x, shape.y, w, h);
+        }
+    }
     else if (shape.type === 'circle') ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI*2);
     else if (shape.type === 'line' && shape.points.length>=2) { ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); }
     // ...
@@ -177,8 +188,12 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     uiStore.selectedShapeIds.forEach(id => {
         const shape = dataStore.shapes[id];
         if (shape) {
-            drawSelectionHighlight(ctx, shape);
-            if (uiStore.activeTool === 'select') drawHandles(ctx, shape);
+            try {
+                drawSelectionHighlight(ctx, shape);
+                if (uiStore.activeTool === 'select') drawHandles(ctx, shape);
+            } catch (e) {
+                console.error("Error drawing selection for shape", id, e);
+            }
         }
     });
 
