@@ -161,9 +161,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
       const handles = getShapeHandles(shape);
       const handleSize = 6 / uiStore.viewTransform.scale;
       ctx.save(); ctx.lineWidth = 1 / uiStore.viewTransform.scale;
-      if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-          ctx.translate(shape.x, shape.y); ctx.rotate(shape.rotation); ctx.translate(-shape.x, -shape.y);
-      }
+      // Handles are now returned in world coordinates (already rotated), so we don't apply canvas rotation here.
       handles.forEach(h => {
           ctx.beginPath(); ctx.rect(h.x - handleSize/2, h.y - handleSize/2, handleSize, handleSize);
           ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#2563eb'; ctx.stroke();
