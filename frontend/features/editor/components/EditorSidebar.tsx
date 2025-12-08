@@ -162,6 +162,7 @@ const EditorSidebar: React.FC = () => {
     const isRect = selectedShape.type === 'rect';
     const isText = selectedShape.type === 'text';
     const isLine = selectedShape.type === 'line' || selectedShape.type === 'polyline';
+    const isArrow = selectedShape.type === 'arrow';
     const isArc = selectedShape.type === 'arc';
     const isCircle = selectedShape.type === 'circle';
     const isPolygon = selectedShape.type === 'polygon';
@@ -216,7 +217,7 @@ const EditorSidebar: React.FC = () => {
             <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide mb-2 cursor-default">Dimensões</h3>
             
             {/* W / H for all except pure lines */}
-            {!isLine && (
+            {!isLine && !isArrow && (
               <div className="flex items-center gap-1 mb-2">
                 <div className="flex-1 flex items-center bg-slate-50 border border-slate-200 rounded px-1.5 h-7 hover:border-slate-300 focus-within:border-blue-500 transition-all" title="Largura">
                     <span className="text-slate-400 text-[10px] w-3 font-medium">L</span>
@@ -230,14 +231,22 @@ const EditorSidebar: React.FC = () => {
                                 const currentHeight = selectedShape.height ?? (selectedShape.radius ? selectedShape.radius * 2 : 100);
                                 const ratio = currentHeight / currentWidth;
                                 
-                                if (isCircle || proportionLinked) {
-                                    // Link proportions - update both
-                                    const newHeight = newWidth * ratio;
-                                    if (isCircle && selectedShape.radius) {
+                                if (isCircle) {
+                                    // Circle always uses radius
+                                    updateProp('radius', newWidth / 2);
+                                } else if (isPolygon) {
+                                    // Polygon uses radius - update it based on the new width
+                                    if (proportionLinked) {
                                         updateProp('radius', newWidth / 2);
                                     } else {
-                                        store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
+                                        // For non-linked, just update the radius based on width
+                                        // (polygon rendering will still use radius for a regular shape)
+                                        updateProp('radius', newWidth / 2);
                                     }
+                                } else if (proportionLinked) {
+                                    // For other shapes (rect), link proportions
+                                    const newHeight = newWidth * ratio;
+                                    store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
                                 } else {
                                     updateProp('width', newWidth);
                                 }
@@ -268,14 +277,21 @@ const EditorSidebar: React.FC = () => {
                                 const currentHeight = selectedShape.height ?? (selectedShape.radius ? selectedShape.radius * 2 : 100);
                                 const ratio = currentWidth / currentHeight;
                                 
-                                if (isCircle || proportionLinked) {
-                                    // Link proportions - update both
-                                    const newWidth = newHeight * ratio;
-                                    if (isCircle && selectedShape.radius) {
+                                if (isCircle) {
+                                    // Circle always uses radius
+                                    updateProp('radius', newHeight / 2);
+                                } else if (isPolygon) {
+                                    // Polygon uses radius - update it based on the new height
+                                    if (proportionLinked) {
                                         updateProp('radius', newHeight / 2);
                                     } else {
-                                        store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
+                                        // For non-linked, just update the radius based on height
+                                        updateProp('radius', newHeight / 2);
                                     }
+                                } else if (proportionLinked) {
+                                    // For other shapes (rect), link proportions
+                                    const newWidth = newHeight * ratio;
+                                    store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
                                 } else {
                                     updateProp('height', newHeight);
                                 }
@@ -287,23 +303,48 @@ const EditorSidebar: React.FC = () => {
               </div>
             )}
 
-            {/* Line length */}
-            {isLine && selectedShape.points.length >= 2 && (
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] text-slate-500 w-16 shrink-0">Comprimento</span>
-                <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-2 h-7">
-                    <input 
-                        type="number" 
-                        value={Math.round(Math.sqrt(
-                            Math.pow(selectedShape.points[1].x - selectedShape.points[0].x, 2) + 
-                            Math.pow(selectedShape.points[1].y - selectedShape.points[0].y, 2)
-                        ))}
-                        disabled
-                        className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 focus:ring-0 focus:outline-none font-mono text-right"
-                    />
-                    <span className="text-[10px] text-slate-400 ml-1">px</span>
+            {/* Line/Arrow length */}
+            {(isLine || isArrow) && selectedShape.points.length >= 2 && (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] text-slate-500 w-16 shrink-0">Comprimento</span>
+                  <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-2 h-7">
+                      <input 
+                          type="number" 
+                          value={Math.round(Math.sqrt(
+                              Math.pow(selectedShape.points[1].x - selectedShape.points[0].x, 2) + 
+                              Math.pow(selectedShape.points[1].y - selectedShape.points[0].y, 2)
+                          ))}
+                          disabled
+                          className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 focus:ring-0 focus:outline-none font-mono text-right"
+                      />
+                      <span className="text-[10px] text-slate-400 ml-1">px</span>
+                  </div>
                 </div>
-              </div>
+                
+                {/* Arrow head size - only for arrows */}
+                {isArrow && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] text-slate-500 w-16 shrink-0">Tam. Ponta</span>
+                    <div className="flex-grow flex items-center bg-slate-50 border border-slate-200 rounded px-2 h-7 focus-within:border-blue-500">
+                        <input 
+                            type="number" 
+                            min={5}
+                            max={100}
+                            value={selectedShape.arrowHeadSize || 15}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                if (!isNaN(val) && val >= 5 && val <= 100) {
+                                    updateProp('arrowHeadSize', val);
+                                }
+                            }}
+                            className="w-full bg-transparent border-none text-[11px] text-slate-700 p-0 focus:ring-0 focus:outline-none font-mono text-right"
+                        />
+                        <span className="text-[10px] text-slate-400 ml-1">px</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             
             {/* Polygon sides */}

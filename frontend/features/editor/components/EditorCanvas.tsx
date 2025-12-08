@@ -88,7 +88,12 @@ const EditorCanvas: React.FC = () => {
     }
 
     if (isGhost) { ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.fillStyle = 'transparent'; } 
-    else { ctx.strokeStyle = isSelected ? '#3b82f6' : shape.strokeColor; ctx.fillStyle = (shape.fillColor && shape.fillColor !== 'transparent') ? shape.fillColor : 'transparent'; ctx.setLineDash([]); }
+    else { 
+      const effectiveStroke = (shape.strokeEnabled === false) ? 'transparent' : shape.strokeColor;
+      ctx.strokeStyle = isSelected ? '#3b82f6' : effectiveStroke; 
+      ctx.fillStyle = (shape.fillColor && shape.fillColor !== 'transparent') ? shape.fillColor : 'transparent'; 
+      ctx.setLineDash([]); 
+    }
 
     const baseWidth = shape.strokeWidth || 2;
     ctx.lineWidth = isSelected ? (baseWidth + 2) / store.viewTransform.scale : baseWidth / store.viewTransform.scale;
@@ -109,6 +114,20 @@ const EditorCanvas: React.FC = () => {
           ctx.fillStyle = '#fff'; ctx.fillText(shape.label, 0, -2 / store.viewTransform.scale);
           ctx.restore();
         }
+      }
+    } else if (shape.type === 'arrow') {
+      if (shape.points.length >= 2) {
+        const p1 = shape.points[0]; const p2 = shape.points[1];
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        // Draw arrowhead
+        const headSize = shape.arrowHeadSize || 15;
+        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p2.x - headSize * Math.cos(angle - Math.PI / 6), p2.y - headSize * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p2.x - headSize * Math.cos(angle + Math.PI / 6), p2.y - headSize * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
       }
     } else if (shape.type === 'circle') {
        ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI * 2); if (!isGhost && shape.fillColor !== 'transparent') ctx.fill(); ctx.stroke();
@@ -188,7 +207,7 @@ const EditorCanvas: React.FC = () => {
     if (polylinePoints.length > 1) {
       store.addShape({
         id: Date.now().toString(), layerId: store.activeLayerId, type: 'polyline',
-        strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, fillColor: 'transparent', points: [...polylinePoints]
+        strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, strokeEnabled: store.strokeEnabled, fillColor: 'transparent', points: [...polylinePoints]
       });
       store.setSidebarTab('desenho'); setPolylinePoints([]);
     }
@@ -204,7 +223,7 @@ const EditorCanvas: React.FC = () => {
                  store.addShape({
                     id: Date.now().toString(), layerId: store.activeLayerId, type: 'text', x: textEntry.x, y: textEntry.y, text: text,
                     width: textEntry.boxWidth, fontSize: store.textSize, fontFamily: store.fontFamily, fontBold: store.fontBold, fontItalic: store.fontItalic,
-                    fontUnderline: store.fontUnderline, fontStrike: store.fontStrike, strokeColor: store.strokeColor, fillColor: 'transparent', points: [], rotation: textEntry.rotation
+                    fontUnderline: store.fontUnderline, fontStrike: store.fontStrike, strokeColor: store.strokeColor, strokeEnabled: store.strokeEnabled, fillColor: 'transparent', points: [], rotation: textEntry.rotation
                  });
                  store.setSidebarTab('desenho');
              }
@@ -221,6 +240,10 @@ const EditorCanvas: React.FC = () => {
         setLineStart(null); setMeasureStart(null); setPolylinePoints([]); 
         setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
         if (store.activeTool === 'move' || store.activeTool === 'rotate') store.setTool('select');
+        // Deselect all when in select mode
+        if (store.activeTool === 'select' && store.selectedShapeIds.size > 0) {
+          store.setSelectedShapeIds(new Set());
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
@@ -311,11 +334,12 @@ const EditorCanvas: React.FC = () => {
 
     if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure','text', 'move', 'rotate'].includes(store.activeTool)) {
       const ws = screenToWorld(startPoint, store.viewTransform); const wc = screenToWorld(currentPoint, store.viewTransform);
-      const temp: Shape = { id: 'temp', layerId: store.activeLayerId, type: store.activeTool, strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, fillColor: store.fillColor, points: [] };
+      const temp: Shape = { id: 'temp', layerId: store.activeLayerId, type: store.activeTool, strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, strokeEnabled: store.strokeEnabled, fillColor: store.fillColor, points: [] };
       if (store.activeTool === 'arc') { temp.points = [ws, wc]; temp.radius = getDistance(ws, wc); }
       else if (store.activeTool === 'circle') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); }
       else if (store.activeTool === 'rect') { temp.x = Math.min(ws.x, wc.x); temp.y = Math.min(ws.y, wc.y); temp.width = Math.abs(wc.x - ws.x); temp.height = Math.abs(wc.y - ws.y); }
       else if (store.activeTool === 'polygon') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = store.polygonSides; }
+      else if (store.activeTool === 'arrow') { temp.points = [ws, wc]; temp.arrowHeadSize = 15; }
       drawShape(ctx, temp, false);
     }
     
@@ -484,7 +508,7 @@ const EditorCanvas: React.FC = () => {
     if (store.activeTool === 'line') {
       if (!lineStart) setLineStart(wPos);
       else {
-        store.addShape({ id: Date.now().toString(), layerId: store.activeLayerId, type: 'line', strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, fillColor: 'transparent', points: [lineStart, wPos] });
+        store.addShape({ id: Date.now().toString(), layerId: store.activeLayerId, type: 'line', strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, strokeEnabled: store.strokeEnabled, fillColor: 'transparent', points: [lineStart, wPos] });
         store.setSidebarTab('desenho'); setLineStart(null);
       }
       return;
@@ -541,15 +565,35 @@ const EditorCanvas: React.FC = () => {
     }
 
     setIsDragging(false); setActiveHandle(null); 
-    if (dist < 2 && !['select','measure','polyline','line'].includes(store.activeTool)) return;
 
+    // Check if this is a shape creation tool that should create default 100x100 on single click
+    const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc', 'arrow'];
+    const isSingleClick = dist < 5;
+    
     if (!['select','pan','polyline','measure','line','text', 'move', 'rotate'].includes(store.activeTool)) {
-      const n: Shape = { id: Date.now().toString(), layerId: store.activeLayerId, type: store.activeTool, strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, fillColor: store.fillColor, points: [] };
-      if (store.activeTool === 'arc') { n.points = [ws, we]; n.radius = getDistance(ws, we); }
-      else if (store.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
-      else if (store.activeTool === 'rect') { n.x = Math.min(ws.x, we.x); n.y = Math.min(ws.y, we.y); n.width = Math.abs(we.x - ws.x); n.height = Math.abs(we.y - ws.y); }
-      else if (store.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = store.polygonSides; }
-      store.addShape(n); store.setSidebarTab('desenho');
+      const n: Shape = { id: Date.now().toString(), layerId: store.activeLayerId, type: store.activeTool, strokeColor: store.strokeColor, strokeWidth: store.strokeWidth, strokeEnabled: store.strokeEnabled, fillColor: store.fillColor, points: [] };
+      
+      if (isSingleClick && shapeCreationTools.includes(store.activeTool)) {
+        // Single click creates 100x100 default shape
+        if (store.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
+        else if (store.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
+        else if (store.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = store.polygonSides; }
+        else if (store.activeTool === 'arc') { n.points = [ws, { x: ws.x + 100, y: ws.y }]; n.radius = 100; }
+        else if (store.activeTool === 'arrow') { n.points = [ws, { x: ws.x + 100, y: ws.y }]; n.arrowHeadSize = 15; }
+      } else {
+        // Drag creates custom sized shape
+        if (store.activeTool === 'arc') { n.points = [ws, we]; n.radius = getDistance(ws, we); }
+        else if (store.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
+        else if (store.activeTool === 'rect') { n.x = Math.min(ws.x, we.x); n.y = Math.min(ws.y, we.y); n.width = Math.abs(we.x - ws.x); n.height = Math.abs(we.y - ws.y); }
+        else if (store.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = store.polygonSides; }
+        else if (store.activeTool === 'arrow') { n.points = [ws, we]; n.arrowHeadSize = 15; }
+      }
+      
+      store.addShape(n); 
+      store.setSidebarTab('desenho');
+      
+      // Return to select mode after creating geometric object
+      store.setTool('select');
     }
     setStartPoint(null);
   };
@@ -661,7 +705,7 @@ const EditorCanvas: React.FC = () => {
   if (isMiddlePanning || (isDragging && store.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
   else if (store.activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (store.activeTool === 'text') cursorClass = 'text'; 
-  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure'].includes(store.activeTool)) cursorClass = 'crosshair'; 
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow'].includes(store.activeTool)) cursorClass = 'crosshair'; 
   
   let hintMessage = "";
   if (store.activeTool === 'polyline' && polylinePoints.length > 0) hintMessage = "Enter para completar";

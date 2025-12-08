@@ -141,17 +141,24 @@ const EditorRibbon: React.FC = () => {
       <div className="flex flex-col gap-1 w-24">
         {/* Stroke Color */}
         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Cor</span>
+            <div className="flex items-center gap-1">
+                <input 
+                    type="checkbox" 
+                    checked={store.strokeEnabled !== false} 
+                    onChange={(e) => store.setStrokeEnabled(e.target.checked)} 
+                    className="w-3 h-3 cursor-pointer" 
+                />
+                <span className="text-[10px] text-slate-300">Cor</span>
+            </div>
             <div 
-                className="w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform" 
+                className={`w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${store.strokeEnabled === false ? 'opacity-50' : ''}`}
                 style={{ backgroundColor: store.strokeColor }}
-                onClick={(e) => openColorPicker(e, 'stroke')}
+                onClick={(e) => store.strokeEnabled !== false && openColorPicker(e, 'stroke')}
             />
         </div>
         
         {/* Fill Color */}
         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Fundo</span>
             <div className="flex items-center gap-1">
                 <input 
                     type="checkbox" 
@@ -159,16 +166,17 @@ const EditorRibbon: React.FC = () => {
                     onChange={(e) => store.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')} 
                     className="w-3 h-3 cursor-pointer" 
                 />
-                <div 
-                    className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${store.fillColor === 'transparent' ? 'opacity-50' : ''}`}
-                    style={{ 
-                        backgroundColor: store.fillColor === 'transparent' ? 'transparent' : store.fillColor,
-                        backgroundImage: store.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
-                        backgroundSize: '4px 4px'
-                    }}
-                    onClick={(e) => store.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
-                />
+                <span className="text-[10px] text-slate-300">Fundo</span>
             </div>
+            <div 
+                className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${store.fillColor === 'transparent' ? 'opacity-50' : ''}`}
+                style={{ 
+                    backgroundColor: store.fillColor === 'transparent' ? 'transparent' : store.fillColor,
+                    backgroundImage: store.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
+                    backgroundSize: '4px 4px'
+                }}
+                onClick={(e) => store.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
+            />
         </div>
       </div>
   );

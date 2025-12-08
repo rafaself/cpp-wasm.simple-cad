@@ -56,7 +56,7 @@ export const getSnapPoint = (
   shapes.forEach(shape => {
     if (shape.points && shape.points.length > 0) {
       if (snapOptions.endpoint) {
-        if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc') {
+        if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow') {
            checkPoint(shape.points[0]);
            checkPoint(shape.points[shape.points.length - 1]);
            if (shape.type === 'polyline') {
@@ -158,6 +158,17 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
         y: p1.y + t * (p2.y - p1.y)
       };
       return getDistance(point, projection) < threshold;
+
+    case 'arrow':
+      if (shape.points.length < 2) return false;
+      const a1 = shape.points[0];
+      const a2 = shape.points[1];
+      const arrowLenSq = Math.pow(a2.x - a1.x, 2) + Math.pow(a2.y - a1.y, 2);
+      if (arrowLenSq === 0) return getDistance(point, a1) < threshold;
+      let at = ((point.x - a1.x) * (a2.x - a1.x) + (point.y - a1.y) * (a2.y - a1.y)) / arrowLenSq;
+      at = Math.max(0, Math.min(1, at));
+      const arrowProj = { x: a1.x + at * (a2.x - a1.x), y: a1.y + at * (a2.y - a1.y) };
+      return getDistance(point, arrowProj) < threshold;
 
     case 'polygon': 
       if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
@@ -262,7 +273,7 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
   if (mode === 'WINDOW') return isFullyInside;
 
   const pts = shape.points || [];
-  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline') {
+  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow') {
       if (pts.some(p => isPointInRect(p, rect))) return true;
       for (let i = 0; i < pts.length - 1; i++) {
           if (isLineIntersectingRect(pts[i], pts[i+1], rect)) return true;
@@ -291,7 +302,7 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         if (p.y > maxY) maxY = p.y;
     };
 
-    if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc') && shape.points) {
+    if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow') && shape.points) {
         shape.points.forEach(addPoint);
     } 
     else if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
@@ -334,7 +345,7 @@ export interface Handle { x: number; y: number; cursor: string; index: number; t
 
 export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
-    if (shape.type === 'line' || shape.type === 'polyline') {
+    if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'arrow') {
         shape.points.forEach((p, i) => {
             handles.push({ x: p.x, y: p.y, cursor: 'move', index: i, type: 'vertex' });
         });

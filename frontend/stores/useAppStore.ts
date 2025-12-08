@@ -18,6 +18,7 @@ interface AppState {
   // Creation Settings
   strokeColor: string;
   strokeWidth: number;
+  strokeEnabled: boolean;
   fillColor: string;
   polygonSides: number;
   textSize: number;
@@ -63,6 +64,7 @@ interface AppState {
   setPolygonSides: (sides: number) => void;
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
+  setStrokeEnabled: (enabled: boolean) => void;
   setFillColor: (color: string) => void;
   setGridSize: (size: number) => void;
   setGridColor: (color: string) => void;
@@ -121,6 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   strokeColor: '#000000',
   strokeWidth: 2,
+  strokeEnabled: true,
   fillColor: 'transparent',
   polygonSides: 5,
   
@@ -295,6 +298,21 @@ export const useAppStore = create<AppState>((set, get) => ({
               const old = shapes[id];
               patches.push({ type: 'UPDATE', id, diff: { strokeWidth: width }, prev: { strokeWidth: old.strokeWidth } });
               updateShape(id, { strokeWidth: width }, false);
+          });
+          saveToHistory(patches);
+          get().syncQuadTree();
+      }
+  },
+
+  setStrokeEnabled: (enabled) => {
+      set({ strokeEnabled: enabled });
+      const { selectedShapeIds, shapes, saveToHistory, updateShape } = get();
+      if (selectedShapeIds.size > 0) {
+          const patches: Patch[] = [];
+          selectedShapeIds.forEach(id => {
+              const old = shapes[id];
+              patches.push({ type: 'UPDATE', id, diff: { strokeEnabled: enabled }, prev: { strokeEnabled: old.strokeEnabled } });
+              updateShape(id, { strokeEnabled: enabled }, false);
           });
           saveToHistory(patches);
           get().syncQuadTree();
