@@ -3,6 +3,7 @@ import { useAppStore } from '../../../stores/useAppStore';
 import { Shape, Point, Rect } from '../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle } from '../../../utils/geometry';
 import UserHint from './UserHint';
+import { CURSOR_SVG } from './assets/cursors';
 
 const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
     const paragraphs = text.split('\n');
@@ -22,26 +23,9 @@ const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: 
     return lines;
 };
 
-// Custom cursor SVGs (Bold, Rounded, Consistent Size)
-// Pointer (Standard Selection)
-const CURSOR_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M5.5 3.5L11.5 19.5L14.5 13.5L20.5 10.5L5.5 3.5Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
-</svg>`;
-
-// Modern Hand (Open) - Material Design Style (Single Path for clean stroke)
-const HAND_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M21 9V6C21 4.34 19.66 3 18 3C17.76 3 17.53 3.03 17.3 3.08C16.92 1.83 15.76 1 14.5 1C12.84 1 11.5 2.34 11.5 4V4.28C11.19 4.1 10.86 4 10.5 4C8.84 4 7.5 5.34 7.5 7V10.38L6.44 9.87C6.31 9.8 6.16 9.78 6 9.78C5.54 9.78 5.12 10.03 4.9 10.43L4 12L10.5 18.5C11.39 19.39 12.63 20 14 20H18C19.66 20 21 18.66 21 17V9Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
-</svg>`;
-
-// Closed Hand (Grabbing) - Material Design Style
-const GRABBING_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M18 9V6C18 4.34 16.66 3 15 3C14.76 3 14.53 3.03 14.3 3.08C13.92 1.83 12.76 1 11.5 1C9.84 1 8.5 2.34 8.5 4V4.28C8.19 4.1 7.86 4 7.5 4C5.84 4 4.5 5.34 4.5 7V12L14 12V7C14 6.72 14.22 6.5 14.5 6.5C14.78 6.5 15 6.72 15 7V12H16V7.5L16.2 7.58C16.48 7.9 17 8.1 17 8.5V12H18V9Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
-  <rect x="5.5" y="7" width="13" height="10" rx="2" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
-</svg>`;
-
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
-const GRAB_CURSOR = `url('data:image/svg+xml;base64,${btoa(HAND_SVG)}') 12 12, grab`;
-const GRABBING_CURSOR = `url('data:image/svg+xml;base64,${btoa(GRABBING_SVG)}') 12 12, grabbing`;
+const GRAB_CURSOR = 'grab';
+const GRABBING_CURSOR = 'grabbing';
 
 const EditorCanvas: React.FC = () => {
 

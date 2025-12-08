@@ -3,6 +3,7 @@ import { useAppStore } from '../../../stores/useAppStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough, Settings2 } from 'lucide-react';
+import ColorPicker from '../../../components/ColorPicker';
 
 const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="flex flex-col h-full border-r border-slate-700">
@@ -79,7 +80,7 @@ const EditorRibbon: React.FC = () => {
                 
                 {isLayerDropdownOpen && (
                     <div 
-                        className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[100] mt-1 max-h-64 overflow-y-auto"
+                        className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded z-[100] mt-1 max-h-64 overflow-y-auto menu-transition"
                         style={{ top: dropdownPos.top, left: dropdownPos.left }}
                         onMouseEnter={openLayerDropdown}
                         onMouseLeave={closeLayerDropdown}
@@ -118,21 +119,54 @@ const EditorRibbon: React.FC = () => {
     </div>
   );
 
+  const [colorPickerTarget, setColorPickerTarget] = useState<'stroke' | 'fill' | null>(null);
+  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
+
+  const openColorPicker = (e: React.MouseEvent, target: 'stroke' | 'fill') => {
+      e.stopPropagation(); // Prevent closing immediately if clicking toggle
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      setColorPickerPos({ top: rect.bottom + 5, left: rect.left });
+      setColorPickerTarget(target);
+  };
+
+  const activeColor = colorPickerTarget === 'stroke' ? store.strokeColor : store.fillColor;
+
+  const handleColorChange = (newColor: string) => {
+      if (colorPickerTarget === 'stroke') store.setStrokeColor(newColor);
+      if (colorPickerTarget === 'fill') store.setFillColor(newColor);
+  };
+
   const renderColorControl = () => (
       <div className="flex flex-col gap-1 w-24">
+        {/* Stroke Color */}
         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
             <span className="text-[10px] text-slate-300">Cor</span>
-            <div className="relative w-4 h-4 rounded-full border border-slate-500 overflow-hidden">
-                <input type="color" value={store.strokeColor} onChange={(e) => store.setStrokeColor(e.target.value)} className="absolute -top-1 -left-1 w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" />
-            </div>
+            <div 
+                className="w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform" 
+                style={{ backgroundColor: store.strokeColor }}
+                onClick={(e) => openColorPicker(e, 'stroke')}
+            />
         </div>
+        
+        {/* Fill Color */}
         <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
             <span className="text-[10px] text-slate-300">Fundo</span>
             <div className="flex items-center gap-1">
-                <input type="checkbox" checked={store.fillColor !== 'transparent'} onChange={(e) => store.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')} className="w-3 h-3" />
-                <div className={`relative w-4 h-4 rounded-full border border-slate-500 overflow-hidden ${store.fillColor === 'transparent' ? 'opacity-30' : ''}`}>
-                    <input type="color" disabled={store.fillColor === 'transparent'} value={store.fillColor === 'transparent' ? '#ffffff' : store.fillColor} onChange={(e) => store.setFillColor(e.target.value)} className="absolute -top-1 -left-1 w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" />
-                </div>
+                <input 
+                    type="checkbox" 
+                    checked={store.fillColor !== 'transparent'} 
+                    onChange={(e) => store.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')} 
+                    className="w-3 h-3 cursor-pointer" 
+                />
+                <div 
+                    className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${store.fillColor === 'transparent' ? 'opacity-50' : ''}`}
+                    style={{ 
+                        backgroundColor: store.fillColor === 'transparent' ? 'transparent' : store.fillColor,
+                        backgroundImage: store.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
+                        backgroundSize: '4px 4px'
+                    }}
+                    onClick={(e) => store.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
+                />
             </div>
         </div>
       </div>
@@ -226,7 +260,7 @@ const EditorRibbon: React.FC = () => {
            <button 
              key={tab.id}
              onClick={() => setActiveTabId(tab.id)}
-             className={`px-4 py-1 text-xs font-medium tracking-wide ${activeTabId === tab.id ? 'bg-slate-800 text-white border-t-2 border-blue-500' : 'text-slate-400 hover:text-slate-200'}`}
+             className={`px-4 py-1 text-xs font-medium tracking-wide transition-colors duration-200 relative ${activeTabId === tab.id ? 'bg-slate-800 text-white ribbon-tab-active' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
            >
              {tab.label}
            </button>
@@ -234,56 +268,22 @@ const EditorRibbon: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="h-28 flex px-1 pb-0 overflow-x-auto bg-slate-800">
-         {activeTab.sections.map((section, idx) => (
-             <RibbonSectionComponent key={idx} title={section.title}>
-                {section.layout === 'grid' ? (
-                    <div className="grid grid-rows-2 grid-flow-col gap-1 auto-cols-max">
-                        {section.items.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => {
-                                    if(item.type === 'tool' && item.tool) store.setTool(item.tool);
-                                    if(item.type === 'action' && item.action) handleAction(item.action);
-                                }}
-                                className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-colors 
-                                    ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-200'}
-                                    ${activeTabId === 'file' ? 'h-full w-16' : ''}
-                                `}
-                                title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
-                            >
-                                {getIcon(item.icon)}
-                                {activeTabId === 'file' && (
-                                    <span className="text-[10px] mt-1 text-center leading-tight">{item.label}</span>
-                                )}
-                            </button>
-                        ))}
-                        {section.items.some(i => i.tool === 'polygon') && store.activeTool === 'polygon' && (
-                            <div className="absolute top-full bg-slate-700 p-1 rounded z-50 mt-1 shadow-lg border border-slate-600">
-                                <span className="text-[10px] text-slate-300 mr-1">Lados:</span>
-                                <input type="number" value={store.polygonSides} onChange={e => store.setPolygonSides(parseInt(e.target.value))} className="w-10 text-xs bg-slate-900 border border-slate-600 text-center" />
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="flex gap-2 h-full items-center">
-                            {section.items.map(item => {
-                                if (item.type === 'component') {
-                                    if (item.componentName === 'LayerControl') return <React.Fragment key={item.id}>{renderLayerControl()}</React.Fragment>;
-                                    if (item.componentName === 'ColorControl') return <React.Fragment key={item.id}>{renderColorControl()}</React.Fragment>;
-                                    if (item.componentName === 'LineWidthControl') return <React.Fragment key={item.id}>{renderLineWidthControl()}</React.Fragment>;
-                                    if (item.componentName === 'TextFormatControl') return <React.Fragment key={item.id}>{renderTextFormatControl()}</React.Fragment>;
-                                    return null;
-                                }
-                                return (
+      {/* Content */}
+      <div className="h-28 bg-slate-800 overflow-hidden relative">
+        <div key={activeTab.id} className="h-full flex px-1 pb-0 overflow-x-auto menu-transition items-center">
+            {activeTab.sections.map((section, idx) => (
+                <RibbonSectionComponent key={idx} title={section.title}>
+                    {section.layout === 'grid' ? (
+                        <div className="grid grid-rows-2 grid-flow-col gap-1 auto-cols-max">
+                            {section.items.map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => {
                                         if(item.type === 'tool' && item.tool) store.setTool(item.tool);
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
-                                    className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-colors 
-                                        ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-200'}
+                                    className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-all duration-200 
+                                        ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner scale-95' : 'text-slate-200 hover:scale-105 active:scale-95'}
                                         ${activeTabId === 'file' ? 'h-full w-16' : ''}
                                     `}
                                     title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
@@ -293,13 +293,67 @@ const EditorRibbon: React.FC = () => {
                                         <span className="text-[10px] mt-1 text-center leading-tight">{item.label}</span>
                                     )}
                                 </button>
-                                )
-                            })}
-                    </div>
-                )}
-             </RibbonSectionComponent>
-         ))}
+                            ))}
+                            {section.items.some(i => i.tool === 'polygon') && store.activeTool === 'polygon' && (
+                                <div className="absolute top-full bg-slate-700 p-1 rounded z-50 mt-1 shadow-lg border border-slate-600 menu-transition">
+                                    <span className="text-[10px] text-slate-300 mr-1">Lados:</span>
+                                    <input type="number" value={store.polygonSides} onChange={e => store.setPolygonSides(parseInt(e.target.value))} className="w-10 text-xs bg-slate-900 border border-slate-600 text-center" />
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex gap-2 h-full items-center">
+                                {section.items.map(item => {
+                                    if (item.type === 'component') {
+                                        if (item.componentName === 'LayerControl') return <React.Fragment key={item.id}>{renderLayerControl()}</React.Fragment>;
+                                        if (item.componentName === 'ColorControl') return <React.Fragment key={item.id}>{renderColorControl()}</React.Fragment>;
+                                        if (item.componentName === 'LineWidthControl') return <React.Fragment key={item.id}>{renderLineWidthControl()}</React.Fragment>;
+                                        if (item.componentName === 'TextFormatControl') return <React.Fragment key={item.id}>{renderTextFormatControl()}</React.Fragment>;
+                                        return null;
+                                    }
+                                    return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            if(item.type === 'tool' && item.tool) store.setTool(item.tool);
+                                            if(item.type === 'action' && item.action) handleAction(item.action);
+                                        }}
+                                        className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-all duration-200 
+                                            ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner scale-95' : 'text-slate-200 hover:scale-105 active:scale-95'}
+                                            ${activeTabId === 'file' ? 'h-full w-16' : ''}
+                                        `}
+                                        title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
+                                    >
+                                        {getIcon(item.icon)}
+                                        {activeTabId === 'file' && (
+                                            <span className="text-[10px] mt-1 text-center leading-tight">{item.label}</span>
+                                        )}
+                                    </button>
+                                    )
+                                })}
+                        </div>
+                    )}
+                </RibbonSectionComponent>
+            ))}
+        </div>
       </div>
+
+      {colorPickerTarget && (
+        <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setColorPickerTarget(null)} />
+            <div 
+                className="fixed z-[70] shadow-2xl rounded-xl"
+                style={{ top: colorPickerPos.top, left: colorPickerPos.left }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <ColorPicker 
+                    color={activeColor === 'transparent' ? '#FFFFFF' : activeColor}
+                    onChange={handleColorChange}
+                    onClose={() => setColorPickerTarget(null)}
+                />
+            </div>
+        </>
+      )}
     </div>
   );
 };

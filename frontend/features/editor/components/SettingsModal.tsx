@@ -8,8 +8,8 @@ const SettingsModal: React.FC = () => {
   if (!store.isSettingsModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
-      <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-80 text-slate-100">
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-enter">
+      <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-80 text-slate-100 dialog-enter">
         <div className="flex items-center justify-between p-3 border-b border-slate-700">
           <h2 className="font-semibold text-sm uppercase tracking-wide">Configurações</h2>
           <button 

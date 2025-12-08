@@ -423,13 +423,16 @@ const EditorSidebar: React.FC = () => {
       </div>
 
       {/* Conditional Content Area */}
-      {activeTab === 'edificacao' && renderEdificacao()}
-      {activeTab === 'desenho' && renderDesenho()}
-      {/* Placeholders for others */}
-      {activeTab === 'propriedades' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Propriedades Gerais (Vazio)</div>}
-      {activeTab === 'projeto' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Arquivos do Projeto (Vazio)</div>}
-      {activeTab === 'camadas' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Gerenciamento de Camadas (Vazio)</div>}
-      {activeTab === 'ajustes' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Configurações Gerais (Vazio)</div>}
+      {/* Conditional Content Area */}
+      <div key={activeTab} className="flex-grow flex flex-col overflow-hidden menu-transition">
+          {activeTab === 'edificacao' && renderEdificacao()}
+          {activeTab === 'desenho' && renderDesenho()}
+          {/* Placeholders for others */}
+          {activeTab === 'propriedades' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Propriedades Gerais (Vazio)</div>}
+          {activeTab === 'projeto' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Arquivos do Projeto (Vazio)</div>}
+          {activeTab === 'camadas' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Gerenciamento de Camadas (Vazio)</div>}
+          {activeTab === 'ajustes' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Configurações Gerais (Vazio)</div>}
+      </div>
 
       {/* Bottom Navigation Tabs - Drag to Scroll Container */}
       <div 
@@ -442,55 +445,48 @@ const EditorSidebar: React.FC = () => {
         <button 
           onClick={() => !isDragging && setActiveTab('propriedades')}
           title="Propriedades"
-          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative ${activeTab === 'propriedades' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'propriedades' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
-          {activeTab === 'propriedades' && <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-600" />}
           <SlidersHorizontal size={18} />
         </button>
         
         <button 
           onClick={() => !isDragging && setActiveTab('desenho')}
           title="Desenho"
-          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative ${activeTab === 'desenho' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'desenho' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
-          {activeTab === 'desenho' && <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-600" />}
           <PenTool size={18} />
         </button>
 
         <button 
           onClick={() => !isDragging && setActiveTab('projeto')}
           title="Projeto"
-          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative ${activeTab === 'projeto' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'projeto' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
-          {activeTab === 'projeto' && <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-600" />}
           <FolderOpen size={18} />
         </button>
 
         <button 
           onClick={() => !isDragging && setActiveTab('edificacao')}
           title="Edificação"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 ${activeTab === 'edificacao' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'edificacao' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
-           {/* Active Indicator Line */}
-           {activeTab === 'edificacao' && <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-600" />}
           <Building2 size={18} />
         </button>
 
         <button 
           onClick={() => !isDragging && setActiveTab('camadas')}
           title="Camadas"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 ${activeTab === 'camadas' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'camadas' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
-           {activeTab === 'camadas' && <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-600" />}
           <Layers size={18} />
         </button>
 
         <button 
           onClick={() => !isDragging && setActiveTab('ajustes')}
           title="Ajustes"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 ${activeTab === 'ajustes' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'ajustes' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
-           {activeTab === 'ajustes' && <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-600" />}
           <Settings size={18} />
         </button>
 

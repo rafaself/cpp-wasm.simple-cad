@@ -13,9 +13,9 @@ const UserHint: React.FC<UserHintProps> = ({ message, visible, type = 'info', la
   if (!visible) return null;
 
   return (
-    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[60]">
       <div className={`
-        flex items-center gap-2 px-4 py-2 rounded-full shadow-lg backdrop-blur-md border pointer-events-auto
+        flex items-center gap-2 px-4 py-2 rounded-full shadow-lg backdrop-blur-md border pointer-events-auto menu-transition
         ${type === 'info' 
           ? 'bg-blue-500/90 border-blue-400/50 text-white' 
           : 'bg-yellow-500/90 border-yellow-400/50 text-white'}

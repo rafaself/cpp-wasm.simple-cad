@@ -109,7 +109,7 @@ const EditorStatusBar: React.FC = () => {
            </div>
            
            {showSnapMenu && (
-             <div className="absolute bottom-full mb-1 left-0 w-40 bg-slate-800 border border-slate-600 shadow-xl rounded p-2 flex flex-col gap-1">
+             <div className="absolute bottom-full mb-1 left-0 w-40 bg-slate-800 border border-slate-600 shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
                 <div className="text-[10px] text-slate-500 uppercase mb-1 font-bold">Snap ao Objeto</div>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
                   <input type="checkbox" checked={store.snapOptions.endpoint} onChange={() => toggleOption('endpoint')} /> <Square size={12} /> Extremidade

@@ -8,8 +8,8 @@ const LayerManagerModal: React.FC = () => {
   if (!store.isLayerManagerOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm">
-       <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-2xl w-[600px] h-[500px] flex flex-col text-slate-100">
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm backdrop-enter">
+       <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-2xl w-[600px] h-[500px] flex flex-col text-slate-100 dialog-enter">
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 rounded-t-lg">
              <h2 className="font-semibold text-sm uppercase tracking-wide flex items-center gap-2">
