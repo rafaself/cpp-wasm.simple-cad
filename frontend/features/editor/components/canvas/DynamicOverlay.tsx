@@ -4,6 +4,7 @@ import { useUIStore } from '../../../../stores/useUIStore';
 import { Shape, Point } from '../../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
+import RadiusInputModal from '../RadiusInputModal';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -12,7 +13,7 @@ const GRABBING_CURSOR = 'grabbing';
 interface DynamicOverlayProps {
   width: number;
   height: number;
-  onTextEntryStart: (data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string }) => void;
+  onTextEntryStart: (data: { id?: string, x: number, y: number, rotation: number, boxWidth?: number, initialText?: string, segments?: any[] }) => void;
   isTextEditing: boolean;
 }
 
@@ -33,6 +34,11 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
   const [activeHandle, setActiveHandle] = useState<{ shapeId: string, handle: Handle } | null>(null);
   const [transformationBase, setTransformationBase] = useState<Point | null>(null);
 
+  // Arc Tool State
+  const [arcPoints, setArcPoints] = useState<{ start: Point; end: Point } | null>(null);
+  const [showRadiusModal, setShowRadiusModal] = useState(false);
+  const [radiusModalPos, setRadiusModalPos] = useState({ x: 0, y: 0 });
+
   // Sync mouse position
   const getMousePos = (e: React.MouseEvent): Point => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -45,6 +51,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     setLineStart(null); setMeasureStart(null); setPolylinePoints([]); setStartPoint(null);
     setIsDragging(false); setIsSelectionBox(false); setSnapMarker(null); setTransformationBase(null);
     setActiveHandle(null);
+    setArcPoints(null); setShowRadiusModal(false);
   }, [uiStore.activeTool]);
 
   useEffect(() => {
@@ -76,6 +83,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
           if (e.key === 'Escape') {
               setLineStart(null); setMeasureStart(null); setPolylinePoints([]);
               setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
+              setArcPoints(null); setShowRadiusModal(false);
               if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') uiStore.setTool('select');
               if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
                   uiStore.setSelectedShapeIds(new Set());
@@ -218,7 +226,11 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure','text', 'move', 'rotate'].includes(uiStore.activeTool)) {
       const ws = screenToWorld(startPoint, uiStore.viewTransform); const wc = screenToWorld(currentPoint, uiStore.viewTransform);
       const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
-      if (uiStore.activeTool === 'arc') { temp.points = [ws, wc]; temp.radius = getDistance(ws, wc); }
+      if (uiStore.activeTool === 'arc') {
+          // Visualizing the chord while dragging
+          ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(wc.x, wc.y);
+          ctx.strokeStyle = uiStore.strokeColor; ctx.stroke();
+      }
       else if (uiStore.activeTool === 'circle') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); }
       else if (uiStore.activeTool === 'rect') { temp.x = Math.min(ws.x, wc.x); temp.y = Math.min(ws.y, wc.y); temp.width = Math.abs(wc.x - ws.x); temp.height = Math.abs(wc.y - ws.y); }
       else if (uiStore.activeTool === 'polygon') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = uiStore.polygonSides; }
@@ -252,7 +264,22 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
         ctx.lineWidth = 1; ctx.fill(); ctx.stroke(); ctx.restore();
     }
 
-  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, measureStart, transformationBase, activeHandle]);
+    // 6. Arc Draft (Click 1 - Click 2)
+    if (uiStore.activeTool === 'arc' && arcPoints) {
+        // We have start point, waiting for end point click? No, we set arcPoints on first drag end.
+        // Actually the flow is: Click/Drag to define line A-B. Then popup.
+        // During drag we show line? Or arc with temp radius?
+        // Let's visualize the chord A-B
+        const ws = arcPoints.start;
+        const we = arcPoints.end;
+        ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(we.x, we.y);
+        ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+
+        // Maybe show a ghost arc with radius = distance?
+        // Skipped for simplicity, just showing the chord.
+    }
+
+  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, measureStart, transformationBase, activeHandle, arcPoints]);
 
   useEffect(() => {
       render();
@@ -270,7 +297,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
        const visible = dataStore.spatialIndex.query(queryRect)
            .map(s => dataStore.shapes[s.id])
            .filter(s => { const l = dataStore.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
-       const snap = getSnapPoint(wr, visible, uiStore.snapOptions, 15 / uiStore.viewTransform.scale);
+       const snap = getSnapPoint(wr, visible, uiStore.snapOptions, uiStore.gridSize, 20 / uiStore.viewTransform.scale);
        if (snap) { snapped = snap; eff = worldToScreen(snap, uiStore.viewTransform); }
     }
 
@@ -339,6 +366,15 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
       return;
     }
 
+    if (uiStore.activeTool === 'arc') {
+         if (!arcPoints) {
+             // 1st click: Start point. Actually we want click-drag-release logic for A-B
+             setIsDragging(true); // Standard drag logic will capture start/end
+         }
+         // If arcPoints exists, we are in modal phase, ignore clicks
+         return;
+    }
+
     if (uiStore.activeTool === 'polyline') { setPolylinePoints(p => [...p, wPos]); return; }
     if (uiStore.activeTool === 'line') {
       if (!lineStart) setLineStart(wPos);
@@ -388,7 +424,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
                 if (activeHandle && s.id === activeHandle.shapeId) return false;
                 return s && l && l.visible && !l.locked;
             });
-        const snap = getSnapPoint(worldPos, visible, uiStore.snapOptions, 15 / uiStore.viewTransform.scale);
+        const snap = getSnapPoint(worldPos, visible, uiStore.snapOptions, uiStore.gridSize, 20 / uiStore.viewTransform.scale);
         if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, uiStore.viewTransform); } else { setSnapMarker(null); }
     } else { setSnapMarker(null); }
 
@@ -499,17 +535,29 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
     const isSingleClick = dist < 5;
 
     if (!['select','pan','polyline','measure','line','text', 'move', 'rotate'].includes(uiStore.activeTool)) {
+
+      if (uiStore.activeTool === 'arc') {
+          // Special handling for Arc: Phase 1 complete (Drag A-B)
+          // Store A-B and Open Modal
+          const pEnd = isSingleClick ? { x: ws.x + 100, y: ws.y } : we;
+          setArcPoints({ start: ws, end: pEnd });
+          // Open Modal
+          const screenPos = worldToScreen(pEnd, uiStore.viewTransform);
+          setRadiusModalPos({ x: screenPos.x, y: screenPos.y });
+          setShowRadiusModal(true);
+          setStartPoint(null);
+          return;
+      }
+
       const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
 
       if (isSingleClick && shapeCreationTools.includes(uiStore.activeTool)) {
         if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
         else if (uiStore.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
         else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = uiStore.polygonSides; }
-        else if (uiStore.activeTool === 'arc') { n.points = [ws, { x: ws.x + 100, y: ws.y }]; n.radius = 100; }
         else if (uiStore.activeTool === 'arrow') { n.points = [ws, { x: ws.x + 100, y: ws.y }]; n.arrowHeadSize = 15; }
       } else {
-        if (uiStore.activeTool === 'arc') { n.points = [ws, we]; n.radius = getDistance(ws, we); }
-        else if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
+        if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
         else if (uiStore.activeTool === 'rect') { n.x = Math.min(ws.x, we.x); n.y = Math.min(ws.y, we.y); n.width = Math.abs(we.x - ws.x); n.height = Math.abs(we.y - ws.y); }
         else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = uiStore.polygonSides; }
         else if (uiStore.activeTool === 'arrow') { n.points = [ws, we]; n.arrowHeadSize = 15; }
@@ -538,7 +586,15 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
       }
 
       if (hitShape && hitShape.type === 'text' && hitShape.x !== undefined && hitShape.y !== undefined) {
-          onTextEntryStart({ id: hitShape.id, x: hitShape.x, y: hitShape.y, rotation: hitShape.rotation || 0, boxWidth: hitShape.width, initialText: hitShape.text });
+          onTextEntryStart({
+              id: hitShape.id,
+              x: hitShape.x,
+              y: hitShape.y,
+              rotation: hitShape.rotation || 0,
+              boxWidth: hitShape.width,
+              initialText: hitShape.text,
+              segments: hitShape.segments
+          });
       }
   };
 
@@ -560,6 +616,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
   else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
 
   return (
+    <>
     <canvas
         ref={canvasRef}
         width={width}
@@ -573,6 +630,37 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height, onTextEn
         onWheel={handleWheel}
         onContextMenu={(e) => e.preventDefault()}
     />
+
+    {showRadiusModal && arcPoints && (
+        <RadiusInputModal
+            initialRadius={getDistance(arcPoints.start, arcPoints.end)} // Default radius = chord length (approx)
+            position={radiusModalPos}
+            onConfirm={(radius) => {
+                const n: Shape = {
+                    id: Date.now().toString(),
+                    layerId: dataStore.activeLayerId,
+                    type: 'arc',
+                    points: [arcPoints.start, arcPoints.end],
+                    radius: radius,
+                    strokeColor: uiStore.strokeColor,
+                    strokeWidth: uiStore.strokeWidth,
+                    strokeEnabled: uiStore.strokeEnabled,
+                    fillColor: 'transparent'
+                };
+                dataStore.addShape(n);
+                setArcPoints(null);
+                setShowRadiusModal(false);
+                uiStore.setSidebarTab('desenho');
+                uiStore.setTool('select');
+            }}
+            onCancel={() => {
+                setArcPoints(null);
+                setShowRadiusModal(false);
+                uiStore.setTool('select');
+            }}
+        />
+    )}
+    </>
   );
 };
 

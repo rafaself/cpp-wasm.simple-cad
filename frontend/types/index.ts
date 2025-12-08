@@ -40,6 +40,18 @@ export interface SnapOptions {
   midpoint: boolean;
   center: boolean;
   nearest: boolean;
+  grid: boolean; // Added
+}
+
+export interface TextSpan {
+  text: string;
+  fontBold?: boolean;
+  fontItalic?: boolean;
+  fontUnderline?: boolean;
+  fontStrike?: boolean;
+  fillColor?: string;
+  fontFamily?: string;
+  fontSize?: number;
 }
 
 export interface Shape {
@@ -65,7 +77,8 @@ export interface Shape {
   
   // Text specific
   label?: string; // For measurements
-  text?: string; // For text tool
+  text?: string; // For text tool (Legacy/Simple)
+  segments?: TextSpan[]; // For Rich Text
   fontSize?: number; 
   fontFamily?: string;
   fontBold?: boolean;

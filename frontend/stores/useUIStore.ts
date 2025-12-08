@@ -91,7 +91,7 @@ export const useUIStore = create<UIState>((set) => ({
   gridSize: 50,
   gridColor: '#e5e7eb',
 
-  snapOptions: { enabled: true, endpoint: true, midpoint: true, center: true, nearest: false },
+  snapOptions: { enabled: true, endpoint: true, midpoint: true, center: true, nearest: false, grid: false },
 
   setTool: (tool) => set({ activeTool: tool }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
