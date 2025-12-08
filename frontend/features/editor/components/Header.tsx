@@ -7,10 +7,10 @@ import {
   Redo2, 
   Moon 
 } from 'lucide-react';
-import { useAppStore } from '@/stores/useAppStore';
+import { useDataStore } from '@/stores/useDataStore';
 
 const Header: React.FC = () => {
-  const store = useAppStore();
+  const store = useDataStore();
 
   return (
     <div className="h-10 bg-[#0f172a] flex items-center justify-between px-2 select-none border-b border-[#1e293b]">

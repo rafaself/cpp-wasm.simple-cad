@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useAppStore } from '../../../stores/useAppStore';
+import { useUIStore } from '../../../stores/useUIStore';
+import { useDataStore } from '../../../stores/useDataStore';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { LayoutPanelLeft } from 'lucide-react';
 
@@ -14,7 +15,8 @@ const TOOLS = [
 ];
 
 const QuickAccessToolbar: React.FC = () => {
-  const store = useAppStore();
+  const uiStore = useUIStore();
+  const dataStore = useDataStore();
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
 
   const containerClasses = orientation === 'vertical'
@@ -41,10 +43,10 @@ const QuickAccessToolbar: React.FC = () => {
       {TOOLS.map(item => (
         <button
           key={item.id}
-          onClick={() => store.setTool(item.id as any)}
+          onClick={() => uiStore.setTool(item.id as any)}
           className={`
             flex items-center justify-center w-8 h-8 rounded-md transition-all
-            ${store.activeTool === item.id 
+            ${uiStore.activeTool === item.id
               ? 'bg-blue-600 text-white shadow-md' 
               : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}
           `}
@@ -60,8 +62,8 @@ const QuickAccessToolbar: React.FC = () => {
       <div className={`bg-slate-700/50 ${orientation === 'vertical' ? 'h-px w-full my-0.5' : 'w-px h-full mx-0.5'}`} />
       
       <button
-        onClick={() => store.undo()}
-        disabled={store.past.length === 0}
+        onClick={() => dataStore.undo()}
+        disabled={dataStore.past.length === 0}
         className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
         title="Desfazer"
       >
@@ -70,8 +72,8 @@ const QuickAccessToolbar: React.FC = () => {
         </div>
       </button>
        <button
-        onClick={() => store.redo()}
-        disabled={store.future.length === 0}
+        onClick={() => dataStore.redo()}
+        disabled={dataStore.future.length === 0}
         className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
         title="Refazer"
       >

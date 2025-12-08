@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useAppStore } from '../../../stores/useAppStore';
+import { useUIStore } from '../../../stores/useUIStore';
+import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Bold, Italic, Underline, Strikethrough, Settings2 } from 'lucide-react';
@@ -17,8 +18,9 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
 );
 
 const EditorRibbon: React.FC = () => {
-  const [activeTabId, setActiveTabId] = useState('draw'); // Default to Draw (formerly Home)
-  const store = useAppStore();
+  const [activeTabId, setActiveTabId] = useState('draw');
+  const uiStore = useUIStore();
+  const dataStore = useDataStore();
   
   // Layer Dropdown State
   const [isLayerDropdownOpen, setLayerDropdownOpen] = useState(false);
@@ -27,17 +29,18 @@ const EditorRibbon: React.FC = () => {
   const closeTimeoutRef = useRef<number | null>(null);
 
   const handleAction = (action?: string) => {
-      if (action === 'delete') store.deleteSelected();
-      if (action === 'join') store.joinSelected();
-      if (action === 'explode') store.explodeSelected();
-      if (action === 'zoom-fit') store.zoomToFit();
-      if (action === 'undo') store.undo();
-      if (action === 'redo') store.redo();
-      if (action === 'open-settings') store.setSettingsModalOpen(true);
+      const selectedIds = Array.from(uiStore.selectedShapeIds);
+      if (action === 'delete') dataStore.deleteSelected(selectedIds);
+      if (action === 'join') { /* TODO: Implement join */ }
+      if (action === 'explode') { /* TODO: Implement explode */ }
+      if (action === 'zoom-fit') dataStore.zoomToFit();
+      if (action === 'undo') dataStore.undo();
+      if (action === 'redo') dataStore.redo();
+      if (action === 'open-settings') uiStore.setSettingsModalOpen(true);
   };
 
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];
-  const activeLayer = store.layers.find(l => l.id === store.activeLayerId);
+  const activeLayer = dataStore.layers.find(l => l.id === dataStore.activeLayerId);
 
   const openLayerDropdown = () => {
     if (closeTimeoutRef.current) {
@@ -81,15 +84,15 @@ const EditorRibbon: React.FC = () => {
             </div>
             <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                    <button onClick={() => activeLayer && store.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                    <button onClick={() => activeLayer && store.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                    <button onClick={() => activeLayer && dataStore.toggleLayerVisibility(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Visibilidade">{activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                    <button onClick={() => activeLayer && dataStore.toggleLayerLock(activeLayer.id)} className="text-slate-400 hover:text-white" title="Alternar Bloqueio">{activeLayer?.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
                 </div>
             </div>
         </div>
         
         {/* Layer Manager Button - reduced right spacing */}
         <button 
-            onClick={() => store.setLayerManagerOpen(true)}
+            onClick={() => uiStore.setLayerManagerOpen(true)}
             className="h-full px-1 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors border-l border-slate-700/50"
             title="Gerenciador de Camadas"
         >
@@ -104,15 +107,15 @@ const EditorRibbon: React.FC = () => {
                 onMouseEnter={openLayerDropdown}
                 onMouseLeave={closeLayerDropdown}
             >
-                {store.layers.map(layer => (
-                    <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === store.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); store.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
+                {dataStore.layers.map(layer => (
+                    <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
                         <div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: layer.color}}></div>
                         <span className="flex-grow text-xs cursor-default">{layer.name}</span>
-                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); store.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                        <button className="p-1 hover:text-white text-slate-400" onClick={(e) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
                     </div>
                 ))}
-                <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); store.addLayer(); }}>
+                <div className="p-2 flex items-center gap-2 hover:bg-slate-700 cursor-pointer text-blue-400" onClick={(e) => { e.stopPropagation(); dataStore.addLayer(); }}>
                     <Plus size={14} /> <span className="text-xs cursor-default">Criar Nova Camada</span>
                 </div>
             </div>
@@ -130,11 +133,11 @@ const EditorRibbon: React.FC = () => {
       setColorPickerTarget(target);
   };
 
-  const activeColor = colorPickerTarget === 'stroke' ? store.strokeColor : store.fillColor;
+  const activeColor = colorPickerTarget === 'stroke' ? uiStore.strokeColor : uiStore.fillColor;
 
   const handleColorChange = (newColor: string) => {
-      if (colorPickerTarget === 'stroke') store.setStrokeColor(newColor);
-      if (colorPickerTarget === 'fill') store.setFillColor(newColor);
+      if (colorPickerTarget === 'stroke') uiStore.setStrokeColor(newColor);
+      if (colorPickerTarget === 'fill') uiStore.setFillColor(newColor);
   };
 
   const renderColorControl = () => (
@@ -144,16 +147,16 @@ const EditorRibbon: React.FC = () => {
             <div className="flex items-center gap-1">
                 <input 
                     type="checkbox" 
-                    checked={store.strokeEnabled !== false} 
-                    onChange={(e) => store.setStrokeEnabled(e.target.checked)} 
+                    checked={uiStore.strokeEnabled !== false}
+                    onChange={(e) => uiStore.setStrokeEnabled(e.target.checked)}
                     className="w-3 h-3 cursor-pointer" 
                 />
                 <span className="text-[10px] text-slate-300">Cor</span>
             </div>
             <div 
-                className={`w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${store.strokeEnabled === false ? 'opacity-50' : ''}`}
-                style={{ backgroundColor: store.strokeColor }}
-                onClick={(e) => store.strokeEnabled !== false && openColorPicker(e, 'stroke')}
+                className={`w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${uiStore.strokeEnabled === false ? 'opacity-50' : ''}`}
+                style={{ backgroundColor: uiStore.strokeColor }}
+                onClick={(e) => uiStore.strokeEnabled !== false && openColorPicker(e, 'stroke')}
             />
         </div>
         
@@ -162,20 +165,20 @@ const EditorRibbon: React.FC = () => {
             <div className="flex items-center gap-1">
                 <input 
                     type="checkbox" 
-                    checked={store.fillColor !== 'transparent'} 
-                    onChange={(e) => store.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')} 
+                    checked={uiStore.fillColor !== 'transparent'}
+                    onChange={(e) => uiStore.setFillColor(e.target.checked ? '#eeeeee' : 'transparent')}
                     className="w-3 h-3 cursor-pointer" 
                 />
                 <span className="text-[10px] text-slate-300">Fundo</span>
             </div>
             <div 
-                className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${store.fillColor === 'transparent' ? 'opacity-50' : ''}`}
+                className={`relative w-4 h-4 rounded-full border border-slate-500 cursor-pointer hover:scale-110 transition-transform ${uiStore.fillColor === 'transparent' ? 'opacity-50' : ''}`}
                 style={{ 
-                    backgroundColor: store.fillColor === 'transparent' ? 'transparent' : store.fillColor,
-                    backgroundImage: store.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
+                    backgroundColor: uiStore.fillColor === 'transparent' ? 'transparent' : uiStore.fillColor,
+                    backgroundImage: uiStore.fillColor === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none',
                     backgroundSize: '4px 4px'
                 }}
-                onClick={(e) => store.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
+                onClick={(e) => uiStore.fillColor !== 'transparent' && openColorPicker(e, 'fill')}
             />
         </div>
       </div>
@@ -184,7 +187,7 @@ const EditorRibbon: React.FC = () => {
   const renderLineWidthControl = () => (
       <div className="flex flex-col gap-1 w-24">
          <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
-            <span className="text-[10px] text-slate-300">Largura: {store.strokeWidth}px</span>
+            <span className="text-[10px] text-slate-300">Largura: {uiStore.strokeWidth}px</span>
          </div>
          <div className="px-1 pt-1">
             <input 
@@ -192,8 +195,8 @@ const EditorRibbon: React.FC = () => {
                 min="1" 
                 max="20" 
                 step="1" 
-                value={store.strokeWidth} 
-                onChange={(e) => store.setStrokeWidth(parseInt(e.target.value))}
+                value={uiStore.strokeWidth}
+                onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
                 className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
          </div>
@@ -205,8 +208,8 @@ const EditorRibbon: React.FC = () => {
        {/* Row 1: Font and Size */}
        <div className="flex items-center gap-1">
            <select 
-             value={store.fontFamily} 
-             onChange={(e) => store.setFontFamily(e.target.value)}
+             value={uiStore.fontFamily}
+             onChange={(e) => uiStore.setFontFamily(e.target.value)}
              className="h-6 flex-grow bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500"
            >
                <option value="sans-serif">Sans Serif</option>
@@ -220,8 +223,8 @@ const EditorRibbon: React.FC = () => {
               type="number" 
               min="1" 
               max="200" 
-              value={store.textSize} 
-              onChange={(e) => store.setTextSize(parseInt(e.target.value))}
+              value={uiStore.textSize}
+              onChange={(e) => uiStore.setTextSize(parseInt(e.target.value))}
               className="w-12 h-6 bg-slate-700 text-xs border border-slate-600 rounded px-1 outline-none focus:border-blue-500 text-center"
            />
        </div>
@@ -229,30 +232,30 @@ const EditorRibbon: React.FC = () => {
        {/* Row 2: Styling Buttons */}
        <div className="flex items-center gap-1 justify-between bg-slate-700/50 p-0.5 rounded border border-slate-600/50">
            <button 
-             onClick={store.toggleFontBold} 
-             className={`p-1 rounded hover:bg-slate-600 ${store.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             onClick={uiStore.toggleFontBold}
+             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontBold ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
              title="Negrito"
            >
                <Bold size={14} />
            </button>
            <button 
-             onClick={store.toggleFontItalic} 
-             className={`p-1 rounded hover:bg-slate-600 ${store.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             onClick={uiStore.toggleFontItalic}
+             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontItalic ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
              title="Itálico"
            >
                <Italic size={14} />
            </button>
            <div className="w-px h-4 bg-slate-600" />
            <button 
-             onClick={store.toggleFontUnderline} 
-             className={`p-1 rounded hover:bg-slate-600 ${store.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             onClick={uiStore.toggleFontUnderline}
+             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontUnderline ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
              title="Sublinhado"
            >
                <Underline size={14} />
            </button>
            <button 
-             onClick={store.toggleFontStrike} 
-             className={`p-1 rounded hover:bg-slate-600 ${store.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+             onClick={uiStore.toggleFontStrike}
+             className={`p-1 rounded hover:bg-slate-600 ${uiStore.fontStrike ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
              title="Tachado"
            >
                <Strikethrough size={14} />
@@ -277,7 +280,6 @@ const EditorRibbon: React.FC = () => {
       </div>
 
       {/* Content */}
-      {/* Content */}
       <div className="h-28 bg-slate-800 overflow-hidden relative">
         <div key={activeTab.id} className="h-full flex px-1 pb-0 overflow-x-auto menu-transition items-center">
             {activeTab.sections.map((section, idx) => (
@@ -288,11 +290,11 @@ const EditorRibbon: React.FC = () => {
                                 <button
                                     key={item.id}
                                     onClick={() => {
-                                        if(item.type === 'tool' && item.tool) store.setTool(item.tool);
+                                        if(item.type === 'tool' && item.tool) uiStore.setTool(item.tool);
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
                                     className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-all duration-200 
-                                        ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner scale-95' : 'text-slate-200 hover:scale-105 active:scale-95'}
+                                        ${item.type === 'tool' && uiStore.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner scale-95' : 'text-slate-200 hover:scale-105 active:scale-95'}
                                         ${activeTabId === 'file' ? 'h-full w-16' : ''}
                                     `}
                                     title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
@@ -303,10 +305,10 @@ const EditorRibbon: React.FC = () => {
                                     )}
                                 </button>
                             ))}
-                            {section.items.some(i => i.tool === 'polygon') && store.activeTool === 'polygon' && (
+                            {section.items.some(i => i.tool === 'polygon') && uiStore.activeTool === 'polygon' && (
                                 <div className="absolute top-full bg-slate-700 p-1 rounded z-50 mt-1 shadow-lg border border-slate-600 menu-transition">
                                     <span className="text-[10px] text-slate-300 mr-1">Lados:</span>
-                                    <input type="number" value={store.polygonSides} onChange={e => store.setPolygonSides(parseInt(e.target.value))} className="w-10 text-xs bg-slate-900 border border-slate-600 text-center" />
+                                    <input type="number" value={uiStore.polygonSides} onChange={e => uiStore.setPolygonSides(parseInt(e.target.value))} className="w-10 text-xs bg-slate-900 border border-slate-600 text-center" />
                                 </div>
                             )}
                         </div>
@@ -324,11 +326,11 @@ const EditorRibbon: React.FC = () => {
                                     <button
                                         key={item.id}
                                         onClick={() => {
-                                            if(item.type === 'tool' && item.tool) store.setTool(item.tool);
+                                            if(item.type === 'tool' && item.tool) uiStore.setTool(item.tool);
                                             if(item.type === 'action' && item.action) handleAction(item.action);
                                         }}
                                         className={`flex flex-col items-center justify-center p-2 rounded hover:bg-slate-700 transition-all duration-200 
-                                            ${item.type === 'tool' && store.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner scale-95' : 'text-slate-200 hover:scale-105 active:scale-95'}
+                                            ${item.type === 'tool' && uiStore.activeTool === item.tool ? 'bg-blue-600 text-white shadow-inner scale-95' : 'text-slate-200 hover:scale-105 active:scale-95'}
                                             ${activeTabId === 'file' ? 'h-full w-16' : ''}
                                         `}
                                         title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
