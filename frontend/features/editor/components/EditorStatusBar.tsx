@@ -1,11 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../../stores/useAppStore';
-import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan } from 'lucide-react';
+import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator } from 'lucide-react';
 import { SnapOptions } from '../../../types';
+import { getDistance } from '../../../utils/geometry';
 
 const EditorStatusBar: React.FC = () => {
   const store = useAppStore();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
+  const [totalLength, setTotalLength] = useState<string | null>(null);
+
+  // POC: Calculate total length of selected lines
+  useEffect(() => {
+    if (store.selectedShapeIds.size > 0) {
+        let total = 0;
+        let hasLines = false;
+        store.selectedShapeIds.forEach(id => {
+            const s = store.shapes[id];
+            if (!s) return;
+            if (s.type === 'line' || s.type === 'polyline' || s.type === 'measure') {
+                hasLines = true;
+                if (s.points && s.points.length >= 2) {
+                    if (s.type === 'line' || s.type === 'measure') {
+                       total += getDistance(s.points[0], s.points[1]);
+                    } else if (s.type === 'polyline') {
+                       for(let i=0; i<s.points.length-1; i++) {
+                          total += getDistance(s.points[i], s.points[i+1]);
+                       }
+                    }
+                }
+            }
+        });
+
+        if (hasLines) {
+            const meters = total / store.worldScale;
+            setTotalLength(meters.toFixed(2) + "m");
+        } else {
+            setTotalLength(null);
+        }
+    } else {
+        setTotalLength(null);
+    }
+  }, [store.selectedShapeIds, store.shapes, store.worldScale]);
   
   // Zoom Editing State
   const [isEditingZoom, setIsEditingZoom] = useState(false);
@@ -53,6 +88,16 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
+
+        {/* POC: Material Calculator Display */}
+        {totalLength && (
+            <div className="flex items-center gap-2 bg-blue-900/30 border border-blue-500/50 px-2 py-0.5 rounded text-blue-200" title="Comprimento total dos fios selecionados (POC de Inteligência)">
+                <Calculator size={14} />
+                <span className="font-bold">{totalLength}</span>
+                <span className="text-[10px] opacity-60">(Fio)</span>
+            </div>
+        )}
+
         <div className="relative">
            <div className="flex items-center bg-slate-800 rounded border border-slate-600">
               <button onClick={toggleSnap} className={`flex items-center gap-1 px-2 py-0.5 hover:bg-slate-700 ${store.snapOptions.enabled ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>
