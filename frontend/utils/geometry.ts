@@ -31,6 +31,24 @@ export const worldToScreen = (point: Point, transform: ViewTransform): Point => 
   };
 };
 
+export const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+    const paragraphs = text.split('\n');
+    const lines: string[] = [];
+    paragraphs.forEach(para => {
+        if (!para) { lines.push(''); return; }
+        const words = para.split(' ');
+        let currentLine = words[0];
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + " " + word).width;
+            if (width < maxWidth) currentLine += " " + word;
+            else { lines.push(currentLine); currentLine = word; }
+        }
+        lines.push(currentLine);
+    });
+    return lines;
+};
+
 export const getSnapPoint = (
   point: Point, 
   shapes: Shape[], 

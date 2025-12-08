@@ -45,6 +45,37 @@ export class QuadTree {
     return true;
   }
 
+  remove(shape: Shape): boolean {
+    const shapeBounds = getShapeBounds(shape);
+    if (!shapeBounds) return false;
+
+    if (!this.intersects(this.bounds, shapeBounds)) {
+      return false;
+    }
+
+    // Check if it's in this node's list
+    const index = this.shapes.findIndex(s => s.id === shape.id);
+    if (index !== -1) {
+      this.shapes.splice(index, 1);
+      return true;
+    }
+
+    // Check children
+    if (this.divided) {
+      if (this.northeast?.remove(shape)) return true;
+      if (this.northwest?.remove(shape)) return true;
+      if (this.southeast?.remove(shape)) return true;
+      if (this.southwest?.remove(shape)) return true;
+    }
+
+    return false;
+  }
+
+  update(oldShape: Shape, newShape: Shape): void {
+    this.remove(oldShape);
+    this.insert(newShape);
+  }
+
   query(range: Rect, found: Shape[] = []): Shape[] {
     if (!this.intersects(this.bounds, range)) {
       return found;

@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAppStore } from '../../../stores/useAppStore';
+import { useUIStore } from '../../../stores/useUIStore';
+import { useDataStore } from '../../../stores/useDataStore';
 import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
 
 const EditorStatusBar: React.FC = () => {
-  const store = useAppStore();
+  const uiStore = useUIStore();
+  const dataStore = useDataStore();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
   const [totalLength, setTotalLength] = useState<string | null>(null);
 
   // POC: Calculate total length of selected lines
   useEffect(() => {
-    if (store.selectedShapeIds.size > 0) {
+    if (uiStore.selectedShapeIds.size > 0) {
         let total = 0;
         let hasLines = false;
-        store.selectedShapeIds.forEach(id => {
-            const s = store.shapes[id];
+        uiStore.selectedShapeIds.forEach(id => {
+            const s = dataStore.shapes[id];
             if (!s) return;
             if (s.type === 'line' || s.type === 'polyline' || s.type === 'measure') {
                 hasLines = true;
@@ -32,7 +34,7 @@ const EditorStatusBar: React.FC = () => {
         });
 
         if (hasLines) {
-            const meters = total / store.worldScale;
+            const meters = total / dataStore.worldScale;
             setTotalLength(meters.toFixed(2) + "m");
         } else {
             setTotalLength(null);
@@ -40,22 +42,22 @@ const EditorStatusBar: React.FC = () => {
     } else {
         setTotalLength(null);
     }
-  }, [store.selectedShapeIds, store.shapes, store.worldScale]);
+  }, [uiStore.selectedShapeIds, dataStore.shapes, dataStore.worldScale]);
   
   // Zoom Editing State
   const [isEditingZoom, setIsEditingZoom] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState("");
   const zoomInputRef = useRef<HTMLInputElement>(null);
 
-  const toggleSnap = () => store.setSnapOptions(prev => ({ ...prev, enabled: !prev.enabled }));
-  const toggleOption = (key: keyof SnapOptions) => store.setSnapOptions(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleSnap = () => uiStore.setSnapOptions(prev => ({ ...prev, enabled: !prev.enabled }));
+  const toggleOption = (key: keyof SnapOptions) => uiStore.setSnapOptions(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Limit max scale to 5 (500%)
-  const handleZoomIn = () => store.setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
-  const handleZoomOut = () => store.setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
+  const handleZoomIn = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
+  const handleZoomOut = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
 
   const startEditingZoom = () => {
-      setZoomInputValue((store.viewTransform.scale * 100).toFixed(0));
+      setZoomInputValue((uiStore.viewTransform.scale * 100).toFixed(0));
       setIsEditingZoom(true);
       // Wait for render to focus
       setTimeout(() => zoomInputRef.current?.focus(), 0);
@@ -68,7 +70,7 @@ const EditorStatusBar: React.FC = () => {
       // Constraint: 10% to 500%
       val = Math.max(10, Math.min(val, 500));
       
-      store.setViewTransform(prev => ({ ...prev, scale: val / 100 }));
+      uiStore.setViewTransform(prev => ({ ...prev, scale: val / 100 }));
       setIsEditingZoom(false);
   };
 
@@ -84,7 +86,7 @@ const EditorStatusBar: React.FC = () => {
   return (
     <div className="w-full h-8 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-300 select-none z-50">
       <div className="w-40 font-mono">
-        {store.mousePos ? `${store.mousePos.x.toFixed(2)}, ${store.mousePos.y.toFixed(2)}` : ''}
+        {uiStore.mousePos ? `${uiStore.mousePos.x.toFixed(2)}, ${uiStore.mousePos.y.toFixed(2)}` : ''}
       </div>
 
       <div className="flex items-center gap-4">
@@ -100,7 +102,7 @@ const EditorStatusBar: React.FC = () => {
 
         <div className="relative">
            <div className="flex items-center bg-slate-800 rounded border border-slate-600">
-              <button onClick={toggleSnap} className={`flex items-center gap-1 px-2 py-0.5 hover:bg-slate-700 ${store.snapOptions.enabled ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>
+              <button onClick={toggleSnap} className={`flex items-center gap-1 px-2 py-0.5 hover:bg-slate-700 ${uiStore.snapOptions.enabled ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>
                 <Magnet size={14} /> SNAP
               </button>
               <button onClick={() => setShowSnapMenu(!showSnapMenu)} className="px-1 py-0.5 border-l border-slate-600 hover:bg-slate-700">
@@ -112,13 +114,13 @@ const EditorStatusBar: React.FC = () => {
              <div className="absolute bottom-full mb-1 left-0 w-40 bg-slate-800 border border-slate-600 shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
                 <div className="text-[10px] text-slate-500 uppercase mb-1 font-bold">Snap ao Objeto</div>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={store.snapOptions.endpoint} onChange={() => toggleOption('endpoint')} /> <Square size={12} /> Extremidade
+                  <input type="checkbox" checked={uiStore.snapOptions.endpoint} onChange={() => toggleOption('endpoint')} /> <Square size={12} /> Extremidade
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={store.snapOptions.midpoint} onChange={() => toggleOption('midpoint')} /> <Target size={12} /> Ponto Médio
+                  <input type="checkbox" checked={uiStore.snapOptions.midpoint} onChange={() => toggleOption('midpoint')} /> <Target size={12} /> Ponto Médio
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={store.snapOptions.center} onChange={() => toggleOption('center')} /> <CircleDot size={12} /> Centro
+                  <input type="checkbox" checked={uiStore.snapOptions.center} onChange={() => toggleOption('center')} /> <CircleDot size={12} /> Centro
                 </label>
              </div>
            )}
@@ -126,12 +128,12 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2">
-         <button onClick={store.undo} className={`p-1 hover:bg-slate-700 rounded ${store.past.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={store.past.length === 0} title="Desfazer (Ctrl+Z)"><Undo size={14} /></button>
-         <button onClick={store.redo} className={`p-1 hover:bg-slate-700 rounded ${store.future.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={store.future.length === 0} title="Refazer (Ctrl+Y)"><Redo size={14} /></button>
+         <button onClick={dataStore.undo} className={`p-1 hover:bg-slate-700 rounded ${dataStore.past.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={dataStore.past.length === 0} title="Desfazer (Ctrl+Z)"><Undo size={14} /></button>
+         <button onClick={dataStore.redo} className={`p-1 hover:bg-slate-700 rounded ${dataStore.future.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={dataStore.future.length === 0} title="Refazer (Ctrl+Y)"><Redo size={14} /></button>
          
          <div className="h-4 w-px bg-slate-600 mx-2" />
          
-         <button onClick={store.zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={store.selectedShapeIds.size > 0 ? "Zoom na Seleção" : "Ajustar Zoom"}><Scan size={14} /></button>
+         <button onClick={dataStore.zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? "Zoom na Seleção" : "Ajustar Zoom"}><Scan size={14} /></button>
          
          {/* Zoom Editable Area */}
          <div className="w-12 text-center relative">
@@ -153,7 +155,7 @@ const EditorStatusBar: React.FC = () => {
                     className="cursor-pointer hover:bg-slate-700 px-1 rounded hover:text-white transition-colors"
                     title="Clique para editar zoom"
                 >
-                    {(store.viewTransform.scale * 100).toFixed(0)}%
+                    {(uiStore.viewTransform.scale * 100).toFixed(0)}%
                 </span>
             )}
          </div>

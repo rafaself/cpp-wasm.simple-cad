@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useAppStore } from '../../../stores/useAppStore';
+import { useUIStore } from '../../../stores/useUIStore';
 import { X } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 
 const SettingsModal: React.FC = () => {
-  const store = useAppStore();
+  const uiStore = useUIStore();
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
@@ -14,7 +14,7 @@ const SettingsModal: React.FC = () => {
     setShowColorPicker(true);
   };
 
-  if (!store.isSettingsModalOpen) return null;
+  if (!uiStore.isSettingsModalOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-enter">
@@ -22,7 +22,7 @@ const SettingsModal: React.FC = () => {
         <div className="flex items-center justify-between p-3 border-b border-slate-700">
           <h2 className="font-semibold text-sm uppercase tracking-wide">Configurações</h2>
           <button 
-            onClick={() => store.setSettingsModalOpen(false)}
+            onClick={() => uiStore.setSettingsModalOpen(false)}
             className="text-slate-400 hover:text-white"
           >
             <X size={18} />
@@ -39,11 +39,11 @@ const SettingsModal: React.FC = () => {
                     min="10" 
                     max="200" 
                     step="10" 
-                    value={store.gridSize} 
-                    onChange={(e) => store.setGridSize(parseInt(e.target.value))}
+                    value={uiStore.gridSize}
+                    onChange={(e) => uiStore.setGridSize(parseInt(e.target.value))}
                     className="flex-grow h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
-                <span className="text-sm font-mono w-10 text-right">{store.gridSize}</span>
+                <span className="text-sm font-mono w-10 text-right">{uiStore.gridSize}</span>
             </div>
           </div>
 
@@ -52,10 +52,10 @@ const SettingsModal: React.FC = () => {
             <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-700">
                 <div 
                     className="w-8 h-8 rounded border border-slate-600 cursor-pointer hover:scale-105 transition-transform"
-                    style={{ backgroundColor: store.gridColor }}
+                    style={{ backgroundColor: uiStore.gridColor }}
                     onClick={openColorPicker}
                 />
-                <span className="text-xs font-mono text-slate-400">{store.gridColor}</span>
+                <span className="text-xs font-mono text-slate-400">{uiStore.gridColor}</span>
             </div>
           </div>
 
@@ -63,7 +63,7 @@ const SettingsModal: React.FC = () => {
 
         <div className="p-3 border-t border-slate-700 flex justify-end">
             <button 
-                onClick={() => store.setSettingsModalOpen(false)}
+                onClick={() => uiStore.setSettingsModalOpen(false)}
                 className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-medium"
             >
                 Concluir
@@ -76,8 +76,8 @@ const SettingsModal: React.FC = () => {
         <>
           <div className="fixed inset-0 z-[110]" onClick={() => setShowColorPicker(false)} />
           <ColorPicker 
-            color={store.gridColor}
-            onChange={(c) => store.setGridColor(c)}
+            color={uiStore.gridColor}
+            onChange={(c) => uiStore.setGridColor(c)}
             onClose={() => setShowColorPicker(false)}
             initialPosition={colorPickerPos}
           />
