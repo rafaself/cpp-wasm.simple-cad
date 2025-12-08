@@ -156,6 +156,13 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   addShape: (shape) => {
       const { shapes, saveToHistory, spatialIndex } = get();
+
+      // Safety Check: Ensure text has valid dimensions
+      if (shape.type === 'text') {
+          if (!shape.width || isNaN(shape.width) || shape.width <= 0) shape.width = 10;
+          if (!shape.height || isNaN(shape.height) || shape.height <= 0) shape.height = 10;
+      }
+
       const newShapes = { ...shapes, [shape.id]: shape };
       spatialIndex.insert(shape);
       set({ shapes: newShapes });
@@ -168,6 +175,13 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (!oldShape) return;
 
       const newShape = { ...oldShape, ...diff };
+
+      // Safety Check: Ensure text has valid dimensions
+      if (newShape.type === 'text') {
+          if (!newShape.width || isNaN(newShape.width) || newShape.width <= 0) newShape.width = 10;
+          if (!newShape.height || isNaN(newShape.height) || newShape.height <= 0) newShape.height = 10;
+      }
+
       const newShapes = { ...shapes, [id]: newShape };
 
       spatialIndex.update(oldShape, newShape);
