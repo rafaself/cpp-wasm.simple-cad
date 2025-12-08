@@ -379,7 +379,7 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
             handles.push({ x: p.x, y: p.y, cursor: 'move', index: i, type: 'vertex' });
         });
     }
-    else if ((shape.type === 'rect' || shape.type === 'text') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+    else if ((shape.type === 'rect' || shape.type === 'text') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined && !isNaN(shape.width) && !isNaN(shape.height)) {
         const p1 = { x: shape.x, y: shape.y };
         const p2 = { x: shape.x + shape.width, y: shape.y };
         const p3 = { x: shape.x + shape.width, y: shape.y + shape.height };
