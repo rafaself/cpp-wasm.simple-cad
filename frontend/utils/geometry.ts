@@ -284,7 +284,18 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
         const cx = midX + udx * h;
         const cy = midY + udy * h;
         const distToCenter = getDistance(point, {x: cx, y: cy});
-        if (Math.abs(distToCenter - r) <= threshold) return true; 
+
+        if (Math.abs(distToCenter - r) <= threshold) {
+            const startAngle = Math.atan2(pt1.y - cy, pt1.x - cx);
+            const endAngle = Math.atan2(pt2.y - cy, pt2.x - cx);
+            const pointAngle = Math.atan2(point.y - cy, point.x - cx);
+
+            const normalize = (a: number) => (a % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+            const totalSweep = normalize(endAngle - startAngle);
+            const pointSweep = normalize(pointAngle - startAngle);
+
+            return pointSweep <= totalSweep || Math.abs(totalSweep - 2 * Math.PI) < 1e-5;
+        }
         return false;
 
     default: return false;
