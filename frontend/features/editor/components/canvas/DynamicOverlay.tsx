@@ -1,10 +1,14 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
-import { Shape, Point } from '../../../../types';
-import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getWrappedLines, TEXT_PADDING } from '../../../../utils/geometry';
+import { Shape } from '../../../../types';
+import { screenToWorld, getDistance, rotatePoint } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
 import RadiusInputModal from '../RadiusInputModal';
+import { useCanvasInteraction } from './hooks/useCanvasInteraction';
+import { drawGhostShape } from './renderers/GhostRenderer';
+import { drawSelectionHighlight, drawHandles } from './renderers/SelectionRenderer';
+import TextEditorOverlay from './overlays/TextEditorOverlay';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -17,196 +21,15 @@ interface DynamicOverlayProps {
 
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const positionedSelectionFor = useRef<string | null>(null);
   const uiStore = useUIStore();
   const dataStore = useDataStore();
 
-  const [isDragging, setIsDragging] = useState(false);
-  const [isMiddlePanning, setIsMiddlePanning] = useState(false);
-  const [startPoint, setStartPoint] = useState<Point | null>(null);
-  const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
-  const [isSelectionBox, setIsSelectionBox] = useState(false);
-  const [snapMarker, setSnapMarker] = useState<Point | null>(null);
-  const [polylinePoints, setPolylinePoints] = useState<Point[]>([]);
-  const [measureStart, setMeasureStart] = useState<Point | null>(null);
-  const [lineStart, setLineStart] = useState<Point | null>(null);
-  const [activeHandle, setActiveHandle] = useState<{ shapeId: string, handle: Handle } | null>(null);
-  const [transformationBase, setTransformationBase] = useState<Point | null>(null);
-
-  // Arc Tool State
-  const [arcPoints, setArcPoints] = useState<{ start: Point; end: Point } | null>(null);
-  const [showRadiusModal, setShowRadiusModal] = useState(false);
-  const [radiusModalPos, setRadiusModalPos] = useState({ x: 0, y: 0 });
-
-  // Text Tool State
-  const [textEditState, setTextEditState] = useState<{ id?: string, x: number, y: number, content: string, width?: number, height?: number } | null>(null);
-  const setEditingTextId = uiStore.setEditingTextId;
-  useEffect(() => {
-    return () => setEditingTextId(null);
-  }, [setEditingTextId]);
-  useEffect(() => {
-    if (!textEditState) {
-      positionedSelectionFor.current = null;
-      return;
-    }
-    if (textareaRef.current) {
-      const sessionKey = (textEditState.id ?? `new-${textEditState.x}-${textEditState.y}`);
-      if (positionedSelectionFor.current === sessionKey) return;
-      const el = textareaRef.current;
-      requestAnimationFrame(() => {
-        try { el.setSelectionRange(0, 0); } catch (e) { /* ignore */ }
-        el.focus();
-      });
-      positionedSelectionFor.current = sessionKey;
-    }
-  }, [textEditState]);
-  const getTextSize = useCallback((shape: Shape) => {
-    const fontSize = shape.fontSize || 16;
-    const lineHeight = shape.lineHeight || fontSize * 1.2;
-    const rawText = shape.textContent || '';
-    const containerWidth = shape.width ? Math.max(shape.width - TEXT_PADDING * 2, 1) : undefined;
-    const lines = containerWidth
-      ? getWrappedLines(rawText, containerWidth, fontSize)
-      : rawText.split('\n');
-
-    const estimatedWidth = containerWidth ?? Math.max(
-      fontSize * 0.6,
-      ...lines.map(line => (line.length || 1) * fontSize * 0.6)
-    );
-    const estimatedHeight = Math.max(lineHeight, lines.length * lineHeight);
-    const totalWidth = (shape.width ?? (estimatedWidth + TEXT_PADDING * 2));
-    const totalHeight = Math.max(shape.height ?? 0, estimatedHeight + TEXT_PADDING * 2);
-    return { width: totalWidth, height: totalHeight };
-  }, []);
-
-  // Sync mouse position
-  const getMousePos = (e: React.MouseEvent): Point => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-
-  // Reset tools on change
-  useEffect(() => {
-    setLineStart(null); setMeasureStart(null); setPolylinePoints([]); setStartPoint(null);
-    setIsDragging(false); setIsSelectionBox(false); setSnapMarker(null); setTransformationBase(null);
-    setActiveHandle(null);
-    setArcPoints(null); setShowRadiusModal(false);
-  }, [uiStore.activeTool]);
-
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); setIsDragging(false); }
-      if (isDragging && uiStore.activeTool === 'pan') { setIsDragging(false); setStartPoint(null); }
-      if (activeHandle) { setActiveHandle(null); setIsDragging(false); }
-    };
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [isMiddlePanning, isDragging, uiStore.activeTool, activeHandle]);
-
-  // Finish Polyline
-  const finishPolyline = useCallback(() => {
-    if (polylinePoints.length > 1) {
-      dataStore.addShape({
-        id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'polyline',
-        strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', points: [...polylinePoints]
-      });
-      uiStore.setSidebarTab('desenho'); setPolylinePoints([]);
-    }
-  }, [polylinePoints, uiStore, dataStore]);
-
-  // Handle keys (local to canvas interactions)
-  useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-          if (e.key === 'Enter') { if (uiStore.activeTool === 'polyline') finishPolyline(); }
-          if (e.key === 'Escape') {
-              setLineStart(null); setMeasureStart(null); setPolylinePoints([]);
-              setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
-              setArcPoints(null); setShowRadiusModal(false);
-              if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') uiStore.setTool('select');
-              if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
-                  uiStore.setSelectedShapeIds(new Set());
-              }
-          }
-      };
-      window.addEventListener('keydown', handleKeyDown, true);
-      return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [uiStore, finishPolyline]);
-
-
-  // --- Drawing Helpers ---
-  const drawGhostShape = (ctx: CanvasRenderingContext2D, shape: Shape) => {
-    ctx.save();
-    try {
-        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-            let pivotX = shape.x; let pivotY = shape.y;
-            ctx.translate(pivotX, pivotY); ctx.rotate(shape.rotation); ctx.translate(-pivotX, -pivotY);
-        }
-        ctx.strokeStyle = '#3b82f6';
-        ctx.setLineDash([5, 5]);
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
-        const baseWidth = shape.strokeWidth || 2;
-        ctx.lineWidth = baseWidth / uiStore.viewTransform.scale;
-        ctx.beginPath();
-
-        // Simplified drawing for ghost (rect/circle/line mostly)
-        if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'arrow') {
-        if (shape.points.length >= 2) {
-            ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); ctx.stroke();
-        }
-        } else if (shape.type === 'circle') {
-        ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        } else if (shape.type === 'rect') {
-        ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!); ctx.fill(); ctx.stroke();
-        }
-        // ... Add other types if necessary
-    } finally {
-        ctx.restore();
-    }
-  };
-
-  const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Shape) => {
-    // Just the highlight border/box
-    ctx.save();
-    try {
-        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-            let pivotX = shape.x; let pivotY = shape.y;
-            ctx.translate(pivotX, pivotY); ctx.rotate(shape.rotation); ctx.translate(-pivotX, -pivotY);
-        }
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 1 / uiStore.viewTransform.scale;
-
-        ctx.beginPath();
-        if (shape.type === 'rect' || shape.type === 'text') {
-            if (shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-                 ctx.rect(shape.x, shape.y, shape.width, shape.height);
-            }
-        }
-        else if (shape.type === 'circle') ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI*2);
-        else if (shape.type === 'line' && shape.points.length>=2) { ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); }
-        // ...
-        ctx.stroke();
-    } finally {
-        ctx.restore();
-    }
-  };
-
-  const drawHandles = (ctx: CanvasRenderingContext2D, shape: Shape) => {
-      const handles = getShapeHandles(shape);
-      const handleSize = 6 / uiStore.viewTransform.scale;
-      ctx.save(); 
-      try {
-          ctx.lineWidth = 1 / uiStore.viewTransform.scale;
-          // Handles are now returned in world coordinates (already rotated), so we don't apply canvas rotation here.
-          handles.forEach(h => {
-              ctx.beginPath(); ctx.rect(h.x - handleSize/2, h.y - handleSize/2, handleSize, handleSize);
-              ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#2563eb'; ctx.stroke();
-          });
-      } finally {
-          ctx.restore();
-      }
-  }
+  const { handlers, state, setters } = useCanvasInteraction(canvasRef);
+  const {
+    isDragging, isMiddlePanning, startPoint, currentPoint, isSelectionBox, snapMarker,
+    polylinePoints, measureStart, lineStart, activeHandle, transformationBase,
+    arcPoints, showRadiusModal, radiusModalPos, textEditState
+  } = state;
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -226,8 +49,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         const shape = dataStore.shapes[id];
         if (shape) {
             try {
-                drawSelectionHighlight(ctx, shape);
-                if (uiStore.activeTool === 'select') drawHandles(ctx, shape);
+                drawSelectionHighlight(ctx, shape, uiStore.viewTransform);
+                if (uiStore.activeTool === 'select') drawHandles(ctx, shape, uiStore.viewTransform);
             } catch (e) {
                 console.error("Error drawing selection for shape", id, e);
             }
@@ -253,7 +76,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                 if (ghost.x !== undefined && ghost.y !== undefined) { const np = rotatePoint({x: ghost.x, y: ghost.y}, transformationBase, angle); ghost.x = np.x; ghost.y = np.y; }
                 if (ghost.type === 'rect') ghost.rotation = (ghost.rotation || 0) + angle;
             }
-            drawGhostShape(ctx, ghost);
+            drawGhostShape(ctx, ghost, uiStore.viewTransform);
         });
     }
 
@@ -278,7 +101,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       const ws = screenToWorld(startPoint, uiStore.viewTransform); const wc = screenToWorld(currentPoint, uiStore.viewTransform);
       const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
       if (uiStore.activeTool === 'arc') {
-          // Visualizing the chord while dragging
           ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(wc.x, wc.y);
           ctx.strokeStyle = uiStore.strokeColor; ctx.stroke();
       }
@@ -286,7 +108,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       else if (uiStore.activeTool === 'rect') { temp.x = Math.min(ws.x, wc.x); temp.y = Math.min(ws.y, wc.y); temp.width = Math.abs(wc.x - ws.x); temp.height = Math.abs(wc.y - ws.y); }
       else if (uiStore.activeTool === 'polygon') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = uiStore.polygonSides; }
       else if (uiStore.activeTool === 'arrow') { temp.points = [ws, wc]; temp.arrowHeadSize = 15; }
-      drawGhostShape(ctx, temp);
+      drawGhostShape(ctx, temp, uiStore.viewTransform);
     }
 
     // 4. Snap Marker
@@ -311,17 +133,10 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
     // 6. Arc Draft (Click 1 - Click 2)
     if (uiStore.activeTool === 'arc' && arcPoints) {
-        // We have start point, waiting for end point click? No, we set arcPoints on first drag end.
-        // Actually the flow is: Click/Drag to define line A-B. Then popup.
-        // During drag we show line? Or arc with temp radius?
-        // Let's visualize the chord A-B
         const ws = arcPoints.start;
         const we = arcPoints.end;
         ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(we.x, we.y);
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
-
-        // Maybe show a ghost arc with radius = distance?
-        // Skipped for simplicity, just showing the chord.
     }
 
   }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, measureStart, transformationBase, activeHandle, arcPoints]);
@@ -329,330 +144,6 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   useEffect(() => {
       render();
   }, [render]);
-
-
-  // --- Event Handlers ---
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // If we are editing text, let the blur event handle the commit/exit.
-    // Clicking on the canvas should just trigger blur on the textarea.
-    if (textEditState) return;
-
-    const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, uiStore.viewTransform); let snapped: Point | null = null;
-
-    // Snapping logic
-    if (uiStore.snapOptions.enabled && !['pan','select'].includes(uiStore.activeTool) && !e.ctrlKey) {
-       const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
-       const visible = dataStore.spatialIndex.query(queryRect)
-           .map(s => dataStore.shapes[s.id])
-           .filter(s => { const l = dataStore.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
-       const snap = getSnapPoint(wr, visible, uiStore.snapOptions, uiStore.gridSize, 20 / uiStore.viewTransform.scale);
-       if (snap) { snapped = snap; eff = worldToScreen(snap, uiStore.viewTransform); }
-    }
-
-    setStartPoint(eff); setCurrentPoint(eff);
-
-    if (e.button === 1 || uiStore.activeTool === 'pan') { if(e.button === 1) e.preventDefault(); setIsMiddlePanning(e.button === 1); setIsDragging(true); return; }
-
-    const wPos = snapped || wr;
-
-    if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
-        for (const id of uiStore.selectedShapeIds) {
-            const shape = dataStore.shapes[id];
-            if (!shape) continue;
-            const handles = getShapeHandles(shape); const handleSize = 10 / uiStore.viewTransform.scale;
-            for (const h of handles) {
-                if (getDistance(h, wPos) < handleSize) { setActiveHandle({ shapeId: shape.id, handle: h }); setIsDragging(true); return; }
-            }
-        }
-    }
-
-    if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') {
-        if (!transformationBase) { setTransformationBase(wPos); }
-        else {
-            if (uiStore.activeTool === 'move') {
-                const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y;
-                const ids = Array.from(uiStore.selectedShapeIds);
-                ids.forEach(id => {
-                     const s = dataStore.shapes[id];
-                     if(s) {
-                         const diff: Partial<Shape> = {};
-                         if (s.x !== undefined) diff.x = s.x + dx;
-                         if (s.y !== undefined) diff.y = s.y + dy;
-                         if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                         dataStore.updateShape(id, diff, true);
-                     }
-                });
-            } else if (uiStore.activeTool === 'rotate') {
-                const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y; const angle = Math.atan2(dy, dx);
-                dataStore.rotateSelected(Array.from(uiStore.selectedShapeIds), transformationBase, angle);
-            }
-            setTransformationBase(null); uiStore.setTool('select');
-        }
-        return;
-    }
-
-    if (uiStore.activeTool === 'select') {
-      const selectWorld = screenToWorld(raw, uiStore.viewTransform);
-      const queryRect = { x: selectWorld.x - 5, y: selectWorld.y - 5, width: 10, height: 10 };
-      const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
-      let hitShapeId = null;
-      for (let i = candidates.length - 1; i >= 0; i--) {
-        const s = candidates[i];
-        const l = dataStore.layers.find(lay => lay.id === s.layerId);
-        if (l && (!l.visible || l.locked)) continue;
-        if (isPointInShape(selectWorld, s, uiStore.viewTransform.scale)) { hitShapeId = s.id; break; }
-      }
-
-      if (hitShapeId) {
-         if (e.shiftKey) {
-             uiStore.setSelectedShapeIds(prev => { const n = new Set(prev); if(n.has(hitShapeId!)) n.delete(hitShapeId!); else n.add(hitShapeId!); return n; });
-         } else { if (!uiStore.selectedShapeIds.has(hitShapeId)) uiStore.setSelectedShapeIds(new Set([hitShapeId])); }
-         setIsDragging(true);
-      } else { if (!e.shiftKey) uiStore.setSelectedShapeIds(new Set()); setIsSelectionBox(true); }
-      return;
-    }
-
-    if (uiStore.activeTool === 'arc') {
-         if (!arcPoints) {
-             // 1st click: Start point. Actually we want click-drag-release logic for A-B
-             setIsDragging(true); // Standard drag logic will capture start/end
-         }
-         // If arcPoints exists, we are in modal phase, ignore clicks
-         return;
-    }
-
-    if (uiStore.activeTool === 'polyline') { setPolylinePoints(p => [...p, wPos]); return; }
-    if (uiStore.activeTool === 'line') {
-      if (!lineStart) setLineStart(wPos);
-      else {
-        dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', points: [lineStart, wPos] });
-        uiStore.setSidebarTab('desenho'); setLineStart(null);
-      }
-      return;
-    }
-    if (uiStore.activeTool === 'measure') {
-        if (!measureStart) setMeasureStart(wPos);
-        else {
-             const dist = getDistance(measureStart, wPos).toFixed(2);
-             dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', points: [measureStart, wPos], label: `${dist}px` });
-             setMeasureStart(null);
-        }
-        return;
-    }
-
-    setIsDragging(true);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const raw = getMousePos(e); const worldPos = screenToWorld(raw, uiStore.viewTransform);
-    uiStore.setMousePos(worldPos);
-
-    if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) {
-        if (startPoint) {
-            const dx = raw.x - startPoint.x; const dy = raw.y - startPoint.y;
-            uiStore.setViewTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy })); setStartPoint(raw);
-        }
-        return;
-    }
-
-    let eff = raw;
-    const isHandleDrag = !!activeHandle;
-    const shouldSnap = uiStore.snapOptions.enabled && !e.ctrlKey && (!['pan', 'select'].includes(uiStore.activeTool) || isHandleDrag);
-
-    if (shouldSnap) {
-        const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
-        const visible = dataStore.spatialIndex.query(queryRect)
-            .map(s => dataStore.shapes[s.id])
-            .filter(s => {
-                const l = dataStore.layers.find(l => l.id === s.layerId);
-                if (activeHandle && s.id === activeHandle.shapeId) return false;
-                return s && l && l.visible && !l.locked;
-            });
-        const snap = getSnapPoint(worldPos, visible, uiStore.snapOptions, uiStore.gridSize, 20 / uiStore.viewTransform.scale);
-        if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, uiStore.viewTransform); } else { setSnapMarker(null); }
-    } else { setSnapMarker(null); }
-
-    setCurrentPoint(eff);
-
-    if (isDragging && startPoint) {
-        if (activeHandle) {
-            const ws = screenToWorld(eff, uiStore.viewTransform);
-            const s = dataStore.shapes[activeHandle.shapeId];
-            if(s) {
-                if (activeHandle.handle.type === 'vertex' && s.points) {
-                   const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
-                   dataStore.updateShape(s.id, { points: newPoints }, false);
-                 } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect' || s.type === 'text')) {
-                    if (s.x !== undefined && s.y !== undefined) {
-                        const idx = activeHandle.handle.index;
-                        const size = s.type === 'rect'
-                          ? { width: s.width ?? 0, height: s.height ?? 0 }
-                          : getTextSize(s);
-                        const oldX = s.x; const oldY = s.y; const oldR = oldX + size.width; const oldB = oldY + size.height;
-                        let newX = oldX, newY = oldY, newW = size.width, newH = size.height;
-                        if (idx === 0) { newX = ws.x; newY = ws.y; newW = oldR - newX; newH = oldB - newY; }
-                        else if (idx === 1) { newY = ws.y; newW = ws.x - oldX; newH = oldB - newY; }
-                        else if (idx === 2) { newW = ws.x - oldX; newH = ws.y - oldY; }
-                        else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
-                        const minSize = 5;
-                        if (newW < 0) { newX += newW; newW = Math.abs(newW); }
-                        if (newH < 0) { newY += newH; newH = Math.abs(newH); }
-                        newW = Math.max(minSize, newW);
-                        newH = Math.max(minSize, newH);
-
-                        dataStore.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
-                    }
-                 }
-            }
-            return;
-        }
-
-        if (uiStore.activeTool === 'select' && !isSelectionBox && uiStore.selectedShapeIds.size > 0 && !activeHandle) {
-             const prevWorld = screenToWorld(startPoint, uiStore.viewTransform);
-             const currWorld = screenToWorld(eff, uiStore.viewTransform);
-             const dx = currWorld.x - prevWorld.x; const dy = currWorld.y - prevWorld.y;
-
-             if (dx !== 0 || dy !== 0) {
-                 uiStore.selectedShapeIds.forEach(id => {
-                     const s = dataStore.shapes[id];
-                     if(!s) return;
-                     const l = dataStore.layers.find(lay => lay.id === s.layerId);
-                     if (l && l.locked) return;
-
-                     const diff: Partial<Shape> = {};
-                     if (s.x !== undefined) diff.x = s.x + dx;
-                     if (s.y !== undefined) diff.y = s.y + dy;
-                     if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-
-                     dataStore.updateShape(id, diff, false);
-                 });
-                 setStartPoint(eff);
-             }
-        }
-    }
-  };
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); return; }
-
-    if (isSelectionBox && startPoint && currentPoint) {
-       if (getDistance(startPoint, currentPoint) > 2) {
-           const ws = screenToWorld(startPoint, uiStore.viewTransform); const we = screenToWorld(currentPoint, uiStore.viewTransform);
-           const { rect, direction } = getSelectionRect(ws, we);
-           const mode = direction === 'LTR' ? 'WINDOW' : 'CROSSING';
-           const nSel = e.shiftKey ? new Set(uiStore.selectedShapeIds) : new Set<string>();
-
-           const candidates = dataStore.spatialIndex.query(rect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
-           candidates.forEach(s => {
-               const l = dataStore.layers.find(lay => lay.id === s.layerId);
-               if (l && (!l.visible || l.locked)) return;
-               if (isShapeInSelection(s, rect, mode)) nSel.add(s.id);
-           });
-           uiStore.setSelectedShapeIds(nSel);
-       }
-       setIsSelectionBox(false); setStartPoint(null); return;
-    }
-
-    if (!startPoint || !currentPoint) { setIsDragging(false); setActiveHandle(null); return; }
-
-    const ws = screenToWorld(startPoint, uiStore.viewTransform); const we = screenToWorld(currentPoint, uiStore.viewTransform);
-    const dist = getDistance(startPoint, currentPoint);
-
-    if(isDragging && (uiStore.activeTool === 'select' || activeHandle)) {
-        // Just sync QuadTree, history was handled in mouse move?
-        // No, mouse move used `recordHistory=false`.
-        // We need to record history now.
-        // But `updateShape` logic in dataStore handles recording if `recordHistory` is true.
-        // During drag we used false. Now we should trigger a "commit" with patches.
-        // For simplicity in this MVP, we didn't implement "commitDrag".
-        // A simple way is to re-update the shape with current values and recordHistory=true.
-        // Or better: `dataStore.saveToHistory(...)` with manual patch calculation?
-        // Since we updated state in real-time, the "prev" state is lost if we didn't store it on DragStart.
-        // Complex drag history is omitted here for brevity as per previous implementation,
-        // but `syncQuadTree` is needed.
-        dataStore.syncQuadTree();
-    }
-
-    setIsDragging(false); setActiveHandle(null);
-
-    const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc', 'arrow'];
-    const isSingleClick = dist < 5;
-
-    if (!['select','pan','polyline','measure','line', 'move', 'rotate'].includes(uiStore.activeTool)) {
-
-      if (uiStore.activeTool === 'arc') {
-          // Special handling for Arc: Phase 1 complete (Drag A-B)
-          // Store A-B and Open Modal
-          const pEnd = isSingleClick ? { x: ws.x + 100, y: ws.y } : we;
-          setArcPoints({ start: ws, end: pEnd });
-          // Open Modal
-          const screenPos = worldToScreen(pEnd, uiStore.viewTransform);
-          setRadiusModalPos({ x: screenPos.x, y: screenPos.y });
-          setShowRadiusModal(true);
-          setStartPoint(null);
-          return;
-      }
-
-      if (uiStore.activeTool === 'text') {
-        // Start text creation
-        setTextEditState({ x: ws.x, y: ws.y, content: '' });
-        setEditingTextId(null);
-        setStartPoint(null);
-        return;
-      }
-
-      const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
-
-      if (isSingleClick && shapeCreationTools.includes(uiStore.activeTool)) {
-        if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
-        else if (uiStore.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
-        else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = uiStore.polygonSides; }
-        else if (uiStore.activeTool === 'arrow') { n.points = [ws, { x: ws.x + 100, y: ws.y }]; n.arrowHeadSize = 15; }
-      } else {
-        if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
-        else if (uiStore.activeTool === 'rect') { n.x = Math.min(ws.x, we.x); n.y = Math.min(ws.y, we.y); n.width = Math.abs(we.x - ws.x); n.height = Math.abs(we.y - ws.y); }
-        else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = uiStore.polygonSides; }
-        else if (uiStore.activeTool === 'arrow') { n.points = [ws, we]; n.arrowHeadSize = 15; }
-      }
-
-      dataStore.addShape(n);
-      uiStore.setSidebarTab('desenho');
-      uiStore.setTool('select');
-    }
-    setStartPoint(null);
-  };
-
-  const handleDoubleClick = (e: React.MouseEvent) => {
-      if (uiStore.activeTool !== 'select') { finishPolyline(); return; }
-
-      const raw = getMousePos(e);
-      const worldPos = screenToWorld(raw, uiStore.viewTransform);
-      
-      // Check for text shape
-      const queryRect = { x: worldPos.x - 5, y: worldPos.y - 5, width: 10, height: 10 };
-      const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
-      
-      for (let i = candidates.length - 1; i >= 0; i--) {
-          const s = candidates[i];
-          if (s.type === 'text') {
-               if (isPointInShape(worldPos, s, uiStore.viewTransform.scale)) {
-                   setTextEditState({ id: s.id, x: s.x!, y: s.y!, content: s.textContent || '', width: s.width, height: s.height });
-                   setEditingTextId(s.id);
-                   return;
-               }
-          }
-      }
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const scaleFactor = 1.1; const direction = e.deltaY > 0 ? -1 : 1;
-    let newScale = uiStore.viewTransform.scale * (direction > 0 ? scaleFactor : 1/scaleFactor);
-    newScale = Math.max(0.1, Math.min(newScale, 5));
-    const raw = getMousePos(e); const w = screenToWorld(raw, uiStore.viewTransform);
-    const newX = raw.x - w.x * newScale; const newY = raw.y - w.y * newScale;
-    uiStore.setViewTransform({ scale: newScale, x: newX, y: newY });
-  };
 
   let cursorClass = DEFAULT_CURSOR;
   if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
@@ -667,17 +158,17 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         height={height}
         className="absolute top-0 left-0 z-10"
         style={{ cursor: cursorClass }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onDoubleClick={handleDoubleClick}
-        onWheel={handleWheel}
+        onMouseDown={handlers.onMouseDown}
+        onMouseMove={handlers.onMouseMove}
+        onMouseUp={handlers.onMouseUp}
+        onDoubleClick={handlers.onDoubleClick}
+        onWheel={handlers.onWheel}
         onContextMenu={(e) => e.preventDefault()}
     />
 
     {showRadiusModal && arcPoints && (
         <RadiusInputModal
-            initialRadius={getDistance(arcPoints.start, arcPoints.end)} // Default radius = chord length (approx)
+            initialRadius={getDistance(arcPoints.start, arcPoints.end)}
             position={radiusModalPos}
             onConfirm={(radius) => {
                 const n: Shape = {
@@ -692,121 +183,25 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                     fillColor: 'transparent'
                 };
                 dataStore.addShape(n);
-                setArcPoints(null);
-                setShowRadiusModal(false);
+                setters.setArcPoints(null);
+                setters.setShowRadiusModal(false);
                 uiStore.setSidebarTab('desenho');
                 uiStore.setTool('select');
             }}
             onCancel={() => {
-                setArcPoints(null);
-                setShowRadiusModal(false);
+                setters.setArcPoints(null);
+                setters.setShowRadiusModal(false);
                 uiStore.setTool('select');
             }}
         />
     )}
     
     {textEditState && (
-        <textarea
-            autoFocus
-            ref={textareaRef}
-            className="absolute z-50 bg-transparent border border-blue-500 rounded resize-none outline-none overflow-hidden"
-            style={{
-                 left: worldToScreen({x: textEditState.x, y: textEditState.y}, uiStore.viewTransform).x,
-                 top: worldToScreen({x: textEditState.x, y: textEditState.y}, uiStore.viewTransform).y,
-                 width: textEditState.width ? (textEditState.width * uiStore.viewTransform.scale) : (200 + TEXT_PADDING * 2) + 'px',
-                 height: textEditState.height ? (textEditState.height * uiStore.viewTransform.scale) : 'auto',
-                 transformOrigin: 'top left',
-                 fontSize: (dataStore.shapes[textEditState.id || '']?.fontSize || uiStore.textFontSize) * uiStore.viewTransform.scale + 'px',
-                 fontFamily: dataStore.shapes[textEditState.id || '']?.fontFamily || uiStore.textFontFamily,
-                 fontWeight: (dataStore.shapes[textEditState.id || '']?.bold ?? uiStore.textBold) ? '700' : '400',
-                 fontStyle: (dataStore.shapes[textEditState.id || '']?.italic ?? uiStore.textItalic) ? 'italic' : 'normal',
-                 color: dataStore.shapes[textEditState.id || '']?.strokeColor || uiStore.strokeColor,
-                 textAlign: dataStore.shapes[textEditState.id || '']?.align || uiStore.textAlign,
-                 textDecoration: `${(dataStore.shapes[textEditState.id || '']?.underline ?? uiStore.textUnderline) ? 'underline ' : ''}${(dataStore.shapes[textEditState.id || '']?.strike ?? uiStore.textStrike) ? 'line-through' : ''}`.trim(),
-                 padding: `${TEXT_PADDING * uiStore.viewTransform.scale}px`,
-                 lineHeight: ((dataStore.shapes[textEditState.id || '']?.fontSize || uiStore.textFontSize) * 1.2 * uiStore.viewTransform.scale) + 'px',
-                 boxSizing: 'border-box',
-                 direction: 'ltr'
-            }}
-            value={textEditState.content}
-            onChange={(e) => setTextEditState({ ...textEditState, content: e.target.value })}
-            onBlur={() => {
-                if (textEditState.content.trim()) {
-                    const fontSize = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].fontSize || uiStore.textFontSize : uiStore.textFontSize;
-                    const bold = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].bold ?? uiStore.textBold : uiStore.textBold;
-                    const italic = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].italic ?? uiStore.textItalic : uiStore.textItalic;
-                    const underline = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].underline ?? uiStore.textUnderline : uiStore.textUnderline;
-                    const strike = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].strike ?? uiStore.textStrike : uiStore.textStrike;
-                    const lineHeight = (fontSize || 16) * 1.2;
-                    const lines = textEditState.content.split('\n');
-                    const measuredContentWidth = Math.max(...lines.map(line => (line.length || 1) * (fontSize || 16) * 0.6), (fontSize || 16) * 0.6);
-                    const existingShape = textEditState.id ? dataStore.shapes[textEditState.id] : null;
-                    const baseWidth = existingShape?.width && existingShape.width > 0 ? existingShape.width : measuredContentWidth + TEXT_PADDING * 2;
-                    const wrapped = getWrappedLines(textEditState.content, Math.max(baseWidth - TEXT_PADDING * 2, 1), fontSize || 16);
-                    const finalHeight = Math.max(existingShape?.height ?? 0, wrapped.length * lineHeight + TEXT_PADDING * 2);
-                    const finalWidth = baseWidth;
-
-                    if (textEditState.id) {
-                         dataStore.updateShape(textEditState.id, { 
-                            textContent: textEditState.content,
-                            width: finalWidth,
-                            height: finalHeight,
-                            bold,
-                            italic,
-                            underline,
-                            strike
-                         }, true);
-                         setEditingTextId(null);
-                    } else {
-                        dataStore.addShape({
-                            id: Date.now().toString(),
-                            layerId: dataStore.activeLayerId,
-                            type: 'text',
-                            x: textEditState.x,
-                            y: textEditState.y,
-                            width: finalWidth,
-                            height: finalHeight,
-                            textContent: textEditState.content,
-                            fontSize: uiStore.textFontSize,
-                            fontFamily: uiStore.textFontFamily,
-                            align: uiStore.textAlign,
-                            bold: uiStore.textBold,
-                            italic: uiStore.textItalic,
-                            underline: uiStore.textUnderline,
-                            strike: uiStore.textStrike,
-                            strokeColor: uiStore.strokeColor,
-                            strokeWidth: 1,
-                            strokeEnabled: true,
-                            fillColor: 'transparent',
-                            points: []
-                        });
-                    }
-                    setEditingTextId(null);
-                } else if (textEditState.id) {
-                    dataStore.deleteSelected([textEditState.id]);
-                    setEditingTextId(null);
-                }
-                
-                // Commit complete. Now clear state and change tool.
-                // We use setTimeout to ensure this happens after the event loop clears, preventing conflicts.
-                setTimeout(() => {
-                    setTextEditState(null);
-                    uiStore.setTool('select');
-                }, 0);
-            }}
-            onKeyDown={(e) => {
-                if((e.key === 'Enter' && e.ctrlKey)) {
-                    e.preventDefault();
-                    e.currentTarget.blur();
-                }
-                if(e.key === 'Escape') {
-                    e.preventDefault();
-                    setTextEditState(null);
-                    setEditingTextId(null);
-                    uiStore.setTool('select');
-                }
-            }}
-        />
+      <TextEditorOverlay
+        textEditState={textEditState}
+        setTextEditState={setters.setTextEditState}
+        viewTransform={uiStore.viewTransform}
+      />
     )}
     </>
   );
