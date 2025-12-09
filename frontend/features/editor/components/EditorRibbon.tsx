@@ -8,6 +8,9 @@ import { ensureContrastColor } from '../../../utils/color';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Type, ChevronDown, ChevronUp } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
+import NumberSpinner from '../../../components/NumberSpinner';
+import EditableNumber from '../../../components/EditableNumber';
+import CustomSelect from '../../../components/CustomSelect';
 
 type ColorPickerTarget =
   | { type: 'stroke' }
@@ -23,94 +26,33 @@ const BASE_BUTTON_STYLE = "rounded hover:bg-slate-700 active:bg-slate-600 transi
 const CENTERED_BUTTON_STYLE = `flex items-center justify-center ${BASE_BUTTON_STYLE}`;
 const ACTIVE_BUTTON_STYLE = "bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30";
 
-const NumberSpinner: React.FC<{ value: number; onChange: (val: number) => void; min: number; max: number; label?: string; className?: string }> = ({ value, onChange, min, max, label, className }) => {
-    const [tempValue, setTempValue] = useState(value.toString());
-    const [isFocused, setIsFocused] = useState(false);
-    
-    useEffect(() => {
-        if (!isFocused) setTempValue(value.toString());
-    }, [value, isFocused]);
 
-    const handleCommit = () => {
-        let val = parseFloat(tempValue);
-        if (isNaN(val)) val = value;
-        val = Math.max(min, Math.min(val, max));
-        onChange(val);
-        setTempValue(val.toString());
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            handleCommit();
-            (e.target as HTMLElement).blur();
-        }
-    };
-
-    const increment = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onChange(Math.min(value + 1, max));
-    };
-
-    const decrement = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onChange(Math.max(value - 1, min));
-    };
-
-    return (
-        <div className={`flex items-center bg-slate-800/60 border ${isFocused ? 'border-blue-500/50 ring-1 ring-blue-500/20' : 'border-slate-700/50'} rounded h-6 ${className || 'w-[60px]'} relative overflow-hidden transition-all`}>
-            <input
-                type="text"
-                value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
-                onBlur={() => { setIsFocused(false); handleCommit(); }}
-                onFocus={() => setIsFocused(true)}
-                onKeyDown={handleKeyDown}
-                className="w-full h-full bg-transparent text-[10px] text-center text-slate-200 font-mono focus:outline-none px-1 pl-2"
-            />
-            {label && <span className="absolute right-5 pointer-events-none text-[8px] text-slate-500 pt-0.5">{label}</span>}
-            <div className="flex flex-col h-full border-l border-slate-700/50 w-4 bg-slate-800/80">
-                <button 
-                    onClick={increment}
-                    className="flex-1 flex items-center justify-center hover:bg-slate-700 active:bg-blue-600/50 text-slate-400 hover:text-white transition-colors border-b border-slate-700/50"
-                >
-                    <ChevronUp size={8} strokeWidth={3} />
-                </button>
-                <button 
-                    onClick={decrement}
-                    className="flex-1 flex items-center justify-center hover:bg-slate-700 active:bg-blue-600/50 text-slate-400 hover:text-white transition-colors"
-                >
-                     <ChevronDown size={8} strokeWidth={3} />
-                </button>
-            </div>
-        </div>
-    );
-};
 
 // Text Controls
+const FONT_OPTIONS = [
+    { value: "Inter", label: "Inter" },
+    { value: "Arial", label: "Arial" },
+    { value: "Times New Roman", label: "Times New Roman" },
+    { value: "Courier New", label: "Courier New" },
+    { value: "Verdana", label: "Verdana" },
+];
+
 const FontFamilyControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-full px-1">
-        <div className="relative">
-            <select
-                value={uiStore.textFontFamily}
-                onChange={(e) => {
-                    uiStore.setTextFontFamily(e.target.value);
-                    if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: e.target.value }, true);
-                }}
-                className={`${INPUT_STYLE} appearance-none cursor-pointer pr-8`}
-            >
-                <option value="Inter">Inter</option>
-                <option value="Arial">Arial</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Courier New">Courier New</option>
-                <option value="Verdana">Verdana</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-500 pointer-events-none" />
-        </div>
+    <div className="flex flex-col justify-center w-full">
+        <CustomSelect
+            value={uiStore.textFontFamily}
+            onChange={(val) => {
+                uiStore.setTextFontFamily(val);
+                if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: val }, true);
+            }}
+            options={FONT_OPTIONS}
+            className={INPUT_STYLE}
+        />
     </div>
 );
 
 const FontSizeControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-full px-1 items-center">
+    <div className="flex flex-col justify-center w-full items-center">
         <NumberSpinner
             value={uiStore.textFontSize}
             onChange={(val) => {
@@ -119,13 +61,13 @@ const FontSizeControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpd
             }}
             min={8}
             max={256}
-            className="w-full"
+            className="w-full h-6"
         />
     </div>
 );
 
 const TextAlignControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center gap-1 px-1 w-full">
+    <div className="flex flex-col justify-center w-full items-center">
         <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
             {[
                 { align: 'left', icon: <AlignLeft size={16} /> },
@@ -149,7 +91,7 @@ const TextAlignControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUp
 );
 
 const TextStyleControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center gap-1 px-1 w-full">
+    <div className="flex flex-col justify-center w-full items-center">
         <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
             {[
                 { key: 'bold', icon: <Bold size={16} />, active: uiStore.textBold, setter: uiStore.setTextBold, recalc: true },
@@ -179,12 +121,12 @@ const TextStyleControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUp
 );
 
 const TextFormatGroup: React.FC<any> = (props) => (
-    <div className="grid grid-cols-2 gap-2 h-full py-1">
-        <div className="flex flex-col justify-center gap-2 w-full">
+    <div className="flex h-full py-1 gap-1.5 px-0.5">
+        <div className="flex flex-col justify-center gap-1 w-[140px]">
             <FontFamilyControl {...props} />
             <TextStyleControl {...props} />
         </div>
-        <div className="flex flex-col justify-center gap-2 w-full">
+        <div className="flex flex-col justify-center gap-1 w-[106px]">
             <FontSizeControl {...props} />
             <TextAlignControl {...props} />
         </div>
@@ -340,25 +282,27 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
 
             {/* Bottom Row: Slider */}
              <div className="flex flex-col w-full gap-0.5 mt-0.5">
-                <div className="flex justify-between items-center px-0.5">
-                     <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Espessura</span>
-                     <NumberSpinner 
+                 <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider px-0.5">Espessura</span>
+                 <div className="flex items-center gap-1.5 w-full">
+                     <EditableNumber 
                         value={uiStore.strokeWidth} 
                         onChange={uiStore.setStrokeWidth} 
                         min={0} 
-                        max={50} 
+                        max={50}
+                        className="w-[32px] h-6 flex-none"
+                        displayClassName="text-[10px] font-mono"
                      />
-                </div>
-                <div className="w-full bg-slate-800/40 rounded-full h-4 flex items-center px-1 border border-slate-700/30">
-                    <input
-                        type="range"
-                        min="0"
-                        max="50"
-                        step="1"
-                        value={uiStore.strokeWidth}
-                        onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
-                        className="w-full h-0.5 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 hover:[&::-webkit-slider-thumb]:bg-blue-400 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none"
-                    />
+                    <div className="flex-1 bg-slate-800/40 rounded-full h-4 flex items-center px-1 border border-slate-700/30">
+                        <input
+                            type="range"
+                            min="0"
+                            max="50"
+                            step="1"
+                            value={uiStore.strokeWidth}
+                            onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
+                            className="w-full h-0.5 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 hover:[&::-webkit-slider-thumb]:bg-blue-400 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -548,7 +492,7 @@ const EditorRibbon: React.FC = () => {
                          {section.items.some(i => i.tool === 'polygon') && uiStore.activeTool === 'polygon' && (
                                 <div className="absolute top-2 right-2 bg-slate-900 border border-slate-600 p-1 rounded shadow-lg flex items-center gap-2 animate-in fade-in zoom-in duration-200">
                                     <span className="text-[9px] text-slate-400 uppercase font-bold">Lados</span>
-                                    <input type="number" min="3" max="12" value={uiStore.polygonSides} onChange={e => uiStore.setPolygonSides(parseInt(e.target.value))} className="w-8 h-6 text-xs bg-slate-800 border border-slate-600 rounded text-center focus:border-blue-500 outline-none" />
+                                    <NumberSpinner value={uiStore.polygonSides} onChange={uiStore.setPolygonSides} min={3} max={12} className="w-12 h-6 bg-slate-800" />
                                 </div>
                             )}
                     </div>

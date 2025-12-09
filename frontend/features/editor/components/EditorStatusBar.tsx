@@ -4,6 +4,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
+import EditableNumber from '../../../components/EditableNumber';
 
 const EditorStatusBar: React.FC = () => {
   const uiStore = useUIStore();
@@ -44,11 +45,6 @@ const EditorStatusBar: React.FC = () => {
     }
   }, [uiStore.selectedShapeIds, dataStore.shapes, dataStore.worldScale]);
   
-  // Zoom Editing State
-  const [isEditingZoom, setIsEditingZoom] = useState(false);
-  const [zoomInputValue, setZoomInputValue] = useState("");
-  const zoomInputRef = useRef<HTMLInputElement>(null);
-
   const toggleSnap = () => uiStore.setSnapOptions(prev => ({ ...prev, enabled: !prev.enabled }));
   const toggleOption = (key: keyof SnapOptions) => uiStore.setSnapOptions(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -56,35 +52,8 @@ const EditorStatusBar: React.FC = () => {
   const handleZoomIn = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
   const handleZoomOut = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
 
-  const startEditingZoom = () => {
-      setZoomInputValue((uiStore.viewTransform.scale * 100).toFixed(0));
-      setIsEditingZoom(true);
-      // Wait for render to focus
-      setTimeout(() => zoomInputRef.current?.focus(), 0);
-  };
-
-  const commitZoom = () => {
-      let val = parseInt(zoomInputValue);
-      if (isNaN(val)) val = 100;
-      
-      // Constraint: 10% to 500%
-      val = Math.max(10, Math.min(val, 500));
-      
-      uiStore.setViewTransform(prev => ({ ...prev, scale: val / 100 }));
-      setIsEditingZoom(false);
-  };
-
-  const handleZoomKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-          commitZoom();
-      }
-      if (e.key === 'Escape') {
-          setIsEditingZoom(false);
-      }
-  };
-
   return (
-    <div className="w-full h-8 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-300 select-none z-50">
+    <div className="w-full h-9 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-300 select-none z-50">
       <div className="w-40 font-mono">
         {uiStore.mousePos ? `${uiStore.mousePos.x.toFixed(2)}, ${uiStore.mousePos.y.toFixed(2)}` : ''}
       </div>
@@ -136,28 +105,18 @@ const EditorStatusBar: React.FC = () => {
          <button onClick={dataStore.zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? "Zoom na Seleção" : "Ajustar Zoom"}><Scan size={14} /></button>
          
          {/* Zoom Editable Area */}
-         <div className="w-12 text-center relative">
-            {isEditingZoom ? (
-                <input 
-                    ref={zoomInputRef}
-                    type="number"
-                    min="10"
-                    max="500"
-                    value={zoomInputValue}
-                    onChange={(e) => setZoomInputValue(e.target.value)}
-                    onBlur={commitZoom}
-                    onKeyDown={handleZoomKeyDown}
-                    className="w-full bg-slate-800 text-white text-center border border-blue-500 rounded outline-none h-5 text-xs p-0"
-                />
-            ) : (
-                <span 
-                    onClick={startEditingZoom}
-                    className="cursor-pointer hover:bg-slate-700 px-1 rounded hover:text-white transition-colors"
-                    title="Clique para editar zoom"
-                >
-                    {(uiStore.viewTransform.scale * 100).toFixed(0)}%
-                </span>
-            )}
+         <div className="w-16 h-full flex items-center justify-center py-0.5">
+            <EditableNumber
+                value={uiStore.viewTransform.scale * 100}
+                onChange={(val) => uiStore.setViewTransform(prev => ({ ...prev, scale: val / 100 }))}
+                min={10}
+                max={500}
+                step={10}
+                suffix="%"
+                className="w-full h-full"
+                spinnerClassName="text-xs bg-slate-800 !h-full"
+                displayClassName="text-xs"
+            />
          </div>
 
          <button onClick={handleZoomOut} className="p-1 hover:bg-slate-700 rounded"><ZoomOut size={14} /></button>
