@@ -1,12 +1,20 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
+import { ensureContrastColor } from '../../../utils/color';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Type, ChevronDown, ChevronUp } from 'lucide-react';
-import { createPortal } from 'react-dom';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
+
+type ColorPickerTarget =
+  | { type: 'stroke' }
+  | { type: 'fill' }
+  | { type: 'layer'; layerId: string };
+
+const RIBBON_SURFACE_COLOR = '#0f172a';
 
 // Shared styles
 const LABEL_STYLE = "text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-1 block text-center";
@@ -80,7 +88,7 @@ const NumberSpinner: React.FC<{ value: number; onChange: (val: number) => void; 
 
 // Text Controls
 const FontFamilyControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-[138px] px-1">
+    <div className="flex flex-col justify-center w-full px-1">
         <div className="relative">
             <select
                 value={uiStore.textFontFamily}
@@ -102,7 +110,7 @@ const FontFamilyControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextU
 );
 
 const FontSizeControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-[104px] px-1 items-center">
+    <div className="flex flex-col justify-center w-full px-1 items-center">
         <NumberSpinner
             value={uiStore.textFontSize}
             onChange={(val) => {
@@ -117,7 +125,7 @@ const FontSizeControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpd
 );
 
 const TextAlignControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center gap-1 px-1">
+    <div className="flex flex-col justify-center gap-1 px-1 w-full">
         <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
             {[
                 { align: 'left', icon: <AlignLeft size={16} /> },
@@ -141,7 +149,7 @@ const TextAlignControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUp
 );
 
 const TextStyleControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center gap-1 px-1">
+    <div className="flex flex-col justify-center gap-1 px-1 w-full">
         <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
             {[
                 { key: 'bold', icon: <Bold size={16} />, active: uiStore.textBold, setter: uiStore.setTextBold, recalc: true },
@@ -171,14 +179,14 @@ const TextStyleControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUp
 );
 
 const TextFormatGroup: React.FC<any> = (props) => (
-    <div className="flex flex-col justify-center gap-1 h-full py-1">
-        <div className="flex items-center gap-2">
-             <FontFamilyControl {...props} />
-             <FontSizeControl {...props} />
+    <div className="grid grid-cols-2 gap-2 h-full py-1">
+        <div className="flex flex-col justify-center gap-2 w-full">
+            <FontFamilyControl {...props} />
+            <TextStyleControl {...props} />
         </div>
-        <div className="flex items-center gap-2">
-             <TextStyleControl {...props} />
-             <TextAlignControl {...props} />
+        <div className="flex flex-col justify-center gap-2 w-full">
+            <FontSizeControl {...props} />
+            <TextAlignControl {...props} />
         </div>
     </div>
 );
@@ -190,85 +198,99 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'TextAlignControl': TextAlignControl,
     'TextStyleControl': TextStyleControl,
     'TextFormatGroup': TextFormatGroup,
-    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore }) => (
-        <div className="flex flex-col justify-center gap-1.5 h-full px-2 w-[180px]">
-            {/* Top Row: Layer Select */}
-            <div className="w-full relative">
-                <button
-                    ref={layerButtonRef}
-                    className={`${INPUT_STYLE} justify-between cursor-pointer hover:bg-slate-800 hover:border-slate-600 w-full`}
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (isLayerDropdownOpen) {
-                            setLayerDropdownOpen(false);
-                        } else {
-                            openLayerDropdown();
-                        }
-                    }}
-                >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                        <Layers size={14} style={{ color: activeLayer?.color || 'white' }} />
-                        <span className="truncate">{activeLayer?.name || 'Selecione'}</span>
-                    </div>
-                    <ChevronDown size={12} className="text-slate-500" />
-                </button>
-                 {isLayerDropdownOpen && typeof document !== 'undefined' && createPortal(
-                    <div
-                        ref={layerDropdownRef}
-                        className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded-lg z-[9999] max-h-64 overflow-y-auto menu-transition py-1"
-                        style={{ top: dropdownPos.top + 4, left: dropdownPos.left }}
+    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore, openColorPicker }) => {
+        const layerColor = activeLayer?.color || '#FFFFFF';
+        const iconColor = ensureContrastColor(layerColor, RIBBON_SURFACE_COLOR);
+        const swatchBorderColor = ensureContrastColor(layerColor, RIBBON_SURFACE_COLOR, 0.6);
+        return (
+            <div className="flex flex-col justify-center gap-1.5 h-full px-2 w-[180px]">
+                {/* Top Row: Layer Select */}
+                <div className="w-full relative">
+                    <button
+                        ref={layerButtonRef}
+                        className={`${INPUT_STYLE} justify-between cursor-pointer hover:bg-slate-800 hover:border-slate-600 w-full`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (isLayerDropdownOpen) {
+                                setLayerDropdownOpen(false);
+                            } else {
+                                openLayerDropdown();
+                            }
+                        }}
                     >
-                        {dataStore.layers.map((layer: any) => (
-                            <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700/50 cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e: any) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
-                                <div className="w-2 h-2 rounded-full mr-3 shadow-sm" style={{backgroundColor: layer.color}}></div>
-                                <span className="flex-grow text-xs text-slate-200">{layer.name}</span>
-                                <div className="flex gap-1">
-                                    <button className="p-1 hover:text-white text-slate-500 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}</button>
-                                    <button className="p-1 hover:text-white text-slate-500 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={12} /> : <Unlock size={12} />}</button>
-                                </div>
-                            </div>
-                        ))}
-                        <div className="h-px bg-slate-700/50 my-1" />
-                        <div className="px-3 py-2 flex items-center gap-2 hover:bg-slate-700/50 cursor-pointer text-blue-400 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.addLayer(); }}>
-                            <Plus size={14} /> <span className="text-xs font-medium">Nova Camada</span>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                            <span
+                                className="w-3.5 h-3.5 rounded-full flex-none border cursor-pointer"
+                                style={{ backgroundColor: layerColor, borderColor: swatchBorderColor }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (activeLayer) openColorPicker(e, { type: 'layer', layerId: activeLayer.id });
+                                }}
+                                title="Abrir seletor de cor"
+                            />
+                            <Layers size={14} style={{ color: iconColor }} />
+                            <span className="truncate">{activeLayer?.name || 'Selecione'}</span>
                         </div>
-                    </div>,
-                    document.body
-                )}
-            </div>
-
-            {/* Bottom Row: Actions */}
-            <div className="flex items-center justify-between w-full">
-                {/* Left: Toggles */}
-                <div className="flex items-center gap-1">
-                    <button 
-                        onClick={() => activeLayer && dataStore.toggleLayerVisibility(activeLayer.id)} 
-                        className={`h-7 w-7 ${CENTERED_BUTTON_STYLE} ${!activeLayer?.visible ? 'text-red-400' : ''}`}
-                        title="Visibilidade"
-                    >
-                        {activeLayer?.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+                        <ChevronDown size={12} className="text-slate-500" />
                     </button>
-                    <button 
-                        onClick={() => activeLayer && dataStore.toggleLayerLock(activeLayer.id)} 
-                        className={`h-7 w-7 ${CENTERED_BUTTON_STYLE} ${activeLayer?.locked ? 'text-yellow-400' : ''}`}
-                        title="Bloqueio"
-                    >
-                        {activeLayer?.locked ? <Lock size={15} /> : <Unlock size={15} />}
-                    </button>
+                    {isLayerDropdownOpen && typeof document !== 'undefined' && createPortal(
+                        <div
+                            ref={layerDropdownRef}
+                            className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded-lg z-[9999] max-h-64 overflow-y-auto menu-transition py-1"
+                            style={{ top: dropdownPos.top + 4, left: dropdownPos.left }}
+                        >
+                            {dataStore.layers.map((layer: any) => (
+                                <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700/50 cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e: any) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
+                                    <div className="w-2 h-2 rounded-full mr-3 shadow-sm" style={{backgroundColor: layer.color}}></div>
+                                    <span className="flex-grow text-xs text-slate-200">{layer.name}</span>
+                                    <div className="flex gap-1">
+                                        <button className="p-1 hover:text-white text-slate-500 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}</button>
+                                        <button className="p-1 hover:text-white text-slate-500 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerLock(layer.id); }}>{layer.locked ? <Lock size={12} /> : <Unlock size={12} />}</button>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="h-px bg-slate-700/50 my-1" />
+                            <div className="px-3 py-2 flex items-center gap-2 hover:bg-slate-700/50 cursor-pointer text-blue-400 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.addLayer(); }}>
+                                <Plus size={14} /> <span className="text-xs font-medium">Nova Camada</span>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
                 </div>
 
-                {/* Right: Manage */}
-                <button
-                    onClick={() => uiStore.setLayerManagerOpen(true)}
-                    className={`h-7 px-2 flex items-center gap-1.5 ${BASE_BUTTON_STYLE} text-[9px] uppercase font-bold tracking-wide`}
-                    title="Gerenciador de Camadas"
-                >
-                    <Settings2 size={14} />
-                    <span>Gerir</span>
-                </button>
+                {/* Bottom Row: Actions */}
+                <div className="flex items-center justify-between w-full">
+                    {/* Left: Toggles */}
+                    <div className="flex items-center gap-1">
+                        <button 
+                            onClick={() => activeLayer && dataStore.toggleLayerVisibility(activeLayer.id)} 
+                            className={`h-7 w-7 ${CENTERED_BUTTON_STYLE} ${!activeLayer?.visible ? 'text-red-400' : ''}`}
+                            title="Visibilidade"
+                        >
+                            {activeLayer?.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+                        </button>
+                        <button 
+                            onClick={() => activeLayer && dataStore.toggleLayerLock(activeLayer.id)} 
+                            className={`h-7 w-7 ${CENTERED_BUTTON_STYLE} ${activeLayer?.locked ? 'text-yellow-400' : ''}`}
+                            title="Bloqueio"
+                        >
+                            {activeLayer?.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                        </button>
+                    </div>
+
+                    {/* Right: Manage */}
+                    <button
+                        onClick={() => uiStore.setLayerManagerOpen(true)}
+                        className={`h-7 px-2 flex items-center gap-1.5 ${BASE_BUTTON_STYLE} text-[9px] uppercase font-bold tracking-wide`}
+                        title="Gerenciador de Camadas"
+                    >
+                        <Settings2 size={14} />
+                        <span>Gerir</span>
+                    </button>
+                </div>
             </div>
-        </div>
-    ),
+        );
+    },
     'ColorControl': ({ uiStore, openColorPicker }) => (
         <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[160px]">
             {/* Top Row: Colors */}
@@ -280,7 +302,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         enabled: uiStore.strokeEnabled !== false, 
                         color: uiStore.strokeColor, 
                         setter: uiStore.setStrokeEnabled,
-                        open: (e: React.MouseEvent) => openColorPicker(e, 'stroke')
+                        open: (e: React.MouseEvent) => openColorPicker(e, { type: 'stroke' })
                     },
                     { 
                         label: 'Fundo', 
@@ -288,7 +310,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         enabled: uiStore.fillColor !== 'transparent', 
                         color: uiStore.fillColor, 
                         setter: (checked: boolean) => uiStore.setFillColor(checked ? '#eeeeee' : 'transparent'),
-                        open: (e: React.MouseEvent) => openColorPicker(e, 'fill')
+                        open: (e: React.MouseEvent) => openColorPicker(e, { type: 'fill' })
                     }
                 ].map((idx) => (
                     <div key={idx.type} className="flex flex-col items-center gap-0.5">
@@ -428,26 +450,41 @@ const EditorRibbon: React.FC = () => {
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [isLayerDropdownOpen]);
 
-  const [colorPickerTarget, setColorPickerTarget] = useState<'stroke' | 'fill' | null>(null);
+  const [colorPickerTarget, setColorPickerTarget] = useState<ColorPickerTarget | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
-  const openColorPicker = (e: React.MouseEvent, target: 'stroke' | 'fill') => {
+  const openColorPicker = (e: React.MouseEvent, target: ColorPickerTarget) => {
       e.stopPropagation();
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setColorPickerPos({ top: rect.bottom + 8, left: rect.left - 10 });
       setColorPickerTarget(target);
   };
 
-  const activeColor = colorPickerTarget === 'stroke' ? uiStore.strokeColor : uiStore.fillColor;
+  const layerPickerColor = colorPickerTarget?.type === 'layer'
+    ? dataStore.layers.find(l => l.id === colorPickerTarget.layerId)?.color ?? '#FFFFFF'
+    : undefined;
+
+  const activeColor = colorPickerTarget
+    ? colorPickerTarget.type === 'stroke'
+      ? uiStore.strokeColor
+      : colorPickerTarget.type === 'fill'
+        ? uiStore.fillColor
+        : layerPickerColor
+    : '#FFFFFF';
 
   const handleColorChange = (newColor: string) => {
-      if (colorPickerTarget === 'stroke') {
+      if (!colorPickerTarget) return;
+
+      if (colorPickerTarget.type === 'stroke') {
         uiStore.setStrokeColor(newColor);
         selectedTextIds.forEach(id => dataStore.updateShape(id, { strokeColor: newColor }, true));
       }
-      if (colorPickerTarget === 'fill') {
+      if (colorPickerTarget.type === 'fill') {
         uiStore.setFillColor(newColor);
         selectedTextIds.forEach(id => dataStore.updateShape(id, { fillColor: newColor }, true));
+      }
+      if (colorPickerTarget.type === 'layer') {
+        dataStore.setLayerColor(colorPickerTarget.layerId, newColor);
       }
   };
 
