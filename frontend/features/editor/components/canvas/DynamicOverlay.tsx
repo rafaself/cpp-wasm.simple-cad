@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { Shape, Point } from '../../../../types';
-import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle } from '../../../../utils/geometry';
+import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getWrappedLines, TEXT_PADDING } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
 import RadiusInputModal from '../RadiusInputModal';
 
@@ -17,6 +17,8 @@ interface DynamicOverlayProps {
 
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const positionedSelectionFor = useRef<string | null>(null);
   const uiStore = useUIStore();
   const dataStore = useDataStore();
 
@@ -36,6 +38,47 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const [arcPoints, setArcPoints] = useState<{ start: Point; end: Point } | null>(null);
   const [showRadiusModal, setShowRadiusModal] = useState(false);
   const [radiusModalPos, setRadiusModalPos] = useState({ x: 0, y: 0 });
+
+  // Text Tool State
+  const [textEditState, setTextEditState] = useState<{ id?: string, x: number, y: number, content: string, width?: number, height?: number } | null>(null);
+  const setEditingTextId = uiStore.setEditingTextId;
+  useEffect(() => {
+    return () => setEditingTextId(null);
+  }, [setEditingTextId]);
+  useEffect(() => {
+    if (!textEditState) {
+      positionedSelectionFor.current = null;
+      return;
+    }
+    if (textareaRef.current) {
+      const sessionKey = (textEditState.id ?? `new-${textEditState.x}-${textEditState.y}`);
+      if (positionedSelectionFor.current === sessionKey) return;
+      const el = textareaRef.current;
+      requestAnimationFrame(() => {
+        try { el.setSelectionRange(0, 0); } catch (e) { /* ignore */ }
+        el.focus();
+      });
+      positionedSelectionFor.current = sessionKey;
+    }
+  }, [textEditState]);
+  const getTextSize = useCallback((shape: Shape) => {
+    const fontSize = shape.fontSize || 16;
+    const lineHeight = shape.lineHeight || fontSize * 1.2;
+    const rawText = shape.textContent || '';
+    const containerWidth = shape.width ? Math.max(shape.width - TEXT_PADDING * 2, 1) : undefined;
+    const lines = containerWidth
+      ? getWrappedLines(rawText, containerWidth, fontSize)
+      : rawText.split('\n');
+
+    const estimatedWidth = containerWidth ?? Math.max(
+      fontSize * 0.6,
+      ...lines.map(line => (line.length || 1) * fontSize * 0.6)
+    );
+    const estimatedHeight = Math.max(lineHeight, lines.length * lineHeight);
+    const totalWidth = (shape.width ?? (estimatedWidth + TEXT_PADDING * 2));
+    const totalHeight = Math.max(shape.height ?? 0, estimatedHeight + TEXT_PADDING * 2);
+    return { width: totalWidth, height: totalHeight };
+  }, []);
 
   // Sync mouse position
   const getMousePos = (e: React.MouseEvent): Point => {
@@ -135,7 +178,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.lineWidth = 1 / uiStore.viewTransform.scale;
 
         ctx.beginPath();
-        if (shape.type === 'rect') {
+        if (shape.type === 'rect' || shape.type === 'text') {
             if (shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
                  ctx.rect(shape.x, shape.y, shape.width, shape.height);
             }
@@ -290,6 +333,10 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
   // --- Event Handlers ---
   const handleMouseDown = (e: React.MouseEvent) => {
+    // If we are editing text, let the blur event handle the commit/exit.
+    // Clicking on the canvas should just trigger blur on the textarea.
+    if (textEditState) return;
+
     const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, uiStore.viewTransform); let snapped: Point | null = null;
 
     // Snapping logic
@@ -432,21 +479,26 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             const ws = screenToWorld(eff, uiStore.viewTransform);
             const s = dataStore.shapes[activeHandle.shapeId];
             if(s) {
-                 if (activeHandle.handle.type === 'vertex' && s.points) {
-                    const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
-                    dataStore.updateShape(s.id, { points: newPoints }, false);
-                 } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect')) {
-                    // Added support for text resize
-                    if (s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined) {
+                if (activeHandle.handle.type === 'vertex' && s.points) {
+                   const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
+                   dataStore.updateShape(s.id, { points: newPoints }, false);
+                 } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect' || s.type === 'text')) {
+                    if (s.x !== undefined && s.y !== undefined) {
                         const idx = activeHandle.handle.index;
-                        const oldX = s.x; const oldY = s.y; const oldR = s.x + s.width; const oldB = s.y + s.height;
-                        let newX = oldX, newY = oldY, newW = s.width, newH = s.height;
+                        const size = s.type === 'rect'
+                          ? { width: s.width ?? 0, height: s.height ?? 0 }
+                          : getTextSize(s);
+                        const oldX = s.x; const oldY = s.y; const oldR = oldX + size.width; const oldB = oldY + size.height;
+                        let newX = oldX, newY = oldY, newW = size.width, newH = size.height;
                         if (idx === 0) { newX = ws.x; newY = ws.y; newW = oldR - newX; newH = oldB - newY; }
                         else if (idx === 1) { newY = ws.y; newW = ws.x - oldX; newH = oldB - newY; }
                         else if (idx === 2) { newW = ws.x - oldX; newH = ws.y - oldY; }
                         else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
+                        const minSize = 5;
                         if (newW < 0) { newX += newW; newW = Math.abs(newW); }
                         if (newH < 0) { newY += newH; newH = Math.abs(newH); }
+                        newW = Math.max(minSize, newW);
+                        newH = Math.max(minSize, newH);
 
                         dataStore.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
                     }
@@ -541,6 +593,14 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
           return;
       }
 
+      if (uiStore.activeTool === 'text') {
+        // Start text creation
+        setTextEditState({ x: ws.x, y: ws.y, content: '' });
+        setEditingTextId(null);
+        setStartPoint(null);
+        return;
+      }
+
       const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
 
       if (isSingleClick && shapeCreationTools.includes(uiStore.activeTool)) {
@@ -564,6 +624,24 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
       if (uiStore.activeTool !== 'select') { finishPolyline(); return; }
+
+      const raw = getMousePos(e);
+      const worldPos = screenToWorld(raw, uiStore.viewTransform);
+      
+      // Check for text shape
+      const queryRect = { x: worldPos.x - 5, y: worldPos.y - 5, width: 10, height: 10 };
+      const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
+      
+      for (let i = candidates.length - 1; i >= 0; i--) {
+          const s = candidates[i];
+          if (s.type === 'text') {
+               if (isPointInShape(worldPos, s, uiStore.viewTransform.scale)) {
+                   setTextEditState({ id: s.id, x: s.x!, y: s.y!, content: s.textContent || '', width: s.width, height: s.height });
+                   setEditingTextId(s.id);
+                   return;
+               }
+          }
+      }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -623,6 +701,110 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                 setArcPoints(null);
                 setShowRadiusModal(false);
                 uiStore.setTool('select');
+            }}
+        />
+    )}
+    
+    {textEditState && (
+        <textarea
+            autoFocus
+            ref={textareaRef}
+            className="absolute z-50 bg-transparent border border-blue-500 rounded resize-none outline-none overflow-hidden"
+            style={{
+                 left: worldToScreen({x: textEditState.x, y: textEditState.y}, uiStore.viewTransform).x,
+                 top: worldToScreen({x: textEditState.x, y: textEditState.y}, uiStore.viewTransform).y,
+                 width: textEditState.width ? (textEditState.width * uiStore.viewTransform.scale) : (200 + TEXT_PADDING * 2) + 'px',
+                 height: textEditState.height ? (textEditState.height * uiStore.viewTransform.scale) : 'auto',
+                 transformOrigin: 'top left',
+                 fontSize: (dataStore.shapes[textEditState.id || '']?.fontSize || uiStore.textFontSize) * uiStore.viewTransform.scale + 'px',
+                 fontFamily: dataStore.shapes[textEditState.id || '']?.fontFamily || uiStore.textFontFamily,
+                 fontWeight: (dataStore.shapes[textEditState.id || '']?.bold ?? uiStore.textBold) ? '700' : '400',
+                 fontStyle: (dataStore.shapes[textEditState.id || '']?.italic ?? uiStore.textItalic) ? 'italic' : 'normal',
+                 color: dataStore.shapes[textEditState.id || '']?.strokeColor || uiStore.strokeColor,
+                 textAlign: dataStore.shapes[textEditState.id || '']?.align || uiStore.textAlign,
+                 textDecoration: `${(dataStore.shapes[textEditState.id || '']?.underline ?? uiStore.textUnderline) ? 'underline ' : ''}${(dataStore.shapes[textEditState.id || '']?.strike ?? uiStore.textStrike) ? 'line-through' : ''}`.trim(),
+                 padding: `${TEXT_PADDING * uiStore.viewTransform.scale}px`,
+                 lineHeight: ((dataStore.shapes[textEditState.id || '']?.fontSize || uiStore.textFontSize) * 1.2 * uiStore.viewTransform.scale) + 'px',
+                 boxSizing: 'border-box',
+                 direction: 'ltr'
+            }}
+            value={textEditState.content}
+            onChange={(e) => setTextEditState({ ...textEditState, content: e.target.value })}
+            onBlur={() => {
+                if (textEditState.content.trim()) {
+                    const fontSize = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].fontSize || uiStore.textFontSize : uiStore.textFontSize;
+                    const bold = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].bold ?? uiStore.textBold : uiStore.textBold;
+                    const italic = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].italic ?? uiStore.textItalic : uiStore.textItalic;
+                    const underline = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].underline ?? uiStore.textUnderline : uiStore.textUnderline;
+                    const strike = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].strike ?? uiStore.textStrike : uiStore.textStrike;
+                    const lineHeight = (fontSize || 16) * 1.2;
+                    const lines = textEditState.content.split('\n');
+                    const measuredContentWidth = Math.max(...lines.map(line => (line.length || 1) * (fontSize || 16) * 0.6), (fontSize || 16) * 0.6);
+                    const existingShape = textEditState.id ? dataStore.shapes[textEditState.id] : null;
+                    const baseWidth = existingShape?.width && existingShape.width > 0 ? existingShape.width : measuredContentWidth + TEXT_PADDING * 2;
+                    const wrapped = getWrappedLines(textEditState.content, Math.max(baseWidth - TEXT_PADDING * 2, 1), fontSize || 16);
+                    const finalHeight = Math.max(existingShape?.height ?? 0, wrapped.length * lineHeight + TEXT_PADDING * 2);
+                    const finalWidth = baseWidth;
+
+                    if (textEditState.id) {
+                         dataStore.updateShape(textEditState.id, { 
+                            textContent: textEditState.content,
+                            width: finalWidth,
+                            height: finalHeight,
+                            bold,
+                            italic,
+                            underline,
+                            strike
+                         }, true);
+                         setEditingTextId(null);
+                    } else {
+                        dataStore.addShape({
+                            id: Date.now().toString(),
+                            layerId: dataStore.activeLayerId,
+                            type: 'text',
+                            x: textEditState.x,
+                            y: textEditState.y,
+                            width: finalWidth,
+                            height: finalHeight,
+                            textContent: textEditState.content,
+                            fontSize: uiStore.textFontSize,
+                            fontFamily: uiStore.textFontFamily,
+                            align: uiStore.textAlign,
+                            bold: uiStore.textBold,
+                            italic: uiStore.textItalic,
+                            underline: uiStore.textUnderline,
+                            strike: uiStore.textStrike,
+                            strokeColor: uiStore.strokeColor,
+                            strokeWidth: 1,
+                            strokeEnabled: true,
+                            fillColor: 'transparent',
+                            points: []
+                        });
+                    }
+                    setEditingTextId(null);
+                } else if (textEditState.id) {
+                    dataStore.deleteSelected([textEditState.id]);
+                    setEditingTextId(null);
+                }
+                
+                // Commit complete. Now clear state and change tool.
+                // We use setTimeout to ensure this happens after the event loop clears, preventing conflicts.
+                setTimeout(() => {
+                    setTextEditState(null);
+                    uiStore.setTool('select');
+                }, 0);
+            }}
+            onKeyDown={(e) => {
+                if((e.key === 'Enter' && e.ctrlKey)) {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                }
+                if(e.key === 'Escape') {
+                    e.preventDefault();
+                    setTextEditState(null);
+                    setEditingTextId(null);
+                    uiStore.setTool('select');
+                }
             }}
         />
     )}

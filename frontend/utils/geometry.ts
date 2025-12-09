@@ -31,6 +31,62 @@ export const worldToScreen = (point: Point, transform: ViewTransform): Point => 
   };
 };
 
+export const TEXT_PADDING = 4;
+
+export const getWrappedLines = (text: string, maxWidth: number, fontSize: number): string[] => {
+  if (!text) return [''];
+  if (!maxWidth || !isFinite(maxWidth) || maxWidth <= 0) return text.split('\n');
+
+  const charWidth = fontSize * 0.6;
+  const spaceWidth = charWidth;
+  const segments = text.split('\n');
+  const lines: string[] = [];
+
+  segments.forEach(segment => {
+    const words = segment.split(' ');
+    let current = '';
+    words.forEach(word => {
+      const wordWidth = word.length * charWidth;
+      if (current.length === 0) {
+        current = word;
+      } else {
+        const lineWidth = current.length * charWidth + spaceWidth + wordWidth;
+        if (lineWidth <= maxWidth) {
+          current = `${current} ${word}`;
+        } else {
+          lines.push(current);
+          current = word;
+        }
+      }
+    });
+    lines.push(current);
+  });
+
+  return lines;
+};
+
+const getTextDimensions = (shape: Shape) => {
+  const fontSize = shape.fontSize || 16;
+  const lineHeight = shape.lineHeight || fontSize * 1.2;
+  const rawText = shape.textContent || '';
+  const baseWidth = shape.width ? Math.max(shape.width - TEXT_PADDING * 2, 1) : undefined;
+
+  const wrapped = baseWidth
+    ? getWrappedLines(rawText, baseWidth, fontSize)
+    : rawText.split('\n');
+
+  const estimatedWidth = baseWidth ?? Math.max(
+    fontSize * 0.6,
+    ...wrapped.map(line => (line.length || 1) * fontSize * 0.6)
+  );
+  const estimatedHeight = Math.max(lineHeight, wrapped.length * lineHeight);
+
+  const totalWidth = (shape.width ?? (estimatedWidth + TEXT_PADDING * 2));
+  const totalHeight = Math.max(shape.height ?? 0, estimatedHeight + TEXT_PADDING * 2);
+
+  return { width: totalWidth, height: totalHeight, lines: wrapped };
+};
+
 export const getSnapPoint = (
   point: Point, 
   shapes: Shape[], 
@@ -156,6 +212,15 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
       const nearTop = Math.abs(checkPoint.y - shape.y) < threshold;
       const nearBottom = Math.abs(checkPoint.y - (shape.y + shape.height)) < threshold;
       return nearLeft || nearRight || nearTop || nearBottom;
+
+    case 'text': {
+      if (shape.x === undefined || shape.y === undefined) return false;
+      const { width, height } = getTextDimensions(shape);
+      const inXText = checkPoint.x >= shape.x - threshold && checkPoint.x <= shape.x + width + threshold;
+      const inYText = checkPoint.y >= shape.y - threshold && checkPoint.y <= shape.y + height + threshold;
+      if (!inXText || !inYText) return false;
+      return true;
+    }
 
     case 'line':
     case 'measure':
@@ -310,6 +375,11 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         addPoint({ x: shape.x, y: shape.y });
         addPoint({ x: shape.x + shape.width, y: shape.y + shape.height });
     }
+    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) {
+        const { width, height } = getTextDimensions(shape);
+        addPoint({ x: shape.x, y: shape.y });
+        addPoint({ x: shape.x + width, y: shape.y + height });
+    }
     else if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
         addPoint({ x: shape.x - shape.radius, y: shape.y - shape.radius });
         addPoint({ x: shape.x + shape.radius, y: shape.y + shape.radius });
@@ -364,6 +434,18 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
         handles.push({ x: finalPoints[1].x, y: finalPoints[1].y, cursor: 'nesw-resize', index: 1, type: 'resize' });
         handles.push({ x: finalPoints[2].x, y: finalPoints[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
         handles.push({ x: finalPoints[3].x, y: finalPoints[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
+    }
+    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) {
+        const { width, height } = getTextDimensions(shape);
+        const p1 = { x: shape.x, y: shape.y };
+        const p2 = { x: shape.x + width, y: shape.y };
+        const p3 = { x: shape.x + width, y: shape.y + height };
+        const p4 = { x: shape.x, y: shape.y + height };
+
+        handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
+        handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
+        handles.push({ x: p3.x, y: p3.y, cursor: 'nwse-resize', index: 2, type: 'resize' });
+        handles.push({ x: p4.x, y: p4.y, cursor: 'nesw-resize', index: 3, type: 'resize' });
     }
     return handles;
 };

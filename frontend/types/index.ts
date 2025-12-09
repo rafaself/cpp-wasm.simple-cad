@@ -11,7 +11,8 @@ export type ToolType =
   | 'arc' 
   | 'measure'
   | 'move'
-  | 'rotate';
+  | 'rotate'
+  | 'text';
 
 export interface Point {
   x: number;
@@ -63,6 +64,17 @@ export interface Shape {
   fillColor: string; // Background color for text
   fillOpacity?: number; // 0-100
   
+  // Text Properties
+  textContent?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  align?: 'left' | 'center' | 'right';
+  lineHeight?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+
   label?: string; // For measurements
   
   rotation?: number; // Rotation in radians

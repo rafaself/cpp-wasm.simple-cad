@@ -1,13 +1,112 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Type, Bold, Italic, Underline, Strikethrough } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
+import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 
 // Component Registry for Config-Driven UI
 const ComponentRegistry: Record<string, React.FC<any>> = {
+    'FontFamilyControl': ({ uiStore, selectedTextIds, applyTextUpdate }) => (
+        <div className="flex flex-col gap-1 w-32">
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <span className="text-[10px] text-slate-300">Fonte</span>
+            </div>
+            <select
+                value={uiStore.textFontFamily}
+                onChange={(e) => {
+                    uiStore.setTextFontFamily(e.target.value);
+                    if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: e.target.value }, true);
+                }}
+                className="w-full h-6 bg-slate-900 border border-slate-600 rounded text-xs px-1 focus:outline-none focus:border-blue-500"
+            >
+                <option value="Inter">Inter</option>
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Verdana">Verdana</option>
+            </select>
+        </div>
+    ),
+    'FontSizeControl': ({ uiStore, selectedTextIds, applyTextUpdate }) => (
+        <div className="flex flex-col gap-1 w-16">
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <span className="text-[10px] text-slate-300">Tamanho</span>
+            </div>
+            <input
+                type="number"
+                min="8"
+                max="128"
+                value={uiStore.textFontSize}
+                onChange={(e) => {
+                    const val = parseInt(e.target.value) || uiStore.textFontSize;
+                    uiStore.setTextFontSize(val);
+                    if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
+                }}
+                className="w-full h-6 bg-slate-900 border border-slate-600 rounded text-xs px-1 text-center focus:outline-none focus:border-blue-500"
+            />
+        </div>
+    ),
+    'TextAlignControl': ({ uiStore, selectedTextIds, applyTextUpdate }) => (
+        <div className="flex flex-col gap-1 w-24">
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <span className="text-[10px] text-slate-300">Alinhamento</span>
+            </div>
+            <div className="flex bg-slate-900 rounded border border-slate-600 p-0.5 h-6">
+                {[
+                    { align: 'left', icon: <AlignLeft size={14} /> },
+                    { align: 'center', icon: <AlignCenterHorizontal size={14} /> },
+                    { align: 'right', icon: <AlignRight size={14} /> }
+                ].map(({ align, icon }) => (
+                    <button
+                        key={align}
+                        onClick={() => {
+                            uiStore.setTextAlign(align as any);
+                            if (selectedTextIds.length > 0) applyTextUpdate({ align: align as any }, false);
+                        }}
+                        className={`flex-1 flex items-center justify-center rounded ${uiStore.textAlign === align ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                        title={align}
+                    >
+                        {icon}
+                    </button>
+                ))}
+            </div>
+        </div>
+    ),
+    'TextStyleControl': ({ uiStore, selectedTextIds, applyTextUpdate }) => (
+        <div className="flex flex-col gap-1 w-32">
+            <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
+                <span className="text-[10px] text-slate-300">Estilo</span>
+            </div>
+            <div className="flex bg-slate-900 rounded border border-slate-600 p-0.5 h-6 gap-1">
+                {[
+                    { key: 'bold', icon: <Bold size={14} />, active: uiStore.textBold, setter: uiStore.setTextBold, recalc: true },
+                    { key: 'italic', icon: <Italic size={14} />, active: uiStore.textItalic, setter: uiStore.setTextItalic, recalc: true },
+                    { key: 'underline', icon: <Underline size={14} />, active: uiStore.textUnderline, setter: uiStore.setTextUnderline, recalc: false },
+                    { key: 'strike', icon: <Strikethrough size={14} />, active: uiStore.textStrike, setter: uiStore.setTextStrike, recalc: false },
+                ].map(({ key, icon, active, setter, recalc }) => (
+                    <button
+                        key={key}
+                        onClick={() => {
+                            const next = !active;
+                            setter(next);
+                            if (selectedTextIds.length > 0) {
+                                const diff: any = {};
+                                diff[key === 'bold' ? 'bold' : key === 'italic' ? 'italic' : key === 'underline' ? 'underline' : 'strike'] = next;
+                                applyTextUpdate(diff, recalc);
+                            }
+                        }}
+                        className={`flex-1 flex items-center justify-center rounded ${active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                        title={key}
+                    >
+                        {icon}
+                    </button>
+                ))}
+            </div>
+        </div>
+    ),
     'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, closeLayerDropdown, layerButtonRef, dropdownPos, dataStore, uiStore }) => (
         <div className="flex items-center gap-1 h-full py-1">
             <div className="flex flex-col justify-center gap-1 w-32">
@@ -157,6 +256,33 @@ const EditorRibbon: React.FC = () => {
 
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];
   const activeLayer = dataStore.layers.find(l => l.id === dataStore.activeLayerId);
+  const selectedTextIds = useMemo(
+    () => Array.from(uiStore.selectedShapeIds).filter(id => dataStore.shapes[id]?.type === 'text'),
+    [uiStore.selectedShapeIds, dataStore.shapes]
+  );
+
+  const applyTextUpdate = (diff: Partial<any>, recalcSize: boolean) => {
+    selectedTextIds.forEach(id => {
+      const shape = dataStore.shapes[id];
+      if (!shape) return;
+      const nextFontSize = (diff.fontSize ?? shape.fontSize ?? uiStore.textFontSize) || 16;
+      const content = diff.textContent ?? shape.textContent ?? '';
+      let updates: any = { ...diff };
+
+      if (recalcSize) {
+        const baseWidth = shape.width && shape.width > 0 ? shape.width : undefined;
+        const availableWidth = baseWidth ? Math.max(baseWidth - TEXT_PADDING * 2, 1) : undefined;
+        const lines = availableWidth ? getWrappedLines(content, availableWidth, nextFontSize) : content.split('\n');
+        const contentWidth = availableWidth ?? Math.max(nextFontSize * 0.6, ...lines.map(line => (line.length || 1) * nextFontSize * 0.6));
+        const width = baseWidth ?? contentWidth + TEXT_PADDING * 2;
+        const height = Math.max(shape.height ?? 0, lines.length * nextFontSize * 1.2 + TEXT_PADDING * 2);
+        updates.width = width;
+        updates.height = height;
+      }
+
+      dataStore.updateShape(id, updates, true);
+    });
+  };
 
   const openLayerDropdown = () => {
     if (closeTimeoutRef.current) {
@@ -210,7 +336,9 @@ const EditorRibbon: React.FC = () => {
       dropdownPos,
       dataStore,
       uiStore,
-      openColorPicker
+      openColorPicker,
+      selectedTextIds,
+      applyTextUpdate
   };
 
   return (

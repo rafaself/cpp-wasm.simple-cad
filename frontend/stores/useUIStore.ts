@@ -10,6 +10,7 @@ interface UIState {
   canvasSize: { width: number; height: number };
   isSettingsModalOpen: boolean;
   isLayerManagerOpen: boolean;
+  editingTextId: string | null;
 
   // Selection
   selectedShapeIds: Set<string>;
@@ -28,6 +29,15 @@ interface UIState {
   // Snap
   snapOptions: SnapOptions;
 
+  // Text Tool Options
+  textFontSize: number;
+  textFontFamily: string;
+  textAlign: 'left' | 'center' | 'right';
+  textBold: boolean;
+  textItalic: boolean;
+  textUnderline: boolean;
+  textStrike: boolean;
+
   // Setters
   setTool: (tool: ToolType) => void;
   setSidebarTab: (tab: string) => void;
@@ -37,6 +47,7 @@ interface UIState {
 
   setSettingsModalOpen: (isOpen: boolean) => void;
   setLayerManagerOpen: (isOpen: boolean) => void;
+  setEditingTextId: (id: string | null) => void;
 
   setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 
@@ -50,6 +61,14 @@ interface UIState {
   setStrokeWidth: (width: number) => void;
   setStrokeEnabled: (enabled: boolean) => void;
   setFillColor: (color: string) => void;
+  
+  setTextFontSize: (size: number) => void;
+  setTextFontFamily: (family: string) => void;
+  setTextAlign: (align: 'left' | 'center' | 'right') => void;
+  setTextBold: (bold: boolean) => void;
+  setTextItalic: (italic: boolean) => void;
+  setTextUnderline: (underline: boolean) => void;
+  setTextStrike: (strike: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -60,6 +79,7 @@ export const useUIStore = create<UIState>((set) => ({
   canvasSize: { width: 0, height: 0 },
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
+  editingTextId: null,
 
   selectedShapeIds: new Set<string>(),
 
@@ -68,6 +88,15 @@ export const useUIStore = create<UIState>((set) => ({
   strokeEnabled: true,
   fillColor: 'transparent',
   polygonSides: 5,
+  
+  // Text Defaults
+  textFontSize: 16,
+  textFontFamily: 'Inter',
+  textAlign: 'left',
+  textBold: false,
+  textItalic: false,
+  textUnderline: false,
+  textStrike: false,
 
   gridSize: 50,
   gridColor: '#e5e7eb',
@@ -84,6 +113,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
+  setEditingTextId: (id) => set({ editingTextId: id }),
 
   setSelectedShapeIds: (ids) => set((state) => ({ selectedShapeIds: typeof ids === 'function' ? ids(state.selectedShapeIds) : ids })),
 
@@ -96,4 +126,12 @@ export const useUIStore = create<UIState>((set) => ({
   setStrokeWidth: (width) => set({ strokeWidth: width }),
   setStrokeEnabled: (enabled) => set({ strokeEnabled: enabled }),
   setFillColor: (color) => set({ fillColor: color }),
+
+  setTextFontSize: (size) => set({ textFontSize: size }),
+  setTextFontFamily: (family) => set({ textFontFamily: family }),
+  setTextAlign: (align) => set({ textAlign: align }),
+  setTextBold: (bold) => set({ textBold: bold }),
+  setTextItalic: (italic) => set({ textItalic: italic }),
+  setTextUnderline: (underline) => set({ textUnderline: underline }),
+  setTextStrike: (strike) => set({ textStrike: strike }),
 }));

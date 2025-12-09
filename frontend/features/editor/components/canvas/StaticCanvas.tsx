@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { Shape, Rect } from '../../../../types';
-import { getDistance, getWrappedLines } from '../../../../utils/geometry';
+import { getDistance, getWrappedLines, TEXT_PADDING } from '../../../../utils/geometry';
 
 interface StaticCanvasProps {
     width: number;
@@ -14,6 +14,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const viewTransform = useUIStore(s => s.viewTransform);
     const gridSize = useUIStore(s => s.gridSize);
     const gridColor = useUIStore(s => s.gridColor);
+    const editingTextId = useUIStore(s => s.editingTextId);
 
     // Subscribe to necessary data stores.
     const shapes = useDataStore(s => s.shapes);
@@ -105,6 +106,43 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
                   const startAngle = Math.atan2(p1.y - cy, p1.x - cx); const endAngle = Math.atan2(p2.y - cy, p2.x - cx);
                   ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, endAngle, false); ctx.stroke();
                }
+            } else if (shape.type === 'text' && shape.textContent) {
+                 const fontSize = shape.fontSize || 16;
+                 const fontWeight = shape.bold ? 'bold ' : '';
+                 const fontStyle = shape.italic ? 'italic ' : '';
+                 ctx.font = `${fontStyle}${fontWeight}${fontSize}px ${shape.fontFamily || 'Inter'}`;
+                 ctx.textAlign = 'left';
+                 // force left-to-right rendering
+                 // @ts-ignore experimental but supported on modern browsers
+                 ctx.direction = 'ltr';
+                 ctx.textBaseline = 'top';
+                 
+                 ctx.fillStyle = shape.strokeColor;
+                 
+                 const pad = TEXT_PADDING;
+                 const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
+                 const availableWidth = Math.max(containerWidth, fontSize * 0.6);
+                 const lineHeight = fontSize * 1.2;
+                 const wrappedLines = getWrappedLines(shape.textContent, availableWidth, fontSize);
+
+                 wrappedLines.forEach((line, index) => {
+                     const lineWidth = ctx.measureText(line).width;
+                     let xPos = shape.x! + pad;
+                     if (shape.align === 'center') xPos += (availableWidth - lineWidth) / 2;
+                     else if (shape.align === 'right') xPos += (availableWidth - lineWidth);
+                     
+                     const yPos = shape.y! + pad + index * lineHeight;
+                     ctx.fillText(line, xPos, yPos);
+
+                     if (shape.underline) {
+                        const underlineY = yPos + lineHeight * 0.85;
+                        ctx.fillRect(xPos, underlineY, lineWidth, Math.max(1 / viewTransform.scale, 1));
+                     }
+                     if (shape.strike) {
+                        const strikeY = yPos + lineHeight * 0.45;
+                        ctx.fillRect(xPos, strikeY, lineWidth, Math.max(1 / viewTransform.scale, 1));
+                     }
+                 });
             }
         } finally {
             ctx.restore();
@@ -156,7 +194,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         // Use IDs to fetch fresh shape from store
         const visibleShapes = visibleCandidates
             .map(candidate => shapes[candidate.id])
-            .filter(s => !!s);
+            .filter(s => !!s && !(editingTextId && s.type === 'text' && s.id === editingTextId));
 
         visibleShapes.forEach(shape => {
             try {
@@ -175,7 +213,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
 
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, shapes, layers, spatialIndex]);
+    }, [viewTransform, gridSize, gridColor, shapes, layers, spatialIndex, editingTextId]);
 
     return (
         <canvas
