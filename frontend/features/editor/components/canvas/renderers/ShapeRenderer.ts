@@ -1,10 +1,12 @@
-import { Shape, ViewTransform } from '../../../../../types';
+import { Layer, Shape, ViewTransform } from '../../../../../types';
 import { getDistance, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
+import { getEffectiveFillColor, getEffectiveStrokeColor } from '../../../../../utils/shapeColors';
 
 export const renderShape = (
     ctx: CanvasRenderingContext2D,
     shape: Shape,
-    viewTransform: ViewTransform
+    viewTransform: ViewTransform,
+    layer?: Layer
 ) => {
     // Safety checks for rendering
     if (shape.x === undefined || shape.y === undefined || isNaN(shape.x) || isNaN(shape.y)) return;
@@ -19,9 +21,12 @@ export const renderShape = (
             ctx.translate(-pivotX, -pivotY);
         }
 
-        const effectiveStroke = (shape.strokeEnabled === false) ? 'transparent' : shape.strokeColor;
+        const strokeColor = getEffectiveStrokeColor(shape, layer);
+        const fillColor = getEffectiveFillColor(shape, layer);
+        const effectiveStroke = (shape.strokeEnabled === false || strokeColor === 'transparent') ? 'transparent' : strokeColor;
         ctx.strokeStyle = effectiveStroke;
-        ctx.fillStyle = (shape.fillColor && shape.fillColor !== 'transparent') ? shape.fillColor : 'transparent';
+        const effectiveFill = (fillColor && fillColor !== 'transparent') ? fillColor : 'transparent';
+        ctx.fillStyle = effectiveFill;
         ctx.setLineDash([]);
 
         const baseWidth = shape.strokeWidth || 2;
@@ -71,11 +76,11 @@ export const renderShape = (
             }
         } else if (shape.type === 'circle') {
             ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI * 2);
-            if (shape.fillColor !== 'transparent') ctx.fill();
+            if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'rect') {
             ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!);
-            if (shape.fillColor !== 'transparent') ctx.fill();
+            if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'polyline') {
             if (shape.points.length > 0) {
@@ -89,7 +94,7 @@ export const renderShape = (
             ctx.moveTo(shape.x! + shape.radius! * Math.cos(startAngle), shape.y! + shape.radius! * Math.sin(startAngle));
             for (let i = 1; i <= shape.sides!; i++) ctx.lineTo(shape.x! + shape.radius! * Math.cos(startAngle + i * angleStep), shape.y! + shape.radius! * Math.sin(startAngle + i * angleStep));
             ctx.closePath();
-            if (shape.fillColor !== 'transparent') ctx.fill();
+            if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'arc') {
             if (shape.points.length >= 2) {
@@ -125,8 +130,8 @@ export const renderShape = (
             ctx.direction = 'ltr';
             ctx.textBaseline = 'top';
 
-            const textColor = shape.strokeColor;
-            const bgColor = shape.fillColor && shape.fillColor !== 'transparent' ? shape.fillColor : null;
+            const textColor = strokeColor;
+            const bgColor = fillColor && fillColor !== 'transparent' ? fillColor : null;
 
             const pad = TEXT_PADDING;
             const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;

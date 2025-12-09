@@ -5,6 +5,7 @@ import { Point, Shape } from '../../../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle } from '../../../../../utils/geometry';
 import { getTextSize } from '../helpers';
 import { TextEditState } from '../overlays/TextEditorOverlay';
+import { getDefaultColorMode } from '../../../../../utils/shapeColors';
 
 export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     const uiStore = useUIStore();
@@ -62,8 +63,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const finishPolyline = useCallback(() => {
         if (polylinePoints.length > 1) {
             dataStore.addShape({
-                id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'polyline',
-                strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', points: [...polylinePoints]
+                id: Date.now().toString(),
+                layerId: dataStore.activeLayerId,
+                type: 'polyline',
+                strokeColor: uiStore.strokeColor,
+                strokeWidth: uiStore.strokeWidth,
+                strokeEnabled: uiStore.strokeEnabled,
+                fillColor: 'transparent',
+                colorMode: getDefaultColorMode(),
+                points: [...polylinePoints]
             });
             uiStore.setSidebarTab('desenho'); setPolylinePoints([]);
         }
@@ -151,7 +159,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 const s = candidates[i];
                 const l = dataStore.layers.find(lay => lay.id === s.layerId);
                 if (l && (!l.visible || l.locked)) continue;
-                if (isPointInShape(selectWorld, s, uiStore.viewTransform.scale)) { hitShapeId = s.id; break; }
+                if (isPointInShape(selectWorld, s, uiStore.viewTransform.scale, l)) { hitShapeId = s.id; break; }
             }
 
             if (hitShapeId) {
@@ -174,7 +182,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         if (uiStore.activeTool === 'line') {
             if (!lineStart) setLineStart(wPos);
             else {
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', points: [lineStart, wPos] });
+                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, wPos] });
                 uiStore.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
@@ -183,7 +191,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (!measureStart) setMeasureStart(wPos);
             else {
                 const dist = getDistance(measureStart, wPos).toFixed(2);
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', points: [measureStart, wPos], label: `${dist}px` });
+                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
                 setMeasureStart(null);
             }
             return;
@@ -335,7 +343,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return;
             }
 
-            const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
+            const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, colorMode: getDefaultColorMode(), points: [] };
 
             if (isSingleClick && shapeCreationTools.includes(uiStore.activeTool)) {
                 if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
@@ -367,8 +375,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         for (let i = candidates.length - 1; i >= 0; i--) {
             const s = candidates[i];
+            const l = dataStore.layers.find(layer => layer.id === s.layerId);
+            if (l && (!l.visible || l.locked)) continue;
             if (s.type === 'text') {
-                if (isPointInShape(worldPos, s, uiStore.viewTransform.scale)) {
+                if (isPointInShape(worldPos, s, uiStore.viewTransform.scale, l)) {
                     setTextEditState({ id: s.id, x: s.x!, y: s.y!, content: s.textContent || '', width: s.width, height: s.height });
                     setEditingTextId(s.id);
                     return;

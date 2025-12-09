@@ -1,4 +1,5 @@
-import { Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
+import { Layer, Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
+import { getEffectiveFillColor } from './shapeColors';
 
 // ... (Keeping imports and helper functions like getDistance, rotatePoint, screenToWorld, worldToScreen same)
 
@@ -186,19 +187,20 @@ export const getSnapPoint = (
 };
 
 
-export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): boolean => {
+export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
   const hitToleranceScreen = 10; 
   const threshold = hitToleranceScreen / scale; 
   let checkPoint = point;
     if (shape.rotation && shape.x !== undefined && shape.y !== undefined && (shape.type === 'rect')) {
       checkPoint = rotatePoint(point, { x: shape.x, y: shape.y }, -shape.rotation);
   }
+  const effectiveFill = getEffectiveFillColor(shape, layer);
 
   switch (shape.type) {
     case 'circle':
       if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
       const dist = getDistance(point, { x: shape.x, y: shape.y });
-      if (shape.fillColor !== 'transparent') return dist <= shape.radius + threshold;
+      if (effectiveFill !== 'transparent') return dist <= shape.radius + threshold;
       return Math.abs(dist - shape.radius) <= threshold;
 
     case 'rect':
@@ -206,7 +208,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
       const inX = checkPoint.x >= shape.x - threshold && checkPoint.x <= shape.x + shape.width + threshold;
       const inY = checkPoint.y >= shape.y - threshold && checkPoint.y <= shape.y + shape.height + threshold;
       if (!inX || !inY) return false;
-      if (shape.fillColor !== 'transparent') return true; 
+      if (effectiveFill !== 'transparent') return true; 
       const nearLeft = Math.abs(checkPoint.x - shape.x) < threshold;
       const nearRight = Math.abs(checkPoint.x - (shape.x + shape.width)) < threshold;
       const nearTop = Math.abs(checkPoint.y - shape.y) < threshold;
@@ -251,7 +253,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1): b
     case 'polygon': 
       if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
       const pDist = getDistance(point, { x: shape.x, y: shape.y });
-      if (shape.fillColor !== 'transparent') return pDist <= shape.radius + threshold;
+      if (effectiveFill !== 'transparent') return pDist <= shape.radius + threshold;
       return Math.abs(pDist - shape.radius) <= threshold;
 
     case 'polyline':

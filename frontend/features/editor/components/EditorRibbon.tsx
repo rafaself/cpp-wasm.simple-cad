@@ -11,6 +11,7 @@ import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 import NumberSpinner from '../../../components/NumberSpinner';
 import EditableNumber from '../../../components/EditableNumber';
 import CustomSelect from '../../../components/CustomSelect';
+import { buildColorModeUpdate } from '../../../utils/shapeColors';
 
 type ColorPickerTarget =
   | { type: 'stroke' }
@@ -410,11 +411,25 @@ const EditorRibbon: React.FC = () => {
 
       if (colorPickerTarget.type === 'stroke') {
         uiStore.setStrokeColor(newColor);
-        selectedTextIds.forEach(id => dataStore.updateShape(id, { strokeColor: newColor }, true));
+        selectedTextIds.forEach(id => {
+          const shape = dataStore.shapes[id];
+          if (!shape) return;
+          dataStore.updateShape(id, {
+            strokeColor: newColor,
+            colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
+          }, true);
+        });
       }
       if (colorPickerTarget.type === 'fill') {
         uiStore.setFillColor(newColor);
-        selectedTextIds.forEach(id => dataStore.updateShape(id, { fillColor: newColor }, true));
+        selectedTextIds.forEach(id => {
+          const shape = dataStore.shapes[id];
+          if (!shape) return;
+          dataStore.updateShape(id, {
+            fillColor: newColor,
+            colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
+          }, true);
+        });
       }
   };
 

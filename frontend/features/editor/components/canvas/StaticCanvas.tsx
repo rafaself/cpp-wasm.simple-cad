@@ -72,7 +72,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             if (layer && !layer.visible) return;
 
             try {
-                renderShape(ctx, shape, viewTransform);
+                renderShape(ctx, shape, viewTransform, layer);
             } catch (e) {
                 console.error("Error drawing shape", shape.id, e);
             }

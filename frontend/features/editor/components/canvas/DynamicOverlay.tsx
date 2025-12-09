@@ -9,6 +9,7 @@ import { useCanvasInteraction } from './hooks/useCanvasInteraction';
 import { drawGhostShape } from './renderers/GhostRenderer';
 import { drawSelectionHighlight, drawHandles } from './renderers/SelectionRenderer';
 import TextEditorOverlay from './overlays/TextEditorOverlay';
+import { getDefaultColorMode } from '../../../../utils/shapeColors';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -180,7 +181,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                     strokeColor: uiStore.strokeColor,
                     strokeWidth: uiStore.strokeWidth,
                     strokeEnabled: uiStore.strokeEnabled,
-                    fillColor: 'transparent'
+                    fillColor: 'transparent',
+                    colorMode: getDefaultColorMode()
                 };
                 dataStore.addShape(n);
                 setters.setArcPoints(null);

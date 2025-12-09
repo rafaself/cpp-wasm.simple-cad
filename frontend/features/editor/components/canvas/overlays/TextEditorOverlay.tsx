@@ -3,6 +3,7 @@ import { TEXT_PADDING, worldToScreen, getWrappedLines } from '../../../../../uti
 import { ViewTransform } from '../../../../../types';
 import { useUIStore } from '../../../../../stores/useUIStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
+import { getDefaultColorMode, getEffectiveStrokeColor } from '../../../../../utils/shapeColors';
 
 export interface TextEditState {
     id?: string;
@@ -92,6 +93,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                     strokeWidth: 1,
                     strokeEnabled: true,
                     fillColor: 'transparent',
+                    colorMode: getDefaultColorMode(),
                     points: []
                 });
             }
@@ -109,6 +111,10 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
         }, 0);
     };
 
+    const editingShape = textEditState.id ? dataStore.shapes[textEditState.id] : undefined;
+    const editingLayer = editingShape ? dataStore.layers.find(l => l.id === editingShape.layerId) : undefined;
+    const editingStrokeColor = editingShape ? getEffectiveStrokeColor(editingShape, editingLayer) : uiStore.strokeColor;
+
     return (
         <textarea
             autoFocus
@@ -124,7 +130,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                  fontFamily: dataStore.shapes[textEditState.id || '']?.fontFamily || uiStore.textFontFamily,
                  fontWeight: (dataStore.shapes[textEditState.id || '']?.bold ?? uiStore.textBold) ? '700' : '400',
                  fontStyle: (dataStore.shapes[textEditState.id || '']?.italic ?? uiStore.textItalic) ? 'italic' : 'normal',
-                 color: dataStore.shapes[textEditState.id || '']?.strokeColor || uiStore.strokeColor,
+                 color: editingStrokeColor,
                  textAlign: dataStore.shapes[textEditState.id || '']?.align || uiStore.textAlign,
                  textDecoration: `${(dataStore.shapes[textEditState.id || '']?.underline ?? uiStore.textUnderline) ? 'underline ' : ''}${(dataStore.shapes[textEditState.id || '']?.strike ?? uiStore.textStrike) ? 'line-through' : ''}`.trim(),
                  padding: `${TEXT_PADDING * viewTransform.scale}px`,

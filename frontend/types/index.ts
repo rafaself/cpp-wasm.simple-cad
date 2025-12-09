@@ -35,6 +35,13 @@ export interface Layer {
   locked: boolean;
 }
 
+export type ColorInheritanceMode = 'layer' | 'custom';
+
+export interface ShapeColorMode {
+  fill: ColorInheritanceMode;
+  stroke: ColorInheritanceMode;
+}
+
 export interface SnapOptions {
   enabled: boolean;
   endpoint: boolean;
@@ -64,6 +71,7 @@ export interface Shape {
   strokeEnabled?: boolean; // false = no stroke
   fillColor: string; // Background color for text
   fillOpacity?: number; // 0-100
+  colorMode?: ShapeColorMode;
   
   // Text Properties
   textContent?: string;
