@@ -29,7 +29,8 @@ export interface Rect {
 export interface Layer {
   id: string;
   name: string;
-  color: string;
+  strokeColor: string;
+  fillColor: string;
   visible: boolean;
   locked: boolean;
 }

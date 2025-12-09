@@ -35,7 +35,8 @@ interface DataState {
   setActiveLayerId: (id: string) => void;
   addLayer: () => void;
   deleteLayer: (id: string) => void;
-  setLayerColor: (id: string, color: string) => void;
+  setLayerStrokeColor: (id: string, color: string) => void;
+  setLayerFillColor: (id: string, color: string) => void;
   toggleLayerVisibility: (id: string) => void;
   toggleLayerLock: (id: string) => void;
   updateLayer: (id: string, updates: Partial<Layer>) => void;
@@ -54,11 +55,12 @@ interface DataState {
 
   // Helpers
   syncQuadTree: () => void;
+  ensureLayer: (name: string) => string;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
   shapes: {},
-  layers: [{ id: '0', name: 'Layer 0', color: '#ffffff', visible: true, locked: false }],
+  layers: [{ id: '0', name: 'Layer 0', strokeColor: '#000000', fillColor: '#ffffff', visible: true, locked: false }],
   activeLayerId: '0',
   worldScale: 50,
 
@@ -206,7 +208,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   addLayer: () => set((state) => {
     const newId = Date.now().toString();
-    const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, color: '#' + Math.floor(Math.random()*16777215).toString(16), visible: true, locked: false };
+    const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', fillColor: '#' + Math.floor(Math.random()*16777215).toString(16), visible: true, locked: false };
     return { layers: [...state.layers, newLayer], activeLayerId: newId };
   }),
 
@@ -243,8 +245,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  setLayerColor: (id, color) => set(state => ({
-      layers: state.layers.map(l => l.id === id ? { ...l, color } : l)
+  setLayerStrokeColor: (id, color) => set(state => ({
+      layers: state.layers.map(l => l.id === id ? { ...l, strokeColor: color } : l)
+  })),
+
+  setLayerFillColor: (id, color) => set(state => ({
+      layers: state.layers.map(l => l.id === id ? { ...l, fillColor: color } : l)
   })),
 
   toggleLayerVisibility: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l) })),
@@ -457,5 +463,24 @@ export const useDataStore = create<DataState>((set, get) => ({
       const newY = (canvasSize.height / 2) - (centerY * scale);
 
       setViewTransform({ x: newX, y: newY, scale });
+  },
+
+  ensureLayer: (name: string) => {
+      const { layers } = get();
+      const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
+      if (existing) return existing.id;
+      
+      const newId = Date.now().toString();
+      set(state => ({
+          layers: [...state.layers, {
+              id: newId,
+              name: name,
+              strokeColor: '#000000',
+              fillColor: '#ffffff',
+              visible: true,
+              locked: false
+          }]
+      }));
+      return newId;
   },
 }));

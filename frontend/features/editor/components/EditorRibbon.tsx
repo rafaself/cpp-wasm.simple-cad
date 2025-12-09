@@ -14,8 +14,7 @@ import CustomSelect from '../../../components/CustomSelect';
 
 type ColorPickerTarget =
   | { type: 'stroke' }
-  | { type: 'fill' }
-  | { type: 'layer'; layerId: string };
+  | { type: 'fill' };
 
 const RIBBON_SURFACE_COLOR = '#0f172a';
 
@@ -140,10 +139,11 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'TextAlignControl': TextAlignControl,
     'TextStyleControl': TextStyleControl,
     'TextFormatGroup': TextFormatGroup,
-    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore, openColorPicker }) => {
-        const layerColor = activeLayer?.color || '#FFFFFF';
-        const iconColor = ensureContrastColor(layerColor, RIBBON_SURFACE_COLOR);
-        const swatchBorderColor = ensureContrastColor(layerColor, RIBBON_SURFACE_COLOR, 0.6);
+    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore }) => {
+        const strokeColor = activeLayer?.strokeColor || '#000000';
+        const fillColor = activeLayer?.fillColor || '#FFFFFF';
+        const iconColor = ensureContrastColor(fillColor === 'transparent' ? '#1e293b' : fillColor, RIBBON_SURFACE_COLOR);
+        const swatchBorderColor = ensureContrastColor(strokeColor, RIBBON_SURFACE_COLOR, 0.6);
         return (
             <div className="flex flex-col justify-center gap-1.5 h-full px-2 w-[180px]">
                 {/* Top Row: Layer Select */}
@@ -162,15 +162,11 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                     >
                         <div className="flex items-center gap-2 overflow-hidden">
                             <span
-                                className="w-3.5 h-3.5 rounded-full flex-none border cursor-pointer"
-                                style={{ backgroundColor: layerColor, borderColor: swatchBorderColor }}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (activeLayer) openColorPicker(e, { type: 'layer', layerId: activeLayer.id });
-                                }}
-                                title="Abrir seletor de cor"
+                                className="w-3.5 h-3.5 rounded-full flex-none cursor-default"
+                                style={{ backgroundColor: fillColor, border: `2px solid ${strokeColor}` }}
+                                title="Indicador de Cores da Camada (Traço/Fundo)"
                             />
-                            <Layers size={14} style={{ color: iconColor }} />
+                            <Layers size={14} className="text-slate-400" />
                             <span className="truncate">{activeLayer?.name || 'Selecione'}</span>
                         </div>
                         <ChevronDown size={12} className={`text-slate-500 transition-transform duration-300 ease-in-out ${isLayerDropdownOpen ? '-rotate-180' : 'rotate-0'}`} />
@@ -183,7 +179,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         >
                             {dataStore.layers.map((layer: any) => (
                                 <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700/50 cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e: any) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
-                                    <div className="w-2 h-2 rounded-full mr-3 shadow-sm" style={{backgroundColor: layer.color}}></div>
+                                    <div className="w-2 h-2 rounded-full mr-3 shadow-sm" style={{backgroundColor: layer.fillColor, border: `1px solid ${layer.strokeColor}`}}></div>
                                     <span className="flex-grow text-xs text-slate-200">{layer.name}</span>
                                     <div className="flex gap-1">
                                         <button className="p-1 hover:text-white text-slate-500 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.toggleLayerVisibility(layer.id); }}>{layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}</button>
@@ -403,16 +399,10 @@ const EditorRibbon: React.FC = () => {
       setColorPickerTarget(target);
   };
 
-  const layerPickerColor = colorPickerTarget?.type === 'layer'
-    ? dataStore.layers.find(l => l.id === colorPickerTarget.layerId)?.color ?? '#FFFFFF'
-    : undefined;
-
   const activeColor = colorPickerTarget
     ? colorPickerTarget.type === 'stroke'
       ? uiStore.strokeColor
-      : colorPickerTarget.type === 'fill'
-        ? uiStore.fillColor
-        : layerPickerColor
+      : uiStore.fillColor
     : '#FFFFFF';
 
   const handleColorChange = (newColor: string) => {
@@ -426,9 +416,6 @@ const EditorRibbon: React.FC = () => {
         uiStore.setFillColor(newColor);
         selectedTextIds.forEach(id => dataStore.updateShape(id, { fillColor: newColor }, true));
       }
-      if (colorPickerTarget.type === 'layer') {
-        dataStore.setLayerColor(colorPickerTarget.layerId, newColor);
-      }
   };
 
   const componentProps = {
@@ -441,7 +428,6 @@ const EditorRibbon: React.FC = () => {
       dropdownPos,
       dataStore,
       uiStore,
-      openColorPicker,
       selectedTextIds,
       applyTextUpdate
   };

@@ -8,20 +8,26 @@ const LayerManagerModal: React.FC = () => {
   const uiStore = useUIStore();
   const dataStore = useDataStore();
   const [colorPickerLayerId, setColorPickerLayerId] = useState<string | null>(null);
+  const [colorPickerType, setColorPickerType] = useState<'stroke' | 'fill' | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
-  const openColorPicker = (e: React.MouseEvent, layerId: string) => {
+  const openColorPicker = (e: React.MouseEvent, layerId: string, type: 'stroke' | 'fill') => {
     e.stopPropagation();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setColorPickerPos({ top: rect.bottom + 5, left: rect.left - 100 });
     setColorPickerLayerId(layerId);
+    setColorPickerType(type);
   };
 
   const handleColorChange = (newColor: string) => {
-    if (colorPickerLayerId) {
-      dataStore.setLayerColor(colorPickerLayerId, newColor);
+    if (colorPickerLayerId && colorPickerType) {
+      if (colorPickerType === 'stroke') {
+        dataStore.setLayerStrokeColor(colorPickerLayerId, newColor);
+      } else {
+        dataStore.setLayerFillColor(colorPickerLayerId, newColor);
+      }
     }
   };
 
@@ -48,12 +54,13 @@ const LayerManagerModal: React.FC = () => {
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[40px_1fr_60px_60px_60px_40px] gap-1 px-4 py-2 bg-slate-900/50 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-700 select-none">
+          <div className="grid grid-cols-[40px_1fr_60px_60px_60px_60px_40px] gap-1 px-4 py-2 bg-slate-900/50 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-700 select-none">
               <div className="text-center" title="Camada Atual">Status</div>
               <div>Nome</div>
               <div className="text-center">Visível</div>
               <div className="text-center">Bloq.</div>
-              <div className="text-center">Cor</div>
+              <div className="text-center">Traço</div>
+              <div className="text-center">Fundo</div>
               <div className="text-center">Ação</div>
           </div>
 
@@ -65,11 +72,11 @@ const LayerManagerModal: React.FC = () => {
 
                 return (
                 <div key={layer.id} 
-                     className={`grid grid-cols-[40px_1fr_60px_60px_60px_40px] gap-1 px-4 py-2 border-b border-slate-700 items-center hover:bg-slate-700/50 transition-colors text-xs cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-blue-900/20' : ''}`}
+                     className={`grid grid-cols-[40px_1fr_60px_60px_60px_60px_40px] gap-1 px-4 py-2 border-b border-slate-700 items-center hover:bg-slate-700/50 transition-colors text-xs cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-blue-900/20' : ''}`}
                      onClick={() => dataStore.setActiveLayerId(layer.id)}
                 >
                     <div className="flex justify-center">
-                        {layer.id === dataStore.activeLayerId ? <Check size={14} className="text-green-500" /> : <div className="w-3 h-3 rounded-full" style={{backgroundColor: layer.color, opacity: 0.5}}></div>}
+                        {layer.id === dataStore.activeLayerId ? <Check size={14} className="text-green-500" /> : <div className="w-3 h-3 rounded-full" style={{backgroundColor: layer.fillColor, border: `1px solid ${layer.strokeColor}`, opacity: 0.8}}></div>}
                     </div>
                     
                     <div className="font-medium truncate flex items-center h-full text-slate-200">
@@ -123,9 +130,18 @@ const LayerManagerModal: React.FC = () => {
                     <div className="flex justify-center">
                         <div 
                             className="w-5 h-5 rounded-sm border border-slate-500 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                            style={{ backgroundColor: layer.color, opacity: Math.max(0.05, 1) }}
-                            onClick={(e) => openColorPicker(e, layer.id)}
-                            title="Cor da Camada"
+                            style={{ backgroundColor: layer.strokeColor, opacity: Math.max(0.05, 1) }}
+                            onClick={(e) => openColorPicker(e, layer.id, 'stroke')}
+                            title="Cor do Traço"
+                        />
+                    </div>
+
+                    <div className="flex justify-center">
+                        <div 
+                            className="w-5 h-5 rounded-sm border border-slate-500 cursor-pointer hover:scale-110 transition-transform shadow-sm"
+                            style={{ backgroundColor: layer.fillColor, opacity: Math.max(0.05, 1) }}
+                            onClick={(e) => openColorPicker(e, layer.id, 'fill')}
+                            title="Cor do Fundo"
                         />
                     </div>
 
@@ -151,7 +167,7 @@ const LayerManagerModal: React.FC = () => {
          <>
            <div className="fixed inset-0 z-[110]" onClick={() => setColorPickerLayerId(null)} />
            <ColorPicker 
-             color={activeLayer?.color || '#FFFFFF'}
+             color={activeLayer ? (colorPickerType === 'stroke' ? activeLayer.strokeColor : activeLayer.fillColor) : '#FFFFFF'}
              onChange={handleColorChange}
              onClose={() => setColorPickerLayerId(null)}
              initialPosition={colorPickerPos}

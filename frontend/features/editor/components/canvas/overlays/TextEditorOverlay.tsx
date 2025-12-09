@@ -71,9 +71,10 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                  }, true);
                  setEditingTextId(null);
             } else {
+                const textLayerId = dataStore.ensureLayer('Texto');
                 dataStore.addShape({
                     id: Date.now().toString(),
-                    layerId: dataStore.activeLayerId,
+                    layerId: textLayerId,
                     type: 'text',
                     x: textEditState.x,
                     y: textEditState.y,
