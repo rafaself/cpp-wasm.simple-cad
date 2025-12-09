@@ -73,16 +73,10 @@ export const MENU_CONFIG: MenuTab[] = [
           layout: 'row',
           items: [
               { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text', shortcut: 'T' },
-              { id: 'text-toolbar', label: 'Editor', icon: 'Settings', type: 'component', componentName: 'TextToolbar' },
+              { id: 'text-format-group', label: 'Formatação', icon: 'Settings', type: 'component', componentName: 'TextFormatGroup' },
           ]
       },
-      {
-          title: 'Anotação',
-          layout: 'row',
-          items: [
-              { id: 'measure', label: 'Medir', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
-          ]
-      },
+
       {
           title: 'Aparência',
           layout: 'row',
@@ -116,6 +110,13 @@ export const MENU_CONFIG: MenuTab[] = [
             { id: 'join', label: 'Unir', icon: 'Join', type: 'action', action: 'join' },
             { id: 'explode', label: 'Explodir', icon: 'Explode', type: 'action', action: 'explode' },
         ]
+      },
+      {
+          title: 'Medição',
+          layout: 'row',
+          items: [
+              { id: 'measure', label: 'Medir', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
+          ]
       },
       {
         title: 'Navegar',

@@ -84,7 +84,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedShapeIds: new Set<string>(),
 
   strokeColor: '#000000',
-  strokeWidth: 2,
+  strokeWidth: 1,
   strokeEnabled: true,
   fillColor: 'transparent',
   polygonSides: 5,

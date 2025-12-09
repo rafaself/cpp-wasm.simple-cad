@@ -11,8 +11,8 @@ import {
 
 export const IconMap: Record<string, React.ReactNode> = {
   // Increased size for Line as requested
-  'Line': <Minus size={28} className="transform -rotate-45" />,
-  'Arrow': <MoveUpRight size={22} />,
+  'Line': <Minus size={24} className="transform -rotate-45" />,
+  'Arrow': <MoveUpRight size={20} />,
   'Polyline': <Activity size={20} />,
   'Circle': <Circle size={20} />,
   'Arc': <Spline size={20} />,
