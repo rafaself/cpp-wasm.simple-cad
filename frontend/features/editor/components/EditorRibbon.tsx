@@ -173,7 +173,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                             <Layers size={14} style={{ color: iconColor }} />
                             <span className="truncate">{activeLayer?.name || 'Selecione'}</span>
                         </div>
-                        <ChevronDown size={12} className="text-slate-500" />
+                        <ChevronDown size={12} className={`text-slate-500 transition-transform duration-300 ease-in-out ${isLayerDropdownOpen ? '-rotate-180' : 'rotate-0'}`} />
                     </button>
                     {isLayerDropdownOpen && typeof document !== 'undefined' && createPortal(
                         <div
@@ -226,8 +226,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         className={`h-7 px-2 flex items-center gap-1.5 ${BASE_BUTTON_STYLE} text-[9px] uppercase font-bold tracking-wide`}
                         title="Gerenciador de Camadas"
                     >
-                        <Settings2 size={14} />
-                        <span>Gerir</span>
+                        <Settings2 size={18} />
                     </button>
                 </div>
             </div>

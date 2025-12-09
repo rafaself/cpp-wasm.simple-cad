@@ -9,6 +9,8 @@ const LayerManagerModal: React.FC = () => {
   const dataStore = useDataStore();
   const [colorPickerLayerId, setColorPickerLayerId] = useState<string | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   const openColorPicker = (e: React.MouseEvent, layerId: string) => {
     e.stopPropagation();
@@ -71,7 +73,39 @@ const LayerManagerModal: React.FC = () => {
                     </div>
                     
                     <div className="font-medium truncate flex items-center h-full text-slate-200">
-                       {layer.name}
+                       {editingLayerId === layer.id ? (
+                           <input 
+                                autoFocus
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onBlur={() => {
+                                    if (editingName.trim()) dataStore.updateLayer(layer.id, { name: editingName.trim() });
+                                    setEditingLayerId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        if (editingName.trim()) dataStore.updateLayer(layer.id, { name: editingName.trim() });
+                                        setEditingLayerId(null);
+                                    }
+                                    if (e.key === 'Escape') setEditingLayerId(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full bg-slate-900 border border-blue-500 rounded px-1 py-0.5 text-xs text-white outline-none"
+                           />
+                       ) : (
+                           <span 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingLayerId(layer.id);
+                                    setEditingName(layer.name);
+                                }}
+                                className="truncate w-full cursor-text hover:text-blue-300 transition-colors"
+                                title="Clique para renomear"
+                           >
+                               {layer.name}
+                           </span>
+                       )}
                     </div>
                     
                     <div className="flex justify-center">

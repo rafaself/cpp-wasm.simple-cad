@@ -38,6 +38,7 @@ interface DataState {
   setLayerColor: (id: string, color: string) => void;
   toggleLayerVisibility: (id: string) => void;
   toggleLayerLock: (id: string) => void;
+  updateLayer: (id: string, updates: Partial<Layer>) => void;
 
   // Complex Ops (often rely on selection)
   alignSelected: (ids: string[], alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
@@ -249,6 +250,10 @@ export const useDataStore = create<DataState>((set, get) => ({
   toggleLayerVisibility: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l) })),
 
   toggleLayerLock: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, locked: !l.locked } : l) })),
+  
+  updateLayer: (id, updates) => set((state) => ({
+      layers: state.layers.map(l => l.id === id ? { ...l, ...updates } : l)
+  })),
 
   alignSelected: (ids, alignment) => {
     const { shapes, saveToHistory, updateShape } = get();
