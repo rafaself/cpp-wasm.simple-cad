@@ -11,7 +11,7 @@ import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 import NumberSpinner from '../../../components/NumberSpinner';
 import EditableNumber from '../../../components/EditableNumber';
 import CustomSelect from '../../../components/CustomSelect';
-import { buildColorModeUpdate } from '../../../utils/shapeColors';
+import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor } from '../../../utils/shapeColors';
 
 type ColorPickerTarget =
   | { type: 'stroke' }
@@ -229,80 +229,102 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
             </div>
         );
     },
-    'ColorControl': ({ uiStore, openColorPicker }) => (
-        <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[160px]">
-            {/* Top Row: Colors */}
-            <div className="grid grid-cols-2 gap-2 w-full">
-                {[
-                    { 
-                        label: 'Traço', 
-                        type: 'stroke', 
-                        enabled: uiStore.strokeEnabled !== false, 
-                        color: uiStore.strokeColor, 
-                        setter: uiStore.setStrokeEnabled,
-                        open: (e: React.MouseEvent) => openColorPicker(e, { type: 'stroke' })
-                    },
-                    { 
-                        label: 'Fundo', 
-                        type: 'fill', 
-                        enabled: uiStore.fillColor !== 'transparent', 
-                        color: uiStore.fillColor, 
-                        setter: (checked: boolean) => uiStore.setFillColor(checked ? '#eeeeee' : 'transparent'),
-                        open: (e: React.MouseEvent) => openColorPicker(e, { type: 'fill' })
-                    }
-                ].map((idx) => (
-                    <div key={idx.type} className="flex flex-col items-center gap-0.5">
-                         <span className={LABEL_STYLE} style={{marginBottom: 0}}>{idx.label}</span>
-                        <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!idx.enabled ? 'opacity-50' : ''}`}>
+    'ColorControl': ({ uiStore, dataStore, activeLayer, openColorPicker, selectedShapeIds }) => {
+        // Get first selected shape (if any) to show its colors
+        const selectedIds: string[] = Array.from(uiStore.selectedShapeIds);
+        const firstSelectedShape = selectedIds.length > 0 ? dataStore.shapes[selectedIds[0]] : null;
+        
+        // Determine display colors: from selected shape or from active layer
+        const displayStrokeColor = firstSelectedShape 
+            ? getEffectiveStrokeColor(firstSelectedShape, activeLayer) 
+            : (activeLayer?.strokeColor || '#000000');
+        const displayFillColor = firstSelectedShape 
+            ? getEffectiveFillColor(firstSelectedShape, activeLayer) 
+            : (activeLayer?.fillColor || '#ffffff');
+        
+        // Determine if stroke/fill are enabled
+        const strokeEnabled = firstSelectedShape 
+            ? firstSelectedShape.strokeEnabled !== false 
+            : uiStore.strokeEnabled !== false;
+        const fillEnabled = firstSelectedShape 
+            ? displayFillColor !== 'transparent' 
+            : uiStore.fillColor !== 'transparent';
+
+        return (
+            <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[160px]">
+                {/* Top Row: Colors */}
+                <div className="grid grid-cols-2 gap-2 w-full">
+                    {[
+                        { 
+                            label: 'Traço', 
+                            type: 'stroke', 
+                            enabled: strokeEnabled, 
+                            color: displayStrokeColor, 
+                            setter: uiStore.setStrokeEnabled,
+                            open: (e: React.MouseEvent) => openColorPicker(e, { type: 'stroke' })
+                        },
+                        { 
+                            label: 'Fundo', 
+                            type: 'fill', 
+                            enabled: fillEnabled, 
+                            color: displayFillColor, 
+                            setter: (checked: boolean) => uiStore.setFillColor(checked ? '#eeeeee' : 'transparent'),
+                            open: (e: React.MouseEvent) => openColorPicker(e, { type: 'fill' })
+                        }
+                    ].map((idx) => (
+                        <div key={idx.type} className="flex flex-col items-center gap-0.5">
+                             <span className={LABEL_STYLE} style={{marginBottom: 0}}>{idx.label}</span>
+                            <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!idx.enabled ? 'opacity-50' : ''}`}>
+                                <input
+                                    type="checkbox"
+                                    checked={idx.enabled}
+                                    onChange={(e) => idx.setter(e.target.checked)}
+                                    className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
+                                />
+                                 <div
+                                    className={`w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform`}
+                                    style={{
+                                        backgroundColor: idx.color === 'transparent' ? 'transparent' : idx.color,
+                                        backgroundImage: idx.color === 'transparent' || (idx.type === 'fill' && idx.color === 'transparent') ? 
+                                            'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)' 
+                                            : 'none',
+                                        backgroundSize: '4px 4px'
+                                    }}
+                                    onClick={(e) => idx.enabled && idx.open(e)}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Bottom Row: Slider */}
+                 <div className="flex flex-col w-full gap-0.5 mt-0.5">
+                     <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider px-0.5">Espessura</span>
+                     <div className="flex items-center gap-1.5 w-full">
+                         <EditableNumber 
+                            value={uiStore.strokeWidth} 
+                            onChange={uiStore.setStrokeWidth} 
+                            min={0} 
+                            max={50}
+                            className="w-[32px] h-6 flex-none"
+                            displayClassName="text-[10px] font-mono"
+                         />
+                        <div className="flex-1 bg-slate-800/40 rounded-full h-4 flex items-center px-1 border border-slate-700/30">
                             <input
-                                type="checkbox"
-                                checked={idx.enabled}
-                                onChange={(e) => idx.setter(e.target.checked)}
-                                className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
-                            />
-                             <div
-                                className={`w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform`}
-                                style={{
-                                    backgroundColor: idx.color === 'transparent' ? 'transparent' : idx.color,
-                                    backgroundImage: idx.color === 'transparent' || (idx.type === 'fill' && idx.color === 'transparent') ? 
-                                        'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)' 
-                                        : 'none',
-                                    backgroundSize: '4px 4px'
-                                }}
-                                onClick={(e) => idx.enabled && idx.open(e)}
+                                type="range"
+                                min="0"
+                                max="50"
+                                step="1"
+                                value={uiStore.strokeWidth}
+                                onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
+                                className="w-full h-0.5 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 hover:[&::-webkit-slider-thumb]:bg-blue-400 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none"
                             />
                         </div>
                     </div>
-                ))}
-            </div>
-
-            {/* Bottom Row: Slider */}
-             <div className="flex flex-col w-full gap-0.5 mt-0.5">
-                 <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider px-0.5">Espessura</span>
-                 <div className="flex items-center gap-1.5 w-full">
-                     <EditableNumber 
-                        value={uiStore.strokeWidth} 
-                        onChange={uiStore.setStrokeWidth} 
-                        min={0} 
-                        max={50}
-                        className="w-[32px] h-6 flex-none"
-                        displayClassName="text-[10px] font-mono"
-                     />
-                    <div className="flex-1 bg-slate-800/40 rounded-full h-4 flex items-center px-1 border border-slate-700/30">
-                        <input
-                            type="range"
-                            min="0"
-                            max="50"
-                            step="1"
-                            value={uiStore.strokeWidth}
-                            onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
-                            className="w-full h-0.5 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 hover:[&::-webkit-slider-thumb]:bg-blue-400 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none"
-                        />
-                    </div>
                 </div>
             </div>
-        </div>
-    ),
+        );
+    },
     'LineWidthControl': () => null
 };
 
@@ -400,37 +422,54 @@ const EditorRibbon: React.FC = () => {
       setColorPickerTarget(target);
   };
 
-  const activeColor = colorPickerTarget
-    ? colorPickerTarget.type === 'stroke'
-      ? uiStore.strokeColor
-      : uiStore.fillColor
-    : '#FFFFFF';
+  // Get all selected shape IDs for color operations
+  const allSelectedIds = useMemo(
+    () => Array.from(uiStore.selectedShapeIds) as string[],
+    [uiStore.selectedShapeIds]
+  );
+  const firstSelectedShape = allSelectedIds.length > 0 ? dataStore.shapes[allSelectedIds[0]] : null;
+
+  const activeColor = useMemo(() => {
+    if (!colorPickerTarget) return '#FFFFFF';
+    if (colorPickerTarget.type === 'stroke') {
+      // Show color of first selected shape or layer color
+      return firstSelectedShape 
+        ? getEffectiveStrokeColor(firstSelectedShape, activeLayer)
+        : (activeLayer?.strokeColor || '#000000');
+    }
+    // fill
+    return firstSelectedShape 
+      ? getEffectiveFillColor(firstSelectedShape, activeLayer)
+      : (activeLayer?.fillColor || '#ffffff');
+  }, [colorPickerTarget, firstSelectedShape, activeLayer]);
 
   const handleColorChange = (newColor: string) => {
       if (!colorPickerTarget) return;
 
+      // Update UI store colors
       if (colorPickerTarget.type === 'stroke') {
         uiStore.setStrokeColor(newColor);
-        selectedTextIds.forEach(id => {
-          const shape = dataStore.shapes[id];
-          if (!shape) return;
+      } else {
+        uiStore.setFillColor(newColor);
+      }
+
+      // Apply to ALL selected shapes (not just text), and set colorMode to 'custom'
+      allSelectedIds.forEach(id => {
+        const shape = dataStore.shapes[id];
+        if (!shape) return;
+        
+        if (colorPickerTarget.type === 'stroke') {
           dataStore.updateShape(id, {
             strokeColor: newColor,
             colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
           }, true);
-        });
-      }
-      if (colorPickerTarget.type === 'fill') {
-        uiStore.setFillColor(newColor);
-        selectedTextIds.forEach(id => {
-          const shape = dataStore.shapes[id];
-          if (!shape) return;
+        } else {
           dataStore.updateShape(id, {
             fillColor: newColor,
             colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
           }, true);
-        });
-      }
+        }
+      });
   };
 
   const componentProps = {
@@ -444,7 +483,9 @@ const EditorRibbon: React.FC = () => {
       dataStore,
       uiStore,
       selectedTextIds,
-      applyTextUpdate
+      applyTextUpdate,
+      openColorPicker,
+      selectedShapeIds: allSelectedIds
   };
 
   return (

@@ -60,8 +60,8 @@ interface DataState {
 
 export const useDataStore = create<DataState>((set, get) => ({
   shapes: {},
-  layers: [{ id: '0', name: 'Layer 0', strokeColor: '#000000', fillColor: '#ffffff', visible: true, locked: false }],
-  activeLayerId: '0',
+  layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', fillColor: '#ffffff', visible: true, locked: false, isNative: true }],
+  activeLayerId: 'desenho',
   worldScale: 50,
 
   spatialIndex: initialQuadTree,
@@ -214,7 +214,9 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   deleteLayer: (id) => {
     const { layers, shapes, activeLayerId, saveToHistory, spatialIndex } = get();
-    if (layers.length <= 1 || id === activeLayerId) return;
+    const layerToDelete = layers.find(l => l.id === id);
+    // Cannot delete: only layer, active layer, or native layers
+    if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return;
 
     const newLayers = layers.filter(l => l.id !== id);
     const newShapes = { ...shapes };

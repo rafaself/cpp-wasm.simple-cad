@@ -47,4 +47,4 @@ This project has been refactored into a Monorepo structure with a Modular Monoli
    ```bash
    npm run dev
    ```
-   The application will be available at `http://localhost:3000` (or the port shown in the terminal).
+   Usually, the application will be available at `http://localhost:3000` (or the port shown in the terminal).

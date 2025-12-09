@@ -1,6 +1,6 @@
 import { Layer, Shape, ShapeColorMode } from '../types';
 
-const DEFAULT_COLOR_MODE: ShapeColorMode = { fill: 'custom', stroke: 'custom' };
+const DEFAULT_COLOR_MODE: ShapeColorMode = { fill: 'layer', stroke: 'layer' };
 
 export const getDefaultColorMode = (): ShapeColorMode => ({ ...DEFAULT_COLOR_MODE });
 

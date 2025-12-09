@@ -448,6 +448,21 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
         handles.push({ x: finalPoints[2].x, y: finalPoints[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
         handles.push({ x: finalPoints[3].x, y: finalPoints[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
     }
+    else if (shape.type === 'polygon' && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
+         // Create a bounding box around the polygon for handles
+         const r = shape.radius;
+         const x = shape.x;
+         const y = shape.y;
+         const p1 = { x: x - r, y: y - r };
+         const p2 = { x: x + r, y: y - r };
+         const p3 = { x: x + r, y: y + r };
+         const p4 = { x: x - r, y: y + r };
+
+         handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
+         handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
+         handles.push({ x: p3.x, y: p3.y, cursor: 'nwse-resize', index: 2, type: 'resize' });
+         handles.push({ x: p4.x, y: p4.y, cursor: 'nesw-resize', index: 3, type: 'resize' });
+    }
     else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) {
         const { width, height } = getTextDimensions(shape);
         const p1 = { x: shape.x, y: shape.y };

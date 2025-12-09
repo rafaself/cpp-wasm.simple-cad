@@ -19,6 +19,14 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
             }
         }
         else if (shape.type === 'circle') ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI*2);
+        else if (shape.type === 'polygon' && shape.sides && shape.radius) {
+            const sides = Math.max(3, shape.sides);
+            const angleStep = (Math.PI * 2) / sides;
+            const startAngle = -Math.PI / 2;
+            ctx.moveTo(shape.x! + shape.radius * Math.cos(startAngle), shape.y! + shape.radius * Math.sin(startAngle));
+            for (let i = 1; i <= sides; i++) ctx.lineTo(shape.x! + shape.radius * Math.cos(startAngle + i * angleStep), shape.y! + shape.radius * Math.sin(startAngle + i * angleStep));
+            ctx.closePath();
+        }
         else if (shape.type === 'line' && shape.points.length>=2) { ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); }
         // ...
         ctx.stroke();

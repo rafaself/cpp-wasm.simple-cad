@@ -33,6 +33,7 @@ export interface Layer {
   fillColor: string;
   visible: boolean;
   locked: boolean;
+  isNative?: boolean; // If true, layer cannot be deleted
 }
 
 export type ColorInheritanceMode = 'layer' | 'custom';

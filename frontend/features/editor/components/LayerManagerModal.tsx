@@ -146,7 +146,7 @@ const LayerManagerModal: React.FC = () => {
                     </div>
 
                     <div className="flex justify-center">
-                         {dataStore.layers.length > 1 && layer.id !== dataStore.activeLayerId && (
+                         {dataStore.layers.length > 1 && layer.id !== dataStore.activeLayerId && !layer.isNative && (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); if(confirm('Tem certeza que deseja excluir esta camada e todos os objetos nela?')) dataStore.deleteLayer(layer.id); }}
                                 className="text-slate-500 hover:text-red-500 p-1 rounded hover:bg-red-500/10 transition-colors"
