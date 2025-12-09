@@ -8,7 +8,6 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { PositionProperties } from './properties/PositionProperties';
 import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
-import { TypographyProperties } from './properties/TypographyProperties';
 
 const EditorSidebar: React.FC = () => {
   const uiStore = useUIStore();
@@ -129,7 +128,6 @@ const EditorSidebar: React.FC = () => {
       <div className="flex-grow overflow-y-auto bg-white custom-scrollbar">
         <PositionProperties selectedShape={selectedShape} />
         <DimensionProperties selectedShape={selectedShape} />
-        {selectedShape.type === 'text' && <TypographyProperties selectedShape={selectedShape} />}
         <StyleProperties selectedShape={selectedShape} />
       </div>
     );

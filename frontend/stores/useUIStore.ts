@@ -20,12 +20,6 @@ interface UIState {
   strokeEnabled: boolean;
   fillColor: string;
   polygonSides: number;
-  textSize: number;
-  fontFamily: string;
-  fontBold: boolean;
-  fontItalic: boolean;
-  fontUnderline: boolean;
-  fontStrike: boolean;
 
   // Grid
   gridSize: number;
@@ -56,12 +50,6 @@ interface UIState {
   setStrokeWidth: (width: number) => void;
   setStrokeEnabled: (enabled: boolean) => void;
   setFillColor: (color: string) => void;
-  setTextSize: (size: number) => void;
-  setFontFamily: (font: string) => void;
-  toggleFontBold: () => void;
-  toggleFontItalic: () => void;
-  toggleFontUnderline: () => void;
-  toggleFontStrike: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -80,13 +68,6 @@ export const useUIStore = create<UIState>((set) => ({
   strokeEnabled: true,
   fillColor: 'transparent',
   polygonSides: 5,
-
-  textSize: 20,
-  fontFamily: 'sans-serif',
-  fontBold: false,
-  fontItalic: false,
-  fontUnderline: false,
-  fontStrike: false,
 
   gridSize: 50,
   gridColor: '#e5e7eb',
@@ -115,10 +96,4 @@ export const useUIStore = create<UIState>((set) => ({
   setStrokeWidth: (width) => set({ strokeWidth: width }),
   setStrokeEnabled: (enabled) => set({ strokeEnabled: enabled }),
   setFillColor: (color) => set({ fillColor: color }),
-  setTextSize: (size) => set({ textSize: size }),
-  setFontFamily: (font) => set({ fontFamily: font }),
-  toggleFontBold: () => set(s => ({ fontBold: !s.fontBold })),
-  toggleFontItalic: () => set(s => ({ fontItalic: !s.fontItalic })),
-  toggleFontUnderline: () => set(s => ({ fontUnderline: !s.fontUnderline })),
-  toggleFontStrike: () => set(s => ({ fontStrike: !s.fontStrike })),
 }));

@@ -1,1 +1,0 @@
-// Deprecated. See src/features/editor/components/EditorCanvas.tsx

@@ -10,7 +10,6 @@ export type ToolType =
   | 'polyline' 
   | 'arc' 
   | 'measure'
-  | 'text'
   | 'move'
   | 'rotate';
 
@@ -64,15 +63,7 @@ export interface Shape {
   fillColor: string; // Background color for text
   fillOpacity?: number; // 0-100
   
-  // Text specific
   label?: string; // For measurements
-  text?: string; // For text tool
-  fontSize?: number; 
-  fontFamily?: string;
-  fontBold?: boolean;
-  fontItalic?: boolean;
-  fontUnderline?: boolean;
-  fontStrike?: boolean;
   
   rotation?: number; // Rotation in radians
 }

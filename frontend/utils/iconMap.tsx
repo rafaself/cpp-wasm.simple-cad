@@ -36,7 +36,6 @@ export const IconMap: Record<string, React.ReactNode> = {
   'AlignTop': <AlignVerticalJustifyStart size={18} />,
   'AlignMiddle': <AlignCenterVertical size={18} />,
   'AlignBottom': <AlignVerticalJustifyEnd size={18} />,
-  'Text': <Type size={20} />,
   'Move': <Move size={20} />,
   'Rotate': <RotateCw size={20} />,
   
