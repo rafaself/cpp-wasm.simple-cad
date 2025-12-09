@@ -4,6 +4,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Type, ChevronDown, ChevronUp } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 
@@ -189,7 +190,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'TextAlignControl': TextAlignControl,
     'TextStyleControl': TextStyleControl,
     'TextFormatGroup': TextFormatGroup,
-    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, closeLayerDropdown, layerButtonRef, dropdownPos, dataStore, uiStore }) => (
+    'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore }) => (
         <div className="flex flex-col justify-center gap-1.5 h-full px-2 w-[180px]">
             {/* Top Row: Layer Select */}
             <div className="w-full relative">
@@ -211,11 +212,11 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                     </div>
                     <ChevronDown size={12} className="text-slate-500" />
                 </button>
-                 {isLayerDropdownOpen && (
+                 {isLayerDropdownOpen && typeof document !== 'undefined' && createPortal(
                     <div
+                        ref={layerDropdownRef}
                         className="fixed w-64 bg-slate-800 border border-slate-600 shadow-xl rounded-lg z-[9999] max-h-64 overflow-y-auto menu-transition py-1"
                         style={{ top: dropdownPos.top + 4, left: dropdownPos.left }}
-                        onMouseLeave={() => setLayerDropdownOpen(false)}
                     >
                         {dataStore.layers.map((layer: any) => (
                             <div key={layer.id} className={`flex items-center p-2 hover:bg-slate-700/50 cursor-pointer ${layer.id === dataStore.activeLayerId ? 'bg-slate-700' : ''}`} onClick={(e: any) => { e.stopPropagation(); dataStore.setActiveLayerId(layer.id); setLayerDropdownOpen(false); }}>
@@ -231,7 +232,8 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         <div className="px-3 py-2 flex items-center gap-2 hover:bg-slate-700/50 cursor-pointer text-blue-400 transition-colors" onClick={(e: any) => { e.stopPropagation(); dataStore.addLayer(); }}>
                             <Plus size={14} /> <span className="text-xs font-medium">Nova Camada</span>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </div>
 
@@ -360,9 +362,9 @@ const EditorRibbon: React.FC = () => {
   
   // Layer Dropdown State
   const [isLayerDropdownOpen, setLayerDropdownOpen] = useState(false);
-  const layerButtonRef = useRef<HTMLDivElement>(null);
+  const layerButtonRef = useRef<HTMLButtonElement>(null);
+  const layerDropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-  const closeTimeoutRef = useRef<number | null>(null);
 
   const handleAction = (action?: string) => {
       const selectedIds = Array.from(uiStore.selectedShapeIds);
@@ -406,10 +408,6 @@ const EditorRibbon: React.FC = () => {
   };
 
   const openLayerDropdown = () => {
-    if (closeTimeoutRef.current) {
-        window.clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
-    }
     if (layerButtonRef.current) {
         const rect = layerButtonRef.current.getBoundingClientRect();
         setDropdownPos({ top: rect.bottom, left: rect.left });
@@ -417,17 +415,18 @@ const EditorRibbon: React.FC = () => {
     }
   };
 
-  const closeLayerDropdown = () => {
-    closeTimeoutRef.current = window.setTimeout(() => {
-        setLayerDropdownOpen(false);
-    }, 200);
-  };
-  
   useEffect(() => {
-    return () => {
-        if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
+    const handleClickOutside = (event: MouseEvent) => {
+        if (!isLayerDropdownOpen) return;
+        const target = event.target as Node | null;
+        if (!target) return;
+        if (layerButtonRef.current?.contains(target)) return;
+        if (layerDropdownRef.current?.contains(target)) return;
+        setLayerDropdownOpen(false);
     };
-  }, []);
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isLayerDropdownOpen]);
 
   const [colorPickerTarget, setColorPickerTarget] = useState<'stroke' | 'fill' | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
@@ -457,8 +456,8 @@ const EditorRibbon: React.FC = () => {
       isLayerDropdownOpen,
       setLayerDropdownOpen,
       openLayerDropdown,
-      closeLayerDropdown,
       layerButtonRef,
+      layerDropdownRef,
       dropdownPos,
       dataStore,
       uiStore,
