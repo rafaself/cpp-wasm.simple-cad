@@ -3,7 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Type, Bold, Italic, Underline, Strikethrough } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 
@@ -75,6 +75,86 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
             </div>
         </div>
     ),
+    'TextToolbar': ({ uiStore, selectedTextIds, applyTextUpdate }) => {
+        const fontOptions = ['Inter', 'Arial', 'Times New Roman', 'Courier New', 'Verdana'];
+        const alignOptions = [
+            { key: 'left', icon: <AlignLeft size={14} /> },
+            { key: 'center', icon: <AlignCenterHorizontal size={14} /> },
+            { key: 'right', icon: <AlignRight size={14} /> },
+        ];
+        const styleButtons = [
+            { key: 'bold', icon: <Bold size={14} />, active: uiStore.textBold, setter: uiStore.setTextBold, recalc: true },
+            { key: 'italic', icon: <Italic size={14} />, active: uiStore.textItalic, setter: uiStore.setTextItalic, recalc: true },
+            { key: 'underline', icon: <Underline size={14} />, active: uiStore.textUnderline, setter: uiStore.setTextUnderline, recalc: false },
+            { key: 'strike', icon: <Strikethrough size={14} />, active: uiStore.textStrike, setter: uiStore.setTextStrike, recalc: false },
+        ];
+
+        return (
+            <div className="flex flex-col gap-2 bg-slate-900/80 border border-slate-700 rounded-md px-3 py-2 w-full max-w-[320px]">
+                <div className="flex items-center gap-2 w-full">
+                    <select
+                        value={uiStore.textFontFamily}
+                        onChange={(e) => {
+                            uiStore.setTextFontFamily(e.target.value);
+                            if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: e.target.value }, true);
+                        }}
+                        className="flex-1 h-8 bg-slate-800 border border-slate-600 rounded text-[11px] px-2 text-slate-100 focus:outline-none focus:border-blue-500"
+                    >
+                        {fontOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                    <input
+                        type="number"
+                        min="8"
+                        max="128"
+                        value={uiStore.textFontSize}
+                        onChange={(e) => {
+                            const val = parseInt(e.target.value) || uiStore.textFontSize;
+                            uiStore.setTextFontSize(val);
+                            if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
+                        }}
+                        className="w-14 h-8 bg-slate-800 border border-slate-600 rounded text-[11px] px-2 text-slate-100 focus:outline-none focus:border-blue-500 text-center"
+                    />
+                </div>
+                <div className="flex items-center gap-2 w-full">
+                    <div className="flex bg-slate-800 rounded border border-slate-700 p-0.5 flex-1 justify-evenly">
+                        {styleButtons.map(({ key, icon, active, setter, recalc }) => (
+                            <button
+                                key={key}
+                                onClick={() => {
+                                    const next = !active;
+                                    setter(next);
+                                    if (selectedTextIds.length > 0) {
+                                        const diff: any = {};
+                                        diff[key === 'bold' ? 'bold' : key === 'italic' ? 'italic' : key === 'underline' ? 'underline' : 'strike'] = next;
+                                        applyTextUpdate(diff, recalc);
+                                    }
+                                }}
+                                className={`w-8 h-7 flex items-center justify-center rounded ${active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}
+                                title={key}
+                            >
+                                {icon}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex bg-slate-800 rounded border border-slate-700 p-0.5 flex-[0.9] justify-evenly">
+                        {alignOptions.map(({ key, icon }) => (
+                            <button
+                                key={key}
+                                onClick={() => {
+                                    uiStore.setTextAlign(key as any);
+                                    if (selectedTextIds.length > 0) applyTextUpdate({ align: key as any }, false);
+                                }}
+                                className={`w-8 h-7 flex items-center justify-center rounded ${uiStore.textAlign === key ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}
+                                title={key}
+                            >
+                                {icon}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    },
     'TextStyleControl': ({ uiStore, selectedTextIds, applyTextUpdate }) => (
         <div className="flex flex-col gap-1 w-32">
             <div className="flex items-center justify-between bg-slate-700 px-2 py-0.5 rounded border border-slate-600">
@@ -321,8 +401,14 @@ const EditorRibbon: React.FC = () => {
   const activeColor = colorPickerTarget === 'stroke' ? uiStore.strokeColor : uiStore.fillColor;
 
   const handleColorChange = (newColor: string) => {
-      if (colorPickerTarget === 'stroke') uiStore.setStrokeColor(newColor);
-      if (colorPickerTarget === 'fill') uiStore.setFillColor(newColor);
+      if (colorPickerTarget === 'stroke') {
+        uiStore.setStrokeColor(newColor);
+        selectedTextIds.forEach(id => dataStore.updateShape(id, { strokeColor: newColor }, true));
+      }
+      if (colorPickerTarget === 'fill') {
+        uiStore.setFillColor(newColor);
+        selectedTextIds.forEach(id => dataStore.updateShape(id, { fillColor: newColor }, true));
+      }
   };
 
   // Props to pass to generic components

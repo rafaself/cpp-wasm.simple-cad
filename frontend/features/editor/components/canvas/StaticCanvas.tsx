@@ -117,7 +117,8 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
                  ctx.direction = 'ltr';
                  ctx.textBaseline = 'top';
                  
-                 ctx.fillStyle = shape.strokeColor;
+                 const textColor = shape.strokeColor;
+                 const bgColor = shape.fillColor && shape.fillColor !== 'transparent' ? shape.fillColor : null;
                  
                  const pad = TEXT_PADDING;
                  const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
@@ -132,6 +133,12 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
                      else if (shape.align === 'right') xPos += (availableWidth - lineWidth);
                      
                      const yPos = shape.y! + pad + index * lineHeight;
+                     if (bgColor) {
+                        ctx.fillStyle = bgColor;
+                        ctx.fillRect(xPos - 1, yPos, lineWidth + 2, lineHeight);
+                     }
+
+                     ctx.fillStyle = textColor;
                      ctx.fillText(line, xPos, yPos);
 
                      if (shape.underline) {

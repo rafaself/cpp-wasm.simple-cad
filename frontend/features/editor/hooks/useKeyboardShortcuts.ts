@@ -48,6 +48,7 @@ export const useKeyboardShortcuts = () => {
         case 'g': uiStore.setTool('polygon'); break;
         case 'a': uiStore.setTool('arc'); break;
         case 'm': uiStore.setTool('measure'); break;
+        case 't': uiStore.setTool('text'); break;
         case 'delete':
             dataStore.deleteSelected(Array.from(uiStore.selectedShapeIds));
             break;

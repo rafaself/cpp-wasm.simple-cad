@@ -73,10 +73,7 @@ export const MENU_CONFIG: MenuTab[] = [
           layout: 'row',
           items: [
               { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text', shortcut: 'T' },
-              { id: 'font-family', label: 'Fonte', icon: 'Settings', type: 'component', componentName: 'FontFamilyControl' },
-              { id: 'font-size', label: 'Tam.', icon: 'Settings', type: 'component', componentName: 'FontSizeControl' },
-              { id: 'text-align', label: 'Alinh.', icon: 'Settings', type: 'component', componentName: 'TextAlignControl' },
-              { id: 'text-style', label: 'Estilo', icon: 'Settings', type: 'component', componentName: 'TextStyleControl' },
+              { id: 'text-toolbar', label: 'Editor', icon: 'Settings', type: 'component', componentName: 'TextToolbar' },
           ]
       },
       {
