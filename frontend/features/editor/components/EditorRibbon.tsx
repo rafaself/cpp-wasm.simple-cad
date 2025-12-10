@@ -1,30 +1,27 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { ensureContrastColor } from '../../../utils/color';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Type, ChevronDown, ChevronUp, Palette } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Palette, ChevronDown } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 import NumberSpinner from '../../../components/NumberSpinner';
 import EditableNumber from '../../../components/EditableNumber';
 import CustomSelect from '../../../components/CustomSelect';
 import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled, getShapeColorMode } from '../../../utils/shapeColors';
+import { Shape, Layer } from '../../../types';
+import { TextControlProps, TextUpdateDiff, ColorPickerTarget, getApplyLayerButtonState } from '../types/ribbon';
+import { UI, TEXT_STYLES, INPUT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
 
-type ColorPickerTarget =
-  | { type: 'stroke' }
-  | { type: 'fill' };
-
-const RIBBON_SURFACE_COLOR = '#0f172a';
-
-// Shared styles
-const LABEL_STYLE = "text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-1 block text-center";
-const INPUT_STYLE = "w-full h-7 bg-slate-900 border border-slate-700/50 rounded flex items-center px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all";
-const BASE_BUTTON_STYLE = "rounded hover:bg-slate-700 active:bg-slate-600 transition-colors text-slate-400 hover:text-slate-100 border border-transparent";
-const CENTERED_BUTTON_STYLE = `flex items-center justify-center ${BASE_BUTTON_STYLE}`;
-const ACTIVE_BUTTON_STYLE = "bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30";
+// Shared styles - using design tokens
+const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
+const INPUT_STYLE = INPUT_STYLES.ribbon;
+const BASE_BUTTON_STYLE = BUTTON_STYLES.base;
+const CENTERED_BUTTON_STYLE = BUTTON_STYLES.centered;
+const ACTIVE_BUTTON_STYLE = BUTTON_STYLES.active;
 
 
 
@@ -37,90 +34,127 @@ const FONT_OPTIONS = [
     { value: "Verdana", label: "Verdana" },
 ];
 
-const FontFamilyControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-full">
-        <CustomSelect
-            value={uiStore.textFontFamily}
-            onChange={(val) => {
-                uiStore.setTextFontFamily(val);
-                if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: val }, true);
-            }}
-            options={FONT_OPTIONS}
-            className={INPUT_STYLE}
-        />
-    </div>
-);
-
-const FontSizeControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-full items-center">
-        <NumberSpinner
-            value={uiStore.textFontSize}
-            onChange={(val) => {
-                uiStore.setTextFontSize(val);
-                if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
-            }}
-            min={8}
-            max={256}
-            className="w-full h-6"
-        />
-    </div>
-);
-
-const TextAlignControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-full items-center">
-        <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
-            {[
-                { align: 'left', icon: <AlignLeft size={16} /> },
-                { align: 'center', icon: <AlignCenterHorizontal size={16} /> },
-                { align: 'right', icon: <AlignRight size={16} /> }
-            ].map(({ align, icon }) => (
-                <button
-                    key={align}
-                    onClick={() => {
-                        uiStore.setTextAlign(align as any);
-                        if (selectedTextIds.length > 0) applyTextUpdate({ align: align as any }, false);
-                    }}
-                    className={`w-8 h-full ${CENTERED_BUTTON_STYLE} ${uiStore.textAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
-                    title={align}
-                >
-                    {icon}
-                </button>
-            ))}
+const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+    const textFontFamily = useUIStore((s) => s.textFontFamily);
+    const setTextFontFamily = useUIStore((s) => s.setTextFontFamily);
+    
+    const handleChange = (val: string) => {
+        setTextFontFamily(val);
+        if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: val }, true);
+    };
+    
+    return (
+        <div className="flex flex-col justify-center w-full">
+            <CustomSelect
+                value={textFontFamily}
+                onChange={handleChange}
+                options={FONT_OPTIONS}
+                className={INPUT_STYLE}
+            />
         </div>
-    </div>
-);
+    );
+};
 
-const TextStyleControl: React.FC<any> = ({ uiStore, selectedTextIds, applyTextUpdate }) => (
-    <div className="flex flex-col justify-center w-full items-center">
-        <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
-            {[
-                { key: 'bold', icon: <Bold size={16} />, active: uiStore.textBold, setter: uiStore.setTextBold, recalc: true },
-                { key: 'italic', icon: <Italic size={16} />, active: uiStore.textItalic, setter: uiStore.setTextItalic, recalc: true },
-                { key: 'underline', icon: <Underline size={16} />, active: uiStore.textUnderline, setter: uiStore.setTextUnderline, recalc: false },
-                { key: 'strike', icon: <Strikethrough size={16} />, active: uiStore.textStrike, setter: uiStore.setTextStrike, recalc: false },
-            ].map(({ key, icon, active, setter, recalc }) => (
-                <button
-                    key={key}
-                    onClick={() => {
-                        const next = !active;
-                        setter(next);
-                        if (selectedTextIds.length > 0) {
-                            const diff: any = {};
-                            diff[key === 'bold' ? 'bold' : key === 'italic' ? 'italic' : key === 'underline' ? 'underline' : 'strike'] = next;
-                            applyTextUpdate(diff, recalc);
-                        }
-                    }}
-                    className={`w-8 h-full ${CENTERED_BUTTON_STYLE} ${active ? 'bg-blue-600/30 text-blue-400' : ''}`}
-                    title={key}
-                >
-                    {icon}
-                </button>
-            ))}
+const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+    const textFontSize = useUIStore((s) => s.textFontSize);
+    const setTextFontSize = useUIStore((s) => s.setTextFontSize);
+    
+    const handleChange = (val: number) => {
+        setTextFontSize(val);
+        if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
+    };
+    
+    return (
+        <div className="flex flex-col justify-center w-full items-center">
+            <NumberSpinner
+                value={textFontSize}
+                onChange={handleChange}
+                min={8}
+                max={256}
+                className="w-full h-6"
+            />
         </div>
-    </div>
-);
+    );
+};
 
-const TextFormatGroup: React.FC<any> = (props) => (
+const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+    const textAlign = useUIStore((s) => s.textAlign);
+    const setTextAlign = useUIStore((s) => s.setTextAlign);
+    
+    const alignOptions: Array<{ align: 'left' | 'center' | 'right'; icon: React.ReactNode }> = [
+        { align: 'left', icon: <AlignLeft size={16} /> },
+        { align: 'center', icon: <AlignCenterHorizontal size={16} /> },
+        { align: 'right', icon: <AlignRight size={16} /> }
+    ];
+    
+    return (
+        <div className="flex flex-col justify-center w-full items-center">
+            <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
+                {alignOptions.map(({ align, icon }) => (
+                    <button
+                        key={align}
+                        onClick={() => {
+                            setTextAlign(align);
+                            if (selectedTextIds.length > 0) applyTextUpdate({ align }, false);
+                        }}
+                        className={`w-8 h-full ${CENTERED_BUTTON_STYLE} ${textAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
+                        title={align}
+                    >
+                        {icon}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+type StyleKey = 'bold' | 'italic' | 'underline' | 'strike';
+
+const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+    const textBold = useUIStore((s) => s.textBold);
+    const textItalic = useUIStore((s) => s.textItalic);
+    const textUnderline = useUIStore((s) => s.textUnderline);
+    const textStrike = useUIStore((s) => s.textStrike);
+    const setTextBold = useUIStore((s) => s.setTextBold);
+    const setTextItalic = useUIStore((s) => s.setTextItalic);
+    const setTextUnderline = useUIStore((s) => s.setTextUnderline);
+    const setTextStrike = useUIStore((s) => s.setTextStrike);
+    
+    const styleOptions: Array<{ key: StyleKey; icon: React.ReactNode; active: boolean; setter: (v: boolean) => void; recalc: boolean }> = [
+        { key: 'bold', icon: <Bold size={16} />, active: textBold, setter: setTextBold, recalc: true },
+        { key: 'italic', icon: <Italic size={16} />, active: textItalic, setter: setTextItalic, recalc: true },
+        { key: 'underline', icon: <Underline size={16} />, active: textUnderline, setter: setTextUnderline, recalc: false },
+        { key: 'strike', icon: <Strikethrough size={16} />, active: textStrike, setter: setTextStrike, recalc: false },
+    ];
+    
+    const handleClick = (key: StyleKey, active: boolean, setter: (v: boolean) => void, recalc: boolean) => {
+        const next = !active;
+        setter(next);
+        if (selectedTextIds.length > 0) {
+            const diff: TextUpdateDiff = { [key]: next };
+            applyTextUpdate(diff, recalc);
+        }
+    };
+    
+    return (
+        <div className="flex flex-col justify-center w-full items-center">
+            <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
+                {styleOptions.map(({ key, icon, active, setter, recalc }) => (
+                    <button
+                        key={key}
+                        onClick={() => handleClick(key, active, setter, recalc)}
+                        className={`w-8 h-full ${CENTERED_BUTTON_STYLE} ${active ? 'bg-blue-600/30 text-blue-400' : ''}`}
+                        title={key}
+                    >
+                        {icon}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const TextFormatGroup: React.FC<TextControlProps> = (props) => (
     <div className="flex h-full py-1 gap-1.5 px-0.5">
         <div className="flex flex-col justify-center gap-1 w-[140px]">
             <FontFamilyControl {...props} />
@@ -143,8 +177,8 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore }) => {
         const strokeColor = activeLayer?.strokeColor || '#000000';
         const fillColor = activeLayer?.fillColor || '#FFFFFF';
-        const iconColor = ensureContrastColor(fillColor === 'transparent' ? '#1e293b' : fillColor, RIBBON_SURFACE_COLOR);
-        const swatchBorderColor = ensureContrastColor(strokeColor, RIBBON_SURFACE_COLOR, 0.6);
+        const iconColor = ensureContrastColor(fillColor === 'transparent' ? '#1e293b' : fillColor, UI.RIBBON_SURFACE_COLOR);
+        const swatchBorderColor = ensureContrastColor(strokeColor, UI.RIBBON_SURFACE_COLOR, 0.6);
         return (
             <div className="flex flex-col justify-center gap-1.5 h-full px-2 w-[180px]">
                 {/* Top Row: Layer Select */}
@@ -217,7 +251,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         </button>
                         <button 
                             onClick={() => {
-                                const ids = Array.from(uiStore.selectedShapeIds);
+                                const ids: string[] = Array.from(uiStore.selectedShapeIds);
                                 if (ids.length === 0 || !activeLayer) return;
                                 ids.forEach(id => {
                                     const shape = dataStore.shapes[id];
@@ -445,7 +479,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
             </div>
         );
     },
-    'LineWidthControl': () => null,
+    // LineWidthControl removed - functionality merged into ColorControl
     'GridControl': ({ uiStore, openColorPicker }) => {
         return (
             <div className="flex flex-col gap-1.5 px-3 h-full justify-center">
