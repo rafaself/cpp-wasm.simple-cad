@@ -117,15 +117,15 @@ const EditorSidebar: React.FC = () => {
   const renderDesenho = () => {
     if (!selectedShape) {
         return (
-            <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-                <MousePointer2 size={32} className="mb-4 opacity-20" />
+            <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+                <MousePointer2 size={32} className="mb-4 opacity-20 shrink-0" />
                 <p className="text-xs">Selecione um objeto para editar.</p>
             </div>
         );
     }
 
     return (
-      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar">
+      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
         <PositionProperties selectedShape={selectedShape} />
         <DimensionProperties selectedShape={selectedShape} />
         <StyleProperties selectedShape={selectedShape} />
@@ -142,7 +142,7 @@ const EditorSidebar: React.FC = () => {
       </div>
 
       {/* Conditional Content Area */}
-      <div key={activeTab} className="flex-grow flex flex-col overflow-hidden menu-transition">
+      <div key={activeTab} className="flex-grow flex flex-col overflow-hidden min-h-0">
           {activeTab === 'edificacao' && renderEdificacao()}
           {activeTab === 'desenho' && renderDesenho()}
           {/* Placeholders for others */}

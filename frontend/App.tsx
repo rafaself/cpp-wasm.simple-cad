@@ -73,8 +73,8 @@ const App: React.FC = () => {
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
       <style>{globalStyles}</style>
-      <Header />
-      <EditorRibbon />
+      <div className="shrink-0"><Header /></div>
+      <div className="shrink-0"><EditorRibbon /></div>
       <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
         {/* Main Content Area (Canvas + Status Bar) */}
         <div className="flex-grow flex flex-col relative overflow-hidden">

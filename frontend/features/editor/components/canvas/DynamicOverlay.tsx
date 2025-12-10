@@ -10,6 +10,7 @@ import { drawGhostShape } from './renderers/GhostRenderer';
 import { drawSelectionHighlight, drawHandles } from './renderers/SelectionRenderer';
 import TextEditorOverlay from './overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../../utils/shapeColors';
+import NumberSpinner from '../../../../components/NumberSpinner';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -29,7 +30,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const {
     isDragging, isMiddlePanning, startPoint, currentPoint, isSelectionBox, snapMarker,
     polylinePoints, measureStart, lineStart, activeHandle, transformationBase,
-    arcPoints, showRadiusModal, radiusModalPos, textEditState
+    arcPoints, showRadiusModal, radiusModalPos, textEditState,
+    showPolygonModal, polygonModalPos
   } = state;
 
   const render = useCallback(() => {
@@ -204,6 +206,31 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         setTextEditState={setters.setTextEditState}
         viewTransform={uiStore.viewTransform}
       />
+    )}
+
+    {showPolygonModal && (
+      <div
+        className="fixed bg-slate-900 border border-slate-600 p-2 rounded-lg shadow-xl z-50 flex items-center gap-2"
+        style={{ left: polygonModalPos.x, top: polygonModalPos.y }}
+      >
+        <span className="text-[10px] text-slate-300 uppercase font-bold">Lados</span>
+        <NumberSpinner
+          value={uiStore.polygonSides}
+          onChange={(val) => {
+            uiStore.setPolygonSides(val);
+            setters.confirmPolygonSides(val);
+          }}
+          min={3}
+          max={12}
+          className="w-14 h-7 bg-slate-800"
+        />
+        <button
+          onClick={() => setters.confirmPolygonSides(uiStore.polygonSides)}
+          className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded font-medium"
+        >
+          OK
+        </button>
+      </div>
     )}
     </>
   );

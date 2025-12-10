@@ -22,7 +22,7 @@ const RIBBON_SURFACE_COLOR = '#0f172a';
 // Shared styles
 const LABEL_STYLE = "text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-1 block text-center";
 const INPUT_STYLE = "w-full h-7 bg-slate-900 border border-slate-700/50 rounded flex items-center px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all";
-const BASE_BUTTON_STYLE = "rounded hover:bg-slate-700 active:bg-slate-600 transition-colors text-slate-400 hover:text-slate-100";
+const BASE_BUTTON_STYLE = "rounded hover:bg-slate-700 active:bg-slate-600 transition-colors text-slate-400 hover:text-slate-100 border border-transparent";
 const CENTERED_BUTTON_STYLE = `flex items-center justify-center ${BASE_BUTTON_STYLE}`;
 const ACTIVE_BUTTON_STYLE = "bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30";
 
@@ -530,12 +530,7 @@ const EditorRibbon: React.FC = () => {
                                 <span className={`text-[9px] text-center whitespace-nowrap leading-none ${item.type === 'tool' && uiStore.activeTool === item.tool ? 'text-blue-300' : ''}`}>{item.label}</span>
                             </button>
                         ))}
-                         {section.items.some(i => i.tool === 'polygon') && uiStore.activeTool === 'polygon' && (
-                                <div className="absolute top-2 right-2 bg-slate-900 border border-slate-600 p-1 rounded shadow-lg flex items-center gap-2 animate-in fade-in zoom-in duration-200">
-                                    <span className="text-[9px] text-slate-400 uppercase font-bold">Lados</span>
-                                    <NumberSpinner value={uiStore.polygonSides} onChange={uiStore.setPolygonSides} min={3} max={12} className="w-12 h-6 bg-slate-800" />
-                                </div>
-                            )}
+
                     </div>
                 ) : (
                     <div className="flex gap-2 h-full items-center px-1">

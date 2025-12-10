@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../../../stores/useUIStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
 import { Point, Shape } from '../../../../../types';
@@ -28,6 +28,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [showRadiusModal, setShowRadiusModal] = useState(false);
     const [radiusModalPos, setRadiusModalPos] = useState({ x: 0, y: 0 });
 
+    // Polygon Tool State
+    const [polygonShapeId, setPolygonShapeId] = useState<string | null>(null);
+    const [showPolygonModal, setShowPolygonModal] = useState(false);
+    const [polygonModalPos, setPolygonModalPos] = useState({ x: 0, y: 0 });
+
     // Text Tool State
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
     const setEditingTextId = uiStore.setEditingTextId;
@@ -48,6 +53,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         setIsDragging(false); setIsSelectionBox(false); setSnapMarker(null); setTransformationBase(null);
         setActiveHandle(null);
         setArcPoints(null); setShowRadiusModal(false);
+        setPolygonShapeId(null); setShowPolygonModal(false);
     }, [uiStore.activeTool]);
 
     useEffect(() => {
@@ -84,6 +90,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 setLineStart(null); setMeasureStart(null); setPolylinePoints([]);
                 setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
                 setArcPoints(null); setShowRadiusModal(false);
+                setPolygonShapeId(null); setShowPolygonModal(false);
                 if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') uiStore.setTool('select');
                 if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
                     uiStore.setSelectedShapeIds(new Set());
@@ -357,9 +364,21 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 else if (uiStore.activeTool === 'arrow') { n.points = [ws, we]; n.arrowHeadSize = 15; }
             }
 
-            dataStore.addShape(n);
-            uiStore.setSidebarTab('desenho');
-            uiStore.setTool('select');
+            // For polygon, show modal after creation
+            if (uiStore.activeTool === 'polygon') {
+                dataStore.addShape(n);
+                setPolygonShapeId(n.id);
+                const screenPos = worldToScreen({ x: n.x!, y: n.y! }, uiStore.viewTransform);
+                setPolygonModalPos({ x: screenPos.x + 20, y: screenPos.y - 20 });
+                setShowPolygonModal(true);
+                uiStore.setSelectedShapeIds(new Set([n.id]));
+                uiStore.setSidebarTab('desenho');
+                // Don't switch tool yet - wait for modal confirmation
+            } else {
+                dataStore.addShape(n);
+                uiStore.setSidebarTab('desenho');
+                uiStore.setTool('select');
+            }
         }
         setStartPoint(null);
     };
@@ -397,6 +416,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         uiStore.setViewTransform({ scale: newScale, x: newX, y: newY });
     };
 
+    // Handler to confirm polygon sides
+    const confirmPolygonSides = (sides: number) => {
+        if (polygonShapeId) {
+            dataStore.updateShape(polygonShapeId, { sides }, true);
+        }
+        setShowPolygonModal(false);
+        setPolygonShapeId(null);
+        uiStore.setTool('select');
+    };
+
     return {
         handlers: {
             onMouseDown: handleMouseDown,
@@ -420,12 +449,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             arcPoints,
             showRadiusModal,
             radiusModalPos,
-            textEditState
+            textEditState,
+            showPolygonModal,
+            polygonModalPos,
+            polygonShapeId
         },
         setters: {
             setArcPoints,
             setShowRadiusModal,
-            setTextEditState
+            setTextEditState,
+            setShowPolygonModal,
+            confirmPolygonSides
         }
     };
 };
