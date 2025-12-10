@@ -78,12 +78,18 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
     }
   }, [color]);
 
+
   const handleHsvChange = (newHsv: HSV) => {
     setHsv(newHsv);
     if (onChange) {
       isInternalChange.current = true;
       const rgb = hsvToRgb(newHsv);
-      onChange(`#${rgbToHex(rgb)}`);
+      // Return rgba if alpha < 1, otherwise hex
+      if (rgb.a < 1) {
+        onChange(`rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${rgb.a.toFixed(2)})`);
+      } else {
+        onChange(`#${rgbToHex(rgb)}`);
+      }
     }
   };
 

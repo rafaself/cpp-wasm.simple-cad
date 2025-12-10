@@ -145,11 +145,31 @@ const EditorSidebar: React.FC = () => {
       <div key={activeTab} className="flex-grow flex flex-col overflow-hidden min-h-0">
           {activeTab === 'edificacao' && renderEdificacao()}
           {activeTab === 'desenho' && renderDesenho()}
-          {/* Placeholders for others */}
-          {activeTab === 'propriedades' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Propriedades Gerais (Vazio)</div>}
-          {activeTab === 'projeto' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Arquivos do Projeto (Vazio)</div>}
-          {activeTab === 'camadas' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Gerenciamento de Camadas (Vazio)</div>}
-          {activeTab === 'ajustes' && <div className="flex-grow p-4 text-slate-400 text-xs text-center">Configurações Gerais (Vazio)</div>}
+          {/* Other sections with proper icons */}
+          {activeTab === 'propriedades' && (
+              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+                  <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
+                  <p className="text-xs">Selecione um objeto para ver suas propriedades.</p>
+              </div>
+          )}
+          {activeTab === 'projeto' && (
+              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+                  <FolderOpen size={32} className="mb-4 opacity-20 shrink-0" />
+                  <p className="text-xs">Arquivos do projeto aparecerão aqui.</p>
+              </div>
+          )}
+          {activeTab === 'camadas' && (
+              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+                  <Layers size={32} className="mb-4 opacity-20 shrink-0" />
+                  <p className="text-xs">Use o gerenciador de camadas no ribbon.</p>
+              </div>
+          )}
+          {activeTab === 'ajustes' && (
+              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+                  <Settings size={32} className="mb-4 opacity-20 shrink-0" />
+                  <p className="text-xs">Configurações gerais do projeto.</p>
+              </div>
+          )}
       </div>
 
       {/* Bottom Navigation Tabs - Drag to Scroll Container */}

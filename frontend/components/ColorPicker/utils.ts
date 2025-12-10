@@ -82,13 +82,25 @@ export const rgbToHex = ({ r, g, b }: RGB): string => {
   return `${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
 };
 
-export const hexToRgb = (hex: string): RGB | null => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
+export const hexToRgb = (color: string): RGB | null => {
+  // Try rgba format first: rgba(r, g, b, a)
+  const rgbaResult = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/i.exec(color);
+  if (rgbaResult) {
+    return {
+      r: parseInt(rgbaResult[1], 10),
+      g: parseInt(rgbaResult[2], 10),
+      b: parseInt(rgbaResult[3], 10),
+      a: rgbaResult[4] !== undefined ? parseFloat(rgbaResult[4]) : 1
+    };
+  }
+  
+  // Try hex format: #RRGGBB or RRGGBB
+  const hexResult = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+  return hexResult
     ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
+        r: parseInt(hexResult[1], 16),
+        g: parseInt(hexResult[2], 16),
+        b: parseInt(hexResult[3], 16),
         a: 1
       }
     : null;

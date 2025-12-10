@@ -410,49 +410,49 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'LineWidthControl': () => null,
     'GridControl': ({ uiStore, openColorPicker }) => {
         return (
-            <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[140px]">
-                {/* Top Row: Toggles */}
-                <div className="flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={uiStore.gridShowDots}
-                            onChange={(e) => uiStore.setGridShowDots(e.target.checked)}
-                            className="w-3 h-3 rounded border-slate-600 bg-slate-700 text-blue-500 cursor-pointer"
-                        />
-                        <span className="text-[9px] text-slate-300 font-medium">Pontos</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={uiStore.gridShowLines}
-                            onChange={(e) => uiStore.setGridShowLines(e.target.checked)}
-                            className="w-3 h-3 rounded border-slate-600 bg-slate-700 text-blue-500 cursor-pointer"
-                        />
-                        <span className="text-[9px] text-slate-300 font-medium">Linhas</span>
-                    </label>
+            <div className="flex flex-col gap-1.5 px-3 h-full justify-center">
+                {/* Row 1: Toggle buttons */}
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => uiStore.setGridShowDots(!uiStore.gridShowDots)}
+                        className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
+                            uiStore.gridShowDots 
+                                ? 'bg-blue-500 text-white border-blue-600 shadow-md' 
+                                : 'bg-slate-700/80 text-slate-300 border-slate-600 hover:bg-slate-600/80'
+                        }`}
+                    >
+                        Pontos
+                    </button>
+                    <button
+                        onClick={() => uiStore.setGridShowLines(!uiStore.gridShowLines)}
+                        className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
+                            uiStore.gridShowLines 
+                                ? 'bg-blue-500 text-white border-blue-600 shadow-md' 
+                                : 'bg-slate-700/80 text-slate-300 border-slate-600 hover:bg-slate-600/80'
+                        }`}
+                    >
+                        Linhas
+                    </button>
                 </div>
-
-                {/* Bottom Row: Color and Size */}
+                
+                {/* Row 2: Color and Size */}
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                        <span className="text-[9px] text-slate-400">Cor</span>
-                        <div 
-                            className="w-5 h-5 rounded border border-slate-500 cursor-pointer hover:scale-105 transition-transform"
-                            style={{ backgroundColor: uiStore.gridColor }}
-                            onClick={(e) => openColorPicker(e, { type: 'grid' })}
-                        />
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-[9px] text-slate-400">Tam</span>
+                    <div 
+                        className="w-5 h-5 rounded border-2 border-slate-500 cursor-pointer hover:scale-110 transition-transform"
+                        style={{ backgroundColor: uiStore.gridColor }}
+                        onClick={(e) => openColorPicker(e, { type: 'grid' })}
+                        title="Cor do Grid"
+                    />
+                    <div className="flex items-center gap-0.5">
                         <EditableNumber 
                             value={uiStore.gridSize} 
                             onChange={uiStore.setGridSize} 
                             min={10} 
                             max={500}
-                            className="w-[36px] h-5"
-                            displayClassName="text-[9px] font-mono"
+                            className="w-[38px] h-5"
+                            displayClassName="text-[10px] font-mono"
                         />
+                        <span className="text-[9px] text-slate-400">px</span>
                     </div>
                 </div>
             </div>
@@ -563,6 +563,9 @@ const EditorRibbon: React.FC = () => {
 
   const activeColor = useMemo(() => {
     if (!colorPickerTarget) return '#FFFFFF';
+    if (colorPickerTarget.type === 'grid') {
+      return uiStore.gridColor;
+    }
     if (colorPickerTarget.type === 'stroke') {
       // Show color of first selected shape or layer color
       return firstSelectedShape 
@@ -573,7 +576,7 @@ const EditorRibbon: React.FC = () => {
     return firstSelectedShape 
       ? getEffectiveFillColor(firstSelectedShape, activeLayer)
       : (activeLayer?.fillColor || '#ffffff');
-  }, [colorPickerTarget, firstSelectedShape, activeLayer]);
+  }, [colorPickerTarget, firstSelectedShape, activeLayer, uiStore.gridColor]);
 
   const handleColorChange = (newColor: string) => {
       if (!colorPickerTarget) return;

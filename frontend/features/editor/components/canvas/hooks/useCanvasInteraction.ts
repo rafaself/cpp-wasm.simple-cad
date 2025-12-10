@@ -98,10 +98,30 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     uiStore.setSelectedShapeIds(new Set());
                 }
             }
+            // Arrow key movement for selected shapes
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && uiStore.selectedShapeIds.size > 0) {
+                e.preventDefault();
+                const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+                const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+                
+                uiStore.selectedShapeIds.forEach(id => {
+                    const shape = dataStore.shapes[id];
+                    if (!shape) return;
+                    const layer = dataStore.layers.find(l => l.id === shape.layerId);
+                    if (layer?.locked) return;
+                    
+                    const updates: Partial<Shape> = {};
+                    if (shape.x !== undefined) updates.x = shape.x + dx;
+                    if (shape.y !== undefined) updates.y = shape.y + dy;
+                    if (shape.points) updates.points = shape.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                    
+                    dataStore.updateShape(id, updates, true);
+                });
+            }
         };
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [uiStore, finishPolyline]);
+    }, [uiStore, dataStore, finishPolyline]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (textEditState) return;
