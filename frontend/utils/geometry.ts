@@ -425,9 +425,26 @@ export interface Handle { x: number; y: number; cursor: string; index: number; t
 export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
     if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'arrow') {
-        shape.points.forEach((p, i) => {
-            handles.push({ x: p.x, y: p.y, cursor: 'move', index: i, type: 'vertex' });
-        });
+        if (shape.points && Array.isArray(shape.points)) {
+            shape.points.forEach((p, i) => {
+                handles.push({ x: p.x, y: p.y, cursor: 'move', index: i, type: 'vertex' });
+            });
+        }
+    }
+    else if (shape.type === 'circle' && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
+        // Create a bounding box around the circle for handles
+        const r = shape.radius;
+        const x = shape.x;
+        const y = shape.y;
+        const p1 = { x: x - r, y: y - r };
+        const p2 = { x: x + r, y: y - r };
+        const p3 = { x: x + r, y: y + r };
+        const p4 = { x: x - r, y: y + r };
+
+        handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
+        handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
+        handles.push({ x: p3.x, y: p3.y, cursor: 'nwse-resize', index: 2, type: 'resize' });
+        handles.push({ x: p4.x, y: p4.y, cursor: 'nesw-resize', index: 3, type: 'resize' });
     }
     else if ((shape.type === 'rect') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined && !isNaN(shape.width) && !isNaN(shape.height)) {
         const p1 = { x: shape.x, y: shape.y };

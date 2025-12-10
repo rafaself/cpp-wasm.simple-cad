@@ -15,6 +15,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const gridSize = useUIStore(s => s.gridSize);
     const gridColor = useUIStore(s => s.gridColor);
     const editingTextId = useUIStore(s => s.editingTextId);
+    const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
 
     // Subscribe to necessary data stores.
     const shapes = useDataStore(s => s.shapes);
@@ -81,9 +82,10 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         ctx.restore();
     };
 
+    // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, shapes, layers, spatialIndex, editingTextId]);
+    }, [viewTransform, gridSize, gridColor, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
 
     return (
         <canvas

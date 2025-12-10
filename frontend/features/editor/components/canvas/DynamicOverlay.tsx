@@ -158,7 +158,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         width={width}
         height={height}
         className="absolute top-0 left-0 z-10"
-        style={{ cursor: cursorClass }}
+        style={{ cursor: cursorClass, background: 'transparent' }}
         onMouseDown={handlers.onMouseDown}
         onMouseMove={handlers.onMouseMove}
         onMouseUp={handlers.onMouseUp}

@@ -14,17 +14,43 @@ export const drawGhostShape = (ctx: CanvasRenderingContext2D, shape: Shape, view
         ctx.lineWidth = baseWidth / viewTransform.scale;
         ctx.beginPath();
 
-        // Simplified drawing for ghost (rect/circle/line mostly)
         if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'arrow') {
-        if (shape.points.length >= 2) {
-            ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); ctx.stroke();
-        }
+            if (shape.points && shape.points.length >= 2) {
+                ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                ctx.lineTo(shape.points[1].x, shape.points[1].y);
+                ctx.stroke();
+            }
         } else if (shape.type === 'circle') {
-        ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            const cx = shape.x ?? 0;
+            const cy = shape.y ?? 0;
+            const r = shape.radius ?? 0;
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
         } else if (shape.type === 'rect') {
-        ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!); ctx.fill(); ctx.stroke();
+            const rx = shape.x ?? 0;
+            const ry = shape.y ?? 0;
+            const rw = shape.width ?? 0;
+            const rh = shape.height ?? 0;
+            ctx.rect(rx, ry, rw, rh);
+            ctx.fill();
+            ctx.stroke();
+        } else if (shape.type === 'polygon') {
+            // SAFE polygon ghost rendering
+            const sides = Math.max(3, shape.sides ?? 5);
+            const r = shape.radius ?? 0;
+            const cx = shape.x ?? 0;
+            const cy = shape.y ?? 0;
+            const angleStep = (Math.PI * 2) / sides;
+            const startAngle = -Math.PI / 2;
+            ctx.moveTo(cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle));
+            for (let i = 1; i <= sides; i++) {
+                ctx.lineTo(cx + r * Math.cos(startAngle + i * angleStep), cy + r * Math.sin(startAngle + i * angleStep));
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
         }
-        // ... Add other types if necessary
     } finally {
         ctx.restore();
     }

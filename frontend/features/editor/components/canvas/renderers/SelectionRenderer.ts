@@ -5,9 +5,13 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
     // Just the highlight border/box
     ctx.save();
     try {
+        const cx = shape.x ?? 0;
+        const cy = shape.y ?? 0;
+
         if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-            let pivotX = shape.x; let pivotY = shape.y;
-            ctx.translate(pivotX, pivotY); ctx.rotate(shape.rotation); ctx.translate(-pivotX, -pivotY);
+            ctx.translate(cx, cy); 
+            ctx.rotate(shape.rotation); 
+            ctx.translate(-cx, -cy);
         }
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 1 / viewTransform.scale;
@@ -18,17 +22,40 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
                  ctx.rect(shape.x, shape.y, shape.width, shape.height);
             }
         }
-        else if (shape.type === 'circle') ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI*2);
-        else if (shape.type === 'polygon' && shape.sides && shape.radius) {
-            const sides = Math.max(3, shape.sides);
+        else if (shape.type === 'circle') {
+            const r = shape.radius ?? 0;
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        }
+        else if (shape.type === 'polygon') {
+            const sides = Math.max(3, shape.sides ?? 5);
+            const r = shape.radius ?? 0;
             const angleStep = (Math.PI * 2) / sides;
             const startAngle = -Math.PI / 2;
-            ctx.moveTo(shape.x! + shape.radius * Math.cos(startAngle), shape.y! + shape.radius * Math.sin(startAngle));
-            for (let i = 1; i <= sides; i++) ctx.lineTo(shape.x! + shape.radius * Math.cos(startAngle + i * angleStep), shape.y! + shape.radius * Math.sin(startAngle + i * angleStep));
+            ctx.moveTo(cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle));
+            for (let i = 1; i <= sides; i++) {
+                ctx.lineTo(cx + r * Math.cos(startAngle + i * angleStep), cy + r * Math.sin(startAngle + i * angleStep));
+            }
             ctx.closePath();
         }
-        else if (shape.type === 'line' && shape.points.length>=2) { ctx.moveTo(shape.points[0].x, shape.points[0].y); ctx.lineTo(shape.points[1].x, shape.points[1].y); }
-        // ...
+        else if (shape.type === 'line' && shape.points && shape.points.length >= 2) { 
+            ctx.moveTo(shape.points[0].x, shape.points[0].y); 
+            ctx.lineTo(shape.points[1].x, shape.points[1].y); 
+        }
+        else if (shape.type === 'arrow' && shape.points && shape.points.length >= 2) {
+            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+            ctx.lineTo(shape.points[1].x, shape.points[1].y);
+        }
+        else if (shape.type === 'polyline' && shape.points && shape.points.length > 0) {
+            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+            for (let i = 1; i < shape.points.length; i++) {
+                ctx.lineTo(shape.points[i].x, shape.points[i].y);
+            }
+        }
+        else if (shape.type === 'arc' && shape.points && shape.points.length >= 2) {
+            // Draw a line between arc endpoints for selection
+            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+            ctx.lineTo(shape.points[1].x, shape.points[1].y);
+        }
         ctx.stroke();
     } finally {
         ctx.restore();
@@ -36,17 +63,25 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
 };
 
 export const drawHandles = (ctx: CanvasRenderingContext2D, shape: Shape, viewTransform: ViewTransform) => {
-    const handles = getShapeHandles(shape);
-    const handleSize = 6 / viewTransform.scale;
-    ctx.save();
     try {
-        ctx.lineWidth = 1 / viewTransform.scale;
-        // Handles are now returned in world coordinates (already rotated), so we don't apply canvas rotation here.
-        handles.forEach(h => {
-            ctx.beginPath(); ctx.rect(h.x - handleSize/2, h.y - handleSize/2, handleSize, handleSize);
-            ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#2563eb'; ctx.stroke();
-        });
-    } finally {
-        ctx.restore();
+        const handles = getShapeHandles(shape);
+        const handleSize = 6 / viewTransform.scale;
+        ctx.save();
+        try {
+            ctx.lineWidth = 1 / viewTransform.scale;
+            // Handles are now returned in world coordinates (already rotated), so we don't apply canvas rotation here.
+            handles.forEach(h => {
+                ctx.beginPath(); 
+                ctx.rect(h.x - handleSize/2, h.y - handleSize/2, handleSize, handleSize);
+                ctx.fillStyle = '#ffffff'; 
+                ctx.fill(); 
+                ctx.strokeStyle = '#2563eb'; 
+                ctx.stroke();
+            });
+        } finally {
+            ctx.restore();
+        }
+    } catch (e) {
+        console.error("Error in drawHandles:", e);
     }
 };

@@ -8,12 +8,15 @@ export const renderShape = (
     viewTransform: ViewTransform,
     layer?: Layer
 ) => {
-    // Safety checks for rendering
-    if (shape.x === undefined || shape.y === undefined || isNaN(shape.x) || isNaN(shape.y)) return;
+    // Safety checks for rendering - skip shapes without valid position
+    // But allow polygon/circle which use x,y as center
+    if (shape.type !== 'line' && shape.type !== 'polyline' && shape.type !== 'arrow' && shape.type !== 'measure' && shape.type !== 'arc') {
+        if (shape.x === undefined || shape.y === undefined || isNaN(shape.x) || isNaN(shape.y)) return;
+    }
 
     ctx.save();
     try {
-        if (shape.rotation) {
+        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
             let pivotX = shape.x;
             let pivotY = shape.y;
             ctx.translate(pivotX, pivotY);
@@ -34,7 +37,7 @@ export const renderShape = (
         ctx.beginPath();
 
         if (shape.type === 'line' || shape.type === 'measure') {
-            if (shape.points.length >= 2) {
+            if (shape.points && shape.points.length >= 2) {
                 ctx.moveTo(shape.points[0].x, shape.points[0].y);
                 ctx.lineTo(shape.points[1].x, shape.points[1].y);
                 ctx.stroke();
@@ -59,7 +62,7 @@ export const renderShape = (
                 }
             }
         } else if (shape.type === 'arrow') {
-            if (shape.points.length >= 2) {
+            if (shape.points && shape.points.length >= 2) {
                 const p1 = shape.points[0];
                 const p2 = shape.points[1];
                 ctx.moveTo(p1.x, p1.y);
@@ -75,29 +78,43 @@ export const renderShape = (
                 ctx.stroke();
             }
         } else if (shape.type === 'circle') {
-            ctx.arc(shape.x!, shape.y!, shape.radius!, 0, Math.PI * 2);
+            const cx = shape.x ?? 0;
+            const cy = shape.y ?? 0;
+            const r = shape.radius ?? 0;
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'rect') {
-            ctx.rect(shape.x!, shape.y!, shape.width!, shape.height!);
+            const rx = shape.x ?? 0;
+            const ry = shape.y ?? 0;
+            const rw = shape.width ?? 0;
+            const rh = shape.height ?? 0;
+            ctx.rect(rx, ry, rw, rh);
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'polyline') {
-            if (shape.points.length > 0) {
+            if (shape.points && shape.points.length > 0) {
                 ctx.moveTo(shape.points[0].x, shape.points[0].y);
                 for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
                 ctx.stroke();
             }
         } else if (shape.type === 'polygon') {
-            const angleStep = (Math.PI * 2) / shape.sides!;
+            // SAFE polygon rendering with fallback values
+            const sides = Math.max(3, shape.sides ?? 5);
+            const r = shape.radius ?? 0;
+            const cx = shape.x ?? 0;
+            const cy = shape.y ?? 0;
+            const angleStep = (Math.PI * 2) / sides;
             const startAngle = -Math.PI / 2;
-            ctx.moveTo(shape.x! + shape.radius! * Math.cos(startAngle), shape.y! + shape.radius! * Math.sin(startAngle));
-            for (let i = 1; i <= shape.sides!; i++) ctx.lineTo(shape.x! + shape.radius! * Math.cos(startAngle + i * angleStep), shape.y! + shape.radius! * Math.sin(startAngle + i * angleStep));
+            ctx.moveTo(cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle));
+            for (let i = 1; i <= sides; i++) {
+                ctx.lineTo(cx + r * Math.cos(startAngle + i * angleStep), cy + r * Math.sin(startAngle + i * angleStep));
+            }
             ctx.closePath();
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'arc') {
-            if (shape.points.length >= 2) {
+            if (shape.points && shape.points.length >= 2) {
                 const p1 = shape.points[0];
                 const p2 = shape.points[1];
                 const d = getDistance(p1, p2);
@@ -109,6 +126,7 @@ export const renderShape = (
                 const midX = (p1.x + p2.x) / 2;
                 const midY = (p1.y + p2.y) / 2;
                 const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist === 0) return; // Prevent division by zero
                 const udx = -dy / dist;
                 const udy = dx / dist;
                 const cx = midX + udx * h;
@@ -139,13 +157,16 @@ export const renderShape = (
             const lineHeight = fontSize * 1.2;
             const wrappedLines = getWrappedLines(shape.textContent, availableWidth, fontSize);
 
+            const sx = shape.x ?? 0;
+            const sy = shape.y ?? 0;
+
             wrappedLines.forEach((line, index) => {
                 const lineWidth = ctx.measureText(line).width;
-                let xPos = shape.x! + pad;
+                let xPos = sx + pad;
                 if (shape.align === 'center') xPos += (availableWidth - lineWidth) / 2;
                 else if (shape.align === 'right') xPos += (availableWidth - lineWidth);
 
-                const yPos = shape.y! + pad + index * lineHeight;
+                const yPos = sy + pad + index * lineHeight;
                 if (bgColor) {
                     ctx.fillStyle = bgColor;
                     ctx.fillRect(xPos - 1, yPos, lineWidth + 2, lineHeight);
