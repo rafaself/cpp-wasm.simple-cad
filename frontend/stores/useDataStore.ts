@@ -60,7 +60,7 @@ interface DataState {
 
 export const useDataStore = create<DataState>((set, get) => ({
   shapes: {},
-  layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', fillColor: '#ffffff', visible: true, locked: false, isNative: true }],
+  layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true }],
   activeLayerId: 'desenho',
   worldScale: 50,
 
@@ -208,7 +208,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   addLayer: () => set((state) => {
     const newId = Date.now().toString();
-    const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', fillColor: '#' + Math.floor(Math.random()*16777215).toString(16), visible: true, locked: false };
+    const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', strokeEnabled: true, fillColor: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'), fillEnabled: true, visible: true, locked: false };
     return { layers: [...state.layers, newLayer], activeLayerId: newId };
   }),
 
@@ -478,7 +478,9 @@ export const useDataStore = create<DataState>((set, get) => ({
               id: newId,
               name: name,
               strokeColor: '#000000',
+              strokeEnabled: true,
               fillColor: '#ffffff',
+              fillEnabled: true,
               visible: true,
               locked: false
           }]

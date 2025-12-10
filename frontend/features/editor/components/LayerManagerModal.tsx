@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
-import { X, Plus, Trash2, Check, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import { X, Plus, Trash2, Check, Eye, EyeOff, Lock, Unlock, Pen, PaintBucket } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 
 const LayerManagerModal: React.FC = () => {
@@ -127,19 +127,33 @@ const LayerManagerModal: React.FC = () => {
                         </button>
                     </div>
                     
-                    <div className="flex justify-center">
+                    <div className="flex justify-center items-center">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); dataStore.updateLayer(layer.id, { strokeEnabled: !layer.strokeEnabled }); }}
+                            className={`p-0.5 rounded transition-colors mr-1 ${layer.strokeEnabled === false ? 'text-slate-600 hover:text-slate-400' : 'text-blue-400 hover:text-blue-300'}`}
+                            title={layer.strokeEnabled === false ? 'Ativar traço' : 'Desativar traço'}
+                        >
+                            <Pen size={10} />
+                        </button>
                         <div 
-                            className="w-5 h-5 rounded-sm border border-slate-500 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                            style={{ backgroundColor: layer.strokeColor, opacity: Math.max(0.05, 1) }}
+                            className={`w-5 h-5 rounded-sm border-2 cursor-pointer hover:scale-110 transition-transform shadow-sm ${layer.strokeEnabled === false ? 'border-slate-600 opacity-40' : 'border-slate-400'}`}
+                            style={{ backgroundColor: layer.strokeColor }}
                             onClick={(e) => openColorPicker(e, layer.id, 'stroke')}
                             title="Cor do Traço"
                         />
                     </div>
 
-                    <div className="flex justify-center">
+                    <div className="flex justify-center items-center">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); dataStore.updateLayer(layer.id, { fillEnabled: !layer.fillEnabled }); }}
+                            className={`p-0.5 rounded transition-colors mr-1 ${layer.fillEnabled === false ? 'text-slate-600 hover:text-slate-400' : 'text-blue-400 hover:text-blue-300'}`}
+                            title={layer.fillEnabled === false ? 'Ativar fundo' : 'Desativar fundo'}
+                        >
+                            <PaintBucket size={10} />
+                        </button>
                         <div 
-                            className="w-5 h-5 rounded-sm border border-slate-500 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                            style={{ backgroundColor: layer.fillColor, opacity: Math.max(0.05, 1) }}
+                            className={`w-5 h-5 rounded-sm border-2 cursor-pointer hover:scale-110 transition-transform shadow-sm ${layer.fillEnabled === false ? 'border-slate-600 opacity-40' : 'border-slate-400'}`}
+                            style={{ backgroundColor: layer.fillColor }}
                             onClick={(e) => openColorPicker(e, layer.id, 'fill')}
                             title="Cor do Fundo"
                         />

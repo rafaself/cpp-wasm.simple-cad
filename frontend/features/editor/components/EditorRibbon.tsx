@@ -11,7 +11,7 @@ import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 import NumberSpinner from '../../../components/NumberSpinner';
 import EditableNumber from '../../../components/EditableNumber';
 import CustomSelect from '../../../components/CustomSelect';
-import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor } from '../../../utils/shapeColors';
+import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled, getShapeColorMode } from '../../../utils/shapeColors';
 
 type ColorPickerTarget =
   | { type: 'stroke' }
@@ -218,33 +218,50 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         <button 
                             onClick={() => {
                                 const ids = Array.from(uiStore.selectedShapeIds);
-                                if (ids.length === 0) return;
+                                if (ids.length === 0 || !activeLayer) return;
                                 ids.forEach(id => {
-                                    dataStore.updateShape(id, { 
+                                    const shape = dataStore.shapes[id];
+                                    if (!shape) return;
+                                    // Update layerId if different + set colorMode to 'layer'
+                                    const updates: any = { 
                                         colorMode: { fill: 'layer', stroke: 'layer' }
-                                    }, true);
+                                    };
+                                    // If element is on a different layer, also move it
+                                    if (shape.layerId !== activeLayer.id) {
+                                        updates.layerId = activeLayer.id;
+                                    }
+                                    dataStore.updateShape(id, updates, true);
                                 });
                             }}
                             disabled={(() => {
-                                // Only enabled if there's a selected shape with custom colorMode
+                                // Only enabled if there's a selected shape with:
+                                // 1) custom colorMode, OR
+                                // 2) different layerId than active layer
                                 if (uiStore.selectedShapeIds.size === 0) return true;
                                 const firstId = (Array.from(uiStore.selectedShapeIds) as string[])[0];
                                 const shape = dataStore.shapes[firstId];
-                                if (!shape || !shape.colorMode) return true;
-                                // Enabled if at least one is 'custom'
-                                return shape.colorMode.fill !== 'custom' && shape.colorMode.stroke !== 'custom';
+                                if (!shape) return true;
+                                
+                                const hasCustomMode = shape.colorMode?.fill === 'custom' || shape.colorMode?.stroke === 'custom';
+                                const isDifferentLayer = activeLayer && shape.layerId !== activeLayer.id;
+                                
+                                return !hasCustomMode && !isDifferentLayer;
                             })()}
                             className={`h-7 w-7 ${CENTERED_BUTTON_STYLE} ${(() => {
                                 if (uiStore.selectedShapeIds.size === 0) return 'opacity-40 cursor-not-allowed';
                                 const firstId = (Array.from(uiStore.selectedShapeIds) as string[])[0];
                                 const shape = dataStore.shapes[firstId];
-                                if (!shape || !shape.colorMode) return 'opacity-40 cursor-not-allowed';
-                                if (shape.colorMode.fill === 'custom' || shape.colorMode.stroke === 'custom') {
+                                if (!shape) return 'opacity-40 cursor-not-allowed';
+                                
+                                const hasCustomMode = shape.colorMode?.fill === 'custom' || shape.colorMode?.stroke === 'custom';
+                                const isDifferentLayer = activeLayer && shape.layerId !== activeLayer.id;
+                                
+                                if (hasCustomMode || isDifferentLayer) {
                                     return 'text-green-400 hover:text-green-300';
                                 }
                                 return 'opacity-40 cursor-not-allowed';
                             })()}`}
-                            title="Aplicar camada ao elemento selecionado"
+                            title="Aplicar camada ao elemento selecionado (cor e associação)"
                         >
                             <Palette size={15} />
                         </button>
@@ -268,56 +285,77 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
         const firstSelectedShape = selectedIds.length > 0 ? dataStore.shapes[selectedIds[0]] : null;
         
         // Determine display colors: from selected shape or from active layer
-        const displayStrokeColor = firstSelectedShape 
+        // NEVER show 'transparent' - always show the stored color so user knows what color will be used
+        const effectiveStroke = firstSelectedShape 
             ? getEffectiveStrokeColor(firstSelectedShape, activeLayer) 
             : (activeLayer?.strokeColor || '#000000');
-        // For fill, show the stored fillColor (not effective) so user sees the color that will be restored
-        const displayFillColor = firstSelectedShape 
+        const effectiveFill = firstSelectedShape 
             ? getEffectiveFillColor(firstSelectedShape, activeLayer) 
             : (activeLayer?.fillColor || '#ffffff');
         
-        // Determine if stroke/fill are enabled
+        // Display colors: replace transparent with a fallback
+        const displayStrokeColor = effectiveStroke;
+        const displayFillColor = effectiveFill === 'transparent' 
+            ? (activeLayer?.fillColor || '#ffffff') 
+            : effectiveFill;
+        
+        // Determine if stroke/fill are enabled using unified effective resolution
         const strokeEnabled = firstSelectedShape 
-            ? firstSelectedShape.strokeEnabled !== false 
-            : uiStore.strokeEnabled !== false;
+            ? isStrokeEffectivelyEnabled(firstSelectedShape, activeLayer)
+            : (activeLayer?.strokeEnabled !== false && uiStore.strokeEnabled !== false);
         const fillEnabled = firstSelectedShape 
-            ? firstSelectedShape.fillEnabled !== false 
-            : uiStore.fillColor !== 'transparent';
+            ? isFillEffectivelyEnabled(firstSelectedShape, activeLayer)
+            : (activeLayer?.fillEnabled !== false && uiStore.fillColor !== 'transparent');
 
         // Stroke width - show selected shape's value or uiStore default
         const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? uiStore.strokeWidth;
+        
+        // Get color mode for first selected shape (if any)
+        const colorMode = firstSelectedShape ? getShapeColorMode(firstSelectedShape) : null;
 
-        // Handlers for checkbox changes
+        /**
+         * UNIFIED TOGGLE BEHAVIOR:
+         * - If no shape selected: toggle on uiStore (affects new shapes)
+         * - If shape selected AND mode === 'layer': toggle on layer (affects all inheriting shapes)
+         * - If shape selected AND mode === 'custom': toggle on shape only
+         * This prevents accidental mode changes and keeps behavior consistent with Sidebar.
+         */
         const handleStrokeEnabledChange = (checked: boolean) => {
             uiStore.setStrokeEnabled(checked);
-            // When re-enabling, use black as default to make it clear element is now custom
-            const newStrokeColor = checked ? '#000000' : undefined;
-            // Update selected shapes
+            
+            if (selectedIds.length === 0) return; // Only update uiStore for new shapes
+            
             selectedIds.forEach(id => {
                 const shape = dataStore.shapes[id];
-                if (shape) {
-                    const updates: any = { 
-                        strokeEnabled: checked,
-                        colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
-                    };
-                    if (newStrokeColor) updates.strokeColor = newStrokeColor;
-                    dataStore.updateShape(id, updates, true);
+                if (!shape) return;
+                
+                const mode = getShapeColorMode(shape).stroke;
+                if (mode === 'layer' && activeLayer) {
+                    // Toggle on layer level - affects all elements inheriting from this layer
+                    dataStore.updateLayer(activeLayer.id, { strokeEnabled: checked });
+                } else {
+                    // Toggle on element level only - no mode change
+                    dataStore.updateShape(id, { strokeEnabled: checked }, true);
                 }
             });
         };
 
         const handleFillEnabledChange = (checked: boolean) => {
-            // Use default colors when re-enabling to make it clear the element is now custom
-            const newFillColor = checked ? '#eeeeee' : 'transparent';
-            uiStore.setFillColor(newFillColor);
-            // Update selected shapes
+            uiStore.setFillColor(checked ? '#eeeeee' : 'transparent');
+            
+            if (selectedIds.length === 0) return; // Only update uiStore for new shapes
+            
             selectedIds.forEach(id => {
                 const shape = dataStore.shapes[id];
-                if (shape) {
-                    dataStore.updateShape(id, { 
-                        fillColor: newFillColor,
-                        colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
-                    }, true);
+                if (!shape) return;
+                
+                const mode = getShapeColorMode(shape).fill;
+                if (mode === 'layer' && activeLayer) {
+                    // Toggle on layer level - affects all elements inheriting from this layer
+                    dataStore.updateLayer(activeLayer.id, { fillEnabled: checked });
+                } else {
+                    // Toggle on element level only - no mode change
+                    dataStore.updateShape(id, { fillEnabled: checked }, true);
                 }
             });
         };

@@ -30,7 +30,9 @@ export interface Layer {
   id: string;
   name: string;
   strokeColor: string;
+  strokeEnabled: boolean; // Whether stroke is active for ByLayer elements
   fillColor: string;
+  fillEnabled: boolean;   // Whether fill is active for ByLayer elements
   visible: boolean;
   locked: boolean;
   isNative?: boolean; // If true, layer cannot be deleted

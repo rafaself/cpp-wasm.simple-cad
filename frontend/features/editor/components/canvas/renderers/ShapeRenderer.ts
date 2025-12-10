@@ -1,6 +1,6 @@
 import { Layer, Shape, ViewTransform } from '../../../../../types';
 import { getDistance, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
-import { getEffectiveFillColor, getEffectiveStrokeColor } from '../../../../../utils/shapeColors';
+import { getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled } from '../../../../../utils/shapeColors';
 
 export const renderShape = (
     ctx: CanvasRenderingContext2D,
@@ -26,9 +26,14 @@ export const renderShape = (
 
         const strokeColor = getEffectiveStrokeColor(shape, layer);
         const fillColor = getEffectiveFillColor(shape, layer);
-        const effectiveStroke = (shape.strokeEnabled === false || strokeColor === 'transparent') ? 'transparent' : strokeColor;
+        
+        // Use the new effective enabled functions that consider layer inheritance
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
+        const fillEnabled = isFillEffectivelyEnabled(shape, layer);
+        
+        const effectiveStroke = (!strokeEnabled || strokeColor === 'transparent') ? 'transparent' : strokeColor;
         ctx.strokeStyle = effectiveStroke;
-        const effectiveFill = (shape.fillEnabled !== false && fillColor && fillColor !== 'transparent') ? fillColor : 'transparent';
+        const effectiveFill = (fillEnabled && fillColor && fillColor !== 'transparent') ? fillColor : 'transparent';
         ctx.fillStyle = effectiveFill;
         ctx.setLineDash([]);
 
