@@ -84,17 +84,49 @@ export const renderShape = (
             // Support width/height for ellipse-like behavior
             const rx = (shape.width ?? r * 2) / 2;
             const ry = (shape.height ?? r * 2) / 2;
+            const flipX = shape.scaleX ?? 1;
+            const flipY = shape.scaleY ?? 1;
+            
+            // Apply flip if needed
+            if (flipX !== 1 || flipY !== 1) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.scale(flipX, flipY);
+                ctx.translate(-cx, -cy);
+            }
+            
             ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
+            
+            if (flipX !== 1 || flipY !== 1) {
+                ctx.restore();
+            }
         } else if (shape.type === 'rect') {
             const rx = shape.x ?? 0;
             const ry = shape.y ?? 0;
             const rw = shape.width ?? 0;
             const rh = shape.height ?? 0;
+            const flipX = shape.scaleX ?? 1;
+            const flipY = shape.scaleY ?? 1;
+            
+            // Apply flip transformation if needed
+            if (flipX !== 1 || flipY !== 1) {
+                ctx.save();
+                const centerX = rx + rw / 2;
+                const centerY = ry + rh / 2;
+                ctx.translate(centerX, centerY);
+                ctx.scale(flipX, flipY);
+                ctx.translate(-centerX, -centerY);
+            }
+            
             ctx.rect(rx, ry, rw, rh);
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
+            
+            if (flipX !== 1 || flipY !== 1) {
+                ctx.restore();
+            }
         } else if (shape.type === 'polyline') {
             if (shape.points && shape.points.length > 0) {
                 ctx.moveTo(shape.points[0].x, shape.points[0].y);
@@ -110,8 +142,8 @@ export const renderShape = (
             
             // Calculate scale factors for width/height
             const baseSize = r * 2;
-            const scaleX = (shape.width ?? baseSize) / baseSize;
-            const scaleY = (shape.height ?? baseSize) / baseSize;
+            const scaleX = ((shape.width ?? baseSize) / baseSize) * (shape.scaleX ?? 1);
+            const scaleY = ((shape.height ?? baseSize) / baseSize) * (shape.scaleY ?? 1);
             
             ctx.save();
             ctx.translate(cx, cy);

@@ -420,6 +420,42 @@ export const getCombinedBounds = (shapes: Shape[]): Rect | null => {
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 };
 
+/**
+ * Get the bounding box of a shape for transformation purposes.
+ * Returns { x, y, width, height } where x,y is the top-left corner.
+ */
+export const getShapeBoundingBox = (shape: Shape): Rect => {
+    if (shape.type === 'rect' || shape.type === 'text') {
+        return {
+            x: shape.x ?? 0,
+            y: shape.y ?? 0,
+            width: shape.width ?? 0,
+            height: shape.height ?? 0
+        };
+    }
+    if (shape.type === 'circle' || shape.type === 'polygon') {
+        const cx = shape.x ?? 0;
+        const cy = shape.y ?? 0;
+        const w = shape.width ?? (shape.radius ?? 50) * 2;
+        const h = shape.height ?? (shape.radius ?? 50) * 2;
+        return { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
+    }
+    // Lines/polylines: return bounds of points
+    if (shape.points && shape.points.length > 0) {
+        const xs = shape.points.map(p => p.x);
+        const ys = shape.points.map(p => p.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        return {
+            x: minX,
+            y: minY,
+            width: Math.max(...xs) - minX || 1,
+            height: Math.max(...ys) - minY || 1
+        };
+    }
+    return { x: 0, y: 0, width: 0, height: 0 };
+};
+
 export interface Handle { x: number; y: number; cursor: string; index: number; type: 'vertex' | 'resize'; }
 
 export const getShapeHandles = (shape: Shape): Handle[] => {

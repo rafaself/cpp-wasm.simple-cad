@@ -1,11 +1,20 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../../../stores/useUIStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
-import { Point, Shape } from '../../../../../types';
-import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle } from '../../../../../utils/geometry';
+import { Point, Shape, Rect } from '../../../../../types';
+import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox } from '../../../../../utils/geometry';
 import { getTextSize } from '../helpers';
 import { TextEditState } from '../overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../../../utils/shapeColors';
+
+// State for Figma-like resize with flip support
+interface ResizeState {
+    originalBounds: Rect;
+    anchorPoint: Point; // The fixed point (opposite corner or center)
+    handleIndex: number;
+    originalScaleX: number;
+    originalScaleY: number;
+}
 
 export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     const uiStore = useUIStore();
@@ -22,7 +31,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [lineStart, setLineStart] = useState<Point | null>(null);
     // Handle Interaction
     const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: { x: number; y: number; cursor: string; index: number; type: string } } | null>(null);
-    const [initialResizeDims, setInitialResizeDims] = useState<{ width: number; height: number } | null>(null);
+    const [resizeState, setResizeState] = useState<ResizeState | null>(null);
     const [transformationBase, setTransformationBase] = useState<Point | null>(null);
 
     // Arc Tool State
@@ -53,7 +62,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     useEffect(() => {
         setLineStart(null); setMeasureStart(null); setPolylinePoints([]); setStartPoint(null);
         setIsDragging(false); setIsSelectionBox(false); setSnapMarker(null); setTransformationBase(null);
-        setActiveHandle(null);
+        setActiveHandle(null); setResizeState(null);
         setArcPoints(null); setShowRadiusModal(false);
         setPolygonShapeId(null); setShowPolygonModal(false);
     }, [uiStore.activeTool]);
@@ -62,7 +71,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const handleGlobalMouseUp = () => {
             if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); setIsDragging(false); }
             if (isDragging && uiStore.activeTool === 'pan') { setIsDragging(false); setStartPoint(null); }
-            if (activeHandle) { setActiveHandle(null); setIsDragging(false); }
+            if (activeHandle) { setActiveHandle(null); setResizeState(null); setIsDragging(false); }
         };
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
@@ -152,11 +161,24 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (getDistance(h, wPos) < handleSize) { 
                         setActiveHandle({ shapeId: shape.id, handle: h }); 
                         setIsDragging(true);
-                        // Capture initial dimensions for proportional resize
+                        // Capture initial state for Figma-like resize with flip support
                         if (h.type === 'resize') {
-                            const shapeW = shape.width ?? (shape.radius ? shape.radius * 2 : 100);
-                            const shapeH = shape.height ?? (shape.radius ? shape.radius * 2 : 100);
-                            setInitialResizeDims({ width: shapeW, height: shapeH });
+                            const bounds = getShapeBoundingBox(shape);
+                            // Calculate anchor point (opposite corner based on handle index)
+                            // Index: 0=TL, 1=TR, 2=BR, 3=BL
+                            const anchorMap: Record<number, Point> = {
+                                0: { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // BR
+                                1: { x: bounds.x, y: bounds.y + bounds.height },                // BL
+                                2: { x: bounds.x, y: bounds.y },                                // TL
+                                3: { x: bounds.x + bounds.width, y: bounds.y }                  // TR
+                            };
+                            setResizeState({
+                                originalBounds: bounds,
+                                anchorPoint: anchorMap[h.index] ?? { x: bounds.x, y: bounds.y },
+                                handleIndex: h.index,
+                                originalScaleX: shape.scaleX ?? 1,
+                                originalScaleY: shape.scaleY ?? 1
+                            });
                         }
                         return; 
                     }
@@ -275,92 +297,119 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 const ws = screenToWorld(eff, uiStore.viewTransform);
                 const s = dataStore.shapes[activeHandle.shapeId];
                 if (s) {
+                    // VERTEX handles (lines, polylines) - direct point manipulation
                     if (activeHandle.handle.type === 'vertex' && s.points) {
                         const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
                         dataStore.updateShape(s.id, { points: newPoints }, false);
-                    } else if (activeHandle.handle.type === 'resize' && (s.type === 'rect' || s.type === 'text')) {
-                        if (s.x !== undefined && s.y !== undefined) {
-                            const idx = activeHandle.handle.index;
-                            const size = s.type === 'rect'
-                                ? { width: s.width ?? 0, height: s.height ?? 0 }
-                                : getTextSize(s);
-                            const oldX = s.x; const oldY = s.y; const oldR = oldX + size.width; const oldB = oldY + size.height;
-                            let newX = oldX, newY = oldY, newW = size.width, newH = size.height;
-                            if (idx === 0) { newX = ws.x; newY = ws.y; newW = oldR - newX; newH = oldB - newY; }
-                            else if (idx === 1) { newY = ws.y; newW = ws.x - oldX; newH = oldB - newY; }
-                            else if (idx === 2) { newW = ws.x - oldX; newH = ws.y - oldY; }
-                            else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
-                            
-                            // Shift: proportional resize (maintain INITIAL aspect ratio like Figma)
-                            if (e.shiftKey && initialResizeDims && initialResizeDims.width > 0 && initialResizeDims.height > 0) {
-                                const aspectRatio = initialResizeDims.width / initialResizeDims.height;
-                                if (Math.abs(newW) / aspectRatio > Math.abs(newH)) {
-                                    newH = Math.abs(newW) / aspectRatio * Math.sign(newH || 1);
-                                } else {
-                                    newW = Math.abs(newH) * aspectRatio * Math.sign(newW || 1);
-                                }
-                            }
-                            
-                            const minSize = 5;
-                            if (newW < 0) { newX += newW; newW = Math.abs(newW); }
-                            if (newH < 0) { newY += newH; newH = Math.abs(newH); }
-                            newW = Math.max(minSize, newW);
-                            newH = Math.max(minSize, newH);
-
-                            dataStore.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
-                        }
-                    } else if (activeHandle.handle.type === 'resize' && (s.type === 'circle' || s.type === 'polygon')) {
-                        // Circle/Polygon resize with width/height support (ellipse-like)
-                        const cx = s.x ?? 0;
-                        const cy = s.y ?? 0;
-                        const oldRadius = s.radius ?? 50;
-                        const oldW = s.width ?? oldRadius * 2;
-                        const oldH = s.height ?? oldRadius * 2;
+                    } 
+                    // RESIZE handles - Figma-like bounding box transformation with flip support
+                    else if (activeHandle.handle.type === 'resize' && resizeState) {
+                        const { originalBounds, anchorPoint, originalScaleX, originalScaleY } = resizeState;
                         const idx = activeHandle.handle.index;
                         
-                        // Bounding box: center-based, handles at corners
-                        const left = cx - oldW / 2, right = cx + oldW / 2;
-                        const top = cy - oldH / 2, bottom = cy + oldH / 2;
-                        
-                        let newW = oldW, newH = oldH, newCx = cx, newCy = cy;
-                        
-                        // 0=TL, 1=TR, 2=BR, 3=BL
-                        if (idx === 0) { // Top-left
-                            newW = right - ws.x; newH = bottom - ws.y;
-                            newCx = ws.x + newW / 2; newCy = ws.y + newH / 2;
-                        } else if (idx === 1) { // Top-right
-                            newW = ws.x - left; newH = bottom - ws.y;
-                            newCx = left + newW / 2; newCy = ws.y + newH / 2;
-                        } else if (idx === 2) { // Bottom-right
-                            newW = ws.x - left; newH = ws.y - top;
-                            newCx = left + newW / 2; newCy = top + newH / 2;
-                        } else if (idx === 3) { // Bottom-left
-                            newW = right - ws.x; newH = ws.y - top;
-                            newCx = ws.x + newW / 2; newCy = top + newH / 2;
+                        // Determine anchor based on Alt key (center) or opposite corner
+                        let anchor = anchorPoint;
+                        if (e.altKey) {
+                            // Alt: resize from center
+                            anchor = {
+                                x: originalBounds.x + originalBounds.width / 2,
+                                y: originalBounds.y + originalBounds.height / 2
+                            };
                         }
                         
-                        // Shift: proportional resize (maintain INITIAL aspect ratio like Figma)
-                        if (e.shiftKey && initialResizeDims && initialResizeDims.width > 0 && initialResizeDims.height > 0) {
-                            const aspectRatio = initialResizeDims.width / initialResizeDims.height;
-                            if (Math.abs(newW) / aspectRatio > Math.abs(newH)) {
-                                newH = Math.abs(newW) / aspectRatio;
-                            } else {
-                                newW = Math.abs(newH) * aspectRatio;
-                            }
-                            // Recalculate center based on the corner being dragged
-                            if (idx === 0) { newCx = right - newW / 2; newCy = bottom - newH / 2; }
-                            else if (idx === 1) { newCx = left + newW / 2; newCy = bottom - newH / 2; }
-                            else if (idx === 2) { newCx = left + newW / 2; newCy = top + newH / 2; }
-                            else if (idx === 3) { newCx = right - newW / 2; newCy = top + newH / 2; }
+                        // Calculate raw new width and height (can be negative for flip!)
+                        let rawW: number, rawH: number, newX: number, newY: number;
+                        
+                        if (e.altKey) {
+                            // Alt mode: symmetric resize from center
+                            const dx = ws.x - anchor.x;
+                            const dy = ws.y - anchor.y;
+                            // Calculate signed distance based on handle position
+                            const signX = (idx === 0 || idx === 3) ? -1 : 1;
+                            const signY = (idx === 0 || idx === 1) ? -1 : 1;
+                            rawW = dx * signX * 2;
+                            rawH = dy * signY * 2;
+                            newX = anchor.x - Math.abs(rawW) / 2;
+                            newY = anchor.y - Math.abs(rawH) / 2;
+                        } else {
+                            // Normal mode: resize from opposite corner
+                            // Calculate new bounds from anchor to mouse
+                            const minX = Math.min(anchor.x, ws.x);
+                            const maxX = Math.max(anchor.x, ws.x);
+                            const minY = Math.min(anchor.y, ws.y);
+                            const maxY = Math.max(anchor.y, ws.y);
+                            
+                            // Determine sign based on whether mouse crossed the anchor
+                            const crossedX = (idx === 0 || idx === 3) ? (ws.x > anchor.x) : (ws.x < anchor.x);
+                            const crossedY = (idx === 0 || idx === 1) ? (ws.y > anchor.y) : (ws.y < anchor.y);
+                            
+                            rawW = (maxX - minX) * (crossedX ? -1 : 1);
+                            rawH = (maxY - minY) * (crossedY ? -1 : 1);
+                            newX = minX;
+                            newY = minY;
                         }
                         
-                        const minSize = 10;
-                        if (newW < 0) { newW = Math.abs(newW); newCx = cx; }
-                        if (newH < 0) { newH = Math.abs(newH); newCy = cy; }
-                        newW = Math.max(minSize, newW);
-                        newH = Math.max(minSize, newH);
+                        // Calculate scale factors (can be negative!)
+                        let scaleX = originalBounds.width > 0 ? rawW / originalBounds.width : 1;
+                        let scaleY = originalBounds.height > 0 ? rawH / originalBounds.height : 1;
                         
-                        dataStore.updateShape(s.id, { x: newCx, y: newCy, width: newW, height: newH }, false);
+                        // Shift: proportional resize
+                        if (e.shiftKey) {
+                            const uniformScale = Math.max(Math.abs(scaleX), Math.abs(scaleY));
+                            scaleX = uniformScale * Math.sign(scaleX || 1);
+                            scaleY = uniformScale * Math.sign(scaleY || 1);
+                        }
+                        
+                        // Apply scaled dimensions
+                        const finalW = Math.abs(originalBounds.width * scaleX);
+                        const finalH = Math.abs(originalBounds.height * scaleY);
+                        
+                        // Determine new position based on anchor
+                        let finalX: number, finalY: number;
+                        if (e.altKey) {
+                            finalX = anchor.x - finalW / 2;
+                            finalY = anchor.y - finalH / 2;
+                        } else {
+                            // Position based on scale direction
+                            finalX = scaleX >= 0 ? anchor.x - finalW : anchor.x;
+                            finalY = scaleY >= 0 ? anchor.y - finalH : anchor.y;
+                            // Correct for handle index
+                            if (idx === 1 || idx === 2) finalX = scaleX >= 0 ? anchor.x : anchor.x - finalW;
+                            if (idx === 2 || idx === 3) finalY = scaleY >= 0 ? anchor.y : anchor.y - finalH;
+                        }
+                        
+                        // Calculate new scaleX/scaleY for flip state
+                        const newScaleX = scaleX < 0 ? -originalScaleX : originalScaleX;
+                        const newScaleY = scaleY < 0 ? -originalScaleY : originalScaleY;
+                        
+                        // Minimum size enforcement (but allow flip)
+                        const minSize = 5;
+                        const enforcedW = Math.max(minSize, finalW);
+                        const enforcedH = Math.max(minSize, finalH);
+                        
+                        // Apply updates based on shape type
+                        if (s.type === 'rect' || s.type === 'text') {
+                            dataStore.updateShape(s.id, {
+                                x: finalX,
+                                y: finalY,
+                                width: enforcedW,
+                                height: enforcedH,
+                                scaleX: newScaleX,
+                                scaleY: newScaleY
+                            }, false);
+                        } else if (s.type === 'circle' || s.type === 'polygon') {
+                            // Center-based shapes
+                            const newCx = finalX + enforcedW / 2;
+                            const newCy = finalY + enforcedH / 2;
+                            dataStore.updateShape(s.id, {
+                                x: newCx,
+                                y: newCy,
+                                width: enforcedW,
+                                height: enforcedH,
+                                scaleX: newScaleX,
+                                scaleY: newScaleY
+                            }, false);
+                        }
                     }
                 }
                 return;

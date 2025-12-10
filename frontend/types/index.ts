@@ -89,6 +89,8 @@ export interface Shape {
   label?: string; // For measurements
   
   rotation?: number; // Rotation in radians
+  scaleX?: number; // 1 = normal, -1 = flipped horizontally
+  scaleY?: number; // 1 = normal, -1 = flipped vertically
 }
 
 export interface ViewTransform {
