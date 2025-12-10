@@ -59,6 +59,31 @@ const SettingsModal: React.FC = () => {
             </div>
           </div>
 
+          {/* Center Axes and Icon toggles */}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs text-slate-400 font-bold uppercase">Centro do Canvas</label>
+            <div className="flex flex-col gap-2 bg-slate-900 p-2 rounded border border-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={uiStore.showCenterAxes}
+                  onChange={(e) => uiStore.setShowCenterAxes(e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                />
+                <span className="text-sm text-slate-300">Eixos X/Y</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={uiStore.showCenterIcon}
+                  onChange={(e) => uiStore.setShowCenterIcon(e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                />
+                <span className="text-sm text-slate-300">Ícone de Centro</span>
+              </label>
+            </div>
+          </div>
+
         </div>
 
         <div className="p-3 border-t border-slate-700 flex justify-end">

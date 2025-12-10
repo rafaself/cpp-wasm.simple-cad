@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../../../stores/useUIStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
 import { Point, Shape, Rect } from '../../../../../types';
-import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox } from '../../../../../utils/geometry';
+import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare } from '../../../../../utils/geometry';
 import { getTextSize } from '../helpers';
 import { TextEditState } from '../overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../../../utils/shapeColors';
@@ -29,6 +29,18 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [polylinePoints, setPolylinePoints] = useState<Point[]>([]);
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
+    const [arrowStart, setArrowStart] = useState<Point | null>(null);
+    
+    // Shift key state for real-time updates during drag
+    const [isShiftPressed, setIsShiftPressed] = useState(false);
+    // Axis lock state for constrained movement (Figma-style)
+    // Once locked, stays locked until drag ends
+    const [lockedAxis, setLockedAxis] = useState<'x' | 'y' | null>(null);
+    // Reference to original shape positions when drag started (for axis lock calculation)
+    const dragStartPositions = useRef<Map<string, { x: number; y: number; points?: Point[] }>>(new Map());
+    // World position where the drag started
+    const dragStartWorld = useRef<Point | null>(null);
+    
     // Handle Interaction
     const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: { x: number; y: number; cursor: string; index: number; type: string } } | null>(null);
     const [resizeState, setResizeState] = useState<ResizeState | null>(null);
@@ -60,18 +72,49 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
     // Reset tools on change
     useEffect(() => {
-        setLineStart(null); setMeasureStart(null); setPolylinePoints([]); setStartPoint(null);
+        setLineStart(null); setArrowStart(null); setMeasureStart(null); setPolylinePoints([]); setStartPoint(null);
         setIsDragging(false); setIsSelectionBox(false); setSnapMarker(null); setTransformationBase(null);
         setActiveHandle(null); setResizeState(null);
         setArcPoints(null); setShowRadiusModal(false);
         setPolygonShapeId(null); setShowPolygonModal(false);
+        setLockedAxis(null); // Reset axis lock on tool change
+        dragStartPositions.current.clear();
+        dragStartWorld.current = null;
     }, [uiStore.activeTool]);
+
+    // Global Shift key listener for real-time updates during drag
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Shift' && !isShiftPressed) {
+                setIsShiftPressed(true);
+            }
+        };
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (e.key === 'Shift' && isShiftPressed) {
+                setIsShiftPressed(false);
+                // When Shift is released during drag, unlock axis for free movement
+                if (isDragging && lockedAxis) {
+                    setLockedAxis(null);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [isShiftPressed, isDragging, lockedAxis]);
 
     useEffect(() => {
         const handleGlobalMouseUp = () => {
             if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); setIsDragging(false); }
             if (isDragging && uiStore.activeTool === 'pan') { setIsDragging(false); setStartPoint(null); }
             if (activeHandle) { setActiveHandle(null); setResizeState(null); setIsDragging(false); }
+            // Reset axis lock when drag ends
+            setLockedAxis(null);
+            dragStartPositions.current.clear();
+            dragStartWorld.current = null;
         };
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
@@ -98,7 +141,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') { if (uiStore.activeTool === 'polyline') finishPolyline(); }
             if (e.key === 'Escape') {
-                setLineStart(null); setMeasureStart(null); setPolylinePoints([]);
+                setLineStart(null); setArrowStart(null); setMeasureStart(null); setPolylinePoints([]);
                 setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
                 setArcPoints(null); setShowRadiusModal(false);
                 setPolygonShapeId(null); setShowPolygonModal(false);
@@ -243,8 +286,26 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         if (uiStore.activeTool === 'line') {
             if (!lineStart) setLineStart(wPos);
             else {
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, wPos] });
+                // Shift: constrain to 45° angles
+                let endPoint = wPos;
+                if (e.shiftKey) {
+                    endPoint = constrainTo45Degrees(lineStart, wPos);
+                }
+                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
                 uiStore.setSidebarTab('desenho'); setLineStart(null);
+            }
+            return;
+        }
+        if (uiStore.activeTool === 'arrow') {
+            if (!arrowStart) setArrowStart(wPos);
+            else {
+                // Shift: constrain to 45° angles
+                let endPoint = wPos;
+                if (e.shiftKey) {
+                    endPoint = constrainTo45Degrees(arrowStart, wPos);
+                }
+                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'arrow', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
+                uiStore.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
         }
@@ -416,36 +477,71 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             }
 
             if (uiStore.activeTool === 'select' && !isSelectionBox && uiStore.selectedShapeIds.size > 0 && !activeHandle) {
-                const prevWorld = screenToWorld(startPoint, uiStore.viewTransform);
                 const currWorld = screenToWorld(eff, uiStore.viewTransform);
-                let dx = currWorld.x - prevWorld.x; 
-                let dy = currWorld.y - prevWorld.y;
+                
+                // Initialize drag start positions if not already set
+                if (!dragStartWorld.current) {
+                    dragStartWorld.current = screenToWorld(startPoint, uiStore.viewTransform);
+                    // Store original positions of all selected shapes
+                    uiStore.selectedShapeIds.forEach(id => {
+                        const s = dataStore.shapes[id];
+                        if (s) {
+                            dragStartPositions.current.set(id, {
+                                x: s.x ?? 0,
+                                y: s.y ?? 0,
+                                points: s.points ? [...s.points] : undefined
+                            });
+                        }
+                    });
+                }
 
-                // Shift: constrain to 90-degree angles (horizontal or vertical only)
-                if (e.shiftKey) {
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        dy = 0; // Horizontal movement only
-                    } else {
-                        dx = 0; // Vertical movement only
+                // Calculate total displacement from drag start
+                const totalDx = currWorld.x - dragStartWorld.current.x;
+                const totalDy = currWorld.y - dragStartWorld.current.y;
+
+                // Determine axis lock when Shift is pressed (Figma-style)
+                // The axis is locked once based on dominant direction and maintained until drag ends
+                let effectiveDx = totalDx;
+                let effectiveDy = totalDy;
+
+                if (e.shiftKey || isShiftPressed) {
+                    // If no axis is locked yet, determine which axis to lock
+                    if (lockedAxis === null && (Math.abs(totalDx) > 3 || Math.abs(totalDy) > 3)) {
+                        // Lock to the axis with greater movement
+                        const newAxis = Math.abs(totalDx) >= Math.abs(totalDy) ? 'x' : 'y';
+                        setLockedAxis(newAxis);
+                    }
+                    
+                    // Apply axis constraint
+                    if (lockedAxis === 'x') {
+                        effectiveDy = 0; // Horizontal movement only
+                    } else if (lockedAxis === 'y') {
+                        effectiveDx = 0; // Vertical movement only
                     }
                 }
 
-                if (dx !== 0 || dy !== 0) {
-                    uiStore.selectedShapeIds.forEach(id => {
-                        const s = dataStore.shapes[id];
-                        if (!s) return;
-                        const l = dataStore.layers.find(lay => lay.id === s.layerId);
-                        if (l && l.locked) return;
+                // Apply movement from original positions
+                uiStore.selectedShapeIds.forEach(id => {
+                    const s = dataStore.shapes[id];
+                    if (!s) return;
+                    const l = dataStore.layers.find(lay => lay.id === s.layerId);
+                    if (l && l.locked) return;
 
-                        const diff: Partial<Shape> = {};
-                        if (s.x !== undefined) diff.x = s.x + dx;
-                        if (s.y !== undefined) diff.y = s.y + dy;
-                        if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                    const originalPos = dragStartPositions.current.get(id);
+                    if (!originalPos) return;
 
-                        dataStore.updateShape(id, diff, false);
-                    });
-                    setStartPoint(eff);
-                }
+                    const diff: Partial<Shape> = {};
+                    if (s.x !== undefined) diff.x = originalPos.x + effectiveDx;
+                    if (s.y !== undefined) diff.y = originalPos.y + effectiveDy;
+                    if (originalPos.points) {
+                        diff.points = originalPos.points.map(p => ({ 
+                            x: p.x + effectiveDx, 
+                            y: p.y + effectiveDy 
+                        }));
+                    }
+
+                    dataStore.updateShape(id, diff, false);
+                });
             }
         }
     };
@@ -481,11 +577,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         }
 
         setIsDragging(false); setActiveHandle(null);
+        // Reset axis lock state when drag ends
+        setLockedAxis(null);
+        dragStartPositions.current.clear();
+        dragStartWorld.current = null;
 
-        const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc', 'arrow'];
+        const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc'];
         const isSingleClick = dist < 5;
 
-        if (!['select', 'pan', 'polyline', 'measure', 'line', 'move', 'rotate'].includes(uiStore.activeTool)) {
+        if (!['select', 'pan', 'polyline', 'measure', 'line', 'move', 'rotate', 'arrow'].includes(uiStore.activeTool)) {
 
             if (uiStore.activeTool === 'arc') {
                 const pEnd = isSingleClick ? { x: ws.x + 100, y: ws.y } : we;
@@ -510,12 +610,21 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
                 else if (uiStore.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
                 else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = uiStore.polygonSides; }
-                else if (uiStore.activeTool === 'arrow') { n.points = [ws, { x: ws.x + 100, y: ws.y }]; n.arrowHeadSize = 15; }
             } else {
+                // Apply Shift constraint for proportional shapes (Figma-style)
+                let finalEnd = we;
+                if ((e.shiftKey || isShiftPressed) && uiStore.activeTool === 'rect') {
+                    finalEnd = constrainToSquare(ws, we);
+                }
+
                 if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
-                else if (uiStore.activeTool === 'rect') { n.x = Math.min(ws.x, we.x); n.y = Math.min(ws.y, we.y); n.width = Math.abs(we.x - ws.x); n.height = Math.abs(we.y - ws.y); }
+                else if (uiStore.activeTool === 'rect') { 
+                    n.x = Math.min(ws.x, finalEnd.x); 
+                    n.y = Math.min(ws.y, finalEnd.y); 
+                    n.width = Math.abs(finalEnd.x - ws.x); 
+                    n.height = Math.abs(finalEnd.y - ws.y); 
+                }
                 else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = uiStore.polygonSides; }
-                else if (uiStore.activeTool === 'arrow') { n.points = [ws, we]; n.arrowHeadSize = 15; }
             }
 
             // For polygon, show modal after creation
@@ -598,6 +707,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             polylinePoints,
             measureStart,
             lineStart,
+            arrowStart,
             activeHandle,
             transformationBase,
             arcPoints,
@@ -606,7 +716,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             textEditState,
             showPolygonModal,
             polygonModalPos,
-            polygonShapeId
+            polygonShapeId,
+            isShiftPressed
         },
         setters: {
             setArcPoints,

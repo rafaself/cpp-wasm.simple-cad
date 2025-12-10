@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HSV, hsvToRgb, rgbToHex, hexToRgb, rgbToHsv, RGB } from './utils';
 import { ChevronDown } from 'lucide-react';
 
@@ -29,23 +29,36 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
     setAlphaValue(Math.round(hsv.a * 100).toString());
   }, [hsv]);
 
+  // Track if user is actively typing a valid HEX to avoid overwriting it
+  const userTypedHex = useRef<string | null>(null);
+
   // HEX handlers
   const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
     setHexValue(val);
     
     if (val.length === 6) {
+      // Remember the typed hex to prevent blur from changing it
+      userTypedHex.current = val.toUpperCase();
       const rgb = hexToRgb(val);
       if (rgb) {
         const newHsv = rgbToHsv({ ...rgb, a: hsv.a });
         onChange(newHsv);
       }
+    } else {
+      userTypedHex.current = null;
     }
   };
 
   const handleHexBlur = () => {
-    const rgb = hsvToRgb(hsv);
-    setHexValue(rgbToHex(rgb));
+    // If user typed a valid 6-char hex, preserve it
+    if (userTypedHex.current && hexValue.length === 6) {
+      setHexValue(userTypedHex.current);
+    } else {
+      // Otherwise, recompute from current HSV
+      const rgb = hsvToRgb(hsv);
+      setHexValue(rgbToHex(rgb));
+    }
   };
 
   // RGB handlers

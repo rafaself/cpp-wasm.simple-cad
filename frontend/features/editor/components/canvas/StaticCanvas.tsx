@@ -16,6 +16,8 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const gridColor = useUIStore(s => s.gridColor);
     const gridShowDots = useUIStore(s => s.gridShowDots);
     const gridShowLines = useUIStore(s => s.gridShowLines);
+    const showCenterAxes = useUIStore(s => s.showCenterAxes);
+    const showCenterIcon = useUIStore(s => s.showCenterIcon);
     const editingTextId = useUIStore(s => s.editingTextId);
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
 
@@ -79,6 +81,51 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             }
         }
 
+        // Draw Center Axes (origin at 0,0)
+        if (showCenterAxes) {
+            const axisExtent = 50000; // Very long axes
+            ctx.lineWidth = 0.5 / viewTransform.scale;
+            ctx.setLineDash([10 / viewTransform.scale, 6 / viewTransform.scale]);
+            
+            // X-Axis (horizontal) - very subtle red
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)';
+            ctx.beginPath();
+            ctx.moveTo(-axisExtent, 0);
+            ctx.lineTo(axisExtent, 0);
+            ctx.stroke();
+            
+            // Y-Axis (vertical) - very subtle green
+            ctx.strokeStyle = 'rgba(34, 197, 94, 0.15)';
+            ctx.beginPath();
+            ctx.moveTo(0, -axisExtent);
+            ctx.lineTo(0, axisExtent);
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+        }
+
+        // Draw Center Icon (crosshair at 0,0)
+        if (showCenterIcon) {
+            const iconSize = 8 / viewTransform.scale;
+            const lineWidth = 1 / viewTransform.scale;
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.3)'; // slate-500, more subtle
+            ctx.lineWidth = lineWidth;
+            ctx.setLineDash([]);
+            
+            // Draw crosshair
+            ctx.beginPath();
+            ctx.moveTo(-iconSize, 0);
+            ctx.lineTo(iconSize, 0);
+            ctx.moveTo(0, -iconSize);
+            ctx.lineTo(0, iconSize);
+            ctx.stroke();
+            
+            // Draw small circle at center
+            ctx.beginPath();
+            ctx.arc(0, 0, iconSize / 3, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         // Query Visible Shapes
         const viewRect: Rect = {
             x: -viewTransform.x / viewTransform.scale,
@@ -111,7 +158,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
+    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
 
     return (
         <canvas

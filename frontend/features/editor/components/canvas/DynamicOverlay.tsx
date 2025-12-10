@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { Shape } from '../../../../types';
-import { screenToWorld, getDistance, rotatePoint } from '../../../../utils/geometry';
+import { screenToWorld, getDistance, rotatePoint, constrainToSquare } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
 import RadiusInputModal from '../RadiusInputModal';
 import { useCanvasInteraction } from './hooks/useCanvasInteraction';
@@ -29,9 +29,9 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
     isDragging, isMiddlePanning, startPoint, currentPoint, isSelectionBox, snapMarker,
-    polylinePoints, measureStart, lineStart, activeHandle, transformationBase,
+    polylinePoints, measureStart, lineStart, arrowStart, activeHandle, transformationBase,
     arcPoints, showRadiusModal, radiusModalPos, textEditState,
-    showPolygonModal, polygonModalPos
+    showPolygonModal, polygonModalPos, isShiftPressed
   } = state;
 
   const render = useCallback(() => {
@@ -90,27 +90,67 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       if (currentPoint) { const wm = screenToWorld(currentPoint, uiStore.viewTransform); ctx.lineTo(wm.x, wm.y); } ctx.stroke();
     }
 
-    if ((uiStore.activeTool === 'line' && lineStart) || (uiStore.activeTool === 'measure' && measureStart)) {
-        const start = uiStore.activeTool === 'line' ? lineStart : measureStart;
+    if ((uiStore.activeTool === 'line' && lineStart) || (uiStore.activeTool === 'measure' && measureStart) || (uiStore.activeTool === 'arrow' && arrowStart)) {
+        const start = uiStore.activeTool === 'line' ? lineStart 
+            : uiStore.activeTool === 'arrow' ? arrowStart 
+            : measureStart;
         if (start && currentPoint) {
             const wm = screenToWorld(currentPoint, uiStore.viewTransform);
-            ctx.beginPath(); ctx.strokeStyle = uiStore.activeTool === 'measure' ? '#ef4444' : uiStore.strokeColor;
+            ctx.beginPath(); 
+            ctx.strokeStyle = uiStore.activeTool === 'measure' ? '#ef4444' : uiStore.strokeColor;
             ctx.lineWidth = (uiStore.strokeWidth || 2) / uiStore.viewTransform.scale;
             ctx.moveTo(start.x, start.y); ctx.lineTo(wm.x, wm.y); ctx.stroke();
+            
+            // Draw arrow head preview for arrow tool
+            if (uiStore.activeTool === 'arrow') {
+                const headSize = 15 / uiStore.viewTransform.scale;
+                const angle = Math.atan2(wm.y - start.y, wm.x - start.x);
+                ctx.beginPath();
+                ctx.moveTo(wm.x, wm.y);
+                ctx.lineTo(
+                    wm.x - headSize * Math.cos(angle - Math.PI / 6),
+                    wm.y - headSize * Math.sin(angle - Math.PI / 6)
+                );
+                ctx.moveTo(wm.x, wm.y);
+                ctx.lineTo(
+                    wm.x - headSize * Math.cos(angle + Math.PI / 6),
+                    wm.y - headSize * Math.sin(angle + Math.PI / 6)
+                );
+                ctx.stroke();
+            }
         }
     }
 
-    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate'].includes(uiStore.activeTool)) {
-      const ws = screenToWorld(startPoint, uiStore.viewTransform); const wc = screenToWorld(currentPoint, uiStore.viewTransform);
+    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate', 'arrow'].includes(uiStore.activeTool)) {
+      const ws = screenToWorld(startPoint, uiStore.viewTransform);
+      let wc = screenToWorld(currentPoint, uiStore.viewTransform);
+      
+      // Apply Shift constraint for proportional shapes (Figma-style)
+      // rect -> square, ellipse uses equal radii, polygon uses equal dimensions
+      if (isShiftPressed && (uiStore.activeTool === 'rect')) {
+        wc = constrainToSquare(ws, wc);
+      }
+      
       const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
+      
       if (uiStore.activeTool === 'arc') {
           ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(wc.x, wc.y);
           ctx.strokeStyle = uiStore.strokeColor; ctx.stroke();
       }
-      else if (uiStore.activeTool === 'circle') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); }
-      else if (uiStore.activeTool === 'rect') { temp.x = Math.min(ws.x, wc.x); temp.y = Math.min(ws.y, wc.y); temp.width = Math.abs(wc.x - ws.x); temp.height = Math.abs(wc.y - ws.y); }
-      else if (uiStore.activeTool === 'polygon') { temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = uiStore.polygonSides; }
-      else if (uiStore.activeTool === 'arrow') { temp.points = [ws, wc]; temp.arrowHeadSize = 15; }
+      else if (uiStore.activeTool === 'circle') { 
+        // Circle already maintains 1:1 ratio by using radius
+        temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); 
+      }
+      else if (uiStore.activeTool === 'rect') { 
+        temp.x = Math.min(ws.x, wc.x); 
+        temp.y = Math.min(ws.y, wc.y); 
+        temp.width = Math.abs(wc.x - ws.x); 
+        temp.height = Math.abs(wc.y - ws.y); 
+      }
+      else if (uiStore.activeTool === 'polygon') { 
+        // Polygon already maintains 1:1 ratio by using radius
+        temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = uiStore.polygonSides; 
+      }
       drawGhostShape(ctx, temp, uiStore.viewTransform);
     }
 
@@ -142,7 +182,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, measureStart, transformationBase, activeHandle, arcPoints]);
+  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed]);
 
   useEffect(() => {
       render();

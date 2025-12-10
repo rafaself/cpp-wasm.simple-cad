@@ -40,7 +40,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   
   const displayStrokeColor = strokeMode === 'layer'
     ? (layer?.strokeColor || '#000000')
-    : selectedShape.strokeColor;
+    : (selectedShape.strokeColor || '#000000');
 
   const updateProp = (prop: keyof Shape, value: any) => {
     store.updateShape(selectedShape.id, { [prop]: value });
@@ -212,7 +212,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <div
-                className={`w-6 h-6 rounded border-2 border-slate-400 flex-shrink-0 transition-transform ${fillMode === 'layer' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-105'}`}
+                className={`w-6 h-6 rounded border-2 border-slate-400 flex-shrink-0 transition-transform ${fillMode === 'layer' ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
                 style={getSwatchStyle(displayFillColor)}
                 onClick={(e) => openSidebarColorPicker(e, 'fill')}
               />
@@ -306,7 +306,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
             {/* Color row */}
             <div className="flex items-center gap-2">
               <div
-                className={`w-6 h-6 rounded border-2 border-slate-400 flex-shrink-0 transition-transform ${strokeMode === 'layer' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-105'}`}
+                className={`w-6 h-6 rounded border-2 border-slate-400 flex-shrink-0 transition-transform ${strokeMode === 'layer' ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
                 style={getSwatchStyle(displayStrokeColor)}
                 onClick={(e) => openSidebarColorPicker(e, 'stroke')}
               />

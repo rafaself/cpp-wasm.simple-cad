@@ -32,6 +32,42 @@ export const worldToScreen = (point: Point, transform: ViewTransform): Point => 
   };
 };
 
+/**
+ * Constrains an endpoint to the nearest 45° angle from the start point.
+ * Angles: 0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°
+ */
+export const constrainTo45Degrees = (start: Point, end: Point): Point => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  
+  if (distance === 0) return end;
+  
+  // Calculate angle and snap to nearest 45°
+  const angle = Math.atan2(dy, dx);
+  const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  
+  return {
+    x: start.x + Math.cos(snappedAngle) * distance,
+    y: start.y + Math.sin(snappedAngle) * distance,
+  };
+};
+
+/**
+ * Constrains dimensions to create a square (width === height).
+ * Uses the larger dimension for both.
+ */
+export const constrainToSquare = (start: Point, end: Point): Point => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const size = Math.max(Math.abs(dx), Math.abs(dy));
+  
+  return {
+    x: start.x + size * Math.sign(dx || 1),
+    y: start.y + size * Math.sign(dy || 1),
+  };
+};
+
 export const TEXT_PADDING = 4;
 
 export const getWrappedLines = (text: string, maxWidth: number, fontSize: number): string[] => {

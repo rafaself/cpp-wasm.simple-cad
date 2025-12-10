@@ -28,6 +28,10 @@ interface UIState {
   gridShowDots: boolean;
   gridShowLines: boolean;
 
+  // Center Display
+  showCenterAxes: boolean;
+  showCenterIcon: boolean;
+
   // Snap
   snapOptions: SnapOptions;
 
@@ -58,6 +62,8 @@ interface UIState {
   setGridColor: (color: string) => void;
   setGridShowDots: (show: boolean) => void;
   setGridShowLines: (show: boolean) => void;
+  setShowCenterAxes: (show: boolean) => void;
+  setShowCenterIcon: (show: boolean) => void;
 
   // Tool Option Setters
   setPolygonSides: (sides: number) => void;
@@ -103,9 +109,12 @@ export const useUIStore = create<UIState>((set) => ({
   textStrike: false,
 
   gridSize: 100,
-  gridColor: '#6b7280', // More visible gray
+  gridColor: '#E3E3E3', // Light gray grid
   gridShowDots: true,
   gridShowLines: false,
+
+  showCenterAxes: true,
+  showCenterIcon: true,
 
   snapOptions: { enabled: true, endpoint: true, midpoint: true, center: true, nearest: false, grid: false },
 
@@ -128,6 +137,8 @@ export const useUIStore = create<UIState>((set) => ({
   setGridColor: (color) => set({ gridColor: color }),
   setGridShowDots: (show) => set({ gridShowDots: show }),
   setGridShowLines: (show) => set({ gridShowLines: show }),
+  setShowCenterAxes: (show) => set({ showCenterAxes: show }),
+  setShowCenterIcon: (show) => set({ showCenterIcon: show }),
 
   setPolygonSides: (sides) => set({ polygonSides: sides }),
   setStrokeColor: (color) => set({ strokeColor: color }),

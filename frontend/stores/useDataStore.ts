@@ -448,7 +448,12 @@ export const useDataStore = create<DataState>((set, get) => ({
       const { canvasSize, setViewTransform } = useUIStore.getState();
 
       if (allShapes.length === 0) {
-          setViewTransform({ x: 0, y: 0, scale: 1 });
+          // Center the origin (0,0) in the middle of the canvas
+          setViewTransform({ 
+            x: canvasSize.width / 2, 
+            y: canvasSize.height / 2, 
+            scale: 1 
+          });
           return;
       }
 

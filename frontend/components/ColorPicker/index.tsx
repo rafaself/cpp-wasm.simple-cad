@@ -22,7 +22,14 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
   className,
   initialPosition
 }) => {
-  const [hsv, setHsv] = useState<HSV>({ h: 0, s: 0, v: 100, a: 1 });
+  // Initialize HSV from the prop color
+  const [hsv, setHsv] = useState<HSV>(() => {
+    const rgb = hexToRgb(color);
+    if (rgb) {
+      return rgbToHsv(rgb);
+    }
+    return { h: 0, s: 0, v: 100, a: 1 };
+  });
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isPositioned, setIsPositioned] = useState(false);
