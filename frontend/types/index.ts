@@ -71,6 +71,7 @@ export interface Shape {
   strokeOpacity?: number; // 0-100
   strokeEnabled?: boolean; // false = no stroke
   fillColor: string; // Background color for text
+  fillEnabled?: boolean; // false = no fill (transparent), keeps fillColor for restoration
   fillOpacity?: number; // 0-100
   colorMode?: ShapeColorMode;
   

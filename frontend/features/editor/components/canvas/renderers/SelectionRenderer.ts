@@ -23,17 +23,23 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
             }
         }
         else if (shape.type === 'circle') {
-            const r = shape.radius ?? 0;
-            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            const r = shape.radius ?? 50;
+            const rx = (shape.width ?? r * 2) / 2;
+            const ry = (shape.height ?? r * 2) / 2;
+            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
         }
         else if (shape.type === 'polygon') {
             const sides = Math.max(3, shape.sides ?? 5);
-            const r = shape.radius ?? 0;
+            const r = shape.radius ?? 50;
+            const baseSize = r * 2;
+            const scaleX = (shape.width ?? baseSize) / baseSize;
+            const scaleY = (shape.height ?? baseSize) / baseSize;
+            
             const angleStep = (Math.PI * 2) / sides;
             const startAngle = -Math.PI / 2;
-            ctx.moveTo(cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle));
+            ctx.moveTo(cx + r * scaleX * Math.cos(startAngle), cy + r * scaleY * Math.sin(startAngle));
             for (let i = 1; i <= sides; i++) {
-                ctx.lineTo(cx + r * Math.cos(startAngle + i * angleStep), cy + r * Math.sin(startAngle + i * angleStep));
+                ctx.lineTo(cx + r * scaleX * Math.cos(startAngle + i * angleStep), cy + r * scaleY * Math.sin(startAngle + i * angleStep));
             }
             ctx.closePath();
         }

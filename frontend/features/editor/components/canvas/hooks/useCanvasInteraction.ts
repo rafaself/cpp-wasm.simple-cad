@@ -20,7 +20,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [polylinePoints, setPolylinePoints] = useState<Point[]>([]);
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
-    const [activeHandle, setActiveHandle] = useState<{ shapeId: string, handle: Handle } | null>(null);
+    // Handle Interaction
+    const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: { x: number; y: number; cursor: string; index: number; type: string } } | null>(null);
+    const [initialResizeDims, setInitialResizeDims] = useState<{ width: number; height: number } | null>(null);
     const [transformationBase, setTransformationBase] = useState<Point | null>(null);
 
     // Arc Tool State
@@ -127,7 +129,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (!shape) continue;
                 const handles = getShapeHandles(shape); const handleSize = 10 / uiStore.viewTransform.scale;
                 for (const h of handles) {
-                    if (getDistance(h, wPos) < handleSize) { setActiveHandle({ shapeId: shape.id, handle: h }); setIsDragging(true); return; }
+                    if (getDistance(h, wPos) < handleSize) { 
+                        setActiveHandle({ shapeId: shape.id, handle: h }); 
+                        setIsDragging(true);
+                        // Capture initial dimensions for proportional resize
+                        if (h.type === 'resize') {
+                            const shapeW = shape.width ?? (shape.radius ? shape.radius * 2 : 100);
+                            const shapeH = shape.height ?? (shape.radius ? shape.radius * 2 : 100);
+                            setInitialResizeDims({ width: shapeW, height: shapeH });
+                        }
+                        return; 
+                    }
                 }
             }
         }
@@ -258,6 +270,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             else if (idx === 1) { newY = ws.y; newW = ws.x - oldX; newH = oldB - newY; }
                             else if (idx === 2) { newW = ws.x - oldX; newH = ws.y - oldY; }
                             else if (idx === 3) { newX = ws.x; newW = oldR - newX; newH = ws.y - oldY; }
+                            
+                            // Shift: proportional resize (maintain INITIAL aspect ratio like Figma)
+                            if (e.shiftKey && initialResizeDims && initialResizeDims.width > 0 && initialResizeDims.height > 0) {
+                                const aspectRatio = initialResizeDims.width / initialResizeDims.height;
+                                if (Math.abs(newW) / aspectRatio > Math.abs(newH)) {
+                                    newH = Math.abs(newW) / aspectRatio * Math.sign(newH || 1);
+                                } else {
+                                    newW = Math.abs(newH) * aspectRatio * Math.sign(newW || 1);
+                                }
+                            }
+                            
                             const minSize = 5;
                             if (newW < 0) { newX += newW; newW = Math.abs(newW); }
                             if (newH < 0) { newY += newH; newH = Math.abs(newH); }
@@ -266,6 +289,58 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
                             dataStore.updateShape(s.id, { x: newX, y: newY, width: newW, height: newH }, false);
                         }
+                    } else if (activeHandle.handle.type === 'resize' && (s.type === 'circle' || s.type === 'polygon')) {
+                        // Circle/Polygon resize with width/height support (ellipse-like)
+                        const cx = s.x ?? 0;
+                        const cy = s.y ?? 0;
+                        const oldRadius = s.radius ?? 50;
+                        const oldW = s.width ?? oldRadius * 2;
+                        const oldH = s.height ?? oldRadius * 2;
+                        const idx = activeHandle.handle.index;
+                        
+                        // Bounding box: center-based, handles at corners
+                        const left = cx - oldW / 2, right = cx + oldW / 2;
+                        const top = cy - oldH / 2, bottom = cy + oldH / 2;
+                        
+                        let newW = oldW, newH = oldH, newCx = cx, newCy = cy;
+                        
+                        // 0=TL, 1=TR, 2=BR, 3=BL
+                        if (idx === 0) { // Top-left
+                            newW = right - ws.x; newH = bottom - ws.y;
+                            newCx = ws.x + newW / 2; newCy = ws.y + newH / 2;
+                        } else if (idx === 1) { // Top-right
+                            newW = ws.x - left; newH = bottom - ws.y;
+                            newCx = left + newW / 2; newCy = ws.y + newH / 2;
+                        } else if (idx === 2) { // Bottom-right
+                            newW = ws.x - left; newH = ws.y - top;
+                            newCx = left + newW / 2; newCy = top + newH / 2;
+                        } else if (idx === 3) { // Bottom-left
+                            newW = right - ws.x; newH = ws.y - top;
+                            newCx = ws.x + newW / 2; newCy = top + newH / 2;
+                        }
+                        
+                        // Shift: proportional resize (maintain INITIAL aspect ratio like Figma)
+                        if (e.shiftKey && initialResizeDims && initialResizeDims.width > 0 && initialResizeDims.height > 0) {
+                            const aspectRatio = initialResizeDims.width / initialResizeDims.height;
+                            if (Math.abs(newW) / aspectRatio > Math.abs(newH)) {
+                                newH = Math.abs(newW) / aspectRatio;
+                            } else {
+                                newW = Math.abs(newH) * aspectRatio;
+                            }
+                            // Recalculate center based on the corner being dragged
+                            if (idx === 0) { newCx = right - newW / 2; newCy = bottom - newH / 2; }
+                            else if (idx === 1) { newCx = left + newW / 2; newCy = bottom - newH / 2; }
+                            else if (idx === 2) { newCx = left + newW / 2; newCy = top + newH / 2; }
+                            else if (idx === 3) { newCx = right - newW / 2; newCy = top + newH / 2; }
+                        }
+                        
+                        const minSize = 10;
+                        if (newW < 0) { newW = Math.abs(newW); newCx = cx; }
+                        if (newH < 0) { newH = Math.abs(newH); newCy = cy; }
+                        newW = Math.max(minSize, newW);
+                        newH = Math.max(minSize, newH);
+                        
+                        dataStore.updateShape(s.id, { x: newCx, y: newCy, width: newW, height: newH }, false);
                     }
                 }
                 return;
@@ -274,7 +349,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (uiStore.activeTool === 'select' && !isSelectionBox && uiStore.selectedShapeIds.size > 0 && !activeHandle) {
                 const prevWorld = screenToWorld(startPoint, uiStore.viewTransform);
                 const currWorld = screenToWorld(eff, uiStore.viewTransform);
-                const dx = currWorld.x - prevWorld.x; const dy = currWorld.y - prevWorld.y;
+                let dx = currWorld.x - prevWorld.x; 
+                let dy = currWorld.y - prevWorld.y;
+
+                // Shift: constrain to 90-degree angles (horizontal or vertical only)
+                if (e.shiftKey) {
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        dy = 0; // Horizontal movement only
+                    } else {
+                        dx = 0; // Vertical movement only
+                    }
+                }
 
                 if (dx !== 0 || dy !== 0) {
                     uiStore.selectedShapeIds.forEach(id => {

@@ -91,6 +91,13 @@ export const MENU_CONFIG: MenuTab[] = [
           items: [
               { id: 'layer-control', label: 'Camadas', icon: 'Layers', type: 'component', componentName: 'LayerControl' }
           ]
+      },
+      {
+          title: 'Grid',
+          layout: 'row',
+          items: [
+              { id: 'grid-control', label: 'Grid', icon: 'Grid', type: 'component', componentName: 'GridControl' }
+          ]
       }
     ]
   },

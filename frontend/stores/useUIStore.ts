@@ -25,6 +25,8 @@ interface UIState {
   // Grid
   gridSize: number;
   gridColor: string;
+  gridShowDots: boolean;
+  gridShowLines: boolean;
 
   // Snap
   snapOptions: SnapOptions;
@@ -54,6 +56,8 @@ interface UIState {
   setSnapOptions: (updater: (prev: SnapOptions) => SnapOptions) => void;
   setGridSize: (size: number) => void;
   setGridColor: (color: string) => void;
+  setGridShowDots: (show: boolean) => void;
+  setGridShowLines: (show: boolean) => void;
 
   // Tool Option Setters
   setPolygonSides: (sides: number) => void;
@@ -98,8 +102,10 @@ export const useUIStore = create<UIState>((set) => ({
   textUnderline: false,
   textStrike: false,
 
-  gridSize: 50,
-  gridColor: '#e5e7eb',
+  gridSize: 100,
+  gridColor: '#6b7280', // More visible gray
+  gridShowDots: true,
+  gridShowLines: false,
 
   snapOptions: { enabled: true, endpoint: true, midpoint: true, center: true, nearest: false, grid: false },
 
@@ -120,6 +126,8 @@ export const useUIStore = create<UIState>((set) => ({
   setSnapOptions: (updater) => set((state) => ({ snapOptions: updater(state.snapOptions) })),
   setGridSize: (size) => set({ gridSize: size }),
   setGridColor: (color) => set({ gridColor: color }),
+  setGridShowDots: (show) => set({ gridShowDots: show }),
+  setGridShowLines: (show) => set({ gridShowLines: show }),
 
   setPolygonSides: (sides) => set({ polygonSides: sides }),
   setStrokeColor: (color) => set({ strokeColor: color }),

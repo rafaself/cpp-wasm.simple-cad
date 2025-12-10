@@ -28,7 +28,7 @@ export const renderShape = (
         const fillColor = getEffectiveFillColor(shape, layer);
         const effectiveStroke = (shape.strokeEnabled === false || strokeColor === 'transparent') ? 'transparent' : strokeColor;
         ctx.strokeStyle = effectiveStroke;
-        const effectiveFill = (fillColor && fillColor !== 'transparent') ? fillColor : 'transparent';
+        const effectiveFill = (shape.fillEnabled !== false && fillColor && fillColor !== 'transparent') ? fillColor : 'transparent';
         ctx.fillStyle = effectiveFill;
         ctx.setLineDash([]);
 
@@ -80,8 +80,11 @@ export const renderShape = (
         } else if (shape.type === 'circle') {
             const cx = shape.x ?? 0;
             const cy = shape.y ?? 0;
-            const r = shape.radius ?? 0;
-            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            const r = shape.radius ?? 50;
+            // Support width/height for ellipse-like behavior
+            const rx = (shape.width ?? r * 2) / 2;
+            const ry = (shape.height ?? r * 2) / 2;
+            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'rect') {
@@ -99,18 +102,30 @@ export const renderShape = (
                 ctx.stroke();
             }
         } else if (shape.type === 'polygon') {
-            // SAFE polygon rendering with fallback values
+            // Polygon rendering with width/height scale support
             const sides = Math.max(3, shape.sides ?? 5);
-            const r = shape.radius ?? 0;
+            const r = shape.radius ?? 50;
             const cx = shape.x ?? 0;
             const cy = shape.y ?? 0;
+            
+            // Calculate scale factors for width/height
+            const baseSize = r * 2;
+            const scaleX = (shape.width ?? baseSize) / baseSize;
+            const scaleY = (shape.height ?? baseSize) / baseSize;
+            
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(scaleX, scaleY);
+            
             const angleStep = (Math.PI * 2) / sides;
             const startAngle = -Math.PI / 2;
-            ctx.moveTo(cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle));
+            ctx.moveTo(r * Math.cos(startAngle), r * Math.sin(startAngle));
             for (let i = 1; i <= sides; i++) {
-                ctx.lineTo(cx + r * Math.cos(startAngle + i * angleStep), cy + r * Math.sin(startAngle + i * angleStep));
+                ctx.lineTo(r * Math.cos(startAngle + i * angleStep), r * Math.sin(startAngle + i * angleStep));
             }
             ctx.closePath();
+            
+            ctx.restore();
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
         } else if (shape.type === 'arc') {

@@ -14,6 +14,8 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const viewTransform = useUIStore(s => s.viewTransform);
     const gridSize = useUIStore(s => s.gridSize);
     const gridColor = useUIStore(s => s.gridColor);
+    const gridShowDots = useUIStore(s => s.gridShowDots);
+    const gridShowLines = useUIStore(s => s.gridShowLines);
     const editingTextId = useUIStore(s => s.editingTextId);
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
 
@@ -42,15 +44,39 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         ctx.scale(viewTransform.scale, viewTransform.scale);
 
         // Draw Grid
-        const startX = Math.floor(-viewTransform.x / viewTransform.scale / gridSize) * gridSize;
-        const startY = Math.floor(-viewTransform.y / viewTransform.scale / gridSize) * gridSize;
-        const endX = startX + (canvas.width / viewTransform.scale) + gridSize;
-        const endY = startY + (canvas.height / viewTransform.scale) + gridSize;
+        if (gridSize > 0 && (gridShowDots || gridShowLines)) {
+            const startX = Math.floor(-viewTransform.x / viewTransform.scale / gridSize) * gridSize;
+            const startY = Math.floor(-viewTransform.y / viewTransform.scale / gridSize) * gridSize;
+            const endX = startX + (canvas.width / viewTransform.scale) + gridSize;
+            const endY = startY + (canvas.height / viewTransform.scale) + gridSize;
 
-        ctx.fillStyle = gridColor;
-        // Check for infinite loops
-        if (gridSize > 0) {
-             for(let x = startX; x < endX; x += gridSize) { for(let y = startY; y < endY; y += gridSize) ctx.fillRect(x, y, 2 / viewTransform.scale, 2 / viewTransform.scale); }
+            ctx.strokeStyle = gridColor;
+            ctx.fillStyle = gridColor;
+
+            // Draw grid lines (horizontal and vertical)
+            if (gridShowLines) {
+                ctx.lineWidth = 1 / viewTransform.scale;
+                ctx.beginPath();
+                for (let x = startX; x < endX; x += gridSize) {
+                    ctx.moveTo(x, startY);
+                    ctx.lineTo(x, endY);
+                }
+                for (let y = startY; y < endY; y += gridSize) {
+                    ctx.moveTo(startX, y);
+                    ctx.lineTo(endX, y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw grid dots
+            if (gridShowDots) {
+                const dotSize = 2 / viewTransform.scale;
+                for (let x = startX; x < endX; x += gridSize) {
+                    for (let y = startY; y < endY; y += gridSize) {
+                        ctx.fillRect(x - dotSize / 2, y - dotSize / 2, dotSize, dotSize);
+                    }
+                }
+            }
         }
 
         // Query Visible Shapes
@@ -85,7 +111,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
+    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
 
     return (
         <canvas

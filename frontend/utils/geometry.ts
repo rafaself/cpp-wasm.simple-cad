@@ -431,15 +431,18 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
             });
         }
     }
-    else if (shape.type === 'circle' && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-        // Create a bounding box around the circle for handles
-        const r = shape.radius;
+    else if (shape.type === 'circle' && shape.x !== undefined && shape.y !== undefined) {
+        // Use width/height if available, otherwise fall back to radius*2
+        const r = shape.radius ?? 50;
+        const w = shape.width ?? r * 2;
+        const h = shape.height ?? r * 2;
         const x = shape.x;
         const y = shape.y;
-        const p1 = { x: x - r, y: y - r };
-        const p2 = { x: x + r, y: y - r };
-        const p3 = { x: x + r, y: y + r };
-        const p4 = { x: x - r, y: y + r };
+        // Handles at bounding box corners (center-based)
+        const p1 = { x: x - w/2, y: y - h/2 };
+        const p2 = { x: x + w/2, y: y - h/2 };
+        const p3 = { x: x + w/2, y: y + h/2 };
+        const p4 = { x: x - w/2, y: y + h/2 };
 
         handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
         handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
@@ -465,15 +468,18 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
         handles.push({ x: finalPoints[2].x, y: finalPoints[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
         handles.push({ x: finalPoints[3].x, y: finalPoints[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
     }
-    else if (shape.type === 'polygon' && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-         // Create a bounding box around the polygon for handles
-         const r = shape.radius;
+    else if (shape.type === 'polygon' && shape.x !== undefined && shape.y !== undefined) {
+         // Use width/height if available, otherwise fall back to radius*2
+         const r = shape.radius ?? 50;
+         const w = shape.width ?? r * 2;
+         const h = shape.height ?? r * 2;
          const x = shape.x;
          const y = shape.y;
-         const p1 = { x: x - r, y: y - r };
-         const p2 = { x: x + r, y: y - r };
-         const p3 = { x: x + r, y: y + r };
-         const p4 = { x: x - r, y: y + r };
+         // Handles at bounding box corners (center-based)
+         const p1 = { x: x - w/2, y: y - h/2 };
+         const p2 = { x: x + w/2, y: y - h/2 };
+         const p3 = { x: x + w/2, y: y + h/2 };
+         const p4 = { x: x - w/2, y: y + h/2 };
 
          handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
          handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });

@@ -5,7 +5,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { ensureContrastColor } from '../../../utils/color';
-import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Type, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Type, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 import NumberSpinner from '../../../components/NumberSpinner';
@@ -215,6 +215,39 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         >
                             {activeLayer?.locked ? <Lock size={15} /> : <Unlock size={15} />}
                         </button>
+                        <button 
+                            onClick={() => {
+                                const ids = Array.from(uiStore.selectedShapeIds);
+                                if (ids.length === 0) return;
+                                ids.forEach(id => {
+                                    dataStore.updateShape(id, { 
+                                        colorMode: { fill: 'layer', stroke: 'layer' }
+                                    }, true);
+                                });
+                            }}
+                            disabled={(() => {
+                                // Only enabled if there's a selected shape with custom colorMode
+                                if (uiStore.selectedShapeIds.size === 0) return true;
+                                const firstId = (Array.from(uiStore.selectedShapeIds) as string[])[0];
+                                const shape = dataStore.shapes[firstId];
+                                if (!shape || !shape.colorMode) return true;
+                                // Enabled if at least one is 'custom'
+                                return shape.colorMode.fill !== 'custom' && shape.colorMode.stroke !== 'custom';
+                            })()}
+                            className={`h-7 w-7 ${CENTERED_BUTTON_STYLE} ${(() => {
+                                if (uiStore.selectedShapeIds.size === 0) return 'opacity-40 cursor-not-allowed';
+                                const firstId = (Array.from(uiStore.selectedShapeIds) as string[])[0];
+                                const shape = dataStore.shapes[firstId];
+                                if (!shape || !shape.colorMode) return 'opacity-40 cursor-not-allowed';
+                                if (shape.colorMode.fill === 'custom' || shape.colorMode.stroke === 'custom') {
+                                    return 'text-green-400 hover:text-green-300';
+                                }
+                                return 'opacity-40 cursor-not-allowed';
+                            })()}`}
+                            title="Aplicar camada ao elemento selecionado"
+                        >
+                            <Palette size={15} />
+                        </button>
                     </div>
 
                     {/* Right: Manage */}
@@ -238,6 +271,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
         const displayStrokeColor = firstSelectedShape 
             ? getEffectiveStrokeColor(firstSelectedShape, activeLayer) 
             : (activeLayer?.strokeColor || '#000000');
+        // For fill, show the stored fillColor (not effective) so user sees the color that will be restored
         const displayFillColor = firstSelectedShape 
             ? getEffectiveFillColor(firstSelectedShape, activeLayer) 
             : (activeLayer?.fillColor || '#ffffff');
@@ -247,54 +281,102 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
             ? firstSelectedShape.strokeEnabled !== false 
             : uiStore.strokeEnabled !== false;
         const fillEnabled = firstSelectedShape 
-            ? displayFillColor !== 'transparent' 
+            ? firstSelectedShape.fillEnabled !== false 
             : uiStore.fillColor !== 'transparent';
+
+        // Stroke width - show selected shape's value or uiStore default
+        const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? uiStore.strokeWidth;
+
+        // Handlers for checkbox changes
+        const handleStrokeEnabledChange = (checked: boolean) => {
+            uiStore.setStrokeEnabled(checked);
+            // When re-enabling, use black as default to make it clear element is now custom
+            const newStrokeColor = checked ? '#000000' : undefined;
+            // Update selected shapes
+            selectedIds.forEach(id => {
+                const shape = dataStore.shapes[id];
+                if (shape) {
+                    const updates: any = { 
+                        strokeEnabled: checked,
+                        colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
+                    };
+                    if (newStrokeColor) updates.strokeColor = newStrokeColor;
+                    dataStore.updateShape(id, updates, true);
+                }
+            });
+        };
+
+        const handleFillEnabledChange = (checked: boolean) => {
+            // Use default colors when re-enabling to make it clear the element is now custom
+            const newFillColor = checked ? '#eeeeee' : 'transparent';
+            uiStore.setFillColor(newFillColor);
+            // Update selected shapes
+            selectedIds.forEach(id => {
+                const shape = dataStore.shapes[id];
+                if (shape) {
+                    dataStore.updateShape(id, { 
+                        fillColor: newFillColor,
+                        colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
+                    }, true);
+                }
+            });
+        };
+
+        const handleStrokeWidthChange = (value: number) => {
+            uiStore.setStrokeWidth(value);
+            // Update selected shapes
+            selectedIds.forEach(id => {
+                const shape = dataStore.shapes[id];
+                if (shape) {
+                    dataStore.updateShape(id, { strokeWidth: value }, true);
+                }
+            });
+        };
 
         return (
             <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[160px]">
                 {/* Top Row: Colors */}
                 <div className="grid grid-cols-2 gap-2 w-full">
-                    {[
-                        { 
-                            label: 'Traço', 
-                            type: 'stroke', 
-                            enabled: strokeEnabled, 
-                            color: displayStrokeColor, 
-                            setter: uiStore.setStrokeEnabled,
-                            open: (e: React.MouseEvent) => openColorPicker(e, { type: 'stroke' })
-                        },
-                        { 
-                            label: 'Fundo', 
-                            type: 'fill', 
-                            enabled: fillEnabled, 
-                            color: displayFillColor, 
-                            setter: (checked: boolean) => uiStore.setFillColor(checked ? '#eeeeee' : 'transparent'),
-                            open: (e: React.MouseEvent) => openColorPicker(e, { type: 'fill' })
-                        }
-                    ].map((idx) => (
-                        <div key={idx.type} className="flex flex-col items-center gap-0.5">
-                             <span className={LABEL_STYLE} style={{marginBottom: 0}}>{idx.label}</span>
-                            <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!idx.enabled ? 'opacity-50' : ''}`}>
-                                <input
-                                    type="checkbox"
-                                    checked={idx.enabled}
-                                    onChange={(e) => idx.setter(e.target.checked)}
-                                    className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
-                                />
-                                 <div
-                                    className={`w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform`}
-                                    style={{
-                                        backgroundColor: idx.color === 'transparent' ? 'transparent' : idx.color,
-                                        backgroundImage: idx.color === 'transparent' || (idx.type === 'fill' && idx.color === 'transparent') ? 
-                                            'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)' 
-                                            : 'none',
-                                        backgroundSize: '4px 4px'
-                                    }}
-                                    onClick={(e) => idx.enabled && idx.open(e)}
-                                />
-                            </div>
+                    {/* Stroke */}
+                    <div className="flex flex-col items-center gap-0.5">
+                        <span className={LABEL_STYLE} style={{marginBottom: 0}}>Traço</span>
+                        <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!strokeEnabled ? 'opacity-50' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={strokeEnabled}
+                                onChange={(e) => handleStrokeEnabledChange(e.target.checked)}
+                                className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
+                            />
+                            <div
+                                className="w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform"
+                                style={{ backgroundColor: displayStrokeColor }}
+                                onClick={(e) => strokeEnabled && openColorPicker(e, { type: 'stroke' })}
+                            />
                         </div>
-                    ))}
+                    </div>
+                    {/* Fill */}
+                    <div className="flex flex-col items-center gap-0.5">
+                        <span className={LABEL_STYLE} style={{marginBottom: 0}}>Fundo</span>
+                        <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!fillEnabled ? 'opacity-50' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={fillEnabled}
+                                onChange={(e) => handleFillEnabledChange(e.target.checked)}
+                                className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
+                            />
+                            <div
+                                className="w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform"
+                                style={{
+                                    backgroundColor: displayFillColor === 'transparent' ? 'transparent' : displayFillColor,
+                                    backgroundImage: displayFillColor === 'transparent' ? 
+                                        'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)' 
+                                        : 'none',
+                                    backgroundSize: '4px 4px'
+                                }}
+                                onClick={(e) => fillEnabled && openColorPicker(e, { type: 'fill' })}
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Bottom Row: Slider */}
@@ -302,8 +384,8 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                      <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider px-0.5">Espessura</span>
                      <div className="flex items-center gap-1.5 w-full">
                          <EditableNumber 
-                            value={uiStore.strokeWidth} 
-                            onChange={uiStore.setStrokeWidth} 
+                            value={displayStrokeWidth} 
+                            onChange={handleStrokeWidthChange} 
                             min={0} 
                             max={50}
                             className="w-[32px] h-6 flex-none"
@@ -315,8 +397,8 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                                 min="0"
                                 max="50"
                                 step="1"
-                                value={uiStore.strokeWidth}
-                                onChange={(e) => uiStore.setStrokeWidth(parseInt(e.target.value))}
+                                value={displayStrokeWidth}
+                                onChange={(e) => handleStrokeWidthChange(parseInt(e.target.value))}
                                 className="w-full h-0.5 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 hover:[&::-webkit-slider-thumb]:bg-blue-400 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none"
                             />
                         </div>
@@ -325,7 +407,57 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
             </div>
         );
     },
-    'LineWidthControl': () => null
+    'LineWidthControl': () => null,
+    'GridControl': ({ uiStore, openColorPicker }) => {
+        return (
+            <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[140px]">
+                {/* Top Row: Toggles */}
+                <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={uiStore.gridShowDots}
+                            onChange={(e) => uiStore.setGridShowDots(e.target.checked)}
+                            className="w-3 h-3 rounded border-slate-600 bg-slate-700 text-blue-500 cursor-pointer"
+                        />
+                        <span className="text-[9px] text-slate-300 font-medium">Pontos</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={uiStore.gridShowLines}
+                            onChange={(e) => uiStore.setGridShowLines(e.target.checked)}
+                            className="w-3 h-3 rounded border-slate-600 bg-slate-700 text-blue-500 cursor-pointer"
+                        />
+                        <span className="text-[9px] text-slate-300 font-medium">Linhas</span>
+                    </label>
+                </div>
+
+                {/* Bottom Row: Color and Size */}
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-slate-400">Cor</span>
+                        <div 
+                            className="w-5 h-5 rounded border border-slate-500 cursor-pointer hover:scale-105 transition-transform"
+                            style={{ backgroundColor: uiStore.gridColor }}
+                            onClick={(e) => openColorPicker(e, { type: 'grid' })}
+                        />
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-slate-400">Tam</span>
+                        <EditableNumber 
+                            value={uiStore.gridSize} 
+                            onChange={uiStore.setGridSize} 
+                            min={10} 
+                            max={500}
+                            className="w-[36px] h-5"
+                            displayClassName="text-[9px] font-mono"
+                        />
+                    </div>
+                </div>
+            </div>
+        );
+    }
 };
 
 const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -463,13 +595,18 @@ const EditorRibbon: React.FC = () => {
             strokeColor: newColor,
             colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
           }, true);
-        } else {
+        } else if (colorPickerTarget.type === 'fill') {
           dataStore.updateShape(id, {
             fillColor: newColor,
             colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
           }, true);
         }
       });
+
+      // Handle grid color separately
+      if (colorPickerTarget.type === 'grid') {
+        uiStore.setGridColor(newColor);
+      }
   };
 
   const componentProps = {
