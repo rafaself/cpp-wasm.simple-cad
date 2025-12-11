@@ -75,8 +75,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
-    const [lineStart, setLineStart] = useState<Point | null>(null);
-    const [arrowStart, setArrowStart] = useState<Point | null>(null);
     const [conduitStart, setConduitStart] = useState<Point | null>(null);
     const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
