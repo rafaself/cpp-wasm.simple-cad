@@ -155,10 +155,10 @@ export const MENU_CONFIG: MenuTab[] = [
     label: 'ELÉTRICA',
     sections: [
       {
-        title: 'Biblioteca',
-        layout: 'column',
+        title: 'Símbolos',
+        layout: 'row',
         items: [
-          { id: 'electrical-library', label: 'Símbolos', icon: 'Zap', type: 'component', componentName: 'ElectricalLibrary' }
+          { id: 'electrical-library', label: 'Galeria', icon: 'Zap', type: 'component', componentName: 'ElectricalLibrary' }
         ]
       }
     ]

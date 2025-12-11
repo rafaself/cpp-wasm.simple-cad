@@ -17,7 +17,7 @@ import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor, i
 import { Shape, Layer } from '../../../types';
 import { TextControlProps, TextUpdateDiff, ColorPickerTarget, getApplyLayerButtonState } from '../types/ribbon';
 import { UI, TEXT_STYLES, INPUT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
-import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
+import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
 
 // Shared styles - using design tokens
 const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
@@ -177,7 +177,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'TextAlignControl': TextAlignControl,
     'TextStyleControl': TextStyleControl,
     'TextFormatGroup': TextFormatGroup,
-    'ElectricalLibrary': ElectricalLibraryPanel,
+    'ElectricalLibrary': ElectricalRibbonGallery,
     'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore }) => {
         const strokeColor = activeLayer?.strokeColor || '#000000';
         const fillColor = activeLayer?.fillColor || '#FFFFFF';
