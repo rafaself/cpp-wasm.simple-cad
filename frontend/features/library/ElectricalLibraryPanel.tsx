@@ -15,7 +15,6 @@ const CATEGORY_LABELS: Record<ElectricalCategory, string> = {
   [ElectricalCategory.CONTROL]: 'Controle',
   [ElectricalCategory.SIGNAL]: 'Sinal',
   [ElectricalCategory.LIGHTING]: 'Iluminação',
-  [ElectricalCategory.GROUND]: 'Terra',
 };
 
 const categoryOptions = [

@@ -19,8 +19,7 @@ export enum ElectricalCategory {
   POWER = 'power',
   CONTROL = 'control',
   SIGNAL = 'signal',
-  LIGHTING = 'lighting',
-  GROUND = 'ground'
+  LIGHTING = 'lighting'
 }
 
 export interface NormalizedViewBox {

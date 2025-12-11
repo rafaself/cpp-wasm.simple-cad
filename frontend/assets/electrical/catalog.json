@@ -12,12 +12,5 @@
     "category": "control",
     "nominalSizeMm": 36,
     "tags": ["socket", "duplex", "receptacle"]
-  },
-  {
-    "id": "earth_ground",
-    "svg": "ground.svg",
-    "category": "ground",
-    "nominalSizeMm": 28,
-    "tags": ["ground", "earth", "reference"]
   }
 ]
