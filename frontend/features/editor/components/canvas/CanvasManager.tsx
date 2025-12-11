@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { useDataStore } from '../../../../stores/useDataStore';
+import { useEditorLogic } from '../../hooks/useEditorLogic';
 import StaticCanvas from './StaticCanvas';
 import DynamicOverlay from './DynamicOverlay';
 import UserHint from '../UserHint';
@@ -9,6 +10,7 @@ const CanvasManager: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const uiStore = useUIStore();
     const dataStore = useDataStore();
+    const { zoomToFit } = useEditorLogic();
     const hasInitialized = useRef(false);
 
     const [dims, setDims] = useState({ width: 800, height: 600 });
@@ -37,10 +39,10 @@ const CanvasManager: React.FC = () => {
             hasInitialized.current = true;
             // Small delay to ensure canvas size is set
             setTimeout(() => {
-                dataStore.zoomToFit();
+                zoomToFit();
             }, 50);
         }
-    }, [dims.width, dims.height, dataStore]);
+    }, [dims.width, dims.height, zoomToFit]);
 
     // Hint Logic
     useEffect(() => { setHintDismissed(false); }, [uiStore.activeTool]);

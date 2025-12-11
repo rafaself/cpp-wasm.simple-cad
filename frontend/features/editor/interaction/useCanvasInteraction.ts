@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useUIStore } from '../../../../../stores/useUIStore';
-import { useSettingsStore } from '../../../../../stores/useSettingsStore';
-import { useDataStore } from '../../../../../stores/useDataStore';
-import { Point, Shape, Rect, Patch } from '../../../../../types';
-import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../../../utils/geometry';
-import { getTextSize } from '../helpers';
-import { TextEditState } from '../overlays/TextEditorOverlay';
-import { getDefaultColorMode } from '../../../../../utils/shapeColors';
+import { useUIStore } from '../../../stores/useUIStore';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
+import { useDataStore } from '../../../stores/useDataStore';
+import { useEditorLogic } from '../hooks/useEditorLogic';
+import { Point, Shape, Rect, Patch } from '../../../types';
+import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../utils/geometry';
+import { getSnapPoint } from '../snapEngine';
+import { getTextSize } from '../components/canvas/helpers';
+import { TextEditState } from '../components/canvas/overlays/TextEditorOverlay';
+import { getDefaultColorMode } from '../../../utils/shapeColors';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -51,6 +53,7 @@ const pointInPolygon = (point: Point, polygon: Point[]): boolean => {
 
 export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     const uiStore = useUIStore();
+    const { zoomToFit } = useEditorLogic();
     const snapSettings = useSettingsStore(s => s.snap);
     const gridSize = useSettingsStore(s => s.grid.size);
     const toolDefaults = useSettingsStore(s => s.toolDefaults);
@@ -356,7 +359,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (now - lastMiddleClickTime.current < DOUBLE_CLICK_THRESHOLD) {
                 // Double-click detected: zoom to fit
                 lastMiddleClickTime.current = 0;
-                dataStore.zoomToFit();
+                zoomToFit();
                 return;
             }
             lastMiddleClickTime.current = now;

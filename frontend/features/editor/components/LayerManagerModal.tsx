@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
+import { useEditorLogic } from '../hooks/useEditorLogic';
 import { X, Plus, Trash2, Check, Eye, EyeOff, Lock, Unlock, Pen, PaintBucket } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
 
 const LayerManagerModal: React.FC = () => {
   const uiStore = useUIStore();
   const dataStore = useDataStore();
+  const { deleteLayer } = useEditorLogic();
   const [colorPickerLayerId, setColorPickerLayerId] = useState<string | null>(null);
   const [colorPickerType, setColorPickerType] = useState<'stroke' | 'fill' | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
@@ -162,7 +164,7 @@ const LayerManagerModal: React.FC = () => {
                     <div className="flex justify-center">
                          {dataStore.layers.length > 1 && layer.id !== dataStore.activeLayerId && !layer.isNative && (
                             <button 
-                                onClick={(e) => { e.stopPropagation(); if(confirm('Tem certeza que deseja excluir esta camada e todos os objetos nela?')) dataStore.deleteLayer(layer.id); }}
+                                onClick={(e) => { e.stopPropagation(); if(confirm('Tem certeza que deseja excluir esta camada e todos os objetos nela?')) deleteLayer(layer.id); }}
                                 className="text-slate-500 hover:text-red-500 p-1 rounded hover:bg-red-500/10 transition-colors"
                                 title="Excluir Camada"
                             >

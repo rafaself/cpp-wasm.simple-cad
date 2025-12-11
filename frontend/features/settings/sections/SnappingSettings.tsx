@@ -1,6 +1,8 @@
 import React from 'react';
 import { SnapOptions } from '../../../types';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
+import { Section } from '../../../components/ui/Section';
+import { Toggle } from '../../../components/ui/Toggle';
 
 const SnappingSettings: React.FC = () => {
   const snapOptions = useSettingsStore(s => s.snap);
@@ -11,50 +13,43 @@ const SnappingSettings: React.FC = () => {
     setSnapOption(key, value);
   };
 
-  const ToggleField = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-    <label className="flex items-center justify-between py-2 cursor-pointer group">
-      <span className="text-sm text-slate-300 group-hover:text-white">{label}</span>
-      <div 
-        className={`w-10 h-5 rounded-full p-0.5 transition-colors ${checked ? 'bg-blue-600' : 'bg-slate-600'}`}
-        onClick={() => onChange(!checked)}
-      >
-        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
-      </div>
-    </label>
-  );
-
   return (
-    <div className="flex flex-col gap-6">
-      <section>
-        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-wide">Snapping</h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-          <ToggleField 
-            label="Snap Ativo" 
-            checked={snapOptions.enabled} 
-            onChange={(v) => setSnapEnabled(v)} 
-          />
-          <ToggleField 
-            label="Snap em Extremidades" 
-            checked={snapOptions.endpoint} 
-            onChange={(v) => updateOption('endpoint', v)} 
-          />
-          <ToggleField 
-            label="Snap em Pontos Médios" 
-            checked={snapOptions.midpoint} 
-            onChange={(v) => updateOption('midpoint', v)} 
-          />
-          <ToggleField 
-            label="Snap em Centros" 
-            checked={snapOptions.center} 
-            onChange={(v) => updateOption('center', v)} 
-          />
-          <ToggleField 
-            label="Snap na Grade" 
-            checked={snapOptions.grid} 
-            onChange={(v) => updateOption('grid', v)} 
-          />
-        </div>
-      </section>
+    <div className="flex flex-col">
+      <Section title="Geral">
+        <Toggle
+          label="Snap Ativo"
+          checked={snapOptions.enabled}
+          onChange={(v) => setSnapEnabled(v)}
+        />
+      </Section>
+
+      <Section title="Modos de Snap">
+        <Toggle
+          label="Extremidades (Endpoints)"
+          checked={snapOptions.endpoint}
+          onChange={(v) => updateOption('endpoint', v)}
+        />
+        <Toggle
+          label="Pontos Médios (Midpoints)"
+          checked={snapOptions.midpoint}
+          onChange={(v) => updateOption('midpoint', v)}
+        />
+        <Toggle
+          label="Centros"
+          checked={snapOptions.center}
+          onChange={(v) => updateOption('center', v)}
+        />
+        <Toggle
+          label="Grade (Grid)"
+          checked={snapOptions.grid}
+          onChange={(v) => updateOption('grid', v)}
+        />
+        <Toggle
+          label="Mais Próximo (Nearest)"
+          checked={snapOptions.nearest}
+          onChange={(v) => updateOption('nearest', v)}
+        />
+      </Section>
     </div>
   );
 };
