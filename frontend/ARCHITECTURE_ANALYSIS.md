@@ -55,3 +55,19 @@ Para transformar o app atual em uma ferramenta elétrica, foque nestas melhorias
 
 ---
 *Esta análise foi gerada com base na inspeção do código fonte atual (`frontend/features/editor/components/EditorCanvas.tsx` e `frontend/stores/useAppStore.ts`).*
+
+## Issue proposta: diferenciar conexões e caminhos elétricos
+
+Para suportar cálculos e regras de lançamento, o modelo precisa distinguir explicitamente **conexões** (ex.: tomadas, caixas de passagem, luminárias, quadros) de **caminhos** (ex.: eletrodutos, eletrocalhas) — formando uma matriz *nó/aresta* que facilite validações de continuidade, bitolas e ocupação de condutos. Também vale introduzir uma terceira categoria opcional, **terminações** (ex.: cargas finais ou equipamentos), quando for útil separar pontos finais de caixas de derivação.
+
+**Escopo do problema**
+- Catálogo de peças deve marcar o *kind* (`connection` | `pathway` | `termination?`) junto com metadados elétricos.
+- `ElectricalElement` (ou tipo equivalente) deve carregar `linkTo`/`anchors` para que caminhos saibam a quais conexões se prendem.
+- UI de lançamento precisa permitir filtrar e bloquear ações por categoria (ex.: só arrastar caminhos depois que há conexões visíveis).
+- Regras futuras: cálculo de ocupação de duto e continuidade de circuito dependem dessa tipagem.
+
+**Passos sugeridos**
+1) **Modelagem**: criar enum de categoria em `types` e incorporá-la ao store (`useAppStore`).
+2) **Catálogo**: atualizar o schema do catálogo SVG/metadados para exigir a categoria e, se aplicável, pontos de ancoragem (para snap).
+3) **Inserção**: na ferramenta de lançamento, exigir que caminhos sejam conectados a nós válidos e realçar conexões compatíveis durante o snap.
+4) **Validação**: adicionar checagens básicas (ex.: caminho não pode existir sem duas conexões ou uma conexão + terminação) e preparar hook para cálculos de continuidade/ocupação.
