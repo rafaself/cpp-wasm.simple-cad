@@ -3,7 +3,8 @@ import { ElectricalCategory, NormalizedViewBox } from '../../types';
 
 export interface ElectricalCatalogEntry {
   id: string;
-  svg: string;
+  iconSvg: string;      // SVG shown in the menu/gallery
+  canvasSvg: string;    // SVG rendered on the canvas
   category: ElectricalCategory;
   nominalSizeMm: number;
   tags: string[];
@@ -14,7 +15,8 @@ export interface LibrarySymbol {
   category: ElectricalCategory;
   nominalSizeMm: number;
   tags: string[];
-  svg: string;
+  iconSvg: string;       // Processed SVG for menu display
+  canvasSvg: string;     // Processed SVG for canvas rendering
   viewBox: NormalizedViewBox;
   scale: number;
 }
@@ -122,15 +124,27 @@ export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
   const items: LibrarySymbol[] = [];
 
   (electricalCatalog as ElectricalCatalogEntry[]).forEach((entry) => {
-    const svgPath = `../../assets/electrical/${entry.svg}`;
-    const svgContent = electricalSvgs[svgPath];
+    const iconPath = `../../assets/electrical/${entry.iconSvg}`;
+    const canvasPath = `../../assets/electrical/${entry.canvasSvg}`;
+    
+    const iconContent = electricalSvgs[iconPath];
+    const canvasContent = electricalSvgs[canvasPath];
 
-    if (!svgContent) {
-      console.warn(`SVG for catalog entry ${entry.id} not found at ${svgPath}`);
+    if (!iconContent) {
+      console.warn(`Icon SVG for catalog entry ${entry.id} not found at ${iconPath}`);
       return;
     }
 
-    const { svg, viewBox } = normalizeSvg(svgContent as string);
+    if (!canvasContent) {
+      console.warn(`Canvas SVG for catalog entry ${entry.id} not found at ${canvasPath}`);
+      return;
+    }
+
+    // Process both SVGs
+    const { svg: iconSvg } = normalizeSvg(iconContent as string);
+    const { svg: canvasSvg, viewBox } = normalizeSvg(canvasContent as string);
+    
+    // Scale is computed from canvasSvg since that's what's rendered
     const scale = computeScale(viewBox, entry.nominalSizeMm, worldScale);
 
     items.push({
@@ -138,7 +152,8 @@ export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
       category: entry.category,
       nominalSizeMm: entry.nominalSizeMm,
       tags: entry.tags,
-      svg,
+      iconSvg,
+      canvasSvg,
       viewBox,
       scale
     });

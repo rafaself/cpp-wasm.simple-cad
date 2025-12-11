@@ -128,7 +128,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                 scaleX: uiStore.electricalFlipX,
                 scaleY: uiStore.electricalFlipY,
                 svgSymbolId: librarySymbol.id,
-                svgRaw: librarySymbol.svg,
+                svgRaw: librarySymbol.canvasSvg,
                 svgViewBox: librarySymbol.viewBox,
                 symbolScale: librarySymbol.scale,
             };

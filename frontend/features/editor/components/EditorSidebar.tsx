@@ -35,7 +35,7 @@ const EditorSidebar: React.FC = () => {
           case 'propriedades': return { title: 'Propriedades', icon: <SlidersHorizontal className="text-blue-600" size={16} /> };
           case 'projeto': return { title: 'Projeto', icon: <FolderOpen className="text-blue-600" size={16} /> };
           case 'camadas': return { title: 'Camadas', icon: <Layers className="text-blue-600" size={16} /> };
-          case 'eletrica': return { title: 'Elétrica', icon: <Zap className="text-blue-600" size={16} /> };
+          case 'eletrica': return { title: 'Lançamento', icon: <Zap className="text-blue-600" size={16} /> };
           case 'ajustes': return { title: 'Ajustes', icon: <Settings className="text-blue-600" size={16} /> };
           default: return { title: 'Menu', icon: <LayoutDashboard className="text-blue-600" size={16} /> };
       }
@@ -229,7 +229,7 @@ const EditorSidebar: React.FC = () => {
 
         <button
           onClick={() => !isDragging && setActiveTab('eletrica')}
-          title="Elétrica"
+          title="Lançamento"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'eletrica' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Zap size={18} />

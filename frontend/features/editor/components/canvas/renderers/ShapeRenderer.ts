@@ -2,14 +2,29 @@ import { Layer, Shape, ViewTransform } from '../../../../../types';
 import { getDistance, getShapeCenter, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
 import { getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled } from '../../../../../utils/shapeColors';
 
-const svgImageCache: Record<string, HTMLImageElement> = {};
+const svgImageCache: Record<string, { img: HTMLImageElement; loaded: boolean }> = {};
+let renderCallback: (() => void) | null = null;
 
-const getSvgImage = (svg: string) => {
-    if (svgImageCache[svg]) return svgImageCache[svg];
+export const setRenderCallback = (cb: () => void) => {
+    renderCallback = cb;
+};
+
+const getSvgImage = (svg: string): HTMLImageElement | null => {
+    if (svgImageCache[svg]) {
+        return svgImageCache[svg].loaded ? svgImageCache[svg].img : null;
+    }
     const img = new Image();
+    svgImageCache[svg] = { img, loaded: false };
+    img.onload = () => {
+        svgImageCache[svg].loaded = true;
+        // Trigger a re-render when image loads
+        if (renderCallback) renderCallback();
+    };
+    img.onerror = () => {
+        console.error('Failed to load SVG image');
+    };
     img.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-    svgImageCache[svg] = img;
-    return img;
+    return null; // Not loaded yet
 };
 
 export const renderShape = (
@@ -140,7 +155,9 @@ export const renderShape = (
 
             if (shape.svgRaw && shape.svgViewBox) {
                 const img = getSvgImage(shape.svgRaw);
-                ctx.drawImage(img, rx, ry, rw, rh);
+                if (img) {
+                    ctx.drawImage(img, rx, ry, rw, rh);
+                }
             }
 
             if (flipX !== 1 || flipY !== 1) {

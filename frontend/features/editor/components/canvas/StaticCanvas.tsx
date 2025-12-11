@@ -3,7 +3,7 @@ import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { Rect } from '../../../../types';
-import { renderShape } from './renderers/ShapeRenderer';
+import { renderShape, setRenderCallback } from './renderers/ShapeRenderer';
 import { computeFrameData } from '../../../../utils/frame';
 
 interface StaticCanvasProps {
@@ -13,6 +13,7 @@ interface StaticCanvasProps {
 
 const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const viewTransform = useUIStore(s => s.viewTransform);
     const gridSize = useSettingsStore(s => s.grid.size);
     const gridColor = useSettingsStore(s => s.grid.color);
@@ -194,6 +195,12 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
 
         ctx.restore();
     };
+
+    // Set up callback for SVG image loading
+    useEffect(() => {
+        setRenderCallback(forceUpdate);
+        return () => setRenderCallback(() => {});
+    }, [forceUpdate]);
 
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {

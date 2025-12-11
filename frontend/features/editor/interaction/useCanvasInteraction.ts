@@ -843,7 +843,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     scaleX: uiStore.electricalFlipX,
                     scaleY: uiStore.electricalFlipY,
                     svgSymbolId: librarySymbol.id,
-                    svgRaw: librarySymbol.svg,
+                    svgRaw: librarySymbol.canvasSvg,
                     svgViewBox: librarySymbol.viewBox,
                     symbolScale: librarySymbol.scale,
                 };

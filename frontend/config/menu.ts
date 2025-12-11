@@ -152,7 +152,7 @@ export const MENU_CONFIG: MenuTab[] = [
   },
   {
     id: 'electrical',
-    label: 'ELÉTRICA',
+    label: 'LANÇAMENTO',
     sections: [
       {
         title: 'Símbolos',

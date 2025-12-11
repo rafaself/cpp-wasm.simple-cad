@@ -1,16 +1,18 @@
 [
   {
     "id": "breaker_single_pole",
-    "svg": "breaker.svg",
+    "iconSvg": "breaker.svg",
+    "canvasSvg": "breaker.svg",
     "category": "power",
-    "nominalSizeMm": 32,
+    "nominalSizeMm": 1000,
     "tags": ["breaker", "single", "protection"]
   },
   {
     "id": "duplex_outlet",
-    "svg": "outlet.svg",
+    "iconSvg": "outlet.svg",
+    "canvasSvg": "outlet-2P+T.svg",
     "category": "control",
-    "nominalSizeMm": 36,
+    "nominalSizeMm": 1000,
     "tags": ["socket", "duplex", "receptacle"]
   }
 ]

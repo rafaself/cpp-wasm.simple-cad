@@ -120,7 +120,7 @@ const ElectricalLibraryPanel: React.FC<ElectricalLibraryPanelProps> = ({ compact
                 <div
                   className="w-full h-full flex items-center justify-center"
                   style={{ transform: 'scale(0.9)' }}
-                  dangerouslySetInnerHTML={{ __html: symbol.svg }}
+                  dangerouslySetInnerHTML={{ __html: symbol.iconSvg }}
                 />
               </div>
               <div className="flex items-center justify-between text-[10px] text-slate-500">
