@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard,
-  Layers, Settings, MousePointer2, Zap
+  Layers, Settings, MousePointer2, Zap, GitBranch
 } from 'lucide-react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
@@ -10,6 +10,7 @@ import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
 import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
 import ElectricalProperties from './properties/ElectricalProperties';
+import DiagramPanel from '../../diagram/DiagramPanel';
 
 const EditorSidebar: React.FC = () => {
   const uiStore = useUIStore();
@@ -31,12 +32,13 @@ const EditorSidebar: React.FC = () => {
   // --- Header Configuration ---
   const getHeaderConfig = () => {
       switch(activeTab) {
-          case 'edificacao': return { title: 'Edificações', icon: <Building2 className="text-blue-600" size={16} /> };
+          case 'edificacao': return { title: 'Edificacoes', icon: <Building2 className="text-blue-600" size={16} /> };
           case 'desenho': return { title: 'Desenho', icon: <PenTool className="text-blue-600" size={16} /> };
           case 'propriedades': return { title: 'Propriedades', icon: <SlidersHorizontal className="text-blue-600" size={16} /> };
           case 'projeto': return { title: 'Projeto', icon: <FolderOpen className="text-blue-600" size={16} /> };
           case 'camadas': return { title: 'Camadas', icon: <Layers className="text-blue-600" size={16} /> };
-          case 'eletrica': return { title: 'Lançamento', icon: <Zap className="text-blue-600" size={16} /> };
+          case 'eletrica': return { title: 'Lancamento', icon: <Zap className="text-blue-600" size={16} /> };
+          case 'diagrama': return { title: 'Diagrama', icon: <GitBranch className="text-blue-600" size={16} /> };
           case 'ajustes': return { title: 'Ajustes', icon: <Settings className="text-blue-600" size={16} /> };
           default: return { title: 'Menu', icon: <LayoutDashboard className="text-blue-600" size={16} /> };
       }
@@ -157,10 +159,15 @@ const EditorSidebar: React.FC = () => {
     return (
       <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
         <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
-        <p className="text-xs">Nenhuma propriedade específica disponível.</p>
+        <p className="text-xs">Nenhuma propriedade especifica disponivel.</p>
       </div>
     );
-  };
+
+  const renderDiagrama = () => (
+    <div className="flex-grow min-h-0 p-3 bg-white">
+      <DiagramPanel />
+    </div>
+  );
 
   return (
     <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden">
@@ -179,7 +186,7 @@ const EditorSidebar: React.FC = () => {
           {activeTab === 'projeto' && (
               <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
                   <FolderOpen size={32} className="mb-4 opacity-20 shrink-0" />
-                  <p className="text-xs">Arquivos do projeto aparecerão aqui.</p>
+                  <p className="text-xs">Arquivos do projeto aparecerao aqui.</p>
               </div>
           )}
           {activeTab === 'camadas' && (
@@ -193,10 +200,11 @@ const EditorSidebar: React.FC = () => {
                   <ElectricalLibraryPanel compact />
               </div>
           )}
+          {activeTab === 'diagrama' && renderDiagrama()}
           {activeTab === 'ajustes' && (
               <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
                   <Settings size={32} className="mb-4 opacity-20 shrink-0" />
-                  <p className="text-xs">Configurações gerais do projeto.</p>
+                  <p className="text-xs">Configuracoes gerais do projeto.</p>
               </div>
           )}
       </div>
@@ -235,7 +243,7 @@ const EditorSidebar: React.FC = () => {
 
         <button 
           onClick={() => !isDragging && setActiveTab('edificacao')}
-          title="Edificação"
+          title="Edificacao"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'edificacao' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Building2 size={18} />
@@ -251,11 +259,19 @@ const EditorSidebar: React.FC = () => {
 
         <button
           onClick={() => !isDragging && setActiveTab('eletrica')}
-          title="Lançamento"
+          title="Lancamento"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'eletrica' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Zap size={18} />
         </button>
+        <button
+          onClick={() => !isDragging && setActiveTab('diagrama')}
+          title="Diagrama"
+          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'diagrama' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+        >
+          <GitBranch size={18} />
+        </button>
+
 
         <button 
           onClick={() => !isDragging && setActiveTab('ajustes')}

@@ -16,12 +16,36 @@ export type ToolType =
   | 'electrical-symbol'
   | 'conduit';
 
+export type DiagramNodeKind =
+  | 'board'
+  | 'circuit-group'
+  | 'circuit'
+  | 'command'
+  | 'load'
+  | 'note';
+
 export enum ElectricalCategory {
   POWER = 'power',
   CONTROL = 'control',
   SIGNAL = 'signal',
   LIGHTING = 'lighting',
   CONDUIT = 'conduit'
+}
+
+export interface DiagramNode {
+  id: string;
+  shapeId: string;
+  kind: DiagramNodeKind;
+  title: string;
+  description?: string;
+}
+
+export interface DiagramEdge {
+  id: string;
+  shapeId: string;
+  fromId: string;
+  toId: string;
+  label?: string;
 }
 
 export interface NormalizedViewBox {
@@ -144,6 +168,8 @@ export interface Shape {
   connectedEndId?: string;   // Shape ID connected to end point
 
   // Special flags
+  diagramNodeId?: string;
+  diagramEdgeId?: string;
   isFrame?: boolean;
 }
 
@@ -163,6 +189,8 @@ export interface Patch {
   diff?: Partial<Shape>; // For UPDATE
   prev?: Partial<Shape> | Shape; // For UNDO
   electricalElement?: ElectricalElement; // Metadata tied to the shape
+  diagramNode?: DiagramNode;
+  diagramEdge?: DiagramEdge;
 }
 
 export interface SerializedProject {
@@ -170,4 +198,6 @@ export interface SerializedProject {
   shapes: Shape[];
   activeLayerId: string;
   electricalElements: ElectricalElement[];
+  diagramNodes: DiagramNode[];
+  diagramEdges: DiagramEdge[];
 }

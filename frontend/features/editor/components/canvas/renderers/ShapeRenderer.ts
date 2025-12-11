@@ -119,6 +119,25 @@ export const renderShape = (
                 ctx.moveTo(p2.x, p2.y);
                 ctx.lineTo(p2.x - headSize * Math.cos(angle + Math.PI / 6), p2.y - headSize * Math.sin(angle + Math.PI / 6));
                 ctx.stroke();
+
+                if (shape.label) {
+                    const midX = (p1.x + p2.x) / 2;
+                    const midY = (p1.y + p2.y) / 2;
+                    ctx.save();
+                    const fontPx = 12 / viewTransform.scale;
+                    ctx.font = `bold ${fontPx}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    const metrics = ctx.measureText(shape.label);
+                    const pad = 4 / viewTransform.scale;
+                    const boxW = metrics.width + pad * 2;
+                    const boxH = 16 / viewTransform.scale;
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+                    ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(shape.label, midX, midY + 0.5 / viewTransform.scale);
+                    ctx.restore();
+                }
             }
         } else if (shape.type === 'circle') {
             const cx = shape.x ?? 0;
@@ -143,6 +162,19 @@ export const renderShape = (
             ctx.stroke();
             
             if (flipX !== 1 || flipY !== 1) {
+                ctx.restore();
+            }
+
+            if (shape.textContent) {
+                ctx.save();
+                const fontSize = shape.fontSize ?? 14;
+                const fontWeight = shape.bold ? 'bold ' : '';
+                const fontStyle = shape.italic ? 'italic ' : '';
+                ctx.font = `${fontStyle}${fontWeight}${fontSize}px ${shape.fontFamily || 'Inter'}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = strokeColor;
+                ctx.fillText(shape.textContent, cx, cy);
                 ctx.restore();
             }
         } else if (shape.type === 'rect') {
@@ -181,6 +213,19 @@ export const renderShape = (
             }
 
             if (flipX !== 1 || flipY !== 1) {
+                ctx.restore();
+            }
+
+            if (shape.textContent && !shape.svgRaw) {
+                ctx.save();
+                const fontSize = shape.fontSize ?? 14;
+                const fontWeight = shape.bold ? 'bold ' : '';
+                const fontStyle = shape.italic ? 'italic ' : '';
+                ctx.font = `${fontStyle}${fontWeight}${fontSize}px ${shape.fontFamily || 'Inter'}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = strokeColor;
+                ctx.fillText(shape.textContent, rx + rw / 2, ry + rh / 2);
                 ctx.restore();
             }
         } else if (shape.type === 'polyline') {
