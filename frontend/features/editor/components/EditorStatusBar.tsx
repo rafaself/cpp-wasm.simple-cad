@@ -3,7 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
-import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator, Grid3x3, Crosshair } from 'lucide-react';
+import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator, Grid3x3, Crosshair, Zap } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
 import EditableNumber from '../../../components/EditableNumber';
@@ -17,6 +17,7 @@ const EditorStatusBar: React.FC = () => {
   const dataStore = useDataStore();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
   const [totalLength, setTotalLength] = useState<string | null>(null);
+  const isElectricalInsert = uiStore.activeTool === 'electrical-symbol';
 
   // POC: Calculate total length of selected lines
   useEffect(() => {
@@ -72,6 +73,14 @@ const EditorStatusBar: React.FC = () => {
                 <Calculator size={14} />
                 <span className="font-bold">{totalLength}</span>
                 <span className="text-[10px] opacity-60">(Fio)</span>
+            </div>
+        )}
+
+        {isElectricalInsert && (
+            <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-400/50 px-2 py-0.5 rounded text-amber-100 shadow-sm">
+                <Zap size={14} />
+                <span className="font-semibold">Inserção elétrica</span>
+                <span className="text-[10px] text-amber-200/80">R girar • F/V espelhar • Clique para duplicar</span>
             </div>
         )}
 

@@ -3,12 +3,13 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
-import { Point, Shape, Rect, Patch } from '../../../types';
+import { ElectricalElement, Point, Shape, Rect, Patch } from '../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../utils/geometry';
 import { getSnapPoint } from '../snapEngine';
 import { getTextSize } from '../components/canvas/helpers';
 import { TextEditState } from '../components/canvas/overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../utils/shapeColors';
+import { useLibraryStore } from '../../../stores/useLibraryStore';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -58,6 +59,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const gridSize = useSettingsStore(s => s.grid.size);
     const toolDefaults = useSettingsStore(s => s.toolDefaults);
     const dataStore = useDataStore();
+    const libraryStore = useLibraryStore();
     const { strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides } = toolDefaults;
 
     const [isDragging, setIsDragging] = useState(false);
@@ -309,6 +311,20 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') uiStore.setTool('select');
                 if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
                     uiStore.setSelectedShapeIds(new Set());
+                }
+            }
+            if (uiStore.activeTool === 'electrical-symbol') {
+                if (e.key.toLowerCase() === 'r') {
+                    e.preventDefault();
+                    uiStore.rotateElectricalPreview(Math.PI / 2);
+                }
+                if (e.key.toLowerCase() === 'f') {
+                    e.preventDefault();
+                    uiStore.flipElectricalPreview('x');
+                }
+                if (e.key.toLowerCase() === 'v') {
+                    e.preventDefault();
+                    uiStore.flipElectricalPreview('y');
                 }
             }
             // Arrow key movement for selected shapes
@@ -786,6 +802,52 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         setLockedAxis(null);
         dragStartPositions.current.clear();
         dragStartWorld.current = null;
+
+        if (uiStore.activeTool === 'electrical-symbol') {
+            const symbolId = uiStore.activeElectricalSymbolId;
+            const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
+            if (librarySymbol) {
+                const width = librarySymbol.viewBox.width * librarySymbol.scale;
+                const height = librarySymbol.viewBox.height * librarySymbol.scale;
+                const shapeId = Date.now().toString();
+                const n: Shape = {
+                    id: shapeId,
+                    layerId: dataStore.activeLayerId,
+                    type: 'rect',
+                    x: ws.x - width / 2,
+                    y: ws.y - height / 2,
+                    width,
+                    height,
+                    strokeColor,
+                    strokeWidth,
+                    strokeEnabled: false,
+                    fillColor: 'transparent',
+                    colorMode: getDefaultColorMode(),
+                    points: [],
+                    rotation: uiStore.electricalRotation,
+                    scaleX: uiStore.electricalFlipX,
+                    scaleY: uiStore.electricalFlipY,
+                    svgSymbolId: librarySymbol.id,
+                    svgRaw: librarySymbol.svg,
+                    svgViewBox: librarySymbol.viewBox,
+                    symbolScale: librarySymbol.scale,
+                };
+
+                const electricalElement: ElectricalElement = {
+                    id: `el-${shapeId}`,
+                    shapeId,
+                    category: librarySymbol.category,
+                    name: librarySymbol.id,
+                };
+
+                dataStore.addShape(n, electricalElement);
+                uiStore.setSelectedShapeIds(new Set([shapeId]));
+                uiStore.setSidebarTab('desenho');
+            }
+            setStartPoint(null);
+            setHoverCursor(null);
+            return;
+        }
 
         const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc'];
         const isSingleClick = dist < 5;

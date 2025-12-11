@@ -2,6 +2,16 @@ import { Layer, Shape, ViewTransform } from '../../../../../types';
 import { getDistance, getShapeCenter, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
 import { getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled } from '../../../../../utils/shapeColors';
 
+const svgImageCache: Record<string, HTMLImageElement> = {};
+
+const getSvgImage = (svg: string) => {
+    if (svgImageCache[svg]) return svgImageCache[svg];
+    const img = new Image();
+    img.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    svgImageCache[svg] = img;
+    return img;
+};
+
 export const renderShape = (
     ctx: CanvasRenderingContext2D,
     shape: Shape,
@@ -123,11 +133,16 @@ export const renderShape = (
                 ctx.scale(flipX, flipY);
                 ctx.translate(-centerX, -centerY);
             }
-            
+
             ctx.rect(rx, ry, rw, rh);
             if (effectiveFill !== 'transparent') ctx.fill();
             ctx.stroke();
-            
+
+            if (shape.svgRaw && shape.svgViewBox) {
+                const img = getSvgImage(shape.svgRaw);
+                ctx.drawImage(img, rx, ry, rw, rh);
+            }
+
             if (flipX !== 1 || flipY !== 1) {
                 ctx.restore();
             }

@@ -12,6 +12,7 @@ import { drawSelectionHighlight, drawHandles } from './renderers/SelectionRender
 import TextEditorOverlay from './overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../../utils/shapeColors';
 import NumberSpinner from '../../../../components/NumberSpinner';
+import { useLibraryStore } from '../../../../stores/useLibraryStore';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -30,6 +31,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const settingsStore = useSettingsStore();
   const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
   const dataStore = useDataStore();
+  const libraryStore = useLibraryStore();
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
@@ -99,6 +101,39 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             }
             drawGhostShape(ctx, ghost, uiStore.viewTransform);
         });
+    }
+
+    if (uiStore.activeTool === 'electrical-symbol' && currentPoint) {
+        const symbolId = uiStore.activeElectricalSymbolId;
+        const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
+        if (librarySymbol) {
+            const center = snapMarker ? snapMarker : screenToWorld(currentPoint, uiStore.viewTransform);
+            const width = librarySymbol.viewBox.width * librarySymbol.scale;
+            const height = librarySymbol.viewBox.height * librarySymbol.scale;
+            const ghost: Shape = {
+                id: 'ghost-symbol',
+                layerId: dataStore.activeLayerId,
+                type: 'rect',
+                x: center.x - width / 2,
+                y: center.y - height / 2,
+                width,
+                height,
+                strokeColor,
+                strokeWidth,
+                strokeEnabled: false,
+                fillColor,
+                colorMode: getDefaultColorMode(),
+                points: [],
+                rotation: uiStore.electricalRotation,
+                scaleX: uiStore.electricalFlipX,
+                scaleY: uiStore.electricalFlipY,
+                svgSymbolId: librarySymbol.id,
+                svgRaw: librarySymbol.svg,
+                svgViewBox: librarySymbol.viewBox,
+                symbolScale: librarySymbol.scale,
+            };
+            drawGhostShape(ctx, ghost, uiStore.viewTransform);
+        }
     }
 
     // 3. Draw Creation Drafts
@@ -200,7 +235,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
+  }, [uiStore, dataStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
 
   useEffect(() => {
       render();
@@ -211,7 +246,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (hoverCursor === 'rotate') cursorClass = ROTATE_CURSOR;
   else if (hoverCursor) cursorClass = hoverCursor;
-  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
 
   return (
     <>

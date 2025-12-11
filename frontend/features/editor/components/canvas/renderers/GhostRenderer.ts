@@ -1,6 +1,16 @@
 import { Shape, ViewTransform } from '../../../../../types';
 import { getShapeCenter } from '../../../../../utils/geometry';
 
+const ghostSvgCache: Record<string, HTMLImageElement> = {};
+
+const getGhostImage = (svg: string) => {
+    if (ghostSvgCache[svg]) return ghostSvgCache[svg];
+    const img = new Image();
+    img.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    ghostSvgCache[svg] = img;
+    return img;
+};
+
 export const drawGhostShape = (ctx: CanvasRenderingContext2D, shape: Shape, viewTransform: ViewTransform) => {
     ctx.save();
     try {
@@ -35,9 +45,29 @@ export const drawGhostShape = (ctx: CanvasRenderingContext2D, shape: Shape, view
             const ry = shape.y ?? 0;
             const rw = shape.width ?? 0;
             const rh = shape.height ?? 0;
+            const flipX = shape.scaleX ?? 1;
+            const flipY = shape.scaleY ?? 1;
+            if (flipX !== 1 || flipY !== 1) {
+                ctx.save();
+                const cx = rx + rw / 2;
+                const cy = ry + rh / 2;
+                ctx.translate(cx, cy);
+                ctx.scale(flipX, flipY);
+                ctx.translate(-cx, -cy);
+            }
             ctx.rect(rx, ry, rw, rh);
             ctx.fill();
             ctx.stroke();
+            if (shape.svgRaw && shape.svgViewBox) {
+                const img = getGhostImage(shape.svgRaw);
+                ctx.save();
+                ctx.globalAlpha = 0.6;
+                ctx.drawImage(img, rx, ry, rw, rh);
+                ctx.restore();
+            }
+            if (flipX !== 1 || flipY !== 1) {
+                ctx.restore();
+            }
         } else if (shape.type === 'polygon') {
             // SAFE polygon ghost rendering
             const sides = Math.max(3, shape.sides ?? 5);
