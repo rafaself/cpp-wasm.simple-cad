@@ -75,7 +75,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   electricalElements: {},
   layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true }],
   activeLayerId: 'desenho',
-  worldScale: 50,
+  worldScale: 100,
   frame: {
     enabled: false,
     widthMm: 297,
