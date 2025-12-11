@@ -226,18 +226,26 @@ export const getSnapPoint = (
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
   const hitToleranceScreen = 10; 
   const threshold = hitToleranceScreen / scale; 
-  let checkPoint = point;
-    if (shape.rotation && shape.x !== undefined && shape.y !== undefined && (shape.type === 'rect')) {
-      checkPoint = rotatePoint(point, { x: shape.x, y: shape.y }, -shape.rotation);
-  }
+  const rotation = shape.rotation || 0;
+  const shouldUnrotate = rotation !== 0 && (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon');
+  const center = shouldUnrotate ? getShapeCenter(shape) : null;
+  const checkPoint = (shouldUnrotate && center) ? rotatePoint(point, center, -rotation) : point;
   const effectiveFill = getEffectiveFillColor(shape, layer);
 
   switch (shape.type) {
     case 'circle':
-      if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
-      const dist = getDistance(point, { x: shape.x, y: shape.y });
-      if (effectiveFill !== 'transparent') return dist <= shape.radius + threshold;
-      return Math.abs(dist - shape.radius) <= threshold;
+      if (shape.x === undefined || shape.y === undefined) return false;
+      const cx = shape.x;
+      const cy = shape.y;
+      const rx = (shape.width ?? (shape.radius ?? 0) * 2) / 2;
+      const ry = (shape.height ?? (shape.radius ?? 0) * 2) / 2;
+      if (rx === 0 || ry === 0) return false;
+      const nx = (checkPoint.x - cx) / rx;
+      const ny = (checkPoint.y - cy) / ry;
+      const ellipseVal = nx * nx + ny * ny;
+      const tolNorm = threshold / Math.max(rx, ry);
+      if (effectiveFill !== 'transparent') return ellipseVal <= 1 + tolNorm;
+      return Math.abs(Math.sqrt(ellipseVal) - 1) * Math.max(rx, ry) <= threshold;
 
     case 'rect':
       if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return false;
@@ -288,7 +296,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
 
     case 'polygon': 
       if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
-      const pDist = getDistance(point, { x: shape.x, y: shape.y });
+      const pDist = getDistance(checkPoint, { x: shape.x, y: shape.y });
       if (effectiveFill !== 'transparent') return pDist <= shape.radius + threshold;
       return Math.abs(pDist - shape.radius) <= threshold;
 
@@ -409,6 +417,7 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
 };
 
 export const getShapeBounds = (shape: Shape): Rect | null => {
+    const rotation = shape.rotation || 0;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const addPoint = (p: Point) => {
         if (p.x < minX) minX = p.x;
@@ -417,22 +426,22 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         if (p.y > maxY) maxY = p.y;
     };
 
+    // Point-based shapes rely on already-rotated coordinates
     if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow') && shape.points) {
         shape.points.forEach(addPoint);
     } 
-    else if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-        addPoint({ x: shape.x, y: shape.y });
-        addPoint({ x: shape.x + shape.width, y: shape.y + shape.height });
+    else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
+        const bounds = getShapeBoundingBox(shape);
+        const center = getShapeCenter(shape);
+        const corners = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+            { x: bounds.x, y: bounds.y + bounds.height }
+        ];
+        const pts = rotation ? corners.map(c => rotatePoint(c, center, rotation)) : corners;
+        pts.forEach(addPoint);
     }
-    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) {
-        const { width, height } = getTextDimensions(shape);
-        addPoint({ x: shape.x, y: shape.y });
-        addPoint({ x: shape.x + width, y: shape.y + height });
-    }
-    else if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-        addPoint({ x: shape.x - shape.radius, y: shape.y - shape.radius });
-        addPoint({ x: shape.x + shape.radius, y: shape.y + shape.radius });
-    } 
     else { return null; }
 
     if (minX === Infinity) return null;
@@ -462,6 +471,10 @@ export const getCombinedBounds = (shapes: Shape[]): Rect | null => {
  */
 export const getShapeBoundingBox = (shape: Shape): Rect => {
     if (shape.type === 'rect' || shape.type === 'text') {
+        if (shape.type === 'text') {
+            const { width, height } = getTextDimensions(shape);
+            return { x: shape.x ?? 0, y: shape.y ?? 0, width, height };
+        }
         return {
             x: shape.x ?? 0,
             y: shape.y ?? 0,
@@ -492,6 +505,14 @@ export const getShapeBoundingBox = (shape: Shape): Rect => {
     return { x: 0, y: 0, width: 0, height: 0 };
 };
 
+export const getShapeCenter = (shape: Shape): Point => {
+    if (shape.type === 'circle' || shape.type === 'polygon') {
+        return { x: shape.x ?? 0, y: shape.y ?? 0 };
+    }
+    const bounds = getShapeBoundingBox(shape);
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+};
+
 export interface Handle { x: number; y: number; cursor: string; index: number; type: 'vertex' | 'resize'; }
 
 export const getShapeHandles = (shape: Shape): Handle[] => {
@@ -503,72 +524,21 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
             });
         }
     }
-    else if (shape.type === 'circle' && shape.x !== undefined && shape.y !== undefined) {
-        // Use width/height if available, otherwise fall back to radius*2
-        const r = shape.radius ?? 50;
-        const w = shape.width ?? r * 2;
-        const h = shape.height ?? r * 2;
-        const x = shape.x;
-        const y = shape.y;
-        // Handles at bounding box corners (center-based)
-        const p1 = { x: x - w/2, y: y - h/2 };
-        const p2 = { x: x + w/2, y: y - h/2 };
-        const p3 = { x: x + w/2, y: y + h/2 };
-        const p4 = { x: x - w/2, y: y + h/2 };
+    else if ((shape.type === 'circle' && shape.x !== undefined && shape.y !== undefined) || shape.type === 'rect' || shape.type === 'polygon' || shape.type === 'text') {
+        const bounds = getShapeBoundingBox(shape);
+        const corners = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+            { x: bounds.x, y: bounds.y + bounds.height }
+        ];
+        const center = getShapeCenter(shape);
+        const rotatedCorners = shape.rotation ? corners.map(c => rotatePoint(c, center, shape.rotation!)) : corners;
 
-        handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
-        handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
-        handles.push({ x: p3.x, y: p3.y, cursor: 'nwse-resize', index: 2, type: 'resize' });
-        handles.push({ x: p4.x, y: p4.y, cursor: 'nesw-resize', index: 3, type: 'resize' });
-    }
-    else if ((shape.type === 'rect') && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined && !isNaN(shape.width) && !isNaN(shape.height)) {
-        const p1 = { x: shape.x, y: shape.y };
-        const p2 = { x: shape.x + shape.width, y: shape.y };
-        const p3 = { x: shape.x + shape.width, y: shape.y + shape.height };
-        const p4 = { x: shape.x, y: shape.y + shape.height };
-
-        const basePoints = [p1, p2, p3, p4];
-        let finalPoints = basePoints;
-
-        if (shape.rotation) {
-            const pivot = { x: shape.x, y: shape.y };
-            finalPoints = basePoints.map(p => rotatePoint(p, pivot, shape.rotation!));
-        }
-
-        handles.push({ x: finalPoints[0].x, y: finalPoints[0].y, cursor: 'nwse-resize', index: 0, type: 'resize' });
-        handles.push({ x: finalPoints[1].x, y: finalPoints[1].y, cursor: 'nesw-resize', index: 1, type: 'resize' });
-        handles.push({ x: finalPoints[2].x, y: finalPoints[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
-        handles.push({ x: finalPoints[3].x, y: finalPoints[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
-    }
-    else if (shape.type === 'polygon' && shape.x !== undefined && shape.y !== undefined) {
-         // Use width/height if available, otherwise fall back to radius*2
-         const r = shape.radius ?? 50;
-         const w = shape.width ?? r * 2;
-         const h = shape.height ?? r * 2;
-         const x = shape.x;
-         const y = shape.y;
-         // Handles at bounding box corners (center-based)
-         const p1 = { x: x - w/2, y: y - h/2 };
-         const p2 = { x: x + w/2, y: y - h/2 };
-         const p3 = { x: x + w/2, y: y + h/2 };
-         const p4 = { x: x - w/2, y: y + h/2 };
-
-         handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
-         handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
-         handles.push({ x: p3.x, y: p3.y, cursor: 'nwse-resize', index: 2, type: 'resize' });
-         handles.push({ x: p4.x, y: p4.y, cursor: 'nesw-resize', index: 3, type: 'resize' });
-    }
-    else if (shape.type === 'text' && shape.x !== undefined && shape.y !== undefined) {
-        const { width, height } = getTextDimensions(shape);
-        const p1 = { x: shape.x, y: shape.y };
-        const p2 = { x: shape.x + width, y: shape.y };
-        const p3 = { x: shape.x + width, y: shape.y + height };
-        const p4 = { x: shape.x, y: shape.y + height };
-
-        handles.push({ x: p1.x, y: p1.y, cursor: 'nwse-resize', index: 0, type: 'resize' });
-        handles.push({ x: p2.x, y: p2.y, cursor: 'nesw-resize', index: 1, type: 'resize' });
-        handles.push({ x: p3.x, y: p3.y, cursor: 'nwse-resize', index: 2, type: 'resize' });
-        handles.push({ x: p4.x, y: p4.y, cursor: 'nesw-resize', index: 3, type: 'resize' });
+        handles.push({ x: rotatedCorners[0].x, y: rotatedCorners[0].y, cursor: 'nwse-resize', index: 0, type: 'resize' });
+        handles.push({ x: rotatedCorners[1].x, y: rotatedCorners[1].y, cursor: 'nesw-resize', index: 1, type: 'resize' });
+        handles.push({ x: rotatedCorners[2].x, y: rotatedCorners[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
+        handles.push({ x: rotatedCorners[3].x, y: rotatedCorners[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
     }
     return handles;
 };

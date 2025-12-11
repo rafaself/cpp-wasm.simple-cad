@@ -1,5 +1,5 @@
 import { Layer, Shape, ViewTransform } from '../../../../../types';
-import { getDistance, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
+import { getDistance, getShapeCenter, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
 import { getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled } from '../../../../../utils/shapeColors';
 
 export const renderShape = (
@@ -16,12 +16,11 @@ export const renderShape = (
 
     ctx.save();
     try {
-        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-            let pivotX = shape.x;
-            let pivotY = shape.y;
-            ctx.translate(pivotX, pivotY);
+        if (shape.rotation) {
+            const pivot = getShapeCenter(shape);
+            ctx.translate(pivot.x, pivot.y);
             ctx.rotate(shape.rotation);
-            ctx.translate(-pivotX, -pivotY);
+            ctx.translate(-pivot.x, -pivot.y);
         }
 
         const strokeColor = getEffectiveStrokeColor(shape, layer);

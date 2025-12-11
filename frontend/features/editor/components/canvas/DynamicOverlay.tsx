@@ -3,7 +3,7 @@ import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { Shape } from '../../../../types';
-import { screenToWorld, getDistance, rotatePoint, constrainToSquare } from '../../../../utils/geometry';
+import { screenToWorld, getDistance, rotatePoint, constrainToSquare, getShapeBoundingBox, getShapeCenter } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
 import RadiusInputModal from '../RadiusInputModal';
 import { useCanvasInteraction } from './hooks/useCanvasInteraction';
@@ -79,8 +79,21 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                 const angle = Math.atan2(dy, dx);
                 ctx.beginPath(); ctx.moveTo(transformationBase.x, transformationBase.y); ctx.lineTo(wm.x, wm.y); ctx.strokeStyle = '#f59e0b'; ctx.setLineDash([2, 2]); ctx.stroke();
                 if (ghost.points) ghost.points = ghost.points.map(p => rotatePoint(p, transformationBase, angle));
-                if (ghost.x !== undefined && ghost.y !== undefined) { const np = rotatePoint({x: ghost.x, y: ghost.y}, transformationBase, angle); ghost.x = np.x; ghost.y = np.y; }
-                if (ghost.type === 'rect') ghost.rotation = (ghost.rotation || 0) + angle;
+                const supportsCenteredRotation = (ghost.type === 'rect' || ghost.type === 'text' || ghost.type === 'circle' || ghost.type === 'polygon');
+                if (supportsCenteredRotation) {
+                    const bounds = getShapeBoundingBox(ghost);
+                    const center = getShapeCenter(ghost);
+                    const newCenter = rotatePoint(center, transformationBase, angle);
+                    if (ghost.type === 'circle' || ghost.type === 'polygon') {
+                        ghost.x = newCenter.x; ghost.y = newCenter.y;
+                    } else {
+                        ghost.x = newCenter.x - bounds.width / 2;
+                        ghost.y = newCenter.y - bounds.height / 2;
+                    }
+                    ghost.rotation = (ghost.rotation || 0) + angle;
+                } else if (ghost.x !== undefined && ghost.y !== undefined) {
+                    const np = rotatePoint({x: ghost.x, y: ghost.y}, transformationBase, angle); ghost.x = np.x; ghost.y = np.y;
+                }
             }
             drawGhostShape(ctx, ghost, uiStore.viewTransform);
         });

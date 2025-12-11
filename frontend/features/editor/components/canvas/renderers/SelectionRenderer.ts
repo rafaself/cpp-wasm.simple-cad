@@ -1,16 +1,15 @@
 import { Shape, ViewTransform } from '../../../../../types';
-import { getShapeHandles } from '../../../../../utils/geometry';
+import { getShapeBoundingBox, getShapeCenter, getShapeHandles } from '../../../../../utils/geometry';
 
 export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Shape, viewTransform: ViewTransform) => {
     // Just the highlight border/box
     ctx.save();
     try {
-        const cx = shape.x ?? 0;
-        const cy = shape.y ?? 0;
+        const { x: cx, y: cy } = getShapeCenter(shape);
 
-        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-            ctx.translate(cx, cy); 
-            ctx.rotate(shape.rotation); 
+        if (shape.rotation) {
+            ctx.translate(cx, cy);
+            ctx.rotate(shape.rotation);
             ctx.translate(-cx, -cy);
         }
         ctx.strokeStyle = '#3b82f6';
@@ -18,17 +17,14 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
 
         ctx.beginPath();
         if (shape.type === 'rect' || shape.type === 'text') {
-            if (shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-                 ctx.rect(shape.x, shape.y, shape.width, shape.height);
-            }
-        }
-        else if (shape.type === 'circle') {
+            const bounds = getShapeBoundingBox(shape);
+            ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        } else if (shape.type === 'circle') {
             const r = shape.radius ?? 50;
             const rx = (shape.width ?? r * 2) / 2;
             const ry = (shape.height ?? r * 2) / 2;
             ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-        }
-        else if (shape.type === 'polygon') {
+        } else if (shape.type === 'polygon') {
             const sides = Math.max(3, shape.sides ?? 5);
             const r = shape.radius ?? 50;
             const baseSize = r * 2;

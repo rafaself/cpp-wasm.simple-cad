@@ -1,11 +1,14 @@
 import { Shape, ViewTransform } from '../../../../../types';
+import { getShapeCenter } from '../../../../../utils/geometry';
 
 export const drawGhostShape = (ctx: CanvasRenderingContext2D, shape: Shape, viewTransform: ViewTransform) => {
     ctx.save();
     try {
-        if (shape.rotation && shape.x !== undefined && shape.y !== undefined) {
-            let pivotX = shape.x; let pivotY = shape.y;
-            ctx.translate(pivotX, pivotY); ctx.rotate(shape.rotation); ctx.translate(-pivotX, -pivotY);
+        if (shape.rotation) {
+            const pivot = getShapeCenter(shape);
+            ctx.translate(pivot.x, pivot.y);
+            ctx.rotate(shape.rotation);
+            ctx.translate(-pivot.x, -pivot.y);
         }
         ctx.strokeStyle = '#3b82f6';
         ctx.setLineDash([5, 5]);

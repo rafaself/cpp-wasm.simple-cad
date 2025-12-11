@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Layer, Patch, Point, Shape } from '../types';
-import { getCombinedBounds, getShapeBounds, rotatePoint } from '../utils/geometry';
+import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
 import { useUIStore } from './useUIStore';
 
@@ -339,11 +339,25 @@ export const useDataStore = create<DataState>((set, get) => ({
          if (!s) return;
          let diff: Partial<Shape> = {};
          if (s.points) diff.points = s.points.map(p => rotatePoint(p, pivot, angle));
-         if (s.x !== undefined) {
-             const np = rotatePoint({x: s.x, y: s.y!}, pivot, angle);
+
+         const supportsCenteredRotation = (s.type === 'rect' || s.type === 'text' || s.type === 'circle' || s.type === 'polygon');
+         if (supportsCenteredRotation) {
+             const bounds = getShapeBoundingBox(s);
+             const center = getShapeCenter(s);
+             const newCenter = rotatePoint(center, pivot, angle);
+
+             if (s.type === 'circle' || s.type === 'polygon') {
+                 diff.x = newCenter.x;
+                 diff.y = newCenter.y;
+             } else {
+                 diff.x = newCenter.x - bounds.width / 2;
+                 diff.y = newCenter.y - bounds.height / 2;
+             }
+             diff.rotation = (s.rotation || 0) + angle;
+         } else if (s.x !== undefined && s.y !== undefined) {
+             const np = rotatePoint({ x: s.x, y: s.y }, pivot, angle);
              diff.x = np.x; diff.y = np.y;
          }
-         if (s.type === 'rect') diff.rotation = (s.rotation || 0) + angle;
 
          const prev: Partial<Shape> = { points: s.points, x: s.x, y: s.y, rotation: s.rotation };
          patches.push({ type: 'UPDATE', id, diff, prev });
