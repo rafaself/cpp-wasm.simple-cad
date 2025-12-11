@@ -2,6 +2,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { useUIStore } from '../../../stores/useUIStore';
 import { getCombinedBounds, getShapeBounds, getDistance } from '../../../utils/geometry';
 import { Shape, Patch } from '../../../types';
+import { computeFrameData } from '../../../utils/frame';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
@@ -39,7 +40,11 @@ export const useEditorLogic = () => {
     };
 
     const zoomToFit = () => {
-        const allShapes = Object.values(dataStore.shapes) as Shape[];
+        const frameData = computeFrameData(dataStore.frame, dataStore.worldScale);
+        const allShapes = [
+            ...Object.values(dataStore.shapes) as Shape[],
+            ...(frameData ? frameData.shapes : []),
+        ];
         const { canvasSize } = uiStore;
 
         if (allShapes.length === 0) {
