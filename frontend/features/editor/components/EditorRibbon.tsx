@@ -769,14 +769,29 @@ const EditorRibbon: React.FC = () => {
                                     if(item.type === 'action' && item.action) handleAction(item.action);
                                 }}
                                 className={`flex flex-col items-center justify-center px-1 py-1 gap-0.5 rounded w-full min-w-[48px] transition-all duration-150
-                                    ${item.type === 'tool' && uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE}
+                                    ${(() => {
+                                        if (item.type !== 'tool') return BASE_BUTTON_STYLE;
+                                        if (item.tool === 'electrical-symbol') {
+                                            const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
+                                            const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
+                                            return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                        }
+                                        return uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                    })()}
                                 `}
                                 title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
                             >
                                 <div className="text-slate-400">
                                     {getIcon(item.icon)}
                                 </div>
-                                <span className={`text-[9px] text-center whitespace-nowrap leading-none ${item.type === 'tool' && uiStore.activeTool === item.tool ? 'text-blue-300' : ''}`}>{item.label}</span>
+                                <span className={`text-[9px] text-center whitespace-nowrap leading-none ${(() => {
+                                    if (item.type !== 'tool') return '';
+                                    if (item.tool === 'electrical-symbol') {
+                                        const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
+                                        return uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id] ? 'text-blue-300' : '';
+                                    }
+                                    return uiStore.activeTool === item.tool ? 'text-blue-300' : '';
+                                })()}`}>{item.label}</span>
                             </button>
                         ))}
 
@@ -811,7 +826,15 @@ const EditorRibbon: React.FC = () => {
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
                                     className={`flex flex-col items-center justify-center p-3 gap-2 rounded min-w-[64px] h-full transition-all duration-150 group/btn text-center
-                                        ${item.type === 'tool' && uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE}
+                                        ${(() => {
+                                            if (item.type !== 'tool') return BASE_BUTTON_STYLE;
+                                            if (item.tool === 'electrical-symbol') {
+                                                const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
+                                                const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
+                                                return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                            }
+                                            return uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                        })()}
                                     `}
                                     title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
                                 >

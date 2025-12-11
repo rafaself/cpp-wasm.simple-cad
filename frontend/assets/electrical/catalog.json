@@ -1,15 +1,7 @@
 [
   {
-    "id": "breaker_single_pole",
-    "iconSvg": "breaker.svg",
-    "canvasSvg": "breaker.svg",
-    "category": "power",
-    "nominalSizeMm": 1000,
-    "tags": ["breaker", "single", "protection"]
-  },
-  {
     "id": "duplex_outlet",
-    "iconSvg": "outlet.svg",
+    "iconSvg": "outlet-2P+T.svg",
     "canvasSvg": "outlet-2P+T.svg",
     "category": "control",
     "nominalSizeMm": 1000,

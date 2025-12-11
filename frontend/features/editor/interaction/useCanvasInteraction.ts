@@ -858,6 +858,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 dataStore.addShape(n, electricalElement);
                 uiStore.setSelectedShapeIds(new Set([shapeId]));
                 uiStore.setSidebarTab('desenho');
+                uiStore.setTool('select'); // Switch back to select tool after placing
             }
             setStartPoint(null);
             setHoverCursor(null);
