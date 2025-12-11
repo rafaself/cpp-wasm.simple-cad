@@ -16,6 +16,7 @@ import NumberSpinner from '../../../../components/NumberSpinner';
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
 const GRABBING_CURSOR = 'grabbing';
+const ROTATE_CURSOR = `url('data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 3l3 3"/><path d="M12 3l-3 3"/><path d="M21 12h-4"/><path d="M21 12l-3-3"/><path d="M21 12l-3 3"/><path d="M12 21v-4"/><path d="M12 21l-3-3"/><path d="M12 21l3-3"/><path d="M3 12h4"/><path d="M3 12l3-3"/><path d="M3 12l3 3"/><circle cx="12" cy="12" r="6"/></svg>`)}') 12 12, crosshair`;
 
 interface DynamicOverlayProps {
   width: number;
@@ -34,7 +35,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     isDragging, isMiddlePanning, startPoint, currentPoint, isSelectionBox, snapMarker,
     polylinePoints, measureStart, lineStart, arrowStart, activeHandle, transformationBase,
     arcPoints, showRadiusModal, radiusModalPos, textEditState,
-    showPolygonModal, polygonModalPos, isShiftPressed
+    showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor
   } = state;
 
   const render = useCallback(() => {
@@ -207,6 +208,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   let cursorClass = DEFAULT_CURSOR;
   if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
   else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
+  else if (hoverCursor === 'rotate') cursorClass = ROTATE_CURSOR;
+  else if (hoverCursor) cursorClass = hoverCursor;
   else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
 
   return (

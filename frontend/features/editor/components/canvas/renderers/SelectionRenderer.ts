@@ -74,7 +74,7 @@ export const drawHandles = (ctx: CanvasRenderingContext2D, shape: Shape, viewTra
             
             // Draw bounding box lines connecting the corner handles (like Figma)
             // Filter to get only resize handles (corners)
-            const cornerHandles = handles.filter(h => h.type === 'resize');
+            const cornerHandles = handles.filter(h => h.type === 'resize' && h.index < 4);
             if (cornerHandles.length === 4) {
                 // Order: 0=TL, 1=TR, 2=BR, 3=BL
                 ctx.beginPath();

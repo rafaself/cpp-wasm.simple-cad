@@ -2,8 +2,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../../stores/useSettingsStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
-import { Point, Shape, Rect } from '../../../../../types';
-import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare } from '../../../../../utils/geometry';
+import { Point, Shape, Rect, Patch } from '../../../../../types';
+import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../../../utils/geometry';
 import { getTextSize } from '../helpers';
 import { TextEditState } from '../overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../../../utils/shapeColors';
@@ -15,7 +15,39 @@ interface ResizeState {
     handleIndex: number;
     originalScaleX: number;
     originalScaleY: number;
+    orientation: { x: -1 | 0 | 1; y: -1 | 0 | 1 };
 }
+
+const getHandleOrientation = (index: number): { x: -1 | 0 | 1; y: -1 | 0 | 1 } => {
+    switch (index) {
+        case 0: return { x: -1, y: -1 }; // TL
+        case 1: return { x: 1, y: -1 };  // TR
+        case 2: return { x: 1, y: 1 };   // BR
+        case 3: return { x: -1, y: 1 };  // BL
+        default: return { x: 0, y: 0 };
+    }
+};
+
+const getEdgeAnchor = (bounds: Rect, orientation: { x: -1 | 0 | 1; y: -1 | 0 | 1 }): Point => {
+    if (orientation.x === -1 && orientation.y === -1) return { x: bounds.x + bounds.width, y: bounds.y + bounds.height }; // BR
+    if (orientation.x === 1 && orientation.y === -1) return { x: bounds.x, y: bounds.y + bounds.height }; // BL
+    if (orientation.x === 1 && orientation.y === 1) return { x: bounds.x, y: bounds.y }; // TL
+    if (orientation.x === -1 && orientation.y === 1) return { x: bounds.x + bounds.width, y: bounds.y }; // TR
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+};
+
+const pointInPolygon = (point: Point, polygon: Point[]): boolean => {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersect = ((yi > point.y) !== (yj > point.y)) &&
+            (point.x < (xj - xi) * (point.y - yi) / ((yj - yi) || 1e-9) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
 
 export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     const uiStore = useUIStore();
@@ -35,6 +67,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
+    const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
     // Shift key state for real-time updates during drag
     const [isShiftPressed, setIsShiftPressed] = useState(false);
@@ -50,6 +83,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: { x: number; y: number; cursor: string; index: number; type: string } } | null>(null);
     const [resizeState, setResizeState] = useState<ResizeState | null>(null);
     const [transformationBase, setTransformationBase] = useState<Point | null>(null);
+    const rotationState = useRef<{ center: Point; startAngle: number; snapshot: Map<string, Shape> } | null>(null);
 
     // Arc Tool State
     const [arcPoints, setArcPoints] = useState<{ start: Point; end: Point } | null>(null);
@@ -73,6 +107,118 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         return () => setEditingTextId(null);
     }, [setEditingTextId]);
 
+    const getSelectedBoundingCenter = (): Point | null => {
+        const selected = Array.from(uiStore.selectedShapeIds).map(id => dataStore.shapes[id]).filter(Boolean) as Shape[];
+        if (selected.length === 0) return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        selected.forEach(s => {
+            const b = getShapeBounds(s);
+            if (!b) return;
+            minX = Math.min(minX, b.x);
+            minY = Math.min(minY, b.y);
+            maxX = Math.max(maxX, b.x + b.width);
+            maxY = Math.max(maxY, b.y + b.height);
+        });
+        if (minX === Infinity) return null;
+        return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+    };
+
+    const getOrientedCorners = (shape: Shape): Point[] => {
+        const bounds = getShapeBoundingBox(shape);
+        const corners = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+            { x: bounds.x, y: bounds.y + bounds.height }
+        ];
+        const center = getShapeCenter(shape);
+        return shape.rotation ? corners.map(c => rotatePoint(c, center, shape.rotation!)) : corners;
+    };
+
+    const applyRotationFromSnapshot = (angle: number) => {
+        const state = rotationState.current;
+        if (!state) return;
+        const { center, snapshot } = state;
+        snapshot.forEach((original, id) => {
+            const s0 = original;
+            const supportsCenteredRotation = (s0.type === 'rect' || s0.type === 'text' || s0.type === 'circle' || s0.type === 'polygon');
+            const diff: Partial<Shape> = {};
+
+            if (s0.points) diff.points = s0.points.map(p => rotatePoint(p, center, angle));
+
+            if (supportsCenteredRotation) {
+                const bounds = getShapeBoundingBox(s0);
+                const originalCenter = getShapeCenter(s0);
+                const newCenter = rotatePoint(originalCenter, center, angle);
+                if (s0.type === 'circle' || s0.type === 'polygon') {
+                    diff.x = newCenter.x; diff.y = newCenter.y;
+                } else {
+                    diff.x = newCenter.x - bounds.width / 2;
+                    diff.y = newCenter.y - bounds.height / 2;
+                }
+                diff.rotation = (s0.rotation || 0) + angle;
+            } else if (s0.x !== undefined && s0.y !== undefined) {
+                const np = rotatePoint({ x: s0.x, y: s0.y }, center, angle);
+                diff.x = np.x; diff.y = np.y;
+            }
+
+            dataStore.updateShape(id, diff, false);
+        });
+    };
+
+    const commitRotationHistory = () => {
+        const state = rotationState.current;
+        if (!state) return;
+        const patches: Patch[] = [];
+        state.snapshot.forEach((prevShape, id) => {
+            const curr = dataStore.shapes[id];
+            if (!curr) return;
+            const diff: Partial<Shape> = {};
+            if (prevShape.x !== curr.x) diff.x = curr.x;
+            if (prevShape.y !== curr.y) diff.y = curr.y;
+            if ((prevShape.rotation || 0) !== (curr.rotation || 0)) diff.rotation = curr.rotation;
+            if (prevShape.points || curr.points) diff.points = curr.points;
+            if (Object.keys(diff).length === 0) return;
+            patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
+        });
+        if (patches.length > 0) dataStore.saveToHistory(patches);
+    };
+
+    const detectInteractionAtPoint = (worldPos: Point, viewScale: number) => {
+        const selection = Array.from(uiStore.selectedShapeIds).map(id => dataStore.shapes[id]).filter(Boolean) as Shape[];
+        if (selection.length === 0) return { mode: null as const, cursor: null as string | null, handle: null as Handle | null, shapeId: null as string | null };
+
+        const handleHit = 10 / viewScale;
+        const rotateBand = 18 / viewScale;
+
+        // Handles (corners only)
+        for (const shape of selection) {
+            const handles = getShapeHandles(shape);
+            for (const h of handles) {
+                if (getDistance(h, worldPos) <= handleHit) {
+                    return { mode: 'resize' as const, cursor: h.cursor, handle: h, shapeId: shape.id };
+                }
+            }
+        }
+
+        // Rotate zone: just outside corners
+        for (const shape of selection) {
+            const corners = getOrientedCorners(shape);
+            const inside = pointInPolygon(worldPos, corners);
+            if (inside) continue;
+            const nearestCorner = corners.reduce((acc, c, idx) => {
+                const d = getDistance(worldPos, c);
+                if (d < acc.dist) return { dist: d, index: idx };
+                return acc;
+            }, { dist: Infinity, index: -1 });
+            if (nearestCorner.dist > handleHit && nearestCorner.dist <= rotateBand) {
+                return { mode: 'rotate' as const, cursor: 'rotate', handle: null, shapeId: shape.id };
+            }
+        }
+
+        return { mode: null as const, cursor: null as string | null, handle: null as Handle | null, shapeId: null as string | null };
+    };
+
     const getMousePos = (e: React.MouseEvent): Point => {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return { x: 0, y: 0 };
@@ -89,6 +235,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         setLockedAxis(null); // Reset axis lock on tool change
         dragStartPositions.current.clear();
         dragStartWorld.current = null;
+        rotationState.current = null;
+        setHoverCursor(null);
     }, [uiStore.activeTool]);
 
     // Global Shift key listener for real-time updates during drag
@@ -120,6 +268,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); setIsDragging(false); }
             if (isDragging && uiStore.activeTool === 'pan') { setIsDragging(false); setStartPoint(null); }
             if (activeHandle) { setActiveHandle(null); setResizeState(null); setIsDragging(false); }
+            if (rotationState.current) { rotationState.current = null; setIsDragging(false); }
             // Reset axis lock when drag ends
             setLockedAxis(null);
             dragStartPositions.current.clear();
@@ -232,26 +381,51 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         // Capture initial state for Figma-like resize with flip support
                         if (h.type === 'resize') {
                             const bounds = getShapeBoundingBox(shape);
-                            // Calculate anchor point (opposite corner based on handle index)
-                            // Index: 0=TL, 1=TR, 2=BR, 3=BL
-                            const anchorMap: Record<number, Point> = {
-                                0: { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // BR
-                                1: { x: bounds.x, y: bounds.y + bounds.height },                // BL
-                                2: { x: bounds.x, y: bounds.y },                                // TL
-                                3: { x: bounds.x + bounds.width, y: bounds.y }                  // TR
-                            };
+                            const orientation = getHandleOrientation(h.index);
                             setResizeState({
                                 originalBounds: bounds,
-                                anchorPoint: anchorMap[h.index] ?? { x: bounds.x, y: bounds.y },
+                                anchorPoint: getEdgeAnchor(bounds, orientation),
                                 handleIndex: h.index,
                                 originalScaleX: shape.scaleX ?? 1,
-                                originalScaleY: shape.scaleY ?? 1
+                                originalScaleY: shape.scaleY ?? 1,
+                                orientation
                             });
                         }
                         return; 
                     }
                 }
+        }
+    }
+
+        const interaction = detectInteractionAtPoint(wPos, uiStore.viewTransform.scale);
+        if (interaction.mode === 'rotate') {
+            const center = getSelectedBoundingCenter();
+            if (center) {
+                const startAngle = Math.atan2(wPos.y - center.y, wPos.x - center.x);
+                const snapshot = new Map<string, Shape>();
+                uiStore.selectedShapeIds.forEach(id => {
+                    const s = dataStore.shapes[id];
+                    if (s) snapshot.set(id, { ...s, points: s.points ? s.points.map(p => ({ ...p })) : undefined });
+                });
+                rotationState.current = { center, startAngle, snapshot };
+                setIsDragging(true);
+                return;
             }
+        } else if (interaction.mode === 'resize' && interaction.handle && !activeHandle) {
+            const h = interaction.handle;
+            setActiveHandle({ shapeId: interaction.shapeId!, handle: h });
+            setIsDragging(true);
+            const bounds = getShapeBoundingBox(dataStore.shapes[interaction.shapeId!]);
+            const orientation = getHandleOrientation(h.index);
+            setResizeState({
+                originalBounds: bounds,
+                anchorPoint: getEdgeAnchor(bounds, orientation),
+                handleIndex: h.index,
+                originalScaleX: dataStore.shapes[interaction.shapeId!].scaleX ?? 1,
+                originalScaleY: dataStore.shapes[interaction.shapeId!].scaleY ?? 1,
+                orientation
+            });
+            return;
         }
 
         if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') {
@@ -378,120 +552,98 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         setCurrentPoint(eff);
 
+        if (rotationState.current && isDragging) {
+            const center = rotationState.current.center;
+            let angle = Math.atan2(worldPos.y - center.y, worldPos.x - center.x);
+            let diff = angle - rotationState.current.startAngle;
+            if (e.shiftKey || isShiftPressed) diff = Math.round(diff / (Math.PI / 4)) * (Math.PI / 4);
+            applyRotationFromSnapshot(diff);
+            setHoverCursor('rotate');
+            return;
+        }
+
         if (isDragging && startPoint) {
             if (activeHandle) {
-                const ws = screenToWorld(eff, uiStore.viewTransform);
+                const wsWorld = screenToWorld(eff, uiStore.viewTransform);
                 const s = dataStore.shapes[activeHandle.shapeId];
                 if (s) {
+                    const rotation = s.rotation || 0;
+                    const pivot = getShapeCenter(s);
+                    const ws = rotation ? rotatePoint(wsWorld, pivot, -rotation) : wsWorld;
+
                     // VERTEX handles (lines, polylines) - direct point manipulation
                     if (activeHandle.handle.type === 'vertex' && s.points) {
                         const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
-                        dataStore.updateShape(s.id, { points: newPoints }, false);
+                        const rotatedPoints = rotation ? newPoints.map(p => rotatePoint(p, pivot, rotation)) : newPoints;
+                        dataStore.updateShape(s.id, { points: rotatedPoints }, false);
                     } 
                     // RESIZE handles - Figma-like bounding box transformation with flip support
                     else if (activeHandle.handle.type === 'resize' && resizeState) {
-                        const { originalBounds, anchorPoint, originalScaleX, originalScaleY } = resizeState;
-                        const idx = activeHandle.handle.index;
-                        
-                        // Determine anchor based on Alt key (center) or opposite corner
-                        let anchor = anchorPoint;
-                        if (e.altKey) {
-                            // Alt: resize from center
-                            anchor = {
-                                x: originalBounds.x + originalBounds.width / 2,
-                                y: originalBounds.y + originalBounds.height / 2
-                            };
-                        }
-                        
-                        // Calculate raw new width and height (can be negative for flip!)
-                        let rawW: number, rawH: number, newX: number, newY: number;
-                        
-                        if (e.altKey) {
-                            // Alt mode: symmetric resize from center
-                            const dx = ws.x - anchor.x;
-                            const dy = ws.y - anchor.y;
-                            // Calculate signed distance based on handle position
-                            const signX = (idx === 0 || idx === 3) ? -1 : 1;
-                            const signY = (idx === 0 || idx === 1) ? -1 : 1;
-                            rawW = dx * signX * 2;
-                            rawH = dy * signY * 2;
-                            newX = anchor.x - Math.abs(rawW) / 2;
-                            newY = anchor.y - Math.abs(rawH) / 2;
-                        } else {
-                            // Normal mode: resize from opposite corner
-                            // Calculate new bounds from anchor to mouse
-                            const minX = Math.min(anchor.x, ws.x);
-                            const maxX = Math.max(anchor.x, ws.x);
-                            const minY = Math.min(anchor.y, ws.y);
-                            const maxY = Math.max(anchor.y, ws.y);
-                            
-                            // Determine sign based on whether mouse crossed the anchor
-                            const crossedX = (idx === 0 || idx === 3) ? (ws.x > anchor.x) : (ws.x < anchor.x);
-                            const crossedY = (idx === 0 || idx === 1) ? (ws.y > anchor.y) : (ws.y < anchor.y);
-                            
-                            rawW = (maxX - minX) * (crossedX ? -1 : 1);
-                            rawH = (maxY - minY) * (crossedY ? -1 : 1);
-                            newX = minX;
-                            newY = minY;
-                        }
-                        
-                        // Calculate scale factors (can be negative!)
-                        let scaleX = originalBounds.width > 0 ? rawW / originalBounds.width : 1;
-                        let scaleY = originalBounds.height > 0 ? rawH / originalBounds.height : 1;
-                        
-                        // Shift: proportional resize
-                        if (e.shiftKey) {
-                            const uniformScale = Math.max(Math.abs(scaleX), Math.abs(scaleY));
-                            scaleX = uniformScale * Math.sign(scaleX || 1);
-                            scaleY = uniformScale * Math.sign(scaleY || 1);
-                        }
-                        
-                        // Apply scaled dimensions
-                        const finalW = Math.abs(originalBounds.width * scaleX);
-                        const finalH = Math.abs(originalBounds.height * scaleY);
-                        
-                        // Determine new position based on anchor
-                        let finalX: number, finalY: number;
-                        if (e.altKey) {
-                            finalX = anchor.x - finalW / 2;
-                            finalY = anchor.y - finalH / 2;
-                        } else {
-                            // Position based on scale direction
-                            finalX = scaleX >= 0 ? anchor.x - finalW : anchor.x;
-                            finalY = scaleY >= 0 ? anchor.y - finalH : anchor.y;
-                            // Correct for handle index
-                            if (idx === 1 || idx === 2) finalX = scaleX >= 0 ? anchor.x : anchor.x - finalW;
-                            if (idx === 2 || idx === 3) finalY = scaleY >= 0 ? anchor.y : anchor.y - finalH;
-                        }
-                        
-                        // Calculate new scaleX/scaleY for flip state
-                        const newScaleX = scaleX < 0 ? -originalScaleX : originalScaleX;
-                        const newScaleY = scaleY < 0 ? -originalScaleY : originalScaleY;
-                        
-                        // Minimum size enforcement (but allow flip)
+                        const { originalBounds, originalScaleX, originalScaleY, orientation } = resizeState;
+                        const anchor = e.altKey
+                            ? { x: originalBounds.x + originalBounds.width / 2, y: originalBounds.y + originalBounds.height / 2 }
+                            : getEdgeAnchor(originalBounds, orientation);
                         const minSize = 5;
-                        const enforcedW = Math.max(minSize, finalW);
-                        const enforcedH = Math.max(minSize, finalH);
-                        
-                        // Apply updates based on shape type
+                        let finalW = originalBounds.width;
+                        let finalH = originalBounds.height;
+                        let finalX = originalBounds.x;
+                        let finalY = originalBounds.y;
+
+                        // Horizontal adjustment
+                        if (orientation.x !== 0) {
+                            const deltaX = (ws.x - anchor.x) * orientation.x;
+                            let newW = Math.abs(e.altKey ? deltaX * 2 : deltaX);
+                            newW = Math.max(minSize, newW);
+                            finalW = newW;
+                            finalX = e.altKey ? anchor.x - newW / 2 : (orientation.x > 0 ? anchor.x : anchor.x - newW);
+                        }
+
+                        // Vertical adjustment
+                        if (orientation.y !== 0) {
+                            const deltaY = (ws.y - anchor.y) * orientation.y;
+                            let newH = Math.abs(e.altKey ? deltaY * 2 : deltaY);
+                            newH = Math.max(minSize, newH);
+                            finalH = newH;
+                            finalY = e.altKey ? anchor.y - newH / 2 : (orientation.y > 0 ? anchor.y : anchor.y - newH);
+                        }
+
+                        // Proportional resize with Shift (Figma-style)
+                        if (e.shiftKey && (orientation.x !== 0 || orientation.y !== 0)) {
+                            const scaleX = orientation.x !== 0 ? finalW / Math.max(minSize, originalBounds.width) : null;
+                            const scaleY = orientation.y !== 0 ? finalH / Math.max(minSize, originalBounds.height) : null;
+                            const uniformScale = Math.max(Math.abs(scaleX ?? 0), Math.abs(scaleY ?? 0)) || 1;
+                            if (orientation.x !== 0) {
+                                finalW = Math.max(minSize, originalBounds.width * uniformScale);
+                                finalX = e.altKey ? anchor.x - finalW / 2 : (orientation.x > 0 ? anchor.x : anchor.x - finalW);
+                            }
+                            if (orientation.y !== 0) {
+                                finalH = Math.max(minSize, originalBounds.height * uniformScale);
+                                finalY = e.altKey ? anchor.y - finalH / 2 : (orientation.y > 0 ? anchor.y : anchor.y - finalH);
+                            }
+                        }
+
+                        const signX = orientation.x === 0 ? 1 : Math.sign((ws.x - anchor.x) * orientation.x) || 1;
+                        const signY = orientation.y === 0 ? 1 : Math.sign((ws.y - anchor.y) * orientation.y) || 1;
+                        const newScaleX = signX < 0 ? -originalScaleX : originalScaleX;
+                        const newScaleY = signY < 0 ? -originalScaleY : originalScaleY;
+
                         if (s.type === 'rect' || s.type === 'text') {
                             dataStore.updateShape(s.id, {
                                 x: finalX,
                                 y: finalY,
-                                width: enforcedW,
-                                height: enforcedH,
+                                width: finalW,
+                                height: finalH,
                                 scaleX: newScaleX,
                                 scaleY: newScaleY
                             }, false);
                         } else if (s.type === 'circle' || s.type === 'polygon') {
-                            // Center-based shapes
-                            const newCx = finalX + enforcedW / 2;
-                            const newCy = finalY + enforcedH / 2;
+                            const newCx = finalX + finalW / 2;
+                            const newCy = finalY + finalH / 2;
                             dataStore.updateShape(s.id, {
                                 x: newCx,
                                 y: newCy,
-                                width: enforcedW,
-                                height: enforcedH,
+                                width: finalW,
+                                height: finalH,
                                 scaleX: newScaleX,
                                 scaleY: newScaleY
                             }, false);
@@ -569,10 +721,35 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 });
             }
         }
+
+        // Hover feedback for resize/rotate zones (Figma-like)
+        if (!isDragging && uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
+            const inter = detectInteractionAtPoint(worldPos, uiStore.viewTransform.scale);
+            setHoverCursor(inter.cursor);
+        } else {
+            setHoverCursor(null);
+        }
     };
 
     const handleMouseUp = (e: React.MouseEvent) => {
         if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); return; }
+
+        const raw = getMousePos(e);
+        const worldPos = screenToWorld(raw, uiStore.viewTransform);
+
+        if (rotationState.current) {
+            const center = rotationState.current.center;
+            let angle = Math.atan2(worldPos.y - center.y, worldPos.x - center.x);
+            let diff = angle - rotationState.current.startAngle;
+            if (e.shiftKey || isShiftPressed) diff = Math.round(diff / (Math.PI / 4)) * (Math.PI / 4);
+            applyRotationFromSnapshot(diff);
+            commitRotationHistory();
+            dataStore.syncQuadTree();
+            rotationState.current = null;
+            setIsDragging(false);
+            setHoverCursor(null);
+            return;
+        }
 
         if (isSelectionBox && startPoint && currentPoint) {
             if (getDistance(startPoint, currentPoint) > 2) {
@@ -669,6 +846,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             }
         }
         setStartPoint(null);
+        setHoverCursor(null);
     };
 
     const handleDoubleClick = (e: React.MouseEvent) => {
@@ -742,7 +920,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             showPolygonModal,
             polygonModalPos,
             polygonShapeId,
-            isShiftPressed
+            isShiftPressed,
+            hoverCursor
         },
         setters: {
             setArcPoints,

@@ -312,8 +312,8 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       }
       return false;
 
-    case 'arc':
-        if(shape.points.length < 2) return false;
+    case 'arc': {
+        if (shape.points.length < 2) return false;
         const pt1 = shape.points[0];
         const pt2 = shape.points[1];
         const d = getDistance(pt1, pt2);
@@ -327,14 +327,14 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
         const chordDist = Math.sqrt(dx*dx + dy*dy);
         const udx = -dy / chordDist;
         const udy = dx / chordDist;
-        const cx = midX + udx * h;
-        const cy = midY + udy * h;
-        const distToCenter = getDistance(point, {x: cx, y: cy});
+        const arcCx = midX + udx * h;
+        const arcCy = midY + udy * h;
+        const distToCenter = getDistance(point, {x: arcCx, y: arcCy});
 
         if (Math.abs(distToCenter - r) <= threshold) {
-            const startAngle = Math.atan2(pt1.y - cy, pt1.x - cx);
-            const endAngle = Math.atan2(pt2.y - cy, pt2.x - cx);
-            const pointAngle = Math.atan2(point.y - cy, point.x - cx);
+            const startAngle = Math.atan2(pt1.y - arcCy, pt1.x - arcCx);
+            const endAngle = Math.atan2(pt2.y - arcCy, pt2.x - arcCx);
+            const pointAngle = Math.atan2(point.y - arcCy, point.x - arcCx);
 
             const normalize = (a: number) => (a % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
             const totalSweep = normalize(endAngle - startAngle);
@@ -343,6 +343,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
             return pointSweep <= totalSweep || Math.abs(totalSweep - 2 * Math.PI) < 1e-5;
         }
         return false;
+    }
 
     default: return false;
   }
