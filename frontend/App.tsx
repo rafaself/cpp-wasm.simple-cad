@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import EditorRibbon from './features/editor/components/EditorRibbon';
 import EditorCanvas from './features/editor/components/EditorCanvas';
 import EditorStatusBar from './features/editor/components/EditorStatusBar';
@@ -9,9 +9,17 @@ import LayerManagerModal from './features/editor/components/LayerManagerModal';
 import { useKeyboardShortcuts } from './features/editor/hooks/useKeyboardShortcuts';
 
 import Header from './features/editor/components/Header';
+import { useDataStore } from './stores/useDataStore';
+import { useLibraryStore } from './stores/useLibraryStore';
 
 const App: React.FC = () => {
   useKeyboardShortcuts();
+  const worldScale = useDataStore((state) => state.worldScale);
+  const loadLibrary = useLibraryStore((state) => state.loadLibrary);
+
+  useEffect(() => {
+    loadLibrary(worldScale);
+  }, [loadLibrary, worldScale]);
 
   // Global Styles for Smooth Transitions
   const globalStyles = `

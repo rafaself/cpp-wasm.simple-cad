@@ -1,0 +1,23 @@
+[
+  {
+    "id": "breaker_single_pole",
+    "svg": "breaker.svg",
+    "category": "power",
+    "nominalSizeMm": 32,
+    "tags": ["breaker", "single", "protection"]
+  },
+  {
+    "id": "duplex_outlet",
+    "svg": "outlet.svg",
+    "category": "control",
+    "nominalSizeMm": 36,
+    "tags": ["socket", "duplex", "receptacle"]
+  },
+  {
+    "id": "earth_ground",
+    "svg": "ground.svg",
+    "category": "ground",
+    "nominalSizeMm": 28,
+    "tags": ["ground", "earth", "reference"]
+  }
+]
