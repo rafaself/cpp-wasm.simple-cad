@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Layer, Patch, Point, Shape } from '../types';
+import { ElectricalElement, Layer, Patch, Point, SerializedProject, Shape } from '../types';
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
@@ -10,6 +10,7 @@ const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, he
 interface DataState {
   // Document State
   shapes: Record<string, Shape>;
+  electricalElements: Record<string, ElectricalElement>;
   layers: Layer[];
   activeLayerId: string;
 
@@ -24,10 +25,13 @@ interface DataState {
   future: Patch[][];
 
   // Actions
-  addShape: (shape: Shape) => void;
+  addShape: (shape: Shape, electricalElement?: ElectricalElement) => void;
   updateShape: (id: string, diff: Partial<Shape>, recordHistory?: boolean) => void;
   updateShapes: (updater: (prev: Record<string, Shape>) => Record<string, Shape>) => void; // Deprecated, avoid use
   deleteShape: (id: string) => void;
+  addElectricalElement: (element: ElectricalElement) => void;
+  updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
+  deleteElectricalElement: (id: string) => void;
 
   // Layer Ops
   setActiveLayerId: (id: string) => void;
@@ -49,6 +53,9 @@ interface DataState {
   redo: () => void;
   saveToHistory: (patches: Patch[]) => void;
 
+  // Serialization
+  serializeProject: () => SerializedProject;
+
   // Helpers
   syncQuadTree: () => void;
   ensureLayer: (name: string) => string;
@@ -56,6 +63,7 @@ interface DataState {
 
 export const useDataStore = create<DataState>((set, get) => ({
   shapes: {},
+  electricalElements: {},
   layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true }],
   activeLayerId: 'desenho',
   worldScale: 50,
@@ -79,21 +87,27 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, future, shapes, spatialIndex } = get();
+    const { past, future, shapes, spatialIndex, electricalElements } = get();
     if (past.length === 0) return;
 
     const patches = past[past.length - 1];
     const newPast = past.slice(0, -1);
 
     const newShapes = { ...shapes };
+    const newElectrical = { ...electricalElements };
     const redoPatches: Patch[] = [];
 
     patches.forEach(patch => {
         if (patch.type === 'ADD') {
             const s = newShapes[patch.id];
-            if (s) spatialIndex.remove(s);
+            if (s) {
+              if (s.electricalElementId) {
+                delete newElectrical[s.electricalElementId];
+              }
+              spatialIndex.remove(s);
+            }
             delete newShapes[patch.id];
-            redoPatches.push({ type: 'DELETE', id: patch.id, prev: patch.data });
+            redoPatches.push({ type: 'DELETE', id: patch.id, prev: patch.data, electricalElement: patch.electricalElement });
         } else if (patch.type === 'UPDATE') {
             const oldS = newShapes[patch.id];
             if (oldS) {
@@ -104,33 +118,44 @@ export const useDataStore = create<DataState>((set, get) => ({
             }
         } else if (patch.type === 'DELETE') {
             if (patch.prev) {
-                const s = patch.prev as Shape;
-                newShapes[patch.id] = s;
-                spatialIndex.insert(s);
-                redoPatches.push({ type: 'ADD', id: patch.id, data: s });
+                const restoredShape = { ...(patch.prev as Shape) };
+                if (patch.electricalElement) {
+                  newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
+                  restoredShape.electricalElementId = patch.electricalElement.id;
+                }
+                newShapes[patch.id] = restoredShape;
+                spatialIndex.insert(restoredShape);
+                redoPatches.push({ type: 'ADD', id: patch.id, data: restoredShape, electricalElement: patch.electricalElement });
             }
         }
     });
 
-    set({ shapes: newShapes, past: newPast, future: [redoPatches, ...future] });
+    set({ shapes: newShapes, electricalElements: newElectrical, past: newPast, future: [redoPatches, ...future] });
   },
 
   redo: () => {
-    const { past, future, shapes, spatialIndex } = get();
+    const { past, future, shapes, spatialIndex, electricalElements } = get();
     if (future.length === 0) return;
 
     const patches = future[0];
     const newFuture = future.slice(1);
 
     const newShapes = { ...shapes };
+    const newElectrical = { ...electricalElements };
     const undoPatches: Patch[] = [];
 
     patches.forEach(patch => {
         if (patch.type === 'ADD') {
              if (patch.data) {
-                 newShapes[patch.id] = patch.data;
-                 spatialIndex.insert(patch.data);
-                 undoPatches.push({ type: 'ADD', id: patch.id, data: patch.data });
+                 const shapeToAdd = patch.electricalElement
+                   ? { ...patch.data, electricalElementId: patch.electricalElement.id }
+                   : patch.data;
+                 newShapes[patch.id] = shapeToAdd;
+                 if (patch.electricalElement) {
+                   newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
+                 }
+                 spatialIndex.insert(shapeToAdd);
+                 undoPatches.push({ type: 'ADD', id: patch.id, data: shapeToAdd, electricalElement: patch.electricalElement });
              }
         } else if (patch.type === 'UPDATE') {
              const oldS = newShapes[patch.id];
@@ -143,23 +168,30 @@ export const useDataStore = create<DataState>((set, get) => ({
         } else if (patch.type === 'DELETE') {
              const s = newShapes[patch.id];
              if (s) {
+                const linkedElement = s.electricalElementId ? newElectrical[s.electricalElementId] : undefined;
+                if (linkedElement) delete newElectrical[linkedElement.id];
                 spatialIndex.remove(s);
                 delete newShapes[patch.id];
-                undoPatches.push(patch);
+                undoPatches.push({ type: 'DELETE', id: patch.id, prev: s, electricalElement: patch.electricalElement ?? linkedElement });
              }
         }
     });
 
-    set({ shapes: newShapes, past: [...past, undoPatches], future: newFuture });
+    set({ shapes: newShapes, electricalElements: newElectrical, past: [...past, undoPatches], future: newFuture });
   },
 
-  addShape: (shape) => {
-      const { shapes, saveToHistory, spatialIndex } = get();
+  addShape: (shape, electricalElement) => {
+      const { shapes, electricalElements, saveToHistory, spatialIndex } = get();
 
-      const newShapes = { ...shapes, [shape.id]: shape };
-      spatialIndex.insert(shape);
-      set({ shapes: newShapes });
-      saveToHistory([{ type: 'ADD', id: shape.id, data: shape }]);
+      const linkedShape = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
+      const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
+      const newElectrical = electricalElement
+        ? { ...electricalElements, [electricalElement.id]: { ...electricalElement, shapeId: linkedShape.id } }
+        : electricalElements;
+
+      spatialIndex.insert(linkedShape);
+      set({ shapes: newShapes, electricalElements: newElectrical });
+      saveToHistory([{ type: 'ADD', id: linkedShape.id, data: linkedShape, electricalElement }]);
   },
 
   updateShape: (id, diff, recordHistory = true) => {
@@ -190,14 +222,75 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteShape: (id) => {
-      const { shapes, saveToHistory, spatialIndex } = get();
+      const { shapes, electricalElements, saveToHistory, spatialIndex } = get();
       const s = shapes[id];
       if (!s) return;
       const newShapes = { ...shapes };
+      const newElectrical = { ...electricalElements };
+      const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
+      if (electricalElement) {
+        delete newElectrical[electricalElement.id];
+      }
       delete newShapes[id];
       spatialIndex.remove(s);
-      set({ shapes: newShapes });
-      saveToHistory([{ type: 'DELETE', id, prev: s }]);
+      set({ shapes: newShapes, electricalElements: newElectrical });
+      saveToHistory([{ type: 'DELETE', id, prev: s, electricalElement }]);
+  },
+
+  addElectricalElement: (element) => {
+      const { shapes } = get();
+      const targetShape = shapes[element.shapeId];
+      if (!targetShape) return;
+
+      set(state => ({
+        electricalElements: { ...state.electricalElements, [element.id]: element },
+        shapes: {
+          ...state.shapes,
+          [element.shapeId]: { ...targetShape, electricalElementId: element.id }
+        }
+      }));
+  },
+
+  updateElectricalElement: (id, diff) => {
+      set(state => {
+        const existing = state.electricalElements[id];
+        if (!existing) return state;
+        const updated = { ...existing, ...diff } as ElectricalElement;
+
+        const updatedShapes = { ...state.shapes };
+        if (existing.shapeId !== updated.shapeId) {
+          const oldShape = updatedShapes[existing.shapeId];
+          if (oldShape?.electricalElementId === id) {
+            updatedShapes[existing.shapeId] = { ...oldShape, electricalElementId: undefined };
+          }
+          const newShape = updatedShapes[updated.shapeId];
+          if (newShape) {
+            updatedShapes[updated.shapeId] = { ...newShape, electricalElementId: id };
+          }
+        }
+
+        return {
+          electricalElements: { ...state.electricalElements, [id]: updated },
+          shapes: updatedShapes
+        };
+      });
+  },
+
+  deleteElectricalElement: (id) => {
+      const { electricalElements, shapes } = get();
+      const element = electricalElements[id];
+      if (!element) return;
+
+      const newElectrical = { ...electricalElements };
+      delete newElectrical[id];
+
+      const targetShape = shapes[element.shapeId];
+      const newShapes = { ...shapes };
+      if (targetShape && targetShape.electricalElementId === id) {
+        newShapes[element.shapeId] = { ...targetShape, electricalElementId: undefined };
+      }
+
+      set({ electricalElements: newElectrical, shapes: newShapes });
   },
 
   setActiveLayerId: (id) => set({ activeLayerId: id }),
@@ -209,24 +302,27 @@ export const useDataStore = create<DataState>((set, get) => ({
   }),
 
   deleteLayer: (id) => {
-    const { layers, shapes, activeLayerId, saveToHistory, spatialIndex } = get();
+    const { layers, shapes, activeLayerId, saveToHistory, spatialIndex, electricalElements } = get();
     const layerToDelete = layers.find(l => l.id === id);
     // Cannot delete: only layer, active layer, or native layers
     if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return false;
 
     const newLayers = layers.filter(l => l.id !== id);
     const newShapes = { ...shapes };
+    const newElectrical = { ...electricalElements };
     const patches: Patch[] = [];
 
     Object.values(shapes).forEach((s: Shape) => {
       if (s.layerId === id) {
-        patches.push({ type: 'DELETE', id: s.id, prev: s });
+        const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
+        if (electricalElement) delete newElectrical[electricalElement.id];
+        patches.push({ type: 'DELETE', id: s.id, prev: s, electricalElement });
         delete newShapes[s.id];
         spatialIndex.remove(s);
       }
     });
 
-    set({ layers: newLayers, shapes: newShapes });
+    set({ layers: newLayers, shapes: newShapes, electricalElements: newElectrical });
 
     if (patches.length > 0) {
       saveToHistory(patches);
@@ -286,11 +382,12 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteShapes: (ids) => {
-    const { layers, shapes, saveToHistory, spatialIndex } = get();
+    const { layers, shapes, saveToHistory, spatialIndex, electricalElements } = get();
     if (ids.length === 0) return;
 
     const patches: Patch[] = [];
     const newShapes = { ...shapes };
+    const newElectrical = { ...electricalElements };
 
     ids.forEach(id => {
         const s = shapes[id];
@@ -300,13 +397,15 @@ export const useDataStore = create<DataState>((set, get) => ({
             // Keep selected if locked
             return;
         }
+        const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
+        if (electricalElement) delete newElectrical[electricalElement.id];
         delete newShapes[id];
         spatialIndex.remove(s);
-        patches.push({ type: 'DELETE', id, prev: s });
+        patches.push({ type: 'DELETE', id, prev: s, electricalElement });
     });
 
     if (patches.length > 0) {
-        set({ shapes: newShapes });
+        set({ shapes: newShapes, electricalElements: newElectrical });
         saveToHistory(patches);
     }
   },
@@ -345,6 +444,16 @@ export const useDataStore = create<DataState>((set, get) => ({
          updateShape(id, diff, false);
      });
      saveToHistory(patches);
+  },
+
+  serializeProject: () => {
+      const { layers, shapes, activeLayerId, electricalElements } = get();
+      return {
+          layers: [...layers],
+          shapes: Object.values(shapes),
+          activeLayerId,
+          electricalElements: Object.values(electricalElements)
+      };
   },
 
   ensureLayer: (name: string) => {
