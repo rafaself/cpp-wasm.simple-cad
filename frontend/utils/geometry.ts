@@ -421,6 +421,7 @@ export interface Handle { x: number; y: number; cursor: string; index: number; t
 
 export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
+    if (shape.electricalElementId) return handles;
     if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'arrow') {
         if (shape.points && Array.isArray(shape.points)) {
             shape.points.forEach((p, i) => {

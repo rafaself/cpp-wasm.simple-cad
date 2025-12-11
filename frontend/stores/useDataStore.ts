@@ -67,7 +67,7 @@ interface DataState {
 
   // Helpers
   syncQuadTree: () => void;
-  ensureLayer: (name: string) => string;
+  ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => string;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -486,24 +486,25 @@ export const useDataStore = create<DataState>((set, get) => ({
       };
   },
 
-  ensureLayer: (name: string) => {
+  ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => {
       const { layers } = get();
       const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
       if (existing) return existing.id;
-      
+
       const newId = Date.now().toString();
-      set(state => ({
-          layers: [...state.layers, {
-              id: newId,
-              name: name,
-              strokeColor: '#000000',
-              strokeEnabled: true,
-              fillColor: '#ffffff',
-              fillEnabled: true,
-              visible: true,
-              locked: false
-          }]
-      }));
+      const newLayer: Layer = {
+        id: newId,
+        name,
+        strokeColor: defaults?.strokeColor ?? '#000000',
+        strokeEnabled: defaults?.strokeEnabled ?? true,
+        fillColor: defaults?.fillColor ?? '#ffffff',
+        fillEnabled: defaults?.fillEnabled ?? true,
+        visible: defaults?.visible ?? true,
+        locked: defaults?.locked ?? false,
+        isNative: defaults?.isNative,
+      };
+
+      set(state => ({ layers: [...state.layers, newLayer] }));
       return newId;
   },
 }));

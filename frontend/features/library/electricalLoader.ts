@@ -114,10 +114,17 @@ function normalizeSvg(svgContent: string): { svg: string; viewBox: NormalizedVie
   return { svg: serializer.serializeToString(svgEl), viewBox };
 }
 
-function computeScale(viewBox: NormalizedViewBox, nominalSizeMm: number, worldScale: number): number {
-  const nominalMeters = nominalSizeMm / 1000;
-  const widthInWorldUnits = nominalMeters * worldScale;
-  return viewBox.width === 0 ? 1 : widthInWorldUnits / viewBox.width;
+/**
+ * Computes the scale so that 1 SVG unit ~= 1cm in the world space.
+ *
+ * worldScale represents how many canvas units make 1 meter.
+ * By multiplying the viewBox by (worldScale / 100), we keep the
+ * physical size stable even when the document scale changes.
+ */
+function computeScale(viewBox: NormalizedViewBox, worldScale: number): number {
+  if (viewBox.width === 0) return 1;
+  // worldScale / 100 converts the 1px ~= 1cm assumption to the current world scale
+  return worldScale / 100;
 }
 
 export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
@@ -145,7 +152,7 @@ export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
     const { svg: canvasSvg, viewBox } = normalizeSvg(canvasContent as string);
     
     // Scale is computed from canvasSvg since that's what's rendered
-    const scale = computeScale(viewBox, entry.nominalSizeMm, worldScale);
+    const scale = computeScale(viewBox, worldScale);
 
     items.push({
       id: entry.id,
