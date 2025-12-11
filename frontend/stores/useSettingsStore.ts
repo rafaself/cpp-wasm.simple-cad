@@ -1,0 +1,158 @@
+import { create } from 'zustand';
+import { SnapOptions } from '../types';
+
+export type SnapSettings = SnapOptions & { tolerancePx: number };
+
+export interface GridSettings {
+  size: number;
+  color: string;
+  showDots: boolean;
+  showLines: boolean;
+}
+
+export interface DisplaySettings {
+  centerAxes: {
+    show: boolean;
+    xColor: string;
+    yColor: string;
+    xDashed: boolean;
+    yDashed: boolean;
+  };
+  centerIcon: {
+    show: boolean;
+    color: string;
+  };
+}
+
+export interface ToolDefaults {
+  strokeColor: string;
+  strokeWidth: number;
+  strokeEnabled: boolean;
+  fillColor: string;
+  polygonSides: number;
+  text: {
+    fontSize: number;
+    fontFamily: string;
+    align: 'left' | 'center' | 'right';
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    strike: boolean;
+  };
+}
+
+interface SettingsState {
+  grid: GridSettings;
+  snap: SnapSettings;
+  display: DisplaySettings;
+  toolDefaults: ToolDefaults;
+
+  setSnapEnabled: (enabled: boolean) => void;
+  setSnapOption: (option: keyof SnapOptions, value: boolean) => void;
+  setSnapTolerance: (tolerancePx: number) => void;
+
+  setGridSize: (size: number) => void;
+  setGridColor: (color: string) => void;
+  setGridShowDots: (show: boolean) => void;
+  setGridShowLines: (show: boolean) => void;
+
+  setShowCenterAxes: (show: boolean) => void;
+  setAxisXColor: (color: string) => void;
+  setAxisYColor: (color: string) => void;
+  setAxisXDashed: (dashed: boolean) => void;
+  setAxisYDashed: (dashed: boolean) => void;
+  setShowCenterIcon: (show: boolean) => void;
+  setCenterIconColor: (color: string) => void;
+
+  setStrokeColor: (color: string) => void;
+  setStrokeWidth: (width: number) => void;
+  setStrokeEnabled: (enabled: boolean) => void;
+  setFillColor: (color: string) => void;
+  setPolygonSides: (sides: number) => void;
+
+  setTextFontSize: (size: number) => void;
+  setTextFontFamily: (family: string) => void;
+  setTextAlign: (align: 'left' | 'center' | 'right') => void;
+  setTextBold: (bold: boolean) => void;
+  setTextItalic: (italic: boolean) => void;
+  setTextUnderline: (underline: boolean) => void;
+  setTextStrike: (strike: boolean) => void;
+}
+
+export const useSettingsStore = create<SettingsState>((set) => ({
+  grid: {
+    size: 100,
+    color: '#E3E3E3',
+    showDots: true,
+    showLines: false,
+  },
+  snap: {
+    enabled: true,
+    endpoint: true,
+    midpoint: true,
+    center: true,
+    nearest: false,
+    grid: false,
+    tolerancePx: 20,
+  },
+  display: {
+    centerAxes: {
+      show: true,
+      xColor: 'rgba(239, 68, 68, 0.4)',
+      yColor: 'rgba(34, 197, 94, 0.4)',
+      xDashed: true,
+      yDashed: true,
+    },
+    centerIcon: {
+      show: true,
+      color: 'rgba(100, 116, 139, 0.5)',
+    },
+  },
+  toolDefaults: {
+    strokeColor: '#000000',
+    strokeWidth: 1,
+    strokeEnabled: true,
+    fillColor: 'transparent',
+    polygonSides: 5,
+    text: {
+      fontSize: 16,
+      fontFamily: 'Inter',
+      align: 'left',
+      bold: false,
+      italic: false,
+      underline: false,
+      strike: false,
+    },
+  },
+
+  setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
+  setSnapOption: (option, value) => set((state) => ({ snap: { ...state.snap, [option]: value } })),
+  setSnapTolerance: (tolerancePx) => set((state) => ({ snap: { ...state.snap, tolerancePx } })),
+
+  setGridSize: (size) => set((state) => ({ grid: { ...state.grid, size } })),
+  setGridColor: (color) => set((state) => ({ grid: { ...state.grid, color } })),
+  setGridShowDots: (show) => set((state) => ({ grid: { ...state.grid, showDots: show } })),
+  setGridShowLines: (show) => set((state) => ({ grid: { ...state.grid, showLines: show } })),
+
+  setShowCenterAxes: (show) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, show } } })),
+  setAxisXColor: (color) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, xColor: color } } })),
+  setAxisYColor: (color) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yColor: color } } })),
+  setAxisXDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, xDashed: dashed } } })),
+  setAxisYDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yDashed: dashed } } })),
+  setShowCenterIcon: (show) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, show } } })),
+  setCenterIconColor: (color) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, color } } })),
+
+  setStrokeColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),
+  setStrokeWidth: (width) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),
+  setStrokeEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeEnabled: enabled } })),
+  setFillColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillColor: color } })),
+  setPolygonSides: (sides) => set((state) => ({ toolDefaults: { ...state.toolDefaults, polygonSides: sides } })),
+
+  setTextFontSize: (size) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontSize: size } } })),
+  setTextFontFamily: (family) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontFamily: family } } })),
+  setTextAlign: (align) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, align } } })),
+  setTextBold: (bold) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, bold } } })),
+  setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
+  setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
+  setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
+}));

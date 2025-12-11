@@ -1,12 +1,14 @@
 import React from 'react';
-import { useUIStore } from '../../../stores/useUIStore';
+import { SnapOptions } from '../../../types';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 const SnappingSettings: React.FC = () => {
-  const snapOptions = useUIStore(s => s.snapOptions);
-  const setSnapOptions = useUIStore(s => s.setSnapOptions);
+  const snapOptions = useSettingsStore(s => s.snap);
+  const setSnapOption = useSettingsStore(s => s.setSnapOption);
+  const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
 
-  const updateOption = (key: keyof typeof snapOptions, value: boolean) => {
-    setSnapOptions(prev => ({ ...prev, [key]: value }));
+  const updateOption = (key: keyof SnapOptions, value: boolean) => {
+    setSnapOption(key, value);
   };
 
   const ToggleField = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
@@ -29,7 +31,7 @@ const SnappingSettings: React.FC = () => {
           <ToggleField 
             label="Snap Ativo" 
             checked={snapOptions.enabled} 
-            onChange={(v) => updateOption('enabled', v)} 
+            onChange={(v) => setSnapEnabled(v)} 
           />
           <ToggleField 
             label="Snap em Extremidades" 

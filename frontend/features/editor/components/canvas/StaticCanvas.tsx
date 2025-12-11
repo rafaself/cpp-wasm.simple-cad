@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
+import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { Rect } from '../../../../types';
 import { renderShape } from './renderers/ShapeRenderer';
 
@@ -12,17 +13,17 @@ interface StaticCanvasProps {
 const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewTransform = useUIStore(s => s.viewTransform);
-    const gridSize = useUIStore(s => s.gridSize);
-    const gridColor = useUIStore(s => s.gridColor);
-    const gridShowDots = useUIStore(s => s.gridShowDots);
-    const gridShowLines = useUIStore(s => s.gridShowLines);
-    const showCenterAxes = useUIStore(s => s.showCenterAxes);
-    const showCenterIcon = useUIStore(s => s.showCenterIcon);
-    const axisXColor = useUIStore(s => s.axisXColor);
-    const axisYColor = useUIStore(s => s.axisYColor);
-    const axisXDashed = useUIStore(s => s.axisXDashed);
-    const axisYDashed = useUIStore(s => s.axisYDashed);
-    const centerIconColor = useUIStore(s => s.centerIconColor);
+    const gridSize = useSettingsStore(s => s.grid.size);
+    const gridColor = useSettingsStore(s => s.grid.color);
+    const gridShowDots = useSettingsStore(s => s.grid.showDots);
+    const gridShowLines = useSettingsStore(s => s.grid.showLines);
+    const showCenterAxes = useSettingsStore(s => s.display.centerAxes.show);
+    const showCenterIcon = useSettingsStore(s => s.display.centerIcon.show);
+    const axisXColor = useSettingsStore(s => s.display.centerAxes.xColor);
+    const axisYColor = useSettingsStore(s => s.display.centerAxes.yColor);
+    const axisXDashed = useSettingsStore(s => s.display.centerAxes.xDashed);
+    const axisYDashed = useSettingsStore(s => s.display.centerAxes.yDashed);
+    const centerIconColor = useSettingsStore(s => s.display.centerIcon.color);
     const editingTextId = useUIStore(s => s.editingTextId);
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
 

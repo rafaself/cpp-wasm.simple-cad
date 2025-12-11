@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { TEXT_PADDING, worldToScreen, getWrappedLines } from '../../../../../utils/geometry';
 import { ViewTransform } from '../../../../../types';
 import { useUIStore } from '../../../../../stores/useUIStore';
+import { useSettingsStore } from '../../../../../stores/useSettingsStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
 import { getDefaultColorMode, getEffectiveStrokeColor } from '../../../../../utils/shapeColors';
 
@@ -24,6 +25,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const positionedSelectionFor = useRef<string | null>(null);
     const uiStore = useUIStore();
+    const settingsStore = useSettingsStore();
     const dataStore = useDataStore();
     const setEditingTextId = uiStore.setEditingTextId;
 
@@ -46,11 +48,11 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
 
     const handleBlur = () => {
         if (textEditState.content.trim()) {
-            const fontSize = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].fontSize || uiStore.textFontSize : uiStore.textFontSize;
-            const bold = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].bold ?? uiStore.textBold : uiStore.textBold;
-            const italic = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].italic ?? uiStore.textItalic : uiStore.textItalic;
-            const underline = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].underline ?? uiStore.textUnderline : uiStore.textUnderline;
-            const strike = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].strike ?? uiStore.textStrike : uiStore.textStrike;
+            const fontSize = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].fontSize || settingsStore.toolDefaults.text.fontSize : settingsStore.toolDefaults.text.fontSize;
+            const bold = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].bold ?? settingsStore.toolDefaults.text.bold : settingsStore.toolDefaults.text.bold;
+            const italic = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].italic ?? settingsStore.toolDefaults.text.italic : settingsStore.toolDefaults.text.italic;
+            const underline = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].underline ?? settingsStore.toolDefaults.text.underline : settingsStore.toolDefaults.text.underline;
+            const strike = textEditState.id && dataStore.shapes[textEditState.id] ? dataStore.shapes[textEditState.id].strike ?? settingsStore.toolDefaults.text.strike : settingsStore.toolDefaults.text.strike;
             const lineHeight = (fontSize || 16) * 1.2;
             const lines = textEditState.content.split('\n');
             const measuredContentWidth = Math.max(...lines.map(line => (line.length || 1) * (fontSize || 16) * 0.6), (fontSize || 16) * 0.6);
@@ -82,16 +84,16 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                     width: finalWidth,
                     height: finalHeight,
                     textContent: textEditState.content,
-                    fontSize: uiStore.textFontSize,
-                    fontFamily: uiStore.textFontFamily,
-                    align: uiStore.textAlign,
-                    bold: uiStore.textBold,
-                    italic: uiStore.textItalic,
-                    underline: uiStore.textUnderline,
-                    strike: uiStore.textStrike,
-                    strokeColor: uiStore.strokeColor,
-                    strokeWidth: 1,
-                    strokeEnabled: true,
+                    fontSize: settingsStore.toolDefaults.text.fontSize,
+                    fontFamily: settingsStore.toolDefaults.text.fontFamily,
+                    align: settingsStore.toolDefaults.text.align,
+                    bold: settingsStore.toolDefaults.text.bold,
+                    italic: settingsStore.toolDefaults.text.italic,
+                    underline: settingsStore.toolDefaults.text.underline,
+                    strike: settingsStore.toolDefaults.text.strike,
+                    strokeColor: settingsStore.toolDefaults.strokeColor,
+                    strokeWidth: settingsStore.toolDefaults.strokeWidth,
+                    strokeEnabled: settingsStore.toolDefaults.strokeEnabled,
                     fillColor: 'transparent',
                     colorMode: getDefaultColorMode(),
                     points: []
@@ -113,7 +115,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
 
     const editingShape = textEditState.id ? dataStore.shapes[textEditState.id] : undefined;
     const editingLayer = editingShape ? dataStore.layers.find(l => l.id === editingShape.layerId) : undefined;
-    const editingStrokeColor = editingShape ? getEffectiveStrokeColor(editingShape, editingLayer) : uiStore.strokeColor;
+    const editingStrokeColor = editingShape ? getEffectiveStrokeColor(editingShape, editingLayer) : settingsStore.toolDefaults.strokeColor;
 
     return (
         <textarea
@@ -126,15 +128,15 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                  width: textEditState.width ? (textEditState.width * viewTransform.scale) : (200 + TEXT_PADDING * 2) + 'px',
                  height: textEditState.height ? (textEditState.height * viewTransform.scale) : 'auto',
                  transformOrigin: 'top left',
-                 fontSize: (dataStore.shapes[textEditState.id || '']?.fontSize || uiStore.textFontSize) * viewTransform.scale + 'px',
-                 fontFamily: dataStore.shapes[textEditState.id || '']?.fontFamily || uiStore.textFontFamily,
-                 fontWeight: (dataStore.shapes[textEditState.id || '']?.bold ?? uiStore.textBold) ? '700' : '400',
-                 fontStyle: (dataStore.shapes[textEditState.id || '']?.italic ?? uiStore.textItalic) ? 'italic' : 'normal',
+                 fontSize: (dataStore.shapes[textEditState.id || '']?.fontSize || settingsStore.toolDefaults.text.fontSize) * viewTransform.scale + 'px',
+                 fontFamily: dataStore.shapes[textEditState.id || '']?.fontFamily || settingsStore.toolDefaults.text.fontFamily,
+                 fontWeight: (dataStore.shapes[textEditState.id || '']?.bold ?? settingsStore.toolDefaults.text.bold) ? '700' : '400',
+                 fontStyle: (dataStore.shapes[textEditState.id || '']?.italic ?? settingsStore.toolDefaults.text.italic) ? 'italic' : 'normal',
                  color: editingStrokeColor,
-                 textAlign: dataStore.shapes[textEditState.id || '']?.align || uiStore.textAlign,
-                 textDecoration: `${(dataStore.shapes[textEditState.id || '']?.underline ?? uiStore.textUnderline) ? 'underline ' : ''}${(dataStore.shapes[textEditState.id || '']?.strike ?? uiStore.textStrike) ? 'line-through' : ''}`.trim(),
+                 textAlign: dataStore.shapes[textEditState.id || '']?.align || settingsStore.toolDefaults.text.align,
+                 textDecoration: `${(dataStore.shapes[textEditState.id || '']?.underline ?? settingsStore.toolDefaults.text.underline) ? 'underline ' : ''}${(dataStore.shapes[textEditState.id || '']?.strike ?? settingsStore.toolDefaults.text.strike) ? 'line-through' : ''}`.trim(),
                  padding: `${TEXT_PADDING * viewTransform.scale}px`,
-                 lineHeight: ((dataStore.shapes[textEditState.id || '']?.fontSize || uiStore.textFontSize) * 1.2 * viewTransform.scale) + 'px',
+                 lineHeight: ((dataStore.shapes[textEditState.id || '']?.fontSize || settingsStore.toolDefaults.text.fontSize) * 1.2 * viewTransform.scale) + 'px',
                  boxSizing: 'border-box',
                  direction: 'ltr'
             }}

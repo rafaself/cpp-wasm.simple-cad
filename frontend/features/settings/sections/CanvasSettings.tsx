@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { useUIStore } from "../../../stores/useUIStore";
 import ColorPicker from "../../../components/ColorPicker";
+import { useSettingsStore } from "../../../stores/useSettingsStore";
 
 const CanvasSettings: React.FC = () => {
-  const uiStore = useUIStore();
+  const settings = useSettingsStore();
 
   // Color picker state
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(
@@ -137,26 +137,26 @@ const CanvasSettings: React.FC = () => {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
           <SliderField
             label="Tamanho"
-            value={uiStore.gridSize}
+            value={settings.grid.size}
             min={10}
             max={200}
             step={10}
-            onChange={uiStore.setGridSize}
+            onChange={settings.setGridSize}
           />
           <ColorField
             label="Cor da Grade"
-            color={uiStore.gridColor}
+            color={settings.grid.color}
             pickerId="grid"
           />
           <ToggleField
             label="Mostrar Pontos"
-            checked={uiStore.gridShowDots}
-            onChange={uiStore.setGridShowDots}
+            checked={settings.grid.showDots}
+            onChange={settings.setGridShowDots}
           />
           <ToggleField
             label="Mostrar Linhas"
-            checked={uiStore.gridShowLines}
-            onChange={uiStore.setGridShowLines}
+            checked={settings.grid.showLines}
+            onChange={settings.setGridShowLines}
           />
         </div>
       </section>
@@ -165,26 +165,26 @@ const CanvasSettings: React.FC = () => {
       <section>
         <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-wide">Eixos Centrais</h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-          <ToggleField label="Mostrar Eixos" checked={uiStore.showCenterAxes} onChange={uiStore.setShowCenterAxes} />
-          <ColorField label="Cor Eixo X" color={uiStore.axisXColor} pickerId="axisX" />
-          <ColorField label="Cor Eixo Y" color={uiStore.axisYColor} pickerId="axisY" />
+          <ToggleField label="Mostrar Eixos" checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
+          <ColorField label="Cor Eixo X" color={settings.display.centerAxes.xColor} pickerId="axisX" />
+          <ColorField label="Cor Eixo Y" color={settings.display.centerAxes.yColor} pickerId="axisY" />
           <SelectField 
             label="Tipo Eixo X" 
-            value={uiStore.axisXDashed ? 'dashed' : 'solid'} 
+            value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'} 
             options={[
               { value: 'solid', label: 'Contínuo' },
               { value: 'dashed', label: 'Tracejado' }
             ]}
-            onChange={(v) => uiStore.setAxisXDashed(v === 'dashed')}
+            onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
           />
           <SelectField 
             label="Tipo Eixo Y" 
-            value={uiStore.axisYDashed ? 'dashed' : 'solid'} 
+            value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'} 
             options={[
               { value: 'solid', label: 'Contínuo' },
               { value: 'dashed', label: 'Tracejado' }
             ]}
-            onChange={(v) => uiStore.setAxisYDashed(v === 'dashed')}
+            onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
           />
         </div>
       </section>
@@ -197,12 +197,12 @@ const CanvasSettings: React.FC = () => {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
           <ToggleField
             label="Mostrar Ícone"
-            checked={uiStore.showCenterIcon}
-            onChange={uiStore.setShowCenterIcon}
+            checked={settings.display.centerIcon.show}
+            onChange={settings.setShowCenterIcon}
           />
           <ColorField
             label="Cor do Ícone"
-            color={uiStore.centerIconColor}
+            color={settings.display.centerIcon.color}
             pickerId="centerIcon"
           />
         </div>
@@ -215,19 +215,19 @@ const CanvasSettings: React.FC = () => {
           <ColorPicker
             color={
               activeColorPicker === "grid"
-                ? uiStore.gridColor
+                ? settings.grid.color
                 : activeColorPicker === "axisX"
-                ? uiStore.axisXColor
+                ? settings.display.centerAxes.xColor
                 : activeColorPicker === "axisY"
-                ? uiStore.axisYColor
-                : uiStore.centerIconColor
+                ? settings.display.centerAxes.yColor
+                : settings.display.centerIcon.color
             }
             onChange={(c) => {
-              if (activeColorPicker === "grid") uiStore.setGridColor(c);
-              else if (activeColorPicker === "axisX") uiStore.setAxisXColor(c);
-              else if (activeColorPicker === "axisY") uiStore.setAxisYColor(c);
+              if (activeColorPicker === "grid") settings.setGridColor(c);
+              else if (activeColorPicker === "axisX") settings.setAxisXColor(c);
+              else if (activeColorPicker === "axisY") settings.setAxisYColor(c);
               else if (activeColorPicker === "centerIcon")
-                uiStore.setCenterIconColor(c);
+                settings.setCenterIconColor(c);
             }}
             onClose={closeColorPicker}
             initialPosition={colorPickerPos}

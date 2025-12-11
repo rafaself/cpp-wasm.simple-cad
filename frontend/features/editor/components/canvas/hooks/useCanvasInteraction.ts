@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../../../stores/useUIStore';
+import { useSettingsStore } from '../../../../../stores/useSettingsStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
 import { Point, Shape, Rect } from '../../../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSnapPoint, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare } from '../../../../../utils/geometry';
@@ -18,7 +19,11 @@ interface ResizeState {
 
 export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     const uiStore = useUIStore();
+    const snapSettings = useSettingsStore(s => s.snap);
+    const gridSize = useSettingsStore(s => s.grid.size);
+    const toolDefaults = useSettingsStore(s => s.toolDefaults);
     const dataStore = useDataStore();
+    const { strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides } = toolDefaults;
 
     const [isDragging, setIsDragging] = useState(false);
     const [isMiddlePanning, setIsMiddlePanning] = useState(false);
@@ -126,9 +131,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 id: Date.now().toString(),
                 layerId: dataStore.activeLayerId,
                 type: 'polyline',
-                strokeColor: uiStore.strokeColor,
-                strokeWidth: uiStore.strokeWidth,
-                strokeEnabled: uiStore.strokeEnabled,
+                strokeColor,
+                strokeWidth,
+                strokeEnabled,
                 fillColor: 'transparent',
                 colorMode: getDefaultColorMode(),
                 points: [...polylinePoints]
@@ -180,12 +185,12 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, uiStore.viewTransform); let snapped: Point | null = null;
 
-        if (uiStore.snapOptions.enabled && !['pan', 'select'].includes(uiStore.activeTool) && !e.ctrlKey) {
+        if (snapSettings.enabled && !['pan', 'select'].includes(uiStore.activeTool) && !e.ctrlKey) {
             const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
             const visible = dataStore.spatialIndex.query(queryRect)
                 .map(s => dataStore.shapes[s.id])
                 .filter(s => { const l = dataStore.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
-            const snap = getSnapPoint(wr, visible, uiStore.snapOptions, uiStore.gridSize, 20 / uiStore.viewTransform.scale);
+            const snap = getSnapPoint(wr, visible, snapSettings, gridSize, snapSettings.tolerancePx / uiStore.viewTransform.scale);
             if (snap) { snapped = snap; eff = worldToScreen(snap, uiStore.viewTransform); }
         }
 
@@ -291,7 +296,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(lineStart, wPos);
                 }
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
+                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
                 uiStore.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
@@ -304,7 +309,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(arrowStart, wPos);
                 }
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'arrow', strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
+                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
                 uiStore.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
@@ -336,7 +341,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         let eff = raw;
         const isHandleDrag = !!activeHandle;
-        const shouldSnap = uiStore.snapOptions.enabled && !e.ctrlKey && (!['pan', 'select'].includes(uiStore.activeTool) || isHandleDrag);
+        const shouldSnap = snapSettings.enabled && !e.ctrlKey && (!['pan', 'select'].includes(uiStore.activeTool) || isHandleDrag);
 
         if (shouldSnap) {
             const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
@@ -347,7 +352,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (activeHandle && s.id === activeHandle.shapeId) return false;
                     return s && l && l.visible && !l.locked;
                 });
-            const snap = getSnapPoint(worldPos, visible, uiStore.snapOptions, uiStore.gridSize, 20 / uiStore.viewTransform.scale);
+            const snap = getSnapPoint(worldPos, visible, snapSettings, gridSize, snapSettings.tolerancePx / uiStore.viewTransform.scale);
             if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, uiStore.viewTransform); } else { setSnapMarker(null); }
         } else { setSnapMarker(null); }
 
@@ -604,12 +609,12 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return;
             }
 
-            const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, colorMode: getDefaultColorMode(), points: [] };
+            const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
 
             if (isSingleClick && shapeCreationTools.includes(uiStore.activeTool)) {
                 if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
                 else if (uiStore.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
-                else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = uiStore.polygonSides; }
+                else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = polygonSides; }
             } else {
                 // Apply Shift constraint for proportional shapes (Figma-style)
                 let finalEnd = we;
@@ -624,7 +629,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     n.width = Math.abs(finalEnd.x - ws.x); 
                     n.height = Math.abs(finalEnd.y - ws.y); 
                 }
-                else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = uiStore.polygonSides; }
+                else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = polygonSides; }
             }
 
             // For polygon, show modal after creation

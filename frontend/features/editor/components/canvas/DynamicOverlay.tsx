@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
+import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { Shape } from '../../../../types';
 import { screenToWorld, getDistance, rotatePoint, constrainToSquare } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
@@ -24,6 +25,8 @@ interface DynamicOverlayProps {
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const uiStore = useUIStore();
+  const settingsStore = useSettingsStore();
+  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
   const dataStore = useDataStore();
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
@@ -85,7 +88,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
     // 3. Draw Creation Drafts
     if (uiStore.activeTool === 'polyline' && polylinePoints.length > 0) {
-      ctx.beginPath(); ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = (uiStore.strokeWidth || 2) / uiStore.viewTransform.scale;
+      ctx.beginPath(); ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = (strokeWidth || 2) / uiStore.viewTransform.scale;
       ctx.moveTo(polylinePoints[0].x, polylinePoints[0].y); for(let p of polylinePoints) ctx.lineTo(p.x, p.y);
       if (currentPoint) { const wm = screenToWorld(currentPoint, uiStore.viewTransform); ctx.lineTo(wm.x, wm.y); } ctx.stroke();
     }
@@ -97,8 +100,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         if (start && currentPoint) {
             const wm = screenToWorld(currentPoint, uiStore.viewTransform);
             ctx.beginPath(); 
-            ctx.strokeStyle = uiStore.activeTool === 'measure' ? '#ef4444' : uiStore.strokeColor;
-            ctx.lineWidth = (uiStore.strokeWidth || 2) / uiStore.viewTransform.scale;
+            ctx.strokeStyle = uiStore.activeTool === 'measure' ? '#ef4444' : strokeColor;
+            ctx.lineWidth = (strokeWidth || 2) / uiStore.viewTransform.scale;
             ctx.moveTo(start.x, start.y); ctx.lineTo(wm.x, wm.y); ctx.stroke();
             
             // Draw arrow head preview for arrow tool
@@ -131,11 +134,11 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         wc = constrainToSquare(ws, wc);
       }
       
-      const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor: uiStore.strokeColor, strokeWidth: uiStore.strokeWidth, strokeEnabled: uiStore.strokeEnabled, fillColor: uiStore.fillColor, points: [] };
+      const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, points: [] };
       
       if (uiStore.activeTool === 'arc') {
           ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(wc.x, wc.y);
-          ctx.strokeStyle = uiStore.strokeColor; ctx.stroke();
+          ctx.strokeStyle = strokeColor; ctx.stroke();
       }
       else if (uiStore.activeTool === 'circle') { 
         // Circle already maintains 1:1 ratio by using radius
@@ -149,7 +152,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       }
       else if (uiStore.activeTool === 'polygon') { 
         // Polygon already maintains 1:1 ratio by using radius
-        temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = uiStore.polygonSides; 
+        temp.x = ws.x; temp.y = ws.y; temp.radius = getDistance(ws, wc); temp.sides = polygonSides; 
       }
       drawGhostShape(ctx, temp, uiStore.viewTransform);
     }
@@ -182,7 +185,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed]);
+  }, [uiStore, dataStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
 
   useEffect(() => {
       render();
@@ -220,9 +223,9 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                     type: 'arc',
                     points: [arcPoints.start, arcPoints.end],
                     radius: radius,
-                    strokeColor: uiStore.strokeColor,
-                    strokeWidth: uiStore.strokeWidth,
-                    strokeEnabled: uiStore.strokeEnabled,
+                    strokeColor,
+                    strokeWidth,
+                    strokeEnabled,
                     fillColor: 'transparent',
                     colorMode: getDefaultColorMode()
                 };
@@ -255,9 +258,9 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       >
         <span className="text-[10px] text-slate-300 uppercase font-bold">Lados</span>
         <NumberSpinner
-          value={uiStore.polygonSides}
+          value={polygonSides}
           onChange={(val) => {
-            uiStore.setPolygonSides(val);
+            settingsStore.setPolygonSides(val);
             setters.confirmPolygonSides(val);
           }}
           min={3}
@@ -265,7 +268,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
           className="w-14 h-7 bg-slate-800"
         />
         <button
-          onClick={() => setters.confirmPolygonSides(uiStore.polygonSides)}
+          onClick={() => setters.confirmPolygonSides(polygonSides)}
           className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded font-medium"
         >
           OK

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../../stores/useUIStore';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
@@ -35,8 +36,8 @@ const FONT_OPTIONS = [
 ];
 
 const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
-    const textFontFamily = useUIStore((s) => s.textFontFamily);
-    const setTextFontFamily = useUIStore((s) => s.setTextFontFamily);
+    const textFontFamily = useSettingsStore((s) => s.toolDefaults.text.fontFamily);
+    const setTextFontFamily = useSettingsStore((s) => s.setTextFontFamily);
     
     const handleChange = (val: string) => {
         setTextFontFamily(val);
@@ -56,8 +57,8 @@ const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds, applyT
 };
 
 const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
-    const textFontSize = useUIStore((s) => s.textFontSize);
-    const setTextFontSize = useUIStore((s) => s.setTextFontSize);
+    const textFontSize = useSettingsStore((s) => s.toolDefaults.text.fontSize);
+    const setTextFontSize = useSettingsStore((s) => s.setTextFontSize);
     
     const handleChange = (val: number) => {
         setTextFontSize(val);
@@ -78,8 +79,8 @@ const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTex
 };
 
 const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
-    const textAlign = useUIStore((s) => s.textAlign);
-    const setTextAlign = useUIStore((s) => s.setTextAlign);
+    const textAlign = useSettingsStore((s) => s.toolDefaults.text.align);
+    const setTextAlign = useSettingsStore((s) => s.setTextAlign);
     
     const alignOptions: Array<{ align: 'left' | 'center' | 'right'; icon: React.ReactNode }> = [
         { align: 'left', icon: <AlignLeft size={16} /> },
@@ -111,14 +112,14 @@ const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTe
 type StyleKey = 'bold' | 'italic' | 'underline' | 'strike';
 
 const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
-    const textBold = useUIStore((s) => s.textBold);
-    const textItalic = useUIStore((s) => s.textItalic);
-    const textUnderline = useUIStore((s) => s.textUnderline);
-    const textStrike = useUIStore((s) => s.textStrike);
-    const setTextBold = useUIStore((s) => s.setTextBold);
-    const setTextItalic = useUIStore((s) => s.setTextItalic);
-    const setTextUnderline = useUIStore((s) => s.setTextUnderline);
-    const setTextStrike = useUIStore((s) => s.setTextStrike);
+    const textBold = useSettingsStore((s) => s.toolDefaults.text.bold);
+    const textItalic = useSettingsStore((s) => s.toolDefaults.text.italic);
+    const textUnderline = useSettingsStore((s) => s.toolDefaults.text.underline);
+    const textStrike = useSettingsStore((s) => s.toolDefaults.text.strike);
+    const setTextBold = useSettingsStore((s) => s.setTextBold);
+    const setTextItalic = useSettingsStore((s) => s.setTextItalic);
+    const setTextUnderline = useSettingsStore((s) => s.setTextUnderline);
+    const setTextStrike = useSettingsStore((s) => s.setTextStrike);
     
     const styleOptions: Array<{ key: StyleKey; icon: React.ReactNode; active: boolean; setter: (v: boolean) => void; recalc: boolean }> = [
         { key: 'bold', icon: <Bold size={16} />, active: textBold, setter: setTextBold, recalc: true },
@@ -313,7 +314,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
             </div>
         );
     },
-    'ColorControl': ({ uiStore, dataStore, activeLayer, openColorPicker, selectedShapeIds }) => {
+    'ColorControl': ({ uiStore, dataStore, activeLayer, openColorPicker, selectedShapeIds, settingsStore }) => {
         // Get first selected shape (if any) to show its colors
         const selectedIds: string[] = Array.from(uiStore.selectedShapeIds);
         const firstSelectedShape = selectedIds.length > 0 ? dataStore.shapes[selectedIds[0]] : null;
@@ -336,13 +337,13 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
         // Determine if stroke/fill are enabled using unified effective resolution
         const strokeEnabled = firstSelectedShape 
             ? isStrokeEffectivelyEnabled(firstSelectedShape, activeLayer)
-            : (activeLayer?.strokeEnabled !== false && uiStore.strokeEnabled !== false);
+            : (activeLayer?.strokeEnabled !== false && settingsStore.toolDefaults.strokeEnabled !== false);
         const fillEnabled = firstSelectedShape 
             ? isFillEffectivelyEnabled(firstSelectedShape, activeLayer)
-            : (activeLayer?.fillEnabled !== false && uiStore.fillColor !== 'transparent');
+            : (activeLayer?.fillEnabled !== false && settingsStore.toolDefaults.fillColor !== 'transparent');
 
         // Stroke width - show selected shape's value or uiStore default
-        const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? uiStore.strokeWidth;
+        const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? settingsStore.toolDefaults.strokeWidth;
         
         // Get color mode for first selected shape (if any)
         const colorMode = firstSelectedShape ? getShapeColorMode(firstSelectedShape) : null;
@@ -355,7 +356,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
          * This prevents accidental mode changes and keeps behavior consistent with Sidebar.
          */
         const handleStrokeEnabledChange = (checked: boolean) => {
-            uiStore.setStrokeEnabled(checked);
+            settingsStore.setStrokeEnabled(checked);
             
             if (selectedIds.length === 0) return; // Only update uiStore for new shapes
             
@@ -375,7 +376,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
         };
 
         const handleFillEnabledChange = (checked: boolean) => {
-            uiStore.setFillColor(checked ? '#eeeeee' : 'transparent');
+            settingsStore.setFillColor(checked ? '#eeeeee' : 'transparent');
             
             if (selectedIds.length === 0) return; // Only update uiStore for new shapes
             
@@ -395,7 +396,7 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
         };
 
         const handleStrokeWidthChange = (value: number) => {
-            uiStore.setStrokeWidth(value);
+            settingsStore.setStrokeWidth(value);
             // Update selected shapes
             selectedIds.forEach(id => {
                 const shape = dataStore.shapes[id];
@@ -480,15 +481,15 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
         );
     },
     // LineWidthControl removed - functionality merged into ColorControl
-    'GridControl': ({ uiStore, openColorPicker }) => {
+    'GridControl': ({ settingsStore, openColorPicker }) => {
         return (
             <div className="flex flex-col gap-1.5 px-3 h-full justify-center">
                 {/* Row 1: Toggle buttons */}
                 <div className="flex items-center gap-1">
                     <button
-                        onClick={() => uiStore.setGridShowDots(!uiStore.gridShowDots)}
+                        onClick={() => settingsStore.setGridShowDots(!settingsStore.grid.showDots)}
                         className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
-                            uiStore.gridShowDots 
+                            settingsStore.grid.showDots 
                                 ? 'bg-blue-500 text-white border-blue-600 shadow-md' 
                                 : 'bg-slate-700/80 text-slate-300 border-slate-600 hover:bg-slate-600/80'
                         }`}
@@ -496,9 +497,9 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                         Pontos
                     </button>
                     <button
-                        onClick={() => uiStore.setGridShowLines(!uiStore.gridShowLines)}
+                        onClick={() => settingsStore.setGridShowLines(!settingsStore.grid.showLines)}
                         className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
-                            uiStore.gridShowLines 
+                            settingsStore.grid.showLines 
                                 ? 'bg-blue-500 text-white border-blue-600 shadow-md' 
                                 : 'bg-slate-700/80 text-slate-300 border-slate-600 hover:bg-slate-600/80'
                         }`}
@@ -511,14 +512,14 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
                 <div className="flex items-center gap-2">
                     <div 
                         className="w-5 h-5 rounded border-2 border-slate-500 cursor-pointer hover:scale-110 transition-transform"
-                        style={{ backgroundColor: uiStore.gridColor }}
+                        style={{ backgroundColor: settingsStore.grid.color }}
                         onClick={(e) => openColorPicker(e, { type: 'grid' })}
                         title="Cor do Grid"
                     />
                     <div className="flex items-center gap-0.5">
                         <EditableNumber 
-                            value={uiStore.gridSize} 
-                            onChange={uiStore.setGridSize} 
+                            value={settingsStore.grid.size} 
+                            onChange={settingsStore.setGridSize} 
                             min={10} 
                             max={500}
                             className="w-[38px] h-5"
@@ -546,6 +547,7 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
 const EditorRibbon: React.FC = () => {
   const [activeTabId, setActiveTabId] = useState('draw');
   const uiStore = useUIStore();
+  const settingsStore = useSettingsStore();
   const dataStore = useDataStore();
   
   // Layer Dropdown State
@@ -576,7 +578,7 @@ const EditorRibbon: React.FC = () => {
     selectedTextIds.forEach(id => {
       const shape = dataStore.shapes[id];
       if (!shape) return;
-      const nextFontSize = (diff.fontSize ?? shape.fontSize ?? uiStore.textFontSize) || 16;
+      const nextFontSize = (diff.fontSize ?? shape.fontSize ?? settingsStore.toolDefaults.text.fontSize) || 16;
       const content = diff.textContent ?? shape.textContent ?? '';
       let updates: any = { ...diff };
 
@@ -636,7 +638,7 @@ const EditorRibbon: React.FC = () => {
   const activeColor = useMemo(() => {
     if (!colorPickerTarget) return '#FFFFFF';
     if (colorPickerTarget.type === 'grid') {
-      return uiStore.gridColor;
+      return settingsStore.grid.color;
     }
     if (colorPickerTarget.type === 'stroke') {
       // Show color of first selected shape or layer color
@@ -648,16 +650,16 @@ const EditorRibbon: React.FC = () => {
     return firstSelectedShape 
       ? getEffectiveFillColor(firstSelectedShape, activeLayer)
       : (activeLayer?.fillColor || '#ffffff');
-  }, [colorPickerTarget, firstSelectedShape, activeLayer, uiStore.gridColor]);
+  }, [colorPickerTarget, firstSelectedShape, activeLayer, settingsStore.grid.color]);
 
   const handleColorChange = (newColor: string) => {
       if (!colorPickerTarget) return;
 
-      // Update UI store colors
+      // Update settings defaults
       if (colorPickerTarget.type === 'stroke') {
-        uiStore.setStrokeColor(newColor);
+        settingsStore.setStrokeColor(newColor);
       } else {
-        uiStore.setFillColor(newColor);
+        settingsStore.setFillColor(newColor);
       }
 
       // Apply to ALL selected shapes (not just text), and set colorMode to 'custom'
@@ -680,7 +682,7 @@ const EditorRibbon: React.FC = () => {
 
       // Handle grid color separately
       if (colorPickerTarget.type === 'grid') {
-        uiStore.setGridColor(newColor);
+        settingsStore.setGridColor(newColor);
       }
   };
 
@@ -694,6 +696,7 @@ const EditorRibbon: React.FC = () => {
       dropdownPos,
       dataStore,
       uiStore,
+      settingsStore,
       selectedTextIds,
       applyTextUpdate,
       openColorPicker,
