@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
+import { useEditorLogic } from './useEditorLogic';
 
 export const useKeyboardShortcuts = () => {
   const uiStore = useUIStore();
   const dataStore = useDataStore();
+  const { deleteSelected } = useEditorLogic();
   const prevToolRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export const useKeyboardShortcuts = () => {
         case 'm': uiStore.setTool('measure'); break;
         case 't': uiStore.setTool('text'); break;
         case 'delete':
-            dataStore.deleteSelected(Array.from(uiStore.selectedShapeIds));
+            deleteSelected();
             break;
       }
     };
@@ -70,5 +72,5 @@ export const useKeyboardShortcuts = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [uiStore, dataStore]);
+  }, [uiStore, dataStore, deleteSelected]);
 };

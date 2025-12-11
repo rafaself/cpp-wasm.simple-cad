@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Grid3X3 } from 'lucide-react';
+import { X, Grid3X3, Magnet } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import SettingsSidebar from './SettingsSidebar';
 import CanvasSettings from './sections/CanvasSettings';
+import SnappingSettings from './sections/SnappingSettings';
 
-export type SettingsSection = 'canvas';
+export type SettingsSection = 'canvas' | 'snapping';
 
 const SettingsModal: React.FC = () => {
   const isOpen = useUIStore(s => s.isSettingsModalOpen);
@@ -22,12 +23,15 @@ const SettingsModal: React.FC = () => {
 
   const sections = [
     { id: 'canvas' as const, label: 'Canvas', icon: Grid3X3 },
+    { id: 'snapping' as const, label: 'Snapping', icon: Magnet },
   ];
 
   const renderContent = () => {
     switch (activeSection) {
       case 'canvas':
         return <CanvasSettings />;
+      case 'snapping':
+        return <SnappingSettings />;
       default:
         return null;
     }

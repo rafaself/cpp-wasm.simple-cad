@@ -2,9 +2,7 @@ import { create } from 'zustand';
 import { Layer, Patch, Point, Shape } from '../types';
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
-import { useUIStore } from './useUIStore';
-
-const HISTORY_LIMIT = 50;
+import { HISTORY } from '../design/tokens';
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
@@ -34,7 +32,7 @@ interface DataState {
   // Layer Ops
   setActiveLayerId: (id: string) => void;
   addLayer: () => void;
-  deleteLayer: (id: string) => void;
+  deleteLayer: (id: string) => boolean;
   setLayerStrokeColor: (id: string, color: string) => void;
   setLayerFillColor: (id: string, color: string) => void;
   toggleLayerVisibility: (id: string) => void;
@@ -43,10 +41,8 @@ interface DataState {
 
   // Complex Ops (often rely on selection)
   alignSelected: (ids: string[], alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
-  deleteSelected: (ids: string[]) => void;
+  deleteShapes: (ids: string[]) => void;
   rotateSelected: (ids: string[], pivot: Point, angle: number) => void;
-  joinSelected: (ids: string[]) => void;
-  zoomToFit: () => void; // Updates UI Store
 
   // History Ops
   undo: () => void;
@@ -78,7 +74,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (patches.length === 0) return;
       const { past } = get();
       const newPast = [...past, patches];
-      if (newPast.length > HISTORY_LIMIT) newPast.shift();
+      if (newPast.length > HISTORY.LIMIT) newPast.shift();
       set({ past: newPast, future: [] });
   },
 
@@ -216,35 +212,26 @@ export const useDataStore = create<DataState>((set, get) => ({
     const { layers, shapes, activeLayerId, saveToHistory, spatialIndex } = get();
     const layerToDelete = layers.find(l => l.id === id);
     // Cannot delete: only layer, active layer, or native layers
-    if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return;
+    if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return false;
 
     const newLayers = layers.filter(l => l.id !== id);
     const newShapes = { ...shapes };
     const patches: Patch[] = [];
-
-    // UI Store access for selection cleanup
-    const { selectedShapeIds, setSelectedShapeIds } = useUIStore.getState();
-    const newSelected = new Set(selectedShapeIds);
-    let selectionChanged = false;
 
     Object.values(shapes).forEach((s: Shape) => {
       if (s.layerId === id) {
         patches.push({ type: 'DELETE', id: s.id, prev: s });
         delete newShapes[s.id];
         spatialIndex.remove(s);
-        if (newSelected.has(s.id)) {
-            newSelected.delete(s.id);
-            selectionChanged = true;
-        }
       }
     });
 
     set({ layers: newLayers, shapes: newShapes });
-    if (selectionChanged) setSelectedShapeIds(newSelected);
 
     if (patches.length > 0) {
       saveToHistory(patches);
     }
+    return true;
   },
 
   setLayerStrokeColor: (id, color) => set(state => ({
@@ -298,15 +285,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     saveToHistory(patches);
   },
 
-  deleteSelected: (ids) => {
+  deleteShapes: (ids) => {
     const { layers, shapes, saveToHistory, spatialIndex } = get();
     if (ids.length === 0) return;
 
     const patches: Patch[] = [];
     const newShapes = { ...shapes };
-    const { setSelectedShapeIds } = useUIStore.getState();
-    const newSelected = new Set(ids); // Temporarily assume all selected
-    let selectionChanged = false;
 
     ids.forEach(id => {
         const s = shapes[id];
@@ -319,13 +303,10 @@ export const useDataStore = create<DataState>((set, get) => ({
         delete newShapes[id];
         spatialIndex.remove(s);
         patches.push({ type: 'DELETE', id, prev: s });
-        newSelected.delete(id);
-        selectionChanged = true;
     });
 
     if (patches.length > 0) {
         set({ shapes: newShapes });
-        if (selectionChanged) setSelectedShapeIds(newSelected);
         saveToHistory(patches);
     }
   },
@@ -364,126 +345,6 @@ export const useDataStore = create<DataState>((set, get) => ({
          updateShape(id, diff, false);
      });
      saveToHistory(patches);
-  },
-
-  joinSelected: (ids) => {
-    const { shapes, addShape, deleteShape, saveToHistory } = get();
-    // 1. Filter valid candidates (Line or Polyline)
-    const candidates = ids.map(id => shapes[id]).filter(s => s && (s.type === 'line' || s.type === 'polyline'));
-    if (candidates.length < 2) return;
-
-    // 2. Start with the first shape as the base for properties
-    const baseShape = candidates[0];
-    let mergedPoints = [...baseShape.points];
-    const tolerance = 10; // Connection tolerance in World Units
-
-    // 3. Iteratively try to attach other candidates
-    const processedIds = new Set([baseShape.id]);
-
-    // We try to merge until no more merges occur in a pass
-    let changed = true;
-    while(changed) {
-        changed = false;
-        for (let i = 0; i < candidates.length; i++) {
-            const current = candidates[i];
-            if (processedIds.has(current.id)) continue;
-
-            const currentPoints = current.points;
-            if (!currentPoints || currentPoints.length < 2) continue;
-
-            const startP = currentPoints[0];
-            const endP = currentPoints[currentPoints.length - 1];
-
-            // Check connection against the current merged chain (start or end)
-            const chainStart = mergedPoints[0];
-            const chainEnd = mergedPoints[mergedPoints.length - 1];
-
-            const distStartStart = Math.hypot(startP.x - chainStart.x, startP.y - chainStart.y);
-            const distStartEnd = Math.hypot(startP.x - chainEnd.x, startP.y - chainEnd.y);
-            const distEndStart = Math.hypot(endP.x - chainStart.x, endP.y - chainStart.y);
-            const distEndEnd = Math.hypot(endP.x - chainEnd.x, endP.y - chainEnd.y);
-
-            if (distStartEnd < tolerance) {
-                // Append current to end
-                mergedPoints = [...mergedPoints, ...currentPoints.slice(1)];
-                processedIds.add(current.id); changed = true;
-            } else if (distEndStart < tolerance) {
-                // Prepend current to start
-                mergedPoints = [...currentPoints.slice(0, -1), ...mergedPoints];
-                processedIds.add(current.id); changed = true;
-            } else if (distStartStart < tolerance) {
-                // Flip current and prepend
-                const reversed = [...currentPoints].reverse();
-                mergedPoints = [...reversed.slice(0, -1), ...mergedPoints];
-                processedIds.add(current.id); changed = true;
-            } else if (distEndEnd < tolerance) {
-                // Flip current and append
-                const reversed = [...currentPoints].reverse();
-                mergedPoints = [...mergedPoints, ...reversed.slice(1)];
-                processedIds.add(current.id); changed = true;
-            }
-        }
-    }
-
-    if (processedIds.size > 1) {
-        // Create new Polyline
-        const newPolyline: Shape = {
-            ...baseShape,
-            id: Date.now().toString(),
-            type: 'polyline',
-            points: mergedPoints
-        };
-
-        // Delete old shapes and add new one
-        // History batching logic manually
-        const historyPatches: Patch[] = [];
-        processedIds.forEach(id => {
-             const s = shapes[id];
-             historyPatches.push({ type: 'DELETE', id, prev: s });
-             deleteShape(id);
-        });
-        addShape(newPolyline); // This adds an ADD patch
-
-        // Consolidate history? The above `deleteShape` and `addShape` calls will trigger `saveToHistory` individually.
-        // For a clean Undo, we might want to manually manage patches, but `deleteShape` implementation calls `saveToHistory`.
-        // This is a limitation of the current simple store.
-        // Ideally, we'd pass a "silent" flag to atomic ops and then save one big batch.
-        // Given the constraints, allowing multiple history entries is acceptable for now,
-        // or we just accept the separate undo steps.
-
-        const { setSelectedShapeIds } = useUIStore.getState();
-        setSelectedShapeIds(new Set([newPolyline.id]));
-    }
-  },
-
-  zoomToFit: () => {
-      const { shapes } = get();
-      const allShapes = Object.values(shapes) as Shape[];
-      const { canvasSize, setViewTransform } = useUIStore.getState();
-
-      if (allShapes.length === 0) {
-          // Center the origin (0,0) in the middle of the canvas
-          setViewTransform({ 
-            x: canvasSize.width / 2, 
-            y: canvasSize.height / 2, 
-            scale: 1 
-          });
-          return;
-      }
-
-      const bounds = getCombinedBounds(allShapes);
-      if (!bounds) return;
-
-      const padding = 50;
-      const availableW = canvasSize.width - padding * 2;
-      const availableH = canvasSize.height - padding * 2;
-      const scale = Math.min(availableW / bounds.width, availableH / bounds.height, 5);
-      const centerX = bounds.x + bounds.width / 2;
-      const centerY = bounds.y + bounds.height / 2;
-      const newX = (canvasSize.width / 2) - (centerX * scale);
-      const newY = (canvasSize.height / 2) - (centerY * scale);
-
-      setViewTransform({ x: newX, y: newY, scale });
   },
 
   ensureLayer: (name: string) => {

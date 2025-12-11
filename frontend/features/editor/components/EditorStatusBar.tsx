@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
+import { useEditorLogic } from '../hooks/useEditorLogic';
 import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator, Grid3x3, Crosshair } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
@@ -9,6 +10,7 @@ import EditableNumber from '../../../components/EditableNumber';
 
 const EditorStatusBar: React.FC = () => {
   const uiStore = useUIStore();
+  const { zoomToFit } = useEditorLogic();
   const snapSettings = useSettingsStore(s => s.snap);
   const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
   const setSnapOption = useSettingsStore(s => s.setSnapOption);
@@ -112,7 +114,7 @@ const EditorStatusBar: React.FC = () => {
          
          <div className="h-4 w-px bg-slate-600 mx-2" />
          
-         <button onClick={dataStore.zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? "Zoom na Seleção" : "Ajustar Zoom"}><Scan size={14} /></button>
+         <button onClick={zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? "Zoom na Seleção" : "Ajustar Zoom"}><Scan size={14} /></button>
          
          {/* Zoom Editable Area */}
          <div className="w-16 h-full flex items-center justify-center py-0.5">
