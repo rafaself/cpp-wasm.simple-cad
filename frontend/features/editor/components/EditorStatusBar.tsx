@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
-import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator } from 'lucide-react';
+import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator, Grid3x3, Crosshair } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
 import EditableNumber from '../../../components/EditableNumber';
@@ -94,6 +94,12 @@ const EditorStatusBar: React.FC = () => {
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
                   <input type="checkbox" checked={snapSettings.center} onChange={() => toggleOption('center')} /> <CircleDot size={12} /> Centro
+                </label>
+                <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
+                  <input type="checkbox" checked={snapSettings.nearest} onChange={() => toggleOption('nearest')} /> <Crosshair size={12} /> Mais Próximo
+                </label>
+                <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
+                  <input type="checkbox" checked={snapSettings.grid} onChange={() => toggleOption('grid')} /> <Grid3x3 size={12} /> Grade
                 </label>
              </div>
            )}
