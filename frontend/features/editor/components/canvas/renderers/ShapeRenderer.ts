@@ -9,14 +9,28 @@ export const setRenderCallback = (cb: () => void) => {
     renderCallback = cb;
 };
 
-const getSvgImage = (svg: string): HTMLImageElement | null => {
-    if (svgImageCache[svg]) {
-        return svgImageCache[svg].loaded ? svgImageCache[svg].img : null;
+const applyStrokeColorToSvg = (svg: string, strokeColor: string): string => {
+    const replaceColor = (content: string, attr: 'stroke' | 'fill') =>
+        content
+            .replace(new RegExp(`${attr}:\\s*(?!none)(#[0-9A-Fa-f]{3,6}|black)`, 'gi'), `${attr}: ${strokeColor}`)
+            .replace(new RegExp(`${attr}="(?!none)(#[0-9A-Fa-f]{3,6}|black)"`, 'gi'), `${attr}="${strokeColor}"`);
+
+    const updated = replaceColor(replaceColor(svg, 'stroke'), 'fill');
+    const styleTag = `<style>path, circle, rect, line, polyline, polygon, ellipse { stroke: ${strokeColor}; fill: ${strokeColor}; }</style>`;
+    const closeIndex = updated.indexOf('>');
+    if (closeIndex === -1) return updated;
+    return `${updated.slice(0, closeIndex + 1)}${styleTag}${updated.slice(closeIndex + 1)}`;
+};
+
+const getSvgImage = (svg: string, cacheKey?: string): HTMLImageElement | null => {
+    const key = cacheKey ?? svg;
+    if (svgImageCache[key]) {
+        return svgImageCache[key].loaded ? svgImageCache[key].img : null;
     }
     const img = new Image();
-    svgImageCache[svg] = { img, loaded: false };
+    svgImageCache[key] = { img, loaded: false };
     img.onload = () => {
-        svgImageCache[svg].loaded = true;
+        svgImageCache[key].loaded = true;
         // Trigger a re-render when image loads
         if (renderCallback) renderCallback();
     };
@@ -154,7 +168,10 @@ export const renderShape = (
             ctx.stroke();
 
             if (shape.svgRaw && shape.svgViewBox) {
-                const img = getSvgImage(shape.svgRaw);
+                const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';
+                const tintedSvg = applyStrokeColorToSvg(shape.svgRaw, symbolColor);
+                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}`;
+                const img = getSvgImage(tintedSvg, cacheKey);
                 if (img) {
                     ctx.drawImage(img, rx, ry, rw, rh);
                 }

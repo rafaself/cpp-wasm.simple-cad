@@ -11,6 +11,7 @@ import { TextEditState } from '../components/canvas/overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../utils/shapeColors';
 import { useLibraryStore } from '../../../stores/useLibraryStore';
 import { computeFrameData } from '../../../utils/frame';
+import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -822,18 +823,26 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const symbolId = uiStore.activeElectricalSymbolId;
             const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
             if (librarySymbol) {
+                const layerConfig = getElectricalLayerConfig(librarySymbol.id, librarySymbol.category);
+                const targetLayerId = dataStore.ensureLayer(layerConfig.name, {
+                    strokeColor: layerConfig.strokeColor,
+                    fillColor: layerConfig.fillColor ?? '#ffffff',
+                    fillEnabled: layerConfig.fillEnabled ?? false,
+                    strokeEnabled: true,
+                    isNative: true,
+                });
                 const width = librarySymbol.viewBox.width * librarySymbol.scale;
                 const height = librarySymbol.viewBox.height * librarySymbol.scale;
                 const shapeId = Date.now().toString();
                 const n: Shape = {
                     id: shapeId,
-                    layerId: dataStore.activeLayerId,
+                    layerId: targetLayerId,
                     type: 'rect',
                     x: ws.x - width / 2,
                     y: ws.y - height / 2,
                     width,
                     height,
-                    strokeColor,
+                    strokeColor: layerConfig.strokeColor,
                     strokeWidth,
                     strokeEnabled: false,
                     fillColor: 'transparent',
@@ -848,11 +857,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     symbolScale: librarySymbol.scale,
                 };
 
+                const metadata = getDefaultMetadataForSymbol(librarySymbol.id);
                 const electricalElement: ElectricalElement = {
                     id: `el-${shapeId}`,
                     shapeId,
                     category: librarySymbol.category,
                     name: librarySymbol.id,
+                    metadata,
                 };
 
                 dataStore.addShape(n, electricalElement);

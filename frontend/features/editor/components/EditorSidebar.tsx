@@ -9,6 +9,7 @@ import { PositionProperties } from './properties/PositionProperties';
 import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
 import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
+import ElectricalProperties from './properties/ElectricalProperties';
 
 const EditorSidebar: React.FC = () => {
   const uiStore = useUIStore();
@@ -135,6 +136,32 @@ const EditorSidebar: React.FC = () => {
     );
   };
 
+  const renderPropriedades = () => {
+    if (!selectedShape) {
+      return (
+        <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+          <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
+          <p className="text-xs">Selecione um objeto para ver suas propriedades.</p>
+        </div>
+      );
+    }
+
+    if (selectedShape.electricalElementId) {
+      return (
+        <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
+          <ElectricalProperties selectedShape={selectedShape} />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+        <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
+        <p className="text-xs">Nenhuma propriedade específica disponível.</p>
+      </div>
+    );
+  };
+
   return (
     <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden">
       {/* Header */}
@@ -148,12 +175,7 @@ const EditorSidebar: React.FC = () => {
           {activeTab === 'edificacao' && renderEdificacao()}
           {activeTab === 'desenho' && renderDesenho()}
           {/* Other sections with proper icons */}
-          {activeTab === 'propriedades' && (
-              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-                  <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
-                  <p className="text-xs">Selecione um objeto para ver suas propriedades.</p>
-              </div>
-          )}
+          {activeTab === 'propriedades' && renderPropriedades()}
           {activeTab === 'projeto' && (
               <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
                   <FolderOpen size={32} className="mb-4 opacity-20 shrink-0" />

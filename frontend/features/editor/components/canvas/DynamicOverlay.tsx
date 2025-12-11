@@ -13,6 +13,7 @@ import TextEditorOverlay from './overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../../utils/shapeColors';
 import NumberSpinner from '../../../../components/NumberSpinner';
 import { useLibraryStore } from '../../../../stores/useLibraryStore';
+import { getElectricalLayerConfig } from '../../../library/electricalProperties';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -107,18 +108,21 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         const symbolId = uiStore.activeElectricalSymbolId;
         const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
         if (librarySymbol) {
+            const layerConfig = getElectricalLayerConfig(librarySymbol.id, librarySymbol.category);
+            const existingLayer = dataStore.layers.find(l => l.name.toLowerCase() === layerConfig.name.toLowerCase());
+            const layerColor = existingLayer?.strokeColor ?? layerConfig.strokeColor;
             const center = snapMarker ? snapMarker : screenToWorld(currentPoint, uiStore.viewTransform);
             const width = librarySymbol.viewBox.width * librarySymbol.scale;
             const height = librarySymbol.viewBox.height * librarySymbol.scale;
             const ghost: Shape = {
                 id: 'ghost-symbol',
-                layerId: dataStore.activeLayerId,
+                layerId: existingLayer?.id ?? dataStore.activeLayerId,
                 type: 'rect',
                 x: center.x - width / 2,
                 y: center.y - height / 2,
                 width,
                 height,
-                strokeColor,
+                strokeColor: layerColor,
                 strokeWidth,
                 strokeEnabled: false,
                 fillColor,

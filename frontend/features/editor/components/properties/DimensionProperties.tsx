@@ -11,6 +11,8 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
   const store = useDataStore();
   const [proportionLinked, setProportionLinked] = useState(true);
 
+  const isElectrical = !!selectedShape.electricalElementId;
+
   const isRect = selectedShape.type === 'rect';
   const isLine = selectedShape.type === 'line' || selectedShape.type === 'polyline';
   const isArrow = selectedShape.type === 'arrow';
@@ -21,6 +23,17 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
   const updateProp = (prop: keyof Shape, value: any) => {
     store.updateShape(selectedShape.id, { [prop]: value });
   };
+
+  if (isElectrical) {
+    return (
+      <div className="p-3 border-b border-slate-100">
+        <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide mb-2 cursor-default">Dimensões</h3>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Símbolos elétricos têm tamanho fixo definido pelo SVG. Use as camadas para controlar cor e visibilidade.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-3 border-b border-slate-100">
