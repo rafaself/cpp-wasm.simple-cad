@@ -1,30 +1,33 @@
-import React, { useState } from 'react';
-import { X, Grid3X3, Crosshair } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Grid3X3 } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import SettingsSidebar from './SettingsSidebar';
 import CanvasSettings from './sections/CanvasSettings';
-import SnappingSettings from './sections/SnappingSettings';
 
-export type SettingsSection = 'canvas' | 'snapping';
+export type SettingsSection = 'canvas';
 
 const SettingsModal: React.FC = () => {
   const isOpen = useUIStore(s => s.isSettingsModalOpen);
   const setOpen = useUIStore(s => s.setSettingsModalOpen);
   const [activeSection, setActiveSection] = useState<SettingsSection>('canvas');
 
+  // Reset to first section when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSection('canvas');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const sections = [
     { id: 'canvas' as const, label: 'Canvas', icon: Grid3X3 },
-    { id: 'snapping' as const, label: 'Snapping', icon: Crosshair },
   ];
 
   const renderContent = () => {
     switch (activeSection) {
       case 'canvas':
         return <CanvasSettings />;
-      case 'snapping':
-        return <SnappingSettings />;
       default:
         return null;
     }

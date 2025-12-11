@@ -65,6 +65,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
     const setEditingTextId = uiStore.setEditingTextId;
 
+    // Middle button double-click detection (native dblclick doesn't work for middle button)
+    const lastMiddleClickTime = useRef<number>(0);
+    const DOUBLE_CLICK_THRESHOLD = 300; // ms
+
     useEffect(() => {
         return () => setEditingTextId(null);
     }, [setEditingTextId]);
@@ -196,7 +200,23 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         setStartPoint(eff); setCurrentPoint(eff);
 
-        if (e.button === 1 || uiStore.activeTool === 'pan') { if (e.button === 1) e.preventDefault(); setIsMiddlePanning(e.button === 1); setIsDragging(true); return; }
+        // Middle button handling: detect double-click for zoom-to-fit
+        if (e.button === 1) {
+            e.preventDefault();
+            const now = Date.now();
+            if (now - lastMiddleClickTime.current < DOUBLE_CLICK_THRESHOLD) {
+                // Double-click detected: zoom to fit
+                lastMiddleClickTime.current = 0;
+                dataStore.zoomToFit();
+                return;
+            }
+            lastMiddleClickTime.current = now;
+            setIsMiddlePanning(true);
+            setIsDragging(true);
+            return;
+        }
+        
+        if (uiStore.activeTool === 'pan') { setIsDragging(true); return; }
 
         const wPos = snapped || wr;
 

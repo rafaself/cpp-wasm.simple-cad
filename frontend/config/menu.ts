@@ -29,7 +29,7 @@ export interface MenuTab {
 export const MENU_CONFIG: MenuTab[] = [
   {
     id: 'file',
-    label: 'ARQUIVO',
+    label: 'INÍCIO',
     sections: [
       {
         title: 'Operações',
@@ -46,6 +46,13 @@ export const MENU_CONFIG: MenuTab[] = [
         items: [
            { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
            { id: 'report-csv', label: 'Relatório CSV', icon: 'ExportCSV', type: 'action', action: 'export-csv' }
+        ]
+      },
+      {
+        title: 'Janela',
+        layout: 'row',
+        items: [
+            { id: 'settings', label: 'Configurações', icon: 'Settings', type: 'action', action: 'open-settings' }
         ]
       }
     ]
@@ -139,13 +146,6 @@ export const MENU_CONFIG: MenuTab[] = [
         items: [
             { id: 'undo', label: 'Desfazer', icon: 'Undo', type: 'action', action: 'undo', shortcut: 'Ctrl+Z' },
             { id: 'redo', label: 'Refazer', icon: 'Redo', type: 'action', action: 'redo', shortcut: 'Ctrl+Y' },
-        ]
-      },
-      {
-        title: 'Janela',
-        layout: 'row',
-        items: [
-            { id: 'settings', label: 'Configurações', icon: 'Settings', type: 'action', action: 'open-settings' }
         ]
       }
     ]

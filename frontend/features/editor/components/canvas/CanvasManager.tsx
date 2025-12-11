@@ -8,6 +8,8 @@ import UserHint from '../UserHint';
 const CanvasManager: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const uiStore = useUIStore();
+    const dataStore = useDataStore();
+    const hasInitialized = useRef(false);
 
     const [dims, setDims] = useState({ width: 800, height: 600 });
     const [hintDismissed, setHintDismissed] = useState(false);
@@ -28,6 +30,17 @@ const CanvasManager: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [uiStore, dims.width, dims.height]);
+
+    // Center view on initial load
+    useEffect(() => {
+        if (!hasInitialized.current && dims.width > 0 && dims.height > 0) {
+            hasInitialized.current = true;
+            // Small delay to ensure canvas size is set
+            setTimeout(() => {
+                dataStore.zoomToFit();
+            }, 50);
+        }
+    }, [dims.width, dims.height, dataStore]);
 
     // Hint Logic
     useEffect(() => { setHintDismissed(false); }, [uiStore.activeTool]);
