@@ -18,6 +18,11 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const gridShowLines = useUIStore(s => s.gridShowLines);
     const showCenterAxes = useUIStore(s => s.showCenterAxes);
     const showCenterIcon = useUIStore(s => s.showCenterIcon);
+    const axisXColor = useUIStore(s => s.axisXColor);
+    const axisYColor = useUIStore(s => s.axisYColor);
+    const axisXDashed = useUIStore(s => s.axisXDashed);
+    const axisYDashed = useUIStore(s => s.axisYDashed);
+    const centerIconColor = useUIStore(s => s.centerIconColor);
     const editingTextId = useUIStore(s => s.editingTextId);
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
 
@@ -85,17 +90,26 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         if (showCenterAxes) {
             const axisExtent = 50000; // Very long axes
             ctx.lineWidth = 0.5 / viewTransform.scale;
-            ctx.setLineDash([10 / viewTransform.scale, 6 / viewTransform.scale]);
             
-            // X-Axis (horizontal) - very subtle red
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)';
+            // X-Axis (horizontal)
+            ctx.strokeStyle = axisXColor;
+            if (axisXDashed) {
+                ctx.setLineDash([10 / viewTransform.scale, 6 / viewTransform.scale]);
+            } else {
+                ctx.setLineDash([]);
+            }
             ctx.beginPath();
             ctx.moveTo(-axisExtent, 0);
             ctx.lineTo(axisExtent, 0);
             ctx.stroke();
             
-            // Y-Axis (vertical) - very subtle green
-            ctx.strokeStyle = 'rgba(34, 197, 94, 0.15)';
+            // Y-Axis (vertical)
+            ctx.strokeStyle = axisYColor;
+            if (axisYDashed) {
+                ctx.setLineDash([10 / viewTransform.scale, 6 / viewTransform.scale]);
+            } else {
+                ctx.setLineDash([]);
+            }
             ctx.beginPath();
             ctx.moveTo(0, -axisExtent);
             ctx.lineTo(0, axisExtent);
@@ -108,7 +122,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         if (showCenterIcon) {
             const iconSize = 8 / viewTransform.scale;
             const lineWidth = 1 / viewTransform.scale;
-            ctx.strokeStyle = 'rgba(100, 116, 139, 0.3)'; // slate-500, more subtle
+            ctx.strokeStyle = centerIconColor;
             ctx.lineWidth = lineWidth;
             ctx.setLineDash([]);
             
@@ -158,7 +172,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
+    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
 
     return (
         <canvas

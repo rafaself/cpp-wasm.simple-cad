@@ -31,6 +31,11 @@ interface UIState {
   // Center Display
   showCenterAxes: boolean;
   showCenterIcon: boolean;
+  axisXColor: string;
+  axisYColor: string;
+  axisXDashed: boolean;
+  axisYDashed: boolean;
+  centerIconColor: string;
 
   // Snap
   snapOptions: SnapOptions;
@@ -64,6 +69,11 @@ interface UIState {
   setGridShowLines: (show: boolean) => void;
   setShowCenterAxes: (show: boolean) => void;
   setShowCenterIcon: (show: boolean) => void;
+  setAxisXColor: (color: string) => void;
+  setAxisYColor: (color: string) => void;
+  setAxisXDashed: (dashed: boolean) => void;
+  setAxisYDashed: (dashed: boolean) => void;
+  setCenterIconColor: (color: string) => void;
 
   // Tool Option Setters
   setPolygonSides: (sides: number) => void;
@@ -115,6 +125,11 @@ export const useUIStore = create<UIState>((set) => ({
 
   showCenterAxes: true,
   showCenterIcon: true,
+  axisXColor: 'rgba(239, 68, 68, 0.4)',   // red-500 with opacity
+  axisYColor: 'rgba(34, 197, 94, 0.4)',   // green-500 with opacity
+  axisXDashed: true,
+  axisYDashed: true,
+  centerIconColor: 'rgba(100, 116, 139, 0.5)', // slate-500 with opacity
 
   snapOptions: { enabled: true, endpoint: true, midpoint: true, center: true, nearest: false, grid: false },
 
@@ -139,6 +154,11 @@ export const useUIStore = create<UIState>((set) => ({
   setGridShowLines: (show) => set({ gridShowLines: show }),
   setShowCenterAxes: (show) => set({ showCenterAxes: show }),
   setShowCenterIcon: (show) => set({ showCenterIcon: show }),
+  setAxisXColor: (color) => set({ axisXColor: color }),
+  setAxisYColor: (color) => set({ axisYColor: color }),
+  setAxisXDashed: (dashed) => set({ axisXDashed: dashed }),
+  setAxisYDashed: (dashed) => set({ axisYDashed: dashed }),
+  setCenterIconColor: (color) => set({ centerIconColor: color }),
 
   setPolygonSides: (sides) => set({ polygonSides: sides }),
   setStrokeColor: (color) => set({ strokeColor: color }),
