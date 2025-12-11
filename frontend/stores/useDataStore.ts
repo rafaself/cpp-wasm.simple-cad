@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ElectricalElement, Layer, Patch, Point, SerializedProject, Shape } from '../types';
+import { ElectricalElement, FrameSettings, Layer, Patch, Point, SerializedProject, Shape } from '../types';
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
@@ -16,6 +16,9 @@ interface DataState {
 
   // World Scale
   worldScale: number;
+
+  // Layout frame
+  frame: FrameSettings;
 
   // Spatial Index
   spatialIndex: QuadTree;
@@ -43,6 +46,12 @@ interface DataState {
   toggleLayerLock: (id: string) => void;
   updateLayer: (id: string, updates: Partial<Layer>) => void;
 
+  // Document settings
+  setWorldScale: (scale: number) => void;
+  setFrameEnabled: (enabled: boolean) => void;
+  setFrameSize: (widthMm: number, heightMm: number) => void;
+  setFrameMargin: (marginMm: number) => void;
+
   // Complex Ops (often rely on selection)
   alignSelected: (ids: string[], alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
   deleteShapes: (ids: string[]) => void;
@@ -67,6 +76,12 @@ export const useDataStore = create<DataState>((set, get) => ({
   layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true }],
   activeLayerId: 'desenho',
   worldScale: 50,
+  frame: {
+    enabled: false,
+    widthMm: 297,
+    heightMm: 210,
+    marginMm: 10,
+  },
 
   spatialIndex: initialQuadTree,
   past: [],
@@ -345,6 +360,21 @@ export const useDataStore = create<DataState>((set, get) => ({
   updateLayer: (id, updates) => set((state) => ({
       layers: state.layers.map(l => l.id === id ? { ...l, ...updates } : l)
   })),
+
+  setWorldScale: (scale) => set({ worldScale: Math.max(1, scale) }),
+  setFrameEnabled: (enabled) => set((state) => ({ frame: { ...state.frame, enabled } })),
+  setFrameSize: (widthMm, heightMm) => set((state) => ({
+    frame: {
+      ...state.frame,
+      widthMm: Math.max(1, widthMm),
+      heightMm: Math.max(1, heightMm),
+      marginMm: Math.max(0, Math.min(state.frame.marginMm, Math.min(widthMm, heightMm) / 2)),
+    },
+  })),
+  setFrameMargin: (marginMm) => set((state) => {
+    const safeMargin = Math.max(0, Math.min(marginMm, state.frame.widthMm / 2, state.frame.heightMm / 2));
+    return { frame: { ...state.frame, marginMm: safeMargin } };
+  }),
 
   alignSelected: (ids, alignment) => {
     const { shapes, saveToHistory, updateShape } = get();

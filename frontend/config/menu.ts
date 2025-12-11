@@ -149,5 +149,18 @@ export const MENU_CONFIG: MenuTab[] = [
         ]
       }
     ]
+  },
+  {
+    id: 'electrical',
+    label: 'ELÉTRICA',
+    sections: [
+      {
+        title: 'Biblioteca',
+        layout: 'column',
+        items: [
+          { id: 'electrical-library', label: 'Símbolos', icon: 'Zap', type: 'component', componentName: 'ElectricalLibrary' }
+        ]
+      }
+    ]
   }
 ];

@@ -12,7 +12,8 @@ export type ToolType =
   | 'measure'
   | 'move'
   | 'rotate'
-  | 'text';
+  | 'text'
+  | 'electrical-symbol';
 
 export enum ElectricalCategory {
   POWER = 'power',
@@ -20,6 +21,13 @@ export enum ElectricalCategory {
   SIGNAL = 'signal',
   LIGHTING = 'lighting',
   GROUND = 'ground'
+}
+
+export interface NormalizedViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface ElectricalElement {
@@ -71,11 +79,18 @@ export interface SnapOptions {
   grid: boolean; // Added
 }
 
+export interface FrameSettings {
+  enabled: boolean;
+  widthMm: number;
+  heightMm: number;
+  marginMm: number;
+}
+
 export interface Shape {
   id: string;
   layerId: string;
   type: ToolType;
-  points: Point[]; 
+  points: Point[];
   x?: number;
   y?: number;
   width?: number;
@@ -111,8 +126,17 @@ export interface Shape {
   scaleX?: number; // 1 = normal, -1 = flipped horizontally
   scaleY?: number; // 1 = normal, -1 = flipped vertically
 
+  // Symbol / SVG rendering support
+  svgSymbolId?: string;
+  svgRaw?: string;
+  svgViewBox?: NormalizedViewBox;
+  symbolScale?: number;
+
   // Electrical metadata linkage
   electricalElementId?: string;
+
+  // Special flags
+  isFrame?: boolean;
 }
 
 export interface ViewTransform {

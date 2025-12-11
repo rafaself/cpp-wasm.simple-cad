@@ -50,6 +50,7 @@ const CanvasManager: React.FC = () => {
     let hintMessage = "";
     if ((uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') && uiStore.selectedShapeIds.size > 0) hintMessage = "Arraste para mover/rotacionar";
     else if ((uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') && uiStore.selectedShapeIds.size === 0) hintMessage = "Selecione objetos primeiro";
+    else if (uiStore.activeTool === 'electrical-symbol') hintMessage = "Clique para inserir. R para girar, F/V para espelhar, continue clicando para duplicar.";
 
     return (
         <div ref={containerRef} className="relative w-full h-full bg-gray-50 overflow-hidden">

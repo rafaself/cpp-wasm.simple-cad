@@ -1,5 +1,5 @@
 import electricalCatalog from '../../assets/electrical/catalog.json';
-import { ElectricalCategory } from '../../types';
+import { ElectricalCategory, NormalizedViewBox } from '../../types';
 
 export interface ElectricalCatalogEntry {
   id: string;
@@ -7,13 +7,6 @@ export interface ElectricalCatalogEntry {
   category: ElectricalCategory;
   nominalSizeMm: number;
   tags: string[];
-}
-
-export interface NormalizedViewBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 export interface LibrarySymbol {
