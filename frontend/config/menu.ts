@@ -155,10 +155,11 @@ export const MENU_CONFIG: MenuTab[] = [
     label: 'LANÇAMENTO',
     sections: [
       {
-        title: 'Símbolos',
+        title: 'Pontos',
         layout: 'row',
         items: [
-          { id: 'electrical-library', label: 'Galeria', icon: 'Zap', type: 'component', componentName: 'ElectricalLibrary' }
+          { id: 'outlet', label: 'Tomada', icon: 'Plug', type: 'tool', tool: 'electrical-symbol' },
+          { id: 'lamp', label: 'Lâmpada', icon: 'Lightbulb', type: 'tool', tool: 'electrical-symbol' }
         ]
       }
     ]

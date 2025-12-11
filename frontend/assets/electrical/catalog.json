@@ -14,5 +14,13 @@
     "category": "control",
     "nominalSizeMm": 1000,
     "tags": ["socket", "duplex", "receptacle"]
+  },
+  {
+    "id": "lamp",
+    "iconSvg": "lamp.svg",
+    "canvasSvg": "lamp.svg",
+    "category": "lighting",
+    "nominalSizeMm": 1000,
+    "tags": ["lamp", "light", "lighting"]
   }
 ]

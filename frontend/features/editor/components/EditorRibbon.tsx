@@ -178,6 +178,24 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     'TextStyleControl': TextStyleControl,
     'TextFormatGroup': TextFormatGroup,
     'ElectricalLibrary': ElectricalRibbonGallery,
+    'ElectricalShortcuts': () => (
+        <div className="flex flex-col justify-center gap-1 h-full px-3 text-center">
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                    <kbd className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] font-mono text-slate-300 border border-slate-600">R</kbd>
+                    <span className="text-[10px] text-slate-400">Girar 90°</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <kbd className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] font-mono text-slate-300 border border-slate-600">F</kbd>
+                    <span className="text-[10px] text-slate-400">Espelhar H</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <kbd className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] font-mono text-slate-300 border border-slate-600">V</kbd>
+                    <span className="text-[10px] text-slate-400">Espelhar V</span>
+                </div>
+            </div>
+        </div>
+    ),
     'LayerControl': ({ activeLayer, isLayerDropdownOpen, setLayerDropdownOpen, openLayerDropdown, layerButtonRef, layerDropdownRef, dropdownPos, dataStore, uiStore }) => {
         const strokeColor = activeLayer?.strokeColor || '#000000';
         const fillColor = activeLayer?.fillColor || '#FFFFFF';
@@ -734,7 +752,20 @@ const EditorRibbon: React.FC = () => {
                             <button
                                 key={item.id}
                                 onClick={() => {
-                                    if(item.type === 'tool' && item.tool) uiStore.setTool(item.tool);
+                                    if(item.type === 'tool' && item.tool) {
+                                        uiStore.setTool(item.tool);
+                                        // Special handling for electrical symbol tools
+                                        if (item.tool === 'electrical-symbol') {
+                                            const symbolMap: Record<string, string> = {
+                                                'outlet': 'duplex_outlet',
+                                                'lamp': 'lamp'
+                                            };
+                                            if (symbolMap[item.id]) {
+                                                uiStore.setElectricalSymbolId(symbolMap[item.id]);
+                                                uiStore.resetElectricalPreview();
+                                            }
+                                        }
+                                    }
                                     if(item.type === 'action' && item.action) handleAction(item.action);
                                 }}
                                 className={`flex flex-col items-center justify-center px-1 py-1 gap-0.5 rounded w-full min-w-[48px] transition-all duration-150
@@ -763,7 +794,20 @@ const EditorRibbon: React.FC = () => {
                                 <button
                                     key={item.id}
                                     onClick={() => {
-                                        if(item.type === 'tool' && item.tool) uiStore.setTool(item.tool);
+                                        if(item.type === 'tool' && item.tool) {
+                                            uiStore.setTool(item.tool);
+                                            // Special handling for electrical symbol tools
+                                            if (item.tool === 'electrical-symbol') {
+                                                const symbolMap: Record<string, string> = {
+                                                    'outlet': 'duplex_outlet',
+                                                    'lamp': 'lamp'
+                                                };
+                                                if (symbolMap[item.id]) {
+                                                    uiStore.setElectricalSymbolId(symbolMap[item.id]);
+                                                    uiStore.resetElectricalPreview();
+                                                }
+                                            }
+                                        }
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
                                     className={`flex flex-col items-center justify-center p-3 gap-2 rounded min-w-[64px] h-full transition-all duration-150 group/btn text-center

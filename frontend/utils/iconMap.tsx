@@ -6,7 +6,7 @@ import {
   AlignLeft, AlignCenterHorizontal, AlignRight,
   AlignVerticalJustifyStart, AlignCenterVertical, AlignVerticalJustifyEnd,
   Type, Move, RotateCw, FilePlus, FolderOpen, Save, FileJson, FileSpreadsheet,
-  MoveUpRight
+  MoveUpRight, Plug, Lightbulb
 } from 'lucide-react';
 
 export const IconMap: Record<string, React.ReactNode> = {
@@ -47,6 +47,8 @@ export const IconMap: Record<string, React.ReactNode> = {
   'ExportCSV': <FileSpreadsheet size={20} />,
   'Text': <Type size={20} />,
   'Zap': <MoveUpRight size={20} className="-rotate-45" />,
+  'Plug': <Plug size={20} />,
+  'Lightbulb': <Lightbulb size={20} />,
 };
 
 export const getIcon = (key: string) => IconMap[key] || <div className="w-4 h-4 bg-red-500" />;
