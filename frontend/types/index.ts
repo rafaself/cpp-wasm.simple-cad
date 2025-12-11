@@ -13,13 +13,15 @@ export type ToolType =
   | 'move'
   | 'rotate'
   | 'text'
-  | 'electrical-symbol';
+  | 'electrical-symbol'
+  | 'conduit';
 
 export enum ElectricalCategory {
   POWER = 'power',
   CONTROL = 'control',
   SIGNAL = 'signal',
-  LIGHTING = 'lighting'
+  LIGHTING = 'lighting',
+  CONDUIT = 'conduit'
 }
 
 export interface NormalizedViewBox {
@@ -36,6 +38,7 @@ export interface ElectricalElement {
   name?: string;
   description?: string;
   metadata?: Record<string, string | number | boolean>;
+  circuitId?: string; // #TODO: To be implemented with Load Board
 }
 
 export interface Point {
@@ -134,6 +137,11 @@ export interface Shape {
   // Electrical metadata linkage
   electricalElementId?: string;
   connectionPoint?: { x: number; y: number }; // Normalized 0-1 connection anchor point
+
+  // Conduit-specific properties
+  controlPoint?: Point; // Quadratic Bezier control point
+  connectedStartId?: string; // Shape ID connected to start point
+  connectedEndId?: string;   // Shape ID connected to end point
 
   // Special flags
   isFrame?: boolean;

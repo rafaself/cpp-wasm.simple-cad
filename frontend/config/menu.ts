@@ -155,6 +155,13 @@ export const MENU_CONFIG: MenuTab[] = [
     label: 'LANÇAMENTO',
     sections: [
       {
+        title: 'Caminhos',
+        layout: 'row',
+        items: [
+           { id: 'conduit', label: 'Eletroduto', icon: 'Conduit', type: 'tool', tool: 'conduit' }
+        ]
+      },
+      {
         title: 'Pontos',
         layout: 'row',
         items: [

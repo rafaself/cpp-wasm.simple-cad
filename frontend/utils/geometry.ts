@@ -417,11 +417,25 @@ export const getShapeCenter = (shape: Shape): Point => {
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 };
 
-export interface Handle { x: number; y: number; cursor: string; index: number; type: 'vertex' | 'resize'; }
+export interface Handle { x: number; y: number; cursor: string; index: number; type: 'vertex' | 'resize' | 'bezier-control'; }
 
 export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
     if (shape.electricalElementId) return handles;
+    
+    if (shape.type === 'conduit') {
+        if (shape.points && shape.points.length >= 2) {
+            // Start point
+            handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });
+            // End point
+            handles.push({ x: shape.points[1].x, y: shape.points[1].y, cursor: 'move', index: 1, type: 'vertex' });
+            // Control point
+            const cp = shape.controlPoint ?? { x: (shape.points[0].x + shape.points[1].x)/2, y: (shape.points[0].y + shape.points[1].y)/2 };
+            handles.push({ x: cp.x, y: cp.y, cursor: 'pointer', index: 2, type: 'bezier-control' });
+        }
+        return handles;
+    }
+
     if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'arrow') {
         if (shape.points && Array.isArray(shape.points)) {
             shape.points.forEach((p, i) => {

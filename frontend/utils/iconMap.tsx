@@ -16,6 +16,7 @@ export const IconMap: Record<string, React.ReactNode> = {
   'Polyline': <Activity size={20} />,
   'Circle': <Circle size={20} />,
   'Arc': <Spline size={20} />,
+  'Conduit': <Spline size={20} className="transform rotate-90" />,
   'Rect': <Square size={20} />,
   'Polygon': <Hexagon size={20} />,
   'Select': <MousePointer2 size={20} />,

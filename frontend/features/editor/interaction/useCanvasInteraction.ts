@@ -6,6 +6,7 @@ import { useEditorLogic } from '../hooks/useEditorLogic';
 import { ElectricalElement, Point, Shape, Rect, Patch } from '../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../utils/geometry';
 import { getSnapPoint } from '../snapEngine';
+import { getConnectionPoint } from '../snapEngine/detectors';
 import { getTextSize } from '../components/canvas/helpers';
 import { TextEditState } from '../components/canvas/overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../utils/shapeColors';
@@ -74,6 +75,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
+    const [lineStart, setLineStart] = useState<Point | null>(null);
+    const [arrowStart, setArrowStart] = useState<Point | null>(null);
+    const [conduitStart, setConduitStart] = useState<Point | null>(null);
     const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
     // Shift key state for real-time updates during drag
@@ -235,6 +239,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     // Reset tools on change
     useEffect(() => {
         setLineStart(null); setArrowStart(null); setMeasureStart(null); setPolylinePoints([]); setStartPoint(null);
+        setConduitStart(null);
         setIsDragging(false); setIsSelectionBox(false); setSnapMarker(null); setTransformationBase(null);
         setActiveHandle(null); setResizeState(null);
         setArcPoints(null); setShowRadiusModal(false);
@@ -504,6 +509,23 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             if (s.y !== undefined) diff.y = s.y + dy;
                             if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
                             dataStore.updateShape(id, diff, true);
+
+                            // Strong Linking: Update connected conduits
+                            // Find conduits connected to this shape
+                            const connectedConduits = Object.values(dataStore.shapes).filter(s => 
+                                s.type === 'conduit' && (s.connectedStartId === id || s.connectedEndId === id)
+                            );
+                            
+                            connectedConduits.forEach(conduit => {
+                                const newConnPoint = getConnectionPoint({ ...s, x: (s.x || 0) + dx, y: (s.y || 0) + dy }); // Calculate new connection point position
+                                if (!newConnPoint || !conduit.points) return;
+
+                                const newPoints = [...conduit.points];
+                                if (conduit.connectedStartId === id) newPoints[0] = newConnPoint;
+                                if (conduit.connectedEndId === id) newPoints[1] = newConnPoint;
+
+                                dataStore.updateShape(conduit.id, { points: newPoints }, true);
+                            });
                         }
                     });
                 } else if (uiStore.activeTool === 'rotate') {
@@ -580,6 +602,63 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
+        if (uiStore.activeTool === 'conduit') {
+            if (!conduitStart) {
+                setConduitStart(wPos);
+            } else {
+                // Determine connection IDs
+                const findConnectedShapeId = (p: Point) => {
+                    const queryRect = { x: p.x - 5, y: p.y - 5, width: 10, height: 10 };
+                    const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
+                    for (const cand of candidates) {
+                        const connPt = getConnectionPoint(cand);
+                        if (connPt && getDistance(connPt, p) < (10 / uiStore.viewTransform.scale)) {
+                            return cand.id;
+                        }
+                    }
+                    return undefined;
+                };
+
+                const startId = findConnectedShapeId(conduitStart);
+                const endId = findConnectedShapeId(wPos);
+
+                // Prevent duplicates
+                if (startId && endId) {
+                    const existing = Object.values(dataStore.shapes).find(s => 
+                        s.type === 'conduit' && 
+                        ((s.connectedStartId === startId && s.connectedEndId === endId) ||
+                         (s.connectedStartId === endId && s.connectedEndId === startId))
+                    );
+                    if (existing) {
+                        setConduitStart(null);
+                        return; // Block duplicate
+                    }
+                }
+
+                // Ensure native layer
+                const layer = dataStore.layers.find(l => l.id === 'eletrodutos') || dataStore.layers[0];
+                
+                dataStore.addShape({
+                    id: Date.now().toString(),
+                    layerId: 'eletrodutos',
+                    type: 'conduit',
+                    strokeColor: layer.strokeColor,
+                    strokeWidth: 2,
+                    strokeEnabled: true,
+                    fillColor: 'transparent',
+                    fillEnabled: false,
+                    colorMode: { stroke: 'layer', fill: 'layer' },
+                    points: [conduitStart, wPos],
+                    connectedStartId: startId,
+                    connectedEndId: endId
+                });
+                
+                // Allow continuous drawing? No, per spec usually point A to B. Reset.
+                setConduitStart(null);
+            }
+            return;
+        }
+
         setIsDragging(true);
     };
 
@@ -636,17 +715,55 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 const wsWorld = screenToWorld(eff, uiStore.viewTransform);
                 const s = dataStore.shapes[activeHandle.shapeId];
                 if (s) {
-                    const rotation = s.rotation || 0;
-                    const pivot = getShapeCenter(s);
-                    const ws = rotation ? rotatePoint(wsWorld, pivot, -rotation) : wsWorld;
+                        const rotation = s.rotation || 0;
+                        const pivot = getShapeCenter(s);
+                        const ws = rotation ? rotatePoint(wsWorld, pivot, -rotation) : wsWorld;
 
-                    // VERTEX handles (lines, polylines) - direct point manipulation
-                    if (activeHandle.handle.type === 'vertex' && s.points) {
-                        const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
-                        const rotatedPoints = rotation ? newPoints.map(p => rotatePoint(p, pivot, rotation)) : newPoints;
-                        dataStore.updateShape(s.id, { points: rotatedPoints }, false);
-                    } 
-                    // RESIZE handles - Figma-like bounding box transformation with flip support
+                        // Conduit Control Point Handle
+                        if (activeHandle.handle.type === 'bezier-control' && s.type === 'conduit') {
+                            dataStore.updateShape(s.id, { controlPoint: ws }, false);
+                        }
+                        // VERTEX handles (lines, polylines, conduits) - direct point manipulation
+                        else if (activeHandle.handle.type === 'vertex' && s.points) {
+                            const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
+                            const rotatedPoints = rotation ? newPoints.map(p => rotatePoint(p, pivot, rotation)) : newPoints;
+                            dataStore.updateShape(s.id, { points: rotatedPoints }, false);
+                            
+                            // If moving conduit endpoint, check for snap to re-link
+                            if (s.type === 'conduit') {
+                                // Find potential snap target for re-linking
+                                const queryRect = { x: worldPos.x - 20, y: worldPos.y - 20, width: 40, height: 40 };
+                                const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
+                                let foundLink: string | undefined = undefined;
+                                
+                                for (const cand of candidates) {
+                                    if (cand.id === s.id) continue;
+                                    const connPt = getConnectionPoint(cand);
+                                    if (connPt && getDistance(connPt, worldPos) < (10 / uiStore.viewTransform.scale)) {
+                                        foundLink = cand.id;
+                                        break;
+                                    }
+                                }
+                                
+                                const update: Partial<Shape> = {};
+                                if (activeHandle.handle.index === 0) update.connectedStartId = foundLink || undefined; // undefined to unlink
+                                if (activeHandle.handle.index === 1) update.connectedEndId = foundLink || undefined;
+                                
+                                // Clean undefined values if mostly unnecessary, but here we want to explicitly remove link if undefined
+                                // updateShape handles partials, passing undefined might need check if backend supports it. assuming yes based on types.
+                                // Actually, better to send null or handle explicitly. DataStore usually merges. 
+                                // Let's perform a key deletion or set to null if type permits. Type says optional string.
+                                // We'll assume the spread in reducer handles it or we might need `null` if strict.
+                                // But `updateShape` is standard. Let's just set it. 
+                                if (Object.keys(update).length > 0) {
+                                     // Optimization: Debounce this or only do on mouse up? 
+                                     // Doing it live allows visual feedback if we added indicators, but for now pure logic.
+                                     dataStore.updateShape(s.id, update, false);
+                                }
+                            }
+
+                        } 
+                        // RESIZE handles - Figma-like bounding box transformation with flip support
                     else if (activeHandle.handle.type === 'resize' && resizeState) {
                         const { originalBounds, originalScaleX, originalScaleY, orientation } = resizeState;
                         const anchor = e.altKey
