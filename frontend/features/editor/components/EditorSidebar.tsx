@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard, 
-  Layers, Settings, MousePointer2
+import {
+  Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard,
+  Layers, Settings, MousePointer2, Zap
 } from 'lucide-react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { PositionProperties } from './properties/PositionProperties';
 import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
+import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
 
 const EditorSidebar: React.FC = () => {
   const uiStore = useUIStore();
@@ -34,6 +35,7 @@ const EditorSidebar: React.FC = () => {
           case 'propriedades': return { title: 'Propriedades', icon: <SlidersHorizontal className="text-blue-600" size={16} /> };
           case 'projeto': return { title: 'Projeto', icon: <FolderOpen className="text-blue-600" size={16} /> };
           case 'camadas': return { title: 'Camadas', icon: <Layers className="text-blue-600" size={16} /> };
+          case 'eletrica': return { title: 'Elétrica', icon: <Zap className="text-blue-600" size={16} /> };
           case 'ajustes': return { title: 'Ajustes', icon: <Settings className="text-blue-600" size={16} /> };
           default: return { title: 'Menu', icon: <LayoutDashboard className="text-blue-600" size={16} /> };
       }
@@ -164,6 +166,11 @@ const EditorSidebar: React.FC = () => {
                   <p className="text-xs">Use o gerenciador de camadas no ribbon.</p>
               </div>
           )}
+          {activeTab === 'eletrica' && (
+              <div className="flex-grow min-h-0 p-3 bg-white">
+                  <ElectricalLibraryPanel compact />
+              </div>
+          )}
           {activeTab === 'ajustes' && (
               <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
                   <Settings size={32} className="mb-4 opacity-20 shrink-0" />
@@ -212,12 +219,20 @@ const EditorSidebar: React.FC = () => {
           <Building2 size={18} />
         </button>
 
-        <button 
+        <button
           onClick={() => !isDragging && setActiveTab('camadas')}
           title="Camadas"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'camadas' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Layers size={18} />
+        </button>
+
+        <button
+          onClick={() => !isDragging && setActiveTab('eletrica')}
+          title="Elétrica"
+          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'eletrica' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+        >
+          <Zap size={18} />
         </button>
 
         <button 

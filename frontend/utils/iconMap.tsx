@@ -46,6 +46,7 @@ export const IconMap: Record<string, React.ReactNode> = {
   'ExportJSON': <FileJson size={20} />,
   'ExportCSV': <FileSpreadsheet size={20} />,
   'Text': <Type size={20} />,
+  'Zap': <MoveUpRight size={20} className="-rotate-45" />,
 };
 
 export const getIcon = (key: string) => IconMap[key] || <div className="w-4 h-4 bg-red-500" />;

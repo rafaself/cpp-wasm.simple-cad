@@ -12,6 +12,12 @@ interface UIState {
   isLayerManagerOpen: boolean;
   editingTextId: string | null;
 
+  // Electrical insertion
+  activeElectricalSymbolId: string | null;
+  electricalRotation: number;
+  electricalFlipX: number;
+  electricalFlipY: number;
+
   // Selection
   selectedShapeIds: Set<string>;
 
@@ -26,6 +32,11 @@ interface UIState {
   setLayerManagerOpen: (isOpen: boolean) => void;
   setEditingTextId: (id: string | null) => void;
 
+  setElectricalSymbolId: (id: string | null) => void;
+  rotateElectricalPreview: (delta: number) => void;
+  flipElectricalPreview: (axis: 'x' | 'y') => void;
+  resetElectricalPreview: () => void;
+
   setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 }
 
@@ -38,6 +49,11 @@ export const useUIStore = create<UIState>((set) => ({
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
   editingTextId: null,
+
+  activeElectricalSymbolId: null,
+  electricalRotation: 0,
+  electricalFlipX: 1,
+  electricalFlipY: 1,
 
   selectedShapeIds: new Set<string>(),
 
@@ -52,6 +68,14 @@ export const useUIStore = create<UIState>((set) => ({
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
   setEditingTextId: (id) => set({ editingTextId: id }),
+
+  setElectricalSymbolId: (id) => set({ activeElectricalSymbolId: id }),
+  rotateElectricalPreview: (delta) => set((state) => ({ electricalRotation: state.electricalRotation + delta })),
+  flipElectricalPreview: (axis) => set((state) => ({
+    electricalFlipX: axis === 'x' ? state.electricalFlipX * -1 : state.electricalFlipX,
+    electricalFlipY: axis === 'y' ? state.electricalFlipY * -1 : state.electricalFlipY,
+  })),
+  resetElectricalPreview: () => set({ electricalRotation: 0, electricalFlipX: 1, electricalFlipY: 1 }),
 
   setSelectedShapeIds: (ids) => set((state) => ({ selectedShapeIds: typeof ids === 'function' ? ids(state.selectedShapeIds) : ids })),
 }));

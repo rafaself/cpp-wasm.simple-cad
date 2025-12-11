@@ -40,6 +40,13 @@ export const useKeyboardShortcuts = () => {
       }
 
       // Tool Shortcuts
+      if (uiStore.activeTool === 'electrical-symbol') {
+        if (e.key.toLowerCase() === 'escape') {
+          uiStore.setTool('select');
+        }
+        return;
+      }
+
       switch(e.key.toLowerCase()) {
         case 'v': uiStore.setTool('select'); break;
         case 'h': uiStore.setTool('pan'); break;
