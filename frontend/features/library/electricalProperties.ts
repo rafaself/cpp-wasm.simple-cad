@@ -105,11 +105,17 @@ const symbolSchemas: Record<string, ElectricalPropertyDefinition[]> = {
       placeholder: 'Ex.: ILU-01',
     },
   ],
+  conduit: [
+    { key: 'diameter', label: 'Diâmetro', type: 'number', unit: 'mm', step: 5 }, // Added
+    { key: 'material', label: 'Material', type: 'text', placeholder: 'PVC / Metal' }, // Added
+    { key: 'circuit', label: 'Circuito', type: 'text', placeholder: 'Ex.: C-01' } // Added
+  ],
 };
 
 export const ELECTRICAL_LAYER_CONFIG: Record<string, { name: string; strokeColor: string; fillColor?: string; fillEnabled?: boolean }> = {
   duplex_outlet: { name: 'Tomadas', strokeColor: '#0ea5e9', fillEnabled: false },
   lamp: { name: 'Iluminação', strokeColor: '#f59e0b', fillEnabled: false },
+  conduit: { name: 'Eletrodutos', strokeColor: '#8b5cf6', fillEnabled: false }, // Added
 };
 
 export const getPropertySchemaForSymbol = (
@@ -117,6 +123,7 @@ export const getPropertySchemaForSymbol = (
   category?: ElectricalCategory
 ): ElectricalPropertyDefinition[] => {
   if (symbolId && symbolSchemas[symbolId]) return symbolSchemas[symbolId];
+  if (category === ElectricalCategory.CONDUIT) return symbolSchemas.conduit; // Added
   if (category === ElectricalCategory.LIGHTING && symbolSchemas.lamp) return symbolSchemas.lamp;
   return baseSchema;
 };
@@ -126,6 +133,7 @@ export const getElectricalLayerConfig = (
   category?: ElectricalCategory
 ): { name: string; strokeColor: string; fillColor?: string; fillEnabled?: boolean } => {
   if (symbolId && ELECTRICAL_LAYER_CONFIG[symbolId]) return ELECTRICAL_LAYER_CONFIG[symbolId];
+  if (category === ElectricalCategory.CONDUIT) return ELECTRICAL_LAYER_CONFIG.conduit; // Added
   if (category === ElectricalCategory.LIGHTING && ELECTRICAL_LAYER_CONFIG.lamp) return ELECTRICAL_LAYER_CONFIG.lamp;
   return { name: 'Elétrica', strokeColor: '#0f172a', fillEnabled: false };
 };

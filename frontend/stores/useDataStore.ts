@@ -73,7 +73,10 @@ interface DataState {
 export const useDataStore = create<DataState>((set, get) => ({
   shapes: {},
   electricalElements: {},
-  layers: [{ id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true }],
+  layers: [
+      { id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true },
+      { id: 'eletrodutos', name: 'Eletrodutos', strokeColor: '#8b5cf6', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: false, visible: true, locked: false, isNative: true }
+  ],
   activeLayerId: 'desenho',
   worldScale: 100,
   frame: {
