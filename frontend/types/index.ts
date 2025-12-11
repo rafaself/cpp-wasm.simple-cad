@@ -79,6 +79,13 @@ export interface SnapOptions {
   grid: boolean; // Added
 }
 
+export interface FrameSettings {
+  enabled: boolean;
+  widthMm: number;
+  heightMm: number;
+  marginMm: number;
+}
+
 export interface Shape {
   id: string;
   layerId: string;
@@ -127,6 +134,9 @@ export interface Shape {
 
   // Electrical metadata linkage
   electricalElementId?: string;
+
+  // Special flags
+  isFrame?: boolean;
 }
 
 export interface ViewTransform {

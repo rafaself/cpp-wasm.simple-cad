@@ -10,6 +10,7 @@ import { getTextSize } from '../components/canvas/helpers';
 import { TextEditState } from '../components/canvas/overlays/TextEditorOverlay';
 import { getDefaultColorMode } from '../../../utils/shapeColors';
 import { useLibraryStore } from '../../../stores/useLibraryStore';
+import { computeFrameData } from '../../../utils/frame';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -362,7 +363,14 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const visible = dataStore.spatialIndex.query(queryRect)
                 .map(s => dataStore.shapes[s.id])
                 .filter(s => { const l = dataStore.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
-            const snap = getSnapPoint(wr, visible, snapSettings, gridSize, snapSettings.tolerancePx / uiStore.viewTransform.scale);
+            const frameData = computeFrameData(dataStore.frame, dataStore.worldScale);
+            const snap = getSnapPoint(
+              wr,
+              frameData ? [...visible, ...frameData.shapes] : visible,
+              snapSettings,
+              gridSize,
+              snapSettings.tolerancePx / uiStore.viewTransform.scale
+            );
             if (snap) { snapped = snap; eff = worldToScreen(snap, uiStore.viewTransform); }
         }
 
@@ -565,7 +573,14 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (activeHandle && s.id === activeHandle.shapeId) return false;
                     return s && l && l.visible && !l.locked;
                 });
-            const snap = getSnapPoint(worldPos, visible, snapSettings, gridSize, snapSettings.tolerancePx / uiStore.viewTransform.scale);
+            const frameData = computeFrameData(dataStore.frame, dataStore.worldScale);
+            const snap = getSnapPoint(
+              worldPos,
+              frameData ? [...visible, ...frameData.shapes] : visible,
+              snapSettings,
+              gridSize,
+              snapSettings.tolerancePx / uiStore.viewTransform.scale
+            );
             if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, uiStore.viewTransform); } else { setSnapMarker(null); }
         } else { setSnapMarker(null); }
 

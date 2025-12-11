@@ -4,6 +4,7 @@ import { useUIStore } from '../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { Rect } from '../../../../types';
 import { renderShape } from './renderers/ShapeRenderer';
+import { computeFrameData } from '../../../../utils/frame';
 
 interface StaticCanvasProps {
     width: number;
@@ -31,6 +32,8 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const shapes = useDataStore(s => s.shapes);
     const layers = useDataStore(s => s.layers);
     const spatialIndex = useDataStore(s => s.spatialIndex);
+    const frame = useDataStore(s => s.frame);
+    const worldScale = useDataStore(s => s.worldScale);
 
     const render = () => {
         const canvas = canvasRef.current;
@@ -126,7 +129,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             ctx.strokeStyle = centerIconColor;
             ctx.lineWidth = lineWidth;
             ctx.setLineDash([]);
-            
+
             // Draw crosshair
             ctx.beginPath();
             ctx.moveTo(-iconSize, 0);
@@ -134,11 +137,33 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             ctx.moveTo(0, -iconSize);
             ctx.lineTo(0, iconSize);
             ctx.stroke();
-            
+
             // Draw small circle at center
             ctx.beginPath();
             ctx.arc(0, 0, iconSize / 3, 0, Math.PI * 2);
             ctx.stroke();
+        }
+
+        const frameData = computeFrameData(frame, worldScale);
+        if (frameData) {
+            const outer = frameData.outerRect;
+            const inner = frameData.marginRect;
+            ctx.save();
+            ctx.lineWidth = 2 / viewTransform.scale;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.05)';
+            ctx.setLineDash([]);
+            ctx.fillRect(outer.x, outer.y, outer.width, outer.height);
+            ctx.strokeRect(outer.x, outer.y, outer.width, outer.height);
+
+            if (inner) {
+                ctx.lineWidth = 1.5 / viewTransform.scale;
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+                ctx.setLineDash([12 / viewTransform.scale, 8 / viewTransform.scale]);
+                ctx.strokeRect(inner.x, inner.y, inner.width, inner.height);
+                ctx.setLineDash([]);
+            }
+            ctx.restore();
         }
 
         // Query Visible Shapes
@@ -173,7 +198,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height]);
+    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height, frame, worldScale]);
 
     return (
         <canvas
