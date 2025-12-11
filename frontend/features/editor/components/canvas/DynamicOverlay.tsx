@@ -147,6 +147,30 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       if (currentPoint) { const wm = screenToWorld(currentPoint, uiStore.viewTransform); ctx.lineTo(wm.x, wm.y); } ctx.stroke();
     }
 
+    // Highlight connection points for electrical symbols when drawing lines/polylines
+    if (['line', 'polyline', 'arrow'].includes(uiStore.activeTool) && currentPoint) {
+        const wm = screenToWorld(currentPoint, uiStore.viewTransform);
+        const threshold = 20 / uiStore.viewTransform.scale;
+        
+        Object.values(dataStore.shapes).forEach(shape => {
+            if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+                const connX = shape.x + shape.connectionPoint.x * shape.width;
+                const connY = shape.y + shape.connectionPoint.y * shape.height;
+                const dist = Math.sqrt((wm.x - connX) ** 2 + (wm.y - connY) ** 2);
+                
+                // Draw connection point with larger highlight if cursor is near
+                ctx.beginPath();
+                const radius = dist < threshold ? 6 / uiStore.viewTransform.scale : 4 / uiStore.viewTransform.scale;
+                ctx.arc(connX, connY, radius, 0, Math.PI * 2);
+                ctx.fillStyle = dist < threshold ? '#3b82f6' : 'rgba(59, 130, 246, 0.5)';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5 / uiStore.viewTransform.scale;
+                ctx.stroke();
+            }
+        });
+    }
+
     if ((uiStore.activeTool === 'line' && lineStart) || (uiStore.activeTool === 'measure' && measureStart) || (uiStore.activeTool === 'arrow' && arrowStart)) {
         const start = uiStore.activeTool === 'line' ? lineStart 
             : uiStore.activeTool === 'arrow' ? arrowStart 

@@ -5,6 +5,7 @@
     "canvasSvg": "outlet-2P+T.svg",
     "category": "control",
     "nominalSizeMm": 1000,
+    "defaultConnectionPoint": { "x": 0.12, "y": 0.5 },
     "tags": ["socket", "duplex", "receptacle"]
   },
   {
@@ -13,6 +14,7 @@
     "canvasSvg": "lamp.svg",
     "category": "lighting",
     "nominalSizeMm": 1000,
+    "defaultConnectionPoint": { "x": 0.5, "y": 0.5 },
     "tags": ["lamp", "light", "lighting"]
   }
 ]

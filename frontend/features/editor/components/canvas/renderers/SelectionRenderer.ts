@@ -59,6 +59,23 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
             ctx.lineTo(shape.points[1].x, shape.points[1].y);
         }
         ctx.stroke();
+
+        // Draw connection point for electrical symbols
+        if (shape.svgRaw && shape.connectionPoint) {
+            const bounds = getShapeBoundingBox(shape);
+            const absX = bounds.x + shape.connectionPoint.x * bounds.width;
+            const absY = bounds.y + shape.connectionPoint.y * bounds.height;
+            
+            ctx.beginPath();
+            ctx.fillStyle = '#3b82f6';
+            ctx.arc(absX, absY, 4 / viewTransform.scale, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw white border for visibility
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5 / viewTransform.scale;
+            ctx.stroke();
+        }
     } finally {
         ctx.restore();
     }

@@ -163,9 +163,12 @@ export const renderShape = (
                 ctx.translate(-centerX, -centerY);
             }
 
-            ctx.rect(rx, ry, rw, rh);
-            if (effectiveFill !== 'transparent') ctx.fill();
-            ctx.stroke();
+            // Only draw rect border/fill if it's NOT an SVG symbol shape
+            if (!shape.svgRaw) {
+                ctx.rect(rx, ry, rw, rh);
+                if (effectiveFill !== 'transparent') ctx.fill();
+                ctx.stroke();
+            }
 
             if (shape.svgRaw && shape.svgViewBox) {
                 const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';

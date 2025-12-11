@@ -7,6 +7,7 @@ export interface ElectricalCatalogEntry {
   canvasSvg: string;    // SVG rendered on the canvas
   category: ElectricalCategory;
   nominalSizeMm: number;
+  defaultConnectionPoint?: { x: number; y: number }; // Normalized 0-1
   tags: string[];
 }
 
@@ -19,6 +20,7 @@ export interface LibrarySymbol {
   canvasSvg: string;     // Processed SVG for canvas rendering
   viewBox: NormalizedViewBox;
   scale: number;
+  defaultConnectionPoint: { x: number; y: number }; // Normalized 0-1
 }
 
 const electricalSvgs = import.meta.glob<string>('../../assets/electrical/*.svg', { as: 'raw', eager: true });
@@ -162,7 +164,8 @@ export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
       iconSvg,
       canvasSvg,
       viewBox,
-      scale
+      scale,
+      defaultConnectionPoint: entry.defaultConnectionPoint ?? { x: 0.5, y: 0.5 }
     });
   });
 

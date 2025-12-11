@@ -423,6 +423,26 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     }
                 }
         }
+
+        // Shift+Click on selected electrical symbol: change connection point
+        if (e.shiftKey && uiStore.selectedShapeIds.size === 1) {
+            const selectedId = Array.from(uiStore.selectedShapeIds)[0];
+            const selectedShape = dataStore.shapes[selectedId];
+            if (selectedShape?.svgRaw && selectedShape.width && selectedShape.height) {
+                // Check if click is within the shape bounds
+                const bounds = { x: selectedShape.x ?? 0, y: selectedShape.y ?? 0, width: selectedShape.width, height: selectedShape.height };
+                if (wPos.x >= bounds.x && wPos.x <= bounds.x + bounds.width &&
+                    wPos.y >= bounds.y && wPos.y <= bounds.y + bounds.height) {
+                    // Calculate normalized coordinates (0-1)
+                    const relX = (wPos.x - bounds.x) / bounds.width;
+                    const relY = (wPos.y - bounds.y) / bounds.height;
+                    dataStore.updateShape(selectedId, {
+                        connectionPoint: { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) }
+                    }, true);
+                    return;
+                }
+            }
+        }
     }
 
         const interaction = detectInteractionAtPoint(wPos, uiStore.viewTransform.scale);
@@ -855,6 +875,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     svgRaw: librarySymbol.canvasSvg,
                     svgViewBox: librarySymbol.viewBox,
                     symbolScale: librarySymbol.scale,
+                    connectionPoint: librarySymbol.defaultConnectionPoint,
                 };
 
                 const metadata = getDefaultMetadataForSymbol(librarySymbol.id);

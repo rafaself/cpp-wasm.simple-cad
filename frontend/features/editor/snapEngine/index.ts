@@ -1,6 +1,6 @@
 import { Point, Shape, SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
-import { getEndpoints, getMidpoints, getCenter, getGridSnap } from './detectors';
+import { getEndpoints, getMidpoints, getCenter, getGridSnap, getConnectionPoint } from './detectors';
 
 export const getSnapPoint = (
   point: Point,
@@ -113,6 +113,9 @@ export const getSnapPoint = (
           const c = getCenter(shape);
           if (c) checkObjectPoint(c);
       }
+      // Connection points for electrical symbols (high priority snap)
+      const connPt = getConnectionPoint(shape);
+      if (connPt) checkObjectPoint(connPt);
   });
 
   if (bestObjectSnap) return bestObjectSnap;

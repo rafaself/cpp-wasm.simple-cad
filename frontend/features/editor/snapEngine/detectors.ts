@@ -64,3 +64,13 @@ export const getGridSnap = (point: Point, gridSize: number): Point => {
     const gy = Math.round(point.y / gridSize) * gridSize;
     return { x: gx, y: gy };
 };
+
+export const getConnectionPoint = (shape: Shape): Point | null => {
+    if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+        return {
+            x: shape.x + shape.connectionPoint.x * shape.width,
+            y: shape.y + shape.connectionPoint.y * shape.height
+        };
+    }
+    return null;
+};

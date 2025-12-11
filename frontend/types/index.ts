@@ -133,6 +133,7 @@ export interface Shape {
 
   // Electrical metadata linkage
   electricalElementId?: string;
+  connectionPoint?: { x: number; y: number }; // Normalized 0-1 connection anchor point
 
   // Special flags
   isFrame?: boolean;

@@ -55,9 +55,12 @@ export const drawGhostShape = (ctx: CanvasRenderingContext2D, shape: Shape, view
                 ctx.scale(flipX, flipY);
                 ctx.translate(-cx, -cy);
             }
-            ctx.rect(rx, ry, rw, rh);
-            ctx.fill();
-            ctx.stroke();
+            // Only draw rect border/fill if it's NOT an SVG symbol shape
+            if (!shape.svgRaw) {
+                ctx.rect(rx, ry, rw, rh);
+                ctx.fill();
+                ctx.stroke();
+            }
             if (shape.svgRaw && shape.svgViewBox) {
                 const img = getGhostImage(shape.svgRaw);
                 ctx.save();
