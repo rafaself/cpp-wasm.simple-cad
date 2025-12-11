@@ -349,10 +349,24 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     dataStore.updateShape(id, updates, true);
                 });
             }
+            // Home key: reset connection point to default for selected electrical symbol
+            if (e.key === 'Home' && uiStore.selectedShapeIds.size === 1) {
+                const selectedId = Array.from(uiStore.selectedShapeIds)[0];
+                const selectedShape = dataStore.shapes[selectedId];
+                if (selectedShape?.svgRaw && selectedShape.svgSymbolId) {
+                    e.preventDefault();
+                    const librarySymbol = libraryStore.electricalSymbols[selectedShape.svgSymbolId];
+                    if (librarySymbol?.defaultConnectionPoint) {
+                        dataStore.updateShape(selectedId, {
+                            connectionPoint: { ...librarySymbol.defaultConnectionPoint }
+                        }, true);
+                    }
+                }
+            }
         };
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [uiStore, dataStore, finishPolyline]);
+    }, [uiStore, dataStore, libraryStore, finishPolyline]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (textEditState) return;
