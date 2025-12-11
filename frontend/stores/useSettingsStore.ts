@@ -82,7 +82,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set) => ({
   grid: {
     size: 100,
-    color: '#E0E0E0',
+    color: '#B2B2B2',
     showDots: true,
     showLines: false,
   },

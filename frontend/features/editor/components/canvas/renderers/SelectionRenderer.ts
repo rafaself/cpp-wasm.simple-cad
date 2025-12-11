@@ -75,6 +75,24 @@ export const drawHandles = (ctx: CanvasRenderingContext2D, shape: Shape, viewTra
         ctx.save();
         try {
             ctx.lineWidth = 1 / viewTransform.scale;
+            
+            // Draw bounding box lines connecting the corner handles (like Figma)
+            // Filter to get only resize handles (corners)
+            const cornerHandles = handles.filter(h => h.type === 'resize');
+            if (cornerHandles.length === 4) {
+                // Order: 0=TL, 1=TR, 2=BR, 3=BL
+                ctx.beginPath();
+                ctx.strokeStyle = '#2563eb';
+                ctx.setLineDash([]);
+                // Draw rectangle from handles
+                ctx.moveTo(cornerHandles[0].x, cornerHandles[0].y); // TL
+                ctx.lineTo(cornerHandles[1].x, cornerHandles[1].y); // TR
+                ctx.lineTo(cornerHandles[2].x, cornerHandles[2].y); // BR
+                ctx.lineTo(cornerHandles[3].x, cornerHandles[3].y); // BL
+                ctx.closePath();
+                ctx.stroke();
+            }
+
             // Handles are now returned in world coordinates (already rotated), so we don't apply canvas rotation here.
             handles.forEach(h => {
                 ctx.beginPath(); 
