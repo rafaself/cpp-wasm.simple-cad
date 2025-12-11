@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
+import { useEditorLogic } from '../hooks/useEditorLogic';
 import { MENU_CONFIG } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap.tsx';
 import { ensureContrastColor } from '../../../utils/color';
@@ -549,6 +550,7 @@ const EditorRibbon: React.FC = () => {
   const uiStore = useUIStore();
   const settingsStore = useSettingsStore();
   const dataStore = useDataStore();
+  const { deleteSelected, joinSelected, zoomToFit } = useEditorLogic();
   
   // Layer Dropdown State
   const [isLayerDropdownOpen, setLayerDropdownOpen] = useState(false);
@@ -557,11 +559,10 @@ const EditorRibbon: React.FC = () => {
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
   const handleAction = (action?: string) => {
-      const selectedIds = Array.from(uiStore.selectedShapeIds);
-      if (action === 'delete') dataStore.deleteSelected(selectedIds);
-      if (action === 'join') dataStore.joinSelected(selectedIds);
+      if (action === 'delete') deleteSelected();
+      if (action === 'join') joinSelected();
       if (action === 'explore') { /* TODO: Implement explode */ }
-      if (action === 'zoom-fit') dataStore.zoomToFit();
+      if (action === 'zoom-fit') zoomToFit();
       if (action === 'undo') dataStore.undo();
       if (action === 'redo') dataStore.redo();
       if (action === 'open-settings') uiStore.setSettingsModalOpen(true);

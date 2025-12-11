@@ -101,7 +101,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
             }
             setEditingTextId(null);
         } else if (textEditState.id) {
-            dataStore.deleteSelected([textEditState.id]);
+            dataStore.deleteShapes([textEditState.id]);
             setEditingTextId(null);
         }
 

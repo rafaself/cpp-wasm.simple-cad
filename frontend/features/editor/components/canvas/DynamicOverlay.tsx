@@ -6,7 +6,7 @@ import { Shape } from '../../../../types';
 import { screenToWorld, getDistance, rotatePoint, constrainToSquare, getShapeBoundingBox, getShapeCenter } from '../../../../utils/geometry';
 import { CURSOR_SVG } from '../assets/cursors';
 import RadiusInputModal from '../RadiusInputModal';
-import { useCanvasInteraction } from './hooks/useCanvasInteraction';
+import { useCanvasInteraction } from '../../interaction/useCanvasInteraction';
 import { drawGhostShape } from './renderers/GhostRenderer';
 import { drawSelectionHighlight, drawHandles } from './renderers/SelectionRenderer';
 import TextEditorOverlay from './overlays/TextEditorOverlay';

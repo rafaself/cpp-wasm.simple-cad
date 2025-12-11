@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import ColorPicker from "../../../components/ColorPicker";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
+import { Section } from "../../../components/ui/Section";
+import { Toggle } from "../../../components/ui/Toggle";
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
@@ -18,34 +20,6 @@ const CanvasSettings: React.FC = () => {
   };
 
   const closeColorPicker = () => setActiveColorPicker(null);
-
-  const ToggleField = ({
-    label,
-    checked,
-    onChange,
-  }: {
-    label: string;
-    checked: boolean;
-    onChange: (v: boolean) => void;
-  }) => (
-    <label className="flex items-center justify-between py-2 cursor-pointer group">
-      <span className="text-sm text-slate-300 group-hover:text-white">
-        {label}
-      </span>
-      <div
-        className={`w-10 h-5 rounded-full p-0.5 transition-colors ${
-          checked ? "bg-blue-600" : "bg-slate-600"
-        }`}
-        onClick={() => onChange(!checked)}
-      >
-        <div
-          className={`w-4 h-4 rounded-full bg-white transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </div>
-    </label>
-  );
 
   const ColorField = ({
     label,
@@ -128,13 +102,8 @@ const CanvasSettings: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Grid Section */}
-      <section>
-        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-wide">
-          Grade
-        </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
+    <div className="flex flex-col">
+      <Section title="Grade">
           <SliderField
             label="Tamanho"
             value={settings.grid.size}
@@ -148,24 +117,20 @@ const CanvasSettings: React.FC = () => {
             color={settings.grid.color}
             pickerId="grid"
           />
-          <ToggleField
+          <Toggle
             label="Mostrar Pontos"
             checked={settings.grid.showDots}
             onChange={settings.setGridShowDots}
           />
-          <ToggleField
+          <Toggle
             label="Mostrar Linhas"
             checked={settings.grid.showLines}
             onChange={settings.setGridShowLines}
           />
-        </div>
-      </section>
+      </Section>
 
-      {/* Center Axes Section */}
-      <section>
-        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-wide">Eixos Centrais</h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-          <ToggleField label="Mostrar Eixos" checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
+      <Section title="Eixos Centrais">
+          <Toggle label="Mostrar Eixos" checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
           <ColorField label="Cor Eixo X" color={settings.display.centerAxes.xColor} pickerId="axisX" />
           <ColorField label="Cor Eixo Y" color={settings.display.centerAxes.yColor} pickerId="axisY" />
           <SelectField 
@@ -186,16 +151,10 @@ const CanvasSettings: React.FC = () => {
             ]}
             onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
           />
-        </div>
-      </section>
+      </Section>
 
-      {/* Center Icon Section */}
-      <section>
-        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-wide">
-          Ícone Central
-        </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-          <ToggleField
+      <Section title="Ícone Central">
+          <Toggle
             label="Mostrar Ícone"
             checked={settings.display.centerIcon.show}
             onChange={settings.setShowCenterIcon}
@@ -205,8 +164,7 @@ const CanvasSettings: React.FC = () => {
             color={settings.display.centerIcon.color}
             pickerId="centerIcon"
           />
-        </div>
-      </section>
+      </Section>
 
       {/* Color Picker Portal */}
       {activeColorPicker && (
