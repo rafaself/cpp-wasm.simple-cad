@@ -75,7 +75,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
-    const [conduitStart, setConduitStart] = useState<Point | null>(null);
+    const [conduitStart, setConduitStart] = useState<{ point: Point; shapeId: string } | null>(null);
     const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
     // Shift key state for real-time updates during drag
@@ -615,26 +615,41 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             };
 
             if (!conduitStart) {
-                // First click: Start the conduit
-                // Check if we clicked on a valid connection point
+                // First click: Start the conduit only from a valid connection point
                 const startId = findSnapConnectionId(wPos);
-                // If snapped to a connection point, use THAT point as the definitive start
-                // Otherwise use the clicked position (loose end)
-                const effectiveStart = startId ? getConnectionPoint(dataStore.shapes[startId])! : wPos;
+                if (!startId) {
+                    setConduitStart(null);
+                    return;
+                }
 
-                setConduitStart(effectiveStart);
+                const startConnection = getConnectionPoint(dataStore.shapes[startId]);
+                if (!startConnection) {
+                    setConduitStart(null);
+                    return;
+                }
+
+                setConduitStart({ point: startConnection, shapeId: startId });
             } else {
                 // Second click: End the conduit
-                const startId = findSnapConnectionId(conduitStart);
+                const startId = conduitStart.shapeId;
+                const startPoint = getConnectionPoint(dataStore.shapes[startId]);
                 const endId = findSnapConnectionId(wPos);
 
-                // If snapped to connection point, use it. Else loose end.
-                const effectiveEnd = endId ? getConnectionPoint(dataStore.shapes[endId])! : wPos;
+                if (!startPoint || !endId) {
+                    setConduitStart(null);
+                    return;
+                }
+
+                const endPoint = getConnectionPoint(dataStore.shapes[endId]);
+                if (!endPoint || startId === endId) {
+                    setConduitStart(null);
+                    return;
+                }
 
                 // Prevent duplicates
                 if (startId && endId) {
-                    const existing = Object.values(dataStore.shapes).find(s => 
-                        s.type === 'conduit' && 
+                    const existing = Object.values(dataStore.shapes).find(s =>
+                        s.type === 'conduit' &&
                         ((s.connectedStartId === startId && s.connectedEndId === endId) ||
                          (s.connectedStartId === endId && s.connectedEndId === startId))
                     );
@@ -657,7 +672,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     fillColor: 'transparent',
                     fillEnabled: false,
                     colorMode: { stroke: 'layer', fill: 'layer' },
-                    points: [conduitStart, effectiveEnd],
+                    points: [startPoint, endPoint],
                     connectedStartId: startId,
                     connectedEndId: endId
                 });
