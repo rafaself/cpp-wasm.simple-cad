@@ -1,0 +1,170 @@
+import React from 'react';
+import { Layer } from '../../../../types';
+import { ColorPickerTarget } from '../../../types/ribbon';
+import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '../../../../utils/shapeColors';
+import { useSettingsStore } from '../../../../stores/useSettingsStore';
+import { useDataStore } from '../../../../stores/useDataStore';
+import { useUIStore } from '../../../../stores/useUIStore';
+import EditableNumber from '../../../../components/EditableNumber';
+
+interface ColorControlProps {
+  uiStore: ReturnType<typeof useUIStore>;
+  dataStore: ReturnType<typeof useDataStore>;
+  activeLayer: Layer | undefined;
+  openColorPicker: (e: React.MouseEvent, target: ColorPickerTarget) => void;
+  selectedShapeIds: string[];
+  settingsStore: ReturnType<typeof useSettingsStore>;
+}
+
+const LABEL_STYLE = 'text-[9px] text-slate-400 uppercase tracking-wider font-semibold';
+
+const ColorControl: React.FC<ColorControlProps> = ({
+  uiStore,
+  dataStore,
+  activeLayer,
+  openColorPicker,
+  selectedShapeIds,
+  settingsStore
+}) => {
+  const selectedIds = Array.from(uiStore.selectedShapeIds);
+  const firstSelectedShape = selectedIds.length > 0 ? dataStore.shapes[selectedIds[0]] : null;
+
+  const effectiveStroke = firstSelectedShape
+      ? getEffectiveStrokeColor(firstSelectedShape, activeLayer)
+      : (activeLayer?.strokeColor || '#000000');
+  const effectiveFill = firstSelectedShape
+      ? getEffectiveFillColor(firstSelectedShape, activeLayer)
+      : (activeLayer?.fillColor || '#ffffff');
+
+  const displayStrokeColor = effectiveStroke;
+  const displayFillColor = effectiveFill === 'transparent'
+      ? (activeLayer?.fillColor || '#ffffff')
+      : effectiveFill;
+
+  const strokeEnabled = firstSelectedShape
+      ? isStrokeEffectivelyEnabled(firstSelectedShape, activeLayer)
+      : (activeLayer?.strokeEnabled !== false && settingsStore.toolDefaults.strokeEnabled !== false);
+  const fillEnabled = firstSelectedShape
+      ? isFillEffectivelyEnabled(firstSelectedShape, activeLayer)
+      : (activeLayer?.fillEnabled !== false && settingsStore.toolDefaults.fillColor !== 'transparent');
+
+  const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? settingsStore.toolDefaults.strokeWidth;
+  const colorMode = firstSelectedShape ? getShapeColorMode(firstSelectedShape) : null;
+
+  const handleStrokeEnabledChange = (checked: boolean) => {
+    settingsStore.setStrokeEnabled(checked);
+    if (selectedIds.length === 0) return;
+    selectedIds.forEach(id => {
+      const shape = dataStore.shapes[id];
+      if (!shape) return;
+      const mode = getShapeColorMode(shape).stroke;
+      if (mode === 'layer' && activeLayer) {
+        dataStore.updateLayer(activeLayer.id, { strokeEnabled: checked });
+      } else {
+        dataStore.updateShape(id, { strokeEnabled: checked }, true);
+      }
+    });
+  };
+
+  const handleFillEnabledChange = (checked: boolean) => {
+    settingsStore.setFillColor(checked ? '#eeeeee' : 'transparent');
+    if (selectedIds.length === 0) return;
+    selectedIds.forEach(id => {
+      const shape = dataStore.shapes[id];
+      if (!shape) return;
+      const mode = getShapeColorMode(shape).fill;
+      if (mode === 'layer' && activeLayer) {
+        dataStore.updateLayer(activeLayer.id, { fillEnabled: checked });
+      } else {
+        dataStore.updateShape(id, { fillEnabled: checked }, true);
+      }
+    });
+  };
+
+  const handleStrokeWidthChange = (value: number) => {
+    settingsStore.setStrokeWidth(value);
+    selectedIds.forEach(id => {
+      const shape = dataStore.shapes[id];
+      if (shape) {
+        dataStore.updateShape(id, { strokeWidth: value }, true);
+      }
+    });
+  };
+
+  const hasCustomMode = () => {
+    if (!firstSelectedShape || !activeLayer) return false;
+    const mode = getShapeColorMode(firstSelectedShape);
+    return mode.fill === 'custom' || mode.stroke === 'custom';
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 px-2 h-full justify-center w-[160px]">
+      <div className="grid grid-cols-2 gap-2 w-full">
+        <div className="flex flex-col items-center gap-0.5">
+          <span className={LABEL_STYLE} style={{ marginBottom: 0 }}>Traço</span>
+          <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!strokeEnabled ? 'opacity-50' : ''}`}>
+            <input
+              type="checkbox"
+              checked={strokeEnabled}
+              onChange={(e) => handleStrokeEnabledChange(e.target.checked)}
+              className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
+            />
+            <div
+              className="w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform"
+              style={{ backgroundColor: displayStrokeColor }}
+              onClick={(e) => strokeEnabled && openColorPicker(e, { type: 'stroke' })}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <span className={LABEL_STYLE} style={{ marginBottom: 0 }}>Fundo</span>
+          <div className={`flex items-center justify-between w-full bg-slate-800/40 rounded border border-slate-700/30 px-1.5 py-1 ${!fillEnabled ? 'opacity-50' : ''}`}>
+            <input
+              type="checkbox"
+              checked={fillEnabled}
+              onChange={(e) => handleFillEnabledChange(e.target.checked)}
+              className="w-3 h-3 rounded-sm border-slate-600 bg-slate-900/50 accent-blue-500 cursor-pointer"
+            />
+            <div
+              className="w-5 h-5 rounded border border-slate-400 cursor-pointer shadow-sm hover:scale-105 transition-transform"
+              style={{
+                backgroundColor: displayFillColor === 'transparent' ? 'transparent' : displayFillColor,
+                backgroundImage: displayFillColor === 'transparent'
+                  ? 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)'
+                  : 'none',
+                backgroundSize: '4px 4px'
+              }}
+              onClick={(e) => fillEnabled && openColorPicker(e, { type: 'fill' })}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col w-full gap-0.5 mt-0.5">
+        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider px-0.5">Espessura</span>
+        <div className="flex items-center gap-1.5 w-full">
+          <EditableNumber
+            value={displayStrokeWidth}
+            onChange={handleStrokeWidthChange}
+            min={0}
+            max={50}
+            className="w-[32px] h-6 flex-none"
+            displayClassName="text-[10px] font-mono"
+          />
+          <div className="flex-1 bg-slate-800/40 rounded-full h-4 flex items-center px-1 border border-slate-700/30">
+            <input
+              type="range"
+              min="0"
+              max="50"
+              step="1"
+              value={displayStrokeWidth}
+              onChange={(e) => handleStrokeWidthChange(parseInt(e.target.value))}
+              className="w-full h-0.5 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 hover:[&::-webkit-slider-thumb]:bg-blue-400 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ColorControl;
