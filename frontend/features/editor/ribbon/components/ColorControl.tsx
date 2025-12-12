@@ -18,7 +18,8 @@ const ColorControl: React.FC<ColorControlProps> = ({
   activeLayer,
   openColorPicker
 }) => {
-  const selectedIds = useUIStore((s) => Array.from(s.selectedShapeIds));
+  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const selectedIds = React.useMemo(() => Array.from(selectedShapeIds), [selectedShapeIds]);
   const shapes = useDataStore((s) => s.shapes);
   const updateShape = useDataStore((s) => s.updateShape);
   const updateLayer = useDataStore((s) => s.updateLayer);
