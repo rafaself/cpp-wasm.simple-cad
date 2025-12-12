@@ -13,7 +13,7 @@ interface StaticCanvasProps {
 
 const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+    const [renderTrigger, forceUpdate] = React.useReducer(x => x + 1, 0);
     const viewTransform = useUIStore(s => s.viewTransform);
     const gridSize = useSettingsStore(s => s.grid.size);
     const gridColor = useSettingsStore(s => s.grid.color);
@@ -30,13 +30,68 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
 
     // Subscribe to necessary data stores.
-    const shapes = useDataStore(s => s.shapes);
     const layers = useDataStore(s => s.layers);
     const spatialIndex = useDataStore(s => s.spatialIndex);
     const frame = useDataStore(s => s.frame);
     const worldScale = useDataStore(s => s.worldScale);
 
+    // Refs for optimization
+    const canvasSizeRef = useRef({ width, height });
+    canvasSizeRef.current = { width, height };
+    const visibleIdsRef = useRef<Set<string>>(new Set());
+
+    // Smart subscription to shapes changes
+    useEffect(() => {
+        return useDataStore.subscribe((state, prevState) => {
+            if (state.shapes === prevState.shapes) return;
+
+            // Check if any visible shape changed or if visible set changed
+            const vt = useUIStore.getState().viewTransform;
+            const { width, height } = canvasSizeRef.current;
+
+            // Re-calculate view rect
+            const viewRect: Rect = {
+                x: -vt.x / vt.scale,
+                y: -vt.y / vt.scale,
+                width: width / vt.scale,
+                height: height / vt.scale
+            };
+
+            const candidates = state.spatialIndex.query(viewRect);
+            const candidateIds = new Set(candidates.map(c => c.id));
+            const lastVisible = visibleIdsRef.current;
+
+            // Check 1: Did the set of visible IDs change? (Added, Deleted, Moved in/out)
+            let changed = false;
+            if (candidateIds.size !== lastVisible.size) {
+                changed = true;
+            } else {
+                for (const id of candidateIds) {
+                    if (!lastVisible.has(id)) {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            // Check 2: If sets are same, did any visible shape object reference change?
+            if (!changed) {
+                for (const id of candidateIds) {
+                    if (state.shapes[id] !== prevState.shapes[id]) {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (changed) {
+                forceUpdate();
+            }
+        });
+    }, []);
+
     const render = () => {
+        const shapes = useDataStore.getState().shapes;
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -182,6 +237,9 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             .map(candidate => shapes[candidate.id])
             .filter(s => !!s && !(editingTextId && s.type === 'text' && s.id === editingTextId));
 
+        // Update visible IDs ref for optimization check
+        visibleIdsRef.current = new Set(visibleShapes.map(s => s.id));
+
         visibleShapes.forEach(shape => {
             const layer = layers.find(l => l.id === shape.layerId);
             if (layer && !layer.visible) return;
@@ -205,7 +263,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, shapes, layers, spatialIndex, editingTextId, selectedShapeIds, width, height, frame, worldScale]);
+    }, [renderTrigger, viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, layers, spatialIndex, editingTextId, selectedShapeIds, width, height, frame, worldScale]);
 
     return (
         <canvas
