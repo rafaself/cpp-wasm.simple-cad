@@ -61,7 +61,7 @@ export const renderShape = (
 ) => {
     // Safety checks for rendering - skip shapes without valid position
     // But allow polygon/circle which use x,y as center
-    if (shape.type !== 'line' && shape.type !== 'polyline' && shape.type !== 'arrow' && shape.type !== 'measure' && shape.type !== 'arc' && shape.type !== 'conduit') {
+    if (shape.type !== 'line' && shape.type !== 'polyline' && shape.type !== 'arrow' && shape.type !== 'measure' && shape.type !== 'arc' && shape.type !== 'conduit' && shape.type !== 'eletroduto') {
         if (shape.x === undefined || shape.y === undefined || isNaN(shape.x) || isNaN(shape.y)) return;
     }
 
@@ -297,7 +297,7 @@ export const renderShape = (
                 ctx.arc(cx, cy, r, startAngle, endAngle, false);
                 ctx.stroke();
             }
-        } else if (shape.type === 'conduit') {
+        } else if (shape.type === 'conduit' || shape.type === 'eletroduto') {
             if (shape.points && shape.points.length >= 2) {
                 const p1 = shape.points[0];
                 const p2 = shape.points[1];

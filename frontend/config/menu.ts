@@ -158,7 +158,7 @@ export const MENU_CONFIG: MenuTab[] = [
         title: 'Caminhos',
         layout: 'row',
         items: [
-           { id: 'conduit', label: 'Eletroduto', icon: 'Conduit', type: 'tool', tool: 'conduit' }
+           { id: 'conduit', label: 'Eletroduto', icon: 'Conduit', type: 'tool', tool: 'eletroduto' }
         ]
       },
       {

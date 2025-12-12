@@ -108,6 +108,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
     const setEditingTextId = uiStore.setEditingTextId;
 
+    const isConduitShape = (s?: Shape | null) => !!s && (s.type === 'eletroduto' || s.type === 'conduit');
+    const getConduitStartId = (s?: Shape | null) => s ? (s.fromConnectionId ?? s.connectedStartId) : undefined;
+    const getConduitEndId = (s?: Shape | null) => s ? (s.toConnectionId ?? s.connectedEndId) : undefined;
+
     // Middle button double-click detection (native dblclick doesn't work for middle button)
     const lastMiddleClickTime = useRef<number>(0);
     const DOUBLE_CLICK_THRESHOLD = 300; // ms
@@ -508,19 +512,18 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
                             dataStore.updateShape(id, diff, true);
 
-                            // Strong Linking: Update connected conduits
-                            // Find conduits connected to this shape
+                            // Strong Linking: Update connected conduits/eletrodutos
                             const connectedConduits = Object.values(dataStore.shapes).filter(s => 
-                                s.type === 'conduit' && (s.connectedStartId === id || s.connectedEndId === id)
+                                isConduitShape(s) && (getConduitStartId(s) === id || getConduitEndId(s) === id)
                             );
                             
                             connectedConduits.forEach(conduit => {
-                                const newConnPoint = getConnectionPoint({ ...s, x: (s.x || 0) + dx, y: (s.y || 0) + dy }); // Calculate new connection point position
+                                const newConnPoint = getConnectionPoint({ ...s, x: (s.x || 0) + dx, y: (s.y || 0) + dy });
                                 if (!newConnPoint || !conduit.points) return;
 
                                 const newPoints = [...conduit.points];
-                                if (conduit.connectedStartId === id) newPoints[0] = newConnPoint;
-                                if (conduit.connectedEndId === id) newPoints[1] = newConnPoint;
+                                if (getConduitStartId(conduit) === id) newPoints[0] = newConnPoint;
+                                if (getConduitEndId(conduit) === id) newPoints[1] = newConnPoint;
 
                                 dataStore.updateShape(conduit.id, { points: newPoints }, true);
                             });
@@ -600,81 +603,94 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
-        if (uiStore.activeTool === 'conduit') {
-            // Helper to find snap connection point
-            const findSnapConnectionId = (p: Point): string | undefined => {
-                const queryRect = { x: p.x - 5, y: p.y - 5, width: 10, height: 10 };
+        const isConduitTool = uiStore.activeTool === 'eletroduto' || uiStore.activeTool === 'conduit';
+        if (isConduitTool) {
+            // Helper to find snap connection point from a click (accept hit anywhere on the symbol bounds)
+            const findSnapConnection = (p: Point): { id: string; point: Point } | undefined => {
+                const tolerance = 18 / uiStore.viewTransform.scale;
+                const queryRect = { x: p.x - tolerance, y: p.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
                 const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
+
                 for (const cand of candidates) {
+                    if (!cand) continue;
+                    const layer = dataStore.layers.find(l => l.id === cand.layerId);
+                    if (!layer || !layer.visible || layer.locked) continue;
+
                     const connPt = getConnectionPoint(cand);
-                    if (connPt && getDistance(connPt, p) < (10 / uiStore.viewTransform.scale)) {
-                        return cand.id;
-                    }
+                    if (!connPt) continue; // only allow shapes with explicit connection point
+
+                    const nearConnection = getDistance(connPt, p) <= tolerance;
+                    const bbox = getShapeBoundingBox(cand);
+                    const insideBBox = bbox
+                        ? (p.x >= bbox.x - tolerance &&
+                           p.x <= bbox.x + bbox.width + tolerance &&
+                           p.y >= bbox.y - tolerance &&
+                           p.y <= bbox.y + bbox.height + tolerance)
+                        : false;
+
+                    if (nearConnection || insideBBox) return { id: cand.id, point: connPt };
                 }
                 return undefined;
             };
 
             if (!conduitStart) {
-                // First click: Start the conduit only from a valid connection point
-                const startId = findSnapConnectionId(wPos);
-                if (!startId) {
+                // First click: Start the conduit/eletroduto only from a valid connection point or hit inside the symbol
+                const startHit = findSnapConnection(wPos);
+                if (!startHit) {
                     setConduitStart(null);
                     return;
                 }
 
-                const startConnection = getConnectionPoint(dataStore.shapes[startId]);
-                if (!startConnection) {
-                    setConduitStart(null);
-                    return;
-                }
-
-                setConduitStart({ point: startConnection, shapeId: startId });
+                setConduitStart({ point: startHit.point, shapeId: startHit.id });
             } else {
                 // Second click: End the conduit
                 const startId = conduitStart.shapeId;
-                const startPoint = getConnectionPoint(dataStore.shapes[startId]);
-                const endId = findSnapConnectionId(wPos);
+                const startPoint = getConnectionPoint(dataStore.shapes[startId]) ?? conduitStart.point;
+                const endHit = findSnapConnection(wPos);
 
-                if (!startPoint || !endId) {
+                if (!startPoint || !endHit) {
                     setConduitStart(null);
                     return;
                 }
 
-                const endPoint = getConnectionPoint(dataStore.shapes[endId]);
-                if (!endPoint || startId === endId) {
+                const endPoint = getConnectionPoint(dataStore.shapes[endHit.id]) ?? endHit.point;
+                if (!endPoint || startId === endHit.id) {
                     setConduitStart(null);
                     return;
                 }
 
                 // Prevent duplicates
-                if (startId && endId) {
-                    const existing = Object.values(dataStore.shapes).find(s =>
-                        s.type === 'conduit' &&
-                        ((s.connectedStartId === startId && s.connectedEndId === endId) ||
-                         (s.connectedStartId === endId && s.connectedEndId === startId))
-                    );
-                    if (existing) {
-                        setConduitStart(null);
-                        return; // Block duplicate
-                    }
+                const existing = Object.values(dataStore.shapes).find(s => {
+                    if (!isConduitShape(s)) return false;
+                    const sStart = getConduitStartId(s);
+                    const sEnd = getConduitEndId(s);
+                    return (sStart === startId && sEnd === endHit.id) || (sStart === endHit.id && sEnd === startId);
+                });
+                if (existing) {
+                    setConduitStart(null);
+                    return; // Block duplicate
                 }
 
                 // Ensure native layer
                 const layer = dataStore.layers.find(l => l.id === 'eletrodutos') || dataStore.layers[0];
+                const targetLayerId = layer?.id ?? dataStore.layers[0]?.id ?? 'eletrodutos';
                 
                 dataStore.addShape({
                     id: Date.now().toString(),
-                    layerId: 'eletrodutos',
-                    type: 'conduit',
-                    strokeColor: layer.strokeColor,
+                    layerId: targetLayerId,
+                    type: 'eletroduto',
+                    strokeColor: layer?.strokeColor ?? '#8b5cf6',
                     strokeWidth: 2,
                     strokeEnabled: true,
                     fillColor: 'transparent',
                     fillEnabled: false,
                     colorMode: { stroke: 'layer', fill: 'layer' },
                     points: [startPoint, endPoint],
+                    fromConnectionId: startId,
+                    toConnectionId: endHit.id,
+                    // Legacy aliases to keep old data compatible
                     connectedStartId: startId,
-                    connectedEndId: endId
+                    connectedEndId: endHit.id
                 });
                 
                 setConduitStart(null);
@@ -743,7 +759,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         const ws = rotation ? rotatePoint(wsWorld, pivot, -rotation) : wsWorld;
 
                         // Conduit Control Point Handle
-                        if (activeHandle.handle.type === 'bezier-control' && s.type === 'conduit') {
+                        if (activeHandle.handle.type === 'bezier-control' && isConduitShape(s)) {
                             dataStore.updateShape(s.id, { controlPoint: ws }, false);
                         }
                         // VERTEX handles (lines, polylines, conduits) - direct point manipulation
@@ -753,14 +769,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             dataStore.updateShape(s.id, { points: rotatedPoints }, false);
                             
                             // If moving conduit endpoint, check for snap to re-link
-                            if (s.type === 'conduit') {
+                            if (isConduitShape(s)) {
                                 // Find potential snap target for re-linking
                                 const queryRect = { x: worldPos.x - 20, y: worldPos.y - 20, width: 40, height: 40 };
                                 const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
                                 let foundLink: string | undefined = undefined;
                                 
                                 for (const cand of candidates) {
-                                    if (cand.id === s.id) continue;
+                                    if (!cand || cand.id === s.id) continue;
+                                    const layer = dataStore.layers.find(l => l.id === cand.layerId);
+                                    if (!layer || !layer.visible || layer.locked) continue;
                                     const connPt = getConnectionPoint(cand);
                                     if (connPt && getDistance(connPt, worldPos) < (10 / uiStore.viewTransform.scale)) {
                                         foundLink = cand.id;
@@ -769,8 +787,14 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                                 }
                                 
                                 const update: Partial<Shape> = {};
-                                if (activeHandle.handle.index === 0) update.connectedStartId = foundLink || undefined; // undefined to unlink
-                                if (activeHandle.handle.index === 1) update.connectedEndId = foundLink || undefined;
+                                if (activeHandle.handle.index === 0) {
+                                    update.fromConnectionId = foundLink || undefined;
+                                    update.connectedStartId = foundLink || undefined; // legacy
+                                }
+                                if (activeHandle.handle.index === 1) {
+                                    update.toConnectionId = foundLink || undefined;
+                                    update.connectedEndId = foundLink || undefined; // legacy
+                                }
                                 
                                 // Clean undefined values if mostly unnecessary, but here we want to explicitly remove link if undefined
                                 // updateShape handles partials, passing undefined might need check if backend supports it. assuming yes based on types.
@@ -945,6 +969,20 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         const raw = getMousePos(e);
         const worldPos = screenToWorld(raw, uiStore.viewTransform);
+
+        const isConduitTool = uiStore.activeTool === 'eletroduto' || uiStore.activeTool === 'conduit';
+        if (isConduitTool) {
+            // Conduit creation is handled on mouse down; avoid falling through to generic tool logic
+            setIsDragging(false);
+            setActiveHandle(null);
+            setStartPoint(null);
+            setCurrentPoint(null);
+            setIsSelectionBox(false);
+            setLockedAxis(null);
+            dragStartPositions.current.clear();
+            dragStartWorld.current = null;
+            return;
+        }
 
         if (rotationState.current) {
             const center = rotationState.current.center;

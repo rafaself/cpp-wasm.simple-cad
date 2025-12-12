@@ -147,8 +147,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       if (currentPoint) { const wm = screenToWorld(currentPoint, uiStore.viewTransform); ctx.lineTo(wm.x, wm.y); } ctx.stroke();
     }
 
-    // Highlight connection points for electrical symbols when drawing lines/polylines
-    if (['line', 'polyline', 'arrow'].includes(uiStore.activeTool) && currentPoint) {
+    // Highlight connection points for electrical symbols when drawing lines/polylines/eletrodutos
+    if (['line', 'polyline', 'arrow', 'eletroduto', 'conduit'].includes(uiStore.activeTool) && currentPoint) {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
         const threshold = 20 / uiStore.viewTransform.scale;
         
@@ -274,7 +274,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (hoverCursor === 'rotate') cursorClass = ROTATE_CURSOR;
   else if (hoverCursor) cursorClass = hoverCursor;
-  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
 
   return (
     <>

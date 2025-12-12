@@ -14,7 +14,8 @@ export type ToolType =
   | 'rotate'
   | 'text'
   | 'electrical-symbol'
-  | 'conduit';
+  | 'conduit' // Legacy name kept for compatibility
+  | 'eletroduto';
 
 export type DiagramNodeKind =
   | 'board'
@@ -164,8 +165,10 @@ export interface Shape {
 
   // Conduit-specific properties
   controlPoint?: Point; // Quadratic Bezier control point
-  connectedStartId?: string; // Shape ID connected to start point
-  connectedEndId?: string;   // Shape ID connected to end point
+  fromConnectionId?: string; // Shape ID connected to start point (preferred)
+  toConnectionId?: string;   // Shape ID connected to end point (preferred)
+  connectedStartId?: string; // Legacy alias for fromConnectionId
+  connectedEndId?: string;   // Legacy alias for toConnectionId
 
   // Special flags
   diagramNodeId?: string;

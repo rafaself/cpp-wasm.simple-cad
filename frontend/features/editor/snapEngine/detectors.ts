@@ -3,7 +3,7 @@ import { getDistance } from '../../../utils/geometry';
 
 export const getEndpoints = (shape: Shape): Point[] => {
     if (shape.points && shape.points.length > 0) {
-        if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow') {
+        if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') {
             const pts = [shape.points[0], shape.points[shape.points.length - 1]];
             if (shape.type === 'polyline') {
                 return shape.points;

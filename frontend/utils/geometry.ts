@@ -210,6 +210,8 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
 
     case 'line':
     case 'measure':
+    case 'conduit':
+    case 'eletroduto':
       if (shape.points.length < 2) return false;
       const p1 = shape.points[0];
       const p2 = shape.points[1];
@@ -322,7 +324,7 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
   if (mode === 'WINDOW') return isFullyInside;
 
   const pts = shape.points || [];
-  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow') {
+  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') {
       if (pts.some(p => isPointInRect(p, rect))) return true;
       for (let i = 0; i < pts.length - 1; i++) {
           if (isLineIntersectingRect(pts[i], pts[i+1], rect)) return true;
@@ -374,7 +376,7 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
          }
     }
     // Point-based shapes rely on already-rotated coordinates
-    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow') && shape.points) {
+    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
         shape.points.forEach(addPoint);
     } 
     else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
@@ -466,7 +468,7 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
     if (shape.electricalElementId) return handles;
     
-    if (shape.type === 'conduit') {
+    if (shape.type === 'eletroduto' || shape.type === 'conduit') {
         if (shape.points && shape.points.length >= 2) {
             // Start point
             handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });

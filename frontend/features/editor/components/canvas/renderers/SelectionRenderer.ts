@@ -58,7 +58,7 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
             ctx.moveTo(shape.points[0].x, shape.points[0].y);
             ctx.lineTo(shape.points[1].x, shape.points[1].y);
         }
-        else if (shape.type === 'conduit' && shape.points && shape.points.length >= 2) {
+        else if ((shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points && shape.points.length >= 2) {
             const [start, end] = shape.points;
             const cp = shape.controlPoint ?? { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
             ctx.moveTo(start.x, start.y);

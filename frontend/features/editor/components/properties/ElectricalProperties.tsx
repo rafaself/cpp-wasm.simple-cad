@@ -18,7 +18,7 @@ const formatCategory = (value?: string) => {
   if (value === 'power') return 'Potência';
   if (value === 'control') return 'Controle';
   if (value === 'signal') return 'Sinal';
-  if (value === 'conduit') return 'Eletrodutos';
+  if (value === 'conduit' || value === 'eletroduto') return 'Eletrodutos';
   return value;
 };
 
