@@ -581,6 +581,58 @@ const EditorRibbon: React.FC = () => {
 
   const isConduitShape = (s: Shape) => s.type === 'eletroduto' || s.type === 'conduit';
 
+  const serializeProject = useDataStore((state) => state.serializeProject);
+  const worldScale = useDataStore((state) => state.worldScale);
+  const frame = useDataStore((state) => state.frame);
+
+  const escapeHtml = (value: string) => {
+      return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  };
+
+  const exportProjectData = useCallback(() => {
+      const project = serializeProject();
+      const payload = {
+          meta: {
+              generatedAt: new Date().toISOString(),
+              worldScale,
+              frame,
+              viewTransform: uiStore.viewTransform,
+              activeTool: uiStore.activeTool,
+              sidebarTab: uiStore.sidebarTab,
+              selectedShapeIds: Array.from(uiStore.selectedShapeIds)
+          },
+          project
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'endeavour-project.json';
+      a.click();
+      URL.revokeObjectURL(url);
+  }, [serializeProject, worldScale, frame, uiStore.activeTool, uiStore.sidebarTab, uiStore.viewTransform, uiStore.selectedShapeIds]);
+
+  const openProjectPreview = useCallback(() => {
+      const project = serializeProject();
+      const payload = {
+          meta: {
+              generatedAt: new Date().toISOString(),
+              worldScale,
+              frame,
+              viewTransform: uiStore.viewTransform,
+              activeTool: uiStore.activeTool,
+              sidebarTab: uiStore.sidebarTab,
+              selectedShapeIds: Array.from(uiStore.selectedShapeIds)
+          },
+          project
+      };
+      const serialized = JSON.stringify(payload, null, 2);
+      const win = window.open('', '_blank');
+      if (!win) return;
+      win.document.write(`<!doctype html><html><head><title>Projeto Endeavour</title><style>body{background:#0f172a;color:#e2e8f0;font-family:Menlo,Consolas,monospace;margin:0;padding:16px;}pre{white-space:pre-wrap;font-size:12px;line-height:1.4;}</style></head><body><pre>${escapeHtml(serialized)}</pre></body></html>`);
+      win.document.close();
+  }, [serializeProject, worldScale, frame, uiStore.activeTool, uiStore.sidebarTab, uiStore.viewTransform, uiStore.selectedShapeIds]);
+
   const exportConnectionsMap = useCallback(() => {
       const shapes = dataStore.shapes;
       const electrical = dataStore.electricalElements;
@@ -701,6 +753,8 @@ tr:nth-child(even){background:#111827;}
       if (action === 'redo') dataStore.redo();
       if (action === 'open-settings') uiStore.setSettingsModalOpen(true);
       if (action === 'export-connections') exportConnectionsMap();
+      if (action === 'export-project') exportProjectData();
+      if (action === 'view-project') openProjectPreview();
       if (action === 'view-connections') viewConnectionsReport();
   };
 
@@ -864,7 +918,9 @@ tr:nth-child(even){background:#111827;}
             <RibbonSectionComponent key={idx} title={section.title}>
                 {section.layout === 'grid' ? (
                     <div className="grid grid-rows-2 grid-flow-col gap-1 auto-cols-max py-1 h-full">
-                        {section.items.map(item => (
+                        {section.items.map(item => {
+                            const actionDisabled = item.type === 'action' && !item.action;
+                            return (
                             <button
                                 key={item.id}
                                 onClick={() => {
@@ -886,7 +942,7 @@ tr:nth-child(even){background:#111827;}
                                 }}
                                 className={`flex flex-col items-center justify-center px-1 py-1 gap-0.5 rounded w-full min-w-[48px] transition-all duration-150
                                     ${(() => {
-                                        if (item.type !== 'tool') return BASE_BUTTON_STYLE;
+                                        if (item.type !== 'tool') return `${BASE_BUTTON_STYLE}${actionDisabled ? ' opacity-30 cursor-not-allowed' : ''}`;
                                         if (item.tool === 'electrical-symbol') {
                                             const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
                                             const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
@@ -896,6 +952,7 @@ tr:nth-child(even){background:#111827;}
                                     })()}
                                 `}
                                 title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
+                                disabled={actionDisabled}
                             >
                                 <div className="text-slate-400">
                                     {getIcon(item.icon)}
@@ -909,21 +966,23 @@ tr:nth-child(even){background:#111827;}
                                     return uiStore.activeTool === item.tool ? 'text-blue-300' : '';
                                 })()}`}>{item.label}</span>
                             </button>
-                        ))}
+                        );
+                        })}
 
                     </div>
                 ) : (
                     <div className="flex gap-2 h-full items-center px-1">
-                        {section.items.map(item => {
-                            if (item.type === 'component' && item.componentName) {
-                                const Component = ComponentRegistry[item.componentName];
-                                if (Component) return <React.Fragment key={item.id}><Component {...componentProps} /></React.Fragment>;
-                                return null;
-                            }
-                            // Large buttons for non-grid layout (File, etc)
-                             return (
-                                <button
-                                    key={item.id}
+                    {section.items.map(item => {
+                        const actionDisabled = item.type === 'action' && !item.action;
+                        if (item.type === 'component' && item.componentName) {
+                            const Component = ComponentRegistry[item.componentName];
+                            if (Component) return <React.Fragment key={item.id}><Component {...componentProps} /></React.Fragment>;
+                            return null;
+                        }
+                        // Large buttons for non-grid layout (File, etc)
+                         return (
+                            <button
+                                key={item.id}
                                     onClick={() => {
                                         if(item.type === 'tool' && item.tool) {
                                             uiStore.setTool(item.tool);
@@ -941,25 +1000,27 @@ tr:nth-child(even){background:#111827;}
                                         }
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
-                                    className={`flex flex-col items-center justify-center p-3 gap-2 rounded min-w-[64px] h-full transition-all duration-150 group/btn text-center
-                                        ${(() => {
-                                            if (item.type !== 'tool') return BASE_BUTTON_STYLE;
-                                            if (item.tool === 'electrical-symbol') {
-                                                const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                                const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
-                                                return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
-                                            }
+                                className={`flex flex-col items-center justify-center p-3 gap-2 rounded min-w-[64px] h-full transition-all duration-150 group/btn text-center
+                                    ${(() => {
+                                        if (item.type !== 'tool') return `${BASE_BUTTON_STYLE}${actionDisabled ? ' opacity-30 cursor-not-allowed' : ''}`;
+                                        if (actionDisabled) return `${BASE_BUTTON_STYLE} opacity-30 cursor-not-allowed`;
+                                        if (item.tool === 'electrical-symbol') {
+                                            const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
+                                            const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
+                                            return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                        }
                                             return uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                         })()}
-                                    `}
-                                    title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
-                                >
+                                `}
+                                title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
+                                disabled={actionDisabled}
+                            >
                                     <div className="transform transition-transform group-hover/btn:scale-110 duration-200">
                                          {getIcon(item.icon)}
                                     </div>
                                     <span className="text-[10px] font-medium text-center leading-tight">{item.label}</span>
                                 </button>
-                                )
+                        );
                         })}
                     </div>
                 )}

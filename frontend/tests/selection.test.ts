@@ -9,6 +9,7 @@ describe('Selection Logic', () => {
             type: 'line',
             layerId: '0',
             strokeColor: '#000',
+            fillColor: '#fff',
             points: [{ x: -5, y: -5 }, { x: 15, y: 15 }]
         };
 

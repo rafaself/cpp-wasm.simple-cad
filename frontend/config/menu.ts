@@ -40,14 +40,16 @@ export const MENU_CONFIG: MenuTab[] = [
           { id: 'save', label: 'Salvar', icon: 'Save', type: 'action', action: 'save-file' },
         ]
       },
-      {
-        title: 'Exportar',
-        layout: 'row',
-        items: [
-           { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
-           { id: 'report-csv', label: 'Relatorio CSV', icon: 'ExportCSV', type: 'action', action: 'report-csv' },
-           { id: 'export-connections', label: 'Exportar Conexoes', icon: 'ExportJSON', type: 'action', action: 'export-connections' },
-           { id: 'view-connections', label: 'Ver Relatorio', icon: 'ExportJSON', type: 'action', action: 'view-connections' }
+       {
+         title: 'Exportar',
+         layout: 'row',
+         items: [
+            { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
+            { id: 'report-csv', label: 'Relatorio CSV', icon: 'ExportCSV', type: 'action', action: 'report-csv' },
+            { id: 'export-connections', label: 'Exportar Conexoes', icon: 'ExportJSON', type: 'action', action: 'export-connections' },
+             { id: 'export-project', label: 'Exportar Projeto (download)', icon: 'ExportJSON', type: 'action', action: 'export-project' },
+             { id: 'view-project', label: 'Ver Projeto JSON (nova aba)', icon: 'ExportJSON', type: 'action', action: 'view-project' },
+            { id: 'view-connections', label: 'Ver Relatorio', icon: 'ExportJSON', type: 'action', action: 'view-connections' }
         ]
       },
       {
