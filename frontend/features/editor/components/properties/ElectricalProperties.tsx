@@ -18,6 +18,7 @@ const formatCategory = (value?: string) => {
   if (value === 'power') return 'Potência';
   if (value === 'control') return 'Controle';
   if (value === 'signal') return 'Sinal';
+  if (value === 'conduit') return 'Eletrodutos';
   return value;
 };
 
@@ -61,8 +62,19 @@ export const ElectricalProperties: React.FC<ElectricalPropertiesProps> = ({ sele
       value = Number.isFinite(parsed) ? parsed : 0;
     }
 
-    const updated = { ...mergedMetadata, [definition.key]: value };
-    store.updateElectricalElement(element.id, { metadata: updated });
+    // Special handling for shared properties: name, description
+    // Or if the user explicitly wants to update all "linked" instances.
+    // The requirement says: "Alterar em uma deve refletir em todas do mesmo tipo" for Name/Description.
+
+    // Check if this property should be propagated
+    const isSharedProperty = definition.key === 'name' || definition.key === 'description';
+
+    if (isSharedProperty) {
+        store.updateSharedElectricalProperties(element, { [definition.key]: value });
+    } else {
+        const updated = { ...mergedMetadata, [definition.key]: value };
+        store.updateElectricalElement(element.id, { metadata: updated });
+    }
   };
 
   return (
@@ -71,7 +83,7 @@ export const ElectricalProperties: React.FC<ElectricalPropertiesProps> = ({ sele
         <div className="flex-1">
           <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">Propriedades elétricas</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            {element.name ? element.name : 'Símbolo'} • {formatCategory(element.category)}
+            {mergedMetadata.name || element.name || 'Símbolo'} • {formatCategory(element.category)}
           </p>
         </div>
         <Info size={14} className="text-slate-400" />

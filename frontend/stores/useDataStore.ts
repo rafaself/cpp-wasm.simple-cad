@@ -36,6 +36,7 @@ interface DataState {
   deleteShape: (id: string) => void;
   addElectricalElement: (element: ElectricalElement) => void;
   updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
+  updateSharedElectricalProperties: (sourceElement: ElectricalElement, diff: Record<string, any>) => void; // Added for shared props
   deleteElectricalElement: (id: string) => void;
 
   // Layer Ops
@@ -466,6 +467,36 @@ export const useDataStore = create<DataState>((set, get) => ({
           electricalElements: { ...state.electricalElements, [id]: updated },
           shapes: updatedShapes
         };
+      });
+  },
+
+  updateSharedElectricalProperties: (sourceElement, diff) => {
+      set(state => {
+          const updates: Record<string, ElectricalElement> = {};
+          // Rule: "Conexões da mesma natureza compartilham o mesmo nome e descrição"
+          // We identify "nature" by the current Name or the Symbol Name.
+          // If we are changing the name, we want to update all elements that currently have the SAME name as the source.
+          // Or if we are changing description, etc.
+          // The requirement says: "Conexões da mesma natureza compartilham o mesmo nome e descrição. Alterar em uma deve refletir em todas do mesmo tipo"
+          // This usually implies grouping by 'name' (e.g. all 'TUG's).
+
+          // If 'name' is being changed, we find all elements with the OLD name.
+          // If 'description' is being changed, we find all elements with the CURRENT name.
+
+          const targetName = sourceElement.metadata?.name ?? sourceElement.name;
+
+          Object.values(state.electricalElements).forEach(el => {
+              const elName = el.metadata?.name ?? el.name;
+              // Check if it matches the "nature" (same name) and same category
+              if (elName === targetName && el.category === sourceElement.category) {
+                   const mergedMetadata = { ...el.metadata, ...diff };
+                   updates[el.id] = { ...el, metadata: mergedMetadata };
+              }
+          });
+
+          return {
+              electricalElements: { ...state.electricalElements, ...updates }
+          };
       });
   },
 

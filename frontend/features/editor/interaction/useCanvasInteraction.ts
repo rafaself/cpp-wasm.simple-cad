@@ -75,7 +75,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
-    const [conduitStart, setConduitStart] = useState<Point | null>(null);
+    const [conduitStart, setConduitStart] = useState<{ point: Point; shapeId: string } | null>(null);
     const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
     // Shift key state for real-time updates during drag
@@ -601,29 +601,55 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         }
 
         if (uiStore.activeTool === 'conduit') {
-            if (!conduitStart) {
-                setConduitStart(wPos);
-            } else {
-                // Determine connection IDs
-                const findConnectedShapeId = (p: Point) => {
-                    const queryRect = { x: p.x - 5, y: p.y - 5, width: 10, height: 10 };
-                    const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
-                    for (const cand of candidates) {
-                        const connPt = getConnectionPoint(cand);
-                        if (connPt && getDistance(connPt, p) < (10 / uiStore.viewTransform.scale)) {
-                            return cand.id;
-                        }
+            // Helper to find snap connection point
+            const findSnapConnectionId = (p: Point): string | undefined => {
+                const queryRect = { x: p.x - 5, y: p.y - 5, width: 10, height: 10 };
+                const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
+                for (const cand of candidates) {
+                    const connPt = getConnectionPoint(cand);
+                    if (connPt && getDistance(connPt, p) < (10 / uiStore.viewTransform.scale)) {
+                        return cand.id;
                     }
-                    return undefined;
-                };
+                }
+                return undefined;
+            };
 
-                const startId = findConnectedShapeId(conduitStart);
-                const endId = findConnectedShapeId(wPos);
+            if (!conduitStart) {
+                // First click: Start the conduit only from a valid connection point
+                const startId = findSnapConnectionId(wPos);
+                if (!startId) {
+                    setConduitStart(null);
+                    return;
+                }
+
+                const startConnection = getConnectionPoint(dataStore.shapes[startId]);
+                if (!startConnection) {
+                    setConduitStart(null);
+                    return;
+                }
+
+                setConduitStart({ point: startConnection, shapeId: startId });
+            } else {
+                // Second click: End the conduit
+                const startId = conduitStart.shapeId;
+                const startPoint = getConnectionPoint(dataStore.shapes[startId]);
+                const endId = findSnapConnectionId(wPos);
+
+                if (!startPoint || !endId) {
+                    setConduitStart(null);
+                    return;
+                }
+
+                const endPoint = getConnectionPoint(dataStore.shapes[endId]);
+                if (!endPoint || startId === endId) {
+                    setConduitStart(null);
+                    return;
+                }
 
                 // Prevent duplicates
                 if (startId && endId) {
-                    const existing = Object.values(dataStore.shapes).find(s => 
-                        s.type === 'conduit' && 
+                    const existing = Object.values(dataStore.shapes).find(s =>
+                        s.type === 'conduit' &&
                         ((s.connectedStartId === startId && s.connectedEndId === endId) ||
                          (s.connectedStartId === endId && s.connectedEndId === startId))
                     );
@@ -646,12 +672,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     fillColor: 'transparent',
                     fillEnabled: false,
                     colorMode: { stroke: 'layer', fill: 'layer' },
-                    points: [conduitStart, wPos],
+                    points: [startPoint, endPoint],
                     connectedStartId: startId,
                     connectedEndId: endId
                 });
                 
-                // Allow continuous drawing? No, per spec usually point A to B. Reset.
                 setConduitStart(null);
             }
             return;
