@@ -124,7 +124,44 @@ const getTextDimensions = (shape: Shape) => {
   return { width: totalWidth, height: totalHeight, lines: wrapped };
 };
 
+/**
+ * Calculates arc parameters (center, radius, angles, sweep).
+ */
+export const getArcParams = (shape: Shape): { cx: number, cy: number, radius: number, startAngle: number, endAngle: number, totalSweep: number } | null => {
+    if (shape.type !== 'arc' || !shape.points || shape.points.length < 2) return null;
 
+    const pt1 = shape.points[0];
+    const pt2 = shape.points[1];
+    const d = getDistance(pt1, pt2);
+    let r = shape.radius || d;
+    if (r < d / 2) r = d / 2;
+    const h = Math.sqrt(Math.max(0, r*r - (d/2)*(d/2)));
+    const dx = pt2.x - pt1.x;
+    const dy = pt2.y - pt1.y;
+    const midX = (pt1.x + pt2.x) / 2;
+    const midY = (pt1.y + pt2.y) / 2;
+    const chordDist = Math.sqrt(dx*dx + dy*dy);
+    if (chordDist === 0) return null;
+    const udx = -dy / chordDist;
+    const udy = dx / chordDist;
+    const arcCx = midX + udx * h;
+    const arcCy = midY + udy * h;
+
+    const startAngle = Math.atan2(pt1.y - arcCy, pt1.x - arcCx);
+    const endAngle = Math.atan2(pt2.y - arcCy, pt2.x - arcCx);
+
+    const normalize = (a: number) => (a % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const totalSweep = normalize(endAngle - startAngle);
+
+    return {
+        cx: arcCx,
+        cy: arcCy,
+        radius: r,
+        startAngle,
+        endAngle,
+        totalSweep
+    };
+};
 
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
   const hitToleranceScreen = 10; 
@@ -216,31 +253,15 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       return false;
 
     case 'arc': {
-        if (shape.points.length < 2) return false;
-        const pt1 = shape.points[0];
-        const pt2 = shape.points[1];
-        const d = getDistance(pt1, pt2);
-        let r = shape.radius || d; 
-        if (r < d / 2) r = d / 2;
-        const h = Math.sqrt(Math.max(0, r*r - (d/2)*(d/2)));
-        const dx = pt2.x - pt1.x;
-        const dy = pt2.y - pt1.y;
-        const midX = (pt1.x + pt2.x) / 2;
-        const midY = (pt1.y + pt2.y) / 2;
-        const chordDist = Math.sqrt(dx*dx + dy*dy);
-        const udx = -dy / chordDist;
-        const udy = dx / chordDist;
-        const arcCx = midX + udx * h;
-        const arcCy = midY + udy * h;
-        const distToCenter = getDistance(point, {x: arcCx, y: arcCy});
+        const params = getArcParams(shape);
+        if (!params) return false;
 
-        if (Math.abs(distToCenter - r) <= threshold) {
-            const startAngle = Math.atan2(pt1.y - arcCy, pt1.x - arcCx);
-            const endAngle = Math.atan2(pt2.y - arcCy, pt2.x - arcCx);
-            const pointAngle = Math.atan2(point.y - arcCy, point.x - arcCx);
+        const { cx, cy, radius, startAngle, totalSweep } = params;
+        const distToCenter = getDistance(point, {x: cx, y: cy});
 
+        if (Math.abs(distToCenter - radius) <= threshold) {
+            const pointAngle = Math.atan2(point.y - cy, point.x - cx);
             const normalize = (a: number) => (a % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
-            const totalSweep = normalize(endAngle - startAngle);
             const pointSweep = normalize(pointAngle - startAngle);
 
             return pointSweep <= totalSweep || Math.abs(totalSweep - 2 * Math.PI) < 1e-5;
@@ -330,8 +351,30 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
         if (p.y > maxY) maxY = p.y;
     };
 
+    if (shape.type === 'arc') {
+         // Add start and end points
+         if (shape.points) shape.points.forEach(addPoint);
+
+         const params = getArcParams(shape);
+         if (params) {
+             const { cx, cy, radius, startAngle, totalSweep } = params;
+             const normalize = (a: number) => (a % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+
+             // Check cardinal points (0, PI/2, PI, 3PI/2)
+             const cardinals = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
+             cardinals.forEach(angle => {
+                 const relativeAngle = normalize(angle - startAngle);
+                 if (relativeAngle <= totalSweep || Math.abs(totalSweep - 2 * Math.PI) < 1e-5) {
+                     addPoint({
+                         x: cx + radius * Math.cos(angle),
+                         y: cy + radius * Math.sin(angle)
+                     });
+                 }
+             });
+         }
+    }
     // Point-based shapes rely on already-rotated coordinates
-    if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow') && shape.points) {
+    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow') && shape.points) {
         shape.points.forEach(addPoint);
     } 
     else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
