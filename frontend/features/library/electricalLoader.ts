@@ -23,7 +23,7 @@ export interface LibrarySymbol {
   defaultConnectionPoint: { x: number; y: number }; // Normalized 0-1
 }
 
-const electricalSvgs = import.meta.glob<string>('../../assets/electrical/*.svg', { as: 'raw', eager: true });
+const electricalSvgs = import.meta.glob('../../assets/electrical/*.svg', { query: '?raw', import: 'default', eager: true });
 const DEFAULT_VIEWBOX_SIZE = 32;
 
 function parseViewBoxValue(value: string | null): NormalizedViewBox | null {

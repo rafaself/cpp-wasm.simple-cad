@@ -39,8 +39,8 @@ const symbolDefaults: Record<string, Record<string, ElectricalMetadataValue>> = 
     luminousFlux: 900,
     circuit: 'ILU',
     technology: 'LED',
-    name: 'Lâmpada',
-    description: 'Ponto de Iluminação',
+    name: 'Lampada',
+    description: 'Ponto de Iluminacao',
   },
 };
 
@@ -50,24 +50,24 @@ const baseSchema: ElectricalPropertyDefinition[] = [
     label: 'Nome',
     type: 'text',
     placeholder: 'Ex: TUG',
-    helperText: 'Identificador do grupo de conexões',
+    helperText: 'Identificador do grupo de conexoes',
   },
   {
     key: 'description',
-    label: 'Descrição',
+    label: 'Descricao',
     type: 'text',
     placeholder: 'Ex: Tomada Uso Geral',
   },
   {
     key: 'voltage',
-    label: 'Tensão',
+    label: 'Tensao',
     type: 'number',
     unit: 'V',
     step: 1,
   },
   {
     key: 'power',
-    label: 'Potência',
+    label: 'Potencia',
     type: 'number',
     unit: 'W',
     step: 50,
@@ -99,7 +99,7 @@ const symbolSchemas: Record<string, ElectricalPropertyDefinition[]> = {
     },
     {
       key: 'mounting',
-      label: 'Instalação',
+      label: 'Instalacao',
       type: 'text',
       placeholder: 'Aparente / Embutida',
     },
@@ -121,7 +121,7 @@ const symbolSchemas: Record<string, ElectricalPropertyDefinition[]> = {
     },
   ],
   conduit: [
-    { key: 'diameter', label: 'Diâmetro', type: 'number', unit: 'mm', step: 5 },
+    { key: 'diameter', label: 'Diametro', type: 'number', unit: 'mm', step: 5 },
     { key: 'material', label: 'Material', type: 'text', placeholder: 'PVC / Metal' },
     { key: 'circuit', label: 'Circuito', type: 'text', placeholder: 'Ex.: C-01' }
   ],
@@ -129,7 +129,7 @@ const symbolSchemas: Record<string, ElectricalPropertyDefinition[]> = {
 
 export const ELECTRICAL_LAYER_CONFIG: Record<string, { name: string; strokeColor: string; fillColor?: string; fillEnabled?: boolean }> = {
   duplex_outlet: { name: 'Tomadas', strokeColor: '#0ea5e9', fillEnabled: false },
-  lamp: { name: 'Iluminação', strokeColor: '#f59e0b', fillEnabled: false },
+  lamp: { name: 'Iluminacao', strokeColor: '#f59e0b', fillEnabled: false },
   conduit: { name: 'Eletrodutos', strokeColor: '#8b5cf6', fillEnabled: false },
 };
 
@@ -150,7 +150,7 @@ export const getElectricalLayerConfig = (
   if (symbolId && ELECTRICAL_LAYER_CONFIG[symbolId]) return ELECTRICAL_LAYER_CONFIG[symbolId];
   if (category === ElectricalCategory.CONDUIT) return ELECTRICAL_LAYER_CONFIG.conduit;
   if (category === ElectricalCategory.LIGHTING && ELECTRICAL_LAYER_CONFIG.lamp) return ELECTRICAL_LAYER_CONFIG.lamp;
-  return { name: 'Elétrica', strokeColor: '#0f172a', fillEnabled: false };
+  return { name: 'Eletrica', strokeColor: '#0f172a', fillEnabled: false };
 };
 
 export const getDefaultMetadataForSymbol = (

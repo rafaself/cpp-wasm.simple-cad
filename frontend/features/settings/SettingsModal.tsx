@@ -13,7 +13,6 @@ const SettingsModal: React.FC = () => {
   const setOpen = useUIStore(s => s.setSettingsModalOpen);
   const [activeSection, setActiveSection] = useState<SettingsSection>('document');
 
-  // Reset to first section when modal opens
   useEffect(() => {
     if (isOpen) {
       setActiveSection('document');
@@ -44,9 +43,8 @@ const SettingsModal: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
       <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-slate-100">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <h2 className="font-semibold text-base">Configurações</h2>
+          <h2 className="font-semibold text-base">Configuracoes</h2>
           <button 
             onClick={() => setOpen(false)}
             className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700"
@@ -55,22 +53,18 @@ const SettingsModal: React.FC = () => {
           </button>
         </div>
         
-        {/* Body */}
         <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar */}
           <SettingsSidebar 
             sections={sections}
             activeSection={activeSection}
             onSectionChange={setActiveSection}
           />
           
-          {/* Content */}
           <div className="flex-1 overflow-y-auto p-4">
             {renderContent()}
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-4 py-3 border-t border-slate-700 flex justify-end gap-2">
           <button 
             onClick={() => setOpen(false)}

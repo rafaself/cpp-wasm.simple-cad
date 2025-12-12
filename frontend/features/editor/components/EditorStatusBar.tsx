@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
@@ -19,7 +19,6 @@ const EditorStatusBar: React.FC = () => {
   const [totalLength, setTotalLength] = useState<string | null>(null);
   const isElectricalInsert = uiStore.activeTool === 'electrical-symbol';
 
-  // POC: Calculate total length of selected lines
   useEffect(() => {
     if (uiStore.selectedShapeIds.size > 0) {
         let total = 0;
@@ -43,7 +42,7 @@ const EditorStatusBar: React.FC = () => {
 
         if (hasLines) {
             const meters = total / dataStore.worldScale;
-            setTotalLength(meters.toFixed(2) + "m");
+            setTotalLength(meters.toFixed(2) + 'm');
         } else {
             setTotalLength(null);
         }
@@ -55,7 +54,6 @@ const EditorStatusBar: React.FC = () => {
   const toggleSnap = () => setSnapEnabled(!snapSettings.enabled);
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
 
-  // Limit max scale to 5 (500%)
   const handleZoomIn = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
   const handleZoomOut = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
 
@@ -66,10 +64,8 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-
-        {/* POC: Material Calculator Display */}
         {totalLength && (
-            <div className="flex items-center gap-2 bg-blue-900/30 border border-blue-500/50 px-2 py-0.5 rounded text-blue-200" title="Comprimento total dos fios selecionados (POC de Inteligência)">
+            <div className="flex items-center gap-2 bg-blue-900/30 border border-blue-500/50 px-2 py-0.5 rounded text-blue-200" title="Comprimento total dos fios selecionados (POC)">
                 <Calculator size={14} />
                 <span className="font-bold">{totalLength}</span>
                 <span className="text-[10px] opacity-60">(Fio)</span>
@@ -79,8 +75,8 @@ const EditorStatusBar: React.FC = () => {
         {isElectricalInsert && (
             <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-400/50 px-2 py-0.5 rounded text-amber-100 shadow-sm">
                 <Zap size={14} />
-                <span className="font-semibold">Inserção elétrica</span>
-                <span className="text-[10px] text-amber-200/80">R girar • F/V espelhar • Clique para duplicar</span>
+                <span className="font-semibold">Insercao eletrica</span>
+                <span className="text-[10px] text-amber-200/80">R girar | F/V espelhar | Clique para duplicar</span>
             </div>
         )}
 
@@ -101,13 +97,13 @@ const EditorStatusBar: React.FC = () => {
                   <input type="checkbox" checked={snapSettings.endpoint} onChange={() => toggleOption('endpoint')} /> <Square size={12} /> Extremidade
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.midpoint} onChange={() => toggleOption('midpoint')} /> <Target size={12} /> Ponto Médio
+                  <input type="checkbox" checked={snapSettings.midpoint} onChange={() => toggleOption('midpoint')} /> <Target size={12} /> Ponto medio
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
                   <input type="checkbox" checked={snapSettings.center} onChange={() => toggleOption('center')} /> <CircleDot size={12} /> Centro
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.nearest} onChange={() => toggleOption('nearest')} /> <Crosshair size={12} /> Mais Próximo
+                  <input type="checkbox" checked={snapSettings.nearest} onChange={() => toggleOption('nearest')} /> <Crosshair size={12} /> Mais proximo
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
                   <input type="checkbox" checked={snapSettings.grid} onChange={() => toggleOption('grid')} /> <Grid3x3 size={12} /> Grade
@@ -123,9 +119,8 @@ const EditorStatusBar: React.FC = () => {
          
          <div className="h-4 w-px bg-slate-600 mx-2" />
          
-         <button onClick={zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? "Zoom na Seleção" : "Ajustar Zoom"}><Scan size={14} /></button>
+         <button onClick={zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}><Scan size={14} /></button>
          
-         {/* Zoom Editable Area */}
          <div className="w-16 h-full flex items-center justify-center py-0.5">
             <EditableNumber
                 value={uiStore.viewTransform.scale * 100}

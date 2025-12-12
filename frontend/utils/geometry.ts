@@ -102,7 +102,7 @@ export const getWrappedLines = (text: string, maxWidth: number, fontSize: number
   return lines;
 };
 
-const getTextDimensions = (shape: Shape) => {
+export const getTextDimensions = (shape: Shape) => {
   const fontSize = shape.fontSize || 16;
   const lineHeight = shape.lineHeight || fontSize * 1.2;
   const rawText = shape.textContent || '';

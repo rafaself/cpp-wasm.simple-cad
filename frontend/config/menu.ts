@@ -29,10 +29,10 @@ export interface MenuTab {
 export const MENU_CONFIG: MenuTab[] = [
   {
     id: 'file',
-    label: 'INÍCIO',
+    label: 'INICIO',
     sections: [
       {
-        title: 'Operações',
+        title: 'Operacoes',
         layout: 'row',
         items: [
           { id: 'new', label: 'Novo', icon: 'New', type: 'action', action: 'new-file' },
@@ -45,8 +45,8 @@ export const MENU_CONFIG: MenuTab[] = [
         layout: 'row',
         items: [
            { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
-           { id: 'report-csv', label: 'Relat?rio CSV', icon: 'ExportCSV', type: 'action', action: 'export-csv' },
-           { id: 'export-connections', label: 'Exportar Conex?es', icon: 'ExportJSON', type: 'action', action: 'export-connections' },
+           { id: 'report-csv', label: 'Relatorio CSV', icon: 'ExportCSV', type: 'action', action: 'report-csv' },
+           { id: 'export-connections', label: 'Exportar Conexoes', icon: 'ExportJSON', type: 'action', action: 'export-connections' },
            { id: 'view-connections', label: 'Ver Relatorio', icon: 'ExportJSON', type: 'action', action: 'view-connections' }
         ]
       },
@@ -54,7 +54,7 @@ export const MENU_CONFIG: MenuTab[] = [
         title: 'Janela',
         layout: 'row',
         items: [
-            { id: 'settings', label: 'Configurações', icon: 'Settings', type: 'action', action: 'open-settings' }
+            { id: 'settings', label: 'Configuracoes', icon: 'Settings', type: 'action', action: 'open-settings' }
         ]
       }
     ]
@@ -71,10 +71,10 @@ export const MENU_CONFIG: MenuTab[] = [
           { id: 'line', label: 'Linha', icon: 'Line', type: 'tool', tool: 'line', shortcut: 'L' },
           { id: 'arrow', label: 'Seta', icon: 'Arrow', type: 'tool', tool: 'arrow' },
           { id: 'polyline', label: 'Polilinha', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: 'P' },
-          { id: 'circle', label: 'Círculo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: 'C' },
+          { id: 'circle', label: 'Circulo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: 'C' },
           { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: 'A' },
-          { id: 'rect', label: 'Retângulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: 'R' },
-          { id: 'polygon', label: 'Polígono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: 'G' },
+          { id: 'rect', label: 'Retangulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: 'R' },
+          { id: 'polygon', label: 'Poligono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: 'G' },
         ]
       },
       {
@@ -82,12 +82,12 @@ export const MENU_CONFIG: MenuTab[] = [
           layout: 'row',
           items: [
               { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text', shortcut: 'T' },
-              { id: 'text-format-group', label: 'Formatação', icon: 'Settings', type: 'component', componentName: 'TextFormatGroup' },
+              { id: 'text-format-group', label: 'Formatacao', icon: 'Settings', type: 'component', componentName: 'TextFormatGroup' },
           ]
       },
 
       {
-          title: 'Aparência',
+          title: 'Aparencia',
           layout: 'row',
           items: [
               { id: 'color-control', label: 'Cores', icon: 'Palette', type: 'component', componentName: 'ColorControl' },
@@ -128,7 +128,7 @@ export const MENU_CONFIG: MenuTab[] = [
         ]
       },
       {
-          title: 'Medição',
+          title: 'Medicao',
           layout: 'row',
           items: [
               { id: 'measure', label: 'Medir', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
@@ -143,7 +143,7 @@ export const MENU_CONFIG: MenuTab[] = [
         ]
       },
       {
-        title: 'Histórico',
+        title: 'Historico',
         layout: 'row',
         items: [
             { id: 'undo', label: 'Desfazer', icon: 'Undo', type: 'action', action: 'undo', shortcut: 'Ctrl+Z' },
@@ -154,7 +154,7 @@ export const MENU_CONFIG: MenuTab[] = [
   },
   {
     id: 'electrical',
-    label: 'LANÇAMENTO',
+    label: 'LANCAMENTO',
     sections: [
       {
         title: 'Caminhos',
@@ -168,7 +168,7 @@ export const MENU_CONFIG: MenuTab[] = [
         layout: 'row',
         items: [
           { id: 'outlet', label: 'Tomada', icon: 'Plug', type: 'tool', tool: 'electrical-symbol' },
-          { id: 'lamp', label: 'Lâmpada', icon: 'Lightbulb', type: 'tool', tool: 'electrical-symbol' }
+          { id: 'lamp', label: 'Lampada', icon: 'Lightbulb', type: 'tool', tool: 'electrical-symbol' }
         ]
       }
     ]

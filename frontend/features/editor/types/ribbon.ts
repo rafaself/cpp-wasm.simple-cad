@@ -2,7 +2,8 @@
  * Type definitions for Ribbon controls and components.
  */
 
-import { Layer, Shape, ToolType } from '../types';
+import type { RefObject, MouseEvent } from 'react';
+import { Layer, Shape, ToolType } from '@/types';
 
 // ============================================
 // TEXT CONTROL TYPES
@@ -32,8 +33,8 @@ export interface LayerControlProps {
   isDropdownOpen: boolean;
   setDropdownOpen: (open: boolean) => void;
   openDropdown: () => void;
-  buttonRef: React.RefObject<HTMLButtonElement>;
-  dropdownRef: React.RefObject<HTMLDivElement>;
+  buttonRef: RefObject<HTMLButtonElement>;
+  dropdownRef: RefObject<HTMLDivElement>;
   dropdownPos: { top: number; left: number };
 }
 
@@ -49,7 +50,7 @@ export interface ColorPickerTarget {
 
 export interface ColorControlProps {
   activeLayer: Layer | undefined;
-  openColorPicker: (e: React.MouseEvent, target: ColorPickerTarget) => void;
+  openColorPicker: (e: MouseEvent, target: ColorPickerTarget) => void;
   selectedShapeIds: string[];
 }
 
@@ -58,7 +59,7 @@ export interface ColorControlProps {
 // ============================================
 
 export interface GridControlProps {
-  openColorPicker: (e: React.MouseEvent, target: ColorPickerTarget) => void;
+  openColorPicker: (e: MouseEvent, target: ColorPickerTarget) => void;
 }
 
 // ============================================

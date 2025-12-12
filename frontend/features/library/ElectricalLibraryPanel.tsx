@@ -11,10 +11,11 @@ interface ElectricalLibraryPanelProps {
 }
 
 const CATEGORY_LABELS: Record<ElectricalCategory, string> = {
-  [ElectricalCategory.POWER]: 'Potência',
+  [ElectricalCategory.POWER]: 'Potencia',
   [ElectricalCategory.CONTROL]: 'Controle',
   [ElectricalCategory.SIGNAL]: 'Sinal',
-  [ElectricalCategory.LIGHTING]: 'Iluminação',
+  [ElectricalCategory.LIGHTING]: 'Iluminacao',
+  [ElectricalCategory.CONDUIT]: 'Eletroduto',
 };
 
 const categoryOptions = [
@@ -54,7 +55,7 @@ const ElectricalLibraryPanel: React.FC<ElectricalLibraryPanelProps> = ({ compact
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 uppercase tracking-wide">
           <Zap size={14} className="text-amber-500" />
-          <span>Símbolos elétricos</span>
+          <span>Simbolos eletricos</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Layers size={14} />
@@ -99,7 +100,7 @@ const ElectricalLibraryPanel: React.FC<ElectricalLibraryPanelProps> = ({ compact
       <div className="flex-1 min-h-0 overflow-y-auto">
         {isLoading && <div className="text-xs text-slate-500">Carregando biblioteca...</div>}
         {!isLoading && filtered.length === 0 && (
-          <div className="text-xs text-slate-500">Nenhum símbolo encontrado.</div>
+          <div className="text-xs text-slate-500">Nenhum simbolo encontrado.</div>
         )}
         <div className="grid grid-cols-2 gap-2 mt-1">
           {filtered.map((symbol) => (
@@ -133,7 +134,7 @@ const ElectricalLibraryPanel: React.FC<ElectricalLibraryPanelProps> = ({ compact
       </div>
 
       <div className="text-[10px] text-slate-500 bg-blue-50 border border-blue-100 rounded-md px-2 py-1">
-        Clique em um item para iniciar a inserção. Use R para girar, F/V para espelhar e continue clicando para duplicar.
+        Clique em um item para iniciar a insercao. Use R para girar, F/V para espelhar e continue clicando para duplicar.
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
 import { MENU_CONFIG } from '../../../config/menu';
-import { getIcon } from '../../../utils/iconMap.tsx';
+import { getIcon } from '../../../utils/iconMap';
 import { ensureContrastColor } from '../../../utils/color';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Palette, ChevronDown } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';

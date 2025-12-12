@@ -32,7 +32,6 @@ interface DataState {
   // Actions
   addShape: (shape: Shape, electricalElement?: ElectricalElement, diagram?: { node?: DiagramNode; edge?: DiagramEdge }) => void;
   updateShape: (id: string, diff: Partial<Shape>, recordHistory?: boolean) => void;
-  updateShapes: (updater: (prev: Record<string, Shape>) => Record<string, Shape>) => void; // Deprecated, avoid use
   deleteShape: (id: string) => void;
   addElectricalElement: (element: ElectricalElement) => void;
   updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
@@ -369,17 +368,6 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (recordHistory) {
           saveToHistory([{ type: 'UPDATE', id, diff, prev: oldShape }]);
       }
-  },
-
-  updateShapes: (updater) => {
-      set(state => {
-          const newShapes = updater(state.shapes);
-          // With bulk update, it's safer to full sync for now unless we track diffs
-          state.spatialIndex.clear();
-          Object.values(newShapes).forEach(s => state.spatialIndex.insert(s));
-          return { shapes: newShapes };
-      });
-      get().syncDiagramEdgesGeometry();
   },
 
   deleteShape: (id) => {

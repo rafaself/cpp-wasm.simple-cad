@@ -13,9 +13,9 @@ interface ElectricalPropertiesProps {
 }
 
 const formatCategory = (value?: string) => {
-  if (!value) return 'Elétrica';
-  if (value === 'lighting') return 'Iluminação';
-  if (value === 'power') return 'Potência';
+  if (!value) return 'Eletrica';
+  if (value === 'lighting') return 'Iluminacao';
+  if (value === 'power') return 'Potencia';
   if (value === 'control') return 'Controle';
   if (value === 'signal') return 'Sinal';
   if (value === 'conduit' || value === 'eletroduto') return 'Eletrodutos';
@@ -49,8 +49,8 @@ export const ElectricalProperties: React.FC<ElectricalPropertiesProps> = ({ sele
   if (!element) {
     return (
       <div className="p-3 border-b border-slate-100">
-        <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide mb-2">Propriedades elétricas</h3>
-        <p className="text-xs text-slate-500">Selecione um símbolo elétrico para editar.</p>
+        <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide mb-2">Propriedades eletricas</h3>
+        <p className="text-xs text-slate-500">Selecione um simbolo eletrico para editar.</p>
       </div>
     );
   }
@@ -62,11 +62,6 @@ export const ElectricalProperties: React.FC<ElectricalPropertiesProps> = ({ sele
       value = Number.isFinite(parsed) ? parsed : 0;
     }
 
-    // Special handling for shared properties: name, description
-    // Or if the user explicitly wants to update all "linked" instances.
-    // The requirement says: "Alterar em uma deve refletir em todas do mesmo tipo" for Name/Description.
-
-    // Check if this property should be propagated
     const isSharedProperty = definition.key === 'name' || definition.key === 'description';
 
     if (isSharedProperty) {
@@ -81,9 +76,9 @@ export const ElectricalProperties: React.FC<ElectricalPropertiesProps> = ({ sele
     <div className="p-3 border-b border-slate-100 flex flex-col gap-3">
       <div className="flex items-start gap-2">
         <div className="flex-1">
-          <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">Propriedades elétricas</h3>
+          <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">Propriedades eletricas</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            {mergedMetadata.name || element.name || 'Símbolo'} • {formatCategory(element.category)}
+            {mergedMetadata.name || element.name || 'Simbolo'} {'->'} {formatCategory(element.category)}
           </p>
         </div>
         <Info size={14} className="text-slate-400" />

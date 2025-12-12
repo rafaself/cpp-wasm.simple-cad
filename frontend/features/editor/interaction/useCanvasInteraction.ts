@@ -3,7 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
-import { ElectricalElement, Point, Shape, Rect, Patch } from '../../../types';
+import { ElectricalElement, Point, Shape, Rect, Patch, ToolType } from '../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../utils/geometry';
 import { getSnapPoint } from '../snapEngine';
 import { getConnectionPoint } from '../snapEngine/detectors';
@@ -13,6 +13,7 @@ import { getDefaultColorMode } from '../../../utils/shapeColors';
 import { useLibraryStore } from '../../../stores/useLibraryStore';
 import { computeFrameData } from '../../../utils/frame';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
+import { isConduitShape, isConduitTool } from '../utils/tools';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -108,7 +109,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
     const setEditingTextId = uiStore.setEditingTextId;
 
-    const isConduitShape = (s?: Shape | null) => !!s && (s.type === 'eletroduto' || s.type === 'conduit');
     const getConduitStartId = (s?: Shape | null) => s ? (s.fromConnectionId ?? s.connectedStartId) : undefined;
     const getConduitEndId = (s?: Shape | null) => s ? (s.toConnectionId ?? s.connectedEndId) : undefined;
 
@@ -197,9 +197,12 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         if (patches.length > 0) dataStore.saveToHistory(patches);
     };
 
-    const detectInteractionAtPoint = (worldPos: Point, viewScale: number) => {
+    type InteractionHit = { mode: 'resize' | 'rotate' | null; cursor: string | null; handle: Handle | null; shapeId: string | null };
+    const defaultInteraction: InteractionHit = { mode: null, cursor: null, handle: null, shapeId: null };
+
+    const detectInteractionAtPoint = (worldPos: Point, viewScale: number): InteractionHit => {
         const selection = Array.from(uiStore.selectedShapeIds).map(id => dataStore.shapes[id]).filter(Boolean) as Shape[];
-        if (selection.length === 0) return { mode: null as const, cursor: null as string | null, handle: null as Handle | null, shapeId: null as string | null };
+        if (selection.length === 0) return defaultInteraction;
 
         const handleHit = 10 / viewScale;
         const rotateBand = 18 / viewScale;
@@ -209,7 +212,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const handles = getShapeHandles(shape);
             for (const h of handles) {
                 if (getDistance(h, worldPos) <= handleHit) {
-                    return { mode: 'resize' as const, cursor: h.cursor, handle: h, shapeId: shape.id };
+                    return { mode: 'resize', cursor: h.cursor, handle: h, shapeId: shape.id };
                 }
             }
         }
@@ -225,11 +228,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return acc;
             }, { dist: Infinity, index: -1 });
             if (nearestCorner.dist > handleHit && nearestCorner.dist <= rotateBand) {
-                return { mode: 'rotate' as const, cursor: 'rotate', handle: null, shapeId: shape.id };
+                return { mode: 'rotate', cursor: 'rotate', handle: null, shapeId: shape.id };
             }
         }
 
-        return { mode: null as const, cursor: null as string | null, handle: null as Handle | null, shapeId: null as string | null };
+        return defaultInteraction;
     };
 
     const getMousePos = (e: React.MouseEvent): Point => {
@@ -603,8 +606,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
-        const isConduitTool = uiStore.activeTool === 'eletroduto' || uiStore.activeTool === 'conduit';
-        if (isConduitTool) {
+        const conduitToolActive = isConduitTool(uiStore.activeTool as ToolType);
+        if (conduitToolActive) {
             // Helper to find snap connection point from a click (accept hit anywhere on the symbol bounds)
             const findSnapConnection = (p: Point): { id: string; point: Point } | undefined => {
                 const tolerance = 18 / uiStore.viewTransform.scale;
@@ -970,8 +973,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const raw = getMousePos(e);
         const worldPos = screenToWorld(raw, uiStore.viewTransform);
 
-        const isConduitTool = uiStore.activeTool === 'eletroduto' || uiStore.activeTool === 'conduit';
-        if (isConduitTool) {
+        const conduitToolActive = isConduitTool(uiStore.activeTool as ToolType);
+        if (conduitToolActive) {
             // Conduit creation is handled on mouse down; avoid falling through to generic tool logic
             setIsDragging(false);
             setActiveHandle(null);

@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
-import { getIcon } from '../../../utils/iconMap.tsx';
+import { getIcon } from '../../../utils/iconMap';
 import { LayoutPanelLeft } from 'lucide-react';
 
 const TOOLS = [
   { id: 'select', icon: 'Select', label: 'Selecionar' },
   { id: 'pan', icon: 'Hand', label: 'Pan' },
   { id: 'line', icon: 'Line', label: 'Linha' },
-  { id: 'rect', icon: 'Rect', label: 'Retângulo' },
-  { id: 'circle', icon: 'Circle', label: 'Círculo' },
+  { id: 'rect', icon: 'Rect', label: 'Retangulo' },
+  { id: 'circle', icon: 'Circle', label: 'Circulo' },
   { id: 'move', icon: 'Move', label: 'Mover' },
 ];
 
@@ -28,17 +28,14 @@ const QuickAccessToolbar: React.FC = () => {
 
   return (
     <div className={`absolute z-50 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}>
-      
-      {/* Drag/Toggle Handle */}
       <button 
         onClick={() => setOrientation(prev => prev === 'vertical' ? 'horizontal' : 'vertical')}
         className={`flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 rounded-sm transition-colors ${toggleClasses}`}
-        title="Alternar orientação da barra"
+        title="Alternar orientacao da barra"
       >
         {orientation === 'vertical' ? <LayoutPanelLeft size={10} className="rotate-90" /> : <LayoutPanelLeft size={10} />}
       </button>
 
-      {/* Tools */}
       {TOOLS.map(item => (
         <button
           key={item.id}
@@ -51,7 +48,6 @@ const QuickAccessToolbar: React.FC = () => {
           `}
           title={item.label}
         >
-          {/* Scaling down icon slightly for compact container */}
           <div className="transform scale-90 flex items-center justify-center">
             {getIcon(item.icon)}
           </div>
