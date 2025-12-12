@@ -1,6 +1,8 @@
 import { Layer, Shape, ViewTransform } from '../../../../../types';
 import { getDistance, getShapeCenter, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
 import { getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled } from '../../../../../utils/shapeColors';
+import { LibrarySymbol } from '../../../../library/electricalLoader';
+import { getElectricalLayerConfig } from '../../../../library/electricalProperties';
 
 const svgImageCache: Record<string, { img: HTMLImageElement; loaded: boolean }> = {};
 let renderCallback: (() => void) | null = null;
@@ -41,6 +43,16 @@ const getSvgImage = (svg: string, cacheKey?: string): HTMLImageElement | null =>
     return null; // Not loaded yet
 };
 
+export const preloadElectricalSymbol = (symbol: LibrarySymbol) => {
+    const layerConfig = getElectricalLayerConfig(symbol.id, symbol.category);
+    const strokeColor = layerConfig.strokeColor;
+    const tintedSvg = applyStrokeColorToSvg(symbol.canvasSvg, strokeColor);
+    const cacheKey = `${symbol.id}-${strokeColor}`;
+
+    // Trigger load and cache
+    getSvgImage(tintedSvg, cacheKey);
+};
+
 export const renderShape = (
     ctx: CanvasRenderingContext2D,
     shape: Shape,
@@ -49,7 +61,7 @@ export const renderShape = (
 ) => {
     // Safety checks for rendering - skip shapes without valid position
     // But allow polygon/circle which use x,y as center
-    if (shape.type !== 'line' && shape.type !== 'polyline' && shape.type !== 'arrow' && shape.type !== 'measure' && shape.type !== 'arc') {
+    if (shape.type !== 'line' && shape.type !== 'polyline' && shape.type !== 'arrow' && shape.type !== 'measure' && shape.type !== 'arc' && shape.type !== 'conduit') {
         if (shape.x === undefined || shape.y === undefined || isNaN(shape.x) || isNaN(shape.y)) return;
     }
 
@@ -283,6 +295,19 @@ export const renderShape = (
                 const endAngle = Math.atan2(p2.y - cy, p2.x - cx);
                 ctx.beginPath();
                 ctx.arc(cx, cy, r, startAngle, endAngle, false);
+                ctx.stroke();
+            }
+        } else if (shape.type === 'conduit') {
+            if (shape.points && shape.points.length >= 2) {
+                const p1 = shape.points[0];
+                const p2 = shape.points[1];
+                if (shape.controlPoint) {
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.quadraticCurveTo(shape.controlPoint.x, shape.controlPoint.y, p2.x, p2.y);
+                } else {
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                }
                 ctx.stroke();
             }
         } else if (shape.type === 'text' && shape.textContent) {
