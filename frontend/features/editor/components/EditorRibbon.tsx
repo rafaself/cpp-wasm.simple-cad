@@ -9,7 +9,7 @@ import { getIcon } from '../../../utils/iconMap.tsx';
 import { ensureContrastColor } from '../../../utils/color';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2, AlignLeft, AlignCenterHorizontal, AlignRight, Bold, Italic, Underline, Strikethrough, Palette, ChevronDown } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
-import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
+import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
 import NumberSpinner from '../../../components/NumberSpinner';
 import EditableNumber from '../../../components/EditableNumber';
 import CustomSelect from '../../../components/CustomSelect';
@@ -18,6 +18,7 @@ import { Shape, Layer } from '../../../types';
 import { TextControlProps, TextUpdateDiff, ColorPickerTarget, getApplyLayerButtonState } from '../types/ribbon';
 import { UI, TEXT_STYLES, INPUT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
 import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
+import { getConnectionPoint } from '../snapEngine/detectors';
 
 // Shared styles - using design tokens
 const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
@@ -578,6 +579,119 @@ const EditorRibbon: React.FC = () => {
   const layerDropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
+  const isConduitShape = (s: Shape) => s.type === 'eletroduto' || s.type === 'conduit';
+
+  const exportConnectionsMap = useCallback(() => {
+      const shapes = dataStore.shapes;
+      const electrical = dataStore.electricalElements;
+
+      const connections = Object.values(shapes)
+        .filter(s => s && s.svgRaw && s.connectionPoint && s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined)
+        .map(s => {
+            const el = s.electricalElementId ? electrical[s.electricalElementId] : undefined;
+            const point = getConnectionPoint(s);
+            return {
+                id: s.id,
+                name: el?.name ?? s.svgSymbolId ?? s.id,
+                category: el?.category ?? null,
+                position: point,
+                electricalElementId: s.electricalElementId ?? null,
+                layerId: s.layerId,
+            };
+        })
+        .filter(c => c.position);
+
+      const conduits = Object.values(shapes)
+        .filter(isConduitShape)
+        .map(s => {
+            const from = s.fromConnectionId ?? s.connectedStartId;
+            const to = s.toConnectionId ?? s.connectedEndId;
+            if (!from || !to || !s.points || s.points.length < 2) return null;
+            return {
+                id: s.id,
+                from,
+                to,
+                length: getDistance(s.points[0], s.points[1]),
+                controlPoint: s.controlPoint,
+                layerId: s.layerId,
+            };
+        })
+        .filter(Boolean) as any[];
+
+      const payload = {
+          generatedAt: new Date().toISOString(),
+          connections,
+          conduits,
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'connections-map.json';
+      a.click();
+      URL.revokeObjectURL(url);
+  }, [dataStore.shapes, dataStore.electricalElements]);
+
+  const viewConnectionsReport = useCallback(() => {
+      const shapes = dataStore.shapes;
+      const electrical = dataStore.electricalElements;
+
+      const connections = Object.values(shapes)
+        .filter(s => s && s.svgRaw && s.connectionPoint && s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined)
+        .map(s => {
+            const el = s.electricalElementId ? electrical[s.electricalElementId] : undefined;
+            const point = getConnectionPoint(s);
+            return {
+                id: s.id,
+                name: el?.name ?? s.svgSymbolId ?? s.id,
+                category: el?.category ?? '',
+                position: point,
+            };
+        })
+        .filter(c => c.position);
+
+      const conduits = Object.values(shapes)
+        .filter(isConduitShape)
+        .map(s => {
+            const from = s.fromConnectionId ?? s.connectedStartId;
+            const to = s.toConnectionId ?? s.connectedEndId;
+            if (!from || !to || !s.points || s.points.length < 2) return null;
+            return {
+                id: s.id,
+                from,
+                to,
+                length: getDistance(s.points[0], s.points[1]).toFixed(2),
+            };
+        })
+        .filter(Boolean) as any[];
+
+      const htmlRows = conduits.map(c => {
+          const from = connections.find(n => n.id === c.from);
+          const to = connections.find(n => n.id === c.to);
+          return `<tr><td>${c.id}</td><td>${from?.name || from?.id || c.from}</td><td>${to?.name || to?.id || c.to}</td><td>${c.length}</td></tr>`;
+      }).join('');
+
+      const html = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Relatorio de Conexoes</title>
+<style>
+body{font-family:Arial, sans-serif;padding:16px;background:#0f172a;color:#e2e8f0;}
+table{border-collapse:collapse;width:100%;margin-top:12px;background:#1e293b;}
+th,td{border:1px solid #334155;padding:8px;text-align:left;}
+th{background:#0ea5e9;color:#0b1223;}
+tr:nth-child(even){background:#111827;}
+</style></head><body>
+<h2>Relatório de Conexões</h2>
+<p>${connections.length} nós, ${conduits.length} eletrodutos.</p>
+<table><thead><tr><th>ID</th><th>De</th><th>Para</th><th>Comprimento</th></tr></thead><tbody>${htmlRows || '<tr><td colspan=\"4\">Nenhum eletroduto encontrado.</td></tr>'}</tbody></table>
+</body></html>`;
+
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, [dataStore.shapes, dataStore.electricalElements]);
+
   const handleAction = (action?: string) => {
       if (action === 'delete') deleteSelected();
       if (action === 'join') joinSelected();
@@ -586,6 +700,8 @@ const EditorRibbon: React.FC = () => {
       if (action === 'undo') dataStore.undo();
       if (action === 'redo') dataStore.redo();
       if (action === 'open-settings') uiStore.setSettingsModalOpen(true);
+      if (action === 'export-connections') exportConnectionsMap();
+      if (action === 'view-connections') viewConnectionsReport();
   };
 
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];

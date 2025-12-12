@@ -45,7 +45,9 @@ export const MENU_CONFIG: MenuTab[] = [
         layout: 'row',
         items: [
            { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
-           { id: 'report-csv', label: 'Relatório CSV', icon: 'ExportCSV', type: 'action', action: 'export-csv' }
+           { id: 'report-csv', label: 'Relat?rio CSV', icon: 'ExportCSV', type: 'action', action: 'export-csv' },
+           { id: 'export-connections', label: 'Exportar Conex?es', icon: 'ExportJSON', type: 'action', action: 'export-connections' },
+           { id: 'view-connections', label: 'Ver Relatorio', icon: 'ExportJSON', type: 'action', action: 'view-connections' }
         ]
       },
       {
