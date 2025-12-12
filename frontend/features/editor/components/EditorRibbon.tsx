@@ -570,7 +570,7 @@ const EditorRibbon: React.FC = () => {
   const uiStore = useUIStore();
   const settingsStore = useSettingsStore();
   const dataStore = useDataStore();
-  const { deleteSelected, joinSelected, zoomToFit } = useEditorLogic();
+  const { deleteSelected, joinSelected, explodeSelected, zoomToFit } = useEditorLogic();
   
   // Layer Dropdown State
   const [isLayerDropdownOpen, setLayerDropdownOpen] = useState(false);
@@ -581,7 +581,7 @@ const EditorRibbon: React.FC = () => {
   const handleAction = (action?: string) => {
       if (action === 'delete') deleteSelected();
       if (action === 'join') joinSelected();
-      if (action === 'explore') { /* TODO: Implement explode */ }
+      if (action === 'explode') explodeSelected();
       if (action === 'zoom-fit') zoomToFit();
       if (action === 'undo') dataStore.undo();
       if (action === 'redo') dataStore.redo();

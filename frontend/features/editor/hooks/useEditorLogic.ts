@@ -1,7 +1,7 @@
 import { useDataStore } from '../../../stores/useDataStore';
 import { useUIStore } from '../../../stores/useUIStore';
-import { getCombinedBounds, getShapeBounds, getDistance } from '../../../utils/geometry';
-import { Shape, Patch } from '../../../types';
+import { getCombinedBounds, getShapeBounds, getDistance, getShapeCenter, rotatePoint, getShapeBoundingBox } from '../../../utils/geometry';
+import { Shape, Patch, Point } from '../../../types';
 import { computeFrameData } from '../../../utils/frame';
 
 export const useEditorLogic = () => {
@@ -143,10 +143,126 @@ export const useEditorLogic = () => {
         }
     };
 
+    const explodeSelected = () => {
+        const ids = Array.from(uiStore.selectedShapeIds);
+        if (ids.length === 0) return;
+
+        const newShapes: Shape[] = [];
+        const idsToDelete: string[] = [];
+        let createdCount = 0;
+
+        ids.forEach(id => {
+            const shape = dataStore.shapes[id];
+            if (!shape) return;
+
+            if (shape.type === 'polyline' && shape.points && shape.points.length > 1) {
+                // Explode Polyline into Lines
+                // If the polyline is rotated, we need to bake the rotation into the new line segments
+                // so they are "global" lines with rotation: 0.
+                const center = shape.rotation ? getShapeCenter(shape) : { x: 0, y: 0 }; // Pivot center
+
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    let start = shape.points[i];
+                    let end = shape.points[i + 1];
+
+                    // Apply rotation if needed
+                    if (shape.rotation) {
+                        start = rotatePoint(start, center, shape.rotation);
+                        end = rotatePoint(end, center, shape.rotation);
+                    }
+
+                    newShapes.push({
+                        ...shape,
+                        id: `${Date.now()}-${Math.floor(Math.random() * 1000000)}-${createdCount++}`,
+                        type: 'line',
+                        points: [start, end],
+                        rotation: 0, // Reset rotation since points are now baked
+                        // Ensure optional properties that might not be on line are undefined if needed,
+                        // but spread works well for styles.
+                    });
+                }
+                idsToDelete.push(id);
+            } else if (shape.type === 'rect') {
+                // Explode Rect into 4 Lines
+                const bounds = getShapeBoundingBox(shape);
+                const corners = [
+                    { x: bounds.x, y: bounds.y },
+                    { x: bounds.x + bounds.width, y: bounds.y },
+                    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+                    { x: bounds.x, y: bounds.y + bounds.height }
+                ];
+
+                // Rotate corners if needed
+                const center = getShapeCenter(shape);
+                const finalCorners = shape.rotation
+                    ? corners.map(c => rotatePoint(c, center, shape.rotation!))
+                    : corners;
+
+                // Create 4 lines
+                for (let i = 0; i < 4; i++) {
+                    const start = finalCorners[i];
+                    const end = finalCorners[(i + 1) % 4];
+                    newShapes.push({
+                        ...shape,
+                        id: `${Date.now()}-${Math.floor(Math.random() * 1000000)}-${createdCount++}`,
+                        type: 'line',
+                        points: [start, end],
+                        rotation: 0, // Reset rotation as points are already rotated
+                        x: undefined, y: undefined, width: undefined, height: undefined, // Clear rect props
+                    });
+                }
+                idsToDelete.push(id);
+            } else if (shape.type === 'polygon' && shape.sides && shape.radius) {
+                // Explode Polygon into Lines
+                const center = { x: shape.x || 0, y: shape.y || 0 };
+                const radius = shape.radius;
+                const sides = shape.sides;
+                const rotation = shape.rotation || 0;
+
+                const vertices: Point[] = [];
+                // Polygon vertices calculation logic - matching typical implementation
+                // Assuming start angle -PI/2 to align top
+                for (let i = 0; i < sides; i++) {
+                    const angle = -Math.PI / 2 + (i * (2 * Math.PI) / sides);
+                    // Point relative to center, unrotated
+                    const px = center.x + radius * Math.cos(angle);
+                    const py = center.y + radius * Math.sin(angle);
+
+                    // Apply shape rotation
+                    vertices.push(rotatePoint({ x: px, y: py }, center, rotation));
+                }
+
+                for (let i = 0; i < sides; i++) {
+                    const start = vertices[i];
+                    const end = vertices[(i + 1) % sides];
+                    newShapes.push({
+                        ...shape,
+                        id: `${Date.now()}-${Math.floor(Math.random() * 1000000)}-${createdCount++}`,
+                        type: 'line',
+                        points: [start, end],
+                        rotation: 0,
+                        x: undefined, y: undefined, radius: undefined, sides: undefined,
+                    });
+                }
+                idsToDelete.push(id);
+            }
+        });
+
+        if (idsToDelete.length > 0 && newShapes.length > 0) {
+            dataStore.deleteShapes(idsToDelete);
+            // Add all new shapes
+            newShapes.forEach(s => dataStore.addShape(s)); // addShape handles single addition, loop is fine
+
+            // Select new shapes
+            uiStore.setSelectedShapeIds(new Set(newShapes.map(s => s.id)));
+        }
+    };
+
     return {
         deleteSelected,
         deleteLayer,
         zoomToFit,
-        joinSelected
+        joinSelected,
+        explodeSelected
     };
 };

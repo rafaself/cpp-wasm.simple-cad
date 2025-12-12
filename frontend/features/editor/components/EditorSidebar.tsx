@@ -162,6 +162,7 @@ const EditorSidebar: React.FC = () => {
         <p className="text-xs">Nenhuma propriedade especifica disponivel.</p>
       </div>
     );
+  };
 
   const renderDiagrama = () => (
     <div className="flex-grow min-h-0 p-3 bg-white">
