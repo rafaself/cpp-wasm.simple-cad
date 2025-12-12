@@ -51,7 +51,6 @@ export interface ColorPickerTarget {
 export interface ColorControlProps {
   activeLayer: Layer | undefined;
   openColorPicker: (e: MouseEvent, target: ColorPickerTarget) => void;
-  selectedShapeIds: string[];
 }
 
 // ============================================

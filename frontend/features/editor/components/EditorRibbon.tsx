@@ -9,7 +9,7 @@ import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
 import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor } from '../../../utils/shapeColors';
 import { Shape } from '../../../types';
-import { TextUpdateDiff, ColorPickerTarget } from '../types/ribbon';
+import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
 import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
 import { getConnectionPoint } from '../snapEngine/detectors';
@@ -400,13 +400,9 @@ tr:nth-child(even){background:#111827;}
       layerButtonRef,
       layerDropdownRef,
       dropdownPos,
-      dataStore,
-      uiStore,
-      settingsStore,
       selectedTextIds,
       applyTextUpdate,
-      openColorPicker,
-      selectedShapeIds: allSelectedIds
+      openColorPicker
   };
 
   return (

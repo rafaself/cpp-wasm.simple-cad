@@ -56,15 +56,24 @@ const pointInPolygon = (point: Point, polygon: Point[]): boolean => {
 };
 
 
+// ... imports
+
 export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
-    const uiStore = useUIStore();
-    const { zoomToFit } = useEditorLogic();
+    // Selectors for reactive updates
+    const activeTool = useUIStore(s => s.activeTool);
+    const setEditingTextId = useUIStore(s => s.setEditingTextId);
+    
+    // Non-reactive access to settings (we can also use getState() in handlers if these don't need to trigger re-renders of the hook)
+    // But keeping them as hooks for now is fine if they are stable. 
+    // Actually, toolDefaults changes when user changes settings. 
+    // But logic mostly uses them in handlers.
+    // Let's keep them as is for now or optimize later.
     const snapSettings = useSettingsStore(s => s.snap);
     const gridSize = useSettingsStore(s => s.grid.size);
     const toolDefaults = useSettingsStore(s => s.toolDefaults);
-    const dataStore = useDataStore();
-    const libraryStore = useLibraryStore();
     const { strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides } = toolDefaults;
+
+    const { zoomToFit } = useEditorLogic();
 
     const [isDragging, setIsDragging] = useState(false);
     const [isMiddlePanning, setIsMiddlePanning] = useState(false);
@@ -107,7 +116,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
     // Text Tool State
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
-    const setEditingTextId = uiStore.setEditingTextId;
+
 
     const getConduitStartId = (s?: Shape | null) => s ? (s.fromConnectionId ?? s.connectedStartId) : undefined;
     const getConduitEndId = (s?: Shape | null) => s ? (s.toConnectionId ?? s.connectedEndId) : undefined;
@@ -121,7 +130,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     }, [setEditingTextId]);
 
     const getSelectedBoundingCenter = (): Point | null => {
-        const selected = Array.from(uiStore.selectedShapeIds).map(id => dataStore.shapes[id]).filter(Boolean) as Shape[];
+        const currentUIStore = useUIStore.getState();
+        const currentDataStore = useDataStore.getState();
+        const selected = Array.from(currentUIStore.selectedShapeIds).map(id => currentDataStore.shapes[id]).filter(Boolean) as Shape[];
         if (selected.length === 0) return null;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         selected.forEach(s => {
@@ -151,6 +162,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const applyRotationFromSnapshot = (angle: number) => {
         const state = rotationState.current;
         if (!state) return;
+        const currentDataStore = useDataStore.getState();
         const { center, snapshot } = state;
         snapshot.forEach((original, id) => {
             const s0 = original;
@@ -175,16 +187,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 diff.x = np.x; diff.y = np.y;
             }
 
-            dataStore.updateShape(id, diff, false);
+            currentDataStore.updateShape(id, diff, false);
         });
     };
 
     const commitRotationHistory = () => {
         const state = rotationState.current;
         if (!state) return;
+        const currentDataStore = useDataStore.getState();
         const patches: Patch[] = [];
         state.snapshot.forEach((prevShape, id) => {
-            const curr = dataStore.shapes[id];
+            const curr = currentDataStore.shapes[id];
             if (!curr) return;
             const diff: Partial<Shape> = {};
             if (prevShape.x !== curr.x) diff.x = curr.x;
@@ -194,14 +207,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (Object.keys(diff).length === 0) return;
             patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
         });
-        if (patches.length > 0) dataStore.saveToHistory(patches);
+        if (patches.length > 0) currentDataStore.saveToHistory(patches);
     };
 
     type InteractionHit = { mode: 'resize' | 'rotate' | null; cursor: string | null; handle: Handle | null; shapeId: string | null };
     const defaultInteraction: InteractionHit = { mode: null, cursor: null, handle: null, shapeId: null };
 
     const detectInteractionAtPoint = (worldPos: Point, viewScale: number): InteractionHit => {
-        const selection = Array.from(uiStore.selectedShapeIds).map(id => dataStore.shapes[id]).filter(Boolean) as Shape[];
+        const currentUIStore = useUIStore.getState();
+        const currentDataStore = useDataStore.getState();
+        const selection = Array.from(currentUIStore.selectedShapeIds).map(id => currentDataStore.shapes[id]).filter(Boolean) as Shape[];
         if (selection.length === 0) return defaultInteraction;
 
         const handleHit = 10 / viewScale;
@@ -254,7 +269,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         dragStartWorld.current = null;
         rotationState.current = null;
         setHoverCursor(null);
-    }, [uiStore.activeTool]);
+    }, [activeTool]);
 
     // Global Shift key listener for real-time updates during drag
     useEffect(() => {
@@ -283,7 +298,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     useEffect(() => {
         const handleGlobalMouseUp = () => {
             if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); setIsDragging(false); }
-            if (isDragging && uiStore.activeTool === 'pan') { setIsDragging(false); setStartPoint(null); }
+            if (isDragging && useUIStore.getState().activeTool === 'pan') { setIsDragging(false); setStartPoint(null); }
             if (activeHandle) { setActiveHandle(null); setResizeState(null); setIsDragging(false); }
             if (rotationState.current) { rotationState.current = null; setIsDragging(false); }
             // Reset axis lock when drag ends
@@ -293,13 +308,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         };
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-    }, [isMiddlePanning, isDragging, uiStore.activeTool, activeHandle]);
+    }, [isMiddlePanning, isDragging, activeHandle]);
 
     const finishPolyline = useCallback(() => {
         if (polylinePoints.length > 1) {
-            dataStore.addShape({
+            const currentDataStore = useDataStore.getState();
+            const currentUIStore = useUIStore.getState();
+            currentDataStore.addShape({
                 id: Date.now().toString(),
-                layerId: dataStore.activeLayerId,
+                layerId: currentDataStore.activeLayerId,
                 type: 'polyline',
                 strokeColor,
                 strokeWidth,
@@ -308,47 +325,52 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 colorMode: getDefaultColorMode(),
                 points: [...polylinePoints]
             });
-            uiStore.setSidebarTab('desenho'); setPolylinePoints([]);
+            currentUIStore.setSidebarTab('desenho');
+            setPolylinePoints([]);
         }
-    }, [polylinePoints, uiStore, dataStore]);
+    }, [polylinePoints, strokeColor, strokeWidth, strokeEnabled]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Enter') { if (uiStore.activeTool === 'polyline') finishPolyline(); }
+            const currentUIStore = useUIStore.getState();
+            const currentDataStore = useDataStore.getState();
+            const currentLibraryStore = useLibraryStore.getState();
+
+            if (e.key === 'Enter') { if (currentUIStore.activeTool === 'polyline') finishPolyline(); }
             if (e.key === 'Escape') {
                 setLineStart(null); setArrowStart(null); setMeasureStart(null); setPolylinePoints([]);
                 setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
                 setArcPoints(null); setShowRadiusModal(false);
                 setPolygonShapeId(null); setShowPolygonModal(false);
-                if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') uiStore.setTool('select');
-                if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
-                    uiStore.setSelectedShapeIds(new Set());
+                if (currentUIStore.activeTool === 'move' || currentUIStore.activeTool === 'rotate') currentUIStore.setTool('select');
+                if (currentUIStore.activeTool === 'select' && currentUIStore.selectedShapeIds.size > 0) {
+                    currentUIStore.setSelectedShapeIds(new Set());
                 }
             }
-            if (uiStore.activeTool === 'electrical-symbol') {
+            if (currentUIStore.activeTool === 'electrical-symbol') {
                 if (e.key.toLowerCase() === 'r') {
                     e.preventDefault();
-                    uiStore.rotateElectricalPreview(Math.PI / 2);
+                    currentUIStore.rotateElectricalPreview(Math.PI / 2);
                 }
                 if (e.key.toLowerCase() === 'f') {
                     e.preventDefault();
-                    uiStore.flipElectricalPreview('x');
+                    currentUIStore.flipElectricalPreview('x');
                 }
                 if (e.key.toLowerCase() === 'v') {
                     e.preventDefault();
-                    uiStore.flipElectricalPreview('y');
+                    currentUIStore.flipElectricalPreview('y');
                 }
             }
             // Arrow key movement for selected shapes
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && uiStore.selectedShapeIds.size > 0) {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && currentUIStore.selectedShapeIds.size > 0) {
                 e.preventDefault();
                 const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
                 const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
                 
-                uiStore.selectedShapeIds.forEach(id => {
-                    const shape = dataStore.shapes[id];
+                currentUIStore.selectedShapeIds.forEach(id => {
+                    const shape = currentDataStore.shapes[id];
                     if (!shape) return;
-                    const layer = dataStore.layers.find(l => l.id === shape.layerId);
+                    const layer = currentDataStore.layers.find(l => l.id === shape.layerId);
                     if (layer?.locked) return;
                     
                     const updates: Partial<Shape> = {};
@@ -356,18 +378,18 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (shape.y !== undefined) updates.y = shape.y + dy;
                     if (shape.points) updates.points = shape.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
                     
-                    dataStore.updateShape(id, updates, true);
+                    currentDataStore.updateShape(id, updates, true);
                 });
             }
             // Home key: reset connection point to default for selected electrical symbol
-            if (e.key === 'Home' && uiStore.selectedShapeIds.size === 1) {
-                const selectedId = Array.from(uiStore.selectedShapeIds)[0];
-                const selectedShape = dataStore.shapes[selectedId];
+            if (e.key === 'Home' && currentUIStore.selectedShapeIds.size === 1) {
+                const selectedId = Array.from(currentUIStore.selectedShapeIds)[0];
+                const selectedShape = currentDataStore.shapes[selectedId];
                 if (selectedShape?.svgRaw && selectedShape.svgSymbolId) {
                     e.preventDefault();
-                    const librarySymbol = libraryStore.electricalSymbols[selectedShape.svgSymbolId];
+                    const librarySymbol = currentLibraryStore.electricalSymbols[selectedShape.svgSymbolId];
                     if (librarySymbol?.defaultConnectionPoint) {
-                        dataStore.updateShape(selectedId, {
+                        currentDataStore.updateShape(selectedId, {
                             connectionPoint: { ...librarySymbol.defaultConnectionPoint }
                         }, true);
                     }
@@ -376,27 +398,31 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         };
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [uiStore, dataStore, libraryStore, finishPolyline]);
+    }, [finishPolyline]);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (textEditState) return;
 
-        const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, uiStore.viewTransform); let snapped: Point | null = null;
+        const ui = useUIStore.getState();
+        const data = useDataStore.getState();
+        const library = useLibraryStore.getState();
 
-        if (snapSettings.enabled && !['pan', 'select'].includes(uiStore.activeTool) && !e.ctrlKey) {
+        const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, ui.viewTransform); let snapped: Point | null = null;
+
+        if (snapSettings.enabled && !['pan', 'select'].includes(ui.activeTool) && !e.ctrlKey) {
             const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
-            const visible = dataStore.spatialIndex.query(queryRect)
-                .map(s => dataStore.shapes[s.id])
-                .filter(s => { const l = dataStore.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
-            const frameData = computeFrameData(dataStore.frame, dataStore.worldScale);
+            const visible = data.spatialIndex.query(queryRect)
+                .map(s => data.shapes[s.id])
+                .filter(s => { const l = data.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
+            const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
               wr,
               frameData ? [...visible, ...frameData.shapes] : visible,
               snapSettings,
               gridSize,
-              snapSettings.tolerancePx / uiStore.viewTransform.scale
+              snapSettings.tolerancePx / ui.viewTransform.scale
             );
-            if (snap) { snapped = snap; eff = worldToScreen(snap, uiStore.viewTransform); }
+            if (snap) { snapped = snap; eff = worldToScreen(snap, ui.viewTransform); }
         }
 
         setStartPoint(eff); setCurrentPoint(eff);
@@ -417,15 +443,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
         
-        if (uiStore.activeTool === 'pan') { setIsDragging(true); return; }
+        if (ui.activeTool === 'pan') { setIsDragging(true); return; }
 
         const wPos = snapped || wr;
 
-        if (uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
-            for (const id of uiStore.selectedShapeIds) {
-                const shape = dataStore.shapes[id];
+        if (ui.activeTool === 'select' && ui.selectedShapeIds.size > 0) {
+            for (const id of ui.selectedShapeIds) {
+                const shape = data.shapes[id];
                 if (!shape) continue;
-                const handles = getShapeHandles(shape); const handleSize = 10 / uiStore.viewTransform.scale;
+                const handles = getShapeHandles(shape); const handleSize = 10 / ui.viewTransform.scale;
                 for (const h of handles) {
                     if (getDistance(h, wPos) < handleSize) { 
                         setActiveHandle({ shapeId: shape.id, handle: h }); 
@@ -446,37 +472,37 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         return; 
                     }
                 }
-        }
+            }
 
-        // Shift+Click on selected electrical symbol: change connection point
-        if (e.shiftKey && uiStore.selectedShapeIds.size === 1) {
-            const selectedId = Array.from(uiStore.selectedShapeIds)[0];
-            const selectedShape = dataStore.shapes[selectedId];
-            if (selectedShape?.svgRaw && selectedShape.width && selectedShape.height) {
-                // Check if click is within the shape bounds
-                const bounds = { x: selectedShape.x ?? 0, y: selectedShape.y ?? 0, width: selectedShape.width, height: selectedShape.height };
-                if (wPos.x >= bounds.x && wPos.x <= bounds.x + bounds.width &&
-                    wPos.y >= bounds.y && wPos.y <= bounds.y + bounds.height) {
-                    // Calculate normalized coordinates (0-1)
-                    const relX = (wPos.x - bounds.x) / bounds.width;
-                    const relY = (wPos.y - bounds.y) / bounds.height;
-                    dataStore.updateShape(selectedId, {
-                        connectionPoint: { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) }
-                    }, true);
-                    return;
+            // Shift+Click on selected electrical symbol: change connection point
+            if (e.shiftKey && ui.selectedShapeIds.size === 1) {
+                const selectedId = Array.from(ui.selectedShapeIds)[0];
+                const selectedShape = data.shapes[selectedId];
+                if (selectedShape?.svgRaw && selectedShape.width && selectedShape.height) {
+                    // Check if click is within the shape bounds
+                    const bounds = { x: selectedShape.x ?? 0, y: selectedShape.y ?? 0, width: selectedShape.width, height: selectedShape.height };
+                    if (wPos.x >= bounds.x && wPos.x <= bounds.x + bounds.width &&
+                        wPos.y >= bounds.y && wPos.y <= bounds.y + bounds.height) {
+                        // Calculate normalized coordinates (0-1)
+                        const relX = (wPos.x - bounds.x) / bounds.width;
+                        const relY = (wPos.y - bounds.y) / bounds.height;
+                        data.updateShape(selectedId, {
+                            connectionPoint: { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) }
+                        }, true);
+                        return;
+                    }
                 }
             }
         }
-    }
 
-        const interaction = detectInteractionAtPoint(wPos, uiStore.viewTransform.scale);
+        const interaction = detectInteractionAtPoint(wPos, ui.viewTransform.scale);
         if (interaction.mode === 'rotate') {
             const center = getSelectedBoundingCenter();
             if (center) {
                 const startAngle = Math.atan2(wPos.y - center.y, wPos.x - center.x);
                 const snapshot = new Map<string, Shape>();
-                uiStore.selectedShapeIds.forEach(id => {
-                    const s = dataStore.shapes[id];
+                ui.selectedShapeIds.forEach(id => {
+                    const s = data.shapes[id];
                     if (s) snapshot.set(id, { ...s, points: s.points ? s.points.map(p => ({ ...p })) : undefined });
                 });
                 rotationState.current = { center, startAngle, snapshot };
@@ -487,36 +513,36 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const h = interaction.handle;
             setActiveHandle({ shapeId: interaction.shapeId!, handle: h });
             setIsDragging(true);
-            const bounds = getShapeBoundingBox(dataStore.shapes[interaction.shapeId!]);
+            const bounds = getShapeBoundingBox(data.shapes[interaction.shapeId!]);
             const orientation = getHandleOrientation(h.index);
             setResizeState({
                 originalBounds: bounds,
                 anchorPoint: getEdgeAnchor(bounds, orientation),
                 handleIndex: h.index,
-                originalScaleX: dataStore.shapes[interaction.shapeId!].scaleX ?? 1,
-                originalScaleY: dataStore.shapes[interaction.shapeId!].scaleY ?? 1,
+                originalScaleX: data.shapes[interaction.shapeId!].scaleX ?? 1,
+                originalScaleY: data.shapes[interaction.shapeId!].scaleY ?? 1,
                 orientation
             });
             return;
         }
 
-        if (uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') {
+        if (ui.activeTool === 'move' || ui.activeTool === 'rotate') {
             if (!transformationBase) { setTransformationBase(wPos); }
             else {
-                if (uiStore.activeTool === 'move') {
+                if (ui.activeTool === 'move') {
                     const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y;
-                    const ids = Array.from(uiStore.selectedShapeIds);
+                    const ids = Array.from(ui.selectedShapeIds);
                     ids.forEach(id => {
-                        const s = dataStore.shapes[id];
+                        const s = data.shapes[id];
                         if (s) {
                             const diff: Partial<Shape> = {};
                             if (s.x !== undefined) diff.x = s.x + dx;
                             if (s.y !== undefined) diff.y = s.y + dy;
                             if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                            dataStore.updateShape(id, diff, true);
+                            data.updateShape(id, diff, true);
 
                             // Strong Linking: Update connected conduits/eletrodutos
-                            const connectedConduits = Object.values(dataStore.shapes).filter(s => 
+                            const connectedConduits = Object.values(data.shapes).filter(s => 
                                 isConduitShape(s) && (getConduitStartId(s) === id || getConduitEndId(s) === id)
                             );
                             
@@ -528,49 +554,49 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                                 if (getConduitStartId(conduit) === id) newPoints[0] = newConnPoint;
                                 if (getConduitEndId(conduit) === id) newPoints[1] = newConnPoint;
 
-                                dataStore.updateShape(conduit.id, { points: newPoints }, true);
+                                data.updateShape(conduit.id, { points: newPoints }, true);
                             });
                         }
                     });
-                } else if (uiStore.activeTool === 'rotate') {
+                } else if (ui.activeTool === 'rotate') {
                     const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y; const angle = Math.atan2(dy, dx);
-                    dataStore.rotateSelected(Array.from(uiStore.selectedShapeIds), transformationBase, angle);
+                    data.rotateSelected(Array.from(ui.selectedShapeIds), transformationBase, angle);
                 }
-                setTransformationBase(null); uiStore.setTool('select');
+                setTransformationBase(null); ui.setTool('select');
             }
             return;
         }
 
-        if (uiStore.activeTool === 'select') {
-            const selectWorld = screenToWorld(raw, uiStore.viewTransform);
+        if (ui.activeTool === 'select') {
+            const selectWorld = screenToWorld(raw, ui.viewTransform);
             const queryRect = { x: selectWorld.x - 5, y: selectWorld.y - 5, width: 10, height: 10 };
-            const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
+            const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]).filter(s => !!s);
             let hitShapeId = null;
             for (let i = candidates.length - 1; i >= 0; i--) {
                 const s = candidates[i];
-                const l = dataStore.layers.find(lay => lay.id === s.layerId);
+                const l = data.layers.find(lay => lay.id === s.layerId);
                 if (l && (!l.visible || l.locked)) continue;
-                if (isPointInShape(selectWorld, s, uiStore.viewTransform.scale, l)) { hitShapeId = s.id; break; }
+                if (isPointInShape(selectWorld, s, ui.viewTransform.scale, l)) { hitShapeId = s.id; break; }
             }
 
             if (hitShapeId) {
                 if (e.shiftKey) {
-                    uiStore.setSelectedShapeIds(prev => { const n = new Set(prev); if (n.has(hitShapeId!)) n.delete(hitShapeId!); else n.add(hitShapeId!); return n; });
-                } else { if (!uiStore.selectedShapeIds.has(hitShapeId)) uiStore.setSelectedShapeIds(new Set([hitShapeId])); }
+                    ui.setSelectedShapeIds(prev => { const n = new Set(prev); if (n.has(hitShapeId!)) n.delete(hitShapeId!); else n.add(hitShapeId!); return n; });
+                } else { if (!ui.selectedShapeIds.has(hitShapeId)) ui.setSelectedShapeIds(new Set([hitShapeId])); }
                 setIsDragging(true);
-            } else { if (!e.shiftKey) uiStore.setSelectedShapeIds(new Set()); setIsSelectionBox(true); }
+            } else { if (!e.shiftKey) ui.setSelectedShapeIds(new Set()); setIsSelectionBox(true); }
             return;
         }
 
-        if (uiStore.activeTool === 'arc') {
+        if (ui.activeTool === 'arc') {
             if (!arcPoints) {
                 setIsDragging(true);
             }
             return;
         }
 
-        if (uiStore.activeTool === 'polyline') { setPolylinePoints(p => [...p, wPos]); return; }
-        if (uiStore.activeTool === 'line') {
+        if (ui.activeTool === 'polyline') { setPolylinePoints(p => [...p, wPos]); return; }
+        if (ui.activeTool === 'line') {
             if (!lineStart) setLineStart(wPos);
             else {
                 // Shift: constrain to 45° angles
@@ -578,12 +604,12 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(lineStart, wPos);
                 }
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
-                uiStore.setSidebarTab('desenho'); setLineStart(null);
+                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
+                ui.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
         }
-        if (uiStore.activeTool === 'arrow') {
+        if (ui.activeTool === 'arrow') {
             if (!arrowStart) setArrowStart(wPos);
             else {
                 // Shift: constrain to 45° angles
@@ -591,32 +617,32 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(arrowStart, wPos);
                 }
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
-                uiStore.setSidebarTab('desenho'); setArrowStart(null);
+                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
+                ui.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
         }
-        if (uiStore.activeTool === 'measure') {
+        if (ui.activeTool === 'measure') {
             if (!measureStart) setMeasureStart(wPos);
             else {
                 const dist = getDistance(measureStart, wPos).toFixed(2);
-                dataStore.addShape({ id: Date.now().toString(), layerId: dataStore.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
+                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
                 setMeasureStart(null);
             }
             return;
         }
 
-        const conduitToolActive = isConduitTool(uiStore.activeTool as ToolType);
+        const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
         if (conduitToolActive) {
             // Helper to find snap connection point from a click (accept hit anywhere on the symbol bounds)
             const findSnapConnection = (p: Point): { id: string; point: Point } | undefined => {
-                const tolerance = 18 / uiStore.viewTransform.scale;
+                const tolerance = 18 / ui.viewTransform.scale;
                 const queryRect = { x: p.x - tolerance, y: p.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
-                const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
+                const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
 
                 for (const cand of candidates) {
                     if (!cand) continue;
-                    const layer = dataStore.layers.find(l => l.id === cand.layerId);
+                    const layer = data.layers.find(l => l.id === cand.layerId);
                     if (!layer || !layer.visible || layer.locked) continue;
 
                     const connPt = getConnectionPoint(cand);
@@ -648,7 +674,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             } else {
                 // Second click: End the conduit
                 const startId = conduitStart.shapeId;
-                const startPoint = getConnectionPoint(dataStore.shapes[startId]) ?? conduitStart.point;
+                const startPoint = getConnectionPoint(data.shapes[startId]) ?? conduitStart.point;
                 const endHit = findSnapConnection(wPos);
 
                 if (!startPoint || !endHit) {
@@ -656,14 +682,14 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     return;
                 }
 
-                const endPoint = getConnectionPoint(dataStore.shapes[endHit.id]) ?? endHit.point;
+                const endPoint = getConnectionPoint(data.shapes[endHit.id]) ?? endHit.point;
                 if (!endPoint || startId === endHit.id) {
                     setConduitStart(null);
                     return;
                 }
 
                 // Prevent duplicates
-                const existing = Object.values(dataStore.shapes).find(s => {
+                const existing = Object.values(data.shapes).find(s => {
                     if (!isConduitShape(s)) return false;
                     const sStart = getConduitStartId(s);
                     const sEnd = getConduitEndId(s);
@@ -675,10 +701,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 }
 
                 // Ensure native layer
-                const layer = dataStore.layers.find(l => l.id === 'eletrodutos') || dataStore.layers[0];
-                const targetLayerId = layer?.id ?? dataStore.layers[0]?.id ?? 'eletrodutos';
+                const layer = data.layers.find(l => l.id === 'eletrodutos') || data.layers[0];
+                const targetLayerId = layer?.id ?? data.layers[0]?.id ?? 'eletrodutos';
                 
-                dataStore.addShape({
+                data.addShape({
                     id: Date.now().toString(),
                     layerId: targetLayerId,
                     type: 'eletroduto',
@@ -702,42 +728,45 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         }
 
         setIsDragging(true);
-    };
+    }, [textEditState, snapSettings, gridSize, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides, zoomToFit, activeHandle, conduitStart, arcPoints, lineStart, arrowStart, measureStart, transformationBase]);
 
-    const handleMouseMove = (e: React.MouseEvent) => {
-        const raw = getMousePos(e); const worldPos = screenToWorld(raw, uiStore.viewTransform);
-        uiStore.setMousePos(worldPos);
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+        const ui = useUIStore.getState();
+        const data = useDataStore.getState();
 
-        if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) {
+        const raw = getMousePos(e); const worldPos = screenToWorld(raw, ui.viewTransform);
+        ui.setMousePos(worldPos);
+
+        if (isMiddlePanning || (isDragging && ui.activeTool === 'pan')) {
             if (startPoint) {
                 const dx = raw.x - startPoint.x; const dy = raw.y - startPoint.y;
-                uiStore.setViewTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy })); setStartPoint(raw);
+                ui.setViewTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy })); setStartPoint(raw);
             }
             return;
         }
 
         let eff = raw;
         const isHandleDrag = !!activeHandle;
-        const shouldSnap = snapSettings.enabled && !e.ctrlKey && (!['pan', 'select'].includes(uiStore.activeTool) || isHandleDrag);
+        const shouldSnap = snapSettings.enabled && !e.ctrlKey && (!['pan', 'select'].includes(ui.activeTool) || isHandleDrag);
 
         if (shouldSnap) {
             const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
-            const visible = dataStore.spatialIndex.query(queryRect)
-                .map(s => dataStore.shapes[s.id])
+            const visible = data.spatialIndex.query(queryRect)
+                .map(s => data.shapes[s.id])
                 .filter(s => {
-                    const l = dataStore.layers.find(l => l.id === s.layerId);
+                    const l = data.layers.find(l => l.id === s.layerId);
                     if (activeHandle && s.id === activeHandle.shapeId) return false;
                     return s && l && l.visible && !l.locked;
                 });
-            const frameData = computeFrameData(dataStore.frame, dataStore.worldScale);
+            const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
               worldPos,
               frameData ? [...visible, ...frameData.shapes] : visible,
               snapSettings,
               gridSize,
-              snapSettings.tolerancePx / uiStore.viewTransform.scale
+              snapSettings.tolerancePx / ui.viewTransform.scale
             );
-            if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, uiStore.viewTransform); } else { setSnapMarker(null); }
+            if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, ui.viewTransform); } else { setSnapMarker(null); }
         } else { setSnapMarker(null); }
 
         setCurrentPoint(eff);
@@ -754,8 +783,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         if (isDragging && startPoint) {
             if (activeHandle) {
-                const wsWorld = screenToWorld(eff, uiStore.viewTransform);
-                const s = dataStore.shapes[activeHandle.shapeId];
+                const wsWorld = screenToWorld(eff, ui.viewTransform);
+                const s = data.shapes[activeHandle.shapeId];
                 if (s) {
                         const rotation = s.rotation || 0;
                         const pivot = getShapeCenter(s);
@@ -763,27 +792,27 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
                         // Conduit Control Point Handle
                         if (activeHandle.handle.type === 'bezier-control' && isConduitShape(s)) {
-                            dataStore.updateShape(s.id, { controlPoint: ws }, false);
+                            data.updateShape(s.id, { controlPoint: ws }, false);
                         }
                         // VERTEX handles (lines, polylines, conduits) - direct point manipulation
                         else if (activeHandle.handle.type === 'vertex' && s.points) {
                             const newPoints = s.points.map((p, i) => i === activeHandle.handle.index ? ws : p);
                             const rotatedPoints = rotation ? newPoints.map(p => rotatePoint(p, pivot, rotation)) : newPoints;
-                            dataStore.updateShape(s.id, { points: rotatedPoints }, false);
+                            data.updateShape(s.id, { points: rotatedPoints }, false);
                             
                             // If moving conduit endpoint, check for snap to re-link
                             if (isConduitShape(s)) {
                                 // Find potential snap target for re-linking
                                 const queryRect = { x: worldPos.x - 20, y: worldPos.y - 20, width: 40, height: 40 };
-                                const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]);
+                                const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
                                 let foundLink: string | undefined = undefined;
                                 
                                 for (const cand of candidates) {
                                     if (!cand || cand.id === s.id) continue;
-                                    const layer = dataStore.layers.find(l => l.id === cand.layerId);
+                                    const layer = data.layers.find(l => l.id === cand.layerId);
                                     if (!layer || !layer.visible || layer.locked) continue;
                                     const connPt = getConnectionPoint(cand);
-                                    if (connPt && getDistance(connPt, worldPos) < (10 / uiStore.viewTransform.scale)) {
+                                    if (connPt && getDistance(connPt, worldPos) < (10 / ui.viewTransform.scale)) {
                                         foundLink = cand.id;
                                         break;
                                     }
@@ -808,7 +837,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                                 if (Object.keys(update).length > 0) {
                                      // Optimization: Debounce this or only do on mouse up? 
                                      // Doing it live allows visual feedback if we added indicators, but for now pure logic.
-                                     dataStore.updateShape(s.id, update, false);
+                                     data.updateShape(s.id, update, false);
                                 }
                             }
 
@@ -864,7 +893,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         const newScaleY = signY < 0 ? -originalScaleY : originalScaleY;
 
                         if (s.type === 'rect' || s.type === 'text') {
-                            dataStore.updateShape(s.id, {
+                            data.updateShape(s.id, {
                                 x: finalX,
                                 y: finalY,
                                 width: finalW,
@@ -875,7 +904,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         } else if (s.type === 'circle' || s.type === 'polygon') {
                             const newCx = finalX + finalW / 2;
                             const newCy = finalY + finalH / 2;
-                            dataStore.updateShape(s.id, {
+                            data.updateShape(s.id, {
                                 x: newCx,
                                 y: newCy,
                                 width: finalW,
@@ -889,15 +918,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return;
             }
 
-            if (uiStore.activeTool === 'select' && !isSelectionBox && uiStore.selectedShapeIds.size > 0 && !activeHandle) {
-                const currWorld = screenToWorld(eff, uiStore.viewTransform);
+            if (ui.activeTool === 'select' && !isSelectionBox && ui.selectedShapeIds.size > 0 && !activeHandle) {
+                const currWorld = screenToWorld(eff, ui.viewTransform);
                 
                 // Initialize drag start positions if not already set
                 if (!dragStartWorld.current) {
-                    dragStartWorld.current = screenToWorld(startPoint, uiStore.viewTransform);
+                    dragStartWorld.current = screenToWorld(startPoint, ui.viewTransform);
                     // Store original positions of all selected shapes
-                    uiStore.selectedShapeIds.forEach(id => {
-                        const s = dataStore.shapes[id];
+                    ui.selectedShapeIds.forEach(id => {
+                        const s = data.shapes[id];
                         if (s) {
                             dragStartPositions.current.set(id, {
                                 x: s.x ?? 0,
@@ -934,10 +963,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 }
 
                 // Apply movement from original positions
-                uiStore.selectedShapeIds.forEach(id => {
-                    const s = dataStore.shapes[id];
+                ui.selectedShapeIds.forEach(id => {
+                    const s = data.shapes[id];
                     if (!s) return;
-                    const l = dataStore.layers.find(lay => lay.id === s.layerId);
+                    const l = data.layers.find(lay => lay.id === s.layerId);
                     if (l && l.locked) return;
 
                     const originalPos = dragStartPositions.current.get(id);
@@ -953,27 +982,31 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         }));
                     }
 
-                    dataStore.updateShape(id, diff, false);
+                    data.updateShape(id, diff, false);
                 });
             }
         }
 
         // Hover feedback for resize/rotate zones (Figma-like)
-        if (!isDragging && uiStore.activeTool === 'select' && uiStore.selectedShapeIds.size > 0) {
-            const inter = detectInteractionAtPoint(worldPos, uiStore.viewTransform.scale);
+        if (!isDragging && ui.activeTool === 'select' && ui.selectedShapeIds.size > 0) {
+            const inter = detectInteractionAtPoint(worldPos, ui.viewTransform.scale);
             setHoverCursor(inter.cursor);
         } else {
             setHoverCursor(null);
         }
-    };
+    }, [isMiddlePanning, isDragging, startPoint, activeHandle, snapSettings, gridSize, isShiftPressed, lockedAxis, resizeState, isSelectionBox, rotationState, setHoverCursor, setCurrentPoint, setSnapMarker, dragStartWorld, dragStartPositions, setLockedAxis, setStartPoint, setIsMiddlePanning, applyRotationFromSnapshot, commitRotationHistory, setIsDragging]);
 
-    const handleMouseUp = (e: React.MouseEvent) => {
+    const handleMouseUp = useCallback((e: React.MouseEvent) => {
+        const ui = useUIStore.getState();
+        const data = useDataStore.getState();
+        const library = useLibraryStore.getState();
+
         if (isMiddlePanning) { setIsMiddlePanning(false); setStartPoint(null); return; }
 
         const raw = getMousePos(e);
-        const worldPos = screenToWorld(raw, uiStore.viewTransform);
+        const worldPos = screenToWorld(raw, ui.viewTransform);
 
-        const conduitToolActive = isConduitTool(uiStore.activeTool as ToolType);
+        const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
         if (conduitToolActive) {
             // Conduit creation is handled on mouse down; avoid falling through to generic tool logic
             setIsDragging(false);
@@ -994,7 +1027,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (e.shiftKey || isShiftPressed) diff = Math.round(diff / (Math.PI / 4)) * (Math.PI / 4);
             applyRotationFromSnapshot(diff);
             commitRotationHistory();
-            dataStore.syncQuadTree();
+            data.syncQuadTree();
             rotationState.current = null;
             setIsDragging(false);
             setHoverCursor(null);
@@ -1003,29 +1036,29 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         if (isSelectionBox && startPoint && currentPoint) {
             if (getDistance(startPoint, currentPoint) > 2) {
-                const ws = screenToWorld(startPoint, uiStore.viewTransform); const we = screenToWorld(currentPoint, uiStore.viewTransform);
+                const ws = screenToWorld(startPoint, ui.viewTransform); const we = screenToWorld(currentPoint, ui.viewTransform);
                 const { rect, direction } = getSelectionRect(ws, we);
                 const mode = direction === 'LTR' ? 'WINDOW' : 'CROSSING';
-                const nSel = e.shiftKey ? new Set(uiStore.selectedShapeIds) : new Set<string>();
+                const nSel = e.shiftKey ? new Set(ui.selectedShapeIds) : new Set<string>();
 
-                const candidates = dataStore.spatialIndex.query(rect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
+                const candidates = data.spatialIndex.query(rect).map(c => data.shapes[c.id]).filter(s => !!s);
                 candidates.forEach(s => {
-                    const l = dataStore.layers.find(lay => lay.id === s.layerId);
+                    const l = data.layers.find(lay => lay.id === s.layerId);
                     if (l && (!l.visible || l.locked)) return;
                     if (isShapeInSelection(s, rect, mode)) nSel.add(s.id);
                 });
-                uiStore.setSelectedShapeIds(nSel);
+                ui.setSelectedShapeIds(nSel);
             }
             setIsSelectionBox(false); setStartPoint(null); return;
         }
 
         if (!startPoint || !currentPoint) { setIsDragging(false); setActiveHandle(null); return; }
 
-        const ws = screenToWorld(startPoint, uiStore.viewTransform); const we = screenToWorld(currentPoint, uiStore.viewTransform);
+        const ws = screenToWorld(startPoint, ui.viewTransform); const we = screenToWorld(currentPoint, ui.viewTransform);
         const dist = getDistance(startPoint, currentPoint);
 
-        if (isDragging && (uiStore.activeTool === 'select' || activeHandle)) {
-            dataStore.syncQuadTree();
+        if (isDragging && (ui.activeTool === 'select' || activeHandle)) {
+            data.syncQuadTree();
         }
 
         setIsDragging(false); setActiveHandle(null);
@@ -1034,12 +1067,12 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         dragStartPositions.current.clear();
         dragStartWorld.current = null;
 
-        if (uiStore.activeTool === 'electrical-symbol') {
-            const symbolId = uiStore.activeElectricalSymbolId;
-            const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
+        if (ui.activeTool === 'electrical-symbol') {
+            const symbolId = ui.activeElectricalSymbolId;
+            const librarySymbol = symbolId ? library.electricalSymbols[symbolId] : null;
             if (librarySymbol) {
                 const layerConfig = getElectricalLayerConfig(librarySymbol.id, librarySymbol.category);
-                const targetLayerId = dataStore.ensureLayer(layerConfig.name, {
+                const targetLayerId = data.ensureLayer(layerConfig.name, {
                     strokeColor: layerConfig.strokeColor,
                     fillColor: layerConfig.fillColor ?? '#ffffff',
                     fillEnabled: layerConfig.fillEnabled ?? false,
@@ -1063,9 +1096,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     fillColor: 'transparent',
                     colorMode: getDefaultColorMode(),
                     points: [],
-                    rotation: uiStore.electricalRotation,
-                    scaleX: uiStore.electricalFlipX,
-                    scaleY: uiStore.electricalFlipY,
+                    rotation: ui.electricalRotation,
+                    scaleX: ui.electricalFlipX,
+                    scaleY: ui.electricalFlipY,
                     svgSymbolId: librarySymbol.id,
                     svgRaw: librarySymbol.canvasSvg,
                     svgViewBox: librarySymbol.viewBox,
@@ -1082,10 +1115,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     metadata,
                 };
 
-                dataStore.addShape(n, electricalElement);
-                uiStore.setSelectedShapeIds(new Set([shapeId]));
-                uiStore.setSidebarTab('desenho');
-                uiStore.setTool('select'); // Switch back to select tool after placing
+                data.addShape(n, electricalElement);
+                ui.setSelectedShapeIds(new Set([shapeId]));
+                ui.setSidebarTab('desenho');
+                ui.setTool('select'); // Switch back to select tool after placing
             }
             setStartPoint(null);
             setHoverCursor(null);
@@ -1095,110 +1128,116 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const shapeCreationTools = ['circle', 'rect', 'polygon', 'arc'];
         const isSingleClick = dist < 5;
 
-        if (!['select', 'pan', 'polyline', 'measure', 'line', 'move', 'rotate', 'arrow'].includes(uiStore.activeTool)) {
+        if (!['select', 'pan', 'polyline', 'measure', 'line', 'move', 'rotate', 'arrow'].includes(ui.activeTool)) {
 
-            if (uiStore.activeTool === 'arc') {
+            if (ui.activeTool === 'arc') {
                 const pEnd = isSingleClick ? { x: ws.x + 100, y: ws.y } : we;
                 setArcPoints({ start: ws, end: pEnd });
-                const screenPos = worldToScreen(pEnd, uiStore.viewTransform);
+                const screenPos = worldToScreen(pEnd, ui.viewTransform);
                 setRadiusModalPos({ x: screenPos.x, y: screenPos.y });
                 setShowRadiusModal(true);
                 setStartPoint(null);
                 return;
             }
 
-            if (uiStore.activeTool === 'text') {
+            if (ui.activeTool === 'text') {
                 setTextEditState({ x: ws.x, y: ws.y, content: '' });
+                const setEditingTextId = useUIStore.getState().setEditingTextId;
                 setEditingTextId(null);
                 setStartPoint(null);
                 return;
             }
 
-            const n: Shape = { id: Date.now().toString(), layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
+            const n: Shape = { id: Date.now().toString(), layerId: data.activeLayerId, type: ui.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
 
-            if (isSingleClick && shapeCreationTools.includes(uiStore.activeTool)) {
-                if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
-                else if (uiStore.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
-                else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = polygonSides; }
+            if (isSingleClick && shapeCreationTools.includes(ui.activeTool)) {
+                if (ui.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
+                else if (ui.activeTool === 'rect') { n.x = ws.x - 50; n.y = ws.y - 50; n.width = 100; n.height = 100; }
+                else if (ui.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = 50; n.sides = polygonSides; }
             } else {
                 // Apply Shift constraint for proportional shapes (Figma-style)
                 let finalEnd = we;
-                if ((e.shiftKey || isShiftPressed) && uiStore.activeTool === 'rect') {
+                if ((e.shiftKey || isShiftPressed) && ui.activeTool === 'rect') {
                     finalEnd = constrainToSquare(ws, we);
                 }
 
-                if (uiStore.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
-                else if (uiStore.activeTool === 'rect') { 
+                if (ui.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); }
+                else if (ui.activeTool === 'rect') { 
                     n.x = Math.min(ws.x, finalEnd.x); 
                     n.y = Math.min(ws.y, finalEnd.y); 
                     n.width = Math.abs(finalEnd.x - ws.x); 
                     n.height = Math.abs(finalEnd.y - ws.y); 
                 }
-                else if (uiStore.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = polygonSides; }
+                else if (ui.activeTool === 'polygon') { n.x = ws.x; n.y = ws.y; n.radius = getDistance(ws, we); n.sides = polygonSides; }
             }
 
             // For polygon, show modal after creation
-            if (uiStore.activeTool === 'polygon') {
-                dataStore.addShape(n);
+            if (ui.activeTool === 'polygon') {
+                data.addShape(n);
                 setPolygonShapeId(n.id);
-                const screenPos = worldToScreen({ x: n.x!, y: n.y! }, uiStore.viewTransform);
+                const screenPos = worldToScreen({ x: n.x!, y: n.y! }, ui.viewTransform);
                 setPolygonModalPos({ x: screenPos.x + 20, y: screenPos.y - 20 });
                 setShowPolygonModal(true);
-                uiStore.setSelectedShapeIds(new Set([n.id]));
-                uiStore.setSidebarTab('desenho');
+                ui.setSelectedShapeIds(new Set([n.id]));
+                ui.setSidebarTab('desenho');
                 // Don't switch tool yet - wait for modal confirmation
             } else {
-                dataStore.addShape(n);
-                uiStore.setSidebarTab('desenho');
-                uiStore.setTool('select');
+                data.addShape(n);
+                ui.setSidebarTab('desenho');
+                ui.setTool('select');
             }
         }
         setStartPoint(null);
         setHoverCursor(null);
-    };
+    }, [isMiddlePanning, isSelectionBox, startPoint, currentPoint, isDragging, activeHandle, isShiftPressed, rotationState, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides, setStartPoint, setCurrentPoint, setIsDragging, setActiveHandle, setIsSelectionBox, setLockedAxis, commitRotationHistory, setHoverCursor, setArcPoints, setShowRadiusModal, setRadiusModalPos, setTextEditState, setPolygonShapeId, setPolygonModalPos, setShowPolygonModal, applyRotationFromSnapshot]);
 
-    const handleDoubleClick = (e: React.MouseEvent) => {
-        if (uiStore.activeTool !== 'select') { finishPolyline(); return; }
+    const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+        const ui = useUIStore.getState();
+        const data = useDataStore.getState();
+
+        if (ui.activeTool !== 'select') { finishPolyline(); return; }
 
         const raw = getMousePos(e);
-        const worldPos = screenToWorld(raw, uiStore.viewTransform);
+        const worldPos = screenToWorld(raw, ui.viewTransform);
 
         const queryRect = { x: worldPos.x - 5, y: worldPos.y - 5, width: 10, height: 10 };
-        const candidates = dataStore.spatialIndex.query(queryRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
+        const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]).filter(s => !!s);
 
         for (let i = candidates.length - 1; i >= 0; i--) {
             const s = candidates[i];
-            const l = dataStore.layers.find(layer => layer.id === s.layerId);
+            const l = data.layers.find(layer => layer.id === s.layerId);
             if (l && (!l.visible || l.locked)) continue;
             if (s.type === 'text') {
-                if (isPointInShape(worldPos, s, uiStore.viewTransform.scale, l)) {
+                if (isPointInShape(worldPos, s, ui.viewTransform.scale, l)) {
                     setTextEditState({ id: s.id, x: s.x!, y: s.y!, content: s.textContent || '', width: s.width, height: s.height });
+                    const setEditingTextId = useUIStore.getState().setEditingTextId;
                     setEditingTextId(s.id);
                     return;
                 }
             }
         }
-    };
+    }, [finishPolyline, setTextEditState]);
 
-    const handleWheel = (e: React.WheelEvent) => {
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        const ui = useUIStore.getState();
         e.preventDefault();
         const scaleFactor = 1.1; const direction = e.deltaY > 0 ? -1 : 1;
-        let newScale = uiStore.viewTransform.scale * (direction > 0 ? scaleFactor : 1/scaleFactor);
+        let newScale = ui.viewTransform.scale * (direction > 0 ? scaleFactor : 1/scaleFactor);
         newScale = Math.max(0.1, Math.min(newScale, 5));
-        const raw = getMousePos(e); const w = screenToWorld(raw, uiStore.viewTransform);
+        const raw = getMousePos(e); const w = screenToWorld(raw, ui.viewTransform);
         const newX = raw.x - w.x * newScale; const newY = raw.y - w.y * newScale;
-        uiStore.setViewTransform({ scale: newScale, x: newX, y: newY });
-    };
+        ui.setViewTransform({ scale: newScale, x: newX, y: newY });
+    }, []);
 
     // Handler to confirm polygon sides
-    const confirmPolygonSides = (sides: number) => {
+    const confirmPolygonSides = useCallback((sides: number) => {
         if (polygonShapeId) {
-            dataStore.updateShape(polygonShapeId, { sides }, true);
+            useDataStore.getState().updateShape(polygonShapeId, { sides }, true);
         }
         setShowPolygonModal(false);
         setPolygonShapeId(null);
-        uiStore.setTool('select');
-    };
+        useUIStore.getState().setTool('select');
+    }, [polygonShapeId]);
 
     return {
         handlers: {

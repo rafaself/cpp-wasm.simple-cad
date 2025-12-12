@@ -1,68 +1,88 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { useUIStore } from '../../../../stores/useUIStore';
-import { useDataStore } from '../../../../stores/useDataStore';
-import { useEditorLogic } from '../../hooks/useEditorLogic';
-import StaticCanvas from './StaticCanvas';
-import DynamicOverlay from './DynamicOverlay';
-import UserHint from '../UserHint';
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import { useUIStore } from "../../../../stores/useUIStore";
+import { useDataStore } from "../../../../stores/useDataStore";
+import { useEditorLogic } from "../../hooks/useEditorLogic";
+import StaticCanvas from "./StaticCanvas";
+import DynamicOverlay from "./DynamicOverlay";
+import UserHint from "../UserHint";
 
 const CanvasManager: React.FC = () => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const uiStore = useUIStore();
-    const dataStore = useDataStore();
-    const { zoomToFit } = useEditorLogic();
-    const hasInitialized = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const setCanvasSize = useUIStore((s) => s.setCanvasSize);
+  const activeTool = useUIStore((s) => s.activeTool);
+  const selectedShapeIdsSize = useUIStore((s) => s.selectedShapeIds.size);
+  const setCanvasSizeRef = useRef(setCanvasSize);
+  setCanvasSizeRef.current = setCanvasSize;
 
-    const [dims, setDims] = useState({ width: 800, height: 600 });
-    const [hintDismissed, setHintDismissed] = useState(false);
+  const { zoomToFit } = useEditorLogic();
+  const hasInitialized = useRef(false);
 
-    // Resize Observer
-    useEffect(() => {
-        const handleResize = () => {
-          if (containerRef.current) {
-              const width = containerRef.current.clientWidth;
-              const height = containerRef.current.clientHeight;
-              if (width !== dims.width || height !== dims.height) {
-                  setDims({ width, height });
-                  uiStore.setCanvasSize({ width, height });
-              }
-          }
-        };
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [uiStore, dims.width, dims.height]);
+  const [dims, setDims] = useState({ width: 800, height: 600 });
+  const [hintDismissed, setHintDismissed] = useState(false);
 
-    // Center view on initial load
-    useEffect(() => {
-        if (!hasInitialized.current && dims.width > 0 && dims.height > 0) {
-            hasInitialized.current = true;
-            // Small delay to ensure canvas size is set
-            setTimeout(() => {
-                zoomToFit();
-            }, 50);
+  // Resize Observer
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        if (width !== dims.width || height !== dims.height) {
+          setDims({ width, height });
+          setCanvasSizeRef.current({ width, height });
         }
-    }, [dims.width, dims.height, zoomToFit]);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [dims.width, dims.height]);
 
-    // Hint Logic
-    useEffect(() => { setHintDismissed(false); }, [uiStore.activeTool]);
+  // Center view on initial load
+  useEffect(() => {
+    if (!hasInitialized.current && dims.width > 0 && dims.height > 0) {
+      hasInitialized.current = true;
+      // Small delay to ensure canvas size is set
+      setTimeout(() => {
+        zoomToFit();
+      }, 50);
+    }
+  }, [dims.width, dims.height, zoomToFit]);
 
-    let hintMessage = "";
-    if ((uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') && uiStore.selectedShapeIds.size > 0) hintMessage = "Arraste para mover/rotacionar";
-    else if ((uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') && uiStore.selectedShapeIds.size === 0) hintMessage = "Selecione objetos primeiro";
-    else if (uiStore.activeTool === 'electrical-symbol') hintMessage = "Clique para inserir. R para girar, F/V para espelhar, continue clicando para duplicar.";
+  // Hint Logic
+  useEffect(() => {
+    setHintDismissed(false);
+  }, [activeTool]);
 
-    return (
-        <div ref={containerRef} className="relative w-full h-full bg-gray-50 overflow-hidden">
-            <StaticCanvas width={dims.width} height={dims.height} />
-            <DynamicOverlay
-                width={dims.width}
-                height={dims.height}
-            />
+  let hintMessage = "";
+  if (
+    (activeTool === "move" || activeTool === "rotate") &&
+    selectedShapeIdsSize > 0
+  )
+    hintMessage = "Arraste para mover/rotacionar";
+  else if (
+    (activeTool === "move" || activeTool === "rotate") &&
+    selectedShapeIdsSize === 0
+  )
+    hintMessage = "Selecione objetos primeiro";
+  else if (activeTool === "electrical-symbol")
+    hintMessage =
+      "Clique para inserir. R para girar, F/V para espelhar, continue clicando para duplicar.";
 
-            <UserHint visible={!!hintMessage && !hintDismissed} message={hintMessage} onClose={() => setHintDismissed(true)} />
-        </div>
-    );
-}
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-gray-50 overflow-hidden"
+    >
+      <StaticCanvas width={dims.width} height={dims.height} />
+      <DynamicOverlay width={dims.width} height={dims.height} />
+
+      <UserHint
+        visible={!!hintMessage && !hintDismissed}
+        message={hintMessage}
+        onClose={() => setHintDismissed(true)}
+      />
+    </div>
+  );
+};
 
 export default CanvasManager;

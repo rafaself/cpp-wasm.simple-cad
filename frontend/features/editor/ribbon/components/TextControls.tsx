@@ -4,7 +4,7 @@ import CustomSelect from '../../../../components/CustomSelect';
 import NumberSpinner from '../../../../components/NumberSpinner';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { BUTTON_STYLES, INPUT_STYLES, TEXT_STYLES } from '../../../../design/tokens';
-import { TextControlProps, TextUpdateDiff } from '../../../types/ribbon';
+import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
@@ -86,18 +86,16 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
     underline: textUnderline,
     strike: textStrike,
   } = useSettingsStore((s) => s.toolDefaults.text);
-  const setters = useSettingsStore((s) => ({
-    setBold: s.setTextBold,
-    setItalic: s.setTextItalic,
-    setUnderline: s.setTextUnderline,
-    setStrike: s.setTextStrike,
-  }));
+  const setBold = useSettingsStore((s) => s.setTextBold);
+  const setItalic = useSettingsStore((s) => s.setTextItalic);
+  const setUnderline = useSettingsStore((s) => s.setTextUnderline);
+  const setStrike = useSettingsStore((s) => s.setTextStrike);
 
   const options: Array<{ key: StyleKey; icon: React.ReactNode; active: boolean; setter: (v: boolean) => void; recalc: boolean }> = [
-    { key: 'bold', icon: <Bold size={16} />, active: textBold, setter: setters.setBold, recalc: true },
-    { key: 'italic', icon: <Italic size={16} />, active: textItalic, setter: setters.setItalic, recalc: true },
-    { key: 'underline', icon: <Underline size={16} />, active: textUnderline, setter: setters.setUnderline, recalc: false },
-    { key: 'strike', icon: <Strikethrough size={16} />, active: textStrike, setter: setters.setStrike, recalc: false },
+    { key: 'bold', icon: <Bold size={16} />, active: textBold, setter: setBold, recalc: true },
+    { key: 'italic', icon: <Italic size={16} />, active: textItalic, setter: setItalic, recalc: true },
+    { key: 'underline', icon: <Underline size={16} />, active: textUnderline, setter: setUnderline, recalc: false },
+    { key: 'strike', icon: <Strikethrough size={16} />, active: textStrike, setter: setStrike, recalc: false },
   ];
 
   const handleClick = (option: typeof options[number]) => {

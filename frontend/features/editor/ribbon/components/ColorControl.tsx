@@ -1,33 +1,36 @@
 import React from 'react';
 import { Layer } from '../../../../types';
-import { ColorPickerTarget } from '../../../types/ribbon';
-import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '../../../../utils/shapeColors';
-import { useSettingsStore } from '../../../../stores/useSettingsStore';
-import { useDataStore } from '../../../../stores/useDataStore';
+import { ColorPickerTarget } from '../../types/ribbon';
 import { useUIStore } from '../../../../stores/useUIStore';
+import { useDataStore } from '../../../../stores/useDataStore';
+import { useSettingsStore } from '../../../../stores/useSettingsStore';
+import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '../../../../utils/shapeColors';
 import EditableNumber from '../../../../components/EditableNumber';
 
 interface ColorControlProps {
-  uiStore: ReturnType<typeof useUIStore>;
-  dataStore: ReturnType<typeof useDataStore>;
   activeLayer: Layer | undefined;
   openColorPicker: (e: React.MouseEvent, target: ColorPickerTarget) => void;
-  selectedShapeIds: string[];
-  settingsStore: ReturnType<typeof useSettingsStore>;
 }
 
 const LABEL_STYLE = 'text-[9px] text-slate-400 uppercase tracking-wider font-semibold';
 
 const ColorControl: React.FC<ColorControlProps> = ({
-  uiStore,
-  dataStore,
   activeLayer,
-  openColorPicker,
-  selectedShapeIds,
-  settingsStore
+  openColorPicker
 }) => {
-  const selectedIds = Array.from(uiStore.selectedShapeIds);
-  const firstSelectedShape = selectedIds.length > 0 ? dataStore.shapes[selectedIds[0]] : null;
+  const selectedIds = useUIStore((s) => Array.from(s.selectedShapeIds));
+  const shapes = useDataStore((s) => s.shapes);
+  const updateShape = useDataStore((s) => s.updateShape);
+  const updateLayer = useDataStore((s) => s.updateLayer);
+  const strokeEnabledDefault = useSettingsStore((s) => s.toolDefaults.strokeEnabled);
+  const fillDefault = useSettingsStore((s) => s.toolDefaults.fillColor);
+  const strokeWidthDefault = useSettingsStore((s) => s.toolDefaults.strokeWidth);
+  const setStrokeEnabled = useSettingsStore((s) => s.setStrokeEnabled);
+  const setFillColor = useSettingsStore((s) => s.setFillColor);
+  const setStrokeWidth = useSettingsStore((s) => s.setStrokeWidth);
+
+  const firstSelectedId = selectedIds[0];
+  const firstSelectedShape = firstSelectedId ? shapes[firstSelectedId] : null;
 
   const effectiveStroke = firstSelectedShape
       ? getEffectiveStrokeColor(firstSelectedShape, activeLayer)
@@ -43,58 +46,51 @@ const ColorControl: React.FC<ColorControlProps> = ({
 
   const strokeEnabled = firstSelectedShape
       ? isStrokeEffectivelyEnabled(firstSelectedShape, activeLayer)
-      : (activeLayer?.strokeEnabled !== false && settingsStore.toolDefaults.strokeEnabled !== false);
+      : (activeLayer?.strokeEnabled !== false && strokeEnabledDefault !== false);
   const fillEnabled = firstSelectedShape
       ? isFillEffectivelyEnabled(firstSelectedShape, activeLayer)
-      : (activeLayer?.fillEnabled !== false && settingsStore.toolDefaults.fillColor !== 'transparent');
+      : (activeLayer?.fillEnabled !== false && fillDefault !== 'transparent');
 
-  const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? settingsStore.toolDefaults.strokeWidth;
-  const colorMode = firstSelectedShape ? getShapeColorMode(firstSelectedShape) : null;
+  const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? strokeWidthDefault;
 
   const handleStrokeEnabledChange = (checked: boolean) => {
-    settingsStore.setStrokeEnabled(checked);
+    setStrokeEnabled(checked);
     if (selectedIds.length === 0) return;
-    selectedIds.forEach(id => {
-      const shape = dataStore.shapes[id];
+      selectedIds.forEach(id => {
+      const shape = shapes[id];
       if (!shape) return;
       const mode = getShapeColorMode(shape).stroke;
       if (mode === 'layer' && activeLayer) {
-        dataStore.updateLayer(activeLayer.id, { strokeEnabled: checked });
+        updateLayer(activeLayer.id, { strokeEnabled: checked });
       } else {
-        dataStore.updateShape(id, { strokeEnabled: checked }, true);
+        updateShape(id, { strokeEnabled: checked }, true);
       }
     });
   };
 
   const handleFillEnabledChange = (checked: boolean) => {
-    settingsStore.setFillColor(checked ? '#eeeeee' : 'transparent');
+    setFillColor(checked ? '#eeeeee' : 'transparent');
     if (selectedIds.length === 0) return;
-    selectedIds.forEach(id => {
-      const shape = dataStore.shapes[id];
+      selectedIds.forEach(id => {
+      const shape = shapes[id];
       if (!shape) return;
       const mode = getShapeColorMode(shape).fill;
       if (mode === 'layer' && activeLayer) {
-        dataStore.updateLayer(activeLayer.id, { fillEnabled: checked });
+        updateLayer(activeLayer.id, { fillEnabled: checked });
       } else {
-        dataStore.updateShape(id, { fillEnabled: checked }, true);
+        updateShape(id, { fillEnabled: checked }, true);
       }
     });
   };
 
   const handleStrokeWidthChange = (value: number) => {
-    settingsStore.setStrokeWidth(value);
+    setStrokeWidth(value);
     selectedIds.forEach(id => {
-      const shape = dataStore.shapes[id];
+      const shape = shapes[id];
       if (shape) {
-        dataStore.updateShape(id, { strokeWidth: value }, true);
+        updateShape(id, { strokeWidth: value }, true);
       }
     });
-  };
-
-  const hasCustomMode = () => {
-    if (!firstSelectedShape || !activeLayer) return false;
-    const mode = getShapeColorMode(firstSelectedShape);
-    return mode.fill === 'custom' || mode.stroke === 'custom';
   };
 
   return (

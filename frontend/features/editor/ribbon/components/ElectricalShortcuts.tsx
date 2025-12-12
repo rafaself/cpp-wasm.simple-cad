@@ -1,5 +1,4 @@
 import React from 'react';
-import { TextControlProps } from '../../../types/ribbon';
 
 const ElectricalShortcuts: React.FC = () => (
   <div className="flex flex-col justify-center gap-1 h-full px-3 text-center">
