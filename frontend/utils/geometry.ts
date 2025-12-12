@@ -284,7 +284,7 @@ const lineIntersectsLine = (p1: Point, p2: Point, p3: Point, p4: Point) => {
   if (det === 0) return false;
   const lambda = ((p4.y - p3.y) * (p4.x - p1.x) + (p3.x - p4.x) * (p4.y - p1.y)) / det;
   const gamma = ((p1.y - p2.y) * (p4.x - p1.x) + (p2.x - p1.x) * (p4.y - p1.y)) / det;
-  return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+  return (0 <= lambda && lambda <= 1) && (0 <= gamma && gamma <= 1);
 };
 
 const rectEdges = (r: Rect) => [
