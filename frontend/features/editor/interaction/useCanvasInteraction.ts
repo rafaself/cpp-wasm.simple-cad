@@ -14,6 +14,7 @@ import { useLibraryStore } from '../../../stores/useLibraryStore';
 import { computeFrameData } from '../../../utils/frame';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
 import { isConduitShape, isConduitTool } from '../utils/tools';
+import { resolveConnectionNodePosition } from '../../../utils/connections';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -85,7 +86,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
-    const [conduitStart, setConduitStart] = useState<{ point: Point; shapeId: string } | null>(null);
+    const [conduitStart, setConduitStart] = useState<{ point: Point; nodeId: string } | null>(null);
     const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
     // Shift key state for real-time updates during drag
@@ -118,8 +119,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
 
 
-    const getConduitStartId = (s?: Shape | null) => s ? (s.fromConnectionId ?? s.connectedStartId) : undefined;
-    const getConduitEndId = (s?: Shape | null) => s ? (s.toConnectionId ?? s.connectedEndId) : undefined;
+    const getConduitStartNodeId = (s?: Shape | null) => s?.fromNodeId;
+    const getConduitEndNodeId = (s?: Shape | null) => s?.toNodeId;
 
     // Middle button double-click detection (native dblclick doesn't work for middle button)
     const lastMiddleClickTime = useRef<number>(0);
@@ -541,21 +542,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
                             data.updateShape(id, diff, true);
 
-                            // Strong Linking: Update connected conduits/eletrodutos
-                            const connectedConduits = Object.values(data.shapes).filter(s => 
-                                isConduitShape(s) && (getConduitStartId(s) === id || getConduitEndId(s) === id)
-                            );
-                            
-                            connectedConduits.forEach(conduit => {
-                                const newConnPoint = getConnectionPoint({ ...s, x: (s.x || 0) + dx, y: (s.y || 0) + dy });
-                                if (!newConnPoint || !conduit.points) return;
-
-                                const newPoints = [...conduit.points];
-                                if (getConduitStartId(conduit) === id) newPoints[0] = newConnPoint;
-                                if (getConduitEndId(conduit) === id) newPoints[1] = newConnPoint;
-
-                                data.updateShape(conduit.id, { points: newPoints }, true);
-                            });
                         }
                     });
                 } else if (ui.activeTool === 'rotate') {
@@ -634,9 +620,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
         if (conduitToolActive) {
-            // Helper to find snap connection point from a click (accept hit anywhere on the symbol bounds)
-            const findSnapConnection = (p: Point): { id: string; point: Point } | undefined => {
+            // Helper to find a snap connection node from a click (electrical symbols first; then existing nodes).
+            const findSnapConnection = (p: Point): { nodeId: string; point: Point } | undefined => {
                 const tolerance = 18 / ui.viewTransform.scale;
+                // 1) Electrical symbols (creates/uses an anchored node)
                 const queryRect = { x: p.x - tolerance, y: p.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
                 const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
 
@@ -657,33 +644,37 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                            p.y <= bbox.y + bbox.height + tolerance)
                         : false;
 
-                    if (nearConnection || insideBBox) return { id: cand.id, point: connPt };
+                    if (nearConnection || insideBBox) {
+                        const nodeId = data.getOrCreateAnchoredConnectionNode(cand.id);
+                        return { nodeId, point: connPt };
+                    }
+                }
+
+                // 2) Existing connection nodes (free or anchored)
+                for (const node of Object.values(data.connectionNodes)) {
+                    const pos = resolveConnectionNodePosition(node, data.shapes);
+                    if (!pos) continue;
+                    if (getDistance(pos, p) <= tolerance) return { nodeId: node.id, point: pos };
                 }
                 return undefined;
             };
 
             if (!conduitStart) {
-                // First click: Start the conduit/eletroduto only from a valid connection point or hit inside the symbol
+                // First click: start from a node/symbol, or create a free node at the click position.
                 const startHit = findSnapConnection(wPos);
                 if (!startHit) {
-                    setConduitStart(null);
+                    const nodeId = data.createFreeConnectionNode(wPos);
+                    setConduitStart({ point: wPos, nodeId });
                     return;
                 }
 
-                setConduitStart({ point: startHit.point, shapeId: startHit.id });
+                setConduitStart({ point: startHit.point, nodeId: startHit.nodeId });
             } else {
                 // Second click: End the conduit
-                const startId = conduitStart.shapeId;
-                const startPoint = getConnectionPoint(data.shapes[startId]) ?? conduitStart.point;
+                const startNodeId = conduitStart.nodeId;
                 const endHit = findSnapConnection(wPos);
-
-                if (!startPoint || !endHit) {
-                    setConduitStart(null);
-                    return;
-                }
-
-                const endPoint = getConnectionPoint(data.shapes[endHit.id]) ?? endHit.point;
-                if (!endPoint || startId === endHit.id) {
+                const endNodeId = endHit?.nodeId ?? data.createFreeConnectionNode(wPos);
+                if (!startNodeId || !endNodeId || startNodeId === endNodeId) {
                     setConduitStart(null);
                     return;
                 }
@@ -691,9 +682,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 // Prevent duplicates
                 const existing = Object.values(data.shapes).find(s => {
                     if (!isConduitShape(s)) return false;
-                    const sStart = getConduitStartId(s);
-                    const sEnd = getConduitEndId(s);
-                    return (sStart === startId && sEnd === endHit.id) || (sStart === endHit.id && sEnd === startId);
+                    const sStart = getConduitStartNodeId(s);
+                    const sEnd = getConduitEndNodeId(s);
+                    return (sStart === startNodeId && sEnd === endNodeId) || (sStart === endNodeId && sEnd === startNodeId);
                 });
                 if (existing) {
                     setConduitStart(null);
@@ -703,23 +694,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 // Ensure native layer
                 const layer = data.layers.find(l => l.id === 'eletrodutos') || data.layers[0];
                 const targetLayerId = layer?.id ?? data.layers[0]?.id ?? 'eletrodutos';
-                
-                data.addShape({
-                    id: Date.now().toString(),
+                data.addConduitBetweenNodes({
+                    fromNodeId: startNodeId,
+                    toNodeId: endNodeId,
                     layerId: targetLayerId,
-                    type: 'eletroduto',
                     strokeColor: layer?.strokeColor ?? '#8b5cf6',
-                    strokeWidth: 2,
-                    strokeEnabled: true,
-                    fillColor: 'transparent',
-                    fillEnabled: false,
-                    colorMode: { stroke: 'layer', fill: 'layer' },
-                    points: [startPoint, endPoint],
-                    fromConnectionId: startId,
-                    toConnectionId: endHit.id,
-                    // Legacy aliases to keep old data compatible
-                    connectedStartId: startId,
-                    connectedEndId: endHit.id
                 });
                 
                 setConduitStart(null);
@@ -803,40 +782,50 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             // If moving conduit endpoint, check for snap to re-link
                             if (isConduitShape(s)) {
                                 // Find potential snap target for re-linking
+                                const snapTol = 10 / ui.viewTransform.scale;
+                                let foundNodeId: string | undefined = undefined;
+
+                                // 1) Snap to electrical symbols (anchored nodes)
                                 const queryRect = { x: worldPos.x - 20, y: worldPos.y - 20, width: 40, height: 40 };
                                 const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
-                                let foundLink: string | undefined = undefined;
-                                
                                 for (const cand of candidates) {
                                     if (!cand || cand.id === s.id) continue;
                                     const layer = data.layers.find(l => l.id === cand.layerId);
                                     if (!layer || !layer.visible || layer.locked) continue;
                                     const connPt = getConnectionPoint(cand);
-                                    if (connPt && getDistance(connPt, worldPos) < (10 / ui.viewTransform.scale)) {
-                                        foundLink = cand.id;
+                                    if (connPt && getDistance(connPt, worldPos) < snapTol) {
+                                        foundNodeId = data.getOrCreateAnchoredConnectionNode(cand.id);
                                         break;
                                     }
                                 }
-                                
+
+                                // 2) Snap to existing connection nodes (junctions / free endpoints)
+                                if (!foundNodeId) {
+                                    for (const node of Object.values(data.connectionNodes)) {
+                                        const pos = resolveConnectionNodePosition(node, data.shapes);
+                                        if (!pos) continue;
+                                        if (getDistance(pos, worldPos) < snapTol) { foundNodeId = node.id; break; }
+                                    }
+                                }
+
                                 const update: Partial<Shape> = {};
-                                if (activeHandle.handle.index === 0) {
-                                    update.fromConnectionId = foundLink || undefined;
-                                    update.connectedStartId = foundLink || undefined; // legacy
-                                }
-                                if (activeHandle.handle.index === 1) {
-                                    update.toConnectionId = foundLink || undefined;
-                                    update.connectedEndId = foundLink || undefined; // legacy
+                                if (foundNodeId && activeHandle.handle.index === 0) update.fromNodeId = foundNodeId;
+                                if (foundNodeId && activeHandle.handle.index === 1) update.toNodeId = foundNodeId;
+
+                                if (foundNodeId) {
+                                    const node = useDataStore.getState().connectionNodes[foundNodeId];
+                                    const anchorShapeId = node?.kind === 'anchored' ? node.anchorShapeId : undefined;
+                                    if (activeHandle.handle.index === 0) {
+                                        update.fromConnectionId = anchorShapeId;
+                                        update.connectedStartId = anchorShapeId;
+                                    }
+                                    if (activeHandle.handle.index === 1) {
+                                        update.toConnectionId = anchorShapeId;
+                                        update.connectedEndId = anchorShapeId;
+                                    }
                                 }
                                 
-                                // Clean undefined values if mostly unnecessary, but here we want to explicitly remove link if undefined
-                                // updateShape handles partials, passing undefined might need check if backend supports it. assuming yes based on types.
-                                // Actually, better to send null or handle explicitly. DataStore usually merges. 
-                                // Let's perform a key deletion or set to null if type permits. Type says optional string.
-                                // We'll assume the spread in reducer handles it or we might need `null` if strict.
-                                // But `updateShape` is standard. Let's just set it. 
                                 if (Object.keys(update).length > 0) {
-                                     // Optimization: Debounce this or only do on mouse up? 
-                                     // Doing it live allows visual feedback if we added indicators, but for now pure logic.
                                      data.updateShape(s.id, update, false);
                                 }
                             }
