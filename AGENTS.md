@@ -12,6 +12,7 @@ These instructions apply to any AI agent working in this repository.
 - Do not delete features. Only remove dead code if proven unused.
 - No breaking API changes without a migration plan.
 - If uncertain, ask for clarification in comments or leave a TODO.
+- Do not invent requirements, edge cases, or constraints not stated in the task.
 
 ## 2) Engineering Principles
 - **SRP** (Single Responsibility): one module/function = one reason to change.
@@ -25,24 +26,26 @@ These instructions apply to any AI agent working in this repository.
 - Prefer pure functions for domain rules.
 - Side effects (IO, network, storage) must be isolated in dedicated modules.
 - Avoid circular dependencies.
+- Favor explicit data flow over implicit coupling.
 
 ## 4) Code Style & Quality
 - Use TypeScript types strictly; avoid `any` unless justified.
 - Prefer early returns; avoid deeply nested conditionals.
 - Keep functions small and named by intent.
 - Use meaningful names (no `data2`, `temp`, `handle2`).
-- Add/update tests when behavior is critical.
+- Add or update tests when behavior is critical or non-trivial.
 
 ## 5) React-Specific Rules (if applicable)
 - State must be immutable.
-- Prefer single source of truth.
+- Prefer a single source of truth.
 - Keep components presentational when possible.
 - Extract hooks for reusable stateful logic.
-- Avoid rerender traps (unstable callbacks/objects).
+- Avoid rerender traps (unstable callbacks or objects).
+- Do not mix domain logic directly into UI components.
 
-## 6) CAD/Canvas App Rules (if applicable)
+## 6) CAD / Canvas App Rules (if applicable)
 - Tools must be deterministic and reversible (support undo/redo).
-- Separate:
+- Separate clearly:
   - tool intent (user action)
   - model update (domain)
   - render (view)
@@ -51,35 +54,65 @@ These instructions apply to any AI agent working in this repository.
 
 ## 7) Safety & Performance
 - Avoid heavy computations on the main thread when possible.
-- Avoid unnecessary allocations in render loops.
+- Avoid unnecessary allocations in render or hot paths.
 - Validate inputs; never trust external data.
+- Prefer predictable performance over micro-optimizations.
 
-## 8) Change Discipline
+## 8) Scope, Focus, and Inputs
+- Focus only on the files, modules, or areas explicitly mentioned in the task.
+- When code pointers (files, functions, identifiers) are provided in the prompt, treat them as authoritative and prioritize them.
+- Avoid expanding scope to unrelated parts of the codebase without explicit justification.
+- Do not explore or refactor broadly unless explicitly requested.
+
+## 9) Change Discipline
 When making changes, always:
-1. Explain the problem
-2. Explain the plan
-3. List changed files
-4. Provide a short risk assessment
-5. Provide test instructions
+1. Explain the problem being solved.
+2. Explain the proposed plan or approach.
+3. List the files changed.
+4. Provide a short risk assessment.
+5. Provide clear test or verification instructions.
 
-## 9) Definition of Done
-- Builds successfully
-- Lints cleanly
-- Tests pass (or explain why no tests)
-- No new warnings in console
-- No regression in UX flows
+For complex changes:
+- Propose a step-by-step plan before implementation.
+- Prefer multiple small, reviewable changes over a single large one.
 
-## Structure
+## 10) Verification & Quality Gates
+- When verification steps or validation criteria are provided in the prompt, treat them as the definition of correctness.
+- A change should be considered correct only if it satisfies the provided verification steps.
+- If verification cannot be performed, explicitly explain why.
 
-- **`frontend/`**: Contains the React/Vite frontend application.
-- **`backend/`**: Contains the FastAPI backend application.
+## 11) Definition of Done
+- Builds successfully.
+- Lints cleanly.
+- Tests pass (or a clear explanation is provided for why no tests apply).
+- No new warnings in console or logs.
+- No regression in core user or API flows.
+
+## 12) Optional Observations
+- You may point out related bugs, technical debt, or improvements.
+- Do not implement optional suggestions unless explicitly requested.
+
+## 13) Reporting (when requested)
+- If the prompt requests a final report, create and save it as a file (not only in the chat output).
+- Default report format is **Markdown (.md)** unless the prompt explicitly requests another format.
+- Save reports under: `/resources/reports/` (create the folder if it does not exist).
+- Naming must be **incremental** and stable:
+  - `report_<N>.md` if no short task name is provided
+  - `report_<N>_<short-task-name>.md` if a short task name is provided
+- `<N>` must be the next available integer in the `reports/` folder (e.g., after `report_1*.md` and `report_2*.md`, the next is `report_3*.md`).
+- `<short-task-name>` should be a brief, filesystem-safe slug (lowercase, words separated by `-`, no spaces, keep it short).
+- Report content should follow the project’s standard output format (problem, plan, changed files, risk, verification).
+
+
+## Project Structure
+
+- **`frontend/`**: React / Vite frontend application.
+- **`backend/`**: FastAPI backend application.
 
 ## Getting Started
 
 ### Backend (FastAPI)
-
-- The API will be available at `http://localhost:8000`.
+- The API is available at `http://localhost:8000`.
 
 ### Frontend (React)
-
-- Usually, the application will be available at `http://localhost:3000` (or the port shown in the terminal).
+- The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
