@@ -13,11 +13,13 @@ import ElectricalProperties from './properties/ElectricalProperties';
 import DiagramPanel from '../../diagram/DiagramPanel';
 
 const EditorSidebar: React.FC = () => {
-  const uiStore = useUIStore();
+  const sidebarTab = useUIStore((s) => s.sidebarTab);
+  const setSidebarTab = useUIStore((s) => s.setSidebarTab);
+  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const dataStore = useDataStore();
 
-  const activeTab = uiStore.sidebarTab;
-  const setActiveTab = uiStore.setSidebarTab;
+  const activeTab = sidebarTab;
+  const setActiveTab = setSidebarTab;
   
   // Draggable Scroll State
   const navScrollRef = useRef<HTMLDivElement>(null);
@@ -26,7 +28,7 @@ const EditorSidebar: React.FC = () => {
   const dragStartRef = useRef<{x: number, scrollLeft: number} | null>(null);
 
   // Helper to get selected shape
-  const selectedShapeId = uiStore.selectedShapeIds.values().next().value;
+  const selectedShapeId = selectedShapeIds.values().next().value;
   const selectedShape = selectedShapeId ? dataStore.shapes[selectedShapeId] : undefined;
 
   // --- Header Configuration ---

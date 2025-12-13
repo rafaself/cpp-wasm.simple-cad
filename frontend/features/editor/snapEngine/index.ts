@@ -22,21 +22,21 @@ export const getSnapPoint = (
       }
   };
 
+  const shouldCheckEndpoints = snapOptions.endpoint || snapOptions.nearest;
+  const shouldCheckMidpoints = snapOptions.midpoint || snapOptions.nearest;
+  const shouldCheckCenter = snapOptions.center || snapOptions.nearest;
+
   shapes.forEach(shape => {
-      if (snapOptions.endpoint) {
+      if (shouldCheckEndpoints) {
           getEndpoints(shape).forEach(checkObjectPoint);
       }
-      if (snapOptions.midpoint) {
+      if (shouldCheckMidpoints) {
           getMidpoints(shape).forEach(checkObjectPoint);
       }
-      if (snapOptions.center) {
+      if (shouldCheckCenter) {
           const c = getCenter(shape);
           if (c) checkObjectPoint(c);
       }
-      // Connection points for electrical symbols (high priority snap)
-      // ALWAYS check connection points regardless of specific snap options if it's an electrical symbol?
-      // Or bind it to 'endpoint' or a new 'connection' option?
-      // For now, treat it as part of standard snapping if the shape has it.
       const connPt = getConnectionPoint(shape);
       if (connPt) checkObjectPoint(connPt);
   });

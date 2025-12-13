@@ -9,7 +9,11 @@ import { getDistance } from '../../../utils/geometry';
 import EditableNumber from '../../../components/EditableNumber';
 
 const EditorStatusBar: React.FC = () => {
-  const uiStore = useUIStore();
+  const activeTool = useUIStore((s) => s.activeTool);
+  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const mousePos = useUIStore((s) => s.mousePos);
+  const viewTransform = useUIStore((s) => s.viewTransform);
+  const setViewTransform = useUIStore((s) => s.setViewTransform);
   const { zoomToFit } = useEditorLogic();
   const snapSettings = useSettingsStore(s => s.snap);
   const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
@@ -17,13 +21,13 @@ const EditorStatusBar: React.FC = () => {
   const dataStore = useDataStore();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
   const [totalLength, setTotalLength] = useState<string | null>(null);
-  const isElectricalInsert = uiStore.activeTool === 'electrical-symbol';
+  const isElectricalInsert = activeTool === 'electrical-symbol';
 
   useEffect(() => {
-    if (uiStore.selectedShapeIds.size > 0) {
+    if (selectedShapeIds.size > 0) {
         let total = 0;
         let hasLines = false;
-        uiStore.selectedShapeIds.forEach(id => {
+        selectedShapeIds.forEach(id => {
             const s = dataStore.shapes[id];
             if (!s) return;
             if (s.type === 'line' || s.type === 'polyline' || s.type === 'measure') {
@@ -49,18 +53,18 @@ const EditorStatusBar: React.FC = () => {
     } else {
         setTotalLength(null);
     }
-  }, [uiStore.selectedShapeIds, dataStore.shapes, dataStore.worldScale]);
+  }, [selectedShapeIds, dataStore.shapes, dataStore.worldScale]);
   
   const toggleSnap = () => setSnapEnabled(!snapSettings.enabled);
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
 
-  const handleZoomIn = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
-  const handleZoomOut = () => uiStore.setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
+  const handleZoomIn = () => setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
+  const handleZoomOut = () => setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
 
   return (
     <div className="w-full h-9 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-300 select-none z-50">
       <div className="w-40 font-mono">
-        {uiStore.mousePos ? `${uiStore.mousePos.x.toFixed(2)}, ${uiStore.mousePos.y.toFixed(2)}` : ''}
+        {mousePos ? `${mousePos.x.toFixed(2)}, ${mousePos.y.toFixed(2)}` : ''}
       </div>
 
       <div className="flex items-center gap-4">
@@ -119,12 +123,12 @@ const EditorStatusBar: React.FC = () => {
          
          <div className="h-4 w-px bg-slate-600 mx-2" />
          
-         <button onClick={zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={uiStore.selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}><Scan size={14} /></button>
+         <button onClick={zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}><Scan size={14} /></button>
          
          <div className="w-16 h-full flex items-center justify-center py-0.5">
             <EditableNumber
-                value={uiStore.viewTransform.scale * 100}
-                onChange={(val) => uiStore.setViewTransform(prev => ({ ...prev, scale: val / 100 }))}
+                value={viewTransform.scale * 100}
+                onChange={(val) => setViewTransform(prev => ({ ...prev, scale: val / 100 }))}
                 min={10}
                 max={500}
                 step={10}

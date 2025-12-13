@@ -624,7 +624,9 @@ export const useDataStore = create<DataState>((set, get) => ({
 
         if (dx === 0 && dy === 0) return;
 
-        const diff: Partial<Shape> = { x: (s.x||0) + dx, y: (s.y||0) + dy };
+        const diff: Partial<Shape> = {};
+        if (s.x !== undefined) diff.x = s.x + dx;
+        if (s.y !== undefined) diff.y = s.y + dy;
         if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
 
         const prev: Partial<Shape> = { x: s.x, y: s.y, points: s.points };

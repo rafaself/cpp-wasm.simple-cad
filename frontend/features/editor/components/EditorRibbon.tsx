@@ -83,7 +83,15 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
 
 const EditorRibbon: React.FC = () => {
   const [activeTabId, setActiveTabId] = useState('draw');
-  const uiStore = useUIStore();
+  const activeTool = useUIStore((s) => s.activeTool);
+  const sidebarTab = useUIStore((s) => s.sidebarTab);
+  const viewTransform = useUIStore((s) => s.viewTransform);
+  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const activeElectricalSymbolId = useUIStore((s) => s.activeElectricalSymbolId);
+  const setSettingsModalOpen = useUIStore((s) => s.setSettingsModalOpen);
+  const setTool = useUIStore((s) => s.setTool);
+  const setElectricalSymbolId = useUIStore((s) => s.setElectricalSymbolId);
+  const resetElectricalPreview = useUIStore((s) => s.resetElectricalPreview);
   const settingsStore = useSettingsStore();
   const dataStore = useDataStore();
   const { deleteSelected, joinSelected, explodeSelected, zoomToFit } = useEditorLogic();
@@ -107,15 +115,15 @@ const EditorRibbon: React.FC = () => {
   const exportProjectData = useCallback(() => {
       const project = serializeProject();
       const payload = {
-          meta: {
-              generatedAt: new Date().toISOString(),
-              worldScale,
-              frame,
-              viewTransform: uiStore.viewTransform,
-              activeTool: uiStore.activeTool,
-              sidebarTab: uiStore.sidebarTab,
-              selectedShapeIds: Array.from(uiStore.selectedShapeIds)
-          },
+      meta: {
+          generatedAt: new Date().toISOString(),
+          worldScale,
+          frame,
+          viewTransform,
+          activeTool,
+          sidebarTab,
+          selectedShapeIds: Array.from(selectedShapeIds)
+      },
           project
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -125,20 +133,20 @@ const EditorRibbon: React.FC = () => {
       a.download = 'endeavour-project.json';
       a.click();
       URL.revokeObjectURL(url);
-  }, [serializeProject, worldScale, frame, uiStore.activeTool, uiStore.sidebarTab, uiStore.viewTransform, uiStore.selectedShapeIds]);
+  }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
 
   const openProjectPreview = useCallback(() => {
       const project = serializeProject();
       const payload = {
-          meta: {
-              generatedAt: new Date().toISOString(),
-              worldScale,
-              frame,
-              viewTransform: uiStore.viewTransform,
-              activeTool: uiStore.activeTool,
-              sidebarTab: uiStore.sidebarTab,
-              selectedShapeIds: Array.from(uiStore.selectedShapeIds)
-          },
+      meta: {
+          generatedAt: new Date().toISOString(),
+          worldScale,
+          frame,
+          viewTransform,
+          activeTool,
+          sidebarTab,
+          selectedShapeIds: Array.from(selectedShapeIds)
+      },
           project
       };
       const serialized = JSON.stringify(payload, null, 2);
@@ -146,7 +154,7 @@ const EditorRibbon: React.FC = () => {
       if (!win) return;
       win.document.write(`<!doctype html><html><head><title>Projeto Endeavour</title><style>body{background:#0f172a;color:#e2e8f0;font-family:Menlo,Consolas,monospace;margin:0;padding:16px;}pre{white-space:pre-wrap;font-size:12px;line-height:1.4;}</style></head><body><pre>${escapeHtml(serialized)}</pre></body></html>`);
       win.document.close();
-  }, [serializeProject, worldScale, frame, uiStore.activeTool, uiStore.sidebarTab, uiStore.viewTransform, uiStore.selectedShapeIds]);
+  }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
 
   const exportConnectionsMap = useCallback(() => {
       const shapes = dataStore.shapes;
@@ -266,7 +274,7 @@ tr:nth-child(even){background:#111827;}
       if (action === 'zoom-fit') zoomToFit();
       if (action === 'undo') dataStore.undo();
       if (action === 'redo') dataStore.redo();
-      if (action === 'open-settings') uiStore.setSettingsModalOpen(true);
+      if (action === 'open-settings') setSettingsModalOpen(true);
       if (action === 'export-connections') exportConnectionsMap();
       if (action === 'export-project') exportProjectData();
       if (action === 'view-project') openProjectPreview();
@@ -276,8 +284,8 @@ tr:nth-child(even){background:#111827;}
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];
   const activeLayer = dataStore.layers.find(l => l.id === dataStore.activeLayerId);
   const selectedTextIds = useMemo(
-    () => Array.from(uiStore.selectedShapeIds).filter(id => dataStore.shapes[id]?.type === 'text'),
-    [uiStore.selectedShapeIds, dataStore.shapes]
+    () => Array.from(selectedShapeIds).filter(id => dataStore.shapes[id]?.type === 'text'),
+    [selectedShapeIds, dataStore.shapes]
   );
 
   const applyTextUpdate = (diff: Partial<any>, recalcSize: boolean) => {
@@ -336,8 +344,8 @@ tr:nth-child(even){background:#111827;}
 
   // Get all selected shape IDs for color operations
   const allSelectedIds = useMemo(
-    () => Array.from(uiStore.selectedShapeIds) as string[],
-    [uiStore.selectedShapeIds]
+    () => Array.from(selectedShapeIds) as string[],
+    [selectedShapeIds]
   );
   const firstSelectedShape = allSelectedIds.length > 0 ? dataStore.shapes[allSelectedIds[0]] : null;
 
@@ -436,24 +444,24 @@ tr:nth-child(even){background:#111827;}
                                 if (item.type !== 'tool') return '';
                                 if (item.tool === 'electrical-symbol') {
                                     const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                    return uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id] ? 'text-blue-300' : '';
+                                        return activeTool === 'electrical-symbol' && activeElectricalSymbolId === symbolMap[item.id] ? 'text-blue-300' : '';
                                 }
-                                return uiStore.activeTool === item.tool ? 'text-blue-300' : '';
+                                return activeTool === item.tool ? 'text-blue-300' : '';
                             })();
                             return (
                                 <button
                                     key={item.id}
                                     onClick={() => {
                                         if(item.type === 'tool' && item.tool) {
-                                            uiStore.setTool(item.tool);
+                                            setTool(item.tool);
                                             if (item.tool === 'electrical-symbol') {
                                                 const symbolMap: Record<string, string> = {
                                                     'outlet': 'duplex_outlet',
                                                     'lamp': 'lamp'
                                                 };
                                                 if (symbolMap[item.id]) {
-                                                    uiStore.setElectricalSymbolId(symbolMap[item.id]);
-                                                    uiStore.resetElectricalPreview();
+                                                    setElectricalSymbolId(symbolMap[item.id]);
+                                                    resetElectricalPreview();
                                                 }
                                             }
                                         }
@@ -464,10 +472,10 @@ tr:nth-child(even){background:#111827;}
                                         if (item.type !== 'tool') return `${BASE_BUTTON_STYLE}${actionDisabled ? ' opacity-30 cursor-not-allowed' : ''}`;
                                         if (item.tool === 'electrical-symbol') {
                                             const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                            const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
+                                            const isActive = activeTool === 'electrical-symbol' && activeElectricalSymbolId === symbolMap[item.id];
                                             return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                         }
-                                        return uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                        return activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                     })()}
                                 `}
                                     title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
@@ -504,7 +512,7 @@ tr:nth-child(even){background:#111827;}
                                 key={item.id}
                                     onClick={() => {
                                         if(item.type === 'tool' && item.tool) {
-                                            uiStore.setTool(item.tool);
+                                            setTool(item.tool);
                                             // Special handling for electrical symbol tools
                                             if (item.tool === 'electrical-symbol') {
                                                 const symbolMap: Record<string, string> = {
@@ -512,8 +520,8 @@ tr:nth-child(even){background:#111827;}
                                                     'lamp': 'lamp'
                                                 };
                                                 if (symbolMap[item.id]) {
-                                                    uiStore.setElectricalSymbolId(symbolMap[item.id]);
-                                                    uiStore.resetElectricalPreview();
+                                                    setElectricalSymbolId(symbolMap[item.id]);
+                                                    resetElectricalPreview();
                                                 }
                                             }
                                         }
@@ -525,10 +533,10 @@ tr:nth-child(even){background:#111827;}
                                         if (actionDisabled) return `${BASE_BUTTON_STYLE} opacity-30 cursor-not-allowed`;
                                         if (item.tool === 'electrical-symbol') {
                                             const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                            const isActive = uiStore.activeTool === 'electrical-symbol' && uiStore.activeElectricalSymbolId === symbolMap[item.id];
+                                            const isActive = activeTool === 'electrical-symbol' && activeElectricalSymbolId === symbolMap[item.id];
                                             return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                         }
-                                            return uiStore.activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
+                                            return activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                         })()}
                                 `}
                                 title={`${item.label} ${item.shortcut ? `(${item.shortcut})` : ''}`}
