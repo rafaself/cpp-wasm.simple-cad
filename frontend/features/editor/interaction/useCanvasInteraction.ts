@@ -162,6 +162,30 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [resizeState, setResizeState] = useState<ResizeState | null>(null);
     const [transformationBase, setTransformationBase] = useState<Point | null>(null);
     const rotationState = useRef<{ center: Point; startAngle: number; snapshot: Map<string, Shape> } | null>(null);
+    const lastPlacedComponentCenter = useRef<Point | null>(null);
+    const lastComponentAxis = useRef<'x' | 'y' | null>(null);
+    const shiftAxisLock = useRef<'x' | 'y' | null>(null);
+
+    const computeAxisFromDelta = (delta: Point): 'x' | 'y' | null => {
+        const dx = Math.abs(delta.x);
+        const dy = Math.abs(delta.y);
+        if (dx === 0 && dy === 0) return null;
+        return dx >= dy ? 'x' : 'y';
+    };
+
+    const applyPreviousElementAxisLock = (point: Point, shiftHeld: boolean): Point => {
+        const lastCenter = lastPlacedComponentCenter.current;
+        if (!shiftHeld || !lastCenter) return point;
+
+        const delta = { x: point.x - lastCenter.x, y: point.y - lastCenter.y };
+        const axisCandidate = computeAxisFromDelta(delta) ?? lastComponentAxis.current;
+        if (!axisCandidate) return point;
+
+        shiftAxisLock.current = axisCandidate;
+
+        if (axisCandidate === 'x') return { x: point.x, y: lastCenter.y };
+        return { x: lastCenter.x, y: point.y };
+    };
 
     // Arc Tool State
     const [arcPoints, setArcPoints] = useState<{ start: Point; end: Point } | null>(null);
@@ -344,6 +368,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (isDragging && lockedAxis) {
                     setLockedAxis(null);
                 }
+                shiftAxisLock.current = null;
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -401,7 +426,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
                 setArcPoints(null); setShowRadiusModal(false);
                 setPolygonShapeId(null); setShowPolygonModal(false);
-                if (currentUIStore.activeTool === 'move' || currentUIStore.activeTool === 'rotate') currentUIStore.setTool('select');
+                if (currentUIStore.activeTool !== 'select') currentUIStore.setTool('select');
                 if (currentUIStore.activeTool === 'select' && currentUIStore.selectedShapeIds.size > 0) {
                     currentUIStore.setSelectedShapeIds(new Set());
                 }
@@ -467,7 +492,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const data = useDataStore.getState();
         const library = useLibraryStore.getState();
 
-        const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, ui.viewTransform); let snapped: Point | null = null;
+        const raw = getMousePos(e); const wr = screenToWorld(raw, ui.viewTransform); let snapped: Point | null = null;
 
         if (snapSettings.enabled && !['pan', 'select'].includes(ui.activeTool) && !e.ctrlKey) {
             const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
@@ -482,10 +507,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
               gridSize,
               snapSettings.tolerancePx / ui.viewTransform.scale
             );
-            if (snap) { snapped = snap; eff = worldToScreen(snap, ui.viewTransform); }
+            if (snap) { snapped = snap; }
         }
 
-        setStartPoint(eff); setCurrentPoint(eff);
+        const baseWorld = snapped || wr;
+        const axisLockedWorld = ui.activeTool === 'electrical-symbol'
+            ? applyPreviousElementAxisLock(baseWorld, e.shiftKey)
+            : baseWorld;
+        const axisLockedScreen = worldToScreen(axisLockedWorld, ui.viewTransform);
+        setStartPoint(axisLockedScreen);
+        setCurrentPoint(axisLockedScreen);
 
         // Middle button handling: detect double-click for zoom-to-fit
         if (e.button === 1) {
@@ -505,7 +536,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         
         if (ui.activeTool === 'pan') { setIsDragging(true); return; }
 
-        const wPos = snapped || wr;
+        const wPos = axisLockedWorld;
 
         if (ui.activeTool === 'select' && ui.selectedShapeIds.size > 0) {
             for (const id of ui.selectedShapeIds) {
@@ -534,25 +565,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 }
             }
 
-            // Shift+Click on selected electrical symbol: change connection point
-            if (e.shiftKey && ui.selectedShapeIds.size === 1) {
-                const selectedId = Array.from(ui.selectedShapeIds)[0];
-                const selectedShape = data.shapes[selectedId];
-                if (selectedShape?.svgRaw && selectedShape.width && selectedShape.height) {
-                    // Check if click is within the shape bounds
-                    const bounds = { x: selectedShape.x ?? 0, y: selectedShape.y ?? 0, width: selectedShape.width, height: selectedShape.height };
-                    if (wPos.x >= bounds.x && wPos.x <= bounds.x + bounds.width &&
-                        wPos.y >= bounds.y && wPos.y <= bounds.y + bounds.height) {
-                        // Calculate normalized coordinates (0-1)
-                        const relX = (wPos.x - bounds.x) / bounds.width;
-                        const relY = (wPos.y - bounds.y) / bounds.height;
-                        data.updateShape(selectedId, {
-                            connectionPoint: { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) }
-                        }, true);
-                        return;
-                    }
-                }
-            }
         }
 
         const interaction = detectInteractionAtPoint(wPos, ui.viewTransform.scale);
@@ -732,8 +744,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const ui = useUIStore.getState();
         const data = useDataStore.getState();
 
-        const raw = getMousePos(e); const worldPos = screenToWorld(raw, ui.viewTransform);
-        ui.setMousePos(worldPos);
+        const raw = getMousePos(e);
+        const worldPos = screenToWorld(raw, ui.viewTransform);
+        const shiftHeld = e.shiftKey || isShiftPressed;
+        const axisLockedWorldPos = ui.activeTool === 'electrical-symbol'
+            ? applyPreviousElementAxisLock(worldPos, shiftHeld)
+            : worldPos;
+        ui.setMousePos(axisLockedWorldPos);
 
         if (isMiddlePanning || (isDragging && ui.activeTool === 'pan')) {
             if (startPoint) {
@@ -743,13 +760,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
-        let eff = raw;
+        let eff = worldToScreen(axisLockedWorldPos, ui.viewTransform);
         const isHandleDrag = !!activeHandle;
         const shouldSnap = snapSettings.enabled && !e.ctrlKey && (!['pan', 'select'].includes(ui.activeTool) || isHandleDrag);
         const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
 
         if (conduitToolActive) {
-            const anchorHit = findAnchoredConnectionNode(data, worldPos, ui.viewTransform.scale);
+            const anchorHit = findAnchoredConnectionNode(data, axisLockedWorldPos, ui.viewTransform.scale);
             if (anchorHit) {
                 setSnapMarker(anchorHit.point);
                 eff = worldToScreen(anchorHit.point, ui.viewTransform);
@@ -757,7 +774,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 setSnapMarker(null);
             }
         } else if (shouldSnap) {
-            const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
+            const queryRect = { x: axisLockedWorldPos.x - 50, y: axisLockedWorldPos.y - 50, width: 100, height: 100 };
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
                 .filter(s => {
@@ -767,7 +784,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 });
             const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
-              worldPos,
+              axisLockedWorldPos,
               frameData ? [...visible, ...frameData.shapes] : visible,
               snapSettings,
               gridSize,
@@ -1114,10 +1131,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     metadata,
                 };
 
+                const prevCenter = lastPlacedComponentCenter.current;
+                const newCenter = { x: n.x + n.width / 2, y: n.y + n.height / 2 };
+                if (prevCenter) {
+                    lastComponentAxis.current = computeAxisFromDelta({ x: newCenter.x - prevCenter.x, y: newCenter.y - prevCenter.y });
+                }
+                lastPlacedComponentCenter.current = newCenter;
+                shiftAxisLock.current = null;
                 data.addShape(n, electricalElement);
                 ui.setSelectedShapeIds(new Set([shapeId]));
                 ui.setSidebarTab('desenho');
-                ui.setTool('select'); // Switch back to select tool after placing
             }
             setStartPoint(null);
             setHoverCursor(null);
@@ -1183,7 +1206,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             } else {
                 data.addShape(n);
                 ui.setSidebarTab('desenho');
-                ui.setTool('select');
             }
         }
         setStartPoint(null);
@@ -1235,7 +1257,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         }
         setShowPolygonModal(false);
         setPolygonShapeId(null);
-        useUIStore.getState().setTool('select');
     }, [polygonShapeId]);
 
     return {
