@@ -93,6 +93,15 @@ const findAnchoredConnectionNode = (
     return undefined;
 };
 
+const isConduitAnchoredToNode = (shape: Shape | undefined, nodes: DataState['connectionNodes']): boolean => {
+    if (!shape || !isConduitShape(shape)) return false;
+    const nodeForId = (id?: string) => (id ? nodes[id] : undefined);
+    const startNode = nodeForId(shape.fromNodeId);
+    if (startNode?.kind === 'anchored') return true;
+    const endNode = nodeForId(shape.toNodeId);
+    return endNode?.kind === 'anchored' ? true : false;
+};
+
 const pointInPolygon = (point: Point, polygon: Point[]): boolean => {
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -422,6 +431,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (!shape) return;
                     const layer = currentDataStore.layers.find(l => l.id === shape.layerId);
                     if (layer?.locked) return;
+                    if (isConduitAnchoredToNode(shape, currentDataStore.connectionNodes)) return;
                     
                     const updates: Partial<Shape> = {};
                     if (shape.x !== undefined) updates.x = shape.x + dx;
@@ -584,14 +594,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     const ids = Array.from(ui.selectedShapeIds);
                     ids.forEach(id => {
                         const s = data.shapes[id];
-                        if (s) {
-                            const diff: Partial<Shape> = {};
-                            if (s.x !== undefined) diff.x = s.x + dx;
-                            if (s.y !== undefined) diff.y = s.y + dy;
-                            if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                            data.updateShape(id, diff, true);
-
-                        }
+                        if (!s) return;
+                        if (isConduitAnchoredToNode(s, data.connectionNodes)) return;
+                        const diff: Partial<Shape> = {};
+                        if (s.x !== undefined) diff.x = s.x + dx;
+                        if (s.y !== undefined) diff.y = s.y + dy;
+                        if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                        data.updateShape(id, diff, true);
                     });
                 } else if (ui.activeTool === 'rotate') {
                     const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y; const angle = Math.atan2(dy, dx);
@@ -913,13 +922,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     // Store original positions of all selected shapes
                     ui.selectedShapeIds.forEach(id => {
                         const s = data.shapes[id];
-                        if (s) {
-                            dragStartPositions.current.set(id, {
-                                x: s.x ?? 0,
-                                y: s.y ?? 0,
-                                points: s.points ? [...s.points] : undefined
-                            });
+                        if (!s) return;
+                        if (isConduitAnchoredToNode(s, data.connectionNodes)) {
+                            dragStartPositions.current.delete(id);
+                            return;
                         }
+                        dragStartPositions.current.set(id, {
+                            x: s.x ?? 0,
+                            y: s.y ?? 0,
+                            points: s.points ? [...s.points] : undefined
+                        });
                     });
                 }
 
@@ -954,6 +966,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (!s) return;
                     const l = data.layers.find(lay => lay.id === s.layerId);
                     if (l && l.locked) return;
+                    if (isConduitAnchoredToNode(s, data.connectionNodes)) return;
 
                     const originalPos = dragStartPositions.current.get(id);
                     if (!originalPos) return;
