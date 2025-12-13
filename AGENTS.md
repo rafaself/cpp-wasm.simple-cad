@@ -18,7 +18,7 @@ These instructions apply to any AI agent working in this repository.
 - **SRP** (Single Responsibility): one module/function = one reason to change.
 - **DRY**: eliminate duplicated logic by centralizing.
 - **KISS**: simplest solution that works.
-- **YAGNI**: don’t add abstractions for hypothetical future needs.
+- **YAGNI**: don't add abstractions for hypothetical future needs.
 - **Clean boundaries**: UI vs domain vs infrastructure.
 
 ## 3) Architecture Rules
@@ -29,7 +29,8 @@ These instructions apply to any AI agent working in this repository.
 - Favor explicit data flow over implicit coupling.
 
 ## 4) Code Style & Quality
-- Use TypeScript types strictly; avoid `any` unless justified.
+- Prefer TypeScript types strictly; avoid `any` unless justified.
+- Respect the repo's current TypeScript configuration; do not enable `strict` (or other breaking compiler flags) unless explicitly requested.
 - Prefer early returns; avoid deeply nested conditionals.
 - Keep functions small and named by intent.
 - Use meaningful names (no `data2`, `temp`, `handle2`).
@@ -92,6 +93,14 @@ For complex changes:
 - You may point out related bugs, technical debt, or improvements.
 - Do not implement optional suggestions unless explicitly requested.
 
+## 12.1) Backend (FastAPI) Rules (if applicable)
+- Keep the API layer thin: request/response validation + orchestration only.
+- Prefer Pydantic models for I/O; validate all external input.
+- Isolate side effects (DB/files/network) behind dedicated modules/services.
+- Avoid breaking API changes without a migration plan (versioning or compatibility layer).
+- Add/adjust `pytest` tests for non-trivial backend behavior.
+- Keep configuration in environment variables (and a single settings module); avoid hardcoding secrets.
+
 ## 13) Reporting (when requested)
 - If the prompt requests a final report, create and save it as a file (not only in the chat output).
 - Default report format is **Markdown (.md)** unless the prompt explicitly requests another format.
@@ -101,8 +110,7 @@ For complex changes:
   - `report_<N>_<short-task-name>.md` if a short task name is provided
 - `<N>` must be the next available integer in the `reports/` folder (e.g., after `report_1*.md` and `report_2*.md`, the next is `report_3*.md`).
 - `<short-task-name>` should be a brief, filesystem-safe slug (lowercase, words separated by `-`, no spaces, keep it short).
-- Report content should follow the project’s standard output format (problem, plan, changed files, risk, verification).
-
+- Report content should follow the project's standard output format (problem, plan, changed files, risk, verification).
 
 ## Project Structure
 
