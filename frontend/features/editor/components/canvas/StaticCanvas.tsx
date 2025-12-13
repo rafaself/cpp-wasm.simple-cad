@@ -108,7 +108,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
 
         ctx.save();
         ctx.translate(viewTransform.x, viewTransform.y);
-        ctx.scale(viewTransform.scale, viewTransform.scale);
+        ctx.scale(viewTransform.scale, -viewTransform.scale);
 
         // Draw Grid
         if (gridSize > 0 && (gridShowDots || gridShowLines)) {

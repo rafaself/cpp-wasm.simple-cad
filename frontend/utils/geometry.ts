@@ -21,14 +21,14 @@ export const rotatePoint = (point: Point, center: Point, angle: number): Point =
 export const screenToWorld = (point: Point, transform: ViewTransform): Point => {
   return {
     x: (point.x - transform.x) / transform.scale,
-    y: (point.y - transform.y) / transform.scale,
+    y: -(point.y - transform.y) / transform.scale,
   };
 };
 
 export const worldToScreen = (point: Point, transform: ViewTransform): Point => {
   return {
     x: point.x * transform.scale + transform.x,
-    y: point.y * transform.scale + transform.y,
+    y: -point.y * transform.scale + transform.y,
   };
 };
 
