@@ -14,6 +14,7 @@ import { useLibraryStore } from '../../../stores/useLibraryStore';
 import { computeFrameData } from '../../../utils/frame';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
 import { isConduitShape, isConduitTool } from '../utils/tools';
+import { generateId } from '../../../utils/uuid';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -315,7 +316,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const currentDataStore = useDataStore.getState();
             const currentUIStore = useUIStore.getState();
             currentDataStore.addShape({
-                id: Date.now().toString(),
+                id: generateId(),
                 layerId: currentDataStore.activeLayerId,
                 type: 'polyline',
                 strokeColor,
@@ -604,7 +605,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(lineStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
                 ui.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
@@ -617,7 +618,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(arrowStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
                 ui.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
@@ -626,7 +627,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (!measureStart) setMeasureStart(wPos);
             else {
                 const dist = getDistance(measureStart, wPos).toFixed(2);
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
                 setMeasureStart(null);
             }
             return;
@@ -705,7 +706,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 const targetLayerId = layer?.id ?? data.layers[0]?.id ?? 'eletrodutos';
                 
                 data.addShape({
-                    id: Date.now().toString(),
+                    id: generateId(),
                     layerId: targetLayerId,
                     type: 'eletroduto',
                     strokeColor: layer?.strokeColor ?? '#8b5cf6',
@@ -1081,7 +1082,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 });
                 const width = librarySymbol.viewBox.width * librarySymbol.scale;
                 const height = librarySymbol.viewBox.height * librarySymbol.scale;
-                const shapeId = Date.now().toString();
+                const shapeId = generateId();
                 const n: Shape = {
                     id: shapeId,
                     layerId: targetLayerId,
@@ -1148,7 +1149,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return;
             }
 
-            const n: Shape = { id: Date.now().toString(), layerId: data.activeLayerId, type: ui.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
+            const n: Shape = { id: generateId(), layerId: data.activeLayerId, type: ui.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
 
             if (isSingleClick && shapeCreationTools.includes(ui.activeTool)) {
                 if (ui.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }

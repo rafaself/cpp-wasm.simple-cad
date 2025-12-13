@@ -5,6 +5,7 @@ import { useDataStore } from '../../stores/useDataStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { getDefaultColorMode } from '../../utils/shapeColors';
 import { getShapeCenter } from '../../utils/geometry';
+import { generateId } from '../../utils/uuid';
 
 type NodePreset = {
   kind: DiagramNodeKind;
@@ -52,7 +53,7 @@ const DiagramPanel: React.FC = () => {
 
   const handleAddNode = (preset: NodePreset) => {
     const diagramLayerId = dataStore.ensureLayer('Diagrama', diagramLayerDefaults);
-    const baseId = `${Date.now()}-${Math.round(Math.random() * 1000)}`;
+    const baseId = generateId();
     const shapeId = `shape-${baseId}`;
     const nodeId = `node-${baseId}`;
     const shape: Shape = {
@@ -110,7 +111,7 @@ const DiagramPanel: React.FC = () => {
     const start = getShapeCenter(fromShape);
     const end = getShapeCenter(toShape);
 
-    const edgeBase = `${Date.now()}-${Math.round(Math.random() * 1000)}`;
+    const edgeBase = generateId();
     const edgeId = `edge-${edgeBase}`;
     const shapeId = `edge-shape-${edgeBase}`;
     const edgeShape: Shape = {

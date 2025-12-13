@@ -14,6 +14,7 @@ import { getDefaultColorMode } from '../../../../utils/shapeColors';
 import NumberSpinner from '../../../../components/NumberSpinner';
 import { useLibraryStore } from '../../../../stores/useLibraryStore';
 import { getElectricalLayerConfig } from '../../../library/electricalProperties';
+import { generateId } from '../../../../utils/uuid';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -298,7 +299,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             position={radiusModalPos}
             onConfirm={(radius) => {
                 const n: Shape = {
-                    id: Date.now().toString(),
+                    id: generateId(),
                     layerId: dataStore.activeLayerId,
                     type: 'arc',
                     points: [arcPoints.start, arcPoints.end],

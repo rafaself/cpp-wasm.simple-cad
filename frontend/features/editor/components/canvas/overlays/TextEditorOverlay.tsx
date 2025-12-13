@@ -5,6 +5,7 @@ import { useUIStore } from '../../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../../stores/useSettingsStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
 import { getDefaultColorMode, getEffectiveStrokeColor } from '../../../../../utils/shapeColors';
+import { generateId } from '../../../../../utils/uuid';
 
 export interface TextEditState {
     id?: string;
@@ -76,7 +77,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
             } else {
                 const textLayerId = dataStore.ensureLayer('Texto');
                 dataStore.addShape({
-                    id: Date.now().toString(),
+                    id: generateId(),
                     layerId: textLayerId,
                     type: 'text',
                     x: textEditState.x,
@@ -140,6 +141,7 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                  boxSizing: 'border-box',
                  direction: 'ltr'
             }}
+            maxLength={2000}
             value={textEditState.content}
             onChange={(e) => setTextEditState({ ...textEditState, content: e.target.value })}
             onBlur={handleBlur}

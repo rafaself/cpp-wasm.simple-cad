@@ -3,6 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { getCombinedBounds, getShapeBounds, getDistance, getShapeCenter, rotatePoint, getShapeBoundingBox } from '../../../utils/geometry';
 import { Shape, Patch, Point } from '../../../types';
 import { computeFrameData } from '../../../utils/frame';
+import { generateId } from '../../../utils/uuid';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
@@ -123,7 +124,7 @@ export const useEditorLogic = () => {
         if (processedIds.size > 1) {
             const newPolyline: Shape = {
                 ...baseShape,
-                id: Date.now().toString(),
+                id: generateId(),
                 type: 'polyline',
                 points: mergedPoints
             };
@@ -149,7 +150,6 @@ export const useEditorLogic = () => {
 
         const newShapes: Shape[] = [];
         const idsToDelete: string[] = [];
-        let createdCount = 0;
 
         ids.forEach(id => {
             const shape = dataStore.shapes[id];
@@ -173,7 +173,7 @@ export const useEditorLogic = () => {
 
                     newShapes.push({
                         ...shape,
-                        id: `${Date.now()}-${Math.floor(Math.random() * 1000000)}-${createdCount++}`,
+                        id: generateId(),
                         type: 'line',
                         points: [start, end],
                         rotation: 0, // Reset rotation since points are now baked
@@ -204,7 +204,7 @@ export const useEditorLogic = () => {
                     const end = finalCorners[(i + 1) % 4];
                     newShapes.push({
                         ...shape,
-                        id: `${Date.now()}-${Math.floor(Math.random() * 1000000)}-${createdCount++}`,
+                        id: generateId(),
                         type: 'line',
                         points: [start, end],
                         rotation: 0, // Reset rotation as points are already rotated
@@ -237,7 +237,7 @@ export const useEditorLogic = () => {
                     const end = vertices[(i + 1) % sides];
                     newShapes.push({
                         ...shape,
-                        id: `${Date.now()}-${Math.floor(Math.random() * 1000000)}-${createdCount++}`,
+                        id: generateId(),
                         type: 'line',
                         points: [start, end],
                         rotation: 0,

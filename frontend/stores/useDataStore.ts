@@ -3,6 +3,7 @@ import { DiagramEdge, DiagramNode, ElectricalElement, FrameSettings, Layer, Patc
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
+import { generateId } from '../utils/uuid';
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
@@ -508,7 +509,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   setActiveLayerId: (id) => set({ activeLayerId: id }),
 
   addLayer: () => set((state) => {
-    const newId = Date.now().toString();
+    const newId = generateId();
     const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', strokeEnabled: true, fillColor: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'), fillEnabled: true, visible: true, locked: false };
     return { layers: [...state.layers, newLayer], activeLayerId: newId };
   }),
@@ -746,7 +747,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
       if (existing) return existing.id;
 
-      const newId = Date.now().toString();
+      const newId = generateId();
       const newLayer: Layer = {
         id: newId,
         name,
