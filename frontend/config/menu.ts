@@ -1,4 +1,5 @@
 import { ToolType } from '../types';
+import { getShortcutLabel } from './keybindings';
 
 export type MenuItemType = 'tool' | 'action' | 'component';
 
@@ -70,20 +71,20 @@ export const MENU_CONFIG: MenuTab[] = [
         layout: 'grid',
         columns: 3,
         items: [
-          { id: 'line', label: 'Linha', icon: 'Line', type: 'tool', tool: 'line', shortcut: 'L' },
+          { id: 'line', label: 'Linha', icon: 'Line', type: 'tool', tool: 'line', shortcut: getShortcutLabel('tools.line') },
           { id: 'arrow', label: 'Seta', icon: 'Arrow', type: 'tool', tool: 'arrow' },
-          { id: 'polyline', label: 'Polilinha', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: 'P' },
-          { id: 'circle', label: 'Circulo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: 'C' },
-          { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: 'A' },
-          { id: 'rect', label: 'Retangulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: 'R' },
-          { id: 'polygon', label: 'Poligono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: 'G' },
+          { id: 'polyline', label: 'Polilinha', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: getShortcutLabel('tools.polyline') },
+          { id: 'circle', label: 'Circulo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: getShortcutLabel('tools.circle') },
+          { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: getShortcutLabel('tools.arc') },
+          { id: 'rect', label: 'Retangulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: getShortcutLabel('tools.rect') },
+          { id: 'polygon', label: 'Poligono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: getShortcutLabel('tools.polygon') },
         ]
       },
       {
           title: 'Texto',
           layout: 'row',
           items: [
-              { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text', shortcut: 'T' },
+              { id: 'text-tool', label: 'Texto', icon: 'Text', type: 'tool', tool: 'text', shortcut: getShortcutLabel('tools.text') },
               { id: 'text-format-group', label: 'Formatacao', icon: 'Settings', type: 'component', componentName: 'TextFormatGroup' },
           ]
       },
@@ -120,10 +121,10 @@ export const MENU_CONFIG: MenuTab[] = [
         layout: 'grid',
         columns: 3,
         items: [
-            { id: 'select', label: 'Selecionar', icon: 'Select', type: 'tool', tool: 'select', shortcut: 'V' },
+            { id: 'select', label: 'Selecionar', icon: 'Select', type: 'tool', tool: 'select', shortcut: getShortcutLabel('tools.select') },
             { id: 'move', label: 'Mover', icon: 'Move', type: 'tool', tool: 'move' },
             { id: 'rotate', label: 'Rotacionar', icon: 'Rotate', type: 'tool', tool: 'rotate' },
-            { id: 'delete', label: 'Excluir', icon: 'Delete', type: 'action', action: 'delete', shortcut: 'Del' },
+            { id: 'delete', label: 'Excluir', icon: 'Delete', type: 'action', action: 'delete', shortcut: getShortcutLabel('editor.delete') },
             { id: 'join', label: 'Unir', icon: 'Join', type: 'action', action: 'join' },
             { id: 'explode', label: 'Explodir', icon: 'Explode', type: 'action', action: 'explode' },
         ]
@@ -132,23 +133,23 @@ export const MENU_CONFIG: MenuTab[] = [
           title: 'Medicao',
           layout: 'row',
           items: [
-              { id: 'measure', label: 'Medir', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: 'M' }
+              { id: 'measure', label: 'Medir', icon: 'Measure', type: 'tool', tool: 'measure', shortcut: getShortcutLabel('tools.measure') }
           ]
       },
       {
         title: 'Navegar',
         layout: 'row',
         items: [
-          { id: 'pan', label: 'Pan', icon: 'Hand', type: 'tool', tool: 'pan', shortcut: 'H' },
-          { id: 'zoom-fit', label: 'Ajustar Zoom', icon: 'Scan', type: 'action', action: 'zoom-fit', shortcut: 'Z' }
+          { id: 'pan', label: 'Pan', icon: 'Hand', type: 'tool', tool: 'pan', shortcut: getShortcutLabel('nav.pan') },
+          { id: 'zoom-fit', label: 'Ajustar Zoom', icon: 'Scan', type: 'action', action: 'zoom-fit', shortcut: getShortcutLabel('nav.zoomFit') }
         ]
       },
       {
         title: 'Historico',
         layout: 'row',
         items: [
-            { id: 'undo', label: 'Desfazer', icon: 'Undo', type: 'action', action: 'undo', shortcut: 'Ctrl+Z' },
-            { id: 'redo', label: 'Refazer', icon: 'Redo', type: 'action', action: 'redo', shortcut: 'Ctrl+Y' },
+            { id: 'undo', label: 'Desfazer', icon: 'Undo', type: 'action', action: 'undo', shortcut: getShortcutLabel('editor.undo') },
+            { id: 'redo', label: 'Refazer', icon: 'Redo', type: 'action', action: 'redo', shortcut: getShortcutLabel('editor.redo') },
         ]
       }
     ]
