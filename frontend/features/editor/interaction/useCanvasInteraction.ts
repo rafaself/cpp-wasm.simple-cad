@@ -44,6 +44,55 @@ const getEdgeAnchor = (bounds: Rect, orientation: { x: -1 | 0 | 1; y: -1 | 0 | 1
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 };
 
+const CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX = 18;
+
+type DataState = ReturnType<typeof useDataStore.getState>;
+
+const findAnchoredConnectionNode = (
+    data: DataState,
+    point: Point,
+    scale: number,
+    options?: { ignoreShapeId?: string }
+): { nodeId: string; point: Point } | undefined => {
+    const normalizedScale = Math.max(scale, 0.01);
+    const tolerance = CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX / normalizedScale;
+    const queryRect = { x: point.x - tolerance, y: point.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+    const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
+
+    for (const cand of candidates) {
+        if (!cand) continue;
+        if (options?.ignoreShapeId && cand.id === options.ignoreShapeId) continue;
+        const layer = data.layers.find(l => l.id === cand.layerId);
+        if (!layer || !layer.visible || layer.locked) continue;
+        const connPt = getConnectionPoint(cand);
+        if (!connPt) continue;
+
+        const nearConnection = getDistance(connPt, point) <= tolerance;
+        const bbox = getShapeBoundingBox(cand);
+        const insideBBox = bbox
+            ? (point.x >= bbox.x - tolerance &&
+               point.x <= bbox.x + bbox.width + tolerance &&
+               point.y >= bbox.y - tolerance &&
+               point.y <= bbox.y + bbox.height + tolerance)
+            : false;
+
+        if (nearConnection || insideBBox) {
+            const nodeId = data.getOrCreateAnchoredConnectionNode(cand.id);
+            return { nodeId, point: connPt };
+        }
+    }
+
+    for (const node of Object.values(data.connectionNodes)) {
+        const pos = resolveConnectionNodePosition(node, data.shapes);
+        if (!pos) continue;
+        if (getDistance(pos, point) <= tolerance) {
+            return { nodeId: node.id, point: pos };
+        }
+    }
+
+    return undefined;
+};
+
 const pointInPolygon = (point: Point, polygon: Point[]): boolean => {
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -620,48 +669,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
         if (conduitToolActive) {
-            // Helper to find a snap connection node from a click (electrical symbols first; then existing nodes).
-            const findSnapConnection = (p: Point): { nodeId: string; point: Point } | undefined => {
-                const tolerance = 18 / ui.viewTransform.scale;
-                // 1) Electrical symbols (creates/uses an anchored node)
-                const queryRect = { x: p.x - tolerance, y: p.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
-                const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
-
-                for (const cand of candidates) {
-                    if (!cand) continue;
-                    const layer = data.layers.find(l => l.id === cand.layerId);
-                    if (!layer || !layer.visible || layer.locked) continue;
-
-                    const connPt = getConnectionPoint(cand);
-                    if (!connPt) continue; // only allow shapes with explicit connection point
-
-                    const nearConnection = getDistance(connPt, p) <= tolerance;
-                    const bbox = getShapeBoundingBox(cand);
-                    const insideBBox = bbox
-                        ? (p.x >= bbox.x - tolerance &&
-                           p.x <= bbox.x + bbox.width + tolerance &&
-                           p.y >= bbox.y - tolerance &&
-                           p.y <= bbox.y + bbox.height + tolerance)
-                        : false;
-
-                    if (nearConnection || insideBBox) {
-                        const nodeId = data.getOrCreateAnchoredConnectionNode(cand.id);
-                        return { nodeId, point: connPt };
-                    }
-                }
-
-                // 2) Existing connection nodes (free or anchored)
-                for (const node of Object.values(data.connectionNodes)) {
-                    const pos = resolveConnectionNodePosition(node, data.shapes);
-                    if (!pos) continue;
-                    if (getDistance(pos, p) <= tolerance) return { nodeId: node.id, point: pos };
-                }
-                return undefined;
-            };
-
             if (!conduitStart) {
                 // First click: start from a node/symbol, or create a free node at the click position.
-                const startHit = findSnapConnection(wPos);
+                const startHit = findAnchoredConnectionNode(data, wPos, ui.viewTransform.scale);
                 if (!startHit) {
                     const nodeId = data.createFreeConnectionNode(wPos);
                     setConduitStart({ point: wPos, nodeId });
@@ -672,7 +682,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             } else {
                 // Second click: End the conduit
                 const startNodeId = conduitStart.nodeId;
-                const endHit = findSnapConnection(wPos);
+                const endHit = findAnchoredConnectionNode(data, wPos, ui.viewTransform.scale);
                 const endNodeId = endHit?.nodeId ?? data.createFreeConnectionNode(wPos);
                 if (!startNodeId || !endNodeId || startNodeId === endNodeId) {
                     setConduitStart(null);
@@ -727,8 +737,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         let eff = raw;
         const isHandleDrag = !!activeHandle;
         const shouldSnap = snapSettings.enabled && !e.ctrlKey && (!['pan', 'select'].includes(ui.activeTool) || isHandleDrag);
+        const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
 
-        if (shouldSnap) {
+        if (conduitToolActive) {
+            const anchorHit = findAnchoredConnectionNode(data, worldPos, ui.viewTransform.scale);
+            if (anchorHit) {
+                setSnapMarker(anchorHit.point);
+                eff = worldToScreen(anchorHit.point, ui.viewTransform);
+            } else {
+                setSnapMarker(null);
+            }
+        } else if (shouldSnap) {
             const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
@@ -746,7 +765,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
               snapSettings.tolerancePx / ui.viewTransform.scale
             );
             if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, ui.viewTransform); } else { setSnapMarker(null); }
-        } else { setSnapMarker(null); }
+        } else {
+            setSnapMarker(null);
+        }
 
         setCurrentPoint(eff);
 
@@ -781,33 +802,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             
                             // If moving conduit endpoint, check for snap to re-link
                             if (isConduitShape(s)) {
-                                // Find potential snap target for re-linking
-                                const snapTol = 10 / ui.viewTransform.scale;
-                                let foundNodeId: string | undefined = undefined;
-
-                                // 1) Snap to electrical symbols (anchored nodes)
-                                const queryRect = { x: worldPos.x - 20, y: worldPos.y - 20, width: 40, height: 40 };
-                                const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
-                                for (const cand of candidates) {
-                                    if (!cand || cand.id === s.id) continue;
-                                    const layer = data.layers.find(l => l.id === cand.layerId);
-                                    if (!layer || !layer.visible || layer.locked) continue;
-                                    const connPt = getConnectionPoint(cand);
-                                    if (connPt && getDistance(connPt, worldPos) < snapTol) {
-                                        foundNodeId = data.getOrCreateAnchoredConnectionNode(cand.id);
-                                        break;
-                                    }
-                                }
-
-                                // 2) Snap to existing connection nodes (junctions / free endpoints)
-                                if (!foundNodeId) {
-                                    for (const node of Object.values(data.connectionNodes)) {
-                                        const pos = resolveConnectionNodePosition(node, data.shapes);
-                                        if (!pos) continue;
-                                        if (getDistance(pos, worldPos) < snapTol) { foundNodeId = node.id; break; }
-                                    }
-                                }
-
+                                // Find potential snap target for re-linking (anchored nodes only)
+                                const foundHit = findAnchoredConnectionNode(data, worldPos, ui.viewTransform.scale, { ignoreShapeId: s.id });
+                                const foundNodeId = foundHit?.nodeId;
                                 const update: Partial<Shape> = {};
                                 if (foundNodeId && activeHandle.handle.index === 0) update.fromNodeId = foundNodeId;
                                 if (foundNodeId && activeHandle.handle.index === 1) update.toNodeId = foundNodeId;

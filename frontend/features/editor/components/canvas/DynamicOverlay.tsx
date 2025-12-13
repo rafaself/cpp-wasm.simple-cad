@@ -237,7 +237,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
     // 4. Snap Marker
     if (snapMarker) {
-        const ws = screenToWorld(snapMarker, uiStore.viewTransform);
+        const ws = snapMarker;
         ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2 / uiStore.viewTransform.scale; ctx.beginPath();
         const s = 6 / uiStore.viewTransform.scale;
         ctx.moveTo(ws.x - s, ws.y - s); ctx.lineTo(ws.x + s, ws.y + s); ctx.moveTo(ws.x + s, ws.y - s); ctx.lineTo(ws.x - s, ws.y + s);
