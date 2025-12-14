@@ -166,7 +166,7 @@ const EditorSidebar: React.FC = () => {
                                 e.preventDefault();
                                 setContextMenu({
                                     visible: true,
-                                    x: e.clientX,
+                                    x: e.clientX - 200,
                                     y: e.clientY,
                                     discipline,
                                     floorId: floor.id
