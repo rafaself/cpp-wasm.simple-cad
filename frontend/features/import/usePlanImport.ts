@@ -3,11 +3,13 @@ import { useUIStore } from '../../stores/useUIStore';
 import { useDataStore } from '../../stores/useDataStore';
 import { NormalizedViewBox, Shape } from '../../../types';
 import * as pdfjs from 'pdfjs-dist/build/pdf';
+import { convertPdfPageToShapes } from './utils/pdfToShapes';
+
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PlanImportResult {
-  shape: Shape;
+  shapes: Shape[];
   originalWidth: number; // For calibration
   originalHeight: number; // For calibration
 }
@@ -51,18 +53,29 @@ export const usePlanImport = (): PlanImportHook => {
           let originalHeight = 1000;
 
           if (file.type === 'application/pdf') {
-            console.warn("PDFs are currently rasterized to PNG for import. Full vector PDF to SVG conversion is a future enhancement.");
-            
-            // Temporary: Render PDF to canvas, then to PNG data URL
             const pdfData = new Uint8Array(fileContent as ArrayBuffer);
             const loadingTask = pdfjs.getDocument({ data: pdfData });
             const pdf = await loadingTask.promise;
             const page = await pdf.getPage(1); // Get first page
 
-            const viewport = page.getViewport({ scale: 2 }); // Scale up for better quality
+            const viewport = page.getViewport({ scale: 1.0 });
             originalWidth = viewport.width;
             originalHeight = viewport.height;
 
+            // Attempt vector conversion
+            const vectorShapes = await convertPdfPageToShapes(
+                page, 
+                uiStore.activeFloorId || 'default', 
+                dataStore.activeLayerId
+            );
+
+            if (vectorShapes.length > 0) {
+                 resolve({ shapes: vectorShapes, originalWidth, originalHeight });
+                 return;
+            }
+
+            // Fallback to raster if no vector shapes found (e.g. scanned PDF)
+            console.warn("No vector shapes found, falling back to raster import.");
             const canvas = document.createElement('canvas');
             const canvasContext = canvas.getContext('2d');
             canvas.height = viewport.height;
@@ -72,7 +85,6 @@ export const usePlanImport = (): PlanImportHook => {
               await page.render({ canvasContext, viewport }).promise;
               const pngDataUrl = canvas.toDataURL('image/png');
               
-              // Embed as SVG with an <image> tag
               svgString = `<svg width="${originalWidth}" height="${originalHeight}" viewBox="0 0 ${originalWidth} ${originalHeight}" xmlns="http://www.w3.org/2000/svg">
                              <image href="${pngDataUrl}" x="0" y="0" width="${originalWidth}" height="${originalHeight}"/>
                            </svg>`;
@@ -151,7 +163,7 @@ export const usePlanImport = (): PlanImportHook => {
             floorId: uiStore.activeFloorId, // Assign to current active floor
           };
 
-          resolve({ shape: newShape, originalWidth, originalHeight });
+          resolve({ shapes: [newShape], originalWidth, originalHeight });
 
         } catch (error) {
           console.error("Error processing file:", error);
@@ -182,14 +194,13 @@ export const usePlanImport = (): PlanImportHook => {
       }
 
       const result = await processFile(file);
-      if (result) {
-        // Here you would typically add the shape to the dataStore
-        // and then potentially start a calibration process.
-        console.log("Imported Shape:", result.shape);
-        dataStore.addShape(result.shape);
-        // Maybe activate a calibration tool here?
-        // uiStore.setTool('calibrate');
-        // uiStore.setCalibrationTarget(result.shape.id);
+      if (result && result.shapes.length > 0) {
+        console.log(`Importing ${result.shapes.length} shapes.`);
+        dataStore.addShapes(result.shapes);
+        
+        // Select the imported shapes for easy manipulation
+        uiStore.setSelectedShapeIds(new Set(result.shapes.map(s => s.id)));
+        uiStore.setTool('select');
       }
       closeImportModal();
     } catch (error) {

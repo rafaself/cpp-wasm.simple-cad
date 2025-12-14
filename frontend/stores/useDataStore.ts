@@ -33,6 +33,7 @@ interface DataState {
 
   // Actions
   addShape: (shape: Shape, electricalElement?: ElectricalElement, diagram?: { node?: DiagramNode; edge?: DiagramEdge }) => void;
+  addShapes: (shapes: Shape[]) => void;
   updateShape: (id: string, diff: Partial<Shape>, recordHistory?: boolean) => void;
   deleteShape: (id: string) => void;
   createFreeConnectionNode: (position: Point) => string;
@@ -391,6 +392,26 @@ export const useDataStore = create<DataState>((set, get) => ({
         diagramEdge: diagram?.edge
       }]);
       get().syncDiagramEdgesGeometry();
+  },
+
+  addShapes: (shapesToAdd) => {
+      const { shapes, saveToHistory, spatialIndex } = get();
+      const newShapes = { ...shapes };
+      const patches: Patch[] = [];
+
+      shapesToAdd.forEach(shape => {
+          newShapes[shape.id] = shape;
+          spatialIndex.insert(shape);
+          patches.push({
+              type: 'ADD',
+              id: shape.id,
+              data: shape
+          });
+      });
+      
+      set({ shapes: newShapes });
+      get().syncConnections();
+      saveToHistory(patches);
   },
 
   updateShape: (id, diff, recordHistory = true) => {
