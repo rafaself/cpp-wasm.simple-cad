@@ -31,10 +31,10 @@ interface DynamicOverlayProps {
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const uiStore = useUIStore();
-  const settingsStore = useSettingsStore();
-  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
   const dataStore = useDataStore();
+  const settingsStore = useSettingsStore();
   const libraryStore = useLibraryStore();
+  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
@@ -50,6 +50,13 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Fetch fresh state directly from stores
+    const uiStore = useUIStore.getState();
+    const dataStore = useDataStore.getState();
+    const settingsStore = useSettingsStore.getState();
+    const libraryStore = useLibraryStore.getState();
+    const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
 
     // Safety check for canvas dimensions
     if (width === 0 || height === 0 || width > 32767 || height > 32767) {
@@ -326,7 +333,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides, calibrationPoints]); // Added calibrationPoints
+  }, [uiStore, dataStore, settingsStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, calibrationPoints, width, height]); // Added calibrationPoints
 
   useEffect(() => {
       render();
