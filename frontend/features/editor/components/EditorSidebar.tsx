@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard,
-  Layers, Settings, MousePointer2, Zap, GitBranch
+  Layers, Settings, MousePointer2, Zap, GitBranch, Workflow, Lightbulb
 } from 'lucide-react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
@@ -11,12 +11,20 @@ import { StyleProperties } from './properties/StyleProperties';
 import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
 import ElectricalProperties from './properties/ElectricalProperties';
 import DiagramPanel from '../../diagram/DiagramPanel';
+import { ImportPlanModal } from '../../import/ImportPlanModal';
+import { usePlanImport } from '../../import/usePlanImport';
 
 const EditorSidebar: React.FC = () => {
   const sidebarTab = useUIStore((s) => s.sidebarTab);
   const setSidebarTab = useUIStore((s) => s.setSidebarTab);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const dataStore = useDataStore();
+
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+  const openTab = useUIStore((s) => s.openTab);
+
+  const { isImportModalOpen, openImportModal, closeImportModal, handleFileImport } = usePlanImport();
 
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
@@ -30,6 +38,18 @@ const EditorSidebar: React.FC = () => {
   // Helper to get selected shape
   const selectedShapeId = selectedShapeIds.values().next().value;
   const selectedShape = selectedShapeId ? dataStore.shapes[selectedShapeId] : undefined;
+
+  // --- Project Structure Definition ---
+  interface Floor {
+    id: string;
+    name: string;
+    disciplines: ('architecture' | 'electrical')[];
+  }
+
+  const projectStructure: Floor[] = [
+    { id: 'terreo', name: 'Térreo', disciplines: ['architecture', 'electrical'] },
+    // Add more floors here as needed
+  ];
 
   // --- Header Configuration ---
   const getHeaderConfig = () => {
@@ -103,21 +123,63 @@ const EditorSidebar: React.FC = () => {
   // --- Render Functions for Tabs ---
 
   const renderEdificacao = () => (
-    <div className="flex-grow overflow-y-auto p-3 flex flex-col gap-3 bg-white">
-        <div className="flex justify-between items-end">
-           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Planos / Andares</span>
-           <span className="text-[10px] text-slate-400">1 / 5</span>
-        </div>
-        <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-2 flex items-center gap-2 cursor-pointer ring-1 ring-blue-500 shadow-sm transition-all">
-          <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-white font-bold text-xs shadow-md">
-            1
-          </div>
-          <span className="font-semibold text-blue-900 text-xs">Térreo</span>
-        </div>
-        <button className="w-full border-2 border-dashed border-slate-300 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all group">
+    <div className="flex-grow overflow-y-auto p-3 flex flex-col gap-2 bg-white text-slate-700">
+        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1">
+            Plantas e Disciplinas
+        </h3>
+
+        {projectStructure.map((floor) => (
+            <div key={floor.id} className="flex flex-col gap-1">
+                {/* Floor Header */}
+                <div
+                    className={`flex items-center gap-2 p-2 rounded-md transition-colors cursor-pointer
+                                ${activeFloorId === floor.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}`}
+                    onClick={() => openTab({ floorId: floor.id, discipline: 'electrical' })}
+                >
+                    <Building2 size={16} />
+                    <span className="font-semibold text-xs">{floor.name}</span>
+                </div>
+
+                {/* Disciplines for the Floor */}
+                <div className="ml-4 border-l border-slate-300">
+                    {floor.disciplines.map((discipline) => (
+                        <div
+                            key={`${floor.id}-${discipline}`}
+                            className={`flex items-center gap-2 p-2 pl-3 text-xs rounded-r-md transition-colors cursor-pointer
+                                        ${activeFloorId === floor.id && activeDiscipline === discipline
+                                            ? 'bg-blue-100 text-blue-700 font-medium'
+                                            : 'hover:bg-slate-100'
+                                        }`}
+                            onClick={() => openTab({ floorId: floor.id, discipline })}
+                            onContextMenu={(e) => {
+                                if (discipline === 'architecture') {
+                                    e.preventDefault();
+                                    // Implement context menu for import here
+                                    // For now, just trigger modal directly
+                                    openImportModal();
+                                }
+                            }}
+                        >
+                            {discipline === 'architecture' ? <Workflow size={14} /> : <Lightbulb size={14} />}
+                            <span>{discipline === 'architecture' ? 'Arquitetura' : 'Elétrica'}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        ))}
+        
+        <button className="w-full mt-2 border-2 border-dashed border-slate-300 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all group">
            <Plus size={14} className="group-hover:scale-110 transition-transform" />
            <span className="text-xs font-medium">Adicionar Andar</span>
         </button>
+
+        {isImportModalOpen && (
+            <ImportPlanModal
+                isOpen={isImportModalOpen}
+                onClose={closeImportModal}
+                onImport={handleFileImport}
+            />
+        )}
     </div>
   );
 
@@ -131,12 +193,22 @@ const EditorSidebar: React.FC = () => {
         );
     }
 
+    // Only show drawing properties if in Architecture discipline or if it's an electrical shape
+    if (activeDiscipline === 'architecture' || (selectedShape.discipline === 'electrical')) {
+        return (
+            <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
+                <PositionProperties selectedShape={selectedShape} />
+                <DimensionProperties selectedShape={selectedShape} />
+                <StyleProperties selectedShape={selectedShape} />
+            </div>
+        );
+    }
+    
     return (
-      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
-        <PositionProperties selectedShape={selectedShape} />
-        <DimensionProperties selectedShape={selectedShape} />
-        <StyleProperties selectedShape={selectedShape} />
-      </div>
+        <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
+            <LayoutDashboard size={32} className="mb-4 opacity-20 shrink-0" />
+            <p className="text-xs">Desenho indisponivel neste modo.</p>
+        </div>
     );
   };
 
@@ -150,7 +222,8 @@ const EditorSidebar: React.FC = () => {
       );
     }
 
-    if (selectedShape.electricalElementId) {
+    // Only show properties if in the correct discipline or if it's an electrical shape
+    if (selectedShape.discipline === activeDiscipline || selectedShape.electricalElementId) {
       return (
         <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
           <ElectricalProperties selectedShape={selectedShape} />
@@ -161,7 +234,7 @@ const EditorSidebar: React.FC = () => {
     return (
       <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
         <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
-        <p className="text-xs">Nenhuma propriedade especifica disponivel.</p>
+        <p className="text-xs">Nenhuma propriedade disponivel neste modo.</p>
       </div>
     );
   };

@@ -14,6 +14,7 @@ import { getDefaultColorMode } from '../../../../utils/shapeColors';
 import NumberSpinner from '../../../../components/NumberSpinner';
 import { useLibraryStore } from '../../../../stores/useLibraryStore';
 import { getElectricalLayerConfig } from '../../../library/electricalProperties';
+import CalibrationModal from '../../components/CalibrationModal';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -39,7 +40,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     isDragging, isMiddlePanning, startPoint, currentPoint, isSelectionBox, snapMarker,
     polylinePoints, measureStart, lineStart, arrowStart, activeHandle, transformationBase,
     arcPoints, showRadiusModal, radiusModalPos, textEditState,
-    showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor
+    showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor,
+    calibrationPoints, showCalibrationModal
   } = state;
 
   const render = useCallback(() => {
@@ -48,12 +50,17 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Safety check for canvas dimensions
+    if (width === 0 || height === 0 || width > 32767 || height > 32767) {
+        return;
+    }
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
     ctx.translate(uiStore.viewTransform.x, uiStore.viewTransform.y);
-    ctx.scale(uiStore.viewTransform.scale, uiStore.viewTransform.scale);
+    ctx.scale(uiStore.viewTransform.scale, -uiStore.viewTransform.scale);
 
     // 1. Draw Selection Highlights & Handles
     uiStore.selectedShapeIds.forEach(id => {
@@ -202,7 +209,60 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         }
     }
 
-    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate', 'arrow'].includes(uiStore.activeTool)) {
+    // Draw Calibration Draft
+    if (uiStore.activeTool === 'calibrate') {
+        const start = calibrationPoints?.start || startPoint ? screenToWorld(startPoint!, uiStore.viewTransform) : null;
+        const end = calibrationPoints?.end || (currentPoint ? screenToWorld(currentPoint, uiStore.viewTransform) : null);
+
+        if (start && end) {
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = '#ef4444'; // Red for calibration
+            ctx.lineWidth = 2 / uiStore.viewTransform.scale;
+            ctx.setLineDash([5 / uiStore.viewTransform.scale, 5 / uiStore.viewTransform.scale]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw Markers
+            const markerSize = 6 / uiStore.viewTransform.scale;
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(start.x - markerSize/2, start.y - markerSize/2, markerSize, markerSize);
+            ctx.fillRect(end.x - markerSize/2, end.y - markerSize/2, markerSize, markerSize);
+
+            // Draw Label
+            const dist = getDistance(start, end);
+            const midX = (start.x + end.x) / 2;
+            const midY = (start.y + end.y) / 2;
+            
+            ctx.save();
+            ctx.font = `bold ${14 / uiStore.viewTransform.scale}px sans-serif`;
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Background box
+            const labelText = `${dist.toFixed(1)} px`;
+            const metrics = ctx.measureText(labelText);
+            const padding = 4 / uiStore.viewTransform.scale;
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // Red background
+            ctx.fillRect(
+                midX - metrics.width / 2 - padding, 
+                midY - 10 / uiStore.viewTransform.scale, 
+                metrics.width + padding * 2, 
+                20 / uiStore.viewTransform.scale
+            );
+            
+            // Text (unflipped)
+            ctx.translate(midX, midY);
+            ctx.scale(1, -1);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(labelText, 0, 0);
+            ctx.restore();
+        }
+    }
+
+    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate', 'arrow', 'calibrate'].includes(uiStore.activeTool)) {
       const ws = screenToWorld(startPoint, uiStore.viewTransform);
       let wc = screenToWorld(currentPoint, uiStore.viewTransform);
       
@@ -263,7 +323,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
+  }, [uiStore, dataStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides, calibrationPoints]); // Added calibrationPoints
 
   useEffect(() => {
       render();
@@ -274,7 +334,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (hoverCursor === 'rotate') cursorClass = ROTATE_CURSOR;
   else if (hoverCursor) cursorClass = hoverCursor;
-  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit', 'calibrate'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
 
   return (
     <>
@@ -291,6 +351,15 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         onWheel={handlers.onWheel}
         onContextMenu={(e) => e.preventDefault()}
     />
+
+    {showCalibrationModal && calibrationPoints && (
+        <CalibrationModal
+            isOpen={showCalibrationModal}
+            currentDistancePx={getDistance(calibrationPoints.start, calibrationPoints.end)}
+            onConfirm={setters.confirmCalibration}
+            onCancel={() => setters.setShowCalibrationModal(false)}
+        />
+    )}
 
     {showRadiusModal && arcPoints && (
         <RadiusInputModal

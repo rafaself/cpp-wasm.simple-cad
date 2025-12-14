@@ -29,13 +29,9 @@ const App: React.FC = () => {
       <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
         {/* Main Content Area (Canvas + Status Bar) */}
         <div className="flex-grow flex flex-col relative overflow-hidden">
-            <div className="flex-grow relative overflow-hidden">
-                <EditorCanvas />
-                <QuickAccessToolbar />
-                <SettingsModal />
-                <LayerManagerModal />
-            </div>
-            <EditorStatusBar />
+            <EditorCanvas />
+            <SettingsModal />
+            <LayerManagerModal />
         </div>
         
         {/* Sidebar moved to right */}

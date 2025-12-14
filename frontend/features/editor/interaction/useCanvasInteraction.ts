@@ -121,6 +121,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     // Selectors for reactive updates
     const activeTool = useUIStore(s => s.activeTool);
     const setEditingTextId = useUIStore(s => s.setEditingTextId);
+    const activeDiscipline = useUIStore(s => s.activeDiscipline); // Added for discipline locking logic
     
     // Non-reactive access to settings (we can also use getState() in handlers if these don't need to trigger re-renders of the hook)
     // But keeping them as hooks for now is fine if they are stable. 
@@ -196,6 +197,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [polygonShapeId, setPolygonShapeId] = useState<string | null>(null);
     const [showPolygonModal, setShowPolygonModal] = useState(false);
     const [polygonModalPos, setPolygonModalPos] = useState({ x: 0, y: 0 });
+
+    // Calibration Tool State
+    const [calibrationPoints, setCalibrationPoints] = useState<{ start: Point; end: Point } | null>(null);
+    const [showCalibrationModal, setShowCalibrationModal] = useState(false);
 
     // Text Tool State
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
@@ -498,7 +503,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
-                .filter(s => { const l = data.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
+                .filter(s => { 
+                    if (!s) return false;
+                    // Discipline Filter for Snapping
+                    const shapeDiscipline = s.discipline || 'electrical';
+                    if (ui.activeDiscipline === 'architecture' && shapeDiscipline !== 'architecture') return false;
+
+                    const l = data.layers.find(l => l.id === s.layerId); 
+                    return l && l.visible && !l.locked; 
+                });
             const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
               wr,
@@ -630,6 +643,14 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             let hitShapeId = null;
             for (let i = candidates.length - 1; i >= 0; i--) {
                 const s = candidates[i];
+                const shapeDisc = s.discipline || 'electrical';
+                
+                // Discipline Logic:
+                // 1. In Electrical mode, Architecture shapes are locked (visible but not selectable)
+                if (ui.activeDiscipline === 'electrical' && shapeDisc === 'architecture') continue;
+                // 2. In Architecture mode, Electrical shapes are hidden (not selectable)
+                if (ui.activeDiscipline === 'architecture' && shapeDisc !== 'architecture') continue;
+
                 const l = data.layers.find(lay => lay.id === s.layerId);
                 if (l && (!l.visible || l.locked)) continue;
                 if (isPointInShape(selectWorld, s, ui.viewTransform.scale, l)) { hitShapeId = s.id; break; }
@@ -737,6 +758,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
+        if (ui.activeTool === 'calibrate') {
+            if (!startPoint) {
+                setStartPoint(worldPos); // Use worldPos directly as it respects snapping if applied, though usually calibration is free or snapped to specific points
+            } else {
+                setCalibrationPoints({ start: startPoint, end: worldPos });
+                setShowCalibrationModal(true);
+                setStartPoint(null);
+            }
+            return;
+        }
+
         setIsDragging(true);
     }, [textEditState, snapSettings, gridSize, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides, zoomToFit, activeHandle, conduitStart, arcPoints, lineStart, arrowStart, measureStart, transformationBase]);
 
@@ -778,9 +810,14 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
                 .filter(s => {
+                    if (!s) return false;
+                    // Discipline Filter for Snapping
+                    const shapeDiscipline = s.discipline || 'electrical';
+                    if (ui.activeDiscipline === 'architecture' && shapeDiscipline !== 'architecture') return false;
+
                     const l = data.layers.find(l => l.id === s.layerId);
                     if (activeHandle && s.id === activeHandle.shapeId) return false;
-                    return s && l && l.visible && !l.locked;
+                    return l && l.visible && !l.locked;
                 });
             const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
@@ -1170,7 +1207,19 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return;
             }
 
-            const n: Shape = { id: Date.now().toString(), layerId: data.activeLayerId, type: ui.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
+            const n: Shape = { 
+                id: Date.now().toString(), 
+                layerId: data.activeLayerId, 
+                type: ui.activeTool, 
+                strokeColor, 
+                strokeWidth, 
+                strokeEnabled, 
+                fillColor, 
+                colorMode: getDefaultColorMode(), 
+                points: [],
+                floorId: ui.activeFloorId,
+                discipline: ui.activeDiscipline
+            };
 
             if (isSingleClick && shapeCreationTools.includes(ui.activeTool)) {
                 if (ui.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
@@ -1250,6 +1299,52 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         ui.setViewTransform({ scale: newScale, x: newX, y: newY });
     }, []);
 
+    // Handler to confirm calibration
+    const confirmCalibration = useCallback((realDistanceCm: number) => {
+        if (calibrationPoints) {
+            const currentDistPx = getDistance(calibrationPoints.start, calibrationPoints.end);
+            if (currentDistPx > 0) {
+                // We assume 1 unit = 1 pixel initially.
+                // We want to scale the PLAN so that currentDistPx becomes realDistanceCm (or proportional).
+                // Actually, in this system, 1 unit = 1 pixel.
+                // If the user says "This 100px line is actually 500cm", then 1 pixel = 5cm.
+                // But we want to KEEP the world scale (e.g. 1 unit = 1cm).
+                // So we need to scale the IMAGE so that the 100px line becomes 500 units long.
+                // Scale Factor = Target / Current = 500 / 100 = 5.
+                
+                // Target is realDistanceCm (assuming we want 1 unit = 1cm in our world).
+                const scaleFactor = realDistanceCm / currentDistPx;
+                
+                const currentUIStore = useUIStore.getState();
+                const currentDataStore = useDataStore.getState();
+                
+                // Find the selected plan (architecture discipline)
+                const selectedId = currentUIStore.selectedShapeIds.values().next().value;
+                if (selectedId) {
+                    const shape = currentDataStore.shapes[selectedId];
+                    // Only scale if it's a plan/image/rect and architecture
+                    if (shape && (shape.type === 'rect' || shape.type === 'image') && shape.discipline === 'architecture') {
+                        const newWidth = (shape.width ?? 0) * scaleFactor;
+                        const newHeight = (shape.height ?? 0) * scaleFactor;
+                        
+                        // We also need to adjust position so the scale happens around the first calibration point?
+                        // Or just center? Usually center or top-left.
+                        // Let's just scale dimensions for now, user can move it.
+                        currentDataStore.updateShape(selectedId, { width: newWidth, height: newHeight });
+                        
+                        // Reset
+                        setCalibrationPoints(null);
+                        setShowCalibrationModal(false);
+                        currentUIStore.setTool('select');
+                        return;
+                    }
+                }
+            }
+        }
+        setCalibrationPoints(null);
+        setShowCalibrationModal(false);
+    }, [calibrationPoints]);
+
     // Handler to confirm polygon sides
     const confirmPolygonSides = useCallback((sides: number) => {
         if (polygonShapeId) {
@@ -1288,14 +1383,20 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             polygonModalPos,
             polygonShapeId,
             isShiftPressed,
-            hoverCursor
+            hoverCursor,
+            // Calibration
+            calibrationPoints,
+            showCalibrationModal
         },
         setters: {
             setArcPoints,
             setShowRadiusModal,
             setTextEditState,
             setShowPolygonModal,
-            confirmPolygonSides
+            confirmPolygonSides,
+            // Calibration
+            setShowCalibrationModal,
+            confirmCalibration
         }
     };
 };

@@ -28,6 +28,8 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const centerIconColor = useSettingsStore(s => s.display.centerIcon.color);
     const editingTextId = useUIStore(s => s.editingTextId);
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
+    const activeFloorId = useUIStore(s => s.activeFloorId);
+    const activeDiscipline = useUIStore(s => s.activeDiscipline);
 
     // Subscribe to necessary data stores.
     const layers = useDataStore(s => s.layers);
@@ -97,6 +99,11 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Safety check for canvas dimensions
+        if (width === 0 || height === 0 || width > 32767 || height > 32767) {
+             return;
+        }
+
         // Safety check for viewTransform
         if (isNaN(viewTransform.x) || isNaN(viewTransform.y) || isNaN(viewTransform.scale) || viewTransform.scale === 0) {
             console.error("Invalid ViewTransform", viewTransform);
@@ -112,10 +119,21 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
 
         // Draw Grid
         if (gridSize > 0 && (gridShowDots || gridShowLines)) {
-            const startX = Math.floor(-viewTransform.x / viewTransform.scale / gridSize) * gridSize;
-            const startY = Math.floor(-viewTransform.y / viewTransform.scale / gridSize) * gridSize;
-            const endX = startX + (canvas.width / viewTransform.scale) + gridSize;
-            const endY = startY + (canvas.height / viewTransform.scale) + gridSize;
+            const screenLeft = 0;
+            const screenRight = canvas.width;
+            const screenTop = 0;
+            const screenBottom = canvas.height;
+
+            const worldLeft = (screenLeft - viewTransform.x) / viewTransform.scale;
+            const worldRight = (screenRight - viewTransform.x) / viewTransform.scale;
+            // Y axis is inverted (scale is negative)
+            const worldTop = (screenTop - viewTransform.y) / -viewTransform.scale;
+            const worldBottom = (screenBottom - viewTransform.y) / -viewTransform.scale;
+
+            const minX = Math.floor(Math.min(worldLeft, worldRight) / gridSize) * gridSize;
+            const maxX = Math.ceil(Math.max(worldLeft, worldRight) / gridSize) * gridSize;
+            const minY = Math.floor(Math.min(worldTop, worldBottom) / gridSize) * gridSize;
+            const maxY = Math.ceil(Math.max(worldTop, worldBottom) / gridSize) * gridSize;
 
             ctx.strokeStyle = gridColor;
             ctx.fillStyle = gridColor;
@@ -124,13 +142,13 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             if (gridShowLines) {
                 ctx.lineWidth = 1 / viewTransform.scale;
                 ctx.beginPath();
-                for (let x = startX; x < endX; x += gridSize) {
-                    ctx.moveTo(x, startY);
-                    ctx.lineTo(x, endY);
+                for (let x = minX; x <= maxX; x += gridSize) {
+                    ctx.moveTo(x, minY);
+                    ctx.lineTo(x, maxY);
                 }
-                for (let y = startY; y < endY; y += gridSize) {
-                    ctx.moveTo(startX, y);
-                    ctx.lineTo(endX, y);
+                for (let y = minY; y <= maxY; y += gridSize) {
+                    ctx.moveTo(minX, y);
+                    ctx.lineTo(maxX, y);
                 }
                 ctx.stroke();
             }
@@ -138,8 +156,8 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             // Draw grid dots
             if (gridShowDots) {
                 const dotSize = 2 / viewTransform.scale;
-                for (let x = startX; x < endX; x += gridSize) {
-                    for (let y = startY; y < endY; y += gridSize) {
+                for (let x = minX; x <= maxX; x += gridSize) {
+                    for (let y = minY; y <= maxY; y += gridSize) {
                         ctx.fillRect(x - dotSize / 2, y - dotSize / 2, dotSize, dotSize);
                     }
                 }
@@ -235,7 +253,25 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         // Use IDs to fetch fresh shape from store
         const visibleShapes = visibleCandidates
             .map(candidate => shapes[candidate.id])
-            .filter(s => !!s && !(editingTextId && s.type === 'text' && s.id === editingTextId));
+            .filter(s => {
+                if (!s) return false;
+                if (editingTextId && s.type === 'text' && s.id === editingTextId) return false;
+
+                // Floor Filter (Default to 'terreo' for legacy shapes)
+                const shapeFloor = s.floorId || 'terreo';
+                if (shapeFloor !== activeFloorId) return false;
+
+                // Discipline Filter
+                // If active discipline is Architecture, ONLY show Architecture.
+                // If active discipline is Electrical, show Architecture (bg) AND Electrical (fg).
+                const shapeDiscipline = s.discipline || 'electrical';
+                
+                if (activeDiscipline === 'architecture') {
+                    return shapeDiscipline === 'architecture';
+                }
+                
+                return true; // Electrical view shows everything
+            });
 
         // Update visible IDs ref for optimization check
         visibleIdsRef.current = new Set(visibleShapes.map(s => s.id));
