@@ -28,6 +28,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const centerIconColor = useSettingsStore(s => s.display.centerIcon.color);
     const editingTextId = useUIStore(s => s.editingTextId);
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
+    const activeDiscipline = useUIStore(s => s.activeDiscipline);
 
     // Subscribe to necessary data stores.
     const layers = useDataStore(s => s.layers);
@@ -245,7 +246,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             if (layer && !layer.visible) return;
 
             try {
-                renderShape(ctx, shape, viewTransform, layer);
+                renderShape(ctx, shape, viewTransform, layer, activeDiscipline);
             } catch (e) {
                 console.error("Error drawing shape", shape.id, e);
             }
