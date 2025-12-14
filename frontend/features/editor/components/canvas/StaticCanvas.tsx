@@ -30,6 +30,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
     const activeFloorId = useUIStore(s => s.activeFloorId);
     const activeDiscipline = useUIStore(s => s.activeDiscipline);
+    const referencedDisciplines = useUIStore(s => s.referencedDisciplines);
 
     // Subscribe to necessary data stores.
     const layers = useDataStore(s => s.layers);
@@ -262,15 +263,15 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
                 if (shapeFloor !== activeFloorId) return false;
 
                 // Discipline Filter
-                // If active discipline is Architecture, ONLY show Architecture.
-                // If active discipline is Electrical, show Architecture (bg) AND Electrical (fg).
                 const shapeDiscipline = s.discipline || 'electrical';
                 
-                if (activeDiscipline === 'architecture') {
-                    return shapeDiscipline === 'architecture';
-                }
+                // Show if:
+                // 1. Belongs to active discipline
+                // 2. Belongs to a REFERENCED discipline
+                if (shapeDiscipline === activeDiscipline) return true;
+                if (referencedDisciplines.has(shapeDiscipline)) return true;
                 
-                return true; // Electrical view shows everything
+                return false;
             });
 
         // Update visible IDs ref for optimization check
@@ -280,10 +281,23 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             const layer = layers.find(l => l.id === shape.layerId);
             if (layer && !layer.visible) return;
 
+            // Check if shape is referenced (not active discipline)
+            const shapeDiscipline = shape.discipline || 'electrical';
+            const isReference = shapeDiscipline !== activeDiscipline;
+
+            if (isReference) {
+                ctx.save();
+                ctx.globalAlpha = 0.8; // Fixed 80% opacity for references as requested
+            }
+
             try {
                 renderShape(ctx, shape, viewTransform, layer);
             } catch (e) {
                 console.error("Error drawing shape", shape.id, e);
+            }
+
+            if (isReference) {
+                ctx.restore();
             }
         });
 
@@ -299,7 +313,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [renderTrigger, viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, layers, spatialIndex, editingTextId, selectedShapeIds, width, height, frame, worldScale]);
+    }, [renderTrigger, viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, layers, spatialIndex, editingTextId, selectedShapeIds, width, height, frame, worldScale, referencedDisciplines]);
 
     return (
         <canvas

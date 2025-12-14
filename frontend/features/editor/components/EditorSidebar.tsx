@@ -13,6 +13,7 @@ import ElectricalProperties from './properties/ElectricalProperties';
 import DiagramPanel from '../../diagram/DiagramPanel';
 import { ImportPlanModal } from '../../import/ImportPlanModal';
 import { usePlanImport } from '../../import/usePlanImport';
+import DisciplineContextMenu from './DisciplineContextMenu';
 
 const EditorSidebar: React.FC = () => {
   const sidebarTab = useUIStore((s) => s.sidebarTab);
@@ -29,6 +30,14 @@ const EditorSidebar: React.FC = () => {
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
   
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    discipline: 'architecture' | 'electrical';
+  } | null>(null);
+
   // Draggable Scroll State
   const navScrollRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -152,12 +161,13 @@ const EditorSidebar: React.FC = () => {
                                         }`}
                             onClick={() => openTab({ floorId: floor.id, discipline })}
                             onContextMenu={(e) => {
-                                if (discipline === 'architecture') {
-                                    e.preventDefault();
-                                    // Implement context menu for import here
-                                    // For now, just trigger modal directly
-                                    openImportModal();
-                                }
+                                e.preventDefault();
+                                setContextMenu({
+                                    visible: true,
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                    discipline
+                                });
                             }}
                         >
                             {discipline === 'architecture' ? <Workflow size={14} /> : <Lightbulb size={14} />}
@@ -168,6 +178,15 @@ const EditorSidebar: React.FC = () => {
             </div>
         ))}
         
+        {contextMenu && contextMenu.visible && (
+            <DisciplineContextMenu
+                discipline={contextMenu.discipline}
+                position={{ x: contextMenu.x, y: contextMenu.y }}
+                onClose={() => setContextMenu(null)}
+                onImport={openImportModal}
+            />
+        )}
+
         <button className="w-full mt-2 border-2 border-dashed border-slate-300 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all group">
            <Plus size={14} className="group-hover:scale-110 transition-transform" />
            <span className="text-xs font-medium">Adicionar Andar</span>
