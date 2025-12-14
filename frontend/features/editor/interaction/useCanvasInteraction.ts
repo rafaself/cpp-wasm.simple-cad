@@ -5,6 +5,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
 import { ElectricalElement, Point, Shape, Rect, Patch, ToolType } from '../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../utils/geometry';
+import { calculateZoomTransform } from '../../../utils/zoomHelper';
 import { getSnapPoint } from '../snapEngine';
 import { getConnectionPoint } from '../snapEngine/detectors';
 import { getTextSize } from '../components/canvas/helpers';
@@ -644,12 +645,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             for (let i = candidates.length - 1; i >= 0; i--) {
                 const s = candidates[i];
                 const shapeDisc = s.discipline || 'electrical';
+                const shapeFloor = s.floorId || 'terreo';
+
+                // Floor Logic
+                if (shapeFloor !== ui.activeFloorId) continue;
                 
-                // Discipline Logic:
-                // 1. In Electrical mode, Architecture shapes are locked (visible but not selectable)
-                if (ui.activeDiscipline === 'electrical' && shapeDisc === 'architecture') continue;
-                // 2. In Architecture mode, Electrical shapes are hidden (not selectable)
-                if (ui.activeDiscipline === 'architecture' && shapeDisc !== 'architecture') continue;
+                // Discipline Logic: Strict Isolation
+                // Only select shapes belonging to the active discipline.
+                // Referenced shapes are visible but NOT selectable.
+                if (shapeDisc !== ui.activeDiscipline) continue;
 
                 const l = data.layers.find(lay => lay.id === s.layerId);
                 if (l && (!l.visible || l.locked)) continue;
@@ -1291,12 +1295,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const handleWheel = useCallback((e: React.WheelEvent) => {
         const ui = useUIStore.getState();
         e.preventDefault();
-        const scaleFactor = 1.1; const direction = e.deltaY > 0 ? -1 : 1;
-        let newScale = ui.viewTransform.scale * (direction > 0 ? scaleFactor : 1/scaleFactor);
-        newScale = Math.max(0.1, Math.min(newScale, 5));
-        const raw = getMousePos(e); const w = screenToWorld(raw, ui.viewTransform);
-        const newX = raw.x - w.x * newScale; const newY = raw.y - w.y * newScale;
-        ui.setViewTransform({ scale: newScale, x: newX, y: newY });
+
+        const raw = getMousePos(e);
+        const newTransform = calculateZoomTransform(
+            ui.viewTransform,
+            raw,
+            e.deltaY,
+            screenToWorld
+        );
+
+        ui.setViewTransform(newTransform);
     }, []);
 
     // Handler to confirm calibration

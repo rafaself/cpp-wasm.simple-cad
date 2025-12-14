@@ -53,6 +53,10 @@ interface UIState {
   resetElectricalPreview: () => void;
 
   setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+
+  // References
+  referencedDisciplines: Set<string>;
+  toggleReference: (discipline: string) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -69,6 +73,14 @@ export const useUIStore = create<UIState>((set) => ({
   activeDiscipline: 'electrical',
   
   openTabs: [{ floorId: 'terreo', discipline: 'electrical' }],
+
+  referencedDisciplines: new Set(['architecture']), // Default: Reference Architecture
+  toggleReference: (discipline) => set((state) => {
+      const newSet = new Set(state.referencedDisciplines);
+      if (newSet.has(discipline)) newSet.delete(discipline);
+      else newSet.add(discipline);
+      return { referencedDisciplines: newSet };
+  }),
   
   openTab: (tab) => set((state) => {
     const exists = state.openTabs.some(t => t.floorId === tab.floorId && t.discipline === tab.discipline);
@@ -116,8 +128,8 @@ export const useUIStore = create<UIState>((set) => ({
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
   setEditingTextId: (id) => set({ editingTextId: id }),
 
-  setActiveFloorId: (id) => set({ activeFloorId: id }),
-  setActiveDiscipline: (discipline) => set({ activeDiscipline: discipline }),
+  setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
+  setActiveDiscipline: (discipline) => set({ activeDiscipline: discipline, selectedShapeIds: new Set() }),
 
   setElectricalSymbolId: (id) => set({ activeElectricalSymbolId: id }),
   rotateElectricalPreview: (delta) => set((state) => {
