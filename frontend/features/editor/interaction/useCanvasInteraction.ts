@@ -16,6 +16,7 @@ import { computeFrameData } from '../../../utils/frame';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
 import { isConduitShape, isConduitTool } from '../utils/tools';
 import { resolveConnectionNodePosition } from '../../../utils/connections';
+import { isShapeInteractable, isShapeSnappable } from '../../../utils/visibility';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -815,9 +816,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 .map(s => data.shapes[s.id])
                 .filter(s => {
                     if (!s) return false;
-                    // Discipline Filter for Snapping
-                    const shapeDiscipline = s.discipline || 'electrical';
-                    if (ui.activeDiscipline === 'architecture' && shapeDiscipline !== 'architecture') return false;
+                    
+                    if (!isShapeSnappable(s, { activeFloorId: ui.activeFloorId, activeDiscipline: ui.activeDiscipline })) return false;
 
                     const l = data.layers.find(l => l.id === s.layerId);
                     if (activeHandle && s.id === activeHandle.shapeId) return false;

@@ -281,23 +281,13 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             const layer = layers.find(l => l.id === shape.layerId);
             if (layer && !layer.visible) return;
 
-            // Check if shape is referenced (not active discipline)
-            const shapeDiscipline = shape.discipline || 'electrical';
-            const isReference = shapeDiscipline !== activeDiscipline;
-
-            if (isReference) {
-                ctx.save();
-                ctx.globalAlpha = 0.8; // Fixed 80% opacity for references as requested
-            }
-
             try {
+                const isReference = activeDiscipline === 'electrical' && (shape.discipline || 'electrical') === 'architecture';
+                ctx.globalAlpha = isReference ? 0.5 : 1;
                 renderShape(ctx, shape, viewTransform, layer);
+                ctx.globalAlpha = 1;
             } catch (e) {
                 console.error("Error drawing shape", shape.id, e);
-            }
-
-            if (isReference) {
-                ctx.restore();
             }
         });
 

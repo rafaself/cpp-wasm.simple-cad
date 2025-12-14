@@ -32,7 +32,7 @@ export const calculateZoomTransform = (
 
     // Pivot zoom around cursor
     const newX = mousePos.x - w.x * newScale;
-    const newY = mousePos.y - w.y * newScale;
+    const newY = mousePos.y + w.y * newScale; // Inverted Y-axis logic
 
     return { scale: newScale, x: newX, y: newY };
 };

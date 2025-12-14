@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { Layers, Import, Eye, EyeOff } from 'lucide-react';
-import { useUIStore } from '../../../../stores/useUIStore';
+import { useUIStore } from '../../../stores/useUIStore';
 
 interface DisciplineContextMenuProps {
   discipline: 'architecture' | 'electrical';
