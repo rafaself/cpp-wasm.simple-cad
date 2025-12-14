@@ -1,4 +1,5 @@
 import { Shape } from '../types';
+import { useUIStore } from '../stores/useUIStore';
 
 interface ViewContext {
   activeFloorId: string;
@@ -16,8 +17,17 @@ export const isShapeVisible = (shape: Shape, context: ViewContext): boolean => {
     return shapeDiscipline === 'architecture';
   }
 
-  // Electrical Mode: Show Architecture (Background) + Electrical (Foreground)
-  return true; 
+  // Electrical Mode: Show Electrical shapes AND referenced Architecture shapes
+  const uiStore = useUIStore.getState(); // Directly access the store for references
+  const floorReferences = uiStore.referencedDisciplines.get(context.activeFloorId);
+
+  if (shapeDiscipline === 'electrical') {
+      return true; // Always show electrical in electrical mode
+  }
+  if (shapeDiscipline === 'architecture') {
+      return !!floorReferences?.has('architecture'); // Show architecture only if referenced for this floor
+  }
+  return false; // Unknown discipline
 };
 
 export const isShapeInteractable = (shape: Shape, context: ViewContext): boolean => {

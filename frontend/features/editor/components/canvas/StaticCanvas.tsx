@@ -55,7 +55,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
             // Re-calculate view rect
             const viewRect: Rect = {
                 x: -vt.x / vt.scale,
-                y: -vt.y / vt.scale,
+                y: (vt.y - height) / vt.scale,
                 width: width / vt.scale,
                 height: height / vt.scale
             };
@@ -244,7 +244,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
         // Query Visible Shapes
         const viewRect: Rect = {
             x: -viewTransform.x / viewTransform.scale,
-            y: -viewTransform.y / viewTransform.scale,
+            y: (viewTransform.y - canvas.height) / viewTransform.scale,
             width: canvas.width / viewTransform.scale,
             height: canvas.height / viewTransform.scale
         };
@@ -267,9 +267,16 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
                 
                 // Show if:
                 // 1. Belongs to active discipline
-                // 2. Belongs to a REFERENCED discipline
+                // 2. Belongs to a REFERENCED discipline for the current floor
                 if (shapeDiscipline === activeDiscipline) return true;
-                if (referencedDisciplines.has(shapeDiscipline)) return true;
+                
+                // Check references
+                // referencedDisciplines is Map<floorId, Set<discipline>>
+                // We need to check if the current floor references this shape's discipline
+                if (referencedDisciplines instanceof Map) {
+                    const floorRefs = referencedDisciplines.get(activeFloorId);
+                    if (floorRefs && floorRefs.has(shapeDiscipline as any)) return true;
+                }
                 
                 return false;
             });

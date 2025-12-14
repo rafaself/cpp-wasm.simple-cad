@@ -8,6 +8,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { PositionProperties } from './properties/PositionProperties';
 import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
+import { PlanProperties } from './properties/PlanProperties';
 import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
 import ElectricalProperties from './properties/ElectricalProperties';
 import DiagramPanel from '../../diagram/DiagramPanel';
@@ -36,6 +37,7 @@ const EditorSidebar: React.FC = () => {
     x: number;
     y: number;
     discipline: 'architecture' | 'electrical';
+    floorId: string;
   } | null>(null);
 
   // Draggable Scroll State
@@ -166,7 +168,8 @@ const EditorSidebar: React.FC = () => {
                                     visible: true,
                                     x: e.clientX,
                                     y: e.clientY,
-                                    discipline
+                                    discipline,
+                                    floorId: floor.id
                                 });
                             }}
                         >
@@ -181,6 +184,7 @@ const EditorSidebar: React.FC = () => {
         {contextMenu && contextMenu.visible && (
             <DisciplineContextMenu
                 discipline={contextMenu.discipline}
+                floorId={contextMenu.floorId}
                 position={{ x: contextMenu.x, y: contextMenu.y }}
                 onClose={() => setContextMenu(null)}
                 onImport={openImportModal}
@@ -241,19 +245,34 @@ const EditorSidebar: React.FC = () => {
       );
     }
 
-    // Only show properties if in the correct discipline or if it's an electrical shape
-    if (selectedShape.discipline === activeDiscipline || selectedShape.electricalElementId) {
-      return (
-        <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
-          <ElectricalProperties selectedShape={selectedShape} />
-        </div>
-      );
-    }
+    // Determine if we should show properties based on discipline
+    // We allow showing properties for Electrical elements even in Architecture mode if they are selected (though selection might be prevented)
+    // But mainly we care about the Active Discipline.
+    // If selected shape is from a different discipline, we might show "Read Only" or limited props?
+    // Current logic: if selected, show props. `useCanvasInteraction` handles selection prevention.
 
     return (
-      <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-        <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
-        <p className="text-xs">Nenhuma propriedade disponivel neste modo.</p>
+      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
+        <PositionProperties selectedShape={selectedShape} />
+        
+        {selectedShape.electricalElementId && (
+            <ElectricalProperties selectedShape={selectedShape} />
+        )}
+
+        {/* Plan / Reference Properties */}
+        {(selectedShape.svgRaw || selectedShape.discipline === 'architecture') && (
+            <PlanProperties selectedShape={selectedShape} />
+        )}
+
+        {/* Standard shapes (not imported plans/symbols) - show style/dimensions */}
+        {/* We exclude electrical symbols (which have svgRaw) from generic dimension editing if desired, or keep it. */}
+        {/* Usually electrical symbols have fixed dimensions or scale. Let's hide Dimension/Style for SVG symbols for now to keep it clean, or just Style. */}
+        {!selectedShape.svgRaw && (
+            <>
+                <DimensionProperties selectedShape={selectedShape} />
+                <StyleProperties selectedShape={selectedShape} />
+            </>
+        )}
       </div>
     );
   };

@@ -306,7 +306,12 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const detectInteractionAtPoint = (worldPos: Point, viewScale: number): InteractionHit => {
         const currentUIStore = useUIStore.getState();
         const currentDataStore = useDataStore.getState();
-        const selection = Array.from(currentUIStore.selectedShapeIds).map(id => currentDataStore.shapes[id]).filter(Boolean) as Shape[];
+        const { activeFloorId, activeDiscipline } = currentUIStore;
+
+        const selection = Array.from(currentUIStore.selectedShapeIds)
+            .map(id => currentDataStore.shapes[id])
+            .filter(s => s && isShapeInteractable(s, { activeFloorId, activeDiscipline })) as Shape[];
+
         if (selection.length === 0) return defaultInteraction;
 
         const handleHit = 10 / viewScale;
@@ -414,7 +419,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 strokeEnabled,
                 fillColor: 'transparent',
                 colorMode: getDefaultColorMode(),
-                points: [...polylinePoints]
+                points: [...polylinePoints],
+                floorId: currentUIStore.activeFloorId,
+                discipline: currentUIStore.activeDiscipline
             });
             currentUIStore.setSidebarTab('desenho');
             setPolylinePoints([]);
@@ -557,6 +564,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             for (const id of ui.selectedShapeIds) {
                 const shape = data.shapes[id];
                 if (!shape) continue;
+
+                if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId, activeDiscipline: ui.activeDiscipline })) continue;
+
                 const handles = getShapeHandles(shape); const handleSize = 10 / ui.viewTransform.scale;
                 for (const h of handles) {
                     if (getDistance(h, wPos) < handleSize) { 
@@ -686,7 +696,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(lineStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
+                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint], floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 ui.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
@@ -699,7 +709,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(arrowStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
+                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 ui.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
@@ -707,8 +717,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         if (ui.activeTool === 'measure') {
             if (!measureStart) setMeasureStart(wPos);
             else {
-                const dist = getDistance(measureStart, wPos).toFixed(2);
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
+                const dist = getDistance(measureStart, wPos).toFixed(1);
+                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist} cm`, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 setMeasureStart(null);
             }
             return;
@@ -1161,6 +1171,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     svgViewBox: librarySymbol.viewBox,
                     symbolScale: librarySymbol.scale,
                     connectionPoint: librarySymbol.defaultConnectionPoint,
+                    floorId: ui.activeFloorId,
+                    discipline: ui.activeDiscipline
                 };
 
                 const metadata = getDefaultMetadataForSymbol(librarySymbol.id);

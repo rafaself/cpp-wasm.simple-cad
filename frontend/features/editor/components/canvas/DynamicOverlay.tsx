@@ -15,6 +15,7 @@ import NumberSpinner from '../../../../components/NumberSpinner';
 import { useLibraryStore } from '../../../../stores/useLibraryStore';
 import { getElectricalLayerConfig } from '../../../library/electricalProperties';
 import CalibrationModal from '../../components/CalibrationModal';
+import { isShapeInteractable } from '../../../../utils/visibility';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -68,7 +69,9 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         if (shape) {
             try {
                 drawSelectionHighlight(ctx, shape, uiStore.viewTransform);
-                if (uiStore.activeTool === 'select') drawHandles(ctx, shape, uiStore.viewTransform);
+                if (uiStore.activeTool === 'select' && isShapeInteractable(shape, { activeFloorId: uiStore.activeFloorId, activeDiscipline: uiStore.activeDiscipline })) {
+                    drawHandles(ctx, shape, uiStore.viewTransform);
+                }
             } catch (e) {
                 console.error("Error drawing selection for shape", id, e);
             }

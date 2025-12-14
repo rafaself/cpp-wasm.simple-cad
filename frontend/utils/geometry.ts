@@ -234,7 +234,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const inX = checkPoint.x >= shape.x - threshold && checkPoint.x <= shape.x + shape.width + threshold;
       const inY = checkPoint.y >= shape.y - threshold && checkPoint.y <= shape.y + shape.height + threshold;
       if (!inX || !inY) return false;
-      if (effectiveFill !== 'transparent') return true; 
+      if (effectiveFill !== 'transparent' || shape.svgRaw) return true; 
       const nearLeft = Math.abs(checkPoint.x - shape.x) < threshold;
       const nearRight = Math.abs(checkPoint.x - (shape.x + shape.width)) < threshold;
       const nearTop = Math.abs(checkPoint.y - shape.y) < threshold;

@@ -55,8 +55,8 @@ interface UIState {
   setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 
   // References
-  referencedDisciplines: Set<string>;
-  toggleReference: (discipline: string) => void;
+  referencedDisciplines: Map<string, Set<'architecture' | 'electrical'>>; // Map<floorId, Set<discipline>>
+  toggleReference: (floorId: string, disciplineToToggle: 'architecture' | 'electrical') => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -74,23 +74,41 @@ export const useUIStore = create<UIState>((set) => ({
   
   openTabs: [{ floorId: 'terreo', discipline: 'electrical' }],
 
-  referencedDisciplines: new Set(['architecture']), // Default: Reference Architecture
-  toggleReference: (discipline) => set((state) => {
-      const newSet = new Set(state.referencedDisciplines);
-      if (newSet.has(discipline)) newSet.delete(discipline);
-      else newSet.add(discipline);
-      return { referencedDisciplines: newSet };
+  referencedDisciplines: new Map(), // Default to empty Map
+  toggleReference: (floorId, disciplineToToggle) => set((state) => {
+      const newReferences = new Map(state.referencedDisciplines);
+      let floorReferences = newReferences.get(floorId) || new Set();
+
+      if (floorReferences.has(disciplineToToggle)) {
+          floorReferences.delete(disciplineToToggle);
+      } else {
+          floorReferences.add(disciplineToToggle);
+      }
+
+      if (floorReferences.size > 0) {
+          newReferences.set(floorId, new Set(floorReferences)); // Ensure new Set instance for immutability
+      } else {
+          newReferences.delete(floorId);
+      }
+      return { referencedDisciplines: newReferences };
   }),
   
   openTab: (tab) => set((state) => {
     const exists = state.openTabs.some(t => t.floorId === tab.floorId && t.discipline === tab.discipline);
+    
+    // Always clear selection when switching context
+    const updates = { 
+        activeFloorId: tab.floorId, 
+        activeDiscipline: tab.discipline,
+        selectedShapeIds: new Set<string>() 
+    };
+
     if (exists) {
-        return { activeFloorId: tab.floorId, activeDiscipline: tab.discipline };
+        return updates;
     }
     return { 
+        ...updates,
         openTabs: [...state.openTabs, tab],
-        activeFloorId: tab.floorId,
-        activeDiscipline: tab.discipline
     };
   }),
   

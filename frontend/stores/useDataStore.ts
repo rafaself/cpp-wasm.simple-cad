@@ -37,7 +37,7 @@ interface DataState {
   deleteShape: (id: string) => void;
   createFreeConnectionNode: (position: Point) => string;
   getOrCreateAnchoredConnectionNode: (shapeId: string) => string;
-  addConduitBetweenNodes: (params: { fromNodeId: string; toNodeId: string; layerId: string; strokeColor: string }) => string;
+  addConduitBetweenNodes: (params: { fromNodeId: string; toNodeId: string; layerId: string; strokeColor: string; floorId?: string; discipline?: 'architecture' | 'electrical' }) => string;
   addElectricalElement: (element: ElectricalElement) => void;
   updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
   updateSharedElectricalProperties: (sourceElement: ElectricalElement, diff: Record<string, any>) => void; // Added for shared props
