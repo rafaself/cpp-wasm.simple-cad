@@ -12,12 +12,31 @@ interface PlanImportResult {
   originalHeight: number; // For calibration
 }
 
-export const usePlanImport = () => {
+interface PlanImportHook {
+  openImportPdfModal: () => void;
+  openImportImageModal: () => void;
+  closeImportModal: () => void;
+  handleFileImport: (file: File) => Promise<void>;
+  isImportModalOpen: boolean;
+  importMode: 'pdf' | 'image';
+}
+
+export const usePlanImport = (): PlanImportHook => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<'pdf' | 'image'>('pdf');
   const uiStore = useUIStore();
   const dataStore = useDataStore();
 
-  const openImportModal = useCallback(() => setIsImportModalOpen(true), []);
+  const openImportPdfModal = useCallback(() => {
+    setImportMode('pdf');
+    setIsImportModalOpen(true);
+  }, []);
+
+  const openImportImageModal = useCallback(() => {
+    setImportMode('image');
+    setIsImportModalOpen(true);
+  }, []);
+
   const closeImportModal = useCallback(() => setIsImportModalOpen(false), []);
 
   const processFile = useCallback(async (file: File): Promise<PlanImportResult | null> => {
@@ -149,6 +168,19 @@ export const usePlanImport = () => {
 
   const handleFileImport = useCallback(async (file: File) => {
     try {
+      if (importMode === 'pdf') {
+          if (file.type !== 'application/pdf' && file.type !== 'image/svg+xml') {
+              throw new Error("Por favor, selecione um arquivo PDF ou SVG.");
+          }
+      } else if (importMode === 'image') {
+          // Allow internal image/svg+xml to fail here if intended strictly for raster,
+          // but usually users won't pick SVG in image mode if filtered.
+          // Strict check:
+          if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+              throw new Error("Por favor, selecione uma imagem (PNG, JPG).");
+          }
+      }
+
       const result = await processFile(file);
       if (result) {
         // Here you would typically add the shape to the dataStore
@@ -163,11 +195,13 @@ export const usePlanImport = () => {
     } catch (error) {
       alert(`Erro ao importar arquivo: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [processFile, dataStore, closeImportModal]); // Include closeImportModal here
+  }, [processFile, dataStore, closeImportModal, importMode]);
 
   return {
     isImportModalOpen,
-    openImportModal,
+    importMode,
+    openImportPdfModal,
+    openImportImageModal,
     closeImportModal,
     handleFileImport,
   };

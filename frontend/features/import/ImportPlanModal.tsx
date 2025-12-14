@@ -5,9 +5,19 @@ interface ImportPlanModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (file: File) => void;
+  mode?: 'pdf' | 'image';
+  title?: string;
+  accept?: string;
 }
 
-export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ isOpen, onClose, onImport }) => {
+export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onImport, 
+  mode = 'pdf',
+  title = "Importar Planta",
+  accept = ".pdf,.svg"
+}) => {
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -47,7 +57,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ isOpen, onClos
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center">
       <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[400px] flex flex-col text-slate-100">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <h2 className="font-semibold text-base">Importar Planta</h2>
+          <h2 className="font-semibold text-base">{title}</h2>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700"
@@ -74,7 +84,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ isOpen, onClos
               multiple={false}
               onChange={handleChange}
               className="hidden"
-              accept=".pdf,.svg,.png,.jpg,.jpeg"
+              accept={accept}
             />
             <label
               htmlFor="file-upload-input"
@@ -88,7 +98,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ isOpen, onClos
                 </span>
               </p>
               <p className="text-xs text-slate-500">
-                Formatos suportados: PDF, SVG, PNG, JPG
+                Formatos suportados: {accept.replace(/\./g, '').toUpperCase().replace(/,/g, ', ')}
               </p>
             </label>
           </form>

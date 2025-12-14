@@ -1130,6 +1130,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 candidates.forEach(s => {
                     const l = data.layers.find(lay => lay.id === s.layerId);
                     if (l && (!l.visible || l.locked)) return;
+                    
+                    // Strict Isolation: Do not select referenced shapes from other disciplines
+                    const shapeDisc = s.discipline || 'electrical';
+                    if (shapeDisc !== ui.activeDiscipline) return;
+
                     if (isShapeInSelection(s, rect, mode)) nSel.add(s.id);
                 });
                 ui.setSelectedShapeIds(nSel);

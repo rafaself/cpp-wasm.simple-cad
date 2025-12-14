@@ -7,7 +7,8 @@ interface DisciplineContextMenuProps {
   discipline: 'architecture' | 'electrical';
   position: { x: number; y: number };
   onClose: () => void;
-  onImport?: () => void;
+  onImportPdf?: () => void;
+  onImportImage?: () => void;
 }
 
 const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
@@ -15,7 +16,8 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   discipline,
   position,
   onClose,
-  onImport
+  onImportPdf,
+  onImportImage
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const allReferences = useUIStore(s => s.referencedDisciplines);
@@ -52,17 +54,33 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
         {discipline === 'architecture' ? 'Arquitetura' : 'Elétrica'} ({floorId === 'terreo' ? 'Térreo' : floorId})
       </div>
 
-      {onImport && discipline === 'architecture' && (
-        <button
-          className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-          onClick={() => {
-              if (onImport) onImport();
-              onClose();
-          }}
-        >
-          <Import size={14} />
-          <span>Importar Planta (PDF/SVG/Img)</span>
-        </button>
+      {discipline === 'architecture' && (
+        <>
+            {onImportPdf && (
+                <button
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => {
+                        onImportPdf();
+                        onClose();
+                    }}
+                >
+                    <Import size={14} />
+                    <span>Importar Planta (PDF/SVG)</span>
+                </button>
+            )}
+            {onImportImage && (
+                <button
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => {
+                        onImportImage();
+                        onClose();
+                    }}
+                >
+                    <Import size={14} />
+                    <span>Importar Imagem (PNG/JPG)</span>
+                </button>
+            )}
+        </>
       )}
 
       {availableReferences.length > 0 && (
