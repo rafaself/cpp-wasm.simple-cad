@@ -911,47 +911,64 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         const anchor = e.altKey
                             ? { x: originalBounds.x + originalBounds.width / 2, y: originalBounds.y + originalBounds.height / 2 }
                             : getEdgeAnchor(originalBounds, orientation);
+
                         const minSize = 5;
+                        
+                        // 1. Calculate Signs (Flip detection)
+                        const rawDx = ws.x - anchor.x;
+                        const rawDy = ws.y - anchor.y;
+                        
+                        // If orientation is 0, sign is 1 (no flip on that axis)
+                        const signX = orientation.x === 0 ? 1 : (Math.sign(rawDx * orientation.x) || 1);
+                        const signY = orientation.y === 0 ? 1 : (Math.sign(rawDy * orientation.y) || 1);
+
                         let finalW = originalBounds.width;
                         let finalH = originalBounds.height;
+
+                        // 2. Calculate Dimensions
+                        if (orientation.x !== 0) {
+                            const dist = Math.abs(rawDx);
+                            finalW = Math.max(minSize, e.altKey ? dist * 2 : dist);
+                        }
+                        if (orientation.y !== 0) {
+                            const dist = Math.abs(rawDy);
+                            finalH = Math.max(minSize, e.altKey ? dist * 2 : dist);
+                        }
+
+                        // 3. Proportional resize with Shift (Figma-style)
+                        if (e.shiftKey && (orientation.x !== 0 || orientation.y !== 0)) {
+                            const scaleX = orientation.x !== 0 ? finalW / Math.max(minSize, originalBounds.width) : 0;
+                            const scaleY = orientation.y !== 0 ? finalH / Math.max(minSize, originalBounds.height) : 0;
+                            const uniformScale = Math.max(scaleX, scaleY) || 1;
+                            
+                            if (orientation.x !== 0) finalW = Math.max(minSize, originalBounds.width * uniformScale);
+                            if (orientation.y !== 0) finalH = Math.max(minSize, originalBounds.height * uniformScale);
+                        }
+
+                        // 4. Calculate Position
                         let finalX = originalBounds.x;
                         let finalY = originalBounds.y;
 
-                        // Horizontal adjustment
                         if (orientation.x !== 0) {
-                            const deltaX = (ws.x - anchor.x) * orientation.x;
-                            let newW = Math.abs(e.altKey ? deltaX * 2 : deltaX);
-                            newW = Math.max(minSize, newW);
-                            finalW = newW;
-                            finalX = e.altKey ? anchor.x - newW / 2 : (orientation.x > 0 ? anchor.x : anchor.x - newW);
+                            if (e.altKey) {
+                                finalX = anchor.x - finalW / 2;
+                            } else {
+                                // If effective direction is positive, anchor is Top/Left -> X = anchor.x
+                                // If effective direction is negative, anchor is Bottom/Right -> X = anchor.x - finalW
+                                const effectiveDir = orientation.x * signX;
+                                finalX = effectiveDir > 0 ? anchor.x : anchor.x - finalW;
+                            }
                         }
 
-                        // Vertical adjustment
                         if (orientation.y !== 0) {
-                            const deltaY = (ws.y - anchor.y) * orientation.y;
-                            let newH = Math.abs(e.altKey ? deltaY * 2 : deltaY);
-                            newH = Math.max(minSize, newH);
-                            finalH = newH;
-                            finalY = e.altKey ? anchor.y - newH / 2 : (orientation.y > 0 ? anchor.y : anchor.y - newH);
-                        }
-
-                        // Proportional resize with Shift (Figma-style)
-                        if (e.shiftKey && (orientation.x !== 0 || orientation.y !== 0)) {
-                            const scaleX = orientation.x !== 0 ? finalW / Math.max(minSize, originalBounds.width) : null;
-                            const scaleY = orientation.y !== 0 ? finalH / Math.max(minSize, originalBounds.height) : null;
-                            const uniformScale = Math.max(Math.abs(scaleX ?? 0), Math.abs(scaleY ?? 0)) || 1;
-                            if (orientation.x !== 0) {
-                                finalW = Math.max(minSize, originalBounds.width * uniformScale);
-                                finalX = e.altKey ? anchor.x - finalW / 2 : (orientation.x > 0 ? anchor.x : anchor.x - finalW);
-                            }
-                            if (orientation.y !== 0) {
-                                finalH = Math.max(minSize, originalBounds.height * uniformScale);
-                                finalY = e.altKey ? anchor.y - finalH / 2 : (orientation.y > 0 ? anchor.y : anchor.y - finalH);
+                            if (e.altKey) {
+                                finalY = anchor.y - finalH / 2;
+                            } else {
+                                const effectiveDir = orientation.y * signY;
+                                finalY = effectiveDir > 0 ? anchor.y : anchor.y - finalH;
                             }
                         }
 
-                        const signX = orientation.x === 0 ? 1 : Math.sign((ws.x - anchor.x) * orientation.x) || 1;
-                        const signY = orientation.y === 0 ? 1 : Math.sign((ws.y - anchor.y) * orientation.y) || 1;
                         const newScaleX = signX < 0 ? -originalScaleX : originalScaleX;
                         const newScaleY = signY < 0 ? -originalScaleY : originalScaleY;
 

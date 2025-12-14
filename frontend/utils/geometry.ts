@@ -509,6 +509,43 @@ export const getShapeCenter = (shape: Shape): Point => {
 
 export interface Handle { x: number; y: number; cursor: string; index: number; type: 'vertex' | 'resize' | 'bezier-control'; }
 
+const getRotatedCursor = (index: number, rotation: number): string => {
+    // Base angles for corners (TL, TR, BR, BL) assuming standard 0 rotation
+    // 0: TL (-135°), 1: TR (-45°), 2: BR (45°), 3: BL (135°)
+    const baseAngles = [-3 * Math.PI / 4, -Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4];
+    const angle = baseAngles[index] + (rotation || 0);
+
+    // Normalize angle to -PI to PI
+    // We negate the angle because the canvas coordinate system is Y-Up (world) vs Y-Down (screen).
+    // A vector (dx, dy) in world becomes (dx, -dy) on screen, so the visual angle is inverted.
+    const normalized = Math.atan2(Math.sin(-angle), Math.cos(-angle));
+    
+    // Convert to degrees for easier mapping
+    const deg = normalized * 180 / Math.PI;
+
+    // Map to 8 cardinal directions
+    // ranges:
+    // -22.5 to 22.5 -> E
+    // 22.5 to 67.5 -> SE
+    // 67.5 to 112.5 -> S
+    // 112.5 to 157.5 -> SW
+    // 157.5 to 180 OR -180 to -157.5 -> W
+    // -157.5 to -112.5 -> NW
+    // -112.5 to -67.5 -> N
+    // -67.5 to -22.5 -> NE
+
+    if (deg >= -22.5 && deg < 22.5) return 'ew-resize';
+    if (deg >= 22.5 && deg < 67.5) return 'nwse-resize';
+    if (deg >= 67.5 && deg < 112.5) return 'ns-resize';
+    if (deg >= 112.5 && deg < 157.5) return 'nesw-resize';
+    if (deg >= 157.5 || deg < -157.5) return 'ew-resize';
+    if (deg >= -157.5 && deg < -112.5) return 'nwse-resize';
+    if (deg >= -112.5 && deg < -67.5) return 'ns-resize';
+    if (deg >= -67.5 && deg < -22.5) return 'nesw-resize';
+    
+    return 'nwse-resize'; // Fallback
+};
+
 export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
     if (shape.electricalElementId) return handles;
@@ -542,12 +579,13 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
             { x: bounds.x, y: bounds.y + bounds.height }
         ];
         const center = getShapeCenter(shape);
-        const rotatedCorners = shape.rotation ? corners.map(c => rotatePoint(c, center, shape.rotation!)) : corners;
+        const rotation = shape.rotation || 0;
+        const rotatedCorners = rotation ? corners.map(c => rotatePoint(c, center, rotation)) : corners;
 
-        handles.push({ x: rotatedCorners[0].x, y: rotatedCorners[0].y, cursor: 'nwse-resize', index: 0, type: 'resize' });
-        handles.push({ x: rotatedCorners[1].x, y: rotatedCorners[1].y, cursor: 'nesw-resize', index: 1, type: 'resize' });
-        handles.push({ x: rotatedCorners[2].x, y: rotatedCorners[2].y, cursor: 'nwse-resize', index: 2, type: 'resize' });
-        handles.push({ x: rotatedCorners[3].x, y: rotatedCorners[3].y, cursor: 'nesw-resize', index: 3, type: 'resize' });
+        handles.push({ x: rotatedCorners[0].x, y: rotatedCorners[0].y, cursor: getRotatedCursor(0, rotation), index: 0, type: 'resize' });
+        handles.push({ x: rotatedCorners[1].x, y: rotatedCorners[1].y, cursor: getRotatedCursor(1, rotation), index: 1, type: 'resize' });
+        handles.push({ x: rotatedCorners[2].x, y: rotatedCorners[2].y, cursor: getRotatedCursor(2, rotation), index: 2, type: 'resize' });
+        handles.push({ x: rotatedCorners[3].x, y: rotatedCorners[3].y, cursor: getRotatedCursor(3, rotation), index: 3, type: 'resize' });
     }
     return handles;
 };
