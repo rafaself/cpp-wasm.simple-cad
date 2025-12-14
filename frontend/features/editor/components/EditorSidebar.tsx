@@ -161,7 +161,18 @@ const EditorSidebar: React.FC = () => {
                                             ? 'bg-blue-100 text-blue-700 font-medium'
                                             : 'hover:bg-slate-100'
                                         }`}
-                            onClick={() => openTab({ floorId: floor.id, discipline })}
+                            onClick={(e) => {
+                                openTab({ floorId: floor.id, discipline });
+                                if (discipline === 'architecture' || discipline === 'electrical') {
+                                    setContextMenu({
+                                        visible: true,
+                                        x: e.clientX - 200,
+                                        y: e.clientY,
+                                        discipline,
+                                        floorId: floor.id
+                                    });
+                                }
+                            }}
                             onContextMenu={(e) => {
                                 e.preventDefault();
                                 setContextMenu({

@@ -84,6 +84,30 @@ export const usePlanImport = () => {
                 viewBox = { x: 0, y: 0, width: originalWidth, height: originalHeight };
             }
 
+          } else if (file.type.startsWith('image/')) {
+             // Handle PNG, JPEG, etc.
+             const imgDataUrl = await new Promise<string>((resolveImg, rejectImg) => {
+                 const imgReader = new FileReader();
+                 imgReader.onload = () => resolveImg(imgReader.result as string);
+                 imgReader.onerror = rejectImg;
+                 imgReader.readAsDataURL(file);
+             });
+
+             const img = new Image();
+             await new Promise<void>((resolveImgLoad, rejectImgLoad) => {
+                 img.onload = () => resolveImgLoad();
+                 img.onerror = rejectImgLoad;
+                 img.src = imgDataUrl;
+             });
+
+             originalWidth = img.width;
+             originalHeight = img.height;
+             viewBox = { x: 0, y: 0, width: originalWidth, height: originalHeight };
+             
+             svgString = `<svg width="${originalWidth}" height="${originalHeight}" viewBox="0 0 ${originalWidth} ${originalHeight}" xmlns="http://www.w3.org/2000/svg">
+                             <image href="${imgDataUrl}" x="0" y="0" width="${originalWidth}" height="${originalHeight}"/>
+                           </svg>`;
+
           } else {
             throw new Error(`Unsupported file type: ${file.type}`);
           }

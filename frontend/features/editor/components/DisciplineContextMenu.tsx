@@ -61,7 +61,7 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
           }}
         >
           <Import size={14} />
-          <span>Importar Planta (PDF/SVG)</span>
+          <span>Importar Planta (PDF/SVG/Img)</span>
         </button>
       )}
 

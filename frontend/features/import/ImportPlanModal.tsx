@@ -74,7 +74,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ isOpen, onClos
               multiple={false}
               onChange={handleChange}
               className="hidden"
-              accept=".pdf,.svg"
+              accept=".pdf,.svg,.png,.jpg,.jpeg"
             />
             <label
               htmlFor="file-upload-input"
@@ -88,7 +88,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ isOpen, onClos
                 </span>
               </p>
               <p className="text-xs text-slate-500">
-                Formatos suportados: PDF, SVG
+                Formatos suportados: PDF, SVG, PNG, JPG
               </p>
             </label>
           </form>
