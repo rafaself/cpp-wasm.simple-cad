@@ -70,7 +70,7 @@ export const renderShape = (
         if (shape.rotation) {
             const pivot = getShapeCenter(shape);
             ctx.translate(pivot.x, pivot.y);
-            ctx.rotate(-shape.rotation); // Negate for CCW visual rotation on Y-down canvas
+            ctx.rotate(shape.rotation);
             ctx.translate(-pivot.x, -pivot.y);
         }
 
@@ -208,7 +208,6 @@ export const renderShape = (
             const flipX = shape.scaleX ?? 1;
             const flipY = shape.scaleY ?? 1;
             
-            // Apply flip transformation if needed
             if (flipX !== 1 || flipY !== 1) {
                 ctx.save();
                 const centerX = rx + rw / 2;
