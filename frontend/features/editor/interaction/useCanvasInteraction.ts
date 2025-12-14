@@ -454,7 +454,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     e.preventDefault();
                     currentUIStore.flipElectricalPreview('x');
                 }
-                if (e.key.toLowerCase() === 'v') {
+                if (e.key.toLowerCase() === 'f' && e.shiftKey) {
                     e.preventDefault();
                     currentUIStore.flipElectricalPreview('y');
                 }
@@ -775,9 +775,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         if (ui.activeTool === 'calibrate') {
             if (!startPoint) {
-                setStartPoint(worldPos); // Use worldPos directly as it respects snapping if applied, though usually calibration is free or snapped to specific points
+                setStartPoint(axisLockedScreen); 
             } else {
-                setCalibrationPoints({ start: startPoint, end: worldPos });
+                const startWorld = screenToWorld(startPoint, ui.viewTransform);
+                setCalibrationPoints({ start: startWorld, end: axisLockedWorld });
                 setShowCalibrationModal(true);
                 setStartPoint(null);
             }
@@ -1360,7 +1361,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (selectedId) {
                     const shape = currentDataStore.shapes[selectedId];
                     // Only scale if it's a plan/image/rect and architecture
-                    if (shape && (shape.type === 'rect' || shape.type === 'image') && shape.discipline === 'architecture') {
+                    if (shape && shape.type === 'rect' && shape.discipline === 'architecture') {
                         const newWidth = (shape.width ?? 0) * scaleFactor;
                         const newHeight = (shape.height ?? 0) * scaleFactor;
                         
