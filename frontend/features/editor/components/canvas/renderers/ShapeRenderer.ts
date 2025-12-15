@@ -346,14 +346,16 @@ export const renderShape = (
             const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
             const availableWidth = Math.max(containerWidth, fontSize * 0.6);
             const lineHeight = fontSize * 1.2;
-            const wrappedLines = getWrappedLines(shape.textContent, availableWidth, fontSize);
+            const wrappedLines = (shape.textWrapping === 'none')
+                ? [shape.textContent]
+                : getWrappedLines(shape.textContent, availableWidth, fontSize);
 
             const sx = shape.x ?? 0;
             const sy = shape.y ?? 0;
 
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.scale(1, -1);
+            ctx.scale(shape.scaleX ?? 1, shape.scaleY ?? -1);
 
             wrappedLines.forEach((line, index) => {
                 const lineWidth = ctx.measureText(line).width;

@@ -192,11 +192,21 @@ export const convertPdfPageToShapes = async (
 
     // 4. Generate Shapes
     mergedItems.forEach(item => {
+        // Correct position for Y-Down Canvas vs PDF Baseline.
+        // item.y is the baseline in Canvas Space (calculated from PDF Transform).
+        // ShapeRenderer uses ctx.textBaseline = 'top' and fills text at (x, y).
+        // So we need to shift Y up by approx one fontSize (Ascent).
+        // In Y-Down space, "Up" is negative Y.
+        // Approximate adjustment: subtract fontSize.
+        const adjustedY = item.y - (item.fontSize || 12);
+
         shapes.push({
           id: generateId('pdf-text'),
           type: 'text',
           x: item.x,
-          y: item.y,
+          y: adjustedY,
+          scaleY: 1, // Explicitly set to 1 to avoid ShapeRenderer flipping it
+          textWrapping: 'none', // Disable auto-wrapping
           textContent: item.str,
           fontSize: item.fontSize || 12,
           fontFamily: 'sans-serif',
@@ -241,8 +251,19 @@ export const convertPdfPageToShapes = async (
       case OPS.transform: // cm
         const [a, b, c, d, e, f] = args;
         // Apply new transform to the Current Transformation Matrix (pre-multiply as per PDF spec)
+        // PDF Spec 8.3.3: CTM_new = M x CTM_old (Column vector notation).
+        // p' = M * CTM * p
+        // This effectively applies CTM first, then M to the point.
+        //
+        // Our multiplyMatrix(m1, m2) implements Row Vector multiplication (m1 * m2).
+        // v' = v * m1 * m2.
+        // This applies m1 first, then m2.
+        //
+        // To achieve "CTM then M" (Apply CTM, then Incoming) in Row Vector notation,
+        // we must do: v * CTM * Incoming.
+        // So m1 = CTM, m2 = Incoming.
         const incomingMatrix: Matrix = [a, b, c, d, e, f];
-        const nextCtm = multiplyMatrix(incomingMatrix, currentState.ctm);
+        const nextCtm = multiplyMatrix(currentState.ctm, incomingMatrix);
 
         if (isDevEnv) {
           const translationMagnitude = Math.hypot(nextCtm[4], nextCtm[5]);

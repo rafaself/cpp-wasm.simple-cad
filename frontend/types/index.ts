@@ -171,6 +171,7 @@ export interface Shape {
   italic?: boolean;
   underline?: boolean;
   strike?: boolean;
+  textWrapping?: 'none' | 'wrap'; // Defaults to 'wrap' if undefined
 
   label?: string; // For measurements
   
