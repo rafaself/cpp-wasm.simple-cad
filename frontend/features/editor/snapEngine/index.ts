@@ -1,4 +1,5 @@
 import { Point, Shape, SnapOptions } from '../../../types';
+import { SNAP_THRESHOLD } from '../../../config/constants';
 import { getDistance } from '../../../utils/geometry';
 import { getEndpoints, getMidpoints, getCenter, getGridSnap, getConnectionPoint } from './detectors';
 
@@ -7,7 +8,7 @@ export const getSnapPoint = (
   shapes: Shape[],
   snapOptions: SnapOptions,
   gridSize: number,
-  threshold: number = 10
+  threshold: number = SNAP_THRESHOLD
 ): Point | null => {
   if (!snapOptions.enabled) return null;
 

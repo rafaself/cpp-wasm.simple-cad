@@ -1,5 +1,5 @@
 import { Point, Shape } from '../../../types';
-import { getDistance } from '../../../utils/geometry';
+import { getDistance, rotatePoint, getShapeCenter } from '../../../utils/geometry';
 
 export const getEndpoints = (shape: Shape): Point[] => {
     if (shape.points && shape.points.length > 0) {
@@ -12,12 +12,18 @@ export const getEndpoints = (shape: Shape): Point[] => {
         }
     }
     if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-        return [
+        const corners = [
             { x: shape.x, y: shape.y },
             { x: shape.x + shape.width, y: shape.y },
             { x: shape.x + shape.width, y: shape.y + shape.height },
             { x: shape.x, y: shape.y + shape.height }
         ];
+
+        if (shape.rotation) {
+            const center = getShapeCenter(shape);
+            return corners.map(p => rotatePoint(p, center, shape.rotation!));
+        }
+        return corners;
     }
     if (shape.type === 'circle' && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
          return [
@@ -45,11 +51,22 @@ export const getMidpoints = (shape: Shape): Point[] => {
         mids.push({ x: shape.x + shape.width, y: shape.y + shape.height/2 });
         mids.push({ x: shape.x + shape.width/2, y: shape.y + shape.height });
         mids.push({ x: shape.x, y: shape.y + shape.height/2 });
+
+        if (shape.rotation) {
+            const center = getShapeCenter(shape);
+            return mids.map(p => rotatePoint(p, center, shape.rotation!));
+        }
     }
     return mids;
 };
 
 export const getCenter = (shape: Shape): Point | null => {
+    // Reuse geometry.ts logic which handles shape types generically if we wanted,
+    // but here we can just delegate to getShapeCenter for consistency if needed.
+    // However, existing logic is fine as center is rotation invariant.
+    // But to be DRY, let's use getShapeCenter if possible, or keep it simple.
+    // The previous implementation was fine.
+
     if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
         return { x: shape.x + shape.width/2, y: shape.y + shape.height/2 };
     }
