@@ -31,8 +31,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const uiStore = useUIStore();
   const settingsStore = useSettingsStore();
   const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
-  const dataStore = useDataStore();
   const libraryStore = useLibraryStore();
+  const [_, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
@@ -42,11 +42,31 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor
   } = state;
 
+  // Optimized subscription: only trigger re-render if selected shapes change
+  useEffect(() => {
+      return useDataStore.subscribe((state, prevState) => {
+          if (state.shapes === prevState.shapes) return;
+          const selectedIds = useUIStore.getState().selectedShapeIds;
+          if (selectedIds.size === 0) return;
+          let changed = false;
+          for (const id of selectedIds) {
+              if (state.shapes[id] !== prevState.shapes[id]) {
+                  changed = true;
+                  break;
+              }
+          }
+          if (changed) forceUpdate();
+      });
+  }, []);
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Access data store state directly to avoid re-rendering on every store update
+    const dataStore = useDataStore.getState();
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -152,7 +172,18 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
         const threshold = 20 / uiStore.viewTransform.scale;
         
-        Object.values(dataStore.shapes).forEach(shape => {
+        // Optimize: Use spatial index instead of iterating all shapes
+        const searchRadius = threshold * 2;
+        const searchRect = {
+            x: wm.x - searchRadius,
+            y: wm.y - searchRadius,
+            width: searchRadius * 2,
+            height: searchRadius * 2
+        };
+
+        const candidates = dataStore.spatialIndex.query(searchRect).map(c => dataStore.shapes[c.id]).filter(s => !!s);
+
+        candidates.forEach(shape => {
             if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
                 const connX = shape.x + shape.connectionPoint.x * shape.width;
                 const connY = shape.y + shape.connectionPoint.y * shape.height;
@@ -263,7 +294,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
+  }, [uiStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
 
   useEffect(() => {
       render();
@@ -297,6 +328,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             initialRadius={getDistance(arcPoints.start, arcPoints.end)}
             position={radiusModalPos}
             onConfirm={(radius) => {
+                const dataStore = useDataStore.getState();
                 const n: Shape = {
                     id: Date.now().toString(),
                     layerId: dataStore.activeLayerId,
