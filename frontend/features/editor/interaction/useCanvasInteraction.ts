@@ -14,6 +14,7 @@ import { useLibraryStore } from '../../../stores/useLibraryStore';
 import { computeFrameData } from '../../../utils/frame';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
 import { isConduitShape, isConduitTool } from '../utils/tools';
+import { resolveConnectionNodePosition } from '../../../utils/connections';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -41,6 +42,64 @@ const getEdgeAnchor = (bounds: Rect, orientation: { x: -1 | 0 | 1; y: -1 | 0 | 1
     if (orientation.x === 1 && orientation.y === 1) return { x: bounds.x, y: bounds.y }; // TL
     if (orientation.x === -1 && orientation.y === 1) return { x: bounds.x + bounds.width, y: bounds.y }; // TR
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+};
+
+const CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX = 18;
+
+type DataState = ReturnType<typeof useDataStore.getState>;
+
+const findAnchoredConnectionNode = (
+    data: DataState,
+    point: Point,
+    scale: number,
+    options?: { ignoreShapeId?: string }
+): { nodeId: string; point: Point } | undefined => {
+    const normalizedScale = Math.max(scale, 0.01);
+    const tolerance = CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX / normalizedScale;
+    const queryRect = { x: point.x - tolerance, y: point.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+    const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
+
+    for (const cand of candidates) {
+        if (!cand) continue;
+        if (options?.ignoreShapeId && cand.id === options.ignoreShapeId) continue;
+        const layer = data.layers.find(l => l.id === cand.layerId);
+        if (!layer || !layer.visible || layer.locked) continue;
+        const connPt = getConnectionPoint(cand);
+        if (!connPt) continue;
+
+        const nearConnection = getDistance(connPt, point) <= tolerance;
+        const bbox = getShapeBoundingBox(cand);
+        const insideBBox = bbox
+            ? (point.x >= bbox.x - tolerance &&
+               point.x <= bbox.x + bbox.width + tolerance &&
+               point.y >= bbox.y - tolerance &&
+               point.y <= bbox.y + bbox.height + tolerance)
+            : false;
+
+        if (nearConnection || insideBBox) {
+            const nodeId = data.getOrCreateAnchoredConnectionNode(cand.id);
+            return { nodeId, point: connPt };
+        }
+    }
+
+    for (const node of Object.values(data.connectionNodes)) {
+        const pos = resolveConnectionNodePosition(node, data.shapes);
+        if (!pos) continue;
+        if (getDistance(pos, point) <= tolerance) {
+            return { nodeId: node.id, point: pos };
+        }
+    }
+
+    return undefined;
+};
+
+const isConduitAnchoredToNode = (shape: Shape | undefined, nodes: DataState['connectionNodes']): boolean => {
+    if (!shape || !isConduitShape(shape)) return false;
+    const nodeForId = (id?: string) => (id ? nodes[id] : undefined);
+    const startNode = nodeForId(shape.fromNodeId);
+    if (startNode?.kind === 'anchored') return true;
+    const endNode = nodeForId(shape.toNodeId);
+    return endNode?.kind === 'anchored' ? true : false;
 };
 
 const pointInPolygon = (point: Point, polygon: Point[]): boolean => {
@@ -85,7 +144,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [measureStart, setMeasureStart] = useState<Point | null>(null);
     const [lineStart, setLineStart] = useState<Point | null>(null);
     const [arrowStart, setArrowStart] = useState<Point | null>(null);
-    const [conduitStart, setConduitStart] = useState<{ point: Point; shapeId: string } | null>(null);
+    const [conduitStart, setConduitStart] = useState<{ point: Point; nodeId: string } | null>(null);
     const [hoverCursor, setHoverCursor] = useState<string | null>(null);
     
     // Shift key state for real-time updates during drag
@@ -103,6 +162,30 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [resizeState, setResizeState] = useState<ResizeState | null>(null);
     const [transformationBase, setTransformationBase] = useState<Point | null>(null);
     const rotationState = useRef<{ center: Point; startAngle: number; snapshot: Map<string, Shape> } | null>(null);
+    const lastPlacedComponentCenter = useRef<Point | null>(null);
+    const lastComponentAxis = useRef<'x' | 'y' | null>(null);
+    const shiftAxisLock = useRef<'x' | 'y' | null>(null);
+
+    const computeAxisFromDelta = (delta: Point): 'x' | 'y' | null => {
+        const dx = Math.abs(delta.x);
+        const dy = Math.abs(delta.y);
+        if (dx === 0 && dy === 0) return null;
+        return dx >= dy ? 'x' : 'y';
+    };
+
+    const applyPreviousElementAxisLock = (point: Point, shiftHeld: boolean): Point => {
+        const lastCenter = lastPlacedComponentCenter.current;
+        if (!shiftHeld || !lastCenter) return point;
+
+        const delta = { x: point.x - lastCenter.x, y: point.y - lastCenter.y };
+        const axisCandidate = computeAxisFromDelta(delta) ?? lastComponentAxis.current;
+        if (!axisCandidate) return point;
+
+        shiftAxisLock.current = axisCandidate;
+
+        if (axisCandidate === 'x') return { x: point.x, y: lastCenter.y };
+        return { x: lastCenter.x, y: point.y };
+    };
 
     // Arc Tool State
     const [arcPoints, setArcPoints] = useState<{ start: Point; end: Point } | null>(null);
@@ -118,8 +201,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
 
 
-    const getConduitStartId = (s?: Shape | null) => s ? (s.fromConnectionId ?? s.connectedStartId) : undefined;
-    const getConduitEndId = (s?: Shape | null) => s ? (s.toConnectionId ?? s.connectedEndId) : undefined;
+    const getConduitStartNodeId = (s?: Shape | null) => s?.fromNodeId;
+    const getConduitEndNodeId = (s?: Shape | null) => s?.toNodeId;
 
     // Middle button double-click detection (native dblclick doesn't work for middle button)
     const lastMiddleClickTime = useRef<number>(0);
@@ -285,6 +368,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (isDragging && lockedAxis) {
                     setLockedAxis(null);
                 }
+                shiftAxisLock.current = null;
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -342,7 +426,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 setIsDragging(false); setIsSelectionBox(false); setStartPoint(null); setTransformationBase(null); setActiveHandle(null);
                 setArcPoints(null); setShowRadiusModal(false);
                 setPolygonShapeId(null); setShowPolygonModal(false);
-                if (currentUIStore.activeTool === 'move' || currentUIStore.activeTool === 'rotate') currentUIStore.setTool('select');
+                if (currentUIStore.activeTool !== 'select') currentUIStore.setTool('select');
                 if (currentUIStore.activeTool === 'select' && currentUIStore.selectedShapeIds.size > 0) {
                     currentUIStore.setSelectedShapeIds(new Set());
                 }
@@ -372,6 +456,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (!shape) return;
                     const layer = currentDataStore.layers.find(l => l.id === shape.layerId);
                     if (layer?.locked) return;
+                    if (isConduitAnchoredToNode(shape, currentDataStore.connectionNodes)) return;
                     
                     const updates: Partial<Shape> = {};
                     if (shape.x !== undefined) updates.x = shape.x + dx;
@@ -407,7 +492,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const data = useDataStore.getState();
         const library = useLibraryStore.getState();
 
-        const raw = getMousePos(e); let eff = raw; const wr = screenToWorld(raw, ui.viewTransform); let snapped: Point | null = null;
+        const raw = getMousePos(e); const wr = screenToWorld(raw, ui.viewTransform); let snapped: Point | null = null;
 
         if (snapSettings.enabled && !['pan', 'select'].includes(ui.activeTool) && !e.ctrlKey) {
             const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
@@ -422,10 +507,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
               gridSize,
               snapSettings.tolerancePx / ui.viewTransform.scale
             );
-            if (snap) { snapped = snap; eff = worldToScreen(snap, ui.viewTransform); }
+            if (snap) { snapped = snap; }
         }
 
-        setStartPoint(eff); setCurrentPoint(eff);
+        const baseWorld = snapped || wr;
+        const axisLockedWorld = ui.activeTool === 'electrical-symbol'
+            ? applyPreviousElementAxisLock(baseWorld, e.shiftKey)
+            : baseWorld;
+        const axisLockedScreen = worldToScreen(axisLockedWorld, ui.viewTransform);
+        setStartPoint(axisLockedScreen);
+        setCurrentPoint(axisLockedScreen);
 
         // Middle button handling: detect double-click for zoom-to-fit
         if (e.button === 1) {
@@ -445,7 +536,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         
         if (ui.activeTool === 'pan') { setIsDragging(true); return; }
 
-        const wPos = snapped || wr;
+        const wPos = axisLockedWorld;
 
         if (ui.activeTool === 'select' && ui.selectedShapeIds.size > 0) {
             for (const id of ui.selectedShapeIds) {
@@ -474,25 +565,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 }
             }
 
-            // Shift+Click on selected electrical symbol: change connection point
-            if (e.shiftKey && ui.selectedShapeIds.size === 1) {
-                const selectedId = Array.from(ui.selectedShapeIds)[0];
-                const selectedShape = data.shapes[selectedId];
-                if (selectedShape?.svgRaw && selectedShape.width && selectedShape.height) {
-                    // Check if click is within the shape bounds
-                    const bounds = { x: selectedShape.x ?? 0, y: selectedShape.y ?? 0, width: selectedShape.width, height: selectedShape.height };
-                    if (wPos.x >= bounds.x && wPos.x <= bounds.x + bounds.width &&
-                        wPos.y >= bounds.y && wPos.y <= bounds.y + bounds.height) {
-                        // Calculate normalized coordinates (0-1)
-                        const relX = (wPos.x - bounds.x) / bounds.width;
-                        const relY = (wPos.y - bounds.y) / bounds.height;
-                        data.updateShape(selectedId, {
-                            connectionPoint: { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) }
-                        }, true);
-                        return;
-                    }
-                }
-            }
         }
 
         const interaction = detectInteractionAtPoint(wPos, ui.viewTransform.scale);
@@ -534,29 +606,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     const ids = Array.from(ui.selectedShapeIds);
                     ids.forEach(id => {
                         const s = data.shapes[id];
-                        if (s) {
-                            const diff: Partial<Shape> = {};
-                            if (s.x !== undefined) diff.x = s.x + dx;
-                            if (s.y !== undefined) diff.y = s.y + dy;
-                            if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                            data.updateShape(id, diff, true);
-
-                            // Strong Linking: Update connected conduits/eletrodutos
-                            const connectedConduits = Object.values(data.shapes).filter(s => 
-                                isConduitShape(s) && (getConduitStartId(s) === id || getConduitEndId(s) === id)
-                            );
-                            
-                            connectedConduits.forEach(conduit => {
-                                const newConnPoint = getConnectionPoint({ ...s, x: (s.x || 0) + dx, y: (s.y || 0) + dy });
-                                if (!newConnPoint || !conduit.points) return;
-
-                                const newPoints = [...conduit.points];
-                                if (getConduitStartId(conduit) === id) newPoints[0] = newConnPoint;
-                                if (getConduitEndId(conduit) === id) newPoints[1] = newConnPoint;
-
-                                data.updateShape(conduit.id, { points: newPoints }, true);
-                            });
-                        }
+                        if (!s) return;
+                        if (isConduitAnchoredToNode(s, data.connectionNodes)) return;
+                        const diff: Partial<Shape> = {};
+                        if (s.x !== undefined) diff.x = s.x + dx;
+                        if (s.y !== undefined) diff.y = s.y + dy;
+                        if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                        data.updateShape(id, diff, true);
                     });
                 } else if (ui.activeTool === 'rotate') {
                     const dx = wPos.x - transformationBase.x; const dy = wPos.y - transformationBase.y; const angle = Math.atan2(dy, dx);
@@ -634,56 +690,22 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
         if (conduitToolActive) {
-            // Helper to find snap connection point from a click (accept hit anywhere on the symbol bounds)
-            const findSnapConnection = (p: Point): { id: string; point: Point } | undefined => {
-                const tolerance = 18 / ui.viewTransform.scale;
-                const queryRect = { x: p.x - tolerance, y: p.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
-                const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
-
-                for (const cand of candidates) {
-                    if (!cand) continue;
-                    const layer = data.layers.find(l => l.id === cand.layerId);
-                    if (!layer || !layer.visible || layer.locked) continue;
-
-                    const connPt = getConnectionPoint(cand);
-                    if (!connPt) continue; // only allow shapes with explicit connection point
-
-                    const nearConnection = getDistance(connPt, p) <= tolerance;
-                    const bbox = getShapeBoundingBox(cand);
-                    const insideBBox = bbox
-                        ? (p.x >= bbox.x - tolerance &&
-                           p.x <= bbox.x + bbox.width + tolerance &&
-                           p.y >= bbox.y - tolerance &&
-                           p.y <= bbox.y + bbox.height + tolerance)
-                        : false;
-
-                    if (nearConnection || insideBBox) return { id: cand.id, point: connPt };
-                }
-                return undefined;
-            };
-
             if (!conduitStart) {
-                // First click: Start the conduit/eletroduto only from a valid connection point or hit inside the symbol
-                const startHit = findSnapConnection(wPos);
+                // First click: start from a node/symbol, or create a free node at the click position.
+                const startHit = findAnchoredConnectionNode(data, wPos, ui.viewTransform.scale);
                 if (!startHit) {
-                    setConduitStart(null);
+                    const nodeId = data.createFreeConnectionNode(wPos);
+                    setConduitStart({ point: wPos, nodeId });
                     return;
                 }
 
-                setConduitStart({ point: startHit.point, shapeId: startHit.id });
+                setConduitStart({ point: startHit.point, nodeId: startHit.nodeId });
             } else {
                 // Second click: End the conduit
-                const startId = conduitStart.shapeId;
-                const startPoint = getConnectionPoint(data.shapes[startId]) ?? conduitStart.point;
-                const endHit = findSnapConnection(wPos);
-
-                if (!startPoint || !endHit) {
-                    setConduitStart(null);
-                    return;
-                }
-
-                const endPoint = getConnectionPoint(data.shapes[endHit.id]) ?? endHit.point;
-                if (!endPoint || startId === endHit.id) {
+                const startNodeId = conduitStart.nodeId;
+                const endHit = findAnchoredConnectionNode(data, wPos, ui.viewTransform.scale);
+                const endNodeId = endHit?.nodeId ?? data.createFreeConnectionNode(wPos);
+                if (!startNodeId || !endNodeId || startNodeId === endNodeId) {
                     setConduitStart(null);
                     return;
                 }
@@ -691,9 +713,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 // Prevent duplicates
                 const existing = Object.values(data.shapes).find(s => {
                     if (!isConduitShape(s)) return false;
-                    const sStart = getConduitStartId(s);
-                    const sEnd = getConduitEndId(s);
-                    return (sStart === startId && sEnd === endHit.id) || (sStart === endHit.id && sEnd === startId);
+                    const sStart = getConduitStartNodeId(s);
+                    const sEnd = getConduitEndNodeId(s);
+                    return (sStart === startNodeId && sEnd === endNodeId) || (sStart === endNodeId && sEnd === startNodeId);
                 });
                 if (existing) {
                     setConduitStart(null);
@@ -703,23 +725,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 // Ensure native layer
                 const layer = data.layers.find(l => l.id === 'eletrodutos') || data.layers[0];
                 const targetLayerId = layer?.id ?? data.layers[0]?.id ?? 'eletrodutos';
-                
-                data.addShape({
-                    id: Date.now().toString(),
+                data.addConduitBetweenNodes({
+                    fromNodeId: startNodeId,
+                    toNodeId: endNodeId,
                     layerId: targetLayerId,
-                    type: 'eletroduto',
                     strokeColor: layer?.strokeColor ?? '#8b5cf6',
-                    strokeWidth: 2,
-                    strokeEnabled: true,
-                    fillColor: 'transparent',
-                    fillEnabled: false,
-                    colorMode: { stroke: 'layer', fill: 'layer' },
-                    points: [startPoint, endPoint],
-                    fromConnectionId: startId,
-                    toConnectionId: endHit.id,
-                    // Legacy aliases to keep old data compatible
-                    connectedStartId: startId,
-                    connectedEndId: endHit.id
                 });
                 
                 setConduitStart(null);
@@ -734,8 +744,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const ui = useUIStore.getState();
         const data = useDataStore.getState();
 
-        const raw = getMousePos(e); const worldPos = screenToWorld(raw, ui.viewTransform);
-        ui.setMousePos(worldPos);
+        const raw = getMousePos(e);
+        const worldPos = screenToWorld(raw, ui.viewTransform);
+        const shiftHeld = e.shiftKey || isShiftPressed;
+        const axisLockedWorldPos = ui.activeTool === 'electrical-symbol'
+            ? applyPreviousElementAxisLock(worldPos, shiftHeld)
+            : worldPos;
+        ui.setMousePos(axisLockedWorldPos);
 
         if (isMiddlePanning || (isDragging && ui.activeTool === 'pan')) {
             if (startPoint) {
@@ -745,12 +760,21 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
-        let eff = raw;
+        let eff = worldToScreen(axisLockedWorldPos, ui.viewTransform);
         const isHandleDrag = !!activeHandle;
         const shouldSnap = snapSettings.enabled && !e.ctrlKey && (!['pan', 'select'].includes(ui.activeTool) || isHandleDrag);
+        const conduitToolActive = isConduitTool(ui.activeTool as ToolType);
 
-        if (shouldSnap) {
-            const queryRect = { x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100 };
+        if (conduitToolActive) {
+            const anchorHit = findAnchoredConnectionNode(data, axisLockedWorldPos, ui.viewTransform.scale);
+            if (anchorHit) {
+                setSnapMarker(anchorHit.point);
+                eff = worldToScreen(anchorHit.point, ui.viewTransform);
+            } else {
+                setSnapMarker(null);
+            }
+        } else if (shouldSnap) {
+            const queryRect = { x: axisLockedWorldPos.x - 50, y: axisLockedWorldPos.y - 50, width: 100, height: 100 };
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
                 .filter(s => {
@@ -760,14 +784,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 });
             const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
-              worldPos,
+              axisLockedWorldPos,
               frameData ? [...visible, ...frameData.shapes] : visible,
               snapSettings,
               gridSize,
               snapSettings.tolerancePx / ui.viewTransform.scale
             );
             if (snap) { setSnapMarker(snap); eff = worldToScreen(snap, ui.viewTransform); } else { setSnapMarker(null); }
-        } else { setSnapMarker(null); }
+        } else {
+            setSnapMarker(null);
+        }
 
         setCurrentPoint(eff);
 
@@ -802,41 +828,27 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                             
                             // If moving conduit endpoint, check for snap to re-link
                             if (isConduitShape(s)) {
-                                // Find potential snap target for re-linking
-                                const queryRect = { x: worldPos.x - 20, y: worldPos.y - 20, width: 40, height: 40 };
-                                const candidates = data.spatialIndex.query(queryRect).map(c => data.shapes[c.id]);
-                                let foundLink: string | undefined = undefined;
-                                
-                                for (const cand of candidates) {
-                                    if (!cand || cand.id === s.id) continue;
-                                    const layer = data.layers.find(l => l.id === cand.layerId);
-                                    if (!layer || !layer.visible || layer.locked) continue;
-                                    const connPt = getConnectionPoint(cand);
-                                    if (connPt && getDistance(connPt, worldPos) < (10 / ui.viewTransform.scale)) {
-                                        foundLink = cand.id;
-                                        break;
+                                // Find potential snap target for re-linking (anchored nodes only)
+                                const foundHit = findAnchoredConnectionNode(data, worldPos, ui.viewTransform.scale, { ignoreShapeId: s.id });
+                                const foundNodeId = foundHit?.nodeId;
+                                const update: Partial<Shape> = {};
+                                if (foundNodeId && activeHandle.handle.index === 0) update.fromNodeId = foundNodeId;
+                                if (foundNodeId && activeHandle.handle.index === 1) update.toNodeId = foundNodeId;
+
+                                if (foundNodeId) {
+                                    const node = useDataStore.getState().connectionNodes[foundNodeId];
+                                    const anchorShapeId = node?.kind === 'anchored' ? node.anchorShapeId : undefined;
+                                    if (activeHandle.handle.index === 0) {
+                                        update.fromConnectionId = anchorShapeId;
+                                        update.connectedStartId = anchorShapeId;
+                                    }
+                                    if (activeHandle.handle.index === 1) {
+                                        update.toConnectionId = anchorShapeId;
+                                        update.connectedEndId = anchorShapeId;
                                     }
                                 }
                                 
-                                const update: Partial<Shape> = {};
-                                if (activeHandle.handle.index === 0) {
-                                    update.fromConnectionId = foundLink || undefined;
-                                    update.connectedStartId = foundLink || undefined; // legacy
-                                }
-                                if (activeHandle.handle.index === 1) {
-                                    update.toConnectionId = foundLink || undefined;
-                                    update.connectedEndId = foundLink || undefined; // legacy
-                                }
-                                
-                                // Clean undefined values if mostly unnecessary, but here we want to explicitly remove link if undefined
-                                // updateShape handles partials, passing undefined might need check if backend supports it. assuming yes based on types.
-                                // Actually, better to send null or handle explicitly. DataStore usually merges. 
-                                // Let's perform a key deletion or set to null if type permits. Type says optional string.
-                                // We'll assume the spread in reducer handles it or we might need `null` if strict.
-                                // But `updateShape` is standard. Let's just set it. 
                                 if (Object.keys(update).length > 0) {
-                                     // Optimization: Debounce this or only do on mouse up? 
-                                     // Doing it live allows visual feedback if we added indicators, but for now pure logic.
                                      data.updateShape(s.id, update, false);
                                 }
                             }
@@ -927,13 +939,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     // Store original positions of all selected shapes
                     ui.selectedShapeIds.forEach(id => {
                         const s = data.shapes[id];
-                        if (s) {
-                            dragStartPositions.current.set(id, {
-                                x: s.x ?? 0,
-                                y: s.y ?? 0,
-                                points: s.points ? [...s.points] : undefined
-                            });
+                        if (!s) return;
+                        if (isConduitAnchoredToNode(s, data.connectionNodes)) {
+                            dragStartPositions.current.delete(id);
+                            return;
                         }
+                        dragStartPositions.current.set(id, {
+                            x: s.x ?? 0,
+                            y: s.y ?? 0,
+                            points: s.points ? [...s.points] : undefined
+                        });
                     });
                 }
 
@@ -968,6 +983,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     if (!s) return;
                     const l = data.layers.find(lay => lay.id === s.layerId);
                     if (l && l.locked) return;
+                    if (isConduitAnchoredToNode(s, data.connectionNodes)) return;
 
                     const originalPos = dragStartPositions.current.get(id);
                     if (!originalPos) return;
@@ -1115,10 +1131,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     metadata,
                 };
 
+                const prevCenter = lastPlacedComponentCenter.current;
+                const newCenter = { x: n.x + n.width / 2, y: n.y + n.height / 2 };
+                if (prevCenter) {
+                    lastComponentAxis.current = computeAxisFromDelta({ x: newCenter.x - prevCenter.x, y: newCenter.y - prevCenter.y });
+                }
+                lastPlacedComponentCenter.current = newCenter;
+                shiftAxisLock.current = null;
                 data.addShape(n, electricalElement);
                 ui.setSelectedShapeIds(new Set([shapeId]));
                 ui.setSidebarTab('desenho');
-                ui.setTool('select'); // Switch back to select tool after placing
             }
             setStartPoint(null);
             setHoverCursor(null);
@@ -1184,7 +1206,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             } else {
                 data.addShape(n);
                 ui.setSidebarTab('desenho');
-                ui.setTool('select');
             }
         }
         setStartPoint(null);
@@ -1236,7 +1257,6 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         }
         setShowPolygonModal(false);
         setPolygonShapeId(null);
-        useUIStore.getState().setTool('select');
     }, [polygonShapeId]);
 
     return {

@@ -13,6 +13,7 @@ import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
 import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
 import { getConnectionPoint } from '../snapEngine/detectors';
+import { resolveConnectionNodePosition } from '../../../utils/connections';
 import { FontFamilyControl, FontSizeControl, TextAlignControl, TextStyleControl, TextFormatGroup } from '../ribbon/components/TextControls';
 import LayerControl from '../ribbon/components/LayerControl';
 import ColorControl from '../ribbon/components/ColorControl';
@@ -159,6 +160,7 @@ const EditorRibbon: React.FC = () => {
   const exportConnectionsMap = useCallback(() => {
       const shapes = dataStore.shapes;
       const electrical = dataStore.electricalElements;
+      const nodesById = dataStore.connectionNodes;
 
       const connections = Object.values(shapes)
         .filter(s => s && s.svgRaw && s.connectionPoint && s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined)
@@ -176,17 +178,28 @@ const EditorRibbon: React.FC = () => {
         })
         .filter(c => c.position);
 
+      const nodes = Object.values(nodesById).map(n => ({
+          id: n.id,
+          kind: n.kind,
+          anchorShapeId: n.anchorShapeId ?? null,
+          position: resolveConnectionNodePosition(n, shapes),
+      }));
+
       const conduits = Object.values(shapes)
         .filter(isConduitShape)
         .map(s => {
-            const from = s.fromConnectionId ?? s.connectedStartId;
-            const to = s.toConnectionId ?? s.connectedEndId;
-            if (!from || !to || !s.points || s.points.length < 2) return null;
+            const fromNodeId = s.fromNodeId ?? null;
+            const toNodeId = s.toNodeId ?? null;
+            const from = s.fromConnectionId ?? s.connectedStartId ?? null;
+            const to = s.toConnectionId ?? s.connectedEndId ?? null;
+            if (!fromNodeId || !toNodeId) return null;
             return {
                 id: s.id,
-                from,
-                to,
-                length: getDistance(s.points[0], s.points[1]),
+                fromNodeId,
+                toNodeId,
+                fromConnectionId: from,
+                toConnectionId: to,
+                length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]) : null,
                 controlPoint: s.controlPoint,
                 layerId: s.layerId,
             };
@@ -196,6 +209,7 @@ const EditorRibbon: React.FC = () => {
       const payload = {
           generatedAt: new Date().toISOString(),
           connections,
+          nodes,
           conduits,
       };
 
@@ -206,11 +220,12 @@ const EditorRibbon: React.FC = () => {
       a.download = 'connections-map.json';
       a.click();
       URL.revokeObjectURL(url);
-  }, [dataStore.shapes, dataStore.electricalElements]);
+  }, [dataStore.shapes, dataStore.electricalElements, dataStore.connectionNodes]);
 
   const viewConnectionsReport = useCallback(() => {
       const shapes = dataStore.shapes;
       const electrical = dataStore.electricalElements;
+      const nodesById = dataStore.connectionNodes;
 
       const connections = Object.values(shapes)
         .filter(s => s && s.svgRaw && s.connectionPoint && s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined)
@@ -229,22 +244,30 @@ const EditorRibbon: React.FC = () => {
       const conduits = Object.values(shapes)
         .filter(isConduitShape)
         .map(s => {
-            const from = s.fromConnectionId ?? s.connectedStartId;
-            const to = s.toConnectionId ?? s.connectedEndId;
-            if (!from || !to || !s.points || s.points.length < 2) return null;
+            const fromNodeId = s.fromNodeId ?? null;
+            const toNodeId = s.toNodeId ?? null;
+            const fromConnectionId = s.fromConnectionId ?? s.connectedStartId ?? null;
+            const toConnectionId = s.toConnectionId ?? s.connectedEndId ?? null;
+            if (!fromNodeId || !toNodeId) return null;
             return {
                 id: s.id,
-                from,
-                to,
-                length: getDistance(s.points[0], s.points[1]).toFixed(2),
+                fromNodeId,
+                toNodeId,
+                fromConnectionId,
+                toConnectionId,
+                length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]).toFixed(2) : '0.00',
             };
         })
         .filter(Boolean) as any[];
 
       const htmlRows = conduits.map(c => {
-          const from = connections.find(n => n.id === c.from);
-          const to = connections.find(n => n.id === c.to);
-          return `<tr><td>${c.id}</td><td>${from?.name || from?.id || c.from}</td><td>${to?.name || to?.id || c.to}</td><td>${c.length}</td></tr>`;
+          const fromNode = c.fromNodeId ? nodesById[c.fromNodeId] : null;
+          const toNode = c.toNodeId ? nodesById[c.toNodeId] : null;
+          const fromAnchor = fromNode?.kind === 'anchored' && fromNode.anchorShapeId ? connections.find(n => n.id === fromNode.anchorShapeId) : null;
+          const toAnchor = toNode?.kind === 'anchored' && toNode.anchorShapeId ? connections.find(n => n.id === toNode.anchorShapeId) : null;
+          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromConnectionId || c.fromNodeId || '—';
+          const toLabel = toAnchor?.name || toAnchor?.id || c.toConnectionId || c.toNodeId || '—';
+          return `<tr><td>${c.id}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${c.length}</td></tr>`;
       }).join('');
 
       const html = `<!doctype html>
@@ -257,7 +280,7 @@ th{background:#0ea5e9;color:#0b1223;}
 tr:nth-child(even){background:#111827;}
 </style></head><body>
 <h2>Relatório de Conexões</h2>
-<p>${connections.length} nós, ${conduits.length} eletrodutos.</p>
+<p>${Object.keys(nodesById).length} nós, ${conduits.length} eletrodutos.</p>
 <table><thead><tr><th>ID</th><th>De</th><th>Para</th><th>Comprimento</th></tr></thead><tbody>${htmlRows || '<tr><td colspan=\"4\">Nenhum eletroduto encontrado.</td></tr>'}</tbody></table>
 </body></html>`;
 
@@ -265,7 +288,7 @@ tr:nth-child(even){background:#111827;}
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }, [dataStore.shapes, dataStore.electricalElements]);
+  }, [dataStore.shapes, dataStore.electricalElements, dataStore.connectionNodes]);
 
   const handleAction = (action?: string) => {
       if (action === 'delete') deleteSelected();

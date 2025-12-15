@@ -9,7 +9,7 @@ export const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, shape: Sha
 
         if (shape.rotation) {
             ctx.translate(cx, cy);
-            ctx.rotate(shape.rotation);
+            ctx.rotate(-shape.rotation); // Negate for CCW visual rotation on Y-down canvas
             ctx.translate(-cx, -cy);
         }
         ctx.strokeStyle = '#3b82f6';

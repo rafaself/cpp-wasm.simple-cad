@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { DiagramEdge, DiagramNode, ElectricalElement, FrameSettings, Layer, Patch, Point, SerializedProject, Shape } from '../types';
+import { ConnectionNode, DiagramEdge, DiagramNode, ElectricalElement, FrameSettings, Layer, Patch, Point, SerializedProject, Shape } from '../types';
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
+import { detachAnchoredNodesForShape, getConduitNodeUsage, normalizeConnectionTopology, resolveConnectionNodePosition } from '../utils/connections';
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
@@ -11,6 +12,7 @@ interface DataState {
   // Document State
   shapes: Record<string, Shape>;
   electricalElements: Record<string, ElectricalElement>;
+  connectionNodes: Record<string, ConnectionNode>;
   diagramNodes: Record<string, DiagramNode>;
   diagramEdges: Record<string, DiagramEdge>;
   layers: Layer[];
@@ -33,6 +35,9 @@ interface DataState {
   addShape: (shape: Shape, electricalElement?: ElectricalElement, diagram?: { node?: DiagramNode; edge?: DiagramEdge }) => void;
   updateShape: (id: string, diff: Partial<Shape>, recordHistory?: boolean) => void;
   deleteShape: (id: string) => void;
+  createFreeConnectionNode: (position: Point) => string;
+  getOrCreateAnchoredConnectionNode: (shapeId: string) => string;
+  addConduitBetweenNodes: (params: { fromNodeId: string; toNodeId: string; layerId: string; strokeColor: string }) => string;
   addElectricalElement: (element: ElectricalElement) => void;
   updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
   updateSharedElectricalProperties: (sourceElement: ElectricalElement, diff: Record<string, any>) => void; // Added for shared props
@@ -70,12 +75,14 @@ interface DataState {
   // Helpers
   syncQuadTree: () => void;
   syncDiagramEdgesGeometry: () => void;
+  syncConnections: () => void;
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => string;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
   shapes: {},
   electricalElements: {},
+  connectionNodes: {},
   diagramNodes: {},
   diagramEdges: {},
   layers: [
@@ -99,6 +106,37 @@ export const useDataStore = create<DataState>((set, get) => ({
     const { shapes, spatialIndex } = get();
     spatialIndex.clear();
     Object.values(shapes).forEach(shape => spatialIndex.insert(shape));
+  },
+
+  syncConnections: () => {
+    const { shapes, connectionNodes, spatialIndex } = get();
+
+    const normalized = normalizeConnectionTopology(shapes, connectionNodes, { pruneOrphans: true });
+    const nextShapes = normalized.shapes;
+    const nextNodes = normalized.nodes;
+
+    // Update spatial index only for conduits whose endpoints moved.
+    Object.values(nextShapes).forEach((s) => {
+      const prev = shapes[s.id];
+      if (!prev) return;
+      const isConduit = (s.type === 'eletroduto' || s.type === 'conduit');
+      if (!isConduit) return;
+      const prevPts = prev.points ?? [];
+      const nextPts = s.points ?? [];
+      const changed =
+        prevPts.length < 2 ||
+        nextPts.length < 2 ||
+        prevPts[0]?.x !== nextPts[0]?.x ||
+        prevPts[0]?.y !== nextPts[0]?.y ||
+        prevPts[1]?.x !== nextPts[1]?.x ||
+        prevPts[1]?.y !== nextPts[1]?.y;
+      if (changed) spatialIndex.update(prev, s);
+    });
+
+    // Only set if something actually changed (avoid extra reactivity during drags).
+    if (nextShapes !== shapes || nextNodes !== connectionNodes) {
+      set({ shapes: nextShapes, connectionNodes: nextNodes });
+    }
   },
 
   syncDiagramEdgesGeometry: () => {
@@ -234,6 +272,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       past: newPast,
       future: [redoPatches, ...future]
     });
+    get().syncConnections();
     get().syncDiagramEdgesGeometry();
   },
 
@@ -321,6 +360,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       past: [...past, undoPatches],
       future: newFuture
     });
+    get().syncConnections();
     get().syncDiagramEdgesGeometry();
   },
 
@@ -341,6 +381,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       spatialIndex.insert(linkedShape);
       set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+      get().syncConnections();
       saveToHistory([{
         type: 'ADD',
         id: linkedShape.id,
@@ -353,16 +394,48 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   updateShape: (id, diff, recordHistory = true) => {
-      const { shapes, saveToHistory, spatialIndex } = get();
+      const { shapes, saveToHistory, spatialIndex, connectionNodes } = get();
       const oldShape = shapes[id];
       if (!oldShape) return;
 
-      const newShape = { ...oldShape, ...diff };
+      let newShape: Shape = { ...oldShape, ...diff };
+
+      // If editing a conduit endpoint that is anchored or shared, detach to a new free node
+      // to preserve the "edit this conduit only" behavior.
+      const isConduit = (newShape.type === 'eletroduto' || newShape.type === 'conduit');
+      if (isConduit && diff.points && diff.points.length >= 2) {
+        const usage = getConduitNodeUsage(shapes);
+        let nextNodes = connectionNodes;
+
+        const detachEndpointIfNeeded = (endpoint: 'from' | 'to', p: Point) => {
+          const nodeId = endpoint === 'from' ? newShape.fromNodeId : newShape.toNodeId;
+          if (!nodeId) return;
+          const node = nextNodes[nodeId];
+          if (!node) return;
+          const shared = (usage[nodeId] ?? 0) > 1;
+          const anchored = node.kind === 'anchored';
+            if (shared || anchored) {
+              const newNodeId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+              nextNodes = { ...nextNodes, [newNodeId]: { id: newNodeId, kind: 'free', position: p, pinned: true } };
+              newShape = endpoint === 'from'
+                ? { ...newShape, fromNodeId: newNodeId }
+                : { ...newShape, toNodeId: newNodeId };
+            } else if (node.kind === 'free') {
+              nextNodes = { ...nextNodes, [nodeId]: { ...node, position: p } };
+            }
+        };
+
+        detachEndpointIfNeeded('from', diff.points[0]);
+        detachEndpointIfNeeded('to', diff.points[1]);
+
+        if (nextNodes !== connectionNodes) set({ connectionNodes: nextNodes });
+      }
 
       const newShapes = { ...shapes, [id]: newShape };
 
       spatialIndex.update(oldShape, newShape);
       set({ shapes: newShapes });
+      get().syncConnections();
       get().syncDiagramEdgesGeometry();
 
       if (recordHistory) {
@@ -371,15 +444,19 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteShape: (id) => {
-      const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
+      const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex, connectionNodes } = get();
       const targetShape = shapes[id];
       if (!targetShape) return;
 
       const newShapes = { ...shapes };
       const newElectrical = { ...electricalElements };
+      let newConnectionNodes = connectionNodes;
       const newDiagramNodes = { ...diagramNodes };
       const newDiagramEdges = { ...diagramEdges };
       const patches: Patch[] = [];
+
+      // If deleting an anchored shape, detach its nodes to free nodes to preserve conduit geometry.
+      newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
 
       const electricalElement = targetShape.electricalElementId ? electricalElements[targetShape.electricalElementId] : undefined;
       if (electricalElement) {
@@ -414,9 +491,61 @@ export const useDataStore = create<DataState>((set, get) => ({
       spatialIndex.remove(targetShape);
       patches.push({ type: 'DELETE', id, prev: targetShape, electricalElement, diagramNode });
 
-      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
       saveToHistory(patches);
+      get().syncConnections();
       get().syncDiagramEdgesGeometry();
+  },
+
+  createFreeConnectionNode: (position) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    set((state) => ({ connectionNodes: { ...state.connectionNodes, [id]: { id, kind: 'free', position } } }));
+    return id;
+  },
+
+  getOrCreateAnchoredConnectionNode: (shapeId) => {
+    const { connectionNodes, shapes } = get();
+    const existing = Object.values(connectionNodes).find((n) => n.kind === 'anchored' && n.anchorShapeId === shapeId);
+    if (existing) return existing.id;
+
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const node: ConnectionNode = { id, kind: 'anchored', anchorShapeId: shapeId };
+    const pos = resolveConnectionNodePosition(node, shapes);
+    set((state) => ({ connectionNodes: { ...state.connectionNodes, [id]: { ...node, position: pos ?? undefined } } }));
+    return id;
+  },
+
+  addConduitBetweenNodes: ({ fromNodeId, toNodeId, layerId, strokeColor }) => {
+    const data = get();
+    const id = `${Date.now()}`;
+    const fromNode = data.connectionNodes[fromNodeId];
+    const toNode = data.connectionNodes[toNodeId];
+    const start = fromNode ? (resolveConnectionNodePosition(fromNode, data.shapes) ?? fromNode.position) : null;
+    const end = toNode ? (resolveConnectionNodePosition(toNode, data.shapes) ?? toNode.position) : null;
+    const points: Point[] = start && end ? [start, end] : [];
+
+    const fromConnectionId = fromNode?.kind === 'anchored' ? fromNode.anchorShapeId : undefined;
+    const toConnectionId = toNode?.kind === 'anchored' ? toNode.anchorShapeId : undefined;
+
+    data.addShape({
+      id,
+      layerId,
+      type: 'eletroduto',
+      strokeColor,
+      strokeWidth: 2,
+      strokeEnabled: true,
+      fillColor: 'transparent',
+      fillEnabled: false,
+      colorMode: { stroke: 'layer', fill: 'layer' },
+      points,
+      fromNodeId,
+      toNodeId,
+      fromConnectionId,
+      toConnectionId,
+      connectedStartId: fromConnectionId,
+      connectedEndId: toConnectionId,
+    });
+    return id;
   },
 
   addElectricalElement: (element) => {
@@ -638,12 +767,13 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteShapes: (ids) => {
-    const { layers, shapes, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
+    const { layers, shapes, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges, connectionNodes } = get();
     if (ids.length === 0) return;
 
     const patches: Patch[] = [];
     const newShapes = { ...shapes };
     const newElectrical = { ...electricalElements };
+    let newConnectionNodes = connectionNodes;
     const newDiagramNodes = { ...diagramNodes };
     const newDiagramEdges = { ...diagramEdges };
     const edgeIdsToDrop = new Set<string>();
@@ -670,6 +800,9 @@ export const useDataStore = create<DataState>((set, get) => ({
           if (edge.shapeId === id) edgeIdsToDrop.add(edge.id);
         });
 
+        // If deleting an anchored shape, detach its nodes to free nodes to preserve conduit geometry.
+        newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
+
         delete newShapes[id];
         spatialIndex.remove(s);
         patches.push({ type: 'DELETE', id, prev: s, electricalElement, diagramNode });
@@ -689,8 +822,9 @@ export const useDataStore = create<DataState>((set, get) => ({
     });
 
     if (patches.length > 0) {
-        set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+        set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
         saveToHistory(patches);
+        get().syncConnections();
         get().syncDiagramEdgesGeometry();
     }
   },
@@ -732,12 +866,13 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   serializeProject: () => {
-      const { layers, shapes, activeLayerId, electricalElements, diagramNodes, diagramEdges } = get();
+      const { layers, shapes, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges } = get();
       return {
           layers: [...layers],
           shapes: Object.values(shapes),
           activeLayerId,
           electricalElements: Object.values(electricalElements),
+          connectionNodes: Object.values(connectionNodes),
           diagramNodes: Object.values(diagramNodes),
           diagramEdges: Object.values(diagramEdges)
       };

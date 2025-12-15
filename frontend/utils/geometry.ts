@@ -21,14 +21,14 @@ export const rotatePoint = (point: Point, center: Point, angle: number): Point =
 export const screenToWorld = (point: Point, transform: ViewTransform): Point => {
   return {
     x: (point.x - transform.x) / transform.scale,
-    y: (point.y - transform.y) / transform.scale,
+    y: -(point.y - transform.y) / transform.scale,
   };
 };
 
 export const worldToScreen = (point: Point, transform: ViewTransform): Point => {
   return {
     x: point.x * transform.scale + transform.x,
-    y: point.y * transform.scale + transform.y,
+    y: -point.y * transform.scale + transform.y,
   };
 };
 
@@ -163,6 +163,48 @@ export const getArcParams = (shape: Shape): { cx: number, cy: number, radius: nu
     };
 };
 
+const isPointNearSegments = (point: Point, points: Point[], threshold: number): boolean => {
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const lenSq = Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2);
+    if (lenSq === 0) {
+      if (getDistance(point, p1) < threshold) return true;
+      continue;
+    }
+    let t = ((point.x - p1.x) * (p2.x - p1.x) + (point.y - p1.y) * (p2.y - p1.y)) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const projection = {
+      x: p1.x + t * (p2.x - p1.x),
+      y: p1.y + t * (p2.y - p1.y)
+    };
+    if (getDistance(point, projection) < threshold) return true;
+  }
+  return false;
+};
+
+const sampleQuadraticBezier = (start: Point, control: Point, end: Point, segments = 12): Point[] => {
+  const pts: Point[] = [];
+  const steps = Math.max(2, Math.floor(segments));
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const mt = 1 - t;
+    pts.push({
+      x: mt * mt * start.x + 2 * mt * t * control.x + t * t * end.x,
+      y: mt * mt * start.y + 2 * mt * t * control.y + t * t * end.y,
+    });
+  }
+  return pts;
+};
+
+const getConduitPathPoints = (shape: Shape): Point[] => {
+  if (!shape.points || shape.points.length < 2) return [];
+  if (shape.controlPoint) {
+    return sampleQuadraticBezier(shape.points[0], shape.controlPoint, shape.points[1], 16);
+  }
+  return shape.points;
+};
+
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
   const hitToleranceScreen = 10; 
   const threshold = hitToleranceScreen / scale; 
@@ -210,20 +252,14 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
 
     case 'line':
     case 'measure':
+      if (!shape.points || shape.points.length < 2) return false;
+      return isPointNearSegments(point, shape.points, threshold);
     case 'conduit':
     case 'eletroduto':
       if (shape.points.length < 2) return false;
-      const p1 = shape.points[0];
-      const p2 = shape.points[1];
-      const lenSq = Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2);
-      if (lenSq === 0) return getDistance(point, p1) < threshold;
-      let t = ((point.x - p1.x) * (p2.x - p1.x) + (point.y - p1.y) * (p2.y - p1.y)) / lenSq;
-      t = Math.max(0, Math.min(1, t));
-      const projection = {
-        x: p1.x + t * (p2.x - p1.x),
-        y: p1.y + t * (p2.y - p1.y)
-      };
-      return getDistance(point, projection) < threshold;
+      const pathPoints = getConduitPathPoints(shape);
+      if (pathPoints.length < 2) return false;
+      return isPointNearSegments(point, pathPoints, threshold);
 
     case 'arrow':
       if (shape.points.length < 2) return false;
@@ -324,10 +360,15 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
   if (mode === 'WINDOW') return isFullyInside;
 
   const pts = shape.points || [];
+  let curvePoints = shape.points;
+  if ((shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
+      curvePoints = getConduitPathPoints(shape);
+  }
   if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') {
       if (pts.some(p => isPointInRect(p, rect))) return true;
-      for (let i = 0; i < pts.length - 1; i++) {
-          if (isLineIntersectingRect(pts[i], pts[i+1], rect)) return true;
+      const candidatePoints = curvePoints && curvePoints.length > 0 ? curvePoints : pts;
+      for (let i = 0; i < candidatePoints.length - 1; i++) {
+          if (isLineIntersectingRect(candidatePoints[i], candidatePoints[i+1], rect)) return true;
       }
       return false;
   }
@@ -377,7 +418,11 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
     }
     // Point-based shapes rely on already-rotated coordinates
     else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
-        shape.points.forEach(addPoint);
+        let pointList: Point[] = shape.points;
+        if (shape.type === 'conduit' || shape.type === 'eletroduto') {
+            pointList = getConduitPathPoints(shape);
+        }
+        pointList.forEach(addPoint);
     } 
     else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
         const bounds = getShapeBoundingBox(shape);

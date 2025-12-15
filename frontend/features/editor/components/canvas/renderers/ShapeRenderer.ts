@@ -70,7 +70,7 @@ export const renderShape = (
         if (shape.rotation) {
             const pivot = getShapeCenter(shape);
             ctx.translate(pivot.x, pivot.y);
-            ctx.rotate(shape.rotation);
+            ctx.rotate(-shape.rotation); // Negate for CCW visual rotation on Y-down canvas
             ctx.translate(-pivot.x, -pivot.y);
         }
 
@@ -110,7 +110,10 @@ export const renderShape = (
                         ctx.fillStyle = 'rgba(0,0,0,0.7)';
                         ctx.fillRect(-tm.width / 2 - 4, -18 / viewTransform.scale, tm.width + 8, 20 / viewTransform.scale);
                         ctx.fillStyle = '#fff';
-                        ctx.fillText(shape.label, 0, -2 / viewTransform.scale);
+                        ctx.save();
+                        ctx.scale(1, -1);
+                        ctx.fillText(shape.label, 0, 2 / viewTransform.scale);
+                        ctx.restore();
                     } finally {
                         ctx.restore();
                     }
@@ -147,7 +150,11 @@ export const renderShape = (
                     ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
                     ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
                     ctx.fillStyle = '#ffffff';
-                    ctx.fillText(shape.label, midX, midY + 0.5 / viewTransform.scale);
+                    ctx.save();
+                    ctx.translate(midX, midY);
+                    ctx.scale(1, -1);
+                    ctx.fillText(shape.label, 0, -0.5 / viewTransform.scale);
+                    ctx.restore();
                     ctx.restore();
                 }
             }
@@ -186,7 +193,11 @@ export const renderShape = (
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = strokeColor;
-                ctx.fillText(shape.textContent, cx, cy);
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.scale(1, -1);
+                ctx.fillText(shape.textContent, 0, 0);
+                ctx.restore();
                 ctx.restore();
             }
         } else if (shape.type === 'rect') {
@@ -220,7 +231,11 @@ export const renderShape = (
                 const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}`;
                 const img = getSvgImage(tintedSvg, cacheKey);
                 if (img) {
-                    ctx.drawImage(img, rx, ry, rw, rh);
+                    ctx.save();
+                    ctx.translate(rx, ry + rh);
+                    ctx.scale(1, -1);
+                    ctx.drawImage(img, 0, 0, rw, rh);
+                    ctx.restore();
                 }
             }
 
@@ -237,7 +252,11 @@ export const renderShape = (
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = strokeColor;
-                ctx.fillText(shape.textContent, rx + rw / 2, ry + rh / 2);
+                ctx.save();
+                ctx.translate(rx + rw / 2, ry + rh / 2);
+                ctx.scale(1, -1);
+                ctx.fillText(shape.textContent, 0, 0);
+                ctx.restore();
                 ctx.restore();
             }
         } else if (shape.type === 'polyline') {
@@ -333,13 +352,17 @@ export const renderShape = (
             const sx = shape.x ?? 0;
             const sy = shape.y ?? 0;
 
+            ctx.save();
+            ctx.translate(sx, sy);
+            ctx.scale(1, -1);
+
             wrappedLines.forEach((line, index) => {
                 const lineWidth = ctx.measureText(line).width;
-                let xPos = sx + pad;
+                let xPos = pad;
                 if (shape.align === 'center') xPos += (availableWidth - lineWidth) / 2;
                 else if (shape.align === 'right') xPos += (availableWidth - lineWidth);
 
-                const yPos = sy + pad + index * lineHeight;
+                const yPos = pad + index * lineHeight;
                 if (bgColor) {
                     ctx.fillStyle = bgColor;
                     ctx.fillRect(xPos - 1, yPos, lineWidth + 2, lineHeight);
@@ -357,6 +380,7 @@ export const renderShape = (
                     ctx.fillRect(xPos, strikeY, lineWidth, Math.max(1 / viewTransform.scale, 1));
                 }
             });
+            ctx.restore();
         }
     } finally {
         ctx.restore();

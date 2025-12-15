@@ -39,6 +39,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const layers = useDataStore(s => s.layers);
 
   const libraryStore = useLibraryStore();
+  const [_, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
@@ -269,7 +270,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
     // 4. Snap Marker
     if (snapMarker) {
-        const ws = screenToWorld(snapMarker, uiStore.viewTransform);
+        const ws = snapMarker;
         ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2 / uiStore.viewTransform.scale; ctx.beginPath();
         const s = 6 / uiStore.viewTransform.scale;
         ctx.moveTo(ws.x - s, ws.y - s); ctx.lineTo(ws.x + s, ws.y + s); ctx.moveTo(ws.x + s, ws.y - s); ctx.lineTo(ws.x - s, ws.y + s);
@@ -329,6 +330,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             initialRadius={getDistance(arcPoints.start, arcPoints.end)}
             position={radiusModalPos}
             onConfirm={(radius) => {
+                const dataStore = useDataStore.getState();
                 const n: Shape = {
                     id: Date.now().toString(),
                     layerId: activeLayerId,

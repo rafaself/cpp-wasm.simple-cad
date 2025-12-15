@@ -112,6 +112,11 @@ For complex changes:
 - `<short-task-name>` should be a brief, filesystem-safe slug (lowercase, words separated by `-`, no spaces, keep it short).
 - Report content should follow the project's standard output format (problem, plan, changed files, risk, verification).
 
+## Review guidelines
+
+- Don't log PII.
+- Verify that authentication middleware wraps every route.
+
 ## Project Structure
 
 - **`frontend/`**: React / Vite frontend application.

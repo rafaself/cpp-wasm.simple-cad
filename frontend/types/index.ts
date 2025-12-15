@@ -33,6 +33,25 @@ export enum ElectricalCategory {
   CONDUIT = 'conduit'
 }
 
+export type ConnectionNodeKind = 'free' | 'anchored';
+
+export interface ConnectionNode {
+  id: string;
+  kind: ConnectionNodeKind;
+  /**
+   * Cached/authoritative world position.
+   * - For `free` nodes: authoritative.
+   * - For `anchored` nodes: last known resolved position (fallback if the anchor is missing).
+   */
+  position?: Point;
+  /** Shape id this node is anchored to (electrical symbol). */
+  anchorShapeId?: string;
+  /**
+   * When true, the node should not be auto-anchored by the resolver (e.g., user just detached the conduit).
+   */
+  pinned?: boolean;
+}
+
 export interface DiagramNode {
   id: string;
   shapeId: string;
@@ -60,6 +79,11 @@ export interface ElectricalElement {
   id: string;
   shapeId: string;
   category: ElectricalCategory;
+  /**
+   * Optional semantic refinement (e.g. for POWER devices: outlet vs switch).
+   * Backward-compatible: legacy projects simply omit it.
+   */
+  subcategory?: string;
   name?: string;
   description?: string;
   metadata?: Record<string, string | number | boolean>;
@@ -165,6 +189,10 @@ export interface Shape {
 
   // Conduit-specific properties
   controlPoint?: Point; // Quadratic Bezier control point
+  /** New topology model: conduit endpoints reference connection node ids. */
+  fromNodeId?: string;
+  toNodeId?: string;
+
   fromConnectionId?: string; // Shape ID connected to start point (preferred)
   toConnectionId?: string;   // Shape ID connected to end point (preferred)
   connectedStartId?: string; // Legacy alias for fromConnectionId
@@ -201,6 +229,7 @@ export interface SerializedProject {
   shapes: Shape[];
   activeLayerId: string;
   electricalElements: ElectricalElement[];
+  connectionNodes: ConnectionNode[];
   diagramNodes: DiagramNode[];
   diagramEdges: DiagramEdge[];
 }

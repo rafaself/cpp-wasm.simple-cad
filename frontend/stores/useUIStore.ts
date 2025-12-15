@@ -70,7 +70,12 @@ export const useUIStore = create<UIState>((set) => ({
   setEditingTextId: (id) => set({ editingTextId: id }),
 
   setElectricalSymbolId: (id) => set({ activeElectricalSymbolId: id }),
-  rotateElectricalPreview: (delta) => set((state) => ({ electricalRotation: state.electricalRotation + delta })),
+  rotateElectricalPreview: (delta) => set((state) => {
+    let newRotation = state.electricalRotation + delta;
+    // Ensure rotation stays within [0, 2*PI)
+    newRotation = (newRotation % (Math.PI * 2) + (Math.PI * 2)) % (Math.PI * 2);
+    return { electricalRotation: newRotation };
+  }),
   flipElectricalPreview: (axis) => set((state) => ({
     electricalFlipX: axis === 'x' ? state.electricalFlipX * -1 : state.electricalFlipX,
     electricalFlipY: axis === 'y' ? state.electricalFlipY * -1 : state.electricalFlipY,
