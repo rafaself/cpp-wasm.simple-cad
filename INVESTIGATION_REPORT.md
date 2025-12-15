@@ -1,75 +1,103 @@
-# Investigation Report: PDF Import Huge Offsets
+# PDF Text Import Investigation Report
 
-## 1. Reproduction
-A synthetic test case was created in `frontend/features/import/utils/pdfToShapes.test.ts` to simulate nested PDF transformations (Translation followed by Scaling).
+## 1. Problem Analysis
 
-**Scenario:**
-1.  **Reference:** Line at `(0,0)`.
-2.  **Transform:**
-    *   `cm [1, 0, 0, 1, 100, 100]` (Translate 100, 100)
-    *   `cm [2, 0, 0, 2, 0, 0]` (Scale 2, 2)
-    *   Draw Line at `(0,0)`.
+### Symptoms
+- **Inverted Text:** Text rendered on the canvas is vertically mirrored (upside down).
+- **Broken Text:** Unexpected line breaks occur where they shouldn't.
+- **Degraded Typography:** Font sizes and proportions may not match the original PDF.
 
-**Expected Coordinate:**
-*   Point `(0,0)` in local space.
-*   Apply Scale (2x) -> `(0,0)`.
-*   Apply Translate (+100) -> `(100, 100)`.
-*   Result: `(100, 100)`.
+### Comparison
+| Feature | Original PDF | Imported Canvas (Current) |
+| :--- | :--- | :--- |
+| **Orientation** | Upright (Readable) | **Inverted Vertically** |
+| **Coordinate System** | PDF Native (Y-Up) | **Canvas Space (Y-Down)** |
+| **Line Breaks** | Controlled by layout | **Forced by wrapping logic** |
 
-**Actual Coordinate:**
-*   Result: `(200, 200)`.
-*   Displacement: `(100, 100)` extra offset.
+---
 
-## 2. Raw Evidence
-Instrumentation of `frontend/features/import/utils/pdfToShapes.ts` yielded the following logs:
+## 2. Root Cause Diagnosis
 
-```
-[DEBUG] cm input: [1, 0, 0, 1, 100, 100]
-[DEBUG] CTM before: [1,0,0,1,0,0]
-[DEBUG] CTM after:  [1,0,0,1,100,100]  <-- Correct (Identity * Translate)
-[DEBUG] cm input: [2, 0, 0, 2, 0, 0]
-[DEBUG] CTM before: [1,0,0,1,100,100]
-[DEBUG] CTM after:  [2,0,0,2,200,200]  <-- INCORRECT. Translation (100) was scaled by (2).
-```
+### A. Inverted Text (Primary Issue)
+The root cause is a **double-flip conflict** between the `pdfToShapes` importer and the `ShapeRenderer`.
 
-## 3. Analysis
-The code performs matrix multiplication as:
-`CTM_new = multiplyMatrix(CTM_old, M_new)`
+1.  **Importer (`pdfToShapes.ts`):**
+    - Uses `page.getViewport({ scale: 1.0 })`.
+    - The standard PDF Viewport transform flips the Y-axis (PDF Y-Up → Canvas Y-Down).
+    - It generates shapes with coordinates in this **Y-Down Canvas Space**.
+    - For example, Top-Left of page becomes `(0,0)`, Bottom-Left becomes `(0, H)`.
 
-Assuming Row Vector convention (`v' = v * M`):
-`CTM_new = CTM_old * M_new`
+2.  **Renderer (`ShapeRenderer.ts`):**
+    - The renderer for `type: 'text'` contains a hardcoded flip:
+      ```typescript
+      ctx.scale(1, -1);
+      ```
+    - This flip is intended for a **Y-Up Global World** (standard Cartesian CAD), where `ctx.fillText` needs to be flipped to render upright.
+    - However, the PDF Import produces shapes in a **Y-Down** coordinate system.
+    - When Y-Down text shapes are rendered with `scale(1, -1)` in a Y-Down canvas context, the text becomes **upside down**.
 
-For the sequence `Translate (T)` then `Scale (S)`:
-`CTM = T * S`
-`[1 0 0 1 100 100] * [2 0 0 2 0 0] = [2 0 0 2 200 200]`
+### B. Broken Text (Secondary Issue)
+The renderer forces text wrapping using `getWrappedLines` based on the shape's `width`.
+- PDF text items have precise widths based on font metrics.
+- Canvas text rendering (`ctx.measureText`) often yields slightly wider values than PDF metrics (due to font substitution).
+- If `ctx.measureText(text).width > shape.width`, the renderer wraps the text.
+- Since PDF text is often imported as individual lines or small blocks, this wrapping splits lines unnecessarily.
 
-However, logically, the new transform `S` is applied *within* the coordinate system defined by `T`.
-For a point `P`:
-`P_global = P * S * T` (Scale first, then Translate).
-So `CTM` should be `S * T`.
-`[2 0 0 2 0 0] * [1 0 0 1 100 100] = [2 0 0 2 100 100]`
+---
 
-The current implementation reverses the multiplication order, effectively applying the Parent Transform (`T`) *before* the Child Transform (`S`) to the coordinate axes.
-This effectively means `P_global = P * T * S`.
-`P` (in child) is Translated (by 100), becoming `P+100`.
-Then Scaled (by 2), becoming `2(P+100) = 2P + 200`.
-This doubles the translation offset.
+## 3. Fix Plan
 
-**Diagnosis:**
-The "Huge Offsets" are caused by `Translate * Scale` logic where `Scale * Translate` is expected. Any scaling factor applied *after* a translation (in the matrix stack) will amplify that translation erroneously.
-For example, if a "Floor Plan" block is translated by `100,000` units (common in CAD) and then internally scaled (e.g. unit conversion), the translation could be multiplied, throwing the element millions of units away.
+### Step 1: Fix Text Orientation
+We need to disable the `ctx.scale(1, -1)` flip specifically for imported PDF text, while preserving it for standard CAD text (if that is the convention).
 
-## 4. Root Cause Conclusion
-**Reversed Matrix Multiplication Order.**
-The function `multiplyMatrix(currentState.ctm, [args])` applies the new transform as a *post-multiplication* to the CTM, whereas standard hierarchical scene graph logic (and PDF `cm` operator semantics in this context) requires *pre-multiplication* (applying the new local transform before the existing global transform).
+**Proposed Action:**
+- Add a property `unflipY: boolean` (or similar) to the `Shape` interface (or reuse `scaleY`).
+- In `pdfToShapes.ts`, set `scaleY: -1` (to counteract the hardcoded flip) OR introduce a flag to skip the flip.
+- **Preferred Approach:** Modify `ShapeRenderer.ts` to respect `shape.scaleY` for text.
+  - Current: `ctx.scale(1, -1);` (Hardcoded)
+  - New: `ctx.scale(1, shape.scaleY ?? -1);`
+- In `pdfToShapes.ts`, set `scaleY: 1` for text shapes. This tells the renderer "This text is already upright in the coordinate system, do not flip it."
+  - Wait, if the default is `-1` (flip), and we want NO flip, we need `scaleY` to be `1`?
+  - If we use `ctx.scale(1, shape.scaleY ?? -1)`:
+    - Default (undefined): `scale(1, -1)` -> Flips Y (Standard CAD behavior).
+    - PDF Text (`scaleY: 1`): `scale(1, 1)` -> No Flip. Text renders upright in Y-Down space.
 
-## 5. Fix Plan
-1.  **Modify `frontend/features/import/utils/pdfToShapes.ts`**:
-    *   Swap arguments in `multiplyMatrix`.
-    *   Change: `currentState.ctm = multiplyMatrix(currentState.ctm, [a, b, c, d, e, f]);`
-    *   To: `currentState.ctm = multiplyMatrix([a, b, c, d, e, f], currentState.ctm);`
-2.  **Verify**:
-    *   Run the regression test `should handle nested transforms correctly`.
-    *   Assert it passes.
-3.  **Safety**:
-    *   No side effects expected as this corrects a fundamental logic error.
+### Step 2: Fix Unwanted Line Breaks
+We must prevent the renderer from wrapping PDF text, as line breaks are already handled by the PDF structure.
+
+**Proposed Action:**
+- In `pdfToShapes.ts`, ensure text shapes are flagged to avoid wrapping, OR ensure the `width` provided is sufficient.
+- **Better approach:** Add `noWrap: true` to the Shape properties or logic.
+- **Feasible approach (minimal change):** In `pdfToShapes.ts`, when creating the text shape, set `width` to `undefined` (let it auto-size) OR set it significantly larger if alignment isn't critical.
+- However, we want to respect alignment.
+- **Refined Plan:** Modify `ShapeRenderer.ts` to support a `textAutoResize` or `noWrap` property.
+  - If `noWrap` is true, skip `getWrappedLines`.
+- Alternatively, in `pdfToShapes.ts`, set the `width` to `item.width * 1.5` to provide a safety buffer against font metric differences, but this might affect background fill.
+- **Best Safe Fix:** In `ShapeRenderer.ts`, check if `shape.id` starts with `pdf-` or add a `noWrap` property. Let's add `textWrapping: 'none'` property to Shape.
+
+### Step 3: Fix Font Proportions
+- `pdfToShapes.ts` calculates `fontSize` using `Math.abs(transform[3])`. This is correct for height.
+- Ensure `ShapeRenderer` uses the correct baseline. `pdfToShapes` provides the baseline position, but `ShapeRenderer` uses `textBaseline = 'top'`.
+- **Adjustment:** In `pdfToShapes.ts`, offset the `y` coordinate by `fontSize` (approx) to align Top-Left.
+- PDF `(x, y)` is Baseline. Canvas Top-Left is `y - ascent`.
+- Since we are in Y-Down space: `y_top = y_baseline - fontSize`.
+- We should adjust `y` in `pdfToShapes` so that the Top-aligned renderer places it correctly.
+
+## 4. Summary of Changes
+1.  **Frontend (`pdfToShapes.ts`):**
+    - Set `scaleY: 1` on generated text shapes.
+    - Set `textWrapping: 'none'` (new prop) on text shapes.
+    - Adjust `y` coordinate: `y: item.y - item.fontSize` (approximate alignment correction for 'top' baseline).
+
+2.  **Frontend (`ShapeRenderer.ts`):**
+    - Update `ctx.scale(1, -1)` to `ctx.scale(1, shape.scaleY ?? -1)`.
+    - Respect `shape.textWrapping === 'none'` to skip `getWrappedLines`.
+
+3.  **Frontend (`types/index.ts`):**
+    - Add `textWrapping?: 'none' | 'wrap'` to `Shape`.
+
+## 5. Verification
+- Import `test.pdf` (or similar).
+- Verify text is readable (not upside down).
+- Verify long lines are not split.
+- Verify text position matches geometry (approximately).
