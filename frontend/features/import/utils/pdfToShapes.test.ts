@@ -6,6 +6,78 @@ import * as pdfjs from 'pdfjs-dist/build/pdf';
 // Since we are running in node (vitest), pdfjs-dist/build/pdf might work if it detects node.
 // However, pdfjs.OPS might be available.
 
+const buildPdfWithContent = (
+  content: string,
+  mediaBox: [number, number, number, number] = [0, 0, 300, 300]
+): Uint8Array => {
+  const encoder = new TextEncoder();
+  const streamData = content.endsWith('\n') ? content : `${content}\n`;
+  const streamBytes = encoder.encode(streamData);
+
+  const objects = [
+    { id: 1, body: '<< /Type /Catalog /Pages 2 0 R >>' },
+    { id: 2, body: '<< /Type /Pages /Count 1 /Kids [3 0 R] >>' },
+    {
+      id: 3,
+      body: `<< /Type /Page /Parent 2 0 R /MediaBox [${mediaBox.join(
+        ' '
+      )}] /Contents 4 0 R /Resources <<>> >>`,
+    },
+    {
+      id: 4,
+      body: `<< /Length ${streamBytes.length} >>\nstream\n${streamData}endstream`,
+    },
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets: Record<number, number> = {};
+
+  for (const obj of objects) {
+    offsets[obj.id] = pdf.length;
+    pdf += `${obj.id} 0 obj\n${obj.body}\nendobj\n`;
+  }
+
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (const obj of objects) {
+    pdf += `${offsets[obj.id].toString().padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+
+  return encoder.encode(pdf);
+};
+
+const loadFirstPage = async (pdfBytes: Uint8Array) => {
+  const task = pdfjs.getDocument({ data: pdfBytes, disableWorker: true });
+  const pdf = await task.promise;
+  return pdf.getPage(1);
+};
+
+const bboxFromShapes = (shapes: any[]) => {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+
+  shapes.forEach((s) => {
+    const checkPoint = (p: { x: number; y: number }) => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    };
+
+    if (s.points) {
+      s.points.forEach(checkPoint);
+    } else if (typeof s.x === 'number' && typeof s.y === 'number') {
+      checkPoint(s as any);
+    }
+  });
+
+  return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+};
+
 describe('convertPdfPageToShapes', () => {
   it('should convert a simple line to a Shape', async () => {
     // Mock OPS
@@ -149,8 +221,7 @@ describe('convertPdfPageToShapes', () => {
     expect(text.x).toBe(0); 
   });
 
-  // TODO: Enable this test after fixing the matrix multiplication order bug.
-  it.skip('should handle nested transforms correctly (Matrix Order Regression Test)', async () => {
+  it('should handle nested transforms correctly (Matrix Order Regression Test)', async () => {
     // This test verifies that CTM multiplication order is correct (M_new * CTM_old vs CTM_old * M_new).
     // Scenario:
     // 1. Reference Line at (0,0) to (10,10).
@@ -225,6 +296,55 @@ describe('convertPdfPageToShapes', () => {
     // If bug exists, we get (200, 200).
     expect(transShape.points[0].x).toBeCloseTo(100, 0);
     expect(transShape.points[0].y).toBeCloseTo(100, 0);
+  });
+
+  it('keeps a known-good PDF within compact bounds', async () => {
+    const goodContent = ['0.5 w', '10 10 m', '60 10 l', '10 10 m', '10 60 l', 'S'].join('\n');
+    const goodPdf = buildPdfWithContent(goodContent);
+    const page = await loadFirstPage(goodPdf);
+
+    const shapes = await convertPdfPageToShapes(page as any, 'good-floor', 'good-layer');
+    const bbox = bboxFromShapes(shapes);
+
+    expect(shapes.length).toBeGreaterThan(0);
+    expect(bbox.minX).toBeGreaterThanOrEqual(0);
+    expect(bbox.minY).toBeGreaterThanOrEqual(0);
+    expect(bbox.maxX).toBeLessThanOrEqual(80);
+    expect(bbox.maxY).toBeLessThanOrEqual(80);
+  });
+
+  it('prevents displacement on known-bad PDF with nested scale after translate', async () => {
+    const badContent = [
+      '0.5 w',
+      '0 0 m',
+      '10 10 l',
+      'S',
+      'q',
+      '1 0 0 1 100 100 cm',
+      '2 0 0 2 0 0 cm',
+      '0 0 m',
+      '10 10 l',
+      'S',
+      'Q',
+    ].join('\n');
+
+    const badPdf = buildPdfWithContent(badContent);
+    const page = await loadFirstPage(badPdf);
+    const shapes = await convertPdfPageToShapes(page as any, 'bad-floor', 'bad-layer');
+
+    expect(shapes.length).toBe(2);
+
+    const bbox = bboxFromShapes(shapes);
+    expect(bbox.maxX).toBeLessThan(150);
+    expect(bbox.maxY).toBeLessThan(150);
+
+    const refShape = shapes[0];
+    const transformedShape = shapes[1];
+    const refStart = refShape.points[0];
+    const transformedStart = transformedShape.points[0];
+
+    expect(transformedStart.x - refStart.x).toBeCloseTo(100, 3);
+    expect(transformedStart.y - refStart.y).toBeCloseTo(100, 3);
   });
 
   // Fixture hook for real PDF verification

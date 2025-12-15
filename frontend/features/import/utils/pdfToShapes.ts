@@ -8,6 +8,7 @@ import { generateId } from '../../../utils/uuid';
 type Matrix = [number, number, number, number, number, number];
 
 const IDENTITY_MATRIX: Matrix = [1, 0, 0, 1, 0, 0];
+const isDevEnv = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
 
 const multiplyMatrix = (m1: Matrix, m2: Matrix): Matrix => {
   const [a1, b1, c1, d1, e1, f1] = m1;
@@ -21,6 +22,9 @@ const multiplyMatrix = (m1: Matrix, m2: Matrix): Matrix => {
     e1 * b2 + f1 * d2 + f2,
   ];
 };
+
+const CTM_TRANSLATION_WARN = 1_000_000;
+const CTM_SCALE_WARN = 10_000;
 
 const applyMatrix = (p: Point, m: Matrix): Point => {
   return {
@@ -236,9 +240,27 @@ export const convertPdfPageToShapes = async (
 
       case OPS.transform: // cm
         const [a, b, c, d, e, f] = args;
-        // Apply new transform to the Current Transformation Matrix
-        // CTM_new = CTM_old * M_new (Post-multiplication matches HTML Canvas / standard accumulation)
-        currentState.ctm = multiplyMatrix(currentState.ctm, [a, b, c, d, e, f]);
+        // Apply new transform to the Current Transformation Matrix (pre-multiply as per PDF spec)
+        const incomingMatrix: Matrix = [a, b, c, d, e, f];
+        const nextCtm = multiplyMatrix(incomingMatrix, currentState.ctm);
+
+        if (isDevEnv) {
+          const translationMagnitude = Math.hypot(nextCtm[4], nextCtm[5]);
+          const maxScale = Math.max(Math.abs(nextCtm[0]), Math.abs(nextCtm[3]));
+          if (
+            !Number.isFinite(translationMagnitude) ||
+            !Number.isFinite(maxScale) ||
+            translationMagnitude > CTM_TRANSLATION_WARN ||
+            maxScale > CTM_SCALE_WARN
+          ) {
+            console.warn('[pdfToShapes] Suspicious CTM after transform', {
+              applied: incomingMatrix,
+              resulting: nextCtm,
+            });
+          }
+        }
+
+        currentState.ctm = nextCtm;
         break;
 
       case OPS.setLineWidth: // w
