@@ -1,5 +1,6 @@
 import { Layer, Shape, ViewTransform } from '../../../../../types';
-import { getDistance, getShapeCenter, getWrappedLines, TEXT_PADDING } from '../../../../../utils/geometry';
+import { getDistance, getShapeCenter, getWrappedLines } from '../../../../../utils/geometry';
+import { TEXT_PADDING } from '../../../../../config/constants';
 import { getEffectiveFillColor, getEffectiveStrokeColor, isStrokeEffectivelyEnabled, isFillEffectivelyEnabled } from '../../../../../utils/shapeColors';
 import { LibrarySymbol } from '../../../../library/electricalLoader';
 import { getElectricalLayerConfig } from '../../../../library/electricalProperties';

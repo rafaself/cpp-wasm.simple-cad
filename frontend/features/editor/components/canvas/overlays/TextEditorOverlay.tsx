@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { TEXT_PADDING, worldToScreen, getWrappedLines } from '../../../../../utils/geometry';
+import { worldToScreen, getWrappedLines } from '../../../../../utils/geometry';
+import { TEXT_PADDING } from '../../../../../config/constants';
 import { ViewTransform } from '../../../../../types';
 import { useUIStore } from '../../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../../stores/useSettingsStore';
