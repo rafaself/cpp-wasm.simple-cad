@@ -28,10 +28,16 @@ interface DynamicOverlayProps {
 
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [renderTrigger, forceUpdate] = React.useReducer((x) => x + 1, 0);
+
   const uiStore = useUIStore();
   const settingsStore = useSettingsStore();
   const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
-  const dataStore = useDataStore();
+
+  // OPTIMIZATION: Avoid subscribing to the full dataStore to prevent re-renders on every shape change
+  const activeLayerId = useDataStore(s => s.activeLayerId);
+  const layers = useDataStore(s => s.layers);
+
   const libraryStore = useLibraryStore();
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
@@ -42,11 +48,37 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor
   } = state;
 
+  // Manual subscription to re-render only when SELECTED shapes change
+  useEffect(() => {
+    return useDataStore.subscribe((state, prevState) => {
+        const selectedIds = useUIStore.getState().selectedShapeIds;
+        if (selectedIds.size === 0) return;
+
+        let changed = false;
+        for (const id of selectedIds) {
+            // Check reference equality.
+            // If the shape object ref changed, it was updated.
+            if (state.shapes[id] !== prevState.shapes[id]) {
+                changed = true;
+                break;
+            }
+        }
+
+        if (changed) {
+            forceUpdate();
+        }
+    });
+  }, []);
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Access shapes directly from state without subscription
+    const dataStoreState = useDataStore.getState();
+    const shapes = dataStoreState.shapes;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -57,7 +89,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
     // 1. Draw Selection Highlights & Handles
     uiStore.selectedShapeIds.forEach(id => {
-        const shape = dataStore.shapes[id];
+        const shape = shapes[id];
         if (shape) {
             try {
                 drawSelectionHighlight(ctx, shape, uiStore.viewTransform);
@@ -72,7 +104,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     if ((uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') && transformationBase && currentPoint && uiStore.selectedShapeIds.size > 0) {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
         uiStore.selectedShapeIds.forEach(id => {
-            const shape = dataStore.shapes[id];
+            const shape = shapes[id];
             if(!shape) return;
             const ghost = { ...shape, id: 'ghost-' + shape.id };
             if (uiStore.activeTool === 'move') {
@@ -109,14 +141,14 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
         if (librarySymbol) {
             const layerConfig = getElectricalLayerConfig(librarySymbol.id, librarySymbol.category);
-            const existingLayer = dataStore.layers.find(l => l.name.toLowerCase() === layerConfig.name.toLowerCase());
+            const existingLayer = layers.find(l => l.name.toLowerCase() === layerConfig.name.toLowerCase());
             const layerColor = existingLayer?.strokeColor ?? layerConfig.strokeColor;
             const center = snapMarker ? snapMarker : screenToWorld(currentPoint, uiStore.viewTransform);
             const width = librarySymbol.viewBox.width * librarySymbol.scale;
             const height = librarySymbol.viewBox.height * librarySymbol.scale;
             const ghost: Shape = {
                 id: 'ghost-symbol',
-                layerId: existingLayer?.id ?? dataStore.activeLayerId,
+                layerId: existingLayer?.id ?? activeLayerId,
                 type: 'rect',
                 x: center.x - width / 2,
                 y: center.y - height / 2,
@@ -152,7 +184,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
         const threshold = 20 / uiStore.viewTransform.scale;
         
-        Object.values(dataStore.shapes).forEach(shape => {
+        Object.values(shapes).forEach(shape => {
             if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
                 const connX = shape.x + shape.connectionPoint.x * shape.width;
                 const connY = shape.y + shape.connectionPoint.y * shape.height;
@@ -212,7 +244,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         wc = constrainToSquare(ws, wc);
       }
       
-      const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, points: [] };
+      const temp: Shape = { id: 'temp', layerId: activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, points: [] };
       
       if (uiStore.activeTool === 'arc') {
           ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(wc.x, wc.y);
@@ -263,11 +295,11 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
+  }, [uiStore, layers, activeLayerId, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
 
   useEffect(() => {
       render();
-  }, [render]);
+  }, [render, renderTrigger]); // Added renderTrigger to deps
 
   let cursorClass = DEFAULT_CURSOR;
   if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
@@ -299,7 +331,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             onConfirm={(radius) => {
                 const n: Shape = {
                     id: Date.now().toString(),
-                    layerId: dataStore.activeLayerId,
+                    layerId: activeLayerId,
                     type: 'arc',
                     points: [arcPoints.start, arcPoints.end],
                     radius: radius,
@@ -309,7 +341,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                     fillColor: 'transparent',
                     colorMode: getDefaultColorMode()
                 };
-                dataStore.addShape(n);
+                useDataStore.getState().addShape(n);
                 setters.setArcPoints(null);
                 setters.setShowRadiusModal(false);
                 uiStore.setSidebarTab('desenho');
