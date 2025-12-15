@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from './features/editor/hooks/useKeyboardShortcu
 import Header from './features/editor/components/Header';
 import { useDataStore } from './stores/useDataStore';
 import { useLibraryStore } from './stores/useLibraryStore';
+import LoadingOverlay from './components/LoadingOverlay';
 
 const App: React.FC = () => {
   useKeyboardShortcuts();
@@ -37,6 +38,7 @@ const App: React.FC = () => {
         {/* Sidebar moved to right */}
         <EditorSidebar />
       </div>
+      <LoadingOverlay />
     </div>
   );
 };

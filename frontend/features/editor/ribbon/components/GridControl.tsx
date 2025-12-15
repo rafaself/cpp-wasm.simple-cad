@@ -12,6 +12,7 @@ const GridControl: React.FC<GridControlProps> = ({ openColorPicker }) => {
         <button
           type="button"
           onClick={() => settingsStore.setGridShowDots(!settingsStore.grid.showDots)}
+          aria-pressed={settingsStore.grid.showDots}
           className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
             settingsStore.grid.showDots
               ? 'bg-blue-500 text-white border-blue-600 shadow-md'
@@ -23,6 +24,7 @@ const GridControl: React.FC<GridControlProps> = ({ openColorPicker }) => {
         <button
           type="button"
           onClick={() => settingsStore.setGridShowLines(!settingsStore.grid.showLines)}
+          aria-pressed={settingsStore.grid.showLines}
           className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
             settingsStore.grid.showLines
               ? 'bg-blue-500 text-white border-blue-600 shadow-md'
@@ -34,11 +36,13 @@ const GridControl: React.FC<GridControlProps> = ({ openColorPicker }) => {
       </div>
 
       <div className="flex items-center gap-2">
-        <div
+        <button
+          type="button"
           className="w-5 h-5 rounded border-2 border-slate-500 cursor-pointer hover:scale-110 transition-transform"
           style={{ backgroundColor: settingsStore.grid.color }}
           onClick={(e) => openColorPicker(e, { type: 'grid' })}
           title="Cor do Grid"
+          aria-label="Cor do Grid"
         />
         <div className="flex items-center gap-0.5">
           <EditableNumber

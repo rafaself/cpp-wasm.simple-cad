@@ -31,11 +31,29 @@ interface DynamicOverlayProps {
 
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const uiStore = useUIStore();
-  const dataStore = useDataStore();
-  const settingsStore = useSettingsStore();
-  const libraryStore = useLibraryStore();
-  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
+
+  // Granular hooks for performance (avoid re-rendering on unrelated store updates)
+  const viewTransform = useUIStore(s => s.viewTransform);
+  const activeTool = useUIStore(s => s.activeTool);
+  const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
+  const activeElectricalSymbolId = useUIStore(s => s.activeElectricalSymbolId);
+  const electricalRotation = useUIStore(s => s.electricalRotation);
+  const electricalFlipX = useUIStore(s => s.electricalFlipX);
+  const electricalFlipY = useUIStore(s => s.electricalFlipY);
+  const activeDiscipline = useUIStore(s => s.activeDiscipline);
+  const activeFloorId = useUIStore(s => s.activeFloorId);
+
+  // Data store dependencies
+  const shapes = useDataStore(s => s.shapes);
+  const activeLayerId = useDataStore(s => s.activeLayerId);
+  const layers = useDataStore(s => s.layers);
+
+  // Settings
+  const toolDefaults = useSettingsStore(s => s.toolDefaults);
+  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = toolDefaults;
+
+  // Library (rarely changes, but needed for ghost)
+  const electricalSymbols = useLibraryStore(s => s.electricalSymbols);
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
@@ -52,7 +70,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Fetch fresh state directly from stores
+    // Fetch fresh state directly from stores for logic inside render
+    // This ensures we always have the absolute latest state when drawing
     const uiStore = useUIStore.getState();
     const dataStore = useDataStore.getState();
     const settingsStore = useSettingsStore.getState();
@@ -334,18 +353,31 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, dataStore, settingsStore, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, calibrationPoints, width, height]); // Added calibrationPoints
+  }, [
+      width, height, // Props
+      // Interaction State
+      isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker,
+      polylinePoints, measureStart, lineStart, arrowStart, transformationBase, activeHandle,
+      arcPoints, isShiftPressed, calibrationPoints,
+      // Granular Store Dependencies (Triggers)
+      viewTransform, activeTool, selectedShapeIds, activeElectricalSymbolId,
+      electricalRotation, electricalFlipX, electricalFlipY,
+      activeDiscipline, activeFloorId,
+      shapes, activeLayerId, layers, // Data
+      toolDefaults, // Settings
+      electricalSymbols // Library
+  ]);
 
   useEffect(() => {
       render();
   }, [render]);
 
   let cursorClass = DEFAULT_CURSOR;
-  if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
-  else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
+  if (isMiddlePanning || (isDragging && activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
+  else if (activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (hoverCursor === 'rotate') cursorClass = ROTATE_CURSOR;
   else if (hoverCursor) cursorClass = hoverCursor;
-  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit', 'calibrate'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit', 'calibrate'].includes(activeTool)) cursorClass = 'crosshair';
 
   return (
     <>
@@ -389,16 +421,16 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                     fillColor: 'transparent',
                     colorMode: getDefaultColorMode()
                 };
-                dataStore.addShape(n);
+                useDataStore.getState().addShape(n);
                 setters.setArcPoints(null);
                 setters.setShowRadiusModal(false);
-                uiStore.setSidebarTab('desenho');
-                uiStore.setTool('select');
+                useUIStore.getState().setSidebarTab('desenho');
+                useUIStore.getState().setTool('select');
             }}
             onCancel={() => {
                 setters.setArcPoints(null);
                 setters.setShowRadiusModal(false);
-                uiStore.setTool('select');
+                useUIStore.getState().setTool('select');
             }}
         />
     )}
@@ -407,7 +439,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       <TextEditorOverlay
         textEditState={textEditState}
         setTextEditState={setters.setTextEditState}
-        viewTransform={uiStore.viewTransform}
+        viewTransform={viewTransform}
       />
     )}
 
@@ -420,7 +452,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         <NumberSpinner
           value={polygonSides}
           onChange={(val) => {
-            settingsStore.setPolygonSides(val);
+            useSettingsStore.getState().setPolygonSides(val);
             setters.confirmPolygonSides(val);
           }}
           min={3}
