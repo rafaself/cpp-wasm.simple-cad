@@ -11,15 +11,25 @@ import { StyleProperties } from './properties/StyleProperties';
 import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
 import ElectricalProperties from './properties/ElectricalProperties';
 import DiagramPanel from '../../diagram/DiagramPanel';
+import PlanLayerControls from './properties/PlanLayerControls';
 
 const EditorSidebar: React.FC = () => {
   const sidebarTab = useUIStore((s) => s.sidebarTab);
   const setSidebarTab = useUIStore((s) => s.setSidebarTab);
+  const setActiveDiscipline = useUIStore((s) => s.setActiveDiscipline);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const dataStore = useDataStore();
 
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
+
+  useEffect(() => {
+    if (sidebarTab === 'eletrica') {
+      setActiveDiscipline('electrical');
+    } else if (sidebarTab === 'edificacao' || sidebarTab === 'desenho' || sidebarTab === 'propriedades') {
+      setActiveDiscipline('architecture');
+    }
+  }, [sidebarTab, setActiveDiscipline]);
   
   // Draggable Scroll State
   const navScrollRef = useRef<HTMLDivElement>(null);
@@ -136,6 +146,7 @@ const EditorSidebar: React.FC = () => {
         <PositionProperties selectedShape={selectedShape} />
         <DimensionProperties selectedShape={selectedShape} />
         <StyleProperties selectedShape={selectedShape} />
+        {selectedShape.svgRaw && <PlanLayerControls shape={selectedShape} />}
       </div>
     );
   };
