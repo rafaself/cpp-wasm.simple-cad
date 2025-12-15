@@ -264,21 +264,25 @@ export const convertPdfPageToShapes = async (
         break;
 
       case OPS.setLineWidth: // w
-        currentState.lineWidth = args[0];
+        const wVal = args[0];
+        // Fix B: No zero stroke width
+        currentState.lineWidth = wVal <= 0 ? 0.05 : wVal;
         break;
 
       case OPS.setStrokeColor: // SC, SCN
       case OPS.setStrokeRGBColor: // RG
       case OPS.setStrokeGray: // G
       case OPS.setStrokeCMYKColor: // K
-        currentState.strokeColor = formatColor(args);
+        // Force Black as per user request
+        currentState.strokeColor = '#000000';
         break;
 
       case OPS.setFillColor: // sc, scn
       case OPS.setFillRGBColor: // rg
       case OPS.setFillGray: // g
       case OPS.setFillCMYKColor: // k
-        currentState.fillColor = formatColor(args);
+        // Force Black as per user request
+        currentState.fillColor = '#000000';
         break;
 
       // Path Construction
@@ -289,6 +293,19 @@ export const convertPdfPageToShapes = async (
         let dIndex = 0;
         for (let j = 0; j < pathOps.length; j++) {
           const op = pathOps[j];
+          
+          // Fix A: Phantom Lines
+          // If starting a subpath without explicit MoveTo, synthesize one from currentPoint
+          if (pathSegments.length === 0 && op !== OPS.moveTo && op !== OPS.rectangle) {
+               // Synthesize MoveTo currentPoint
+               // We need valid currentPoint. It defaults to 0,0.
+               // We accept that if no MoveTo was ever called, 0,0 is the start.
+               const p0 = currentPoint; 
+               currentPath.push(`M ${p0.x} ${p0.y}`);
+               currentStartPoint = p0;
+               pathSegments.push({ type: 'M', points: [p0] });
+          }
+
           switch (op) {
              case OPS.moveTo:
                const p0 = applyMatrix({ x: pathData[dIndex], y: pathData[dIndex+1] }, currentState.ctm);
@@ -373,14 +390,14 @@ export const convertPdfPageToShapes = async (
         const isStroke = [OPS.stroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].includes(fn);
         const isFill = [OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].includes(fn);
 
-        // Simple Line Detection
-        if (finalSegments.length === 2 && finalSegments[0].type === 'M' && finalSegments[1].type === 'L') {
+        // Simple Line Detection: Only if NOT filled (lines usually aren't filled)
+        if (finalSegments.length === 2 && finalSegments[0].type === 'M' && finalSegments[1].type === 'L' && !isFill) {
             shapes.push({
                 id: generateId('pdf-line'),
                 type: 'line',
                 points: [finalSegments[0].points[0], finalSegments[1].points[0]],
                 strokeColor: currentState.strokeColor,
-                strokeWidth: currentState.lineWidth * viewportMatrix[0], // Approximate scale
+                strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
                 strokeEnabled: true,
                 fillColor: 'transparent',
                 fillEnabled: false,
@@ -407,34 +424,17 @@ export const convertPdfPageToShapes = async (
                  }
             }
 
-            // If it's closed and 4 points + close, check if rect?
-            // For now, simpler to make it a polyline (if open) or polygon (if closed)
-            // But we don't have a generic "polygon" tool that behaves exactly like path unless we use 'polygon' type
-            // 'polygon' type in this app assumes regular polygon (radius, sides) usually? 
-            // Checking ShapeRenderer: polygon uses sides/radius. It does NOT use points list for vertices generally?
-            // WAIT: ShapeRenderer says: 
-            // else if (shape.type === 'polygon') { ... uses sides/radius ... }
-            // So 'polygon' type is NOT arbitrary polygon.
-            // 'polyline' uses points.
-            
-            // So we use 'polyline'. If filled, we might have an issue if polyline doesn't support fill?
-            // ShapeRenderer: polyline -> ctx.moveTo... ctx.lineTo... ctx.stroke(). No ctx.fill().
-            // So 'polyline' is only for stroke.
-
-            // If we have a filled polygon, we must use 'rect' with svgRaw or introduce a 'path' type.
-            
-            if (isFill && !isStroke) {
-                // Filled shape without stroke -> likely a wall or solid area
-                // We fallback to SVG for filled shapes to ensure correct rendering
-                createSvgShape();
-            } else if (!isFill && isStroke) {
+            if (isFill) {
+                 // Filled shape -> Use SVG/Rect (Fix C)
+                 createSvgShape();
+            } else if (isStroke) {
                 // Just stroke -> Polyline
                 shapes.push({
                     id: generateId('pdf-poly'),
                     type: 'polyline',
                     points: points,
                     strokeColor: currentState.strokeColor,
-                    strokeWidth: currentState.lineWidth * viewportMatrix[0],
+                    strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
                     strokeEnabled: true,
                     fillColor: 'transparent',
                     fillEnabled: false,
@@ -453,14 +453,6 @@ export const convertPdfPageToShapes = async (
 
         function createSvgShape() {
             // Reconstruct path data string in Canvas Space
-            let d = '';
-            finalSegments.forEach(s => {
-                if (s.type === 'M') d += `M ${s.points[0].x} ${s.points[0].y} `;
-                else if (s.type === 'L') d += `L ${s.points[0].x} ${s.points[0].y} `;
-                else if (s.type === 'C') d += `C ${s.points[0].x} ${s.points[0].y}, ${s.points[1].x} ${s.points[1].y}, ${s.points[2].x} ${s.points[2].y} `;
-                else if (s.type === 'Z') d += `Z `;
-            });
-
             // Calculate bounding box for SVG viewbox
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
              finalSegments.forEach(s => s.points.forEach(p => {
@@ -475,87 +467,82 @@ export const convertPdfPageToShapes = async (
              const w = maxX - minX;
              const h = maxY - minY;
 
-            // We want the shape to be positioned at (minX, minY) on canvas
-            // The SVG itself should be relative to 0,0 inside the shape?
-            // Or we just put the absolute path in svgRaw and set viewBox to match?
-            // ShapeRenderer: 
-            //   ctx.translate(rx, ry + rh); ctx.scale(1, -1); ctx.drawImage(img, ...)
-            //   It flips Y.
-            //   Our generated points are already in Canvas Space (Y down?). 
-            //   Wait, PDF Viewport transform usually makes Y down (standard canvas).
-            //   ShapeRenderer flips Y for text and images (ctx.scale(1, -1)).
-            //   This implies the standard coordinate system for shapes is Y-up? 
-            //   Let's check ShapeRenderer again.
-            
-            //   "ctx.translate(rx, ry + rh); ctx.scale(1, -1);" -> This puts origin at bottom-left of the rect.
-            //   If our "Canvas Space" points are Top-Left origin (standard DOM/Canvas),
-            //   then rendering them inside a Y-flipped context will invert them.
-            
-            //   If the app uses Y-up (Cartesian) as native:
-            //   Check 'line' rendering: 
-            //   ctx.moveTo(p[0].x, p[0].y) -> No flip.
-            //   So the main coordinate system seems to be standard Canvas (Y down).
-            
-            //   Why does 'rect' with svgRaw flip Y? 
-            //   ctx.scale(1, -1) suggests the SVG is expected to be Cartesian (Y up) OR it's correcting for something.
-            //   If I generate an SVG with Y-down coordinates (standard SVG), and the renderer flips it, it will be upside down.
-            
-            //   Let's assume the renderer expects Y-up SVGs (like standard engineering symbols).
-            //   BUT, for "Plan Import", we are generating the SVG.
-            //   If I use 'rect' with svgRaw, I am bound by that flip.
-            
-            //   Maybe I should AVOID 'rect' with svgRaw for the imported plan if possible, OR I must pre-flip my SVG path?
-            //   Or better, create a generic container that DOES NOT flip.
-            //   Existing 'rect' logic forces flip.
-            
-            //   Alternative: Create a group of polylines.
-            //   If I have curves, I can approximate them as polylines.
-            //   This avoids the SVG rendering complexity and the Y-flip issue.
-            //   And it makes them "editable" (points can be moved).
-            
-            //   Let's try to Approximate Curves to Polylines.
-            //   Bezier (C) -> series of lines.
-            
-            const flattenedPoints: Point[] = [];
-            finalSegments.forEach(s => {
-                if (s.type === 'M' || s.type === 'L') {
-                    flattenedPoints.push(...s.points);
-                } else if (s.type === 'C') {
-                    // Approximate Bezier
-                    // Start point is previous point
-                    const p0 = flattenedPoints.length > 0 ? flattenedPoints[flattenedPoints.length - 1] : {x:0, y:0};
-                    const p1 = s.points[0];
-                    const p2 = s.points[1];
-                    const p3 = s.points[2];
-                    
-                    const steps = 10;
-                    for (let t = 1; t <= steps; t++) {
-                        const T = t / steps;
-                        const u = 1 - T;
-                        const x = u*u*u*p0.x + 3*u*u*T*p1.x + 3*u*T*T*p2.x + T*T*T*p3.x;
-                        const y = u*u*u*p0.y + 3*u*u*T*p1.y + 3*u*T*T*p2.y + T*T*T*p3.y;
-                        flattenedPoints.push({x, y});
-                    }
-                }
-            });
+             if (isFill) {
+                 // Fix C: Use Rect with svgRaw for fills, ensuring Y-flip for correct rendering
+                 // Generate SVG path data with Y-flip relative to bbox
+                 let d = '';
+                 // Map: subtract minX, minY. AND flip Y relative to h.
+                 const mapX = (x: number) => x - minX;
+                 const mapY = (y: number) => h - (y - minY);
 
-             shapes.push({
-                id: generateId('pdf-complex'),
-                type: 'polyline',
-                points: flattenedPoints,
-                strokeColor: currentState.strokeColor,
-                strokeWidth: currentState.lineWidth * viewportMatrix[0],
-                strokeEnabled: true,
-                fillColor: 'transparent',
-                fillEnabled: false,
-                layerId,
-                floorId,
-                discipline: 'architecture',
-            });
-            
-            // Note: Fill is lost here. We accept this limitation for now to prioritize editability and simplicity.
-            // If fill is crucial, we might need to revisit.
-            // But "Walls" are often just parallel lines in CAD imports.
+                 finalSegments.forEach(s => {
+                    if (s.type === 'M') d += `M ${mapX(s.points[0].x)} ${mapY(s.points[0].y)} `;
+                    else if (s.type === 'L') d += `L ${mapX(s.points[0].x)} ${mapY(s.points[0].y)} `;
+                    else if (s.type === 'C') d += `C ${mapX(s.points[0].x)} ${mapY(s.points[0].y)}, ${mapX(s.points[1].x)} ${mapY(s.points[1].y)}, ${mapX(s.points[2].x)} ${mapY(s.points[2].y)} `;
+                    else if (s.type === 'Z') d += `Z `;
+                });
+                
+                // Construct SVG
+                // We use currentState colors
+                // Force min 1px if stroke is active
+                const sw = isStroke ? Math.max(currentState.lineWidth, 1) : 0;
+                const strokeAttr = isStroke ? `stroke="${currentState.strokeColor}" stroke-width="${sw}"` : 'stroke="none"';
+                
+                const svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><path d="${d}" fill="${currentState.fillColor}" ${strokeAttr} /></svg>`;
+
+                shapes.push({
+                    id: generateId('pdf-fill'),
+                    type: 'rect',
+                    x: minX,
+                    y: minY,
+                    width: w,
+                    height: h,
+                    svgRaw: svg,
+                    svgViewBox: { x: 0, y: 0, width: w, height: h },
+                    strokeColor: 'transparent', // Handled by SVG
+                    fillColor: 'transparent',
+                    layerId,
+                    floorId,
+                    discipline: 'architecture',
+                });
+             } else {
+                // Fallback for curves without fill -> Polyline approximation (Keep existing logic)
+                const flattenedPoints: Point[] = [];
+                finalSegments.forEach(s => {
+                    if (s.type === 'M' || s.type === 'L') {
+                        flattenedPoints.push(...s.points);
+                    } else if (s.type === 'C') {
+                        // Approximate Bezier
+                        const p0 = flattenedPoints.length > 0 ? flattenedPoints[flattenedPoints.length - 1] : {x:0, y:0};
+                        const p1 = s.points[0];
+                        const p2 = s.points[1];
+                        const p3 = s.points[2];
+                        
+                        const steps = 10;
+                        for (let t = 1; t <= steps; t++) {
+                            const T = t / steps;
+                            const u = 1 - T;
+                            const x = u*u*u*p0.x + 3*u*u*T*p1.x + 3*u*T*T*p2.x + T*T*T*p3.x;
+                            const y = u*u*u*p0.y + 3*u*u*T*p1.y + 3*u*T*T*p2.y + T*T*T*p3.y;
+                            flattenedPoints.push({x, y});
+                        }
+                    }
+                });
+
+                shapes.push({
+                    id: generateId('pdf-complex'),
+                    type: 'polyline',
+                    points: flattenedPoints,
+                    strokeColor: currentState.strokeColor,
+                    strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
+                    strokeEnabled: true,
+                    fillColor: 'transparent',
+                    fillEnabled: false,
+                    layerId,
+                    floorId,
+                    discipline: 'architecture',
+                });
+             }
         }
 
         // Reset path

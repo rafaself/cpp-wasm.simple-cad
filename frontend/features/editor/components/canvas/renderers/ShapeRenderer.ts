@@ -87,7 +87,7 @@ export const renderShape = (
         ctx.fillStyle = effectiveFill;
         ctx.setLineDash([]);
 
-        const baseWidth = shape.strokeWidth || 2;
+        const baseWidth = shape.strokeWidth ?? 2;
         ctx.lineWidth = baseWidth / viewTransform.scale;
         ctx.beginPath();
 

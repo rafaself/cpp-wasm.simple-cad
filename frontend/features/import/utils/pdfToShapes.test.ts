@@ -117,7 +117,8 @@ describe('convertPdfPageToShapes', () => {
     expect(line.type).toBe('line');
     // Normalized: (10,10) becomes (0,0). (100,100) becomes (90,90).
     expect(line.points).toEqual([{ x: 0, y: 0 }, { x: 90, y: 90 }]);
-    expect(line.strokeColor).toBe('rgb(255, 0, 0)');
+    // We are forcing black now
+    expect(line.strokeColor).toBe('#000000'); 
     expect(line.strokeWidth).toBe(2);
   });
 
@@ -344,7 +345,11 @@ describe('convertPdfPageToShapes', () => {
     const transformedStart = transformedShape.points[0];
 
     expect(transformedStart.x - refStart.x).toBeCloseTo(100, 3);
-    expect(transformedStart.y - refStart.y).toBeCloseTo(100, 3);
+    // Y is inverted (PDF Up vs Canvas Down).
+    // PDF (0,0) -> Canvas (0, H).
+    // PDF (100,100) -> Canvas (100, H-100).
+    // Dy = (H-100) - H = -100.
+    expect(transformedStart.y - refStart.y).toBeCloseTo(-100, 3);
   });
 
   // Fixture hook for real PDF verification
