@@ -4,6 +4,7 @@ import { useDataStore } from '../../stores/useDataStore';
 import { NormalizedViewBox, Shape } from '../../../types';
 import * as pdfjs from 'pdfjs-dist/build/pdf';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
+import { generateId } from '../../utils/uuid';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -143,7 +144,7 @@ export const usePlanImport = (): PlanImportHook => {
             throw new Error(`Unsupported file type: ${file.type}`);
           }
 
-          const newShapeId = `plan-${Date.now()}`;
+          const newShapeId = generateId('plan');
           const newShape: Shape = {
             id: newShapeId,
             layerId: dataStore.activeLayerId, // Use current active layer

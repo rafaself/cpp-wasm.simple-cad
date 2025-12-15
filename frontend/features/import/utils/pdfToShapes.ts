@@ -1,5 +1,6 @@
 import { Shape, Point, NormalizedViewBox } from '../../../types';
 import * as pdfjs from 'pdfjs-dist/build/pdf';
+import { generateId } from '../../../utils/uuid';
 
 // Basic Matrix [a, b, c, d, e, f]
 // x' = ax + cy + e
@@ -188,7 +189,7 @@ export const convertPdfPageToShapes = async (
     // 4. Generate Shapes
     mergedItems.forEach(item => {
         shapes.push({
-          id: `pdf-text-${Date.now()}-${Math.random()}`,
+          id: generateId('pdf-text'),
           type: 'text',
           x: item.x,
           y: item.y,
@@ -353,7 +354,7 @@ export const convertPdfPageToShapes = async (
         // Simple Line Detection
         if (finalSegments.length === 2 && finalSegments[0].type === 'M' && finalSegments[1].type === 'L') {
             shapes.push({
-                id: `pdf-line-${Date.now()}-${Math.random()}`,
+                id: generateId('pdf-line'),
                 type: 'line',
                 points: [finalSegments[0].points[0], finalSegments[1].points[0]],
                 strokeColor: currentState.strokeColor,
@@ -407,7 +408,7 @@ export const convertPdfPageToShapes = async (
             } else if (!isFill && isStroke) {
                 // Just stroke -> Polyline
                 shapes.push({
-                    id: `pdf-poly-${Date.now()}-${Math.random()}`,
+                    id: generateId('pdf-poly'),
                     type: 'polyline',
                     points: points,
                     strokeColor: currentState.strokeColor,
@@ -517,7 +518,7 @@ export const convertPdfPageToShapes = async (
             });
 
              shapes.push({
-                id: `pdf-complex-${Date.now()}-${Math.random()}`,
+                id: generateId('pdf-complex'),
                 type: 'polyline',
                 points: flattenedPoints,
                 strokeColor: currentState.strokeColor,
