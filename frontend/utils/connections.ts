@@ -1,5 +1,6 @@
 import { ConnectionNode, Point, Shape } from '../types';
 import { getShapeBoundingBox } from './geometry';
+import { generateId } from './uuid';
 
 const isConduitShape = (shape: Shape) => shape.type === 'eletroduto' || shape.type === 'conduit';
 
@@ -44,7 +45,7 @@ export const resolveConduitEndpoints = (
 
 export type IdFactory = () => string;
 
-const defaultIdFactory: IdFactory = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const defaultIdFactory: IdFactory = () => generateId();
 
 const ensureAnchoredNode = (
   nodes: Record<string, ConnectionNode>,

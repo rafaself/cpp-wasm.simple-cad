@@ -17,6 +17,7 @@ import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../lib
 import { isConduitShape, isConduitTool } from '../utils/tools';
 import { resolveConnectionNodePosition } from '../../../utils/connections';
 import { isShapeInteractable, isShapeSnappable } from '../../../utils/visibility';
+import { generateId } from '../../../utils/uuid';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -411,7 +412,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const currentDataStore = useDataStore.getState();
             const currentUIStore = useUIStore.getState();
             currentDataStore.addShape({
-                id: Date.now().toString(),
+                id: generateId(),
                 layerId: currentDataStore.activeLayerId,
                 type: 'polyline',
                 strokeColor,
@@ -696,7 +697,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(lineStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint], floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint], floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 ui.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
@@ -709,7 +710,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(arrowStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 ui.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
@@ -718,7 +719,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (!measureStart) setMeasureStart(wPos);
             else {
                 const dist = getDistance(measureStart, wPos).toFixed(1);
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist} cm`, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist} cm`, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 setMeasureStart(null);
             }
             return;
@@ -1171,7 +1172,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 });
                 const width = librarySymbol.viewBox.width * librarySymbol.scale;
                 const height = librarySymbol.viewBox.height * librarySymbol.scale;
-                const shapeId = Date.now().toString();
+                const shapeId = generateId();
                 const n: Shape = {
                     id: shapeId,
                     layerId: targetLayerId,
@@ -1247,7 +1248,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             }
 
             const n: Shape = { 
-                id: Date.now().toString(), 
+                id: generateId(),
                 layerId: data.activeLayerId, 
                 type: ui.activeTool, 
                 strokeColor, 
