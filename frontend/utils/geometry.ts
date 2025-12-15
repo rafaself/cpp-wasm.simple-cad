@@ -1,5 +1,6 @@
 import { Layer, Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
 import { HIT_TOLERANCE, TEXT_PADDING } from '../config/constants';
+export { TEXT_PADDING };
 import { getEffectiveFillColor } from './shapeColors';
 
 // ... (Keeping imports and helper functions like getDistance, rotatePoint, screenToWorld, worldToScreen same)
