@@ -24,6 +24,20 @@ const applyStrokeColorToSvg = (svg: string, strokeColor: string): string => {
     return `${updated.slice(0, closeIndex + 1)}${styleTag}${updated.slice(closeIndex + 1)}`;
 };
 
+const applyLayerVisibility = (svg: string, hiddenIds: string[] = []): string => {
+    if (!hiddenIds.length) return svg;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svg, 'image/svg+xml');
+    hiddenIds.forEach(id => {
+        const node = doc.getElementById(id);
+        if (node) {
+            node.setAttribute('display', 'none');
+        }
+    });
+    return new XMLSerializer().serializeToString(doc);
+};
+
 const getSvgImage = (svg: string, cacheKey?: string): HTMLImageElement | null => {
     const key = cacheKey ?? svg;
     if (svgImageCache[key]) {
@@ -57,7 +71,8 @@ export const renderShape = (
     ctx: CanvasRenderingContext2D,
     shape: Shape,
     viewTransform: ViewTransform,
-    layer?: Layer
+    layer?: Layer,
+    activeDiscipline?: 'architecture' | 'electrical'
 ) => {
     // Safety checks for rendering - skip shapes without valid position
     // But allow polygon/circle which use x,y as center
@@ -76,6 +91,10 @@ export const renderShape = (
 
         const strokeColor = getEffectiveStrokeColor(shape, layer);
         const fillColor = getEffectiveFillColor(shape, layer);
+
+        if (activeDiscipline === 'electrical' && shape.discipline === 'architecture') {
+            ctx.globalAlpha = 0.55;
+        }
         
         // Use the new effective enabled functions that consider layer inheritance
         const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
@@ -224,10 +243,12 @@ export const renderShape = (
                 ctx.stroke();
             }
 
-            if (shape.svgRaw && shape.svgViewBox) {
+            if ((shape.svgRaw || shape.svgOriginalRaw) && shape.svgViewBox) {
                 const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';
-                const tintedSvg = applyStrokeColorToSvg(shape.svgRaw, symbolColor);
-                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}`;
+                const sourceSvg = shape.svgOriginalRaw ?? shape.svgRaw ?? '';
+                const layeredSvg = applyLayerVisibility(sourceSvg, shape.svgHiddenLayers ?? []);
+                const tintedSvg = applyStrokeColorToSvg(layeredSvg, symbolColor);
+                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}-${(shape.svgHiddenLayers ?? []).join(',')}`;
                 const img = getSvgImage(tintedSvg, cacheKey);
                 if (img) {
                     ctx.save();
