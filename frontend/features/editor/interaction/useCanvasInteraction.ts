@@ -18,6 +18,7 @@ import { isConduitShape, isConduitTool } from '../utils/tools';
 import { resolveConnectionNodePosition } from '../../../utils/connections';
 import { isShapeInteractable, isShapeSnappable } from '../../../utils/visibility';
 import { generateId } from '../../../utils/uuid';
+import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HANDLE_HIT_RADIUS, ROTATE_ZONE_OFFSET } from '../../../config/constants';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -46,8 +47,6 @@ const getEdgeAnchor = (bounds: Rect, orientation: { x: -1 | 0 | 1; y: -1 | 0 | 1
     if (orientation.x === -1 && orientation.y === 1) return { x: bounds.x + bounds.width, y: bounds.y }; // TR
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 };
-
-const CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX = 18;
 
 type DataState = ReturnType<typeof useDataStore.getState>;
 
@@ -315,8 +314,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
 
         if (selection.length === 0) return defaultInteraction;
 
-        const handleHit = 10 / viewScale;
-        const rotateBand = 18 / viewScale;
+        const handleHit = HANDLE_HIT_RADIUS / viewScale;
+        const rotateBand = ROTATE_ZONE_OFFSET / viewScale;
 
         // Handles (corners only)
         for (const shape of selection) {

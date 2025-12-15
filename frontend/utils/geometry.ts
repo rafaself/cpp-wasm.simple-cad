@@ -1,4 +1,5 @@
 import { Layer, Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
+import { HIT_TOLERANCE, TEXT_PADDING } from '../config/constants';
 import { getEffectiveFillColor } from './shapeColors';
 
 // ... (Keeping imports and helper functions like getDistance, rotatePoint, screenToWorld, worldToScreen same)
@@ -68,7 +69,8 @@ export const constrainToSquare = (start: Point, end: Point): Point => {
   };
 };
 
-export const TEXT_PADDING = 4;
+// Exported from constants now
+// export const TEXT_PADDING = 4;
 
 export const getWrappedLines = (text: string, maxWidth: number, fontSize: number): string[] => {
   if (!text) return [''];
@@ -206,7 +208,7 @@ const getConduitPathPoints = (shape: Shape): Point[] => {
 };
 
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
-  const hitToleranceScreen = 10; 
+  const hitToleranceScreen = HIT_TOLERANCE;
   const threshold = hitToleranceScreen / scale; 
   const rotation = shape.rotation || 0;
   const shouldUnrotate = rotation !== 0 && (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon');

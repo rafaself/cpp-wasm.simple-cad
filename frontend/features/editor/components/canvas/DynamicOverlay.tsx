@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
@@ -17,6 +18,7 @@ import { getElectricalLayerConfig } from '../../../library/electricalProperties'
 import CalibrationModal from '../../components/CalibrationModal';
 import { isShapeInteractable } from '../../../../utils/visibility';
 import { generateId } from '../../../../utils/uuid';
+import { CONNECTION_POINT_THRESHOLD } from '../../../../config/constants';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -44,7 +46,13 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const activeFloorId = useUIStore(s => s.activeFloorId);
 
   // Data store dependencies
-  const shapes = useDataStore(s => s.shapes);
+  // Optimization: Do NOT subscribe to all shapes. Only subscribe to selected ones for highlighting.
+  // We use useShallow to prevent re-renders if the selected shapes themselves haven't changed deep properties
+  // (though in this app, shapes are immutable replacements, so reference equality check on the array is enough if map returns new objects?
+  // actually useShallow compares the ARRAY content).
+  const selectedShapes = useDataStore(useShallow(s =>
+    Array.from(selectedShapeIds).map(id => s.shapes[id]).filter(Boolean)
+  ));
   const activeLayerId = useDataStore(s => s.activeLayerId);
   const layers = useDataStore(s => s.layers);
 
@@ -187,7 +195,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     // Highlight connection points for electrical symbols when drawing lines/polylines/eletrodutos
     if (['line', 'polyline', 'arrow', 'eletroduto', 'conduit'].includes(uiStore.activeTool) && currentPoint) {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
-        const threshold = 20 / uiStore.viewTransform.scale;
+        const threshold = CONNECTION_POINT_THRESHOLD / uiStore.viewTransform.scale;
         
         Object.values(dataStore.shapes).forEach(shape => {
             if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
@@ -363,7 +371,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       viewTransform, activeTool, selectedShapeIds, activeElectricalSymbolId,
       electricalRotation, electricalFlipX, electricalFlipY,
       activeDiscipline, activeFloorId,
-      shapes, activeLayerId, layers, // Data
+      activeLayerId, layers, selectedShapes, // Data (Replaced shapes with selectedShapes)
       toolDefaults, // Settings
       electricalSymbols // Library
   ]);
