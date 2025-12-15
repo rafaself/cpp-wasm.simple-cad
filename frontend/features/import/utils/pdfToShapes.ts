@@ -12,12 +12,12 @@ const multiplyMatrix = (m1: Matrix, m2: Matrix): Matrix => {
   const [a1, b1, c1, d1, e1, f1] = m1;
   const [a2, b2, c2, d2, e2, f2] = m2;
   return [
-    a1 * a2 + c1 * b2,
-    b1 * a2 + d1 * b2,
-    a1 * c2 + c1 * d2,
-    b1 * c2 + d1 * d2,
-    a1 * e2 + c1 * f2 + e1,
-    b1 * e2 + d1 * f2 + f1,
+    a1 * a2 + b1 * c2,
+    a1 * b2 + b1 * d2,
+    c1 * a2 + d1 * c2,
+    c1 * b2 + d1 * d2,
+    e1 * a2 + f1 * c2 + e2,
+    e1 * b2 + f1 * d2 + f2,
   ];
 };
 
@@ -95,56 +95,107 @@ export const convertPdfPageToShapes = async (
   // Process Text Content
   try {
     const textContent = await page.getTextContent();
+    const textItems: any[] = [];
+
+    // 1. Map and collect items
     for (const item of textContent.items) {
       if ('str' in item) {
-        // item.transform is [scaleX, skewY, skewX, scaleY, tx, ty]
-        // It maps Text Space -> User Space.
-        // We then need to map User Space -> Canvas Space using viewportMatrix (CTM).
-        
-        // The text position (tx, ty) in PDF is usually bottom-left of the text.
-        // Our canvas text (ShapeRenderer) uses top-left by default, BUT:
-        // ShapeRenderer does: ctx.scale(1, -1); ctx.fillText(...)
-        // This implies it expects Y-up coordinates locally?
-        // Let's check ShapeRenderer text section:
-        // ctx.translate(sx, sy); ctx.scale(1, -1);
-        // This flips the Y axis at the text position.
-        // If we provide the PDF (User Space) coordinate transformed to Canvas Space,
-        // we need to see how Canvas Space is defined.
-        // PDF Viewport (pdf.js) usually transforms PDF (Y-up) to Canvas (Y-down).
-        
-        // Let's calculate the position in Canvas Space.
+        // Skip empty text or just whitespace if desired, but sometimes whitespace is important for spacing.
+        // If it's just a space, it might be the gap between words.
+        if (item.str.trim().length === 0 && item.width === 0) continue;
+
         const tx = item.transform[4];
         const ty = item.transform[5];
         
-        // Apply Viewport Matrix to (tx, ty)
+        // Calculate raw position in Canvas Space
         const p = applyMatrix({ x: tx, y: ty }, viewportMatrix);
         
-        // Estimate Font Size
-        // item.transform[0] is roughly scaleX (font size if unscaled)
-        // item.transform[3] is roughly scaleY
-        // Viewport scale also affects it.
-        // height in Canvas Space approx = item.height * viewport.scale? 
-        // Or transform[3] * viewportMatrix[3]?
-        // item.height is the bounding box height.
-        // transform[0] is often the font size in text space.
+        // Calculate approximate font size and width in Canvas Space
+        // item.width is typically in User Space (already scaled by font size in PDF).
+        // We only need to apply the Viewport scaling.
+        const viewportScale = Math.sqrt(viewportMatrix[0] * viewportMatrix[0] + viewportMatrix[1] * viewportMatrix[1]);
+        const width = item.width * viewportScale;
         
-        const fontSize = Math.abs(item.transform[3] * viewportMatrix[3]); // Approx
+        // Font size approx
+        const fontSize = Math.abs(item.transform[3] * viewportMatrix[3]);
+
+        textItems.push({
+          str: item.str,
+          x: p.x,
+          y: p.y,
+          width: width,
+          fontSize: fontSize,
+          // Store original transform components if needed for precise merging
+          origY: ty 
+        });
+      }
+    }
+
+    // 2. Sort items
+    // Sort by Y (descending or ascending? PDF Y is usually up, but we mapped to Canvas Y).
+    // Let's rely on our mapped 'y'.
+    // We want to group by "Line".
+    textItems.sort((a, b) => {
+        // Tolerance for Y comparison
+        if (Math.abs(a.y - b.y) > 2) { 
+            return a.y - b.y; 
+        }
+        return a.x - b.x;
+    });
+
+    // 3. Merge items
+    const mergedItems: any[] = [];
+    if (textItems.length > 0) {
+        let current = textItems[0];
         
+        for (let k = 1; k < textItems.length; k++) {
+            const next = textItems[k];
+            
+            // Check if on same line (Y close)
+            const sameLine = Math.abs(current.y - next.y) < 2; // 2px tolerance
+            
+            // Check if adjacent (Next X approx Current X + Current Width)
+            // Add a small tolerance for spacing (e.g., space character might be missing or width is approximate)
+            const expectedNextX = current.x + current.width;
+            const gap = next.x - expectedNextX;
+            const isAdjacent = gap > -5 && gap < current.fontSize; // Allow small overlap or gap up to 1em
+            
+            // Check properties
+            const sameSize = Math.abs(current.fontSize - next.fontSize) < 1;
+
+            if (sameLine && isAdjacent && sameSize) {
+                // Merge
+                // If there is a significant gap, insert a space?
+                // PDF text fragments often omit the space and rely on positioning.
+                // If the gap is roughly a space width (e.g. fontSize * 0.2), add a space.
+                let separator = '';
+                if (gap > current.fontSize * 0.2) {
+                    separator = ' ';
+                }
+
+                current.str += separator + next.str;
+                current.width += gap + next.width;
+                // Keep current x, y, fontSize
+            } else {
+                // Push current and start new
+                mergedItems.push(current);
+                current = next;
+            }
+        }
+        mergedItems.push(current);
+    }
+
+    // 4. Generate Shapes
+    mergedItems.forEach(item => {
         shapes.push({
           id: `pdf-text-${Date.now()}-${Math.random()}`,
           type: 'text',
-          x: p.x,
-          y: p.y, // PDF text is bottom-origin usually. Canvas text logic might need adjustment.
-          // ShapeRenderer uses ctx.textBaseline = 'top' BUT flips Y?
-          // ShapeRenderer: ctx.scale(1, -1); ... ctx.textBaseline = 'top';
-          // If we flip Y, 'top' becomes 'bottom' visually in standard coords?
-          // Let's assume for now we pass the point as is, and might need to shift by height if it looks off.
-          // PDF 'ty' is baseline. 
-          
+          x: item.x,
+          y: item.y,
           textContent: item.str,
-          fontSize: fontSize || 12,
-          fontFamily: 'sans-serif', // We can't easily extract font family name without font table
-          strokeColor: '#000000', // Default color, hard to extract per-item color easily without state tracking
+          fontSize: item.fontSize || 12,
+          fontFamily: 'sans-serif',
+          strokeColor: '#000000',
           strokeWidth: 1,
           strokeEnabled: true,
           fillColor: 'transparent',
@@ -152,12 +203,9 @@ export const convertPdfPageToShapes = async (
           layerId,
           floorId,
           discipline: 'architecture',
-          // Rotation?
-          // item.transform might have rotation. 
-          // We can extract rotation from matrix if needed.
         });
-      }
-    }
+    });
+
   } catch (e) {
     console.warn("Error extracting text content", e);
   }
@@ -187,8 +235,9 @@ export const convertPdfPageToShapes = async (
 
       case OPS.transform: // cm
         const [a, b, c, d, e, f] = args;
-        // New CTM = Old CTM * New Matrix
-        currentState.ctm = multiplyMatrix([a, b, c, d, e, f], currentState.ctm);
+        // Apply new transform to the Current Transformation Matrix
+        // CTM_new = CTM_old * M_new (Post-multiplication matches HTML Canvas / standard accumulation)
+        currentState.ctm = multiplyMatrix(currentState.ctm, [a, b, c, d, e, f]);
         break;
 
       case OPS.setLineWidth: // w
@@ -491,6 +540,36 @@ export const convertPdfPageToShapes = async (
         pathSegments = [];
         break;
     }
+  }
+
+  // Normalize coordinates
+  // Find the top-left most point of the imported content and shift everything to (0,0)
+  if (shapes.length > 0) {
+      let minX = Infinity;
+      let minY = Infinity;
+
+      shapes.forEach(s => {
+          if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto' || s.type === 'conduit') {
+              s.points?.forEach(p => {
+                  if (p.x < minX) minX = p.x;
+                  if (p.y < minY) minY = p.y;
+              });
+          } else if (s.x !== undefined && s.y !== undefined) {
+               if (s.x < minX) minX = s.x;
+               if (s.y < minY) minY = s.y;
+          }
+      });
+
+      if (minX !== Infinity && minY !== Infinity) {
+          shapes.forEach(s => {
+              if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto' || s.type === 'conduit') {
+                  s.points = s.points?.map(p => ({ x: p.x - minX, y: p.y - minY }));
+              } else {
+                  if (s.x !== undefined) s.x -= minX;
+                  if (s.y !== undefined) s.y -= minY;
+              }
+          });
+      }
   }
 
   return shapes;
