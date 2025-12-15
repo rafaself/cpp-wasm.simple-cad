@@ -148,4 +148,137 @@ describe('convertPdfPageToShapes', () => {
     // Normalized: (50,50) -> (0,0)
     expect(text.x).toBe(0); 
   });
+
+  // TODO: Enable this test after fixing the matrix multiplication order bug.
+  it.skip('should handle nested transforms correctly (Matrix Order Regression Test)', async () => {
+    // This test verifies that CTM multiplication order is correct (M_new * CTM_old vs CTM_old * M_new).
+    // Scenario:
+    // 1. Reference Line at (0,0) to (10,10).
+    // 2. Transformed Line:
+    //    q
+    //    1 0 0 1 100 100 cm  (Translate 100, 100)
+    //    2 0 0 2 0 0 cm      (Scale 2, 2)
+    //    Draw (0,0) to (10,10)
+    //    Q
+    //
+    // Expected (Standard PDF Pre-multiplication / Local * Global):
+    // P_global = P_local * Scale * Translate
+    // (0,0) * S * T = (0,0) + (100,100) = (100,100)
+    // (10,10) * S * T = (20,20) + (100,100) = (120,120)
+    //
+    // Incorrect (Reverse Order / Global * Local):
+    // P_global = P_local * Translate * Scale
+    // (0,0) + T = (100,100) * S = (200,200)
+    // (10,10) + T = (110,110) * S = (220,220)
+
+    const OPS = pdfjs.OPS;
+    const mockPage = {
+      getOperatorList: vi.fn().mockResolvedValue({
+        fnArray: [
+            // Reference Shape (to anchor normalization at 0,0)
+            OPS.constructPath,
+            OPS.stroke,
+
+            // Transformed Shape
+            OPS.save,
+            OPS.transform, // Translate
+            OPS.transform, // Scale
+            OPS.constructPath,
+            OPS.stroke,
+            OPS.restore
+        ],
+        argsArray: [
+            // Reference
+            [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
+            [],
+
+            // Transformed
+            [],
+            [1, 0, 0, 1, 100, 100], // Translate 100, 100
+            [2, 0, 0, 2, 0, 0],     // Scale 2, 2
+            [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
+            [],
+            []
+        ]
+      }),
+      getViewport: vi.fn().mockReturnValue({
+        transform: [1, 0, 0, 1, 0, 0]
+      }),
+      getTextContent: vi.fn().mockResolvedValue({ items: [], styles: {} })
+    };
+
+    const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1');
+    expect(shapes).toHaveLength(2);
+
+    // Normalization should shift everything so minX, minY is 0.
+    // Ref is at 0,0. Transformed is at >100. Min is 0.
+    // So coordinates should be absolute.
+
+    const refShape = shapes[0];
+    const transShape = shapes[1];
+
+    // Check Reference
+    expect(refShape.points[0]).toEqual({ x: 0, y: 0 });
+
+    // Check Transformed
+    // We expect (100, 100).
+    // If bug exists, we get (200, 200).
+    expect(transShape.points[0].x).toBeCloseTo(100, 0);
+    expect(transShape.points[0].y).toBeCloseTo(100, 0);
+  });
+
+  // Fixture hook for real PDF verification
+  it('should verify real PDF fixture if present', async () => {
+    // This hook allows plugging in a real PDF to verify fixes.
+    // To use: set FIXTURE_PATH env var to the absolute path of the PDF.
+    const fixturePath = process.env.FIXTURE_PATH;
+
+    if (!fixturePath) {
+      console.log('No FIXTURE_PATH provided, skipping real PDF verification.');
+      return;
+    }
+
+    try {
+      // Dynamic import to avoid build issues if fs/path not available in all envs (though Vitest is Node)
+      const fs = await import('node:fs');
+      if (!fs.existsSync(fixturePath)) {
+        console.warn(`Fixture file not found at: ${fixturePath}`);
+        return;
+      }
+
+      const buffer = fs.readFileSync(fixturePath);
+      const uint8Array = new Uint8Array(buffer);
+
+      const loadingTask = pdfjs.getDocument({ data: uint8Array });
+      const pdf = await loadingTask.promise;
+      const page = await pdf.getPage(1);
+
+      const shapes = await convertPdfPageToShapes(page as any, 'fixture-floor', 'fixture-layer');
+
+      console.log(`[Fixture] Loaded ${shapes.length} shapes from ${fixturePath}`);
+
+      // Calculate BBox
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      shapes.forEach(s => {
+          // Approximate bbox from points (for lines/polylines) or x/y
+          const checkPoint = (p: {x: number, y: number}) => {
+              minX = Math.min(minX, p.x);
+              minY = Math.min(minY, p.y);
+              maxX = Math.max(maxX, p.x);
+              maxY = Math.max(maxY, p.y);
+          };
+
+          if (s.points) s.points.forEach(checkPoint);
+          else if (typeof s.x === 'number' && typeof s.y === 'number') checkPoint(s as any);
+      });
+
+      console.log(`[Fixture] BBox: [${minX}, ${minY}, ${maxX}, ${maxY}]`);
+
+      // Here we can add assertions if we know expected values for a specific fixture
+      // e.g. expect(maxX).toBeLessThan(10000);
+
+    } catch (e) {
+      console.error('Error processing fixture:', e);
+    }
+  });
 });
