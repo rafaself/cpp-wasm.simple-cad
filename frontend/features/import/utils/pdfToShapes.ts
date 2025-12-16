@@ -408,44 +408,69 @@ export const convertPdfPageToShapes = async (
         } 
         // Polyline / Rect Detection
         else if (finalSegments.every(s => s.type === 'M' || s.type === 'L' || s.type === 'Z')) {
-            // Extract all points
-            const points: Point[] = [];
+            // Split into subpaths based on MoveTo commands
+            // Each MoveTo starts a new subpath (except the first one)
+            const subpaths: Point[][] = [];
+            let currentSubpath: Point[] = [];
+            
             finalSegments.forEach(s => {
-                if (s.points.length > 0) points.push(s.points[0]);
+                if (s.type === 'M') {
+                    // If we have an existing subpath with points, save it and start a new one
+                    if (currentSubpath.length > 0) {
+                        subpaths.push(currentSubpath);
+                        currentSubpath = [];
+                    }
+                    if (s.points.length > 0) {
+                        currentSubpath.push(s.points[0]);
+                    }
+                } else if (s.type === 'L' && s.points.length > 0) {
+                    currentSubpath.push(s.points[0]);
+                } else if (s.type === 'Z' && currentSubpath.length > 0) {
+                    // Close the subpath by connecting back to first point
+                    const first = currentSubpath[0];
+                    const last = currentSubpath[currentSubpath.length - 1];
+                    const dist = Math.sqrt(Math.pow(first.x - last.x, 2) + Math.pow(first.y - last.y, 2));
+                    if (dist > 0.001) {
+                        currentSubpath.push({ ...first });
+                    }
+                }
             });
-
-            // If path is closed, ensure the last point connects back to the first
-            if (isClosed && points.length > 0) {
-                 const first = points[0];
-                 const last = points[points.length - 1];
-                 const dist = Math.sqrt(Math.pow(first.x - last.x, 2) + Math.pow(first.y - last.y, 2));
-                 if (dist > 0.001) { // Tolerance for float comparison
-                     points.push({ ...first });
-                 }
+            
+            // Don't forget the last subpath
+            if (currentSubpath.length > 0) {
+                subpaths.push(currentSubpath);
             }
 
-            if (isFill) {
-                 // Filled shape -> Use SVG/Rect (Fix C)
-                 createSvgShape();
-            } else if (isStroke) {
-                // Just stroke -> Polyline
-                shapes.push({
-                    id: generateId('pdf-poly'),
-                    type: 'polyline',
-                    points: points,
-                    strokeColor: currentState.strokeColor,
-                    strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
-                    strokeEnabled: true,
-                    fillColor: 'transparent',
-                    fillEnabled: false,
-                    layerId,
-                    floorId,
-                    discipline: 'architecture',
-                });
-            } else {
-                 // Fill and Stroke -> SVG
-                 createSvgShape();
-            }
+            // Create shapes for each subpath
+            subpaths.forEach(points => {
+                // Skip degenerate subpaths (less than 2 points means no visible line)
+                if (points.length < 2) return;
+
+                if (isFill) {
+                     // Filled shape -> Use SVG/Rect
+                     // For fills, we need to create SVG with all subpaths
+                     // But for simplicity, create individual shapes per subpath
+                     createSvgShapeFromPoints(points);
+                } else if (isStroke) {
+                    // Just stroke -> Polyline
+                    shapes.push({
+                        id: generateId('pdf-poly'),
+                        type: 'polyline',
+                        points: points,
+                        strokeColor: currentState.strokeColor,
+                        strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
+                        strokeEnabled: true,
+                        fillColor: 'transparent',
+                        fillEnabled: false,
+                        layerId,
+                        floorId,
+                        discipline: 'architecture',
+                    });
+                } else {
+                     // Fill and Stroke -> SVG
+                     createSvgShapeFromPoints(points);
+                }
+            });
         } else {
             // Curves -> SVG
             createSvgShape();
@@ -506,14 +531,26 @@ export const convertPdfPageToShapes = async (
                     discipline: 'architecture',
                 });
              } else {
-                // Fallback for curves without fill -> Polyline approximation (Keep existing logic)
-                const flattenedPoints: Point[] = [];
+                // Fallback for curves without fill -> Polyline approximation
+                // Split into subpaths to avoid phantom lines
+                const subpaths: Point[][] = [];
+                let currentSubpath: Point[] = [];
+                
                 finalSegments.forEach(s => {
-                    if (s.type === 'M' || s.type === 'L') {
-                        flattenedPoints.push(...s.points);
+                    if (s.type === 'M') {
+                        // MoveTo starts a new subpath
+                        if (currentSubpath.length > 0) {
+                            subpaths.push(currentSubpath);
+                            currentSubpath = [];
+                        }
+                        if (s.points.length > 0) {
+                            currentSubpath.push(s.points[0]);
+                        }
+                    } else if (s.type === 'L' && s.points.length > 0) {
+                        currentSubpath.push(s.points[0]);
                     } else if (s.type === 'C') {
-                        // Approximate Bezier
-                        const p0 = flattenedPoints.length > 0 ? flattenedPoints[flattenedPoints.length - 1] : {x:0, y:0};
+                        // Approximate Bezier curve
+                        const p0 = currentSubpath.length > 0 ? currentSubpath[currentSubpath.length - 1] : {x:0, y:0};
                         const p1 = s.points[0];
                         const p2 = s.points[1];
                         const p3 = s.points[2];
@@ -524,25 +561,92 @@ export const convertPdfPageToShapes = async (
                             const u = 1 - T;
                             const x = u*u*u*p0.x + 3*u*u*T*p1.x + 3*u*T*T*p2.x + T*T*T*p3.x;
                             const y = u*u*u*p0.y + 3*u*u*T*p1.y + 3*u*T*T*p2.y + T*T*T*p3.y;
-                            flattenedPoints.push({x, y});
+                            currentSubpath.push({x, y});
+                        }
+                    } else if (s.type === 'Z' && currentSubpath.length > 0) {
+                        // Close the subpath
+                        const first = currentSubpath[0];
+                        const last = currentSubpath[currentSubpath.length - 1];
+                        const dist = Math.sqrt(Math.pow(first.x - last.x, 2) + Math.pow(first.y - last.y, 2));
+                        if (dist > 0.001) {
+                            currentSubpath.push({ ...first });
                         }
                     }
                 });
-
-                shapes.push({
-                    id: generateId('pdf-complex'),
-                    type: 'polyline',
-                    points: flattenedPoints,
-                    strokeColor: currentState.strokeColor,
-                    strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
-                    strokeEnabled: true,
-                    fillColor: 'transparent',
-                    fillEnabled: false,
-                    layerId,
-                    floorId,
-                    discipline: 'architecture',
+                
+                // Don't forget the last subpath
+                if (currentSubpath.length > 0) {
+                    subpaths.push(currentSubpath);
+                }
+                
+                // Create a polyline for each subpath
+                subpaths.forEach(flattenedPoints => {
+                    if (flattenedPoints.length < 2) return;
+                    
+                    shapes.push({
+                        id: generateId('pdf-complex'),
+                        type: 'polyline',
+                        points: flattenedPoints,
+                        strokeColor: currentState.strokeColor,
+                        strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1),
+                        strokeEnabled: true,
+                        fillColor: 'transparent',
+                        fillEnabled: false,
+                        layerId,
+                        floorId,
+                        discipline: 'architecture',
+                    });
                 });
              }
+        }
+
+        // Create SVG shape from a specific set of points (for subpaths)
+        function createSvgShapeFromPoints(pts: Point[]) {
+            if (pts.length < 2) return;
+            
+            // Calculate bounding box
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            pts.forEach(p => {
+                minX = Math.min(minX, p.x);
+                minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            });
+            
+            if (minX === Infinity) { minX = 0; minY = 0; maxX = 100; maxY = 100; }
+            
+            const w = maxX - minX || 1;
+            const h = maxY - minY || 1;
+            
+            // Build SVG path
+            const mapX = (x: number) => x - minX;
+            const mapY = (y: number) => y - minY;
+            
+            let d = `M ${mapX(pts[0].x)} ${mapY(pts[0].y)} `;
+            for (let i = 1; i < pts.length; i++) {
+                d += `L ${mapX(pts[i].x)} ${mapY(pts[i].y)} `;
+            }
+            
+            const sw = isStroke ? Math.max(currentState.lineWidth, 1) : 0;
+            const strokeAttr = isStroke ? `stroke="${currentState.strokeColor}" stroke-width="${sw}"` : 'stroke="none"';
+            
+            const svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><path d="${d}" fill="${currentState.fillColor}" ${strokeAttr} /></svg>`;
+
+            shapes.push({
+                id: generateId('pdf-fill'),
+                type: 'rect',
+                x: minX,
+                y: minY,
+                width: w,
+                height: h,
+                svgRaw: svg,
+                svgViewBox: { x: 0, y: 0, width: w, height: h },
+                strokeColor: 'transparent',
+                fillColor: 'transparent',
+                layerId,
+                floorId,
+                discipline: 'architecture',
+            });
         }
 
         // Reset path
