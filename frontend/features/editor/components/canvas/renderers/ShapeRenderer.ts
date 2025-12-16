@@ -382,7 +382,11 @@ export const renderShape = (
             const textColor = strokeColor;
             const bgColor = fillColor && fillColor !== 'transparent' ? fillColor : null;
 
-            const pad = TEXT_PADDING / viewTransform.scale;
+            // Only apply padding when text has explicit width (container mode)
+            const hasExplicitWidth = shape.width !== undefined;
+            const pad = hasExplicitWidth ? TEXT_PADDING / viewTransform.scale : 0;
+            
+            // Calculate available width for text wrapping
             const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
             const availableWidth = Math.max(containerWidth, fontSize * 0.6);
             const lineHeight = fontSize * 1.2;
