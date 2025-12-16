@@ -42,7 +42,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   if (data.blocks) {
       // We don't multiply by inserts here, just total definitions
       // Real check should be during recursion, but this is a sanity check
-      Object.values(data.blocks).forEach(b => entityCount += b.entities.length);
+      Object.values(data.blocks).forEach(b => entityCount += (b.entities?.length || 0));
   }
   if (entityCount > ENTITY_LIMIT) {
       throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades. Por favor, simplifique o desenho.`);

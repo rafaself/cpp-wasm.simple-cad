@@ -161,6 +161,7 @@ export const usePlanImport = (): PlanImportHook => {
             type: 'rect',
             x: 0,
             y: 0,
+            points: [],
             width: originalWidth,
             height: originalHeight,
             strokeColor: 'transparent',

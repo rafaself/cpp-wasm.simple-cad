@@ -82,3 +82,18 @@ describe('convertDxfToShapes', () => {
       expect(() => convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' })).toThrow(/limit/);
   });
 });
+
+  it('handles blocks without entities safely', () => {
+      const data: DxfData = {
+          entities: [],
+          blocks: {
+              'EmptyBlock': {
+                  name: 'EmptyBlock',
+                  position: { x: 0, y: 0 },
+                  entities: undefined as any // Simulate missing entities
+              }
+          }
+      };
+
+      expect(() => convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' })).not.toThrow();
+  });
