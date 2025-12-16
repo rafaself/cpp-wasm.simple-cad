@@ -8,6 +8,7 @@ EndeavourCanvas is a modern, web-based CAD application specialized for residenti
 *   **Electrical Domain:** Dedicated tools and symbols for low-power electrical projects (residential).
 *   **Smart Snapping:** Intelligent snapping to grid, object vertices, midpoints, and connection points.
 *   **Layer Management:** Advanced layer system with "ByLayer" properties, locking, and visibility controls, inspired by AutoCAD and Figma.
+*   **File Support:** Import DXF (ASCII) and PDF files for reference or editing.
 *   **Interactive UI:** Modern, dark-themed interface with command-line support and ribbon navigation.
 *   **Localization:** The User Interface is designed for Portuguese (pt-BR) users.
 
@@ -20,6 +21,7 @@ EndeavourCanvas is a modern, web-based CAD application specialized for residenti
 *   **State Management:** Zustand (Split stores: Data, UI, Settings, Library)
 *   **Styling:** Tailwind CSS (via CDN)
 *   **Icons:** Lucide React
+*   **File Handling:** dxf-parser, pdfjs-dist
 
 ### Backend
 *   **Framework:** FastAPI
@@ -35,11 +37,10 @@ EndeavourCanvas is a modern, web-based CAD application specialized for residenti
 │   ├── app/            # Application logic and domain modules
 │   └── tests/          # Backend tests
 ├── frontend/           # React application
-│   ├── src/
-│   │   ├── features/   # Feature-based modules (editor, diagram, library)
-│   │   ├── stores/     # Zustand state stores
-│   │   ├── components/ # Shared UI components
-│   │   └── utils/      # Geometry and helper functions
+│   ├── features/       # Feature-based modules (editor, diagram, library, import, settings)
+│   ├── stores/         # Zustand state stores
+│   ├── components/     # Shared UI components
+│   ├── utils/          # Geometry and helper functions
 │   └── ...
 └── ...
 ```
@@ -91,13 +92,7 @@ EndeavourCanvas is a modern, web-based CAD application specialized for residenti
     pnpm install
     ```
 
-3.  **Configuration:**
-    Create a `.env` file in the `frontend` directory with your API keys (if applicable):
-    ```env
-    GEMINI_API_KEY=your_api_key_here
-    ```
-
-4.  Run the development server:
+3.  Run the development server:
     ```bash
     pnpm dev
     ```
