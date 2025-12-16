@@ -463,7 +463,20 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
     else { return null; }
 
     if (minX === Infinity) return null;
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    
+    // Ensure minimum bounds size for line-based shapes to prevent spatial query issues
+    // Horizontal lines have height=0, vertical lines have width=0, which can cause
+    // QuadTree intersection checks to fail at certain viewport positions
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const MIN_BOUNDS_SIZE = 1;
+    
+    return { 
+        x: width < MIN_BOUNDS_SIZE ? minX - MIN_BOUNDS_SIZE / 2 : minX, 
+        y: height < MIN_BOUNDS_SIZE ? minY - MIN_BOUNDS_SIZE / 2 : minY, 
+        width: Math.max(width, MIN_BOUNDS_SIZE), 
+        height: Math.max(height, MIN_BOUNDS_SIZE) 
+    };
 };
 
 export const getCombinedBounds = (shapes: Shape[]): Rect | null => {

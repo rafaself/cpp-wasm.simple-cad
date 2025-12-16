@@ -35,14 +35,33 @@ export class QuadTree {
       this.subdivide();
     }
 
-    if (this.northeast?.insert(shape)) return true;
-    if (this.northwest?.insert(shape)) return true;
-    if (this.southeast?.insert(shape)) return true;
-    if (this.southwest?.insert(shape)) return true;
+    // FIX: Only insert into child if FULLY CONTAINED. 
+    // If it spans boundaries, it must stay here.
+    if (this.contains(this.northeast!.bounds, shapeBounds)) {
+        return this.northeast!.insert(shape);
+    }
+    if (this.contains(this.northwest!.bounds, shapeBounds)) {
+        return this.northwest!.insert(shape);
+    }
+    if (this.contains(this.southeast!.bounds, shapeBounds)) {
+        return this.southeast!.insert(shape);
+    }
+    if (this.contains(this.southwest!.bounds, shapeBounds)) {
+        return this.southwest!.insert(shape);
+    }
 
-    // Se não couber perfeitamente em um quadrante (ex: overlap), mantém no pai
+    // If it doesn't fit fully into any child, keep it in this node
     this.shapes.push(shape);
     return true;
+  }
+
+  private contains(outer: Rect, inner: Rect): boolean {
+    return (
+        inner.x >= outer.x &&
+        inner.x + inner.width <= outer.x + outer.width &&
+        inner.y >= outer.y &&
+        inner.y + inner.height <= outer.y + outer.height
+    );
   }
 
   remove(shape: Shape): boolean {
