@@ -91,15 +91,23 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
   // Auto-Detect Scale Heuristic for Unitless Files
   if (insUnits === undefined) {
-      let minCoord = Infinity;
-      let maxCoord = -Infinity;
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
       let sampleCount = 0;
+
+      // Use $EXTMIN / $EXTMAX as seeds if available
+      if (data.header?.$EXTMIN && data.header?.$EXTMAX) {
+          minX = data.header.$EXTMIN.x;
+          maxX = data.header.$EXTMAX.x;
+          minY = data.header.$EXTMIN.y;
+          maxY = data.header.$EXTMAX.y;
+      }
       
       const updateBounds = (v: DxfVector) => {
-          if (v.x < minCoord) minCoord = v.x;
-          if (v.x > maxCoord) maxCoord = v.x;
-          if (v.y < minCoord) minCoord = v.y;
-          if (v.y > maxCoord) maxCoord = v.y;
+          if (v.x < minX) minX = v.x;
+          if (v.x > maxX) maxX = v.x;
+          if (v.y < minY) minY = v.y;
+          if (v.y > maxY) maxY = v.y;
       };
 
       // Check main entities (limit sample to first 1000 for speed)
@@ -116,7 +124,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           }
       }
 
-      const extent = maxCoord - minCoord;
+      const extent = Math.max(maxX - minX, maxY - minY);
       // If extent is valid and small (e.g., < 2000), it's likely Meters (e.g., a 10m house is 10 units).
       // If it were MM, a 10m house would be 10000 units.
       // If it were CM, a 10m house would be 1000 units.
@@ -386,22 +394,41 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const childScaleY = (entity.yScale || 1) * transform.scaleY;
           const childRotation = (entity.rotation || 0) + transform.rotation;
 
+          // Block Base Point Compensation
+          // Formula: (ChildPos - BasePoint) * Scale * Rotation + InsertPos
+          // We calculate the offset: InsertPos - (BasePoint * Scale * Rotation)
+          const base = block.position || { x: 0, y: 0 };
+          let bx = base.x * childScaleX;
+          let by = base.y * childScaleY;
+
+          if (childRotation !== 0) {
+              const rad = childRotation * (Math.PI / 180);
+              const cos = Math.cos(rad);
+              const sin = Math.sin(rad);
+              const rx = bx * cos - by * sin;
+              const ry = bx * sin + by * cos;
+              bx = rx;
+              by = ry;
+          }
+
+          const childTransform = {
+              x: insertPos.x - bx,
+              y: insertPos.y - by,
+              rotation: childRotation,
+              scaleX: childScaleX,
+              scaleY: childScaleY
+          };
+
           block.entities?.forEach(child => {
-             processEntity(child, {
-                x: insertPos.x,
-                y: insertPos.y,
-                rotation: childRotation,
-                scaleX: childScaleX,
-                scaleY: childScaleY
-             }, effectiveLayer, color, nextVisited);
+             processEntity(child, childTransform, effectiveLayer, color, nextVisited);
           });
-        }
-        
-        // Process Attributes attached to INSERT
-        if (entity.attribs) {
-             entity.attribs.forEach(attr => {
-                 processEntity(attr, transform, effectiveLayer, color, visitedBlocks);
-             });
+
+          // Process Attributes attached to INSERT using the same transform as block children
+          if (entity.attribs) {
+              entity.attribs.forEach(attr => {
+                  processEntity(attr, childTransform, effectiveLayer, color, visitedBlocks);
+              });
+          }
         }
         break;
     }
