@@ -1112,7 +1112,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (e.shiftKey || isShiftPressed) diff = Math.round(diff / (Math.PI / 4)) * (Math.PI / 4);
             applyRotationFromSnapshot(diff);
             commitRotationHistory();
-            data.syncQuadTree();
+            // Removed redundant syncQuadTree(). updateShape/commitRotationHistory already handles spatial index.
             rotationState.current = null;
             setIsDragging(false);
             setHoverCursor(null);
@@ -1148,7 +1148,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const dist = getDistance(startPoint, currentPoint);
 
         if (isDragging && (ui.activeTool === 'select' || activeHandle)) {
-            data.syncQuadTree();
+            // Removed redundant syncQuadTree(). updateShape already handles spatial index.
         }
 
         setIsDragging(false); setActiveHandle(null);

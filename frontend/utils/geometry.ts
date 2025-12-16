@@ -73,9 +73,25 @@ export const constrainToSquare = (start: Point, end: Point): Point => {
 // Exported from constants now
 // export const TEXT_PADDING = 4;
 
+const wrappedLinesCache = new Map<string, string[]>();
+
 export const getWrappedLines = (text: string, maxWidth: number, fontSize: number): string[] => {
   if (!text) return [''];
   if (!maxWidth || !isFinite(maxWidth) || maxWidth <= 0) return text.split('\n');
+
+  // Cache key: content-width-size
+  const cacheKey = `${text}-${maxWidth.toFixed(2)}-${fontSize}`;
+  if (wrappedLinesCache.has(cacheKey)) {
+      return wrappedLinesCache.get(cacheKey)!;
+  }
+
+  // Basic cache size management
+  if (wrappedLinesCache.size > 1000) {
+      // Clear oldest entries (approximation by clearing half or all)
+      // Map preserves insertion order, so we can delete the first key.
+      const firstKey = wrappedLinesCache.keys().next().value;
+      if (firstKey) wrappedLinesCache.delete(firstKey);
+  }
 
   const charWidth = fontSize * 0.6;
   const spaceWidth = charWidth;
@@ -102,6 +118,7 @@ export const getWrappedLines = (text: string, maxWidth: number, fontSize: number
     lines.push(current);
   });
 
+  wrappedLinesCache.set(cacheKey, lines);
   return lines;
 };
 
