@@ -1,73 +1,67 @@
-# Análise Técnica: Evolução para CAD Elétrico
+# System Overview & Analysis
 
-Este documento apresenta uma análise técnica sobre a viabilidade de evoluir a plataforma atual ("ProtonCanvas") para um software de projetos elétricos residenciais, respondendo à dúvida sobre migração para modelos "CAD-like".
+## 1. System Overview
 
-## 1. Diagnóstico da Arquitetura Atual
+*   **Source of Truth**: `useDataStore.ts` (Zustand).
+    *   State: `shapes`, `layers`, `spatialIndex` (QuadTree), `history` (patches).
+    *   Persistence: In-memory for session; serialization to JSON structure.
+*   **Rendering Flow**:
+    *   **Data Layer**: Updates in `useDataStore` trigger subscribers.
+    *   **Static Layer (`StaticCanvas`)**: Subscribes to `useDataStore`. Uses `spatialIndex` to query visible shapes. optimized with `visibleIdsRef` to avoid re-rendering unchanged frames. Renders "committed" shapes.
+    *   **Dynamic Layer (`DynamicOverlay`)**: Subscribes to `useUIStore` (selection, tool) and `useCanvasInteraction` (drag state). Renders ghosts, selection handles, and active tool drafts (lines, rects being drawn).
+    *   **Drawing Logic**: Centralized in `renderers/` (`ShapeRenderer`, `SelectionRenderer`, `GhostRenderer`). `ShapeRenderer` handles the 2D Context calls.
+*   **Interaction Model**:
+    *   **God Hook**: `useCanvasInteraction.ts` attached to `DynamicOverlay`. Handles all pointer events (`down`, `move`, `up`, `wheel`).
+    *   **State Machine**: Implicit state machine via `isDragging`, `activeTool`, `startPoint` refs.
+    *   **Coordinate System**: Cartesian (Y-Up). `screenToWorld` / `worldToScreen` transforms centralized in `geometry.ts`. Canvas context is scaled `(scale, -scale)` to match.
 
-O sistema atual é construído sobre **HTML5 Canvas** nativo, gerenciado por **React** e **Zustand**.
+## 2. Bug & Risk Report
 
-*   **Renderização:** Customizada (`EditorCanvas.tsx`). Controle total sobre o pixel.
-*   **Dados:** Vetoriais. Os objetos (`Shape`) armazenam coordenadas matemáticas (x, y), não pixels rasterizados.
-*   **Precisão:** Utiliza `number` do JavaScript (ponto flutuante de 64 bits), que oferece cerca de 15-17 dígitos decimais de precisão.
+| Severity | Issue | Module | Root Cause | Impact | Fix |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **P0** | **SVG Rendering Performance** | `ShapeRenderer.ts` | `applyStrokeColorToSvg` runs regex on every frame for every symbol. | Massive CPU usage, FPS drop with many symbols. | Cache tinted SVG strings. |
+| **P1** | **Connection Sync Bottleneck** | `useDataStore.ts` | `syncConnections` iterates ALL shapes (O(N)) on every update (even drag). | Drag lag with many shapes. | Optimize topology check (skip for non-connectables). |
+| **P1** | **QuadTree Thrashing** | `useCanvasInteraction.ts` | `data.syncQuadTree()` (full rebuild) called on `mouseUp` unnecessarily. | Lag spike after every edit. | Remove redundant calls; rely on incremental `updateShape`. |
+| **P2** | **Text Wrapping Perf** | `geometry.ts` | `getWrappedLines` re-calculates on every render. | CPU churn for text-heavy drawings. | Memoize `getWrappedLines`. |
+| **P2** | **UX Regression Risk** | `useCanvasInteraction.ts` | Disabling sync during drag breaks rubber-banding. | Connections snap instead of follow. | Keep sync but optimize it, or accept P1 perf hit for UX. |
+| **P3** | **Memory Leak Risk** | `ShapeRenderer.ts` | Caches (Image/String) are unbounded. | Memory growth over long sessions. | Implement LRU or size limit for caches. |
 
-### O que é "Vectorial Data"?
-Você já tem isso. Seu software *é* vetorial. Quando você desenha uma linha, o sistema guarda `{ x1: 10, y1: 10, x2: 100, y2: 100 }`. Isso é a definição de dado vetorial. Diferente do Photoshop (que guarda pixels), seu software permite zoom infinito sem perda de qualidade e edição precisa de geometria.
+## 3. Performance Audit
 
-## 2. Pontos de Decisão
+*   **Hotspot 1: `renderShape` -> `applyStrokeColorToSvg`**
+    *   *Cost:* High (Regex on large strings).
+    *   *Frequency:* Every frame per visible symbol.
+    *   *Fix:* Cache result.
+*   **Hotspot 2: `syncConnections`**
+    *   *Cost:* O(N) where N = total shapes.
+    *   *Frequency:* Every mouse move during drag.
+    *   *Fix:* Incremental updates or spatial query for connections.
+*   **Hotspot 3: `syncQuadTree`**
+    *   *Cost:* O(N*logN) rebuild.
+    *   *Frequency:* `mouseUp` (Drag end).
+    *   *Fix:* Remove.
 
-### A. Precisão Numérica
-*   **Mito:** "Preciso de um motor CAD C++ para ter precisão".
-*   **Realidade:** Para arquitetura civil/elétrica, a precisão do JavaScript é superabundante.
-    *   Uma casa de 100m representada em precisão float pode ter erros na casa dos nanômetros, o que é irrelevante para a construção civil.
-*   **Desafio Real:** O desafio não é o armazenamento, mas a **interface**. Implementar *snapping* (imã), *trigonometria* para interseções e *unidades de medida* (saber que 100 pixels = 1 metro). Seu código já implementa um sistema básico de *snap*, o que é um excelente sinal.
+## 4. Tooling Consistency Review
 
-### B. "Inteligência" (Engenharia vs Desenho)
-Atualmente, seu software vê "Linhas" e "Círculos". Para um projeto elétrico, ele precisa ver "Eletrodutos" e "Tomadas".
+*   **Creation Lifecycle**:
+    *   `Rect`/`Circle`: Drag to create.
+    *   `Polyline`: Click-Click-Enter.
+    *   `Conduit`: Click-Click (Node-to-Node).
+    *   *Verdict:* Mostly consistent per domain (CAD vs Diagram).
+*   **Math Duplication**:
+    *   `getShapeBounds` and `getShapeBoundingBox` overlap in logic but return different formats. `getShapeBounds` handles rotation/arcs better.
+    *   Rotation logic duplicated in `rotateSelected` (store) and `DynamicOverlay` (ghost).
 
-*   **Abordagem de Migração (Engine Pronta):** Se você usar uma lib de CAD genérica, ela ainda verá apenas linhas. Você terá que programar a lógica elétrica de qualquer jeito.
-*   **Abordagem Atual:** É trivial adicionar metadados aos seus objetos.
-    *   *Exemplo:* Adicionar `properties: { type: 'wire', gauge: '2.5mm' }` ao seu objeto `Shape`.
-    *   Isso permite calcular listas de materiais iterando sobre o array de formas.
+## 5. Proposed Fix Plan
 
-### C. Exportação DWG/DXF
-Esta é uma funcionalidade de *entrada/saída*, não de *núcleo*.
-*   Existem bibliotecas JavaScript (como `dxf-writer` ou `maker.js`) que pegam arrays de coordenadas e geram arquivos DXF.
-*   Como seus dados já são vetoriais (`ponto A` a `ponto B`), criar um exportador é uma tarefa de mapeamento direta, independente da engine gráfica usada.
-
-## 3. Veredito: Migrar ou Evoluir?
-
-**Recomendação: EVOLUIR a base atual.**
-
-Não há ganho técnico significativo em jogar fora sua implementação de Canvas para adotar outra biblioteca de renderização 2D (como Fabric.js ou Konva) neste momento, pois:
-1.  **Controle:** Você já domina o ciclo de renderização. Engines prontas muitas vezes dificultam customizações específicas (ex: desenhar símbolos elétricos complexos ou réguas dinâmicas).
-2.  **Performance:** Sua implementação nativa é leve. Bibliotecas grandes trazem peso desnecessário.
-3.  **O Trabalho Duro é o mesmo:** A complexidade de um CAD elétrico está na **Lógica de Negócios** (validar circuitos, calcular fiação), não em desenhar linhas na tela. Nenhuma engine gráfica fará isso por você.
-
-## 4. Roteiro de Evolução Sugerido
-
-Para transformar o app atual em uma ferramenta elétrica, foque nestas melhorias de "Data Model", não em gráficos:
-
-1.  **Sistema de Unidades:** Definir uma escala global (ex: 50 pixels = 100 cm). Isso transforma "desenho" em "projeto".
-2.  **Camada Semântica:** Criar tipos específicos de objetos. Ao invés de apenas `Shape`, ter `ElectricalElement`.
-    *   *Linha* vira *Eletroduto* (com propriedade de diâmetro).
-    *   *Círculo* vira *Caixa de Passagem*.
-3.  **Cálculos em Tempo Real:** Criar observadores que somam comprimentos baseados nos metadados acima.
-
----
-*Esta análise foi gerada com base na inspeção do código fonte atual (`frontend/features/editor/components/EditorCanvas.tsx` e `frontend/stores/useAppStore.ts`).*
-
-## Issue proposta: diferenciar conexões e caminhos elétricos
-
-Para suportar cálculos e regras de lançamento, o modelo precisa distinguir explicitamente **conexões** (ex.: tomadas, caixas de passagem, luminárias, quadros) de **caminhos** (ex.: eletrodutos, eletrocalhas) — formando uma matriz *nó/aresta* que facilite validações de continuidade, bitolas e ocupação de condutos. Também vale introduzir uma terceira categoria opcional, **terminações** (ex.: cargas finais ou equipamentos), quando for útil separar pontos finais de caixas de derivação.
-
-**Escopo do problema**
-- Catálogo de peças deve marcar o *kind* (`connection` | `pathway` | `termination?`) junto com metadados elétricos.
-- `ElectricalElement` (ou tipo equivalente) deve carregar `linkTo`/`anchors` para que caminhos saibam a quais conexões se prendem.
-- UI de lançamento precisa permitir filtrar e bloquear ações por categoria (ex.: só arrastar caminhos depois que há conexões visíveis).
-- Regras futuras: cálculo de ocupação de duto e continuidade de circuito dependem dessa tipagem.
-
-**Passos sugeridos**
-1) **Modelagem**: criar enum de categoria em `types` e incorporá-la ao store (`useAppStore`).
-2) **Catálogo**: atualizar o schema do catálogo SVG/metadados para exigir a categoria e, se aplicável, pontos de ancoragem (para snap).
-3) **Inserção**: na ferramenta de lançamento, exigir que caminhos sejam conectados a nós válidos e realçar conexões compatíveis durante o snap.
-4) **Validação**: adicionar checagens básicas (ex.: caminho não pode existir sem duas conexões ou uma conexão + terminação) e preparar hook para cálculos de continuidade/ocupação.
+1.  **Architecture Analysis**: Document findings (Done).
+2.  **Safe Performance Fixes**:
+    *   Implement **LRU-bounded Cache** for `applyStrokeColorToSvg` in `ShapeRenderer.ts`.
+    *   Implement **LRU-bounded Cache** for `getWrappedLines` in `geometry.ts`.
+    *   Remove redundant `syncQuadTree()` in `useCanvasInteraction.ts`.
+3.  **Risk Mitigation**:
+    *   Do *not* disable `syncConnections` during drag to preserve rubber-banding (UX priority).
+    *   Accept O(N) for now, but ensure `syncConnections` isn't running *multiple* times per frame.
+4.  **Verification**:
+    *   Verify SVG caching works and doesn't leak.
+    *   Verify text wrapping is correct.
