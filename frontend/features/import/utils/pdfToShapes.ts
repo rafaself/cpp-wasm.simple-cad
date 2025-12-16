@@ -101,68 +101,60 @@ export const convertPdfPageToShapes = async (
   try {
     const textContent = await page.getTextContent();
     const textItems: any[] = [];
-
-    // Calculate viewport scale factor for transforming sizes
     const viewportScale = Math.sqrt(viewportMatrix[0] * viewportMatrix[0] + viewportMatrix[1] * viewportMatrix[1]);
 
-    // 1. Map and collect items
     for (const item of textContent.items) {
       if ('str' in item) {
-        // Skip empty text or just whitespace if desired, but sometimes whitespace is important for spacing.
-        // If it's just a space, it might be the gap between words.
         if (item.str.trim().length === 0 && item.width === 0) continue;
 
-        const tx = item.transform[4];
-        const ty = item.transform[5];
+        // Total Transform = Text Matrix * Viewport Matrix
+        // We need this to get the correct final rotation and scale in Canvas Space.
+        // item.transform is [a, b, c, d, tx, ty]
+        const textMatrix: Matrix = item.transform;
+        const totalMatrix = multiplyMatrix(textMatrix, viewportMatrix);
+
+        // Extract Rotation from Total Matrix
+        // m[0] = final a, m[1] = final b
+        const totalA = totalMatrix[0];
+        const totalB = totalMatrix[1];
+        const rotation = Math.atan2(totalB, totalA);
+
+        // Extract Scale/Size
+        // The total matrix already includes viewport scaling.
+        const totalC = totalMatrix[2];
+        const totalD = totalMatrix[3];
+        const globalScaleY = Math.sqrt(totalC * totalC + totalD * totalD);
         
-        // Calculate raw position in Canvas Space
-        const p = applyMatrix({ x: tx, y: ty }, viewportMatrix);
+        let fontSize = globalScaleY; 
+        if (fontSize < 0.1) fontSize = 12; // Fallback
         
-        // Calculate text width in Canvas Space
-        // item.width is typically in User Space (already scaled by font size in PDF).
+        // Width in Canvas Pixels
         const width = item.width * viewportScale;
-        
-        // Font size calculation:
-        // The transform matrix is [a, b, c, d, tx, ty] where:
-        // - Vertical extent (height) = sqrt(c² + d²) = sqrt(transform[2]² + transform[3]²)
-        // - Horizontal extent (width) = sqrt(a² + b²) = sqrt(transform[0]² + transform[1]²)
-        // For text, the vertical extent represents the font size in PDF user space.
-        // PDF.js 4.x also provides item.height directly which is more reliable.
-        let fontSize: number;
-        if ('height' in item && typeof item.height === 'number' && item.height > 0) {
-          // Use height provided by PDF.js (already in user space units)
-          fontSize = item.height * viewportScale;
-        } else {
-          // Calculate from transform matrix using the vertical extent formula
-          const c = item.transform[2];
-          const d = item.transform[3];
-          const verticalExtent = Math.sqrt(c * c + d * d);
-          fontSize = verticalExtent * viewportScale;
-        }
-        
-        // Ensure minimum font size to avoid invisible text
-        fontSize = Math.max(fontSize, 1);
+
+        // Position:
+        // Use baseline (PDF Origin) as the reference point.
+        // The Normalization step will handle the Y-Flip and Top-Left adjustment.
+        const p_base = { x: totalMatrix[4], y: totalMatrix[5] };
 
         textItems.push({
           str: item.str,
-          x: p.x,
-          y: p.y,
+          x: p_base.x,
+          y: p_base.y,
           width: width,
           fontSize: fontSize,
-          // Store original transform components if needed for precise merging
-          origY: ty 
+          rotation: rotation, 
+          origY: p_base.y 
         });
       }
     }
 
     // 2. Sort items
-    // Sort by Y (descending or ascending? PDF Y is usually up, but we mapped to Canvas Y).
-    // Let's rely on our mapped 'y'.
-    // We want to group by "Line".
     textItems.sort((a, b) => {
-        // Use a tolerance proportional to average font size for Y comparison
+        if (Math.abs(a.rotation - b.rotation) > 0.01) {
+             return a.y - b.y; 
+        }
         const avgFontSize = (a.fontSize + b.fontSize) / 2;
-        const yTolerance = avgFontSize * 1.0; // 100% of font size as tolerance (full line height)
+        const yTolerance = avgFontSize * 0.2; 
         if (Math.abs(a.y - b.y) > yTolerance) { 
             return a.y - b.y; 
         }
@@ -170,43 +162,35 @@ export const convertPdfPageToShapes = async (
     });
 
     // 3. Merge items
+    // Re-enable strict merging
     const mergedItems: any[] = [];
     if (textItems.length > 0) {
         let current = textItems[0];
-        
         for (let k = 1; k < textItems.length; k++) {
             const next = textItems[k];
             
-            // Check if on same line (Y close) - use proportional tolerance
             const avgFontSize = (current.fontSize + next.fontSize) / 2;
-            const yTolerance = avgFontSize * 1.0; // 100% of font size as tolerance
+            const yTolerance = avgFontSize * 0.2; 
             const sameLine = Math.abs(current.y - next.y) < yTolerance;
             
-            // Check if adjacent (Next X approx Current X + Current Width)
-            // PDF text fragments can have large gaps between them on the same line
-            // Use a generous tolerance (5em) to merge text on the same line
-            const expectedNextX = current.x + current.width;
-            const gap = next.x - expectedNextX;
-            const maxGap = current.fontSize * 5; // Allow gap up to 5em
-            const isAdjacent = gap > -current.fontSize && gap < maxGap;
-            
-            // Check properties - relaxed size comparison (30% tolerance)
-            const sameSize = Math.abs(current.fontSize - next.fontSize) < Math.max(current.fontSize, next.fontSize) * 0.3;
+            const isRotated = Math.abs(current.rotation) > 0.01;
+            let shouldMerge = false;
 
-            if (sameLine && isAdjacent && sameSize) {
-                // Merge
-                // If there is a significant gap, insert a space
-                // PDF text fragments often omit the space and rely on positioning.
-                let separator = '';
-                if (gap > current.fontSize * 0.1) {
-                    separator = ' ';
-                }
+            if (sameLine && Math.abs(current.rotation - next.rotation) < 0.01 && !isRotated) {
+                 const gap = next.x - (current.x + current.width);
+                 const maxGap = current.fontSize * 1.5;
+                 const bothNumbers = /^[0-9.]+$/.test(current.str.trim()) && /^[0-9.]+$/.test(next.str.trim());
+                 const safeGap = bothNumbers ? current.fontSize * 0.5 : maxGap;
+                 shouldMerge = gap > -current.fontSize * 0.5 && gap < safeGap;
+            }
 
-                current.str += separator + next.str;
+            if (shouldMerge) {
+                const gap = next.x - (current.x + current.width);
+                if (gap > current.fontSize * 0.1) current.str += ' ';
+                else current.str += '';
+                current.str += next.str; 
                 current.width += gap + next.width;
-                // Keep current x, y, fontSize
             } else {
-                // Push current and start new
                 mergedItems.push(current);
                 current = next;
             }
@@ -214,8 +198,11 @@ export const convertPdfPageToShapes = async (
         mergedItems.push(current);
     }
 
+    
     // 4. Generate Shapes
     mergedItems.forEach(item => {
+        let finalRotation = -item.rotation;
+
         shapes.push({
           id: generateId('pdf-text'),
           type: 'text',
@@ -229,6 +216,8 @@ export const convertPdfPageToShapes = async (
           strokeEnabled: true,
           fillColor: 'transparent',
           fillEnabled: false,
+          rotation: finalRotation, 
+          points: [], 
           layerId,
           floorId,
           discipline: 'architecture',
@@ -240,11 +229,6 @@ export const convertPdfPageToShapes = async (
   }
 
   // We need to map operator IDs to names if we don't have the OPS enum
-  // But typically we can just assume standard PDF operator IDs or use the exported OPS
-  // If we can't get OPS, we might need a fallback. 
-  // For now, let's assume we traverse and handle the most common ones by ID if we could, 
-  // but readable names are better. 
-  // pdfjs.OPS is usually available.
   const OPS = pdfjs.OPS;
 
   for (let i = 0; i < fnArray.length; i++) {
@@ -261,6 +245,8 @@ export const convertPdfPageToShapes = async (
           currentState = stateStack.pop()!;
         }
         break;
+        
+
 
       case OPS.transform: // cm
         const [a, b, c, d, e, f] = args;
@@ -305,8 +291,30 @@ export const convertPdfPageToShapes = async (
       case OPS.setFillRGBColor: // rg
       case OPS.setFillGray: // g
       case OPS.setFillCMYKColor: // k
-        // Force Black as per user request
-        currentState.fillColor = '#000000';
+        // Handle Background Artifacts:
+        // If the color is White (1, 1, 1) or very bright, treat as transparent for imported CAD drawings
+        // to prevent occluding lines.
+        // Assuming args are normalized 0-1
+        let isWhite = false;
+        if (args.length >= 3) {
+            // RGB/CMYK logic
+            const r = args[0];
+            const g = args[1];
+            const b = args[2];
+            if (r > 0.95 && g > 0.95 && b > 0.95) isWhite = true;
+        } else if (args.length === 1) {
+            // Gray
+            if (args[0] > 0.95) isWhite = true;
+        }
+
+        if (isWhite) {
+            currentState.fillColor = 'transparent';
+        } else {
+            // Force Black for content as per user request, IF it's not white background
+            // Actually, we might want to preserve colors if it's not black? 
+            // For now, adhere to "Force Black" rule but skip white.
+            currentState.fillColor = '#000000';
+        }
         break;
 
       // Path Construction
@@ -553,6 +561,7 @@ export const convertPdfPageToShapes = async (
                     layerId,
                     floorId,
                     discipline: 'architecture',
+                    points: [],
                 });
              } else {
                 // Fallback for curves without fill -> Polyline approximation
@@ -670,6 +679,7 @@ export const convertPdfPageToShapes = async (
                 layerId,
                 floorId,
                 discipline: 'architecture',
+                points: [],
             });
         }
 
@@ -733,8 +743,9 @@ export const convertPdfPageToShapes = async (
                       s.y = contentHeight - (s.y - minY) - s.height;
                   }
               } else if (s.type === 'text') {
-                  // For text shapes: PDF baseline after Y-flip becomes the correct visual position
-                  // No need to subtract textHeight - the flip handles the coordinate transformation
+                  // For text shapes: 
+                  // New logic provides position in Canvas Space.
+                  // Apply the global Y-flip without additional height adjustment.
                   if (s.x !== undefined) s.x -= minX;
                   if (s.y !== undefined) {
                       s.y = contentHeight - (s.y - minY);
