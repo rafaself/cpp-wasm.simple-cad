@@ -102,6 +102,9 @@ export const convertPdfPageToShapes = async (
     const textContent = await page.getTextContent();
     const textItems: any[] = [];
 
+    // Calculate viewport scale factor for transforming sizes
+    const viewportScale = Math.sqrt(viewportMatrix[0] * viewportMatrix[0] + viewportMatrix[1] * viewportMatrix[1]);
+
     // 1. Map and collect items
     for (const item of textContent.items) {
       if ('str' in item) {
@@ -115,14 +118,30 @@ export const convertPdfPageToShapes = async (
         // Calculate raw position in Canvas Space
         const p = applyMatrix({ x: tx, y: ty }, viewportMatrix);
         
-        // Calculate approximate font size and width in Canvas Space
+        // Calculate text width in Canvas Space
         // item.width is typically in User Space (already scaled by font size in PDF).
-        // We only need to apply the Viewport scaling.
-        const viewportScale = Math.sqrt(viewportMatrix[0] * viewportMatrix[0] + viewportMatrix[1] * viewportMatrix[1]);
         const width = item.width * viewportScale;
         
-        // Font size approx
-        const fontSize = Math.abs(item.transform[3] * viewportMatrix[3]);
+        // Font size calculation:
+        // The transform matrix is [a, b, c, d, tx, ty] where:
+        // - Vertical extent (height) = sqrt(c² + d²) = sqrt(transform[2]² + transform[3]²)
+        // - Horizontal extent (width) = sqrt(a² + b²) = sqrt(transform[0]² + transform[1]²)
+        // For text, the vertical extent represents the font size in PDF user space.
+        // PDF.js 4.x also provides item.height directly which is more reliable.
+        let fontSize: number;
+        if ('height' in item && typeof item.height === 'number' && item.height > 0) {
+          // Use height provided by PDF.js (already in user space units)
+          fontSize = item.height * viewportScale;
+        } else {
+          // Calculate from transform matrix using the vertical extent formula
+          const c = item.transform[2];
+          const d = item.transform[3];
+          const verticalExtent = Math.sqrt(c * c + d * d);
+          fontSize = verticalExtent * viewportScale;
+        }
+        
+        // Ensure minimum font size to avoid invisible text
+        fontSize = Math.max(fontSize, 1);
 
         textItems.push({
           str: item.str,
@@ -141,8 +160,10 @@ export const convertPdfPageToShapes = async (
     // Let's rely on our mapped 'y'.
     // We want to group by "Line".
     textItems.sort((a, b) => {
-        // Tolerance for Y comparison
-        if (Math.abs(a.y - b.y) > 2) { 
+        // Use a tolerance proportional to average font size for Y comparison
+        const avgFontSize = (a.fontSize + b.fontSize) / 2;
+        const yTolerance = avgFontSize * 1.0; // 100% of font size as tolerance (full line height)
+        if (Math.abs(a.y - b.y) > yTolerance) { 
             return a.y - b.y; 
         }
         return a.x - b.x;
@@ -156,25 +177,28 @@ export const convertPdfPageToShapes = async (
         for (let k = 1; k < textItems.length; k++) {
             const next = textItems[k];
             
-            // Check if on same line (Y close)
-            const sameLine = Math.abs(current.y - next.y) < 2; // 2px tolerance
+            // Check if on same line (Y close) - use proportional tolerance
+            const avgFontSize = (current.fontSize + next.fontSize) / 2;
+            const yTolerance = avgFontSize * 1.0; // 100% of font size as tolerance
+            const sameLine = Math.abs(current.y - next.y) < yTolerance;
             
             // Check if adjacent (Next X approx Current X + Current Width)
-            // Add a small tolerance for spacing (e.g., space character might be missing or width is approximate)
+            // PDF text fragments can have large gaps between them on the same line
+            // Use a generous tolerance (5em) to merge text on the same line
             const expectedNextX = current.x + current.width;
             const gap = next.x - expectedNextX;
-            const isAdjacent = gap > -5 && gap < current.fontSize; // Allow small overlap or gap up to 1em
+            const maxGap = current.fontSize * 5; // Allow gap up to 5em
+            const isAdjacent = gap > -current.fontSize && gap < maxGap;
             
-            // Check properties
-            const sameSize = Math.abs(current.fontSize - next.fontSize) < 1;
+            // Check properties - relaxed size comparison (30% tolerance)
+            const sameSize = Math.abs(current.fontSize - next.fontSize) < Math.max(current.fontSize, next.fontSize) * 0.3;
 
             if (sameLine && isAdjacent && sameSize) {
                 // Merge
-                // If there is a significant gap, insert a space?
+                // If there is a significant gap, insert a space
                 // PDF text fragments often omit the space and rely on positioning.
-                // If the gap is roughly a space width (e.g. fontSize * 0.2), add a space.
                 let separator = '';
-                if (gap > current.fontSize * 0.2) {
+                if (gap > current.fontSize * 0.1) {
                     separator = ' ';
                 }
 
@@ -677,7 +701,13 @@ export const convertPdfPageToShapes = async (
                if (s.x < minX) minX = s.x;
                if (s.y < minY) minY = s.y;
                // For shapes with height, consider the full extent
-               const shapeHeight = (s as any).height || 0;
+               // Text shapes use fontSize as their height
+               let shapeHeight = 0;
+               if (s.type === 'text') {
+                   shapeHeight = s.fontSize || 12;
+               } else if ('height' in s && typeof (s as any).height === 'number') {
+                   shapeHeight = (s as any).height;
+               }
                const shapeBottom = s.y + shapeHeight;
                if (s.y > maxY) maxY = s.y;
                if (shapeBottom > maxY) maxY = shapeBottom;
@@ -702,8 +732,16 @@ export const convertPdfPageToShapes = async (
                       // Flip Y and adjust for height so the rect appears in correct position
                       s.y = contentHeight - (s.y - minY) - s.height;
                   }
+              } else if (s.type === 'text') {
+                  // For text shapes, we need to account for fontSize when flipping
+                  // The text anchor is at top-left, so after flipping we need to adjust by fontSize
+                  if (s.x !== undefined) s.x -= minX;
+                  if (s.y !== undefined) {
+                      const textHeight = s.fontSize || 12;
+                      s.y = contentHeight - (s.y - minY) - textHeight;
+                  }
               } else {
-                  // For other shapes (text, circles, etc.)
+                  // For other shapes (circles, etc.)
                   if (s.x !== undefined) s.x -= minX;
                   if (s.y !== undefined) s.y = contentHeight - (s.y - minY); // Flip Y
               }
