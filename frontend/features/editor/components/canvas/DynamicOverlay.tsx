@@ -196,8 +196,21 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     if (['line', 'polyline', 'arrow', 'eletroduto', 'conduit'].includes(uiStore.activeTool) && currentPoint) {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
         const threshold = CONNECTION_POINT_THRESHOLD / uiStore.viewTransform.scale;
+
+        // Bolt Optimization: Use QuadTree to query visible shapes instead of iterating all shapes (O(N) -> O(log N))
+        // Note: spatialIndex is maintained in useDataStore and synced with shapes.
+        // Calculate view rectangle in world coordinates (Y-Up system: Y increases upwards)
+        const vt = uiStore.viewTransform;
+        const viewRect = {
+            x: -vt.x / vt.scale,
+            y: (vt.y - height) / vt.scale,
+            width: width / vt.scale,
+            height: height / vt.scale
+        };
+
+        const visibleShapes = dataStore.spatialIndex.query(viewRect);
         
-        Object.values(dataStore.shapes).forEach(shape => {
+        visibleShapes.forEach(shape => {
             if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
                 const connX = shape.x + shape.connectionPoint.x * shape.width;
                 const connY = shape.y + shape.connectionPoint.y * shape.height;
@@ -419,7 +432,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             onConfirm={(radius) => {
                 const n: Shape = {
                     id: generateId(),
-                    layerId: dataStore.activeLayerId,
+                    layerId: useDataStore.getState().activeLayerId,
                     type: 'arc',
                     points: [arcPoints.start, arcPoints.end],
                     radius: radius,
