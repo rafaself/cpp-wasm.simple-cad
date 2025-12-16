@@ -17,8 +17,7 @@ interface UIState {
   isLayerManagerOpen: boolean;
   editingTextId: string | null;
 
-  activeFloorId: string;
-  activeDiscipline: 'architecture' | 'electrical';
+
   
   openTabs: EditorTab[];
   openTab: (tab: EditorTab) => void;

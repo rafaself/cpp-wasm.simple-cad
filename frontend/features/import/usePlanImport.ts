@@ -108,7 +108,10 @@ export const usePlanImport = (): PlanImportHook => {
             }
 
           } else if (file.type === 'image/svg+xml') {
-            svgString = fileContent as string;
+            // Fix: content is ArrayBuffer because of readAsArrayBuffer
+            const decoder = new TextDecoder('utf-8');
+            svgString = decoder.decode(fileContent as ArrayBuffer);
+            
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
             const svgElement = svgDoc.documentElement;
