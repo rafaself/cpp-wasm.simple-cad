@@ -33,11 +33,12 @@ interface DataState {
 
   // Actions
   addShape: (shape: Shape, electricalElement?: ElectricalElement, diagram?: { node?: DiagramNode; edge?: DiagramEdge }) => void;
+  addShapes: (shapes: Shape[]) => void;
   updateShape: (id: string, diff: Partial<Shape>, recordHistory?: boolean) => void;
   deleteShape: (id: string) => void;
   createFreeConnectionNode: (position: Point) => string;
   getOrCreateAnchoredConnectionNode: (shapeId: string) => string;
-  addConduitBetweenNodes: (params: { fromNodeId: string; toNodeId: string; layerId: string; strokeColor: string }) => string;
+  addConduitBetweenNodes: (params: { fromNodeId: string; toNodeId: string; layerId: string; strokeColor: string; floorId?: string; discipline?: 'architecture' | 'electrical' }) => string;
   addElectricalElement: (element: ElectricalElement) => void;
   updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
   updateSharedElectricalProperties: (sourceElement: ElectricalElement, diff: Record<string, any>) => void; // Added for shared props
@@ -391,6 +392,26 @@ export const useDataStore = create<DataState>((set, get) => ({
         diagramEdge: diagram?.edge
       }]);
       get().syncDiagramEdgesGeometry();
+  },
+
+  addShapes: (shapesToAdd) => {
+      const { shapes, saveToHistory, spatialIndex } = get();
+      const newShapes = { ...shapes };
+      const patches: Patch[] = [];
+
+      shapesToAdd.forEach(shape => {
+          newShapes[shape.id] = shape;
+          spatialIndex.insert(shape);
+          patches.push({
+              type: 'ADD',
+              id: shape.id,
+              data: shape
+          });
+      });
+      
+      set({ shapes: newShapes });
+      get().syncConnections();
+      saveToHistory(patches);
   },
 
   updateShape: (id, diff, recordHistory = true) => {

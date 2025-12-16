@@ -1,16 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard,
-  Layers, Settings, MousePointer2, Zap, GitBranch
+  Layers, Settings, MousePointer2, Zap, GitBranch, Workflow, Lightbulb
 } from 'lucide-react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
 import { PositionProperties } from './properties/PositionProperties';
 import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
+import { PlanProperties } from './properties/PlanProperties';
 import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
 import ElectricalProperties from './properties/ElectricalProperties';
 import DiagramPanel from '../../diagram/DiagramPanel';
+import { ImportPlanModal } from '../../import/ImportPlanModal';
+import { usePlanImport } from '../../import/usePlanImport';
+import DisciplineContextMenu from './DisciplineContextMenu';
 import PlanLayerControls from './properties/PlanLayerControls';
 
 const EditorSidebar: React.FC = () => {
@@ -19,6 +23,12 @@ const EditorSidebar: React.FC = () => {
   const setActiveDiscipline = useUIStore((s) => s.setActiveDiscipline);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const dataStore = useDataStore();
+
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+  const openTab = useUIStore((s) => s.openTab);
+
+  const { isImportModalOpen, importMode, openImportPdfModal, openImportImageModal, openImportDxfModal, closeImportModal, handleFileImport } = usePlanImport();
 
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
@@ -31,6 +41,15 @@ const EditorSidebar: React.FC = () => {
     }
   }, [sidebarTab, setActiveDiscipline]);
   
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    discipline: 'architecture' | 'electrical';
+    floorId: string;
+  } | null>(null);
+
   // Draggable Scroll State
   const navScrollRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -40,6 +59,18 @@ const EditorSidebar: React.FC = () => {
   // Helper to get selected shape
   const selectedShapeId = selectedShapeIds.values().next().value;
   const selectedShape = selectedShapeId ? dataStore.shapes[selectedShapeId] : undefined;
+
+  // --- Project Structure Definition ---
+  interface Floor {
+    id: string;
+    name: string;
+    disciplines: ('architecture' | 'electrical')[];
+  }
+
+  const projectStructure: Floor[] = [
+    { id: 'terreo', name: 'Térreo', disciplines: ['architecture', 'electrical'] },
+    // Add more floors here as needed
+  ];
 
   // --- Header Configuration ---
   const getHeaderConfig = () => {
@@ -113,21 +144,91 @@ const EditorSidebar: React.FC = () => {
   // --- Render Functions for Tabs ---
 
   const renderEdificacao = () => (
-    <div className="flex-grow overflow-y-auto p-3 flex flex-col gap-3 bg-white">
-        <div className="flex justify-between items-end">
-           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Planos / Andares</span>
-           <span className="text-[10px] text-slate-400">1 / 5</span>
-        </div>
-        <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-2 flex items-center gap-2 cursor-pointer ring-1 ring-blue-500 shadow-sm transition-all">
-          <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-white font-bold text-xs shadow-md">
-            1
-          </div>
-          <span className="font-semibold text-blue-900 text-xs">Térreo</span>
-        </div>
-        <button className="w-full border-2 border-dashed border-slate-300 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all group">
+    <div className="flex-grow overflow-y-auto p-3 flex flex-col gap-2 bg-white text-slate-700">
+        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1">
+            Plantas e Disciplinas
+        </h3>
+
+        {projectStructure.map((floor) => (
+            <div key={floor.id} className="flex flex-col gap-1">
+                {/* Floor Header */}
+                <div
+                    className={`flex items-center gap-2 p-2 rounded-md transition-colors cursor-pointer
+                                ${activeFloorId === floor.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}`}
+                    onClick={() => openTab({ floorId: floor.id, discipline: 'electrical' })}
+                >
+                    <Building2 size={16} />
+                    <span className="font-semibold text-xs">{floor.name}</span>
+                </div>
+
+                {/* Disciplines for the Floor */}
+                <div className="ml-4 border-l border-slate-300">
+                    {floor.disciplines.map((discipline) => (
+                        <div
+                            key={`${floor.id}-${discipline}`}
+                            className={`flex items-center gap-2 p-2 pl-3 text-xs rounded-r-md transition-colors cursor-pointer
+                                        ${activeFloorId === floor.id && activeDiscipline === discipline
+                                            ? 'bg-blue-100 text-blue-700 font-medium'
+                                            : 'hover:bg-slate-100'
+                                        }`}
+                            onClick={(e) => {
+                                openTab({ floorId: floor.id, discipline });
+                                if (discipline === 'architecture' || discipline === 'electrical') {
+                                    setContextMenu({
+                                        visible: true,
+                                        x: e.clientX - 200,
+                                        y: e.clientY,
+                                        discipline,
+                                        floorId: floor.id
+                                    });
+                                }
+                            }}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                setContextMenu({
+                                    visible: true,
+                                    x: e.clientX - 200,
+                                    y: e.clientY,
+                                    discipline,
+                                    floorId: floor.id
+                                });
+                            }}
+                        >
+                            {discipline === 'architecture' ? <Workflow size={14} /> : <Lightbulb size={14} />}
+                            <span>{discipline === 'architecture' ? 'Arquitetura' : 'Elétrica'}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        ))}
+        
+        {contextMenu && contextMenu.visible && (
+            <DisciplineContextMenu
+                discipline={contextMenu.discipline}
+                floorId={contextMenu.floorId}
+                position={{ x: contextMenu.x, y: contextMenu.y }}
+                onClose={() => setContextMenu(null)}
+                onImportPdf={openImportPdfModal}
+                onImportImage={openImportImageModal}
+                onImportDxf={openImportDxfModal}
+            />
+        )}
+
+        <button className="w-full mt-2 border-2 border-dashed border-slate-300 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all group">
            <Plus size={14} className="group-hover:scale-110 transition-transform" />
            <span className="text-xs font-medium">Adicionar Andar</span>
         </button>
+
+        {isImportModalOpen && (
+            <ImportPlanModal
+                isOpen={isImportModalOpen}
+                mode={importMode}
+                onClose={closeImportModal}
+                onImport={handleFileImport}
+                title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : importMode === 'dxf' ? "Importar DWG / DXF" : "Importar Imagem"}
+                accept={importMode === 'pdf' ? ".pdf,.svg" : importMode === 'dxf' ? ".dxf,.dwg" : ".png,.jpg,.jpeg"}
+            />
+        )}
     </div>
   );
 
@@ -141,6 +242,17 @@ const EditorSidebar: React.FC = () => {
         );
     }
 
+    // Only show drawing properties if in Architecture discipline or if it's an electrical shape
+    if (activeDiscipline === 'architecture' || (selectedShape.discipline === 'electrical')) {
+        return (
+            <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
+                <PositionProperties selectedShape={selectedShape} />
+                <DimensionProperties selectedShape={selectedShape} />
+                <StyleProperties selectedShape={selectedShape} />
+            </div>
+        );
+    }
+    
     return (
       <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
         <PositionProperties selectedShape={selectedShape} />
@@ -161,18 +273,34 @@ const EditorSidebar: React.FC = () => {
       );
     }
 
-    if (selectedShape.electricalElementId) {
-      return (
-        <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
-          <ElectricalProperties selectedShape={selectedShape} />
-        </div>
-      );
-    }
+    // Determine if we should show properties based on discipline
+    // We allow showing properties for Electrical elements even in Architecture mode if they are selected (though selection might be prevented)
+    // But mainly we care about the Active Discipline.
+    // If selected shape is from a different discipline, we might show "Read Only" or limited props?
+    // Current logic: if selected, show props. `useCanvasInteraction` handles selection prevention.
 
     return (
-      <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-        <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
-        <p className="text-xs">Nenhuma propriedade especifica disponivel.</p>
+      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
+        <PositionProperties selectedShape={selectedShape} />
+        
+        {selectedShape.electricalElementId && (
+            <ElectricalProperties selectedShape={selectedShape} />
+        )}
+
+        {/* Plan / Reference Properties */}
+        {(selectedShape.svgRaw || selectedShape.discipline === 'architecture') && (
+            <PlanProperties selectedShape={selectedShape} />
+        )}
+
+        {/* Standard shapes (not imported plans/symbols) - show style/dimensions */}
+        {/* We exclude electrical symbols (which have svgRaw) from generic dimension editing if desired, or keep it. */}
+        {/* Usually electrical symbols have fixed dimensions or scale. Let's hide Dimension/Style for SVG symbols for now to keep it clean, or just Style. */}
+        {!selectedShape.svgRaw && (
+            <>
+                <DimensionProperties selectedShape={selectedShape} />
+                <StyleProperties selectedShape={selectedShape} />
+            </>
+        )}
       </div>
     );
   };

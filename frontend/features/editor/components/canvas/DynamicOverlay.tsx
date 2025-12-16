@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
@@ -14,6 +15,10 @@ import { getDefaultColorMode } from '../../../../utils/shapeColors';
 import NumberSpinner from '../../../../components/NumberSpinner';
 import { useLibraryStore } from '../../../../stores/useLibraryStore';
 import { getElectricalLayerConfig } from '../../../library/electricalProperties';
+import CalibrationModal from '../../components/CalibrationModal';
+import { isShapeInteractable } from '../../../../utils/visibility';
+import { generateId } from '../../../../utils/uuid';
+import { CONNECTION_POINT_THRESHOLD } from '../../../../config/constants';
 
 const DEFAULT_CURSOR = `url('data:image/svg+xml;base64,${btoa(CURSOR_SVG)}') 6 4, default`;
 const GRAB_CURSOR = 'grab';
@@ -28,25 +33,43 @@ interface DynamicOverlayProps {
 
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [renderTrigger, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
-  const uiStore = useUIStore();
-  const settingsStore = useSettingsStore();
-  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
+  // Granular hooks for performance (avoid re-rendering on unrelated store updates)
+  const viewTransform = useUIStore(s => s.viewTransform);
+  const activeTool = useUIStore(s => s.activeTool);
+  const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
+  const activeElectricalSymbolId = useUIStore(s => s.activeElectricalSymbolId);
+  const electricalRotation = useUIStore(s => s.electricalRotation);
+  const electricalFlipX = useUIStore(s => s.electricalFlipX);
+  const electricalFlipY = useUIStore(s => s.electricalFlipY);
+  const activeDiscipline = useUIStore(s => s.activeDiscipline);
+  const activeFloorId = useUIStore(s => s.activeFloorId);
 
-  // OPTIMIZATION: Avoid subscribing to the full dataStore to prevent re-renders on every shape change
+  // Data store dependencies
+  // Optimization: Do NOT subscribe to all shapes. Only subscribe to selected ones for highlighting.
+  // We use useShallow to prevent re-renders if the selected shapes themselves haven't changed deep properties
+  // (though in this app, shapes are immutable replacements, so reference equality check on the array is enough if map returns new objects?
+  // actually useShallow compares the ARRAY content).
+  const selectedShapes = useDataStore(useShallow(s =>
+    Array.from(selectedShapeIds).map(id => s.shapes[id]).filter(Boolean)
+  ));
   const activeLayerId = useDataStore(s => s.activeLayerId);
   const layers = useDataStore(s => s.layers);
 
-  const libraryStore = useLibraryStore();
-  const [_, forceUpdate] = React.useReducer((x) => x + 1, 0);
+  // Settings
+  const toolDefaults = useSettingsStore(s => s.toolDefaults);
+  const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = toolDefaults;
+
+  // Library (rarely changes, but needed for ghost)
+  const electricalSymbols = useLibraryStore(s => s.electricalSymbols);
 
   const { handlers, state, setters } = useCanvasInteraction(canvasRef);
   const {
     isDragging, isMiddlePanning, startPoint, currentPoint, isSelectionBox, snapMarker,
     polylinePoints, measureStart, lineStart, arrowStart, activeHandle, transformationBase,
     arcPoints, showRadiusModal, radiusModalPos, textEditState,
-    showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor
+    showPolygonModal, polygonModalPos, isShiftPressed, hoverCursor,
+    calibrationPoints, showCalibrationModal
   } = state;
 
   // Manual subscription to re-render only when SELECTED shapes change
@@ -77,16 +100,25 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Access shapes directly from state without subscription
-    const dataStoreState = useDataStore.getState();
-    const shapes = dataStoreState.shapes;
+    // Fetch fresh state directly from stores for logic inside render
+    // This ensures we always have the absolute latest state when drawing
+    const uiStore = useUIStore.getState();
+    const dataStore = useDataStore.getState();
+    const settingsStore = useSettingsStore.getState();
+    const libraryStore = useLibraryStore.getState();
+    const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
+
+    // Safety check for canvas dimensions
+    if (width === 0 || height === 0 || width > 32767 || height > 32767) {
+        return;
+    }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
     ctx.translate(uiStore.viewTransform.x, uiStore.viewTransform.y);
-    ctx.scale(uiStore.viewTransform.scale, uiStore.viewTransform.scale);
+    ctx.scale(uiStore.viewTransform.scale, -uiStore.viewTransform.scale);
 
     // 1. Draw Selection Highlights & Handles
     uiStore.selectedShapeIds.forEach(id => {
@@ -94,7 +126,9 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         if (shape) {
             try {
                 drawSelectionHighlight(ctx, shape, uiStore.viewTransform);
-                if (uiStore.activeTool === 'select') drawHandles(ctx, shape, uiStore.viewTransform);
+                if (uiStore.activeTool === 'select' && isShapeInteractable(shape, { activeFloorId: uiStore.activeFloorId, activeDiscipline: uiStore.activeDiscipline })) {
+                    drawHandles(ctx, shape, uiStore.viewTransform);
+                }
             } catch (e) {
                 console.error("Error drawing selection for shape", id, e);
             }
@@ -183,9 +217,22 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     // Highlight connection points for electrical symbols when drawing lines/polylines/eletrodutos
     if (['line', 'polyline', 'arrow', 'eletroduto', 'conduit'].includes(uiStore.activeTool) && currentPoint) {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
-        const threshold = 20 / uiStore.viewTransform.scale;
+        const threshold = CONNECTION_POINT_THRESHOLD / uiStore.viewTransform.scale;
+
+        // Bolt Optimization: Use QuadTree to query visible shapes instead of iterating all shapes (O(N) -> O(log N))
+        // Note: spatialIndex is maintained in useDataStore and synced with shapes.
+        // Calculate view rectangle in world coordinates (Y-Up system: Y increases upwards)
+        const vt = uiStore.viewTransform;
+        const viewRect = {
+            x: -vt.x / vt.scale,
+            y: (vt.y - height) / vt.scale,
+            width: width / vt.scale,
+            height: height / vt.scale
+        };
+
+        const visibleShapes = dataStore.spatialIndex.query(viewRect);
         
-        Object.values(shapes).forEach(shape => {
+        visibleShapes.forEach(shape => {
             if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
                 const connX = shape.x + shape.connectionPoint.x * shape.width;
                 const connY = shape.y + shape.connectionPoint.y * shape.height;
@@ -235,7 +282,60 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         }
     }
 
-    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate', 'arrow'].includes(uiStore.activeTool)) {
+    // Draw Calibration Draft
+    if (uiStore.activeTool === 'calibrate') {
+        const start = calibrationPoints?.start || startPoint ? screenToWorld(startPoint!, uiStore.viewTransform) : null;
+        const end = calibrationPoints?.end || (currentPoint ? screenToWorld(currentPoint, uiStore.viewTransform) : null);
+
+        if (start && end) {
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = '#ef4444'; // Red for calibration
+            ctx.lineWidth = 2 / uiStore.viewTransform.scale;
+            ctx.setLineDash([5 / uiStore.viewTransform.scale, 5 / uiStore.viewTransform.scale]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw Markers
+            const markerSize = 6 / uiStore.viewTransform.scale;
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(start.x - markerSize/2, start.y - markerSize/2, markerSize, markerSize);
+            ctx.fillRect(end.x - markerSize/2, end.y - markerSize/2, markerSize, markerSize);
+
+            // Draw Label
+            const dist = getDistance(start, end);
+            const midX = (start.x + end.x) / 2;
+            const midY = (start.y + end.y) / 2;
+            
+            ctx.save();
+            ctx.font = `bold ${14 / uiStore.viewTransform.scale}px sans-serif`;
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Background box
+            const labelText = `${dist.toFixed(1)} px`;
+            const metrics = ctx.measureText(labelText);
+            const padding = 4 / uiStore.viewTransform.scale;
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // Red background
+            ctx.fillRect(
+                midX - metrics.width / 2 - padding, 
+                midY - 10 / uiStore.viewTransform.scale, 
+                metrics.width + padding * 2, 
+                20 / uiStore.viewTransform.scale
+            );
+            
+            // Text (unflipped)
+            ctx.translate(midX, midY);
+            ctx.scale(1, -1);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(labelText, 0, 0);
+            ctx.restore();
+        }
+    }
+
+    if (isDragging && startPoint && currentPoint && !activeHandle && !isMiddlePanning && !isSelectionBox && !['select','pan','polyline','line','measure', 'move', 'rotate', 'arrow', 'calibrate'].includes(uiStore.activeTool)) {
       const ws = screenToWorld(startPoint, uiStore.viewTransform);
       let wc = screenToWorld(currentPoint, uiStore.viewTransform);
       
@@ -296,18 +396,31 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-  }, [uiStore, layers, activeLayerId, libraryStore, polylinePoints, isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker, lineStart, arrowStart, measureStart, transformationBase, activeHandle, arcPoints, isShiftPressed, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides]);
+  }, [
+      width, height, // Props
+      // Interaction State
+      isDragging, isMiddlePanning, isSelectionBox, startPoint, currentPoint, snapMarker,
+      polylinePoints, measureStart, lineStart, arrowStart, transformationBase, activeHandle,
+      arcPoints, isShiftPressed, calibrationPoints,
+      // Granular Store Dependencies (Triggers)
+      viewTransform, activeTool, selectedShapeIds, activeElectricalSymbolId,
+      electricalRotation, electricalFlipX, electricalFlipY,
+      activeDiscipline, activeFloorId,
+      activeLayerId, layers, selectedShapes, // Data (Replaced shapes with selectedShapes)
+      toolDefaults, // Settings
+      electricalSymbols // Library
+  ]);
 
   useEffect(() => {
       render();
   }, [render, renderTrigger]); // Added renderTrigger to deps
 
   let cursorClass = DEFAULT_CURSOR;
-  if (isMiddlePanning || (isDragging && uiStore.activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
-  else if (uiStore.activeTool === 'pan') cursorClass = GRAB_CURSOR;
+  if (isMiddlePanning || (isDragging && activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
+  else if (activeTool === 'pan') cursorClass = GRAB_CURSOR;
   else if (hoverCursor === 'rotate') cursorClass = ROTATE_CURSOR;
   else if (hoverCursor) cursorClass = hoverCursor;
-  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit'].includes(uiStore.activeTool)) cursorClass = 'crosshair';
+  else if (['line', 'polyline', 'rect', 'circle', 'polygon', 'arc', 'measure', 'arrow', 'electrical-symbol', 'eletroduto', 'conduit', 'calibrate'].includes(activeTool)) cursorClass = 'crosshair';
 
   return (
     <>
@@ -325,6 +438,15 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         onContextMenu={(e) => e.preventDefault()}
     />
 
+    {showCalibrationModal && calibrationPoints && (
+        <CalibrationModal
+            isOpen={showCalibrationModal}
+            currentDistancePx={getDistance(calibrationPoints.start, calibrationPoints.end)}
+            onConfirm={setters.confirmCalibration}
+            onCancel={() => setters.setShowCalibrationModal(false)}
+        />
+    )}
+
     {showRadiusModal && arcPoints && (
         <RadiusInputModal
             initialRadius={getDistance(arcPoints.start, arcPoints.end)}
@@ -332,8 +454,8 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             onConfirm={(radius) => {
                 const dataStore = useDataStore.getState();
                 const n: Shape = {
-                    id: Date.now().toString(),
-                    layerId: activeLayerId,
+                    id: generateId(),
+                    layerId: useDataStore.getState().activeLayerId,
                     type: 'arc',
                     points: [arcPoints.start, arcPoints.end],
                     radius: radius,
@@ -346,13 +468,13 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
                 useDataStore.getState().addShape(n);
                 setters.setArcPoints(null);
                 setters.setShowRadiusModal(false);
-                uiStore.setSidebarTab('desenho');
-                uiStore.setTool('select');
+                useUIStore.getState().setSidebarTab('desenho');
+                useUIStore.getState().setTool('select');
             }}
             onCancel={() => {
                 setters.setArcPoints(null);
                 setters.setShowRadiusModal(false);
-                uiStore.setTool('select');
+                useUIStore.getState().setTool('select');
             }}
         />
     )}
@@ -361,7 +483,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
       <TextEditorOverlay
         textEditState={textEditState}
         setTextEditState={setters.setTextEditState}
-        viewTransform={uiStore.viewTransform}
+        viewTransform={viewTransform}
       />
     )}
 
@@ -374,7 +496,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         <NumberSpinner
           value={polygonSides}
           onChange={(val) => {
-            settingsStore.setPolygonSides(val);
+            useSettingsStore.getState().setPolygonSides(val);
             setters.confirmPolygonSides(val);
           }}
           min={3}

@@ -76,7 +76,6 @@ export const useKeyboardShortcuts = () => {
         }
         // Electrical Context Specifics could be added here
         // if (checkKey('electrical.rotate')) { uiStore.rotateElectricalPreview(...); }
-        return;
       }
 
       // Global Tools

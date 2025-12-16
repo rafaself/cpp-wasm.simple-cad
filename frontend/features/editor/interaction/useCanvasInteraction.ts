@@ -5,6 +5,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
 import { ElectricalElement, Point, Shape, Rect, Patch, ToolType } from '../../../types';
 import { screenToWorld, worldToScreen, getDistance, isPointInShape, getSelectionRect, isShapeInSelection, rotatePoint, getShapeHandles, Handle, getShapeBoundingBox, constrainTo45Degrees, constrainToSquare, getShapeCenter, getShapeBounds } from '../../../utils/geometry';
+import { calculateZoomTransform } from '../../../utils/zoomHelper';
 import { getSnapPoint } from '../snapEngine';
 import { getConnectionPoint } from '../snapEngine/detectors';
 import { getTextSize } from '../components/canvas/helpers';
@@ -15,6 +16,9 @@ import { computeFrameData } from '../../../utils/frame';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '../../library/electricalProperties';
 import { isConduitShape, isConduitTool } from '../utils/tools';
 import { resolveConnectionNodePosition } from '../../../utils/connections';
+import { isShapeInteractable, isShapeSnappable } from '../../../utils/visibility';
+import { generateId } from '../../../utils/uuid';
+import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HANDLE_HIT_RADIUS, ROTATE_ZONE_OFFSET } from '../../../config/constants';
 
 // State for Figma-like resize with flip support
 interface ResizeState {
@@ -43,8 +47,6 @@ const getEdgeAnchor = (bounds: Rect, orientation: { x: -1 | 0 | 1; y: -1 | 0 | 1
     if (orientation.x === -1 && orientation.y === 1) return { x: bounds.x + bounds.width, y: bounds.y }; // TR
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 };
-
-const CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX = 18;
 
 type DataState = ReturnType<typeof useDataStore.getState>;
 
@@ -121,6 +123,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     // Selectors for reactive updates
     const activeTool = useUIStore(s => s.activeTool);
     const setEditingTextId = useUIStore(s => s.setEditingTextId);
+    const activeDiscipline = useUIStore(s => s.activeDiscipline); // Added for discipline locking logic
     
     // Non-reactive access to settings (we can also use getState() in handlers if these don't need to trigger re-renders of the hook)
     // But keeping them as hooks for now is fine if they are stable. 
@@ -196,6 +199,10 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const [polygonShapeId, setPolygonShapeId] = useState<string | null>(null);
     const [showPolygonModal, setShowPolygonModal] = useState(false);
     const [polygonModalPos, setPolygonModalPos] = useState({ x: 0, y: 0 });
+
+    // Calibration Tool State
+    const [calibrationPoints, setCalibrationPoints] = useState<{ start: Point; end: Point } | null>(null);
+    const [showCalibrationModal, setShowCalibrationModal] = useState(false);
 
     // Text Tool State
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
@@ -299,11 +306,16 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const detectInteractionAtPoint = (worldPos: Point, viewScale: number): InteractionHit => {
         const currentUIStore = useUIStore.getState();
         const currentDataStore = useDataStore.getState();
-        const selection = Array.from(currentUIStore.selectedShapeIds).map(id => currentDataStore.shapes[id]).filter(Boolean) as Shape[];
+        const { activeFloorId, activeDiscipline } = currentUIStore;
+
+        const selection = Array.from(currentUIStore.selectedShapeIds)
+            .map(id => currentDataStore.shapes[id])
+            .filter(s => s && isShapeInteractable(s, { activeFloorId, activeDiscipline })) as Shape[];
+
         if (selection.length === 0) return defaultInteraction;
 
-        const handleHit = 10 / viewScale;
-        const rotateBand = 18 / viewScale;
+        const handleHit = HANDLE_HIT_RADIUS / viewScale;
+        const rotateBand = ROTATE_ZONE_OFFSET / viewScale;
 
         // Handles (corners only)
         for (const shape of selection) {
@@ -399,7 +411,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const currentDataStore = useDataStore.getState();
             const currentUIStore = useUIStore.getState();
             currentDataStore.addShape({
-                id: Date.now().toString(),
+                id: generateId(),
                 layerId: currentDataStore.activeLayerId,
                 type: 'polyline',
                 strokeColor,
@@ -407,7 +419,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 strokeEnabled,
                 fillColor: 'transparent',
                 colorMode: getDefaultColorMode(),
-                points: [...polylinePoints]
+                points: [...polylinePoints],
+                floorId: currentUIStore.activeFloorId,
+                discipline: currentUIStore.activeDiscipline
             });
             currentUIStore.setSidebarTab('desenho');
             setPolylinePoints([]);
@@ -440,7 +454,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     e.preventDefault();
                     currentUIStore.flipElectricalPreview('x');
                 }
-                if (e.key.toLowerCase() === 'v') {
+                if (e.key.toLowerCase() === 'f' && e.shiftKey) {
                     e.preventDefault();
                     currentUIStore.flipElectricalPreview('y');
                 }
@@ -498,7 +512,15 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const queryRect = { x: wr.x - 50, y: wr.y - 50, width: 100, height: 100 };
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
-                .filter(s => { const l = data.layers.find(l => l.id === s.layerId); return s && l && l.visible && !l.locked; });
+                .filter(s => { 
+                    if (!s) return false;
+                    // Discipline Filter for Snapping
+                    const shapeDiscipline = s.discipline || 'electrical';
+                    if (ui.activeDiscipline === 'architecture' && shapeDiscipline !== 'architecture') return false;
+
+                    const l = data.layers.find(l => l.id === s.layerId); 
+                    return l && l.visible && !l.locked; 
+                });
             const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
               wr,
@@ -542,6 +564,9 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             for (const id of ui.selectedShapeIds) {
                 const shape = data.shapes[id];
                 if (!shape) continue;
+
+                if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId, activeDiscipline: ui.activeDiscipline })) continue;
+
                 const handles = getShapeHandles(shape); const handleSize = 10 / ui.viewTransform.scale;
                 for (const h of handles) {
                     if (getDistance(h, wPos) < handleSize) { 
@@ -630,6 +655,17 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             let hitShapeId = null;
             for (let i = candidates.length - 1; i >= 0; i--) {
                 const s = candidates[i];
+                const shapeDisc = s.discipline || 'electrical';
+                const shapeFloor = s.floorId || 'terreo';
+
+                // Floor Logic
+                if (shapeFloor !== ui.activeFloorId) continue;
+                
+                // Discipline Logic: Strict Isolation
+                // Only select shapes belonging to the active discipline.
+                // Referenced shapes are visible but NOT selectable.
+                if (shapeDisc !== ui.activeDiscipline) continue;
+
                 const l = data.layers.find(lay => lay.id === s.layerId);
                 if (l && (!l.visible || l.locked)) continue;
                 if (isPointInShape(selectWorld, s, ui.viewTransform.scale, l)) { hitShapeId = s.id; break; }
@@ -660,7 +696,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(lineStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint] });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'line', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [lineStart, endPoint], floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 ui.setSidebarTab('desenho'); setLineStart(null);
             }
             return;
@@ -673,7 +709,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 if (e.shiftKey) {
                     endPoint = constrainTo45Degrees(arrowStart, wPos);
                 }
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15 });
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'arrow', strokeColor, strokeWidth, strokeEnabled, fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [arrowStart, endPoint], arrowHeadSize: 15, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 ui.setSidebarTab('desenho'); setArrowStart(null);
             }
             return;
@@ -681,8 +717,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         if (ui.activeTool === 'measure') {
             if (!measureStart) setMeasureStart(wPos);
             else {
-                const dist = getDistance(measureStart, wPos).toFixed(2);
-                data.addShape({ id: Date.now().toString(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist}px` });
+                const dist = getDistance(measureStart, wPos).toFixed(1);
+                data.addShape({ id: generateId(), layerId: data.activeLayerId, type: 'measure', strokeColor: '#ef4444', fillColor: 'transparent', colorMode: getDefaultColorMode(), points: [measureStart, wPos], label: `${dist} cm`, floorId: ui.activeFloorId, discipline: ui.activeDiscipline });
                 setMeasureStart(null);
             }
             return;
@@ -737,6 +773,18 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             return;
         }
 
+        if (ui.activeTool === 'calibrate') {
+            if (!startPoint) {
+                setStartPoint(axisLockedScreen); 
+            } else {
+                const startWorld = screenToWorld(startPoint, ui.viewTransform);
+                setCalibrationPoints({ start: startWorld, end: axisLockedWorld });
+                setShowCalibrationModal(true);
+                setStartPoint(null);
+            }
+            return;
+        }
+
         setIsDragging(true);
     }, [textEditState, snapSettings, gridSize, strokeColor, strokeWidth, strokeEnabled, fillColor, polygonSides, zoomToFit, activeHandle, conduitStart, arcPoints, lineStart, arrowStart, measureStart, transformationBase]);
 
@@ -778,9 +826,13 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             const visible = data.spatialIndex.query(queryRect)
                 .map(s => data.shapes[s.id])
                 .filter(s => {
+                    if (!s) return false;
+                    
+                    if (!isShapeSnappable(s, { activeFloorId: ui.activeFloorId, activeDiscipline: ui.activeDiscipline })) return false;
+
                     const l = data.layers.find(l => l.id === s.layerId);
                     if (activeHandle && s.id === activeHandle.shapeId) return false;
-                    return s && l && l.visible && !l.locked;
+                    return l && l.visible && !l.locked;
                 });
             const frameData = computeFrameData(data.frame, data.worldScale);
             const snap = getSnapPoint(
@@ -860,47 +912,64 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         const anchor = e.altKey
                             ? { x: originalBounds.x + originalBounds.width / 2, y: originalBounds.y + originalBounds.height / 2 }
                             : getEdgeAnchor(originalBounds, orientation);
+
                         const minSize = 5;
+                        
+                        // 1. Calculate Signs (Flip detection)
+                        const rawDx = ws.x - anchor.x;
+                        const rawDy = ws.y - anchor.y;
+                        
+                        // If orientation is 0, sign is 1 (no flip on that axis)
+                        const signX = orientation.x === 0 ? 1 : (Math.sign(rawDx * orientation.x) || 1);
+                        const signY = orientation.y === 0 ? 1 : (Math.sign(rawDy * orientation.y) || 1);
+
                         let finalW = originalBounds.width;
                         let finalH = originalBounds.height;
+
+                        // 2. Calculate Dimensions
+                        if (orientation.x !== 0) {
+                            const dist = Math.abs(rawDx);
+                            finalW = Math.max(minSize, e.altKey ? dist * 2 : dist);
+                        }
+                        if (orientation.y !== 0) {
+                            const dist = Math.abs(rawDy);
+                            finalH = Math.max(minSize, e.altKey ? dist * 2 : dist);
+                        }
+
+                        // 3. Proportional resize with Shift (Figma-style)
+                        if (e.shiftKey && (orientation.x !== 0 || orientation.y !== 0)) {
+                            const scaleX = orientation.x !== 0 ? finalW / Math.max(minSize, originalBounds.width) : 0;
+                            const scaleY = orientation.y !== 0 ? finalH / Math.max(minSize, originalBounds.height) : 0;
+                            const uniformScale = Math.max(scaleX, scaleY) || 1;
+                            
+                            if (orientation.x !== 0) finalW = Math.max(minSize, originalBounds.width * uniformScale);
+                            if (orientation.y !== 0) finalH = Math.max(minSize, originalBounds.height * uniformScale);
+                        }
+
+                        // 4. Calculate Position
                         let finalX = originalBounds.x;
                         let finalY = originalBounds.y;
 
-                        // Horizontal adjustment
                         if (orientation.x !== 0) {
-                            const deltaX = (ws.x - anchor.x) * orientation.x;
-                            let newW = Math.abs(e.altKey ? deltaX * 2 : deltaX);
-                            newW = Math.max(minSize, newW);
-                            finalW = newW;
-                            finalX = e.altKey ? anchor.x - newW / 2 : (orientation.x > 0 ? anchor.x : anchor.x - newW);
+                            if (e.altKey) {
+                                finalX = anchor.x - finalW / 2;
+                            } else {
+                                // If effective direction is positive, anchor is Top/Left -> X = anchor.x
+                                // If effective direction is negative, anchor is Bottom/Right -> X = anchor.x - finalW
+                                const effectiveDir = orientation.x * signX;
+                                finalX = effectiveDir > 0 ? anchor.x : anchor.x - finalW;
+                            }
                         }
 
-                        // Vertical adjustment
                         if (orientation.y !== 0) {
-                            const deltaY = (ws.y - anchor.y) * orientation.y;
-                            let newH = Math.abs(e.altKey ? deltaY * 2 : deltaY);
-                            newH = Math.max(minSize, newH);
-                            finalH = newH;
-                            finalY = e.altKey ? anchor.y - newH / 2 : (orientation.y > 0 ? anchor.y : anchor.y - newH);
-                        }
-
-                        // Proportional resize with Shift (Figma-style)
-                        if (e.shiftKey && (orientation.x !== 0 || orientation.y !== 0)) {
-                            const scaleX = orientation.x !== 0 ? finalW / Math.max(minSize, originalBounds.width) : null;
-                            const scaleY = orientation.y !== 0 ? finalH / Math.max(minSize, originalBounds.height) : null;
-                            const uniformScale = Math.max(Math.abs(scaleX ?? 0), Math.abs(scaleY ?? 0)) || 1;
-                            if (orientation.x !== 0) {
-                                finalW = Math.max(minSize, originalBounds.width * uniformScale);
-                                finalX = e.altKey ? anchor.x - finalW / 2 : (orientation.x > 0 ? anchor.x : anchor.x - finalW);
-                            }
-                            if (orientation.y !== 0) {
-                                finalH = Math.max(minSize, originalBounds.height * uniformScale);
-                                finalY = e.altKey ? anchor.y - finalH / 2 : (orientation.y > 0 ? anchor.y : anchor.y - finalH);
+                            if (e.altKey) {
+                                finalY = anchor.y - finalH / 2;
+                            } else {
+                                const effectiveDir = orientation.y * signY;
+                                finalY = effectiveDir > 0 ? anchor.y : anchor.y - finalH;
                             }
                         }
 
-                        const signX = orientation.x === 0 ? 1 : Math.sign((ws.x - anchor.x) * orientation.x) || 1;
-                        const signY = orientation.y === 0 ? 1 : Math.sign((ws.y - anchor.y) * orientation.y) || 1;
                         const newScaleX = signX < 0 ? -originalScaleX : originalScaleX;
                         const newScaleY = signY < 0 ? -originalScaleY : originalScaleY;
 
@@ -1043,7 +1112,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             if (e.shiftKey || isShiftPressed) diff = Math.round(diff / (Math.PI / 4)) * (Math.PI / 4);
             applyRotationFromSnapshot(diff);
             commitRotationHistory();
-            data.syncQuadTree();
+            // Removed redundant syncQuadTree(). updateShape/commitRotationHistory already handles spatial index.
             rotationState.current = null;
             setIsDragging(false);
             setHoverCursor(null);
@@ -1061,6 +1130,11 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 candidates.forEach(s => {
                     const l = data.layers.find(lay => lay.id === s.layerId);
                     if (l && (!l.visible || l.locked)) return;
+                    
+                    // Strict Isolation: Do not select referenced shapes from other disciplines
+                    const shapeDisc = s.discipline || 'electrical';
+                    if (shapeDisc !== ui.activeDiscipline) return;
+
                     if (isShapeInSelection(s, rect, mode)) nSel.add(s.id);
                 });
                 ui.setSelectedShapeIds(nSel);
@@ -1074,7 +1148,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
         const dist = getDistance(startPoint, currentPoint);
 
         if (isDragging && (ui.activeTool === 'select' || activeHandle)) {
-            data.syncQuadTree();
+            // Removed redundant syncQuadTree(). updateShape already handles spatial index.
         }
 
         setIsDragging(false); setActiveHandle(null);
@@ -1097,7 +1171,7 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 });
                 const width = librarySymbol.viewBox.width * librarySymbol.scale;
                 const height = librarySymbol.viewBox.height * librarySymbol.scale;
-                const shapeId = Date.now().toString();
+                const shapeId = generateId();
                 const n: Shape = {
                     id: shapeId,
                     layerId: targetLayerId,
@@ -1120,6 +1194,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                     svgViewBox: librarySymbol.viewBox,
                     symbolScale: librarySymbol.scale,
                     connectionPoint: librarySymbol.defaultConnectionPoint,
+                    floorId: ui.activeFloorId,
+                    discipline: ui.activeDiscipline
                 };
 
                 const metadata = getDefaultMetadataForSymbol(librarySymbol.id);
@@ -1170,7 +1246,19 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                 return;
             }
 
-            const n: Shape = { id: Date.now().toString(), layerId: data.activeLayerId, type: ui.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, colorMode: getDefaultColorMode(), points: [] };
+            const n: Shape = { 
+                id: generateId(),
+                layerId: data.activeLayerId, 
+                type: ui.activeTool, 
+                strokeColor, 
+                strokeWidth, 
+                strokeEnabled, 
+                fillColor, 
+                colorMode: getDefaultColorMode(), 
+                points: [],
+                floorId: ui.activeFloorId,
+                discipline: ui.activeDiscipline
+            };
 
             if (isSingleClick && shapeCreationTools.includes(ui.activeTool)) {
                 if (ui.activeTool === 'circle') { n.x = ws.x; n.y = ws.y; n.radius = 50; }
@@ -1242,13 +1330,63 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
     const handleWheel = useCallback((e: React.WheelEvent) => {
         const ui = useUIStore.getState();
         e.preventDefault();
-        const scaleFactor = 1.1; const direction = e.deltaY > 0 ? -1 : 1;
-        let newScale = ui.viewTransform.scale * (direction > 0 ? scaleFactor : 1/scaleFactor);
-        newScale = Math.max(0.1, Math.min(newScale, 5));
-        const raw = getMousePos(e); const w = screenToWorld(raw, ui.viewTransform);
-        const newX = raw.x - w.x * newScale; const newY = raw.y - w.y * newScale;
-        ui.setViewTransform({ scale: newScale, x: newX, y: newY });
+
+        const raw = getMousePos(e);
+        const newTransform = calculateZoomTransform(
+            ui.viewTransform,
+            raw,
+            e.deltaY,
+            screenToWorld
+        );
+
+        ui.setViewTransform(newTransform);
     }, []);
+
+    // Handler to confirm calibration
+    const confirmCalibration = useCallback((realDistanceCm: number) => {
+        if (calibrationPoints) {
+            const currentDistPx = getDistance(calibrationPoints.start, calibrationPoints.end);
+            if (currentDistPx > 0) {
+                // We assume 1 unit = 1 pixel initially.
+                // We want to scale the PLAN so that currentDistPx becomes realDistanceCm (or proportional).
+                // Actually, in this system, 1 unit = 1 pixel.
+                // If the user says "This 100px line is actually 500cm", then 1 pixel = 5cm.
+                // But we want to KEEP the world scale (e.g. 1 unit = 1cm).
+                // So we need to scale the IMAGE so that the 100px line becomes 500 units long.
+                // Scale Factor = Target / Current = 500 / 100 = 5.
+                
+                // Target is realDistanceCm (assuming we want 1 unit = 1cm in our world).
+                const scaleFactor = realDistanceCm / currentDistPx;
+                
+                const currentUIStore = useUIStore.getState();
+                const currentDataStore = useDataStore.getState();
+                
+                // Find the selected plan (architecture discipline)
+                const selectedId = currentUIStore.selectedShapeIds.values().next().value;
+                if (selectedId) {
+                    const shape = currentDataStore.shapes[selectedId];
+                    // Only scale if it's a plan/image/rect and architecture
+                    if (shape && shape.type === 'rect' && shape.discipline === 'architecture') {
+                        const newWidth = (shape.width ?? 0) * scaleFactor;
+                        const newHeight = (shape.height ?? 0) * scaleFactor;
+                        
+                        // We also need to adjust position so the scale happens around the first calibration point?
+                        // Or just center? Usually center or top-left.
+                        // Let's just scale dimensions for now, user can move it.
+                        currentDataStore.updateShape(selectedId, { width: newWidth, height: newHeight });
+                        
+                        // Reset
+                        setCalibrationPoints(null);
+                        setShowCalibrationModal(false);
+                        currentUIStore.setTool('select');
+                        return;
+                    }
+                }
+            }
+        }
+        setCalibrationPoints(null);
+        setShowCalibrationModal(false);
+    }, [calibrationPoints]);
 
     // Handler to confirm polygon sides
     const confirmPolygonSides = useCallback((sides: number) => {
@@ -1288,14 +1426,20 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
             polygonModalPos,
             polygonShapeId,
             isShiftPressed,
-            hoverCursor
+            hoverCursor,
+            // Calibration
+            calibrationPoints,
+            showCalibrationModal
         },
         setters: {
             setArcPoints,
             setShowRadiusModal,
             setTextEditState,
             setShowPolygonModal,
-            confirmPolygonSides
+            confirmPolygonSides,
+            // Calibration
+            setShowCalibrationModal,
+            confirmCalibration
         }
     };
 };

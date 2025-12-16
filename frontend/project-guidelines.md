@@ -48,7 +48,7 @@ src/
 ### C. Menu & Configuration
 1.  **Data-Driven UI:** The Top Ribbon and Menus are generated dynamically from `src/config/menu.ts`.
 2.  **Modifying Menus:** To add a button, edit the JSON in `config/menu.ts`, not the JSX in `Ribbon.tsx`.
-3.  **Icons:** Icons are mapped via string keys in `src/utils/iconMap.ts`. Do not import Lucide icons directly into components that read from the Menu JSON; use the `IconMap`.
+3.  **Icons:** Icons are mapped via string keys in `src/utils/iconMap.tsx`. Do not import Lucide icons directly into components that read from the Menu JSON; use the `IconMap`.
 
 ### D. Styling (Tailwind CSS)
 1.  **Utility First:** Use Tailwind utility classes directly in JSX (`className`).
@@ -69,7 +69,7 @@ When asked to implement a new feature (e.g., "Add a Layer Manager"):
     *   *If specific:* Add to `src/features/editor/components`.
     *   *If new domain:* Create `src/features/layers/`.
 2.  **Define Types:** Update `src/types/index.ts` with new data structures.
-3.  **Update Store:** Add state slices and actions to `src/stores/useAppStore.ts`.
+3.  **Update Store:** Add state slices and actions to the appropriate store (`src/stores/useDataStore.ts` for domain data, `src/stores/useUIStore.ts` for UI state).
 4.  **Create Logic/UI:** Implement components.
 5.  **Register:** If it's a tool/action, register it in `src/config/menu.ts`.
 
@@ -80,7 +80,7 @@ When asked to implement a new feature (e.g., "Add a Layer Manager"):
 If you are an AI assistant reading this, follow these rules when generating code:
 
 1.  **Check Existing Structure:** Do not create duplicate files. Check `src/features` first.
-2.  **Respect the Monolith Store (Current Status):** Currently, `useAppStore.ts` is a monolithic store. Keep it that way unless asked to slice it.
+2.  **Respect the Split Store Architecture:** State is distributed across `useDataStore` (domain), `useUIStore` (transient), `useSettingsStore` (config), and `useLibraryStore` (assets). Do not create a monolithic `useAppStore`.
 3.  **JSON Menus:** If the user asks to "Add a button", generate the change for `src/config/menu.ts`.
 4.  **Geometry:** Use helpers in `src/utils/geometry.ts` for math calculations.
 5.  **Output Format:** Always return changes in the XML format `<changes><change>...</change></changes>`.

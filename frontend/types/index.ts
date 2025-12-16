@@ -15,7 +15,8 @@ export type ToolType =
   | 'text'
   | 'electrical-symbol'
   | 'conduit' // Legacy name kept for compatibility
-  | 'eletroduto';
+  | 'eletroduto'
+  | 'calibrate';
 
 export type DiagramNodeKind =
   | 'board'
@@ -206,6 +207,10 @@ export interface Shape {
   diagramNodeId?: string;
   diagramEdgeId?: string;
   isFrame?: boolean;
+
+  // Project Structure
+  floorId?: string;
+  discipline?: 'architecture' | 'electrical';
 }
 
 export interface ViewTransform {

@@ -5,6 +5,24 @@ import { LibrarySymbol } from '../../../../library/electricalLoader';
 import { getElectricalLayerConfig } from '../../../../library/electricalProperties';
 
 const svgImageCache: Record<string, { img: HTMLImageElement; loaded: boolean }> = {};
+
+// LRU Cache for Tinted SVG Strings
+const MAX_CACHE_SIZE = 500;
+const tintedSvgCache = new Map<string, string>();
+
+const getTintedSvgFromCache = (key: string): string | undefined => {
+    return tintedSvgCache.get(key);
+};
+
+const setTintedSvgCache = (key: string, value: string) => {
+    if (tintedSvgCache.size >= MAX_CACHE_SIZE) {
+        // Delete oldest (first) entry
+        const firstKey = tintedSvgCache.keys().next().value;
+        if (firstKey) tintedSvgCache.delete(firstKey);
+    }
+    tintedSvgCache.set(key, value);
+};
+
 let renderCallback: (() => void) | null = null;
 
 export const setRenderCallback = (cb: () => void) => {
@@ -24,6 +42,9 @@ const applyStrokeColorToSvg = (svg: string, strokeColor: string): string => {
     return `${updated.slice(0, closeIndex + 1)}${styleTag}${updated.slice(closeIndex + 1)}`;
 };
 
+const getSvgImage = (svg: string | null, cacheKey: string): HTMLImageElement | null => {
+    if (svgImageCache[cacheKey]) {
+        return svgImageCache[cacheKey].loaded ? svgImageCache[cacheKey].img : null;
 const applyLayerVisibility = (svg: string, hiddenIds: string[] = []): string => {
     if (!hiddenIds.length) return svg;
 
@@ -43,10 +64,13 @@ const getSvgImage = (svg: string, cacheKey?: string): HTMLImageElement | null =>
     if (svgImageCache[key]) {
         return svgImageCache[key].loaded ? svgImageCache[key].img : null;
     }
+    // If not cached and no SVG provided, we can't load it.
+    if (!svg) return null;
+
     const img = new Image();
-    svgImageCache[key] = { img, loaded: false };
+    svgImageCache[cacheKey] = { img, loaded: false };
     img.onload = () => {
-        svgImageCache[key].loaded = true;
+        svgImageCache[cacheKey].loaded = true;
         // Trigger a re-render when image loads
         if (renderCallback) renderCallback();
     };
@@ -60,8 +84,13 @@ const getSvgImage = (svg: string, cacheKey?: string): HTMLImageElement | null =>
 export const preloadElectricalSymbol = (symbol: LibrarySymbol) => {
     const layerConfig = getElectricalLayerConfig(symbol.id, symbol.category);
     const strokeColor = layerConfig.strokeColor;
-    const tintedSvg = applyStrokeColorToSvg(symbol.canvasSvg, strokeColor);
     const cacheKey = `${symbol.id}-${strokeColor}`;
+
+    let tintedSvg = getTintedSvgFromCache(cacheKey);
+    if (!tintedSvg) {
+        tintedSvg = applyStrokeColorToSvg(symbol.canvasSvg, strokeColor);
+        setTintedSvgCache(cacheKey, tintedSvg);
+    }
 
     // Trigger load and cache
     getSvgImage(tintedSvg, cacheKey);
@@ -85,7 +114,7 @@ export const renderShape = (
         if (shape.rotation) {
             const pivot = getShapeCenter(shape);
             ctx.translate(pivot.x, pivot.y);
-            ctx.rotate(-shape.rotation); // Negate for CCW visual rotation on Y-down canvas
+            ctx.rotate(shape.rotation);
             ctx.translate(-pivot.x, -pivot.y);
         }
 
@@ -106,7 +135,7 @@ export const renderShape = (
         ctx.fillStyle = effectiveFill;
         ctx.setLineDash([]);
 
-        const baseWidth = shape.strokeWidth || 2;
+        const baseWidth = shape.strokeWidth ?? 2;
         ctx.lineWidth = baseWidth / viewTransform.scale;
         ctx.beginPath();
 
@@ -227,7 +256,6 @@ export const renderShape = (
             const flipX = shape.scaleX ?? 1;
             const flipY = shape.scaleY ?? 1;
             
-            // Apply flip transformation if needed
             if (flipX !== 1 || flipY !== 1) {
                 ctx.save();
                 const centerX = rx + rw / 2;
@@ -246,6 +274,24 @@ export const renderShape = (
 
             if ((shape.svgRaw || shape.svgOriginalRaw) && shape.svgViewBox) {
                 const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';
+                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}`;
+
+                // Optimized caching strategy with LRU:
+                // 1. Check if image is already cached (fastest)
+                // 2. If not, check if tinted SVG string is cached (fast)
+                // 3. If neither, compute tinted string and cache it (slow)
+
+                let img = getSvgImage(null, cacheKey); // Check image cache first
+
+                if (!img) {
+                    let tintedSvg = getTintedSvgFromCache(cacheKey);
+                    if (!tintedSvg) {
+                         tintedSvg = applyStrokeColorToSvg(shape.svgRaw, symbolColor);
+                         setTintedSvgCache(cacheKey, tintedSvg);
+                    }
+                    img = getSvgImage(tintedSvg, cacheKey);
+                }
+
                 const sourceSvg = shape.svgOriginalRaw ?? shape.svgRaw ?? '';
                 const layeredSvg = applyLayerVisibility(sourceSvg, shape.svgHiddenLayers ?? []);
                 const tintedSvg = applyStrokeColorToSvg(layeredSvg, symbolColor);
@@ -364,17 +410,30 @@ export const renderShape = (
             const textColor = strokeColor;
             const bgColor = fillColor && fillColor !== 'transparent' ? fillColor : null;
 
-            const pad = TEXT_PADDING;
+            // Only apply padding when text has explicit width (container mode)
+            const hasExplicitWidth = shape.width !== undefined;
+            const pad = hasExplicitWidth ? TEXT_PADDING / viewTransform.scale : 0;
+            
+            // Calculate available width for text wrapping
             const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
             const availableWidth = Math.max(containerWidth, fontSize * 0.6);
             const lineHeight = fontSize * 1.2;
-            const wrappedLines = getWrappedLines(shape.textContent, availableWidth, fontSize);
+            const wrappedLines = hasExplicitWidth 
+                ? getWrappedLines(shape.textContent, availableWidth, fontSize)
+                : shape.textContent.split('\n');
 
             const sx = shape.x ?? 0;
             const sy = shape.y ?? 0;
+            
+            // Calculate text height for proper positioning
+            // Text needs to start at top of bounding box, not bottom
+            // Use fontSize for first line (no extra leading on top), lineHeight for additional lines
+            const textHeight = fontSize + (wrappedLines.length - 1) * lineHeight + pad * 2;
 
             ctx.save();
-            ctx.translate(sx, sy);
+            // Translate to top of text box (sy + textHeight) before Y-flip
+            // This ensures text renders inside the bounding box, not below it
+            ctx.translate(sx, sy + textHeight);
             ctx.scale(1, -1);
 
             wrappedLines.forEach((line, index) => {

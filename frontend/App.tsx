@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from './features/editor/hooks/useKeyboardShortcu
 import Header from './features/editor/components/Header';
 import { useDataStore } from './stores/useDataStore';
 import { useLibraryStore } from './stores/useLibraryStore';
+import LoadingOverlay from './components/LoadingOverlay';
 
 const App: React.FC = () => {
   useKeyboardShortcuts();
@@ -29,18 +30,15 @@ const App: React.FC = () => {
       <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
         {/* Main Content Area (Canvas + Status Bar) */}
         <div className="flex-grow flex flex-col relative overflow-hidden">
-            <div className="flex-grow relative overflow-hidden">
-                <EditorCanvas />
-                <QuickAccessToolbar />
-                <SettingsModal />
-                <LayerManagerModal />
-            </div>
-            <EditorStatusBar />
+            <EditorCanvas />
+            <SettingsModal />
+            <LayerManagerModal />
         </div>
         
         {/* Sidebar moved to right */}
         <EditorSidebar />
       </div>
+      <LoadingOverlay />
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { useUIStore } from '../../../../../stores/useUIStore';
 import { useSettingsStore } from '../../../../../stores/useSettingsStore';
 import { useDataStore } from '../../../../../stores/useDataStore';
 import { getDefaultColorMode, getEffectiveStrokeColor } from '../../../../../utils/shapeColors';
+import { generateId } from '../../../../../utils/uuid';
 
 export interface TextEditState {
     id?: string;
@@ -75,12 +76,17 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
                  setEditingTextId(null);
             } else {
                 const textLayerId = dataStore.ensureLayer('Texto');
+                // Calculate the correct Y position for the shape.
+                // The textarea top is at textEditState.y in world coords, but ShapeRenderer 
+                // renders text starting from (sy + textHeight) due to Y-flip.
+                // So the shape's y should be at (textarea top) - (text height) to compensate.
+                const adjustedY = textEditState.y - finalHeight;
                 dataStore.addShape({
-                    id: Date.now().toString(),
+                    id: generateId(),
                     layerId: textLayerId,
                     type: 'text',
                     x: textEditState.x,
-                    y: textEditState.y,
+                    y: adjustedY,
                     width: finalWidth,
                     height: finalHeight,
                     textContent: textEditState.content,
@@ -117,14 +123,21 @@ const TextEditorOverlay: React.FC<TextEditorOverlayProps> = ({ textEditState, se
     const editingLayer = editingShape ? dataStore.layers.find(l => l.id === editingShape.layerId) : undefined;
     const editingStrokeColor = editingShape ? getEffectiveStrokeColor(editingShape, editingLayer) : settingsStore.toolDefaults.strokeColor;
 
+    // Calculate the visual top Y position for the textarea.
+    // For existing shapes: shape.y is at the base (bottom), so visual top is y + height
+    // For new text: textEditState.y is the click position (already the visual top)
+    const visualTopY = textEditState.id && textEditState.height 
+        ? textEditState.y + textEditState.height 
+        : textEditState.y;
+
     return (
         <textarea
             autoFocus
             ref={textareaRef}
             className="absolute z-50 bg-transparent border border-blue-500 rounded resize-none outline-none overflow-hidden"
             style={{
-                 left: worldToScreen({x: textEditState.x, y: textEditState.y}, viewTransform).x,
-                 top: worldToScreen({x: textEditState.x, y: textEditState.y}, viewTransform).y,
+                 left: worldToScreen({x: textEditState.x, y: visualTopY}, viewTransform).x,
+                 top: worldToScreen({x: textEditState.x, y: visualTopY}, viewTransform).y,
                  width: textEditState.width ? (textEditState.width * viewTransform.scale) : (200 + TEXT_PADDING * 2) + 'px',
                  height: textEditState.height ? (textEditState.height * viewTransform.scale) : 'auto',
                  transformOrigin: 'top left',
