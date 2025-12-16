@@ -97,3 +97,25 @@ describe('convertDxfToShapes', () => {
 
       expect(() => convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' })).not.toThrow();
   });
+
+  it('detects circular block references', () => {
+     const data: DxfData = {
+         entities: [{ type: 'INSERT', name: 'A', position: {x:0,y:0}, layer: '0' }],
+         blocks: {
+             'A': { name: 'A', entities: [
+                 { type: 'LINE', vertices: [{x:0,y:0},{x:10,y:0}], layer: '0' },
+                 { type: 'INSERT', name: 'B', position: {x:0,y:0}, layer: '0' }
+             ], position: {x:0,y:0} },
+             'B': { name: 'B', entities: [
+                 { type: 'INSERT', name: 'A', position: {x:0,y:0}, layer: '0' }
+             ], position: {x:0,y:0} }
+         }
+     };
+
+     const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' });
+     // Expect at least one line from A.
+     // A -> Line (1)
+     // A -> B -> A (Stop)
+     // So 1 shape.
+     expect(result.shapes.length).toBe(1);
+  });

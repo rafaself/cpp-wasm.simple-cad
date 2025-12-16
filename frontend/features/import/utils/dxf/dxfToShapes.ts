@@ -1,12 +1,6 @@
 import { Shape, Layer, Point } from '../../../../types';
 import { generateId } from '../../../../utils/uuid';
-import { DxfData, DxfEntity, DxfVector } from './types';
-
-export interface DxfImportOptions {
-  floorId: string;
-  defaultLayerId: string;
-  explodeBlocks?: boolean;
-}
+import { DxfData, DxfEntity, DxfVector, DxfImportOptions } from './types';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -16,6 +10,8 @@ export interface DxfImportResult {
   origin: { x: number; y: number };
 }
 
+// Partial ACI Color Map (Standard + Grays)
+// Full 256 table is large, falling back to approximation or standard colors is acceptable for now.
 const DXF_COLORS: Record<number, string> = {
   1: '#FF0000', // Red
   2: '#FFFF00', // Yellow
@@ -24,11 +20,24 @@ const DXF_COLORS: Record<number, string> = {
   5: '#0000FF', // Blue
   6: '#FF00FF', // Magenta
   7: '#FFFFFF', // White
+  8: '#808080', // Gray
+  9: '#C0C0C0', // Light Gray
+  250: '#333333',
+  251: '#555555',
+  252: '#777777',
+  253: '#999999',
+  254: '#BBBBBB',
+  255: '#FFFFFF',
 };
 
 const getDxfColor = (index?: number, layerColor?: string): string => {
   if (index === 0 || index === 256) return layerColor || '#FFFFFF';
   if (index && DXF_COLORS[index]) return DXF_COLORS[index];
+  // Fallback for other indices: map to gray or keep generic
+  if (index && index > 9 && index < 250) {
+      // TODO: Implement full ACI palette
+      return '#CCCCCC';
+  }
   return '#CCCCCC';
 };
 
@@ -38,14 +47,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   // Safety Limit
   const ENTITY_LIMIT = 30000;
   let entityCount = data.entities ? data.entities.length : 0;
-  // Estimate block entities if explodable (naive count)
   if (data.blocks) {
-      // We don't multiply by inserts here, just total definitions
-      // Real check should be during recursion, but this is a sanity check
       Object.values(data.blocks).forEach(b => entityCount += (b.entities?.length || 0));
   }
   if (entityCount > ENTITY_LIMIT) {
-      throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades. Por favor, simplifique o desenho.`);
+      throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades.`);
   }
 
   const shapes: Shape[] = [];
@@ -81,9 +87,9 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   const processEntity = (
     entity: DxfEntity,
     transform: { x: number, y: number, rotation: number, scaleX: number, scaleY: number },
-    parentLayer?: string
+    parentLayer?: string,
+    visitedBlocks: Set<string> = new Set()
   ) => {
-    // Recursion Depth Check or Total Shape Check could be added here
     if (shapes.length > ENTITY_LIMIT) return;
 
     const layerName = entity.layer || parentLayer || '0';
@@ -159,7 +165,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         break;
 
       case 'SPLINE':
-        // Fallback: Connect control points
         if (entity.controlPoints && entity.controlPoints.length > 1) {
              const pts = entity.controlPoints.map(p => trans(p));
              shapes.push({
@@ -259,6 +264,14 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'INSERT':
         if (entity.name && data.blocks && data.blocks[entity.name]) {
+          // Circular Reference Check
+          if (visitedBlocks.has(entity.name)) {
+              console.warn(`Circular reference detected for block: ${entity.name}`);
+              return;
+          }
+          const nextVisited = new Set(visitedBlocks);
+          nextVisited.add(entity.name);
+
           const block = data.blocks[entity.name];
           const insPos = entity.position || { x: 0, y: 0 };
           const insertPos = trans(insPos);
@@ -267,21 +280,16 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const childScaleY = (entity.yScale || 1) * transform.scaleY;
           const childRotation = (entity.rotation || 0) + transform.rotation;
 
-          block.entities.forEach(child => {
+          block.entities?.forEach(child => {
              processEntity(child, {
                 x: insertPos.x,
                 y: insertPos.y,
                 rotation: childRotation,
                 scaleX: childScaleX,
                 scaleY: childScaleY
-             }, layerName);
+             }, layerName, nextVisited);
           });
         }
-        break;
-
-      case 'ELLIPSE':
-      case 'HATCH':
-        // Not implemented yet
         break;
     }
   };

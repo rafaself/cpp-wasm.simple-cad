@@ -6,8 +6,6 @@ import * as pdfjs from 'pdfjs-dist/build/pdf';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
-import { convertDxfToShapes } from './utils/dxf/dxfToShapes';
-import { cleanupShapes } from './utils/dxf/cleanup';
 import { DxfWorkerOutput } from './utils/dxf/types';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
@@ -213,7 +211,7 @@ export const usePlanImport = (): PlanImportHook => {
           // Read as text
           const text = await file.text();
 
-          // Worker Processing
+          // Worker Processing (Parse + Convert + Cleanup)
           const workerData = await new Promise<any>((resolve, reject) => {
               const worker = new DxfWorker();
               worker.onmessage = (e) => {
@@ -225,25 +223,24 @@ export const usePlanImport = (): PlanImportHook => {
                   reject(err);
                   worker.terminate();
               };
-              worker.postMessage({ text });
+              worker.postMessage({
+                  text,
+                  options: {
+                      floorId: uiStore.activeFloorId || 'default',
+                      defaultLayerId: dataStore.activeLayerId,
+                      explodeBlocks: true
+                  }
+              });
           });
 
-          // Convert to Shapes
-          const result = convertDxfToShapes(workerData, {
-              floorId: uiStore.activeFloorId || 'default',
-              defaultLayerId: dataStore.activeLayerId,
-              explodeBlocks: true // Always explode for now
-          });
-
-          let shapesToAdd = cleanupShapes(result.shapes);
+          let shapesToAdd = workerData.shapes;
+          const newLayers = workerData.layers;
 
           // Handle Layers
-          if (options?.maintainLayers && result.layers.length > 0) {
+          if (options?.maintainLayers && newLayers && newLayers.length > 0) {
               const layerMap = new Map<string, string>();
 
-              result.layers.forEach(l => {
-                  // Create or Get Layer ID
-                  // ensureLayer returns the ID
+              newLayers.forEach((l: any) => {
                   const storeId = dataStore.ensureLayer(l.name, {
                       strokeColor: l.strokeColor,
                       strokeEnabled: l.strokeEnabled,
@@ -256,7 +253,7 @@ export const usePlanImport = (): PlanImportHook => {
               });
 
               // Remap shapes
-              shapesToAdd = shapesToAdd.map(s => ({
+              shapesToAdd = shapesToAdd.map((s: any) => ({
                   ...s,
                   layerId: layerMap.get(s.layerId) || dataStore.activeLayerId
               }));

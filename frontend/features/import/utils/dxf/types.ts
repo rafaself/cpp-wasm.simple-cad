@@ -1,3 +1,5 @@
+import { Shape, Layer } from '../../../../types';
+
 export interface DxfVector {
   x: number;
   y: number;
@@ -69,12 +71,25 @@ export interface DxfData {
   };
 }
 
+export interface DxfImportOptions {
+  floorId: string;
+  defaultLayerId: string;
+  explodeBlocks?: boolean;
+}
+
 export interface DxfWorkerInput {
   text: string;
+  options: DxfImportOptions;
 }
 
 export interface DxfWorkerOutput {
   success: boolean;
-  data?: DxfData;
+  data?: {
+      shapes: Shape[];
+      layers: Layer[];
+      width: number;
+      height: number;
+      origin: { x: number; y: number };
+  };
   error?: string;
 }
