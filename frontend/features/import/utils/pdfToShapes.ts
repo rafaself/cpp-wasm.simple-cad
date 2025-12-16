@@ -468,12 +468,12 @@ export const convertPdfPageToShapes = async (
              const h = maxY - minY;
 
              if (isFill) {
-                 // Fix C: Use Rect with svgRaw for fills, ensuring Y-flip for correct rendering
-                 // Generate SVG path data with Y-flip relative to bbox
+                 // Use Rect with svgRaw for fills
+                 // Generate SVG path data relative to bbox (no Y-flip here - global flip handles orientation)
                  let d = '';
-                 // Map: subtract minX, minY. AND flip Y relative to h.
+                 // Map: just subtract minX, minY to normalize to local coordinates
                  const mapX = (x: number) => x - minX;
-                 const mapY = (y: number) => h - (y - minY);
+                 const mapY = (y: number) => y - minY; // No flip - global normalization handles this
 
                  finalSegments.forEach(s => {
                     if (s.type === 'M') d += `M ${mapX(s.points[0].x)} ${mapY(s.points[0].y)} `;
@@ -552,31 +552,56 @@ export const convertPdfPageToShapes = async (
     }
   }
 
-  // Normalize coordinates
-  // Find the top-left most point of the imported content and shift everything to (0,0)
+  // Normalize coordinates and fix vertical flip
+  // PDF coordinate system has Y pointing UP, canvas has Y pointing DOWN.
+  // The viewportMatrix from pdf.js handles this, but results in a vertically mirrored image.
+  // We need to flip the content vertically to match the original document appearance.
   if (shapes.length > 0) {
       let minX = Infinity;
       let minY = Infinity;
+      let maxY = -Infinity;
 
+      // First pass: find bounding box
       shapes.forEach(s => {
           if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto' || s.type === 'conduit') {
               s.points?.forEach(p => {
                   if (p.x < minX) minX = p.x;
                   if (p.y < minY) minY = p.y;
+                  if (p.y > maxY) maxY = p.y;
               });
           } else if (s.x !== undefined && s.y !== undefined) {
                if (s.x < minX) minX = s.x;
                if (s.y < minY) minY = s.y;
+               // For shapes with height, consider the full extent
+               const shapeHeight = (s as any).height || 0;
+               const shapeBottom = s.y + shapeHeight;
+               if (s.y > maxY) maxY = s.y;
+               if (shapeBottom > maxY) maxY = shapeBottom;
           }
       });
 
       if (minX !== Infinity && minY !== Infinity) {
+          const contentHeight = maxY - minY;
+          
+          // Second pass: normalize to (0,0) AND flip Y to correct orientation
           shapes.forEach(s => {
               if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto' || s.type === 'conduit') {
-                  s.points = s.points?.map(p => ({ x: p.x - minX, y: p.y - minY }));
-              } else {
+                  s.points = s.points?.map(p => ({ 
+                      x: p.x - minX, 
+                      y: contentHeight - (p.y - minY) // Flip Y
+                  }));
+              } else if (s.type === 'rect' && s.height !== undefined) {
+                  // For rectangles, we need to flip and account for height
+                  // After flipping, the rectangle's anchor point (top-left) changes
                   if (s.x !== undefined) s.x -= minX;
-                  if (s.y !== undefined) s.y -= minY;
+                  if (s.y !== undefined) {
+                      // Flip Y and adjust for height so the rect appears in correct position
+                      s.y = contentHeight - (s.y - minY) - s.height;
+                  }
+              } else {
+                  // For other shapes (text, circles, etc.)
+                  if (s.x !== undefined) s.x -= minX;
+                  if (s.y !== undefined) s.y = contentHeight - (s.y - minY); // Flip Y
               }
           });
       }
