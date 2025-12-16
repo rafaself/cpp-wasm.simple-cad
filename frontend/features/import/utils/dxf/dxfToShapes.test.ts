@@ -218,4 +218,77 @@ describe('convertDxfToShapes', () => {
     // Should scale by 100 (10 -> 1000)
     expect(result.shapes[0].points?.[1]).toEqual({ x: 1000, y: 0 });
   });
+
+  it('converts polyline with bulge to arc segments', () => {
+    // Semicircle: width 10, height 5. Bulge = 1.
+    const data: DxfData = {
+        entities: [{
+            type: 'LWPOLYLINE',
+            layer: '0',
+            vertices: [
+                { x: 0, y: 0, bulge: 1 },
+                { x: 10, y: 0 }
+            ]
+        }]
+    };
+
+    const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' });
+    const shape = result.shapes[0];
+
+    expect(shape.type).toBe('polyline');
+    // Should have many points due to tessellation, not just 2
+    expect(shape.points?.length).toBeGreaterThan(2);
+
+    // Midpoint check (approximate): At x=5, y should be -5 (assuming bulge direction)
+    // Note: Bulge 1 = tan(ang/4) -> ang = 180 deg.
+    // Arc goes from (0,0) to (10,0). Center (5,0). Radius 5.
+    // Direction depends on coordinate system and winding.
+    // We just check that we have intermediate points.
+    const midIndex = Math.floor(shape.points!.length / 2);
+    const midPt = shape.points![midIndex];
+
+    // Check height difference relative to start point to handle normalization offset
+    const startPt = shape.points![0];
+    const heightDiff = Math.abs(midPt.y - startPt.y);
+    expect(heightDiff).toBeGreaterThan(0.1);
+  });
+
+  it('interpolates SPLINE control points', () => {
+      const data: DxfData = {
+          entities: [{
+              type: 'SPLINE',
+              layer: '0',
+              controlPoints: [
+                  { x: 0, y: 0 },
+                  { x: 10, y: 10 },
+                  { x: 20, y: 0 },
+                  { x: 30, y: 10 }
+              ]
+          }]
+      };
+
+      const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' });
+      const shape = result.shapes[0];
+
+      expect(shape.type).toBe('polyline');
+      // Should result in more points than control points due to interpolation
+      expect(shape.points?.length).toBeGreaterThan(4);
+  });
+
+  it('maps DXF linetypes to strokeDash', () => {
+      const data: DxfData = {
+          entities: [{
+              type: 'LINE',
+              layer: '0',
+              lineType: 'DASHED',
+              vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }]
+          }]
+      };
+
+      const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' });
+      const shape = result.shapes[0];
+
+      // DASHED = [10, 5]
+      expect(shape.strokeDash).toEqual([10, 5]);
+  });
 });

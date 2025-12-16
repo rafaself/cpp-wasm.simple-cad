@@ -131,7 +131,18 @@ export const renderShape = (
         ctx.strokeStyle = effectiveStroke;
         const effectiveFill = (fillEnabled && fillColor && fillColor !== 'transparent') ? fillColor : 'transparent';
         ctx.fillStyle = effectiveFill;
-        ctx.setLineDash([]);
+
+        // Apply Linetype (dashed lines)
+        // Scale dashes by line width or view transform? Usually view transform to keep screen size constant,
+        // OR world size. DXF dashes are in World Units.
+        // If strokeDash is [10, 5] (world units), we should just set it.
+        // However, standard HTML5 canvas setLineDash is affected by transform.scale.
+        // If we want "World Space" dashes (zoomable), we just set them.
+        if (shape.strokeDash && shape.strokeDash.length > 0) {
+            ctx.setLineDash(shape.strokeDash);
+        } else {
+            ctx.setLineDash([]);
+        }
 
         const baseWidth = shape.strokeWidth ?? 2;
         ctx.lineWidth = baseWidth / viewTransform.scale;

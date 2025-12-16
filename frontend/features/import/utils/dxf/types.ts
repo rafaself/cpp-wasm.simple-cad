@@ -4,6 +4,7 @@ export interface DxfVector {
   x: number;
   y: number;
   z?: number;
+  bulge?: number; // Added for Polyline arc segments
 }
 
 export interface DxfEntity {
@@ -11,9 +12,11 @@ export interface DxfEntity {
   layer: string; // Layer name
   handle?: string;
   color?: number; // DXF color index
+  lineType?: string; // Linetype name
 
   // LINE, POLYLINE, LWPOLYLINE
   vertices?: DxfVector[];
+  closed?: boolean; // LWPOLYLINE closed flag
 
   // CIRCLE, ARC
   center?: DxfVector;
@@ -36,12 +39,15 @@ export interface DxfEntity {
   yScale?: number;
   zScale?: number;
   attribs?: DxfEntity[]; // Attributes associated with this INSERT
+  rotation?: number;
 
   // SPLINE
   controlPoints?: DxfVector[];
   numberOfControlPoints?: number;
   degree?: number;
   closed?: boolean;
+  knots?: number[];
+  weights?: number[];
 }
 
 export interface DxfBlock {
@@ -69,6 +75,7 @@ export interface DxfData {
     $INSUNITS?: number; // Unit code
     $EXTMIN?: DxfVector;
     $EXTMAX?: DxfVector;
+    $TEXTSIZE?: number;
   };
 }
 

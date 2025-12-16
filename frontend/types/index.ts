@@ -156,6 +156,7 @@ export interface Shape {
   arrowHeadSize?: number; // Size of arrow head for arrow type
   strokeColor: string;
   strokeWidth?: number;
+  strokeDash?: number[]; // Array of dash/gap lengths
   strokeOpacity?: number; // 0-100
   strokeEnabled?: boolean; // false = no stroke
   fillColor: string; // Background color for text

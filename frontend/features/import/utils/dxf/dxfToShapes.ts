@@ -72,7 +72,200 @@ const DXF_UNITS: Record<number, number> = {
     17: 1.0e11,   // Gigameters
 };
 
+// DXF Linetype Mapping
+// Format: [dash, gap, dash, gap...]
+// We use rough approximations for common AutoCAD linetypes.
+const LINETYPES: Record<string, number[]> = {
+    'DASHED': [10, 5],
+    'DASHED2': [5, 2.5],     // 0.5x
+    'DASHEDX2': [20, 10],    // 2x
+    'HIDDEN': [5, 5],
+    'HIDDEN2': [2.5, 2.5],
+    'HIDDENX2': [10, 10],
+    'CENTER': [20, 5, 5, 5], // Long, gap, short, gap
+    'CENTER2': [10, 2.5, 2.5, 2.5],
+    'CENTERX2': [40, 10, 10, 10],
+    'PHANTOM': [20, 5, 5, 5, 5, 5], // Long, gap, short, gap, short, gap
+    'PHANTOM2': [10, 2.5, 2.5, 2.5, 2.5, 2.5],
+    'PHANTOMX2': [40, 10, 10, 10, 10, 10],
+    'DOT': [2, 2],
+    'DOT2': [1, 1],
+    'DOTX2': [4, 4],
+    'DIVIDE': [20, 5, 2, 5, 2, 5], // Long, gap, dot, gap, dot, gap
+    'BORDER': [20, 5, 20, 5, 5, 5],
+};
+
+const getLinetype = (name?: string): number[] => {
+    if (!name) return [];
+    const upper = name.toUpperCase();
+    return LINETYPES[upper] || [];
+};
+
 const MIN_TEXT_SIZE = 0.1; // Reduced to allow small text (e.g. in Meters) to exist
+
+/**
+ * Uniform B-Spline interpolation for Degree 2 (Quadratic) and 3 (Cubic).
+ * DXF Splines are NURBS, but often uniform knot vectors are sufficient for
+ * visual approximation if we ignore weights and complex knots.
+ */
+const interpolateSpline = (controlPoints: DxfVector[], degree: number = 3, resolution: number = 20): DxfVector[] => {
+    if (controlPoints.length < degree + 1) return controlPoints;
+
+    const points: DxfVector[] = [];
+    const n = controlPoints.length;
+
+    // Simple uniform B-Spline basis functions
+    // Note: This is a simplification. Real DXF parsing should use knots/weights.
+    // However, for standard "Fit" splines, this visual approximation is vastly better than straight lines.
+
+    // For visual fidelity, we might actually want Catmull-Rom if the spline is "passing through" points,
+    // but DXF SPLINE usually defines Control Vertices (CVs) which pull the curve (B-Spline behavior).
+    // If "fit points" are provided in DXF, we should prioritize those, but dxf-parser mainly gives controlPoints.
+
+    // We will generate a curve that approximates the shape defined by CVs.
+
+    // De Boor's algorithm is ideal but complex to implement from scratch without knots.
+    // We'll use a standard cubic B-Spline subdivision or sampling.
+
+    // Sampling along t=[0, 1] relative to the knot spans.
+    // Valid parameter range for clamped B-spline is usually [knots[degree], knots[n]]
+
+    // Let's implement a basic Chaikin's algorithm or similar subdivision for visual smoothing
+    // OR just sample a Bezier approximation.
+    // Most efficient: Convert B-Spline segments to Cubic Beziers.
+
+    // Alternative: Just simple subdivision (Chaikin) for quadratic (degree 2)
+    // For cubic, we can use 4-point windowing.
+
+    const dt = 1.0 / resolution;
+
+    // Range of parameter t where the B-spline is defined
+    // For a uniform B-Spline with 'n' control points and degree 'p':
+    // It is defined for t from p to n.
+    // Basis functions N_i,p(t)
+
+    // Implementation of Cox-De Boor recursion for basis functions
+    const N = (i: number, p: number, t: number, knots: number[]): number => {
+        if (p === 0) {
+            return (t >= knots[i] && t < knots[i+1]) ? 1 : 0;
+        }
+        const denom1 = knots[i+p] - knots[i];
+        const term1 = denom1 === 0 ? 0 : ((t - knots[i]) / denom1) * N(i, p-1, t, knots);
+
+        const denom2 = knots[i+p+1] - knots[i+1];
+        const term2 = denom2 === 0 ? 0 : ((knots[i+p+1] - t) / denom2) * N(i+1, p-1, t, knots);
+
+        return term1 + term2;
+    };
+
+    // Generate uniform knots if missing.
+    // Clamped/Open uniform knot vector: [0,0,0,0, 1, 2, ... m-p, m-p, m-p, m-p]
+    // Unclamped/Periodic: [0, 1, 2, ... n+p]
+    // DXF splines are usually clamped (start/end at first/last CV).
+
+    const count = controlPoints.length;
+    const knots: number[] = [];
+
+    // Create Clamped Uniform Knot Vector
+    // p+1 zeros, then internal, then p+1 max values
+    for (let i = 0; i <= degree; i++) knots.push(0);
+    const internalSpans = count - degree; // Number of valid segments
+    for (let i = 1; i < internalSpans; i++) knots.push(i);
+    for (let i = 0; i <= degree; i++) knots.push(internalSpans);
+
+    const maxT = internalSpans;
+    const totalSteps = maxT * resolution;
+
+    for (let step = 0; step <= totalSteps; step++) {
+        let t = (step / totalSteps) * maxT;
+        if (t >= maxT) t = maxT - 0.000001; // Avoid going out of bound at exact end
+
+        let x = 0, y = 0;
+        // Optimization: N(i,p,t) is non-zero only for i in [floor(t)-p, floor(t)]
+        // But for simplicity/robustness, we sum all active basis functions.
+        for (let i = 0; i < count; i++) {
+            const basis = N(i, degree, t, knots);
+            if (basis > 0) {
+                x += basis * controlPoints[i].x;
+                y += basis * controlPoints[i].y;
+            }
+        }
+        points.push({ x, y });
+    }
+
+    // Ensure we hit the last point exactly if clamped
+    points.push(controlPoints[controlPoints.length - 1]);
+
+    return points;
+};
+
+/**
+ * Calculates intermediate points for a polyline segment with a bulge.
+ * Bulge = tan(theta/4)
+ */
+const getBulgeCurvePoints = (p1: DxfVector, p2: DxfVector, bulge: number): DxfVector[] => {
+    if (bulge === 0) return [];
+
+    const theta = 4 * Math.atan(bulge);
+    const d = dist(p1, p2);
+    if (d < 1e-10) return [];
+
+    const radius = d / (2 * Math.sin(theta / 2));
+    const chordAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+    // Center calculation depends on bulge sign
+    // If bulge > 0, arc is CCW relative to chord.
+    // Angle to center from p1 is chordAngle + (PI/2 - theta/2)
+    const angleToCenter = chordAngle + (Math.PI / 2 - theta / 2);
+
+    // We need absolute radius for distance, but sign matters for direction if we used different math.
+    // Here we use geometry to find center.
+    // Distance from chord midpoint to center = radius * cos(theta/2)
+
+    // Alternative Center Calculation (Robust):
+    // alpha = angle between chord and radius = (PI - theta)/2
+    // Center is at p1 + vector(len=abs(r), angle=chordAngle + (PI/2 - theta/2)) ??
+    // Actually simpler:
+    // M = midpoint
+    // Sagitta (height of arc from chord) = r - r*cos(theta/2)
+
+    // Let's use the algebraic formula for center:
+    const b = bulge;
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const norm = Math.sqrt(dx*dx + dy*dy);
+
+    // From bulge definition
+    const radius_val = (norm * (1 + b*b)) / (4 * b);
+
+    // Center coordinates
+    const cx = (p1.x + p2.x) / 2 - (dy * (1 - b*b)) / (4 * b);
+    const cy = (p1.y + p2.y) / 2 + (dx * (1 - b*b)) / (4 * b);
+
+    const startAngle = Math.atan2(p1.y - cy, p1.x - cx);
+    const endAngle = Math.atan2(p2.y - cy, p2.x - cx);
+
+    const points: DxfVector[] = [];
+
+    // Determine sweep
+    let sweep = endAngle - startAngle;
+    if (b > 0 && sweep < 0) sweep += Math.PI * 2;
+    if (b < 0 && sweep > 0) sweep -= Math.PI * 2;
+
+    // Tessellation quality - roughly 1 segment per 5 degrees or based on error
+    const segments = Math.max(8, Math.ceil(Math.abs(sweep) / (5 * Math.PI / 180)));
+
+    for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const ang = startAngle + sweep * t;
+        points.push({
+            x: cx + Math.abs(radius_val) * Math.cos(ang),
+            y: cy + Math.abs(radius_val) * Math.sin(ang)
+        });
+    }
+
+    return points;
+};
 
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
@@ -195,6 +388,21 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
     if (options.grayscale) color = toGrayscale(color);
 
+    // Linetype Resolution
+    // DXF hierarchy: Entity Linetype > Layer Linetype > Continuous
+    // But entity.lineType might be 'ByLayer' or 'ByBlock'
+    const rawLinetype = entity.lineType;
+    let effectiveLinetypeName = rawLinetype;
+
+    // If undefined or ByLayer, check Layer
+    if (!effectiveLinetypeName || effectiveLinetypeName.toLowerCase() === 'bylayer') {
+        // Need to fetch layer linetype (not currently in our Layer map, assuming simplified import)
+        // For now, if BYLAYER, we default to continuous unless we map layer properties deeper.
+        // TODO: Map layer linetypes from tables.layer.layers
+    }
+
+    const strokeDash = getLinetype(effectiveLinetypeName);
+
     const trans = (p: DxfVector): Point => {
       let x = p.x * transform.scaleX;
       let y = p.y * transform.scaleY;
@@ -224,6 +432,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             points: [trans(entity.vertices[0]), trans(entity.vertices[1])],
             strokeColor: color,
             strokeWidth: 1,
+            strokeDash: strokeDash,
             strokeEnabled: true,
             fillColor: 'transparent',
             fillEnabled: false,
@@ -237,14 +446,36 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'LWPOLYLINE':
       case 'POLYLINE':
         if (entity.vertices && entity.vertices.length >= 2) {
-          const pts = entity.vertices.map(v => trans(v));
-          let isClosed = (entity as any).closed === true;
+          const rawPts: DxfVector[] = [];
+          const vs = entity.vertices;
+          const isClosed = (entity as any).closed === true || (entity.closed === true);
 
-          if (isClosed && pts.length > 2) {
-             if (dist(pts[0], pts[pts.length-1]) > 0.001) {
-                 pts.push({...pts[0]});
-             }
+          for (let i = 0; i < vs.length; i++) {
+              const curr = vs[i];
+              rawPts.push(curr);
+
+              // Check if we need to close back to start
+              const next = (i === vs.length - 1)
+                  ? (isClosed ? vs[0] : null)
+                  : vs[i+1];
+
+              if (next && curr.bulge && Math.abs(curr.bulge) > 1e-10) {
+                  const curvePts = getBulgeCurvePoints(curr, next, curr.bulge);
+                  rawPts.push(...curvePts);
+              }
           }
+
+          if (isClosed && rawPts.length > 2) {
+              // Ensure physical closure if not already
+              const first = rawPts[0];
+              const last = rawPts[rawPts.length-1];
+              if (dist(first, last) > 0.001) {
+                  rawPts.push({...first});
+              }
+          }
+
+          // Apply Transform
+          const pts = rawPts.map(v => trans(v));
 
           shapes.push({
             id: generateId('dxf-poly'),
@@ -252,6 +483,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             points: pts,
             strokeColor: color,
             strokeWidth: 1,
+            strokeDash: strokeDash,
             strokeEnabled: true,
             fillColor: 'transparent',
             fillEnabled: false,
@@ -264,7 +496,20 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'SPLINE':
         if (entity.controlPoints && entity.controlPoints.length > 1) {
-             const pts = entity.controlPoints.map(p => trans(p));
+             // Use transformed control points for interpolation?
+             // Better to interpolate in local space then transform, to handle non-uniform scale properly if needed.
+             // BUT, trans() handles rotation/scale. B-Spline affine invariance holds.
+             // We can interpolate Control Points in World Space (after trans).
+
+             const rawCPs = entity.controlPoints.map(p => trans(p));
+             const degree = entity.degree || 3;
+
+             // If we have very few points, interpolation might be weird, but let's try.
+             // Only interpolate if we have enough points for the degree.
+             const canInterpolate = rawCPs.length > degree;
+
+             const pts = canInterpolate ? interpolateSpline(rawCPs, degree) : rawCPs;
+
              shapes.push({
                 id: generateId('dxf-spline'),
                 type: 'polyline',
@@ -295,6 +540,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             points: [],
             strokeColor: color,
             strokeWidth: 1,
+            strokeDash: strokeDash,
             strokeEnabled: true,
             fillColor: 'transparent',
             fillEnabled: false,
@@ -324,6 +570,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             endAngle: end * (Math.PI / 180),
             strokeColor: color,
             strokeWidth: 1,
+            strokeDash: strokeDash,
             strokeEnabled: true,
             fillColor: 'transparent',
             fillEnabled: false,
