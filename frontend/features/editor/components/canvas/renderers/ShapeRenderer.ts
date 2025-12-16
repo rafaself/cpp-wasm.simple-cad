@@ -42,9 +42,7 @@ const applyStrokeColorToSvg = (svg: string, strokeColor: string): string => {
     return `${updated.slice(0, closeIndex + 1)}${styleTag}${updated.slice(closeIndex + 1)}`;
 };
 
-const getSvgImage = (svg: string | null, cacheKey: string): HTMLImageElement | null => {
-    if (svgImageCache[cacheKey]) {
-        return svgImageCache[cacheKey].loaded ? svgImageCache[cacheKey].img : null;
+
 const applyLayerVisibility = (svg: string, hiddenIds: string[] = []): string => {
     if (!hiddenIds.length) return svg;
 
@@ -274,29 +272,21 @@ export const renderShape = (
 
             if ((shape.svgRaw || shape.svgOriginalRaw) && shape.svgViewBox) {
                 const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';
-                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}`;
+                const hiddenLayers = shape.svgHiddenLayers ?? [];
+                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}-${hiddenLayers.join(',')}`;
 
-                // Optimized caching strategy with LRU:
+                // Optimized caching strategy:
                 // 1. Check if image is already cached (fastest)
-                // 2. If not, check if tinted SVG string is cached (fast)
-                // 3. If neither, compute tinted string and cache it (slow)
+                let img = getSvgImage(null, cacheKey);
 
-                let img = getSvgImage(null, cacheKey); // Check image cache first
-
+                // 2. If not, generate and cache
                 if (!img) {
-                    let tintedSvg = getTintedSvgFromCache(cacheKey);
-                    if (!tintedSvg) {
-                         tintedSvg = applyStrokeColorToSvg(shape.svgRaw, symbolColor);
-                         setTintedSvgCache(cacheKey, tintedSvg);
-                    }
+                    const sourceSvg = shape.svgOriginalRaw ?? shape.svgRaw ?? '';
+                    const layeredSvg = applyLayerVisibility(sourceSvg, hiddenLayers);
+                    const tintedSvg = applyStrokeColorToSvg(layeredSvg, symbolColor);
                     img = getSvgImage(tintedSvg, cacheKey);
                 }
 
-                const sourceSvg = shape.svgOriginalRaw ?? shape.svgRaw ?? '';
-                const layeredSvg = applyLayerVisibility(sourceSvg, shape.svgHiddenLayers ?? []);
-                const tintedSvg = applyStrokeColorToSvg(layeredSvg, symbolColor);
-                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}-${(shape.svgHiddenLayers ?? []).join(',')}`;
-                const img = getSvgImage(tintedSvg, cacheKey);
                 if (img) {
                     ctx.save();
                     ctx.translate(rx, ry + rh);

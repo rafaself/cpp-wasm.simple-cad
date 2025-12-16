@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { Shape } from '../../../types';
-import { useDataStore } from '../../../stores/useDataStore';
+import { useDataStore } from '../../../../stores/useDataStore';
 
 interface Props {
   shape: Shape;

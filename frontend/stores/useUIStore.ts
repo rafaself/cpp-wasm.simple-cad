@@ -37,8 +37,6 @@ interface UIState {
   // Setters
   setTool: (tool: ToolType) => void;
   setSidebarTab: (tab: string) => void;
-  setActiveFloorId: (floorId?: string) => void;
-  setActiveDiscipline: (discipline: 'architecture' | 'electrical') => void;
   setViewTransform: (transform: ViewTransform | ((prev: ViewTransform) => ViewTransform)) => void;
   setCanvasSize: (size: { width: number; height: number }) => void;
   setMousePos: (pos: Point | null) => void;
@@ -65,8 +63,6 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   activeTool: 'select',
   sidebarTab: 'edificacao',
-  activeFloorId: undefined,
-  activeDiscipline: 'architecture',
   viewTransform: { x: 0, y: 0, scale: 1 },
   mousePos: null,
   canvasSize: { width: 0, height: 0 },
@@ -141,8 +137,6 @@ export const useUIStore = create<UIState>((set) => ({
 
   setTool: (tool) => set({ activeTool: tool }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
-  setActiveFloorId: (floorId) => set({ activeFloorId: floorId }),
-  setActiveDiscipline: (discipline) => set({ activeDiscipline: discipline }),
   setViewTransform: (transform) => set((state) => ({
     viewTransform: typeof transform === 'function' ? transform(state.viewTransform) : transform
   })),

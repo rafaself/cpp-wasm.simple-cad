@@ -335,9 +335,9 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            const p = trans(textPoint);
            
            // Calculate height with scale. Favor entity height, then header default, then fallback.
-           // We do NOT enforce a minimum size to preserve drawing scale fidelity.
+           // We enforce a minimum size to ensure text remains readable on canvas.
            const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
-           const h = baseHeight * Math.abs(transform.scaleY);
+           const h = Math.max(baseHeight * Math.abs(transform.scaleY), MIN_TEXT_SIZE);
            
            const rot = (entity.rotation || 0) + transform.rotation;
 
