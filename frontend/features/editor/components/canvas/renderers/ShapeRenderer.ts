@@ -342,11 +342,23 @@ export const renderShape = (
             const textColor = strokeColor;
             const bgColor = fillColor && fillColor !== 'transparent' ? fillColor : null;
 
-            const pad = TEXT_PADDING;
-            const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
-            const availableWidth = Math.max(containerWidth, fontSize * 0.6);
+            // Only apply padding when text has explicit width (container mode)
+            const hasExplicitWidth = shape.width !== undefined;
+            const pad = hasExplicitWidth ? TEXT_PADDING : 0;
+            
+            // Calculate available width for text wrapping
+            let availableWidth: number;
+            if (hasExplicitWidth) {
+                availableWidth = Math.max((shape.width ?? 0), fontSize * 0.6);
+            } else {
+                // No explicit width - use measured text width, no wrapping needed
+                availableWidth = ctx.measureText(shape.textContent).width;
+            }
+            
             const lineHeight = fontSize * 1.2;
-            const wrappedLines = getWrappedLines(shape.textContent, availableWidth, fontSize);
+            const wrappedLines = hasExplicitWidth 
+                ? getWrappedLines(shape.textContent, availableWidth, fontSize)
+                : shape.textContent.split('\n');
 
             const sx = shape.x ?? 0;
             const sy = shape.y ?? 0;
