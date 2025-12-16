@@ -440,7 +440,17 @@ export const renderShape = (
             // Translate to top of text box (sy + textHeight) before Y-flip
             // This ensures text renders inside the bounding box, not below it
             ctx.translate(sx, sy + textHeight);
-            ctx.scale(1, -1);
+
+            // Apply Non-Uniform Scale (Anamorphic Text)
+            // Default scaleY is -1 (Y-Up to Screen-Down conversion)
+            // If shape has scaleX/scaleY, use them.
+            // Note: If scaleY is positive in Shape, it means flipped relative to standard -1?
+            // Standard: scaleY = -1.
+            // If input scaleY is 1, it means upside down relative to standard.
+            // We use shape.scaleX ?? 1 and shape.scaleY ?? -1.
+            const sX = shape.scaleX ?? 1;
+            const sY = shape.scaleY ?? -1;
+            ctx.scale(sX, sY);
 
             wrappedLines.forEach((line, index) => {
                 const lineWidth = ctx.measureText(line).width;
