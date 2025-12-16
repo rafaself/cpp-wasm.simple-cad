@@ -5,6 +5,7 @@ interface ImportOptions {
   explodeBlocks: boolean;
   maintainLayers: boolean;
   grayscale?: boolean;
+  readOnly?: boolean;
 }
 
 interface ImportPlanModalProps {
@@ -28,7 +29,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
   const [options, setOptions] = useState<ImportOptions>({
     explodeBlocks: true,
     maintainLayers: true,
-    grayscale: false
+    grayscale: false,
+    readOnly: true
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -135,6 +137,15 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                   className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
                 />
                 Importar em Tons de Cinza
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={options.readOnly}
+                  onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
+                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                />
+                Importar como Referência (Read-only)
               </label>
               <label className="flex items-center gap-2 cursor-pointer select-none opacity-75" title="Sempre ativo para renderização correta atualmente">
                 <input

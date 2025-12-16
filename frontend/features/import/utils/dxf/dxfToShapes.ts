@@ -29,9 +29,10 @@ const DXF_COLORS: Record<number, string> = {
 };
 
 const getDxfColor = (index?: number, layerColor?: string): string => {
-  if (index === 0 || index === 256) return layerColor || '#000000';
-  if (index && DXF_COLORS[index]) return DXF_COLORS[index];
-  if (index && index > 9 && index < 250) {
+  // undefined = ByLayer, 0 = ByBlock, 256 = ByLayer
+  if (index === undefined || index === 0 || index === 256) return layerColor || '#000000';
+  if (DXF_COLORS[index]) return DXF_COLORS[index];
+  if (index > 9 && index < 250) {
       return '#CCCCCC';
   }
   return '#000000'; // Default black
@@ -42,7 +43,6 @@ const toGrayscale = (hex: string): string => {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    // Luminance formula
     const y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
     const gs = y.toString(16).padStart(2, '0');
     return `#${gs}${gs}${gs}`;
@@ -77,7 +77,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         fillColor: 'transparent',
         fillEnabled: false,
         visible: l.visible !== false,
-        locked: Boolean(l.frozen),
+        locked: options.readOnly || Boolean(l.frozen),
         isNative: false
       });
     });
@@ -97,15 +97,26 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     entity: DxfEntity,
     transform: { x: number, y: number, rotation: number, scaleX: number, scaleY: number },
     parentLayer?: string,
+    parentColor?: string,
     visitedBlocks: Set<string> = new Set()
   ) => {
     if (shapes.length > ENTITY_LIMIT) return;
 
-    const layerName = entity.layer || parentLayer || '0';
-    const layerId = resolveLayerId(layerName);
-    const layerColor = resolveLayerColor(layerName);
+    // Layer Inheritance
+    const rawLayer = entity.layer || '0';
+    const effectiveLayer = (rawLayer === '0' && parentLayer) ? parentLayer : rawLayer;
 
+    const layerId = resolveLayerId(effectiveLayer);
+    const layerColor = resolveLayerColor(effectiveLayer);
+
+    // Color Inheritance
     let color = getDxfColor(entity.color, layerColor);
+
+    // ByBlock(0) override
+    if (entity.color === 0 && parentColor) {
+        color = parentColor;
+    }
+
     if (options.grayscale) color = toGrayscale(color);
 
     const trans = (p: DxfVector): Point => {
@@ -297,7 +308,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
                 rotation: childRotation,
                 scaleX: childScaleX,
                 scaleY: childScaleY
-             }, layerName, nextVisited);
+             }, effectiveLayer, color, nextVisited);
           });
         }
         break;
@@ -332,8 +343,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   });
 
   if (minX !== Infinity) {
-      // Correct Y-Up handling: Just subtract minX/minY to normalize origin.
-      // Do NOT flip Y relative to Height because StaticCanvas handles Y-Up.
       shapes.forEach(s => {
           if (s.points && s.points.length > 0) {
               s.points = s.points.map(p => ({

@@ -342,7 +342,7 @@ export const renderShape = (
             const textColor = strokeColor;
             const bgColor = fillColor && fillColor !== 'transparent' ? fillColor : null;
 
-            const pad = TEXT_PADDING;
+            const pad = TEXT_PADDING / viewTransform.scale;
             const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
             const availableWidth = Math.max(containerWidth, fontSize * 0.6);
             const lineHeight = fontSize * 1.2;

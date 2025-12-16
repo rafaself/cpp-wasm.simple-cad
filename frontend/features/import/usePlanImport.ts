@@ -21,6 +21,7 @@ interface ImportOptions {
   explodeBlocks?: boolean;
   maintainLayers?: boolean;
   grayscale?: boolean;
+  readOnly?: boolean;
 }
 
 interface PlanImportHook {
@@ -230,7 +231,8 @@ export const usePlanImport = (): PlanImportHook => {
                       floorId: uiStore.activeFloorId || 'default',
                       defaultLayerId: dataStore.activeLayerId,
                       explodeBlocks: true,
-                      grayscale: options?.grayscale
+                      grayscale: options?.grayscale,
+                      readOnly: options?.readOnly
                   }
               });
           });

@@ -76,6 +76,7 @@ export interface DxfImportOptions {
   defaultLayerId: string;
   explodeBlocks?: boolean;
   grayscale?: boolean;
+  readOnly?: boolean;
 }
 
 export interface DxfWorkerInput {
