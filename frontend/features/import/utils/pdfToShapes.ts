@@ -1,5 +1,5 @@
 import { Shape, Point, NormalizedViewBox } from '../../../types';
-import * as pdfjs from 'pdfjs-dist/build/pdf';
+import * as pdfjs from 'pdfjs-dist';
 import { generateId } from '../../../utils/uuid';
 
 // Basic Matrix [a, b, c, d, e, f]

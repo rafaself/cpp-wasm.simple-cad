@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { convertPdfPageToShapes } from './pdfToShapes';
-import * as pdfjs from 'pdfjs-dist/build/pdf';
+import * as pdfjs from 'pdfjs-dist';
+import { GlobalWorkerOptions } from 'pdfjs-dist';
+
+// Disable worker for tests (pdfjs-dist v4+ no longer supports 'disableWorker' option)
+GlobalWorkerOptions.workerSrc = '';
 
 // Mock OPS if needed, or rely on the imported one.
 // Since we are running in node (vitest), pdfjs-dist/build/pdf might work if it detects node.
@@ -49,7 +53,7 @@ const buildPdfWithContent = (
 };
 
 const loadFirstPage = async (pdfBytes: Uint8Array) => {
-  const task = pdfjs.getDocument({ data: pdfBytes, disableWorker: true });
+  const task = pdfjs.getDocument({ data: pdfBytes });
   const pdf = await task.promise;
   return pdf.getPage(1);
 };
