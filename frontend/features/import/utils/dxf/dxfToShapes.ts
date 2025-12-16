@@ -50,6 +50,30 @@ const toGrayscale = (hex: string): string => {
 
 const dist = (p1: DxfVector, p2: DxfVector) => Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
 
+// DXF Unit Codes to Centimeters (CM) Conversion Factors
+// Source: AutoCAD DXF Reference ($INSUNITS)
+const DXF_UNITS: Record<number, number> = {
+    1: 2.54,      // Inches
+    2: 30.48,     // Feet
+    3: 160934.4,  // Miles
+    4: 0.1,       // Millimeters
+    5: 1.0,       // Centimeters
+    6: 100.0,     // Meters
+    7: 100000.0,  // Kilometers
+    8: 0.00000254, // Microinches
+    9: 0.00254,   // Mils
+    10: 91.44,    // Yards
+    11: 1.0e-8,   // Angstroms
+    12: 1.0e-7,   // Nanometers
+    13: 0.0001,   // Microns
+    14: 10.0,     // Decimeters
+    15: 1000.0,   // Decameters
+    16: 10000.0,  // Hectometers
+    17: 1.0e11,   // Gigameters
+};
+
+const MIN_TEXT_SIZE = 12; // Minimum readable text size in canvas units (pixels/cm)
+
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
   let entityCount = data.entities ? data.entities.length : 0;
@@ -59,6 +83,50 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   if (entityCount > ENTITY_LIMIT) {
       throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades.`);
   }
+
+  // Determine Scale Factor based on DXF Units
+  // Default to 1 (Unitless/Centimeters) if undefined
+  const insUnits = data.header?.$INSUNITS;
+  let globalScale = (insUnits !== undefined && DXF_UNITS[insUnits]) ? DXF_UNITS[insUnits] : 1;
+
+  // Auto-Detect Scale Heuristic for Unitless Files
+  if (insUnits === undefined) {
+      let minCoord = Infinity;
+      let maxCoord = -Infinity;
+      let sampleCount = 0;
+      
+      const updateBounds = (v: DxfVector) => {
+          if (v.x < minCoord) minCoord = v.x;
+          if (v.x > maxCoord) maxCoord = v.x;
+          if (v.y < minCoord) minCoord = v.y;
+          if (v.y > maxCoord) maxCoord = v.y;
+      };
+
+      // Check main entities (limit sample to first 1000 for speed)
+      if (data.entities) {
+          for (const e of data.entities) {
+              if (sampleCount > 1000) break;
+              if (e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
+                  e.vertices?.forEach(updateBounds);
+                  sampleCount++;
+              } else if (e.type === 'INSERT' && e.position) {
+                  updateBounds(e.position);
+                  sampleCount++;
+              }
+          }
+      }
+
+      const extent = maxCoord - minCoord;
+      // If extent is valid and small (e.g., < 2000), it's likely Meters (e.g., a 10m house is 10 units).
+      // If it were MM, a 10m house would be 10000 units.
+      // If it were CM, a 10m house would be 1000 units.
+      if (extent > 0 && extent < 2000) {
+          globalScale = 100; // Assume Meters -> CM
+          console.log(`DXF Import: Auto-detected unitless file with small extents (${extent.toFixed(2)}). Assuming Meters. Scale: 100`);
+      }
+  }
+
+  console.log(`DXF Import: Detected Units Code ${insUnits}, applying Scale Factor: ${globalScale}`);
 
   const shapes: Shape[] = [];
   const layersMap: Map<string, Layer> = new Map();
@@ -260,9 +328,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'TEXT':
       case 'MTEXT':
-        if (entity.startPoint && entity.text) {
+      case 'ATTRIB':
+        const textContent = entity.text || (entity as any).value; // Support ATTRIB value
+        if (entity.startPoint && textContent) {
            const p = trans(entity.startPoint);
-           const h = (entity.textHeight || 12) * Math.abs(transform.scaleY);
+           // Calculate height with scale and enforce minimum size
+           const rawHeight = (entity.textHeight || 12) * Math.abs(transform.scaleY);
+           const h = Math.max(rawHeight, MIN_TEXT_SIZE);
            const rot = (entity.rotation || 0) + transform.rotation;
 
            shapes.push({
@@ -271,11 +343,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             x: p.x,
             y: p.y,
             points: [],
-            textContent: entity.text,
+            textContent: textContent,
             fontSize: h,
             rotation: rot * (Math.PI / 180),
             strokeColor: color,
-            fillColor: color,
+            fillColor: 'transparent', // Ensure text background is transparent
             layerId,
             floorId: options.floorId,
             discipline: 'architecture',
@@ -311,12 +383,19 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
              }, effectiveLayer, color, nextVisited);
           });
         }
+        
+        // Process Attributes attached to INSERT
+        if (entity.attribs) {
+             entity.attribs.forEach(attr => {
+                 processEntity(attr, transform, effectiveLayer, color, visitedBlocks);
+             });
+        }
         break;
     }
   };
 
   if (data.entities) {
-      data.entities.forEach(e => processEntity(e, { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }));
+      data.entities.forEach(e => processEntity(e, { x: 0, y: 0, rotation: 0, scaleX: globalScale, scaleY: globalScale }));
   }
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

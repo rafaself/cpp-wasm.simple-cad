@@ -35,6 +35,7 @@ export interface DxfEntity {
   xScale?: number;
   yScale?: number;
   zScale?: number;
+  attribs?: DxfEntity[]; // Attributes associated with this INSERT
 
   // SPLINE
   controlPoints?: DxfVector[];
