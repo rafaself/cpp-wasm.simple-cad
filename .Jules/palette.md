@@ -9,3 +9,7 @@
 ## 2025-12-15 - Semantic Interactive Elements
 **Learning:** Found interactive color pickers implemented as `div`s, making them inaccessible to keyboard users. Also, toggle buttons lacked `aria-pressed` state.
 **Action:** Always use `<button>` for click interactions (even for color swatches) and ensure toggle states are communicated via ARIA attributes.
+
+## 2025-12-16 - Focus Visibility
+**Learning:** When converting interactive `div`s to `button`s, default browser focus styles may be suppressed or look inconsistent. Explicit `focus-visible` styles are essential for keyboard navigation.
+**Action:** Always add `focus-visible:ring` (or similar) when making custom elements interactive.
