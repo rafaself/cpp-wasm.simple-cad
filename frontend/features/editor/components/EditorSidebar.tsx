@@ -15,10 +15,12 @@ import DiagramPanel from '../../diagram/DiagramPanel';
 import { ImportPlanModal } from '../../import/ImportPlanModal';
 import { usePlanImport } from '../../import/usePlanImport';
 import DisciplineContextMenu from './DisciplineContextMenu';
+import PlanLayerControls from './properties/PlanLayerControls';
 
 const EditorSidebar: React.FC = () => {
   const sidebarTab = useUIStore((s) => s.sidebarTab);
   const setSidebarTab = useUIStore((s) => s.setSidebarTab);
+  const setActiveDiscipline = useUIStore((s) => s.setActiveDiscipline);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const dataStore = useDataStore();
 
@@ -30,6 +32,14 @@ const EditorSidebar: React.FC = () => {
 
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
+
+  useEffect(() => {
+    if (sidebarTab === 'eletrica') {
+      setActiveDiscipline('electrical');
+    } else if (sidebarTab === 'edificacao' || sidebarTab === 'desenho' || sidebarTab === 'propriedades') {
+      setActiveDiscipline('architecture');
+    }
+  }, [sidebarTab, setActiveDiscipline]);
   
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{
@@ -244,10 +254,12 @@ const EditorSidebar: React.FC = () => {
     }
     
     return (
-        <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-            <LayoutDashboard size={32} className="mb-4 opacity-20 shrink-0" />
-            <p className="text-xs">Desenho indisponivel neste modo.</p>
-        </div>
+      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
+        <PositionProperties selectedShape={selectedShape} />
+        <DimensionProperties selectedShape={selectedShape} />
+        <StyleProperties selectedShape={selectedShape} />
+        {selectedShape.svgRaw && <PlanLayerControls shape={selectedShape} />}
+      </div>
     );
   };
 

@@ -72,6 +72,28 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     calibrationPoints, showCalibrationModal
   } = state;
 
+  // Manual subscription to re-render only when SELECTED shapes change
+  useEffect(() => {
+    return useDataStore.subscribe((state, prevState) => {
+        const selectedIds = useUIStore.getState().selectedShapeIds;
+        if (selectedIds.size === 0) return;
+
+        let changed = false;
+        for (const id of selectedIds) {
+            // Check reference equality.
+            // If the shape object ref changed, it was updated.
+            if (state.shapes[id] !== prevState.shapes[id]) {
+                changed = true;
+                break;
+            }
+        }
+
+        if (changed) {
+            forceUpdate();
+        }
+    });
+  }, []);
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -100,7 +122,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
     // 1. Draw Selection Highlights & Handles
     uiStore.selectedShapeIds.forEach(id => {
-        const shape = dataStore.shapes[id];
+        const shape = shapes[id];
         if (shape) {
             try {
                 drawSelectionHighlight(ctx, shape, uiStore.viewTransform);
@@ -117,7 +139,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     if ((uiStore.activeTool === 'move' || uiStore.activeTool === 'rotate') && transformationBase && currentPoint && uiStore.selectedShapeIds.size > 0) {
         const wm = screenToWorld(currentPoint, uiStore.viewTransform);
         uiStore.selectedShapeIds.forEach(id => {
-            const shape = dataStore.shapes[id];
+            const shape = shapes[id];
             if(!shape) return;
             const ghost = { ...shape, id: 'ghost-' + shape.id };
             if (uiStore.activeTool === 'move') {
@@ -154,14 +176,14 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         const librarySymbol = symbolId ? libraryStore.electricalSymbols[symbolId] : null;
         if (librarySymbol) {
             const layerConfig = getElectricalLayerConfig(librarySymbol.id, librarySymbol.category);
-            const existingLayer = dataStore.layers.find(l => l.name.toLowerCase() === layerConfig.name.toLowerCase());
+            const existingLayer = layers.find(l => l.name.toLowerCase() === layerConfig.name.toLowerCase());
             const layerColor = existingLayer?.strokeColor ?? layerConfig.strokeColor;
             const center = snapMarker ? snapMarker : screenToWorld(currentPoint, uiStore.viewTransform);
             const width = librarySymbol.viewBox.width * librarySymbol.scale;
             const height = librarySymbol.viewBox.height * librarySymbol.scale;
             const ghost: Shape = {
                 id: 'ghost-symbol',
-                layerId: existingLayer?.id ?? dataStore.activeLayerId,
+                layerId: existingLayer?.id ?? activeLayerId,
                 type: 'rect',
                 x: center.x - width / 2,
                 y: center.y - height / 2,
@@ -323,7 +345,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
         wc = constrainToSquare(ws, wc);
       }
       
-      const temp: Shape = { id: 'temp', layerId: dataStore.activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, points: [] };
+      const temp: Shape = { id: 'temp', layerId: activeLayerId, type: uiStore.activeTool, strokeColor, strokeWidth, strokeEnabled, fillColor, points: [] };
       
       if (uiStore.activeTool === 'arc') {
           ctx.beginPath(); ctx.moveTo(ws.x, ws.y); ctx.lineTo(wc.x, wc.y);
@@ -391,7 +413,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
   useEffect(() => {
       render();
-  }, [render]);
+  }, [render, renderTrigger]); // Added renderTrigger to deps
 
   let cursorClass = DEFAULT_CURSOR;
   if (isMiddlePanning || (isDragging && activeTool === 'pan')) cursorClass = GRABBING_CURSOR;
@@ -430,6 +452,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
             initialRadius={getDistance(arcPoints.start, arcPoints.end)}
             position={radiusModalPos}
             onConfirm={(radius) => {
+                const dataStore = useDataStore.getState();
                 const n: Shape = {
                     id: generateId(),
                     layerId: useDataStore.getState().activeLayerId,

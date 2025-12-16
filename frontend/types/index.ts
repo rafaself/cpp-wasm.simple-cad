@@ -143,6 +143,8 @@ export interface Shape {
   layerId: string;
   type: ToolType;
   points: Point[];
+  floorId?: string;
+  discipline?: 'architecture' | 'electrical';
   x?: number;
   y?: number;
   width?: number;
@@ -183,6 +185,8 @@ export interface Shape {
   svgRaw?: string;
   svgViewBox?: NormalizedViewBox;
   symbolScale?: number;
+  svgHiddenLayers?: string[];
+  svgOriginalRaw?: string;
 
   // Electrical metadata linkage
   electricalElementId?: string;
