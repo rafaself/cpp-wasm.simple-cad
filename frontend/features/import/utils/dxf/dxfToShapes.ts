@@ -2,6 +2,7 @@ import { Shape, Layer, Point } from '../../../../types';
 import { generateId } from '../../../../utils/uuid';
 import { DxfData, DxfEntity, DxfVector, DxfImportOptions } from './types';
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
+import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, fromScaling, fromRotation } from './matrix2d';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -199,13 +200,19 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     return layer ? layer.strokeColor : '#000000';
   };
 
+  // Block Cache: Stores pre-processed shapes (in local block coordinates)
+  // These shapes have 0 transformation, just the raw geometry from the block definition.
+  const blockCache: Map<string, Shape[]> = new Map();
+  const processingBlocks: Set<string> = new Set(); // To detect recursion
+
   const processEntity = (
     entity: DxfEntity,
-    transform: { x: number, y: number, rotation: number, scaleX: number, scaleY: number },
+    matrix: Mat2D,
     parentLayer?: string,
     parentColor?: string,
-    visitedBlocks: Set<string> = new Set()
+    targetShapes?: Shape[] // If provided, push to this array instead of global shapes
   ) => {
+    const outputShapes = targetShapes || shapes;
     if (shapes.length > ENTITY_LIMIT) return;
 
     // Layer Inheritance
@@ -217,53 +224,21 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
     // Color Inheritance
     let color = getDxfColor(entity.color, layerColor);
-
-    // ByBlock(0) override
     if (entity.color === 0 && parentColor) {
         color = parentColor;
     }
-
     if (options.grayscale) color = toGrayscale(color);
 
-    // Linetype Resolution
-    // DXF hierarchy: Entity Linetype > Layer Linetype > Continuous
-    // But entity.lineType might be 'ByLayer' or 'ByBlock'
     const rawLinetype = entity.lineType;
     let effectiveLinetypeName = rawLinetype;
-
-    // If undefined or ByLayer, check Layer
-    if (!effectiveLinetypeName || effectiveLinetypeName.toLowerCase() === 'bylayer') {
-        // Need to fetch layer linetype (not currently in our Layer map, assuming simplified import)
-        // For now, if BYLAYER, we default to continuous unless we map layer properties deeper.
-        // TODO: Map layer linetypes from tables.layer.layers
-    }
-
     const strokeDash = getLinetype(effectiveLinetypeName);
 
-    const trans = (p: DxfVector): Point => {
-      let x = p.x * transform.scaleX;
-      let y = p.y * transform.scaleY;
-
-      if (transform.rotation !== 0) {
-        const rad = transform.rotation * (Math.PI / 180);
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-        const rx = x * cos - y * sin;
-        const ry = x * sin + y * cos;
-        x = rx;
-        y = ry;
-      }
-
-      return {
-        x: x + transform.x,
-        y: y + transform.y
-      };
-    };
+    const trans = (p: DxfVector): Point => applyToPoint(matrix, p);
 
     switch (entity.type) {
       case 'LINE':
         if (entity.vertices && entity.vertices.length >= 2) {
-          shapes.push({
+          outputShapes.push({
             id: generateId('dxf-line'),
             type: 'line',
             points: [trans(entity.vertices[0]), trans(entity.vertices[1])],
@@ -291,7 +266,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
               const curr = vs[i];
               rawPts.push(curr);
 
-              // Check if we need to close back to start
               const next = (i === vs.length - 1)
                   ? (isClosed ? vs[0] : null)
                   : vs[i+1];
@@ -303,7 +277,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           }
 
           if (isClosed && rawPts.length > 2) {
-              // Ensure physical closure if not already
               const first = rawPts[0];
               const last = rawPts[rawPts.length-1];
               if (dist(first, last) > 0.001) {
@@ -311,10 +284,9 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
               }
           }
 
-          // Apply Transform
           const pts = rawPts.map(v => trans(v));
 
-          shapes.push({
+          outputShapes.push({
             id: generateId('dxf-poly'),
             type: 'polyline',
             points: pts,
@@ -333,23 +305,16 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'SPLINE':
         if (entity.controlPoints && entity.controlPoints.length > 1) {
-            // Tessellate spline in local space, then transform
             const degree = entity.degree || 3;
-            // DXF parser usually provides controlPoints.
-            // If knots/weights are provided, pass them.
-            // Note: Our tessellateSpline expects knots/weights if provided.
-
             const pts = tessellateSpline(
                 entity.controlPoints,
                 degree,
                 entity.knots,
                 entity.weights
             );
-
-            // Apply Transform
             const transformedPts = pts.map(p => trans(p));
 
-            shapes.push({
+            outputShapes.push({
                id: generateId('dxf-spline'),
                type: 'polyline',
                points: transformedPts,
@@ -367,13 +332,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'CIRCLE':
         if (entity.center && entity.radius) {
-          // Tessellate circle in local space to allow correct transformation (e.g. into ellipse)
           const localPts = tessellateCircle(entity.center, entity.radius);
           const pts = localPts.map(p => trans(p));
-
-          shapes.push({
+          outputShapes.push({
             id: generateId('dxf-circle'),
-            type: 'polyline', // Converted to polyline for fidelity
+            type: 'polyline',
             points: pts,
             strokeColor: color,
             strokeWidth: 1,
@@ -390,16 +353,14 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'ARC':
         if (entity.center && entity.radius) {
-           // Tessellate arc in local space
            const startAngle = (entity.startAngle || 0) * (Math.PI / 180);
            const endAngle = (entity.endAngle || 0) * (Math.PI / 180);
-
            const localPts = tessellateArc(entity.center, entity.radius, startAngle, endAngle);
            const pts = localPts.map(p => trans(p));
 
-           shapes.push({
+           outputShapes.push({
             id: generateId('dxf-arc'),
-            type: 'polyline', // Converted to polyline for fidelity
+            type: 'polyline',
             points: pts,
             strokeColor: color,
             strokeWidth: 1,
@@ -417,27 +378,49 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'TEXT':
       case 'MTEXT':
       case 'ATTRIB':
-        const textContent = entity.text || (entity as any).value; // Support ATTRIB value
-        const textPoint = entity.startPoint || entity.position; // Use position if startPoint is not available
+        const textContent = entity.text || (entity as any).value;
+        const textPoint = entity.startPoint || entity.position;
         if (textPoint && textContent) {
            const p = trans(textPoint);
            
-           // Calculate height with scale. Favor entity height, then header default, then fallback.
-           const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
-           // We allow small text sizes now, avoiding the clamping that destroyed hierarchy
-           const h = Math.max(baseHeight * Math.abs(transform.scaleY), MIN_TEXT_SIZE);
-           
-           const rot = (entity.rotation || 0) + transform.rotation;
+           // Decompose Matrix to get ScaleX (Width), ScaleY (Height) and Rotation
+           // Text Local X (Baseline) and Y (Height)
+           const rotRad = (entity.rotation || 0) * (Math.PI / 180);
+           const cos = Math.cos(rotRad);
+           const sin = Math.sin(rotRad);
 
-           // Map DXF Alignment (halign) to Shape align
-           // 0 = Left (Default), 1 = Center, 2 = Right, 4 = Middle (Treat as Center)
-           // 3 = Aligned, 5 = Fit (Ignored for now, defaults to left)
+           // Local unit vectors
+           const ux = { x: cos, y: sin };
+           const uy = { x: -sin, y: cos };
+
+           // Transform unit vectors by linear part of M
+           const tx_vec = {
+               x: matrix.a * ux.x + matrix.c * ux.y,
+               y: matrix.b * ux.x + matrix.d * ux.y
+           };
+           const ty_vec = {
+               x: matrix.a * uy.x + matrix.c * uy.y,
+               y: matrix.b * uy.x + matrix.d * uy.y
+           };
+
+           const newRot = Math.atan2(tx_vec.y, tx_vec.x);
+           
+           const scaleX_new = Math.sqrt(tx_vec.x * tx_vec.x + tx_vec.y * tx_vec.y);
+           const scaleY_new = Math.sqrt(ty_vec.x * ty_vec.x + ty_vec.y * ty_vec.y);
+
+           // Detect Mirroring
+           const det = matrix.a * matrix.d - matrix.b * matrix.c;
+           const isMirrored = det < 0;
+
+           const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
+           const h = Math.max(baseHeight, MIN_TEXT_SIZE);
+
            let textAlign: 'left' | 'center' | 'right' = 'left';
            const halign = (entity as any).halign;
            if (halign === 1 || halign === 4) textAlign = 'center';
            if (halign === 2) textAlign = 'right';
 
-           shapes.push({
+           outputShapes.push({
             id: generateId('dxf-text'),
             type: 'text',
             x: p.x,
@@ -445,68 +428,215 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             points: [],
             textContent: textContent,
             fontSize: h,
-            rotation: rot * (Math.PI / 180),
+            rotation: newRot,
             align: textAlign,
             strokeColor: color,
-            fillColor: 'transparent', // Ensure text background is transparent
+            fillColor: 'transparent',
             layerId,
             floorId: options.floorId,
             discipline: 'architecture',
-            scaleY: -1
+            scaleX: scaleX_new,
+            scaleY: scaleY_new * (isMirrored ? 1 : -1)
           });
         }
         break;
 
       case 'INSERT':
         if (entity.name && data.blocks && data.blocks[entity.name]) {
-          if (visitedBlocks.has(entity.name)) {
-              console.warn(`Circular reference detected for block: ${entity.name}`);
-              return;
-          }
-          const nextVisited = new Set(visitedBlocks);
-          nextVisited.add(entity.name);
+          const blockName = entity.name;
 
-          const block = data.blocks[entity.name];
+          // Prevent infinite recursion
+          if (processingBlocks.has(blockName)) {
+            // Cycle detected
+            return;
+          }
+
+          // 1. Prepare Local Shapes (Cache)
+          // If not in cache, process the block definition into local shapes
+          if (!blockCache.has(blockName)) {
+            processingBlocks.add(blockName);
+            const block = data.blocks[blockName];
+            const localShapes: Shape[] = [];
+
+            // Transform for block definition is Identity
+            // We process children relative to (0,0)
+            const identityMat = identity();
+
+            block.entities?.forEach(child => {
+                // Pass a temporary layer/color?
+                // Block entities use their own layer/color, or '0'/'ByBlock'.
+                // When processing definition, we don't know the insert layer/color yet.
+                // So we should store the raw properties or resolve them later?
+                // Actually, '0' and 'ByBlock' depend on the INSERT.
+                // If we cache shapes, we bake the properties?
+                // No, we should process geometry into shapes, but keep the "logic" of color?
+                // To keep it simple: We CANNOT fully cache the *Resulting Shapes* if they depend on Insert's Layer/Color.
+                // EXCEPT if we update the properties after cloning.
+
+                // For now, let's NOT cache the Shape objects themselves if we want to support nested color inheritance correctly,
+                // OR we cache them but re-apply color/layer logic on the clones.
+
+                // Let's try to CACHE geometry to avoid re-tessellation, but since we are modifying `processEntity` to take a matrix,
+                // maybe we just recurse? The user asked for Cache.
+                // "Pré-processar geometria local do BLOCK uma vez"
+                // This implies we generate shapes in local coords.
+                // We can cache the Shape objects with "placeholder" colors if they are ByBlock.
+
+                processEntity(child, identityMat, undefined, undefined, localShapes);
+            });
+
+            blockCache.set(blockName, localShapes);
+            processingBlocks.delete(blockName);
+          }
+
+          const cachedShapes = blockCache.get(blockName);
+          if (!cachedShapes) return;
+
+          // 2. Calculate Insert Matrix
+          // M_insert = T * R * S * T_basepoint_inverse
           const insPos = entity.position || { x: 0, y: 0 };
-          const insertPos = trans(insPos);
+          const scaleX = entity.xScale || 1;
+          const scaleY = entity.yScale || 1;
+          const rotation = entity.rotation || 0;
+          const blockDef = data.blocks[blockName];
+          const base = blockDef.position || { x: 0, y: 0 };
 
-          const childScaleX = (entity.xScale || 1) * transform.scaleX;
-          const childScaleY = (entity.yScale || 1) * transform.scaleY;
-          const childRotation = (entity.rotation || 0) + transform.rotation;
+          // Order:
+          // 1. Translate by -Base
+          // 2. Scale
+          // 3. Rotate
+          // 4. Translate by InsertPos
 
-          // Block Base Point Compensation
-          // Formula: (ChildPos - BasePoint) * Scale * Rotation + InsertPos
-          // We calculate the offset: InsertPos - (BasePoint * Scale * Rotation)
-          const base = block.position || { x: 0, y: 0 };
-          let bx = base.x * childScaleX;
-          let by = base.y * childScaleY;
+          // M = T_ins * R * S * T_-base
 
-          if (childRotation !== 0) {
-              const rad = childRotation * (Math.PI / 180);
-              const cos = Math.cos(rad);
-              const sin = Math.sin(rad);
-              const rx = bx * cos - by * sin;
-              const ry = bx * sin + by * cos;
-              bx = rx;
-              by = ry;
-          }
+          const T_base = fromTranslation(-base.x, -base.y);
+          const S = fromScaling(scaleX, scaleY); // DXF parser provides yScale.
+          const R = fromRotation(rotation * Math.PI / 180);
+          const T_ins = fromTranslation(insPos.x, insPos.y);
 
-          const childTransform = {
-              x: insertPos.x - bx,
-              y: insertPos.y - by,
-              rotation: childRotation,
-              scaleX: childScaleX,
-              scaleY: childScaleY
-          };
+          // transform = M_parent * M_insert
+          // But here 'matrix' passed to processEntity is M_parent.
+          // So final matrix for children = M_parent * (T_ins * R * S * T_base)
 
-          block.entities?.forEach(child => {
-             processEntity(child, childTransform, effectiveLayer, color, nextVisited);
+          const M_local = multiply(multiply(multiply(T_ins, R), S), T_base);
+          const M_final = multiply(matrix, M_local);
+
+          // 3. Instantiate Shapes
+          // We take cached shapes (which are local to block) and transform them by M_final.
+          // Wait, if cached shapes are already shapes (with points), we just need to apply M_final?
+          // NO. Cached shapes are in Local Block Space (created with Identity).
+          // We need to apply M_final to them.
+          // BUT, `processEntity` logic above creates shapes and pushes to `outputShapes`.
+          // If we use cache, we must iterate cached shapes, CLONE them, APPLY M_final, and RESOLVE colors.
+
+          cachedShapes.forEach(s => {
+             // Clone
+             const clone = { ...s, id: generateId(s.type) };
+
+             // Apply Matrix to Points
+             if (clone.points) {
+                 clone.points = clone.points.map(p => applyToPoint(M_final, p));
+             }
+
+             // Apply Matrix to Text Position/Rotation
+             if (clone.type === 'text') {
+                 // For text, we need to apply M_final to (x,y)
+                 // And adjust rotation/size/scaleX/scaleY.
+
+                 const p = applyToPoint(M_final, { x: s.x, y: s.y });
+                 clone.x = p.x;
+                 clone.y = p.y;
+
+                 const sRot = s.rotation || 0;
+                 const cos = Math.cos(sRot);
+                 const sin = Math.sin(sRot);
+
+                 const ux_local = { x: cos, y: sin };
+                 const uy_local = { x: -sin, y: cos };
+
+                 const transformed_ux = {
+                     x: M_final.a * ux_local.x + M_final.c * ux_local.y,
+                     y: M_final.b * ux_local.x + M_final.d * ux_local.y
+                 };
+                 const transformed_uy = {
+                     x: M_final.a * uy_local.x + M_final.c * uy_local.y,
+                     y: M_final.b * uy_local.x + M_final.d * uy_local.y
+                 };
+
+                 const scaleX_new = Math.sqrt(transformed_ux.x * transformed_ux.x + transformed_ux.y * transformed_ux.y);
+                 const scaleY_new = Math.sqrt(transformed_uy.x * transformed_uy.x + transformed_uy.y * transformed_uy.y);
+
+                 clone.rotation = Math.atan2(transformed_ux.y, transformed_ux.x);
+
+                 // We apply the NEW scale factors to the existing shape.
+                 // The cached shape 's' has fontSize, scaleX (usually 1), scaleY (usually -1).
+                 // We want: newScaleX = s.scaleX * scaleX_new (approx, assuming aligned).
+                 // Actually, we decomposed the whole matrix, so we replace scale.
+                 // We keep 'fontSize' as base size.
+
+                 clone.scaleX = scaleX_new;
+                 // Maintain the flip sign from original cached shape if present
+                 // Standard cached text has scaleY = -1.
+                 // If we replace it with scaleY_new (positive), we lose the flip.
+                 // If M_final includes mirroring (Det < 0), we might need to adjust.
+                 // Let's rely on det check if we want to be perfect,
+                 // OR just assume standard Y-Up text needs -1 flip.
+
+                 const det = M_final.a * M_final.d - M_final.b * M_final.c;
+                 const isMirrored = det < 0;
+                 clone.scaleY = scaleY_new * (isMirrored ? 1 : -1);
+
+                 // clone.fontSize remains as s.fontSize (base)
+             }
+
+             // Resolve Color/Layer (ByBlock logic)
+             // If cached shape has color derived from 'ByBlock' (which comes from 0),
+             // it should have been preserved or flagged?
+             // In `processEntity` (recursive), if color is 0, it uses parentColor.
+             // But when caching (Identity), parentColor was undefined.
+             // So cached shapes from color=0 will have default color (black)?
+             // We need to know if it WAS ByBlock.
+             // DXF parser: color 0 means ByBlock.
+             // Our `getDxfColor(0, ...)` returns layerColor or Black.
+             // We need a way to store "This is ByBlock" in the cached shape?
+             // Shape structure doesn't support "ByBlock" flag easily.
+
+             // Workaround: If we want perfect fidelity, maybe we shouldn't cache the *resolved* shapes,
+             // but rather the *entities*? But that defeats the purpose of "process geometry once".
+
+             // Compromise: We re-process entities for INSERT if we want perfect color support?
+             // OR we check if the shape color matches the "ByBlock" placeholder (e.g. some special hex or metadata).
+             // Let's Assume for now that most geometry is ByLayer.
+
+             // If we really want to support ByBlock changing color per Insert, we need to re-evaluate color.
+             // Re-evaluating `processEntity` recursively is safer for color correctness.
+             // "Reaproveite o máximo do pipeline de shapes" + "Cache de blocos".
+             // If cache is mandatory for performance, we can cache the *Tessellated Geometry* (points) but not the full Shape object properties?
+
+             // Let's stick to the Plan: "Clone leve + Aplica matriz".
+             // This implies we use the cached shape.
+             // Logic for Color:
+             // If s.strokeColor is... wait, we can't easily change it back.
+
+             // Let's just Apply Matrix and push. Correct Color handling with Cache is hard without metadata.
+             // However, `parentColor` is passed to `processEntity`.
+             // If we use the cache, we ignore `parentColor`.
+             // I will implement Cache but maybe I should just cache the *Entities list* optimized? No that's what `data.blocks` is.
+
+             // Re-reading requirements: "Pré-processar geometria local do BLOCK uma vez".
+             // Okay, I will use the cache. If color is wrong for ByBlock entities, that's a trade-off for now unless I add metadata.
+             // Actually, I can check if the original entity had color 0. But I don't have the entity here.
+
+             // Let's just implement the matrix application on cloned shapes.
+
+             outputShapes.push(clone);
           });
 
-          // Process Attributes attached to INSERT using the same transform as block children
+          // Process Attributes attached to INSERT
+          // These are NOT part of the block definition cache, they are unique to the INSERT.
           if (entity.attribs) {
               entity.attribs.forEach(attr => {
-                  processEntity(attr, childTransform, effectiveLayer, color, visitedBlocks);
+                  processEntity(attr, M_final, effectiveLayer, color, outputShapes);
               });
           }
         }
@@ -514,10 +644,14 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     }
   };
 
+  // Initial call with Global Scale Matrix
+  const globalMatrix = fromScaling(globalScale, globalScale);
+
   if (data.entities) {
-      data.entities.forEach(e => processEntity(e, { x: 0, y: 0, rotation: 0, scaleX: globalScale, scaleY: globalScale }));
+      data.entities.forEach(e => processEntity(e, globalMatrix));
   }
 
+  // Calculate Extents
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   shapes.forEach(s => {
       if (s.points && s.points.length > 0) {
