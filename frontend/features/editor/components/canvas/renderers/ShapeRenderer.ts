@@ -391,7 +391,13 @@ export const renderShape = (
             const fontWeight = shape.bold ? 'bold ' : '';
             const fontStyle = shape.italic ? 'italic ' : '';
             ctx.font = `${fontStyle}${fontWeight}${fontSize}px ${shape.fontFamily || 'Inter'}`;
-            ctx.textAlign = 'left';
+
+            const hasExplicitWidth = shape.width !== undefined;
+
+            // For point-text (no explicit width), respect the shape alignment anchor
+            // For box-text (explicit width), we draw inside the box so we start at 'left' relative to box origin
+            ctx.textAlign = hasExplicitWidth ? 'left' : (shape.align || 'left');
+
             // force left-to-right rendering
             // @ts-ignore experimental but supported on modern browsers
             ctx.direction = 'ltr';
@@ -401,7 +407,6 @@ export const renderShape = (
             const bgColor = fillColor && fillColor !== 'transparent' ? fillColor : null;
 
             // Only apply padding when text has explicit width (container mode)
-            const hasExplicitWidth = shape.width !== undefined;
             const pad = hasExplicitWidth ? TEXT_PADDING / viewTransform.scale : 0;
             
             // Calculate available width for text wrapping
@@ -429,8 +434,13 @@ export const renderShape = (
             wrappedLines.forEach((line, index) => {
                 const lineWidth = ctx.measureText(line).width;
                 let xPos = pad;
-                if (shape.align === 'center') xPos += (availableWidth - lineWidth) / 2;
-                else if (shape.align === 'right') xPos += (availableWidth - lineWidth);
+
+                // Only calculate alignment offsets if we are in a container (explicit width)
+                // If it's point-text, ctx.textAlign handles the alignment relative to the anchor (x,y)
+                if (hasExplicitWidth) {
+                    if (shape.align === 'center') xPos += (availableWidth - lineWidth) / 2;
+                    else if (shape.align === 'right') xPos += (availableWidth - lineWidth);
+                }
 
                 const yPos = pad + index * lineHeight;
                 if (bgColor) {

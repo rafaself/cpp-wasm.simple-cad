@@ -213,8 +213,20 @@ export const usePlanImport = (): PlanImportHook => {
               throw new Error("Arquivo muito grande. O limite é 50MB.");
           }
 
-          // Read as text
-          const text = await file.text();
+          // Read as ArrayBuffer to handle encoding
+          const buffer = await file.arrayBuffer();
+          let text: string;
+
+          try {
+              // Try UTF-8 first (strict mode to fail on invalid bytes)
+              const decoder = new TextDecoder('utf-8', { fatal: true });
+              text = decoder.decode(buffer);
+          } catch (e) {
+              // Fallback to CP1252 (standard Windows ANSI for DXF)
+              console.warn("UTF-8 decoding failed, falling back to Windows-1252", e);
+              const decoder = new TextDecoder('windows-1252');
+              text = decoder.decode(buffer);
+          }
 
           // Worker Processing (Parse + Convert + Cleanup)
           const workerData = await new Promise<any>((resolve, reject) => {
