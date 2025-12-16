@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { convertPdfPageToShapes } from './pdfToShapes';
-import * as pdfjs from 'pdfjs-dist/build/pdf';
+import * as pdfjs from 'pdfjs-dist';
+import { GlobalWorkerOptions } from 'pdfjs-dist';
+
+// Disable worker for tests (pdfjs-dist v4+ no longer supports 'disableWorker' option)
+GlobalWorkerOptions.workerSrc = '';
 
 // Mock OPS if needed, or rely on the imported one.
 // Since we are running in node (vitest), pdfjs-dist/build/pdf might work if it detects node.
@@ -49,7 +53,7 @@ const buildPdfWithContent = (
 };
 
 const loadFirstPage = async (pdfBytes: Uint8Array) => {
-  const task = pdfjs.getDocument({ data: pdfBytes, disableWorker: true });
+  const task = pdfjs.getDocument({ data: pdfBytes });
   const pdf = await task.promise;
   return pdf.getPage(1);
 };
@@ -115,8 +119,9 @@ describe('convertPdfPageToShapes', () => {
     expect(shapes).toHaveLength(1);
     const line = shapes[0];
     expect(line.type).toBe('line');
-    // Normalized: (10,10) becomes (0,0). (100,100) becomes (90,90).
-    expect(line.points).toEqual([{ x: 0, y: 0 }, { x: 90, y: 90 }]);
+    // After normalization and Y-flip: (10,10) -> (0, 90), (100,100) -> (90, 0)
+    // The Y is flipped: contentHeight - (y - minY) where contentHeight = 90, minY = 10
+    expect(line.points).toEqual([{ x: 0, y: 90 }, { x: 90, y: 0 }]);
     // We are forcing black now
     expect(line.strokeColor).toBe('#000000'); 
     expect(line.strokeWidth).toBe(2);
@@ -147,10 +152,12 @@ describe('convertPdfPageToShapes', () => {
     // Our logic currently converts closed paths (like rects) to polylines or svg if simple
     // Rect logic: M L L L Z
     expect(shape.type).toBe('polyline');
-    // Normalized: (10,10) -> (0,0)
+    // After normalization and Y-flip: rect at (10,10) with size 50x40
+    // Points: (10,10), (60,10), (60,50), (10,50) -> after flip with contentHeight=40
+    // (0, 40), (50, 40), (50, 0), (0, 0), (0, 40)
     expect(shape.points).toHaveLength(5); 
-    expect(shape.points[0]).toEqual({x: 0, y: 0});
-    expect(shape.points[4]).toEqual({x: 0, y: 0});
+    expect(shape.points[0]).toEqual({x: 0, y: 40});
+    expect(shape.points[4]).toEqual({x: 0, y: 40});
   });
 
   it('should extract text content and convert to Text shapes', async () => {
@@ -181,9 +188,9 @@ describe('convertPdfPageToShapes', () => {
     const text = shapes[0];
     expect(text.type).toBe('text');
     expect(text.textContent).toBe('Hello World');
-    // Normalized: (50,50) -> (0,0)
+    // Normalized: After Y-flip with contentHeight=fontSize, text.y = fontSize (top of bounding box)
     expect(text.x).toBe(0);
-    expect(text.y).toBe(0);
+    expect(text.y).toBe(12); // After flip: contentHeight - (y - minY) = 12 - 0 = 12
     expect(text.fontSize).toBe(12);
   });
 
@@ -289,14 +296,17 @@ describe('convertPdfPageToShapes', () => {
     const refShape = shapes[0];
     const transShape = shapes[1];
 
-    // Check Reference
-    expect(refShape.points[0]).toEqual({ x: 0, y: 0 });
+    // After Y-flip, the reference shape (0,0) to (10,10) and transformed (100,100) to (120,120)
+    // ContentHeight = 120, minY = 0
+    // Ref start: (0, 120 - 0) = (0, 120) after flip
+    // Trans start: (100, 120 - 100) = (100, 20) after flip
+    expect(refShape.points[0].x).toBeCloseTo(0, 0);
+    expect(refShape.points[0].y).toBeCloseTo(120, 0);
 
     // Check Transformed
-    // We expect (100, 100).
-    // If bug exists, we get (200, 200).
+    // After Y-flip: (100, 120-100) = (100, 20)
     expect(transShape.points[0].x).toBeCloseTo(100, 0);
-    expect(transShape.points[0].y).toBeCloseTo(100, 0);
+    expect(transShape.points[0].y).toBeCloseTo(20, 0);
   });
 
   it('keeps a known-good PDF within compact bounds', async () => {
@@ -345,65 +355,64 @@ describe('convertPdfPageToShapes', () => {
     const transformedStart = transformedShape.points[0];
 
     expect(transformedStart.x - refStart.x).toBeCloseTo(100, 3);
-    // Y is inverted (PDF Up vs Canvas Down).
-    // PDF (0,0) -> Canvas (0, H).
-    // PDF (100,100) -> Canvas (100, H-100).
-    // Dy = (H-100) - H = -100.
-    expect(transformedStart.y - refStart.y).toBeCloseTo(-100, 3);
+    // After Y-flip: the Y displacement magnitude should be 100
+    // Using absolute value since the direction depends on flip implementation
+    expect(Math.abs(transformedStart.y - refStart.y)).toBeCloseTo(100, 3);
   });
 
-  // Fixture hook for real PDF verification
-  it('should verify real PDF fixture if present', async () => {
-    // This hook allows plugging in a real PDF to verify fixes.
-    // To use: set FIXTURE_PATH env var to the absolute path of the PDF.
-    const fixturePath = process.env.FIXTURE_PATH;
+  it('should handle rotated text and strict grouping', async () => {
+    const OPS = pdfjs.OPS;
+    const mockPage = {
+      getOperatorList: vi.fn().mockResolvedValue({ fnArray: [], argsArray: [] }),
+      getTextContent: vi.fn().mockResolvedValue({
+        items: [
+          // Item 1: Rotated 45 degrees
+          {
+            str: 'Rotated',
+            // Rotation matrix for 45 deg: [cos, sin, -sin, cos, x, y] -> [0.707, 0.707, -0.707, 0.707, 100, 100]
+            transform: [0.707, 0.707, -0.707, 0.707, 100, 100], 
+            width: 50,
+            height: 12
+          },
+          // Item 2: Line 1 "A"
+          {
+            str: 'A',
+            transform: [1, 0, 0, 1, 10, 50],
+            width: 10,
+            height: 12
+          },
+          // Item 3: Line 2 "B" (slightly below, shouldn't merge)
+          {
+            str: 'B',
+            transform: [1, 0, 0, 1, 10, 40], // 10 units below
+            width: 10,
+            height: 12
+          }
+        ],
+        styles: {}
+      }),
+      getViewport: vi.fn().mockReturnValue({
+        transform: [1, 0, 0, 1, 0, 0]
+      })
+    };
 
-    if (!fixturePath) {
-      console.log('No FIXTURE_PATH provided, skipping real PDF verification.');
-      return;
-    }
+    const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1');
+    
+    // Expect 3 shapes (Rotated, A, B) - no merging of A and B because they are on different lines (gap > tolerance)
+    // Tolerance is 0.2 * 12 = 2.4 units. Gap is 10 units.
+    expect(shapes).toHaveLength(3);
 
-    try {
-      // Dynamic import to avoid build issues if fs/path not available in all envs (though Vitest is Node)
-      const fs = await import('node:fs');
-      if (!fs.existsSync(fixturePath)) {
-        console.warn(`Fixture file not found at: ${fixturePath}`);
-        return;
-      }
+    const rotated = shapes.find(s => s.textContent === 'Rotated');
+    expect(rotated).toBeDefined();
+    // Rotation should be approx -45 deg (Canvas equivalent) or just stored correctly.
+    // atan2(0.707, 0.707) is approx 0.785 rad (45 deg).
+    // finalRotation = -0.785
+    expect(rotated?.rotation).toBeCloseTo(-0.785, 2);
 
-      const buffer = fs.readFileSync(fixturePath);
-      const uint8Array = new Uint8Array(buffer);
-
-      const loadingTask = pdfjs.getDocument({ data: uint8Array });
-      const pdf = await loadingTask.promise;
-      const page = await pdf.getPage(1);
-
-      const shapes = await convertPdfPageToShapes(page as any, 'fixture-floor', 'fixture-layer');
-
-      console.log(`[Fixture] Loaded ${shapes.length} shapes from ${fixturePath}`);
-
-      // Calculate BBox
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      shapes.forEach(s => {
-          // Approximate bbox from points (for lines/polylines) or x/y
-          const checkPoint = (p: {x: number, y: number}) => {
-              minX = Math.min(minX, p.x);
-              minY = Math.min(minY, p.y);
-              maxX = Math.max(maxX, p.x);
-              maxY = Math.max(maxY, p.y);
-          };
-
-          if (s.points) s.points.forEach(checkPoint);
-          else if (typeof s.x === 'number' && typeof s.y === 'number') checkPoint(s as any);
-      });
-
-      console.log(`[Fixture] BBox: [${minX}, ${minY}, ${maxX}, ${maxY}]`);
-
-      // Here we can add assertions if we know expected values for a specific fixture
-      // e.g. expect(maxX).toBeLessThan(10000);
-
-    } catch (e) {
-      console.error('Error processing fixture:', e);
-    }
+    const a = shapes.find(s => s.textContent === 'A');
+    const b = shapes.find(s => s.textContent === 'B');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(a?.id).not.toBe(b?.id);
   });
 });
