@@ -428,19 +428,86 @@ export const convertPdfPageToShapes = async (
                  // Filled shape -> Use SVG/Rect (Fix C)
                  createSvgShape();
             } else if (isStroke) {
-                // Just stroke -> Polyline
-                shapes.push({
-                    id: generateId('pdf-poly'),
-                    type: 'polyline',
-                    points: points,
-                    strokeColor: currentState.strokeColor,
-                    strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
-                    strokeEnabled: true,
-                    fillColor: 'transparent',
-                    fillEnabled: false,
-                    layerId,
-                    floorId,
-                    discipline: 'architecture',
+                // Just stroke -> Polyline(s)
+                // Fix: Split disjoint subpaths (separated by M) into separate shapes
+                // to avoid spurious diagonal lines connecting end of one subpath to start of next.
+
+                let currentSubpath: Point[] = [];
+                const subpaths: Point[][] = [];
+
+                finalSegments.forEach(s => {
+                    if (s.type === 'M') {
+                        if (currentSubpath.length > 0) {
+                            subpaths.push(currentSubpath);
+                        }
+                        if (s.points.length > 0) {
+                            currentSubpath = [s.points[0]];
+                        } else {
+                            currentSubpath = [];
+                        }
+                    } else if (s.type === 'L') {
+                         if (s.points.length > 0) currentSubpath.push(s.points[0]);
+                    } else if (s.type === 'Z') {
+                         // Close path: add start point to end if needed
+                         if (currentSubpath.length > 0) {
+                             const first = currentSubpath[0];
+                             const last = currentSubpath[currentSubpath.length - 1];
+                             const dist = Math.sqrt(Math.pow(first.x - last.x, 2) + Math.pow(first.y - last.y, 2));
+                             if (dist > 0.001) {
+                                 currentSubpath.push({ ...first });
+                             }
+                         }
+                    }
+                });
+
+                // If the operation implies closing (e.g. 's' operator), and the last segment wasn't explicitly closed with Z
+                // we should close the current subpath.
+                const lastSegmentIsZ = finalSegments.length > 0 && finalSegments[finalSegments.length-1].type === 'Z';
+                if (!lastSegmentIsZ && isClosed && currentSubpath.length > 0) {
+                     const first = currentSubpath[0];
+                     const last = currentSubpath[currentSubpath.length - 1];
+                     const dist = Math.sqrt(Math.pow(first.x - last.x, 2) + Math.pow(first.y - last.y, 2));
+                     if (dist > 0.001) {
+                         currentSubpath.push({ ...first });
+                     }
+                }
+
+                if (currentSubpath.length > 0) {
+                    subpaths.push(currentSubpath);
+                }
+
+                subpaths.forEach(pts => {
+                    if (pts.length < 2) return; // Skip single points
+
+                    if (pts.length === 2) {
+                        shapes.push({
+                            id: generateId('pdf-line'),
+                            type: 'line',
+                            points: pts,
+                            strokeColor: currentState.strokeColor,
+                            strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
+                            strokeEnabled: true,
+                            fillColor: 'transparent',
+                            fillEnabled: false,
+                            layerId,
+                            floorId,
+                            discipline: 'architecture',
+                        });
+                    } else {
+                        shapes.push({
+                            id: generateId('pdf-poly'),
+                            type: 'polyline',
+                            points: pts,
+                            strokeColor: currentState.strokeColor,
+                            strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
+                            strokeEnabled: true,
+                            fillColor: 'transparent',
+                            fillEnabled: false,
+                            layerId,
+                            floorId,
+                            discipline: 'architecture',
+                        });
+                    }
                 });
             } else {
                  // Fill and Stroke -> SVG
