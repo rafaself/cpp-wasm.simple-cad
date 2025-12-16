@@ -4,6 +4,7 @@ import { X, FileUp } from 'lucide-react';
 interface ImportOptions {
   explodeBlocks: boolean;
   maintainLayers: boolean;
+  grayscale?: boolean;
 }
 
 interface ImportPlanModalProps {
@@ -26,7 +27,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [options, setOptions] = useState<ImportOptions>({
     explodeBlocks: true,
-    maintainLayers: true
+    maintainLayers: true,
+    grayscale: false
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +126,15 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                   className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
                 />
                 Manter Layers do arquivo
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={options.grayscale}
+                  onChange={e => setOptions(o => ({...o, grayscale: e.target.checked}))}
+                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                />
+                Importar em Tons de Cinza
               </label>
               <label className="flex items-center gap-2 cursor-pointer select-none opacity-75" title="Sempre ativo para renderização correta atualmente">
                 <input

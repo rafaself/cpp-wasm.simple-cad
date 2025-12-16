@@ -10,8 +10,6 @@ export interface DxfImportResult {
   origin: { x: number; y: number };
 }
 
-// Partial ACI Color Map (Standard + Grays)
-// Full 256 table is large, falling back to approximation or standard colors is acceptable for now.
 const DXF_COLORS: Record<number, string> = {
   1: '#FF0000', // Red
   2: '#FFFF00', // Yellow
@@ -19,7 +17,7 @@ const DXF_COLORS: Record<number, string> = {
   4: '#00FFFF', // Cyan
   5: '#0000FF', // Blue
   6: '#FF00FF', // Magenta
-  7: '#FFFFFF', // White
+  7: '#000000', // Black (Dark on Light Canvas)
   8: '#808080', // Gray
   9: '#C0C0C0', // Light Gray
   250: '#333333',
@@ -31,20 +29,28 @@ const DXF_COLORS: Record<number, string> = {
 };
 
 const getDxfColor = (index?: number, layerColor?: string): string => {
-  if (index === 0 || index === 256) return layerColor || '#FFFFFF';
+  if (index === 0 || index === 256) return layerColor || '#000000';
   if (index && DXF_COLORS[index]) return DXF_COLORS[index];
-  // Fallback for other indices: map to gray or keep generic
   if (index && index > 9 && index < 250) {
-      // TODO: Implement full ACI palette
       return '#CCCCCC';
   }
-  return '#CCCCCC';
+  return '#000000'; // Default black
+};
+
+const toGrayscale = (hex: string): string => {
+    if (!hex || !hex.startsWith('#') || hex.length < 7) return hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    // Luminance formula
+    const y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+    const gs = y.toString(16).padStart(2, '0');
+    return `#${gs}${gs}${gs}`;
 };
 
 const dist = (p1: DxfVector, p2: DxfVector) => Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
 
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
-  // Safety Limit
   const ENTITY_LIMIT = 30000;
   let entityCount = data.entities ? data.entities.length : 0;
   if (data.blocks) {
@@ -60,10 +66,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   if (data.tables && data.tables.layer && data.tables.layer.layers) {
     Object.values(data.tables.layer.layers).forEach(l => {
       const layerId = generateId('layer');
+      let strokeColor = getDxfColor(l.color);
+      if (options.grayscale) strokeColor = toGrayscale(strokeColor);
+
       layersMap.set(l.name, {
         id: layerId,
         name: l.name,
-        strokeColor: getDxfColor(l.color),
+        strokeColor: strokeColor,
         strokeEnabled: true,
         fillColor: 'transparent',
         fillEnabled: false,
@@ -81,7 +90,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
   const resolveLayerColor = (layerName: string): string => {
     const layer = layersMap.get(layerName);
-    return layer ? layer.strokeColor : '#FFFFFF';
+    return layer ? layer.strokeColor : '#000000';
   };
 
   const processEntity = (
@@ -95,7 +104,9 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     const layerName = entity.layer || parentLayer || '0';
     const layerId = resolveLayerId(layerName);
     const layerColor = resolveLayerColor(layerName);
-    const color = getDxfColor(entity.color, layerColor);
+
+    let color = getDxfColor(entity.color, layerColor);
+    if (options.grayscale) color = toGrayscale(color);
 
     const trans = (p: DxfVector): Point => {
       let x = p.x * transform.scaleX;
@@ -264,7 +275,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'INSERT':
         if (entity.name && data.blocks && data.blocks[entity.name]) {
-          // Circular Reference Check
           if (visitedBlocks.has(entity.name)) {
               console.warn(`Circular reference detected for block: ${entity.name}`);
               return;
@@ -322,17 +332,17 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   });
 
   if (minX !== Infinity) {
-      const contentHeight = maxY - minY;
+      // Correct Y-Up handling: Just subtract minX/minY to normalize origin.
+      // Do NOT flip Y relative to Height because StaticCanvas handles Y-Up.
       shapes.forEach(s => {
           if (s.points && s.points.length > 0) {
               s.points = s.points.map(p => ({
                   x: p.x - minX,
-                  y: contentHeight - (p.y - minY)
+                  y: p.y - minY
               }));
           } else if (s.x !== undefined && s.y !== undefined) {
               s.x -= minX;
-              // Flip Y for center/position
-              s.y = contentHeight - (s.y - minY);
+              s.y -= minY;
           }
       });
   } else {

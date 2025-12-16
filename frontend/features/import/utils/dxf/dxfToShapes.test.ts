@@ -8,7 +8,7 @@ describe('convertDxfToShapes', () => {
       entities: [{
         type: 'LINE',
         layer: '0',
-        vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }] // Horizontal line to avoid flip confusion first
+        vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }]
       }]
     };
 
@@ -22,13 +22,11 @@ describe('convertDxfToShapes', () => {
     const shape = result.shapes[0];
     expect(shape.type).toBe('line');
     expect(shape.points).toHaveLength(2);
-    // MinY=0, MaxY=0. Height=0.
-    // y = 0 - (0-0) = 0.
     expect(shape.points?.[0]).toEqual({ x: 0, y: 0 });
     expect(shape.points?.[1]).toEqual({ x: 10, y: 0 });
   });
 
-  it('normalizes coordinates to zero origin with Y-flip', () => {
+  it('normalizes coordinates to zero origin (no Y-flip)', () => {
     const data: DxfData = {
       entities: [{
         type: 'LINE',
@@ -42,15 +40,15 @@ describe('convertDxfToShapes', () => {
       defaultLayerId: 'default'
     });
 
-    // MinX=100, MinY=100. MaxX=110, MaxY=110. Height = 10.
-    // P1 (100, 100) -> x=0, y_raw=0 -> y_flipped = 10 - 0 = 10.
-    expect(result.shapes[0].points?.[0]).toEqual({ x: 0, y: 10 });
-    // P2 (110, 110) -> x=10, y_raw=10 -> y_flipped = 10 - 10 = 0.
-    expect(result.shapes[0].points?.[1]).toEqual({ x: 10, y: 0 });
+    // MinX=100, MinY=100.
+    // P1 (100, 100) -> 0, 0
+    expect(result.shapes[0].points?.[0]).toEqual({ x: 0, y: 0 });
+    // P2 (110, 110) -> 10, 10
+    expect(result.shapes[0].points?.[1]).toEqual({ x: 10, y: 10 });
     expect(result.origin).toEqual({ x: 100, y: 100 });
   });
 
-  it('handles CIRCLE with correct radius and flip', () => {
+  it('handles CIRCLE with correct radius', () => {
       const data: DxfData = {
           entities: [{
               type: 'CIRCLE',
@@ -67,10 +65,6 @@ describe('convertDxfToShapes', () => {
 
       expect(result.shapes[0].type).toBe('circle');
       expect(result.shapes[0].radius).toBe(10);
-      // Bounds: [40, 60] x [40, 60]. Height = 20. MinY = 40.
-      // Center Y (50). y_raw = 50 - 40 = 10.
-      // y_flipped = 20 - 10 = 10.
-      // Center remains at center.
       expect(result.shapes[0].x).toBe(10);
       expect(result.shapes[0].y).toBe(10);
       expect(result.shapes[0].points).toEqual([]);
@@ -81,7 +75,6 @@ describe('convertDxfToShapes', () => {
       const data: DxfData = { entities };
       expect(() => convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' })).toThrow(/limit/);
   });
-});
 
   it('handles blocks without entities safely', () => {
       const data: DxfData = {
@@ -90,7 +83,7 @@ describe('convertDxfToShapes', () => {
               'EmptyBlock': {
                   name: 'EmptyBlock',
                   position: { x: 0, y: 0 },
-                  entities: undefined as any // Simulate missing entities
+                  entities: undefined as any
               }
           }
       };
@@ -113,9 +106,6 @@ describe('convertDxfToShapes', () => {
      };
 
      const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' });
-     // Expect at least one line from A.
-     // A -> Line (1)
-     // A -> B -> A (Stop)
-     // So 1 shape.
      expect(result.shapes.length).toBe(1);
   });
+});
