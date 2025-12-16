@@ -402,9 +402,16 @@ export const renderShape = (
 
             const sx = shape.x ?? 0;
             const sy = shape.y ?? 0;
+            
+            // Calculate text height for proper positioning
+            // Text needs to start at top of bounding box, not bottom
+            // Use fontSize for first line (no extra leading on top), lineHeight for additional lines
+            const textHeight = fontSize + (wrappedLines.length - 1) * lineHeight + pad * 2;
 
             ctx.save();
-            ctx.translate(sx, sy);
+            // Translate to top of text box (sy + textHeight) before Y-flip
+            // This ensures text renders inside the bounding box, not below it
+            ctx.translate(sx, sy + textHeight);
             ctx.scale(1, -1);
 
             wrappedLines.forEach((line, index) => {

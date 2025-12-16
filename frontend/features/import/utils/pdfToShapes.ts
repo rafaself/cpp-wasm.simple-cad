@@ -733,12 +733,11 @@ export const convertPdfPageToShapes = async (
                       s.y = contentHeight - (s.y - minY) - s.height;
                   }
               } else if (s.type === 'text') {
-                  // For text shapes, we need to account for fontSize when flipping
-                  // The text anchor is at top-left, so after flipping we need to adjust by fontSize
+                  // For text shapes: PDF baseline after Y-flip becomes the correct visual position
+                  // No need to subtract textHeight - the flip handles the coordinate transformation
                   if (s.x !== undefined) s.x -= minX;
                   if (s.y !== undefined) {
-                      const textHeight = s.fontSize || 12;
-                      s.y = contentHeight - (s.y - minY) - textHeight;
+                      s.y = contentHeight - (s.y - minY);
                   }
               } else {
                   // For other shapes (circles, etc.)
