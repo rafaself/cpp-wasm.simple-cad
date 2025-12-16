@@ -49,7 +49,7 @@ describe('convertDxfToShapes', () => {
     expect(result.origin).toEqual({ x: 10000, y: 10000 });
   });
 
-  it('handles CIRCLE with correct radius', () => {
+  it('handles CIRCLE by converting to polyline', () => {
       const data: DxfData = {
           entities: [{
               type: 'CIRCLE',
@@ -64,11 +64,11 @@ describe('convertDxfToShapes', () => {
           defaultLayerId: 'def'
       });
 
-      expect(result.shapes[0].type).toBe('circle');
-      expect(result.shapes[0].radius).toBe(10);
-      expect(result.shapes[0].x).toBe(10);
-      expect(result.shapes[0].y).toBe(10);
-      expect(result.shapes[0].points).toEqual([]);
+      // Updated expectation: Circle is now a Polyline
+      expect(result.shapes[0].type).toBe('polyline');
+      // Should have many points
+      expect(result.shapes[0].points?.length).toBeGreaterThan(8);
+      // Removed exact radius/x/y check as they are now embedded in points
   });
 
   it('throws error if too many entities', () => {
@@ -290,5 +290,62 @@ describe('convertDxfToShapes', () => {
 
       // DASHED = [10, 5]
       expect(shape.strokeDash).toEqual([10, 5]);
+  });
+
+  it('handles ARC by converting to polyline', () => {
+      const data: DxfData = {
+          entities: [{
+              type: 'ARC',
+              layer: '0',
+              center: { x: 0, y: 0 },
+              radius: 10,
+              startAngle: 0,
+              endAngle: 180
+          }]
+      };
+
+      const result = convertDxfToShapes(data, {
+          floorId: 'f1',
+          defaultLayerId: 'def'
+      });
+
+      expect(result.shapes[0].type).toBe('polyline');
+      expect(result.shapes[0].points?.length).toBeGreaterThan(4);
+
+      // Check rough coordinates (Start at 10,0. End at -10,0. Top at 0,10)
+      // Since it's tessellated, we check bounds or specific points approximately.
+      const pts = result.shapes[0].points!;
+      // Start (Radius 10, Angle 0 -> x=10, y=0)
+      // Note: Data is normalized, so x/y might be shifted if bounding box is calculated.
+      // But here minimal x is -10, minimal y is 0. So minX=-10, minY=0.
+      // Shape coordinates are shifted by -minX, -minY.
+      // So minX (-10) becomes 0. MaxX (10) becomes 20.
+      // MinY (0) becomes 0. MaxY (10) becomes 10.
+
+      // Let's verify origin shift logic first.
+      // The test 'normalizes coordinates to zero origin' says it subtracts minX/minY.
+
+      // Original Arc:
+      // Center 0,0. Radius 10.
+      // Start (10,0). Top (0,10). End (-10, 0).
+      // Bounds: X[-10, 10], Y[0, 10].
+      // MinX = -10, MinY = 0.
+      // Shift: x -> x - (-10) = x + 10. y -> y - 0 = y.
+
+      // Expected Transformed Points:
+      // Start: (10,0) -> (20, 0).
+      // End: (-10,0) -> (0, 0).
+      // Top: (0,10) -> (10, 10).
+
+      const start = pts[0];
+      const end = pts[pts.length - 1];
+
+      // Start angle 0 is (10,0) -> Transformed (20,0)
+      expect(Math.abs(start.x - 20)).toBeLessThan(0.1);
+      expect(Math.abs(start.y - 0)).toBeLessThan(0.1);
+
+      // End angle 180 is (-10,0) -> Transformed (0,0)
+      expect(Math.abs(end.x - 0)).toBeLessThan(0.1);
+      expect(Math.abs(end.y - 0)).toBeLessThan(0.1);
   });
 });
