@@ -384,17 +384,11 @@ export const renderShape = (
 
             // Only apply padding when text has explicit width (container mode)
             const hasExplicitWidth = shape.width !== undefined;
-            const pad = hasExplicitWidth ? TEXT_PADDING : 0;
+            const pad = hasExplicitWidth ? TEXT_PADDING / viewTransform.scale : 0;
             
             // Calculate available width for text wrapping
-            let availableWidth: number;
-            if (hasExplicitWidth) {
-                availableWidth = Math.max((shape.width ?? 0), fontSize * 0.6);
-            } else {
-                // No explicit width - use measured text width, no wrapping needed
-                availableWidth = ctx.measureText(shape.textContent).width;
-            }
-            
+            const containerWidth = (shape.width ?? ctx.measureText(shape.textContent).width) - pad * 2;
+            const availableWidth = Math.max(containerWidth, fontSize * 0.6);
             const lineHeight = fontSize * 1.2;
             const wrappedLines = hasExplicitWidth 
                 ? getWrappedLines(shape.textContent, availableWidth, fontSize)

@@ -1,32 +1,42 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataStore } from '../../stores/useDataStore';
-import { NormalizedViewBox, Shape } from '../../../types';
+import { NormalizedViewBox, Shape } from '../../types';
 import * as pdfjs from 'pdfjs-dist/build/pdf';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { generateId } from '../../utils/uuid';
+import DxfWorker from './utils/dxf/dxfWorker?worker';
+import { DxfWorkerOutput } from './utils/dxf/types';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PlanImportResult {
   shapes: Shape[];
-  originalWidth: number; // For calibration
-  originalHeight: number; // For calibration
+  originalWidth: number;
+  originalHeight: number;
+}
+
+interface ImportOptions {
+  explodeBlocks?: boolean;
+  maintainLayers?: boolean;
+  grayscale?: boolean;
+  readOnly?: boolean;
 }
 
 interface PlanImportHook {
   openImportPdfModal: () => void;
   openImportImageModal: () => void;
+  openImportDxfModal: () => void;
   closeImportModal: () => void;
-  handleFileImport: (file: File) => Promise<void>;
+  handleFileImport: (file: File, options?: ImportOptions) => Promise<void>;
   isImportModalOpen: boolean;
-  importMode: 'pdf' | 'image';
+  importMode: 'pdf' | 'image' | 'dxf';
 }
 
 export const usePlanImport = (): PlanImportHook => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importMode, setImportMode] = useState<'pdf' | 'image'>('pdf');
+  const [importMode, setImportMode] = useState<'pdf' | 'image' | 'dxf'>('pdf');
   const uiStore = useUIStore();
   const dataStore = useDataStore();
 
@@ -40,6 +50,11 @@ export const usePlanImport = (): PlanImportHook => {
     setIsImportModalOpen(true);
   }, []);
 
+  const openImportDxfModal = useCallback(() => {
+    setImportMode('dxf');
+    setIsImportModalOpen(true);
+  }, []);
+
   const closeImportModal = useCallback(() => setIsImportModalOpen(false), []);
 
   const processFile = useCallback(async (file: File): Promise<PlanImportResult | null> => {
@@ -49,7 +64,7 @@ export const usePlanImport = (): PlanImportHook => {
         try {
           const fileContent = e.target?.result;
           let svgString: string = '';
-          let viewBox: NormalizedViewBox = { x: 0, y: 0, width: 1000, height: 1000 }; // Default / Placeholder
+          let viewBox: NormalizedViewBox = { x: 0, y: 0, width: 1000, height: 1000 };
           let originalWidth = 1000;
           let originalHeight = 1000;
 
@@ -57,13 +72,12 @@ export const usePlanImport = (): PlanImportHook => {
             const pdfData = new Uint8Array(fileContent as ArrayBuffer);
             const loadingTask = pdfjs.getDocument({ data: pdfData });
             const pdf = await loadingTask.promise;
-            const page = await pdf.getPage(1); // Get first page
+            const page = await pdf.getPage(1);
 
             const viewport = page.getViewport({ scale: 1.0 });
             originalWidth = viewport.width;
             originalHeight = viewport.height;
 
-            // Attempt vector conversion
             const vectorShapes = await convertPdfPageToShapes(
                 page, 
                 uiStore.activeFloorId || 'default', 
@@ -75,7 +89,6 @@ export const usePlanImport = (): PlanImportHook => {
                  return;
             }
 
-            // Fallback to raster if no vector shapes found (e.g. scanned PDF)
             console.warn("No vector shapes found, falling back to raster import.");
             const canvas = document.createElement('canvas');
             const canvasContext = canvas.getContext('2d');
@@ -96,7 +109,6 @@ export const usePlanImport = (): PlanImportHook => {
 
           } else if (file.type === 'image/svg+xml') {
             svgString = fileContent as string;
-            // Attempt to parse viewBox from SVG string
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
             const svgElement = svgDoc.documentElement;
@@ -110,14 +122,12 @@ export const usePlanImport = (): PlanImportHook => {
                 originalHeight = parts[3];
               }
             } else {
-                // If no viewBox, try width/height attributes
                 originalWidth = Number(svgElement.getAttribute('width')) || 1000;
                 originalHeight = Number(svgElement.getAttribute('height')) || 1000;
                 viewBox = { x: 0, y: 0, width: originalWidth, height: originalHeight };
             }
 
           } else if (file.type.startsWith('image/')) {
-             // Handle PNG, JPEG, etc.
              const imgDataUrl = await new Promise<string>((resolveImg, rejectImg) => {
                  const imgReader = new FileReader();
                  imgReader.onload = () => resolveImg(imgReader.result as string);
@@ -147,12 +157,13 @@ export const usePlanImport = (): PlanImportHook => {
           const newShapeId = generateId('plan');
           const newShape: Shape = {
             id: newShapeId,
-            layerId: dataStore.activeLayerId, // Use current active layer
-            type: 'rect', // Using rect type for SVG container
-            x: 0, // Default position
-            y: 0, // Default position
-            width: originalWidth, // Default to original size, will be calibrated
-            height: originalHeight, // Default to original size, will be calibrated
+            layerId: dataStore.activeLayerId,
+            type: 'rect',
+            x: 0,
+            y: 0,
+            points: [],
+            width: originalWidth,
+            height: originalHeight,
             strokeColor: 'transparent',
             strokeWidth: 0,
             strokeEnabled: false,
@@ -160,8 +171,8 @@ export const usePlanImport = (): PlanImportHook => {
             colorMode: { fill: 'custom', stroke: 'custom' },
             svgRaw: svgString,
             svgViewBox: viewBox,
-            discipline: 'architecture', // Mark as architectural plan
-            floorId: uiStore.activeFloorId, // Assign to current active floor
+            discipline: 'architecture',
+            floorId: uiStore.activeFloorId,
           };
 
           resolve({ shapes: [newShape], originalWidth, originalHeight });
@@ -175,20 +186,98 @@ export const usePlanImport = (): PlanImportHook => {
         console.error("FileReader error:", error);
         reject(error);
       };
-      reader.readAsArrayBuffer(file); // Read as ArrayBuffer for PDF.js
+      reader.readAsArrayBuffer(file);
     });
   }, [dataStore, uiStore]);
 
-  const handleFileImport = useCallback(async (file: File) => {
+  const handleFileImport = useCallback(async (file: File, options?: ImportOptions) => {
     try {
+      if (importMode === 'dxf') {
+          // DXF/DWG Handling
+          const isDwg = file.name.toLowerCase().endsWith('.dwg');
+          const isDxf = file.name.toLowerCase().endsWith('.dxf');
+
+          if (isDwg) {
+             throw new Error("Arquivos DWG binários requerem conversão prévia. Por favor, converta para DXF (AutoCAD 2000+ ASCII) e tente novamente.");
+          }
+          if (!isDxf) {
+             throw new Error("Por favor, selecione um arquivo .DXF válido.");
+          }
+
+          // Safety Check: File Size Limit (50MB)
+          const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+          if (file.size > MAX_SIZE) {
+              throw new Error("Arquivo muito grande. O limite é 50MB.");
+          }
+
+          // Read as text
+          const text = await file.text();
+
+          // Worker Processing (Parse + Convert + Cleanup)
+          const workerData = await new Promise<any>((resolve, reject) => {
+              const worker = new DxfWorker();
+              worker.onmessage = (e) => {
+                  if (e.data.success) resolve(e.data.data);
+                  else reject(new Error(e.data.error || 'Erro no processamento do DXF'));
+                  worker.terminate();
+              };
+              worker.onerror = (err) => {
+                  reject(err);
+                  worker.terminate();
+              };
+              worker.postMessage({
+                  text,
+                  options: {
+                      floorId: uiStore.activeFloorId || 'default',
+                      defaultLayerId: dataStore.activeLayerId,
+                      explodeBlocks: true,
+                      grayscale: options?.grayscale,
+                      readOnly: options?.readOnly
+                  }
+              });
+          });
+
+          let shapesToAdd = workerData.shapes;
+          const newLayers = workerData.layers;
+
+          // Handle Layers
+          if (options?.maintainLayers && newLayers && newLayers.length > 0) {
+              const layerMap = new Map<string, string>();
+
+              newLayers.forEach((l: any) => {
+                  const storeId = dataStore.ensureLayer(l.name, {
+                      strokeColor: l.strokeColor,
+                      strokeEnabled: l.strokeEnabled,
+                      fillColor: l.fillColor,
+                      fillEnabled: l.fillEnabled,
+                      visible: l.visible,
+                      locked: l.locked
+                  });
+                  layerMap.set(l.id, storeId);
+              });
+
+              // Remap shapes
+              shapesToAdd = shapesToAdd.map((s: any) => ({
+                  ...s,
+                  layerId: layerMap.get(s.layerId) || dataStore.activeLayerId
+              }));
+          }
+
+          console.log(`Imported ${shapesToAdd.length} shapes from DXF`);
+          dataStore.addShapes(shapesToAdd);
+          uiStore.setSelectedShapeIds(new Set(shapesToAdd.map(s => s.id)));
+          uiStore.setTool('select');
+
+          closeImportModal();
+          return;
+      }
+
+      // Legacy PDF/Image Handling
       if (importMode === 'pdf') {
           if (file.type !== 'application/pdf' && file.type !== 'image/svg+xml') {
               throw new Error("Por favor, selecione um arquivo PDF ou SVG.");
           }
       } else if (importMode === 'image') {
-          // Allow internal image/svg+xml to fail here if intended strictly for raster,
-          // but usually users won't pick SVG in image mode if filtered.
-          // Strict check:
           if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
               throw new Error("Por favor, selecione uma imagem (PNG, JPG).");
           }
@@ -198,8 +287,6 @@ export const usePlanImport = (): PlanImportHook => {
       if (result && result.shapes.length > 0) {
         console.log(`Importing ${result.shapes.length} shapes.`);
         dataStore.addShapes(result.shapes);
-        
-        // Select the imported shapes for easy manipulation
         uiStore.setSelectedShapeIds(new Set(result.shapes.map(s => s.id)));
         uiStore.setTool('select');
       }
@@ -207,13 +294,14 @@ export const usePlanImport = (): PlanImportHook => {
     } catch (error) {
       alert(`Erro ao importar arquivo: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [processFile, dataStore, closeImportModal, importMode]);
+  }, [processFile, dataStore, closeImportModal, importMode, uiStore]);
 
   return {
     isImportModalOpen,
     importMode,
     openImportPdfModal,
     openImportImageModal,
+    openImportDxfModal,
     closeImportModal,
     handleFileImport,
   };

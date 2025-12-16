@@ -1,11 +1,18 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { X, Upload, FileText, FileUp } from 'lucide-react';
+import { X, FileUp } from 'lucide-react';
+
+interface ImportOptions {
+  explodeBlocks: boolean;
+  maintainLayers: boolean;
+  grayscale?: boolean;
+  readOnly?: boolean;
+}
 
 interface ImportPlanModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (file: File) => void;
-  mode?: 'pdf' | 'image';
+  onImport: (file: File, options?: ImportOptions) => void;
+  mode?: 'pdf' | 'image' | 'dxf';
   title?: string;
   accept?: string;
 }
@@ -19,6 +26,13 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
   accept = ".pdf,.svg"
 }) => {
   const [dragActive, setDragActive] = useState(false);
+  const [options, setOptions] = useState<ImportOptions>({
+    explodeBlocks: true,
+    maintainLayers: true,
+    grayscale: false,
+    readOnly: true
+  });
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -36,16 +50,16 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onImport(e.dataTransfer.files[0]);
+      onImport(e.dataTransfer.files[0], options);
     }
-  }, [onImport]);
+  }, [onImport, options]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
-      onImport(e.target.files[0]);
+      onImport(e.target.files[0], options);
     }
-  }, [onImport]);
+  }, [onImport, options]);
 
   const onButtonClick = useCallback(() => {
     inputRef.current?.click();
@@ -66,7 +80,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
           </button>
         </div>
 
-        <div className="p-4 flex flex-col items-center">
+        <div className="p-4 flex flex-col items-center gap-4">
           <form
             id="form-file-upload"
             onDragEnter={handleDrag}
@@ -102,6 +116,49 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
               </p>
             </label>
           </form>
+
+          {/* DXF Specific Options */}
+          {mode === 'dxf' && (
+            <div className="w-full flex flex-col gap-2 bg-slate-700/30 p-3 rounded text-sm text-slate-300">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={options.maintainLayers}
+                  onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
+                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                />
+                Manter Layers do arquivo
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={options.grayscale}
+                  onChange={e => setOptions(o => ({...o, grayscale: e.target.checked}))}
+                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                />
+                Importar em Tons de Cinza
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={options.readOnly}
+                  onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
+                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                />
+                Importar como Referência (Read-only)
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none opacity-75" title="Sempre ativo para renderização correta atualmente">
+                <input
+                  type="checkbox"
+                  checked={options.explodeBlocks}
+                  readOnly
+                  disabled
+                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                />
+                Explodir Blocos (obrigatório)
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="px-4 py-3 border-t border-slate-700 flex justify-end gap-2">
