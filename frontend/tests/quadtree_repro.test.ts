@@ -10,6 +10,7 @@ const createLine = (id: string, p1: Point, p2: Point): Shape => ({
     strokeColor: '#000',
     strokeEnabled: true,
     fillEnabled: false,
+    fillColor: 'transparent',
     layerId: 'layer1',
     strokeWidth: 1
 });
