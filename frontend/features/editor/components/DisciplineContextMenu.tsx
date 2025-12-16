@@ -9,6 +9,7 @@ interface DisciplineContextMenuProps {
   onClose: () => void;
   onImportPdf?: () => void;
   onImportImage?: () => void;
+  onImportDxf?: () => void;
 }
 
 const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
@@ -17,7 +18,8 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   position,
   onClose,
   onImportPdf,
-  onImportImage
+  onImportImage,
+  onImportDxf
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const allReferences = useUIStore(s => s.referencedDisciplines);
@@ -80,6 +82,18 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
                     <span>Importar Imagem (PNG/JPG)</span>
                 </button>
             )}
+            {onImportDxf && (
+                <button
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => {
+                        onImportDxf();
+                        onClose();
+                    }}
+                >
+                    <Import size={14} />
+                    <span>Importar DWG / DXF</span>
+                </button>
+            )}
         </>
       )}
 
@@ -99,8 +113,6 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
                       className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
                       onClick={() => {
                           toggleReference(floorId, ref);
-                          // Don't close immediately to allow multiple toggles? Or close?
-                          // Usually context menus close.
                           onClose();
                       }}
                   >

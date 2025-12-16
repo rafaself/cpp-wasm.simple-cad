@@ -26,7 +26,7 @@ const EditorSidebar: React.FC = () => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const openTab = useUIStore((s) => s.openTab);
 
-  const { isImportModalOpen, importMode, openImportPdfModal, openImportImageModal, closeImportModal, handleFileImport } = usePlanImport();
+  const { isImportModalOpen, importMode, openImportPdfModal, openImportImageModal, openImportDxfModal, closeImportModal, handleFileImport } = usePlanImport();
 
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
@@ -200,6 +200,7 @@ const EditorSidebar: React.FC = () => {
                 onClose={() => setContextMenu(null)}
                 onImportPdf={openImportPdfModal}
                 onImportImage={openImportImageModal}
+                onImportDxf={openImportDxfModal}
             />
         )}
 
@@ -214,8 +215,8 @@ const EditorSidebar: React.FC = () => {
                 mode={importMode}
                 onClose={closeImportModal}
                 onImport={handleFileImport}
-                title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : "Importar Imagem"}
-                accept={importMode === 'pdf' ? ".pdf,.svg" : ".png,.jpg,.jpeg"}
+                title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : importMode === 'dxf' ? "Importar DWG / DXF" : "Importar Imagem"}
+                accept={importMode === 'pdf' ? ".pdf,.svg" : importMode === 'dxf' ? ".dxf,.dwg" : ".png,.jpg,.jpeg"}
             />
         )}
     </div>
