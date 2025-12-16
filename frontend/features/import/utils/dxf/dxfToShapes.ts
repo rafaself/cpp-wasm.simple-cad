@@ -330,11 +330,15 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'MTEXT':
       case 'ATTRIB':
         const textContent = entity.text || (entity as any).value; // Support ATTRIB value
-        if (entity.startPoint && textContent) {
-           const p = trans(entity.startPoint);
-           // Calculate height with scale and enforce minimum size
-           const rawHeight = (entity.textHeight || 12) * Math.abs(transform.scaleY);
-           const h = Math.max(rawHeight, MIN_TEXT_SIZE);
+        const textPoint = entity.startPoint || entity.position; // Use position if startPoint is not available
+        if (textPoint && textContent) {
+           const p = trans(textPoint);
+           
+           // Calculate height with scale. Favor entity height, then header default, then fallback.
+           // We do NOT enforce a minimum size to preserve drawing scale fidelity.
+           const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
+           const h = baseHeight * Math.abs(transform.scaleY);
+           
            const rot = (entity.rotation || 0) + transform.rotation;
 
            shapes.push({
