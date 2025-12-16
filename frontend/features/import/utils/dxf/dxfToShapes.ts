@@ -72,7 +72,7 @@ const DXF_UNITS: Record<number, number> = {
     17: 1.0e11,   // Gigameters
 };
 
-const MIN_TEXT_SIZE = 12; // Minimum readable text size in canvas units (pixels/cm)
+const MIN_TEXT_SIZE = 0.1; // Reduced to allow small text (e.g. in Meters) to exist
 
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
@@ -335,11 +335,19 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            const p = trans(textPoint);
            
            // Calculate height with scale. Favor entity height, then header default, then fallback.
-           // We enforce a minimum size to ensure text remains readable on canvas.
            const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
+           // We allow small text sizes now, avoiding the clamping that destroyed hierarchy
            const h = Math.max(baseHeight * Math.abs(transform.scaleY), MIN_TEXT_SIZE);
            
            const rot = (entity.rotation || 0) + transform.rotation;
+
+           // Map DXF Alignment (halign) to Shape align
+           // 0 = Left (Default), 1 = Center, 2 = Right, 4 = Middle (Treat as Center)
+           // 3 = Aligned, 5 = Fit (Ignored for now, defaults to left)
+           let textAlign: 'left' | 'center' | 'right' = 'left';
+           const halign = (entity as any).halign;
+           if (halign === 1 || halign === 4) textAlign = 'center';
+           if (halign === 2) textAlign = 'right';
 
            shapes.push({
             id: generateId('dxf-text'),
@@ -350,6 +358,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             textContent: textContent,
             fontSize: h,
             rotation: rot * (Math.PI / 180),
+            align: textAlign,
             strokeColor: color,
             fillColor: 'transparent', // Ensure text background is transparent
             layerId,

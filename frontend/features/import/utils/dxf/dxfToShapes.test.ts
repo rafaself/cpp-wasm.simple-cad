@@ -129,7 +129,7 @@ describe('convertDxfToShapes', () => {
     expect(result.shapes[0].points?.[1]).toEqual({ x: 500, y: 0 });
   });
 
-  it('enforces minimum text size', () => {
+  it('allows small text sizes (no large clamp)', () => {
     const data: DxfData = {
       header: { $INSUNITS: 6 }, // Meters (Scale 100)
       entities: [{
@@ -146,12 +146,34 @@ describe('convertDxfToShapes', () => {
       defaultLayerId: 'default'
     });
 
-    // Calculated: 5cm. Minimum: 12.
-    // Result should be 12.
+    // Calculated: 5cm.
+    // Result should be 5 (previously clamped to 12).
     expect(result.shapes[0].type).toBe('text');
     // @ts-ignore
-    expect(result.shapes[0].fontSize).toBe(12);
+    expect(result.shapes[0].fontSize).toBe(5);
     expect(result.shapes[0].fillColor).toBe('transparent');
+  });
+
+  it('maps DXF alignment to shape alignment', () => {
+      const data: DxfData = {
+        entities: [
+          { type: 'TEXT', layer: '0', startPoint: {x:0,y:0}, text: 'Left', textHeight: 1, halign: 0 },
+          { type: 'TEXT', layer: '0', startPoint: {x:0,y:0}, text: 'Center', textHeight: 1, halign: 1 },
+          { type: 'TEXT', layer: '0', startPoint: {x:0,y:0}, text: 'Right', textHeight: 1, halign: 2 },
+          { type: 'TEXT', layer: '0', startPoint: {x:0,y:0}, text: 'Middle', textHeight: 1, halign: 4 },
+        ]
+      };
+
+      const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def' });
+
+      // @ts-ignore
+      expect(result.shapes[0].align).toBe('left');
+      // @ts-ignore
+      expect(result.shapes[1].align).toBe('center');
+      // @ts-ignore
+      expect(result.shapes[2].align).toBe('right');
+      // @ts-ignore
+      expect(result.shapes[3].align).toBe('center'); // Middle -> Center
   });
 
   it('imports ATTRIB entities attached to INSERT', () => {
