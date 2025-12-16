@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
@@ -33,6 +33,8 @@ interface DynamicOverlayProps {
 
 const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [renderCounter, setRenderCounter] = useState(0);
+  const forceUpdate = useCallback(() => setRenderCounter(prev => prev + 1), []);
 
   // Granular hooks for performance (avoid re-rendering on unrelated store updates)
   const viewTransform = useUIStore(s => s.viewTransform);
@@ -104,6 +106,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
     // This ensures we always have the absolute latest state when drawing
     const uiStore = useUIStore.getState();
     const dataStore = useDataStore.getState();
+    const shapes = dataStore.shapes;
     const settingsStore = useSettingsStore.getState();
     const libraryStore = useLibraryStore.getState();
     const { strokeWidth, strokeColor, strokeEnabled, fillColor, polygonSides } = settingsStore.toolDefaults;
@@ -413,7 +416,7 @@ const DynamicOverlay: React.FC<DynamicOverlayProps> = ({ width, height }) => {
 
   useEffect(() => {
       render();
-  }, [render, renderTrigger]); // Added renderTrigger to deps
+  }, [render, renderCounter]); // Updated renderTrigger to renderCounter
 
   let cursorClass = DEFAULT_CURSOR;
   if (isMiddlePanning || (isDragging && activeTool === 'pan')) cursorClass = GRABBING_CURSOR;

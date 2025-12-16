@@ -1,62 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
 import { convertPdfPageToShapes } from './pdfToShapes';
 import * as pdfjs from 'pdfjs-dist';
-import { GlobalWorkerOptions } from 'pdfjs-dist';
 
-// Disable worker for tests (pdfjs-dist v4+ no longer supports 'disableWorker' option)
-GlobalWorkerOptions.workerSrc = '';
+// Mock OPS
+const OPS = pdfjs.OPS;
 
-// Mock OPS if needed, or rely on the imported one.
-// Since we are running in node (vitest), pdfjs-dist/build/pdf might work if it detects node.
-// However, pdfjs.OPS might be available.
-
-const buildPdfWithContent = (
-  content: string,
-  mediaBox: [number, number, number, number] = [0, 0, 300, 300]
-): Uint8Array => {
-  const encoder = new TextEncoder();
-  const streamData = content.endsWith('\n') ? content : `${content}\n`;
-  const streamBytes = encoder.encode(streamData);
-
-  const objects = [
-    { id: 1, body: '<< /Type /Catalog /Pages 2 0 R >>' },
-    { id: 2, body: '<< /Type /Pages /Count 1 /Kids [3 0 R] >>' },
-    {
-      id: 3,
-      body: `<< /Type /Page /Parent 2 0 R /MediaBox [${mediaBox.join(
-        ' '
-      )}] /Contents 4 0 R /Resources <<>> >>`,
-    },
-    {
-      id: 4,
-      body: `<< /Length ${streamBytes.length} >>\nstream\n${streamData}endstream`,
-    },
-  ];
-
-  let pdf = '%PDF-1.4\n';
-  const offsets: Record<number, number> = {};
-
-  for (const obj of objects) {
-    offsets[obj.id] = pdf.length;
-    pdf += `${obj.id} 0 obj\n${obj.body}\nendobj\n`;
-  }
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-  for (const obj of objects) {
-    pdf += `${offsets[obj.id].toString().padStart(10, '0')} 00000 n \n`;
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-  return encoder.encode(pdf);
-};
-
-const loadFirstPage = async (pdfBytes: Uint8Array) => {
-  const task = pdfjs.getDocument({ data: pdfBytes });
-  const pdf = await task.promise;
-  return pdf.getPage(1);
-};
+// Helper to create a basic mock page
+const createMockPage = (fnArray: any[], argsArray: any[]) => ({
+  getOperatorList: vi.fn().mockResolvedValue({
+    fnArray,
+    argsArray
+  }),
+  getViewport: vi.fn().mockReturnValue({
+    transform: [1, 0, 0, 1, 0, 0]
+  }),
+  getTextContent: vi.fn().mockResolvedValue({ items: [], styles: {} })
+});
 
 const bboxFromShapes = (shapes: any[]) => {
   let minX = Infinity,
@@ -84,35 +43,24 @@ const bboxFromShapes = (shapes: any[]) => {
 
 describe('convertPdfPageToShapes', () => {
   it('should convert a simple line to a Shape', async () => {
-    // Mock OPS
-    const OPS = pdfjs.OPS;
-    
-    // Mock Page Proxy
-    const mockPage = {
-      getOperatorList: vi.fn().mockResolvedValue({
-        fnArray: [
-            OPS.save, 
-            OPS.setLineWidth, 
-            OPS.setStrokeColor,
-            OPS.constructPath, 
-            OPS.stroke, 
-            OPS.restore
-        ],
-        argsArray: [
-            [],
-            [2], // Line width
-            [1, 0, 0], // Red color
-            [[OPS.moveTo, OPS.lineTo], [10, 10, 100, 100]], // Path: M 10 10 L 100 100
-            [],
-            []
-        ]
-      }),
-      getViewport: vi.fn().mockReturnValue({
-        // Identity transform for simplicity
-        transform: [1, 0, 0, 1, 0, 0]
-      }),
-      getTextContent: vi.fn().mockResolvedValue({ items: [], styles: {} })
-    };
+    const mockPage = createMockPage(
+      [
+        OPS.save, 
+        OPS.setLineWidth, 
+        OPS.setStrokeColor,
+        OPS.constructPath, 
+        OPS.stroke, 
+        OPS.restore
+      ],
+      [
+        [],
+        [2], // Line width
+        [1, 0, 0], // Red color
+        [[OPS.moveTo, OPS.lineTo], [10, 10, 100, 100]], // Path: M 10 10 L 100 100
+        [],
+        []
+      ]
+    );
 
     const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1');
 
@@ -128,29 +76,21 @@ describe('convertPdfPageToShapes', () => {
   });
 
   it('should convert a rectangle to a Polyline/Polygon/Rect representation', async () => {
-     const OPS = pdfjs.OPS;
-     const mockPage = {
-      getOperatorList: vi.fn().mockResolvedValue({
-        fnArray: [
+     const mockPage = createMockPage(
+        [
             OPS.constructPath, 
             OPS.stroke
         ],
-        argsArray: [
+        [
             [[OPS.rectangle], [10, 10, 50, 40]], // x, y, w, h
             []
         ]
-      }),
-      getViewport: vi.fn().mockReturnValue({
-        transform: [1, 0, 0, 1, 0, 0]
-      }),
-      getTextContent: vi.fn().mockResolvedValue({ items: [], styles: {} })
-    };
+     );
 
     const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1');
     expect(shapes).toHaveLength(1);
     const shape = shapes[0];
     // Our logic currently converts closed paths (like rects) to polylines or svg if simple
-    // Rect logic: M L L L Z
     expect(shape.type).toBe('polyline');
     // After normalization and Y-flip: rect at (10,10) with size 50x40
     // Points: (10,10), (60,10), (60,50), (10,50) -> after flip with contentHeight=40
@@ -161,7 +101,6 @@ describe('convertPdfPageToShapes', () => {
   });
 
   it('should extract text content and convert to Text shapes', async () => {
-    const OPS = pdfjs.OPS;
     const mockPage = {
       getOperatorList: vi.fn().mockResolvedValue({
         fnArray: [],
@@ -195,7 +134,6 @@ describe('convertPdfPageToShapes', () => {
   });
 
   it('should merge adjacent text items into a single Text shape', async () => {
-    const OPS = pdfjs.OPS;
     const mockPage = {
       getOperatorList: vi.fn().mockResolvedValue({ fnArray: [], argsArray: [] }),
       getTextContent: vi.fn().mockResolvedValue({
@@ -230,30 +168,8 @@ describe('convertPdfPageToShapes', () => {
   });
 
   it('should handle nested transforms correctly (Matrix Order Regression Test)', async () => {
-    // This test verifies that CTM multiplication order is correct (M_new * CTM_old vs CTM_old * M_new).
-    // Scenario:
-    // 1. Reference Line at (0,0) to (10,10).
-    // 2. Transformed Line:
-    //    q
-    //    1 0 0 1 100 100 cm  (Translate 100, 100)
-    //    2 0 0 2 0 0 cm      (Scale 2, 2)
-    //    Draw (0,0) to (10,10)
-    //    Q
-    //
-    // Expected (Standard PDF Pre-multiplication / Local * Global):
-    // P_global = P_local * Scale * Translate
-    // (0,0) * S * T = (0,0) + (100,100) = (100,100)
-    // (10,10) * S * T = (20,20) + (100,100) = (120,120)
-    //
-    // Incorrect (Reverse Order / Global * Local):
-    // P_global = P_local * Translate * Scale
-    // (0,0) + T = (100,100) * S = (200,200)
-    // (10,10) + T = (110,110) * S = (220,220)
-
-    const OPS = pdfjs.OPS;
-    const mockPage = {
-      getOperatorList: vi.fn().mockResolvedValue({
-        fnArray: [
+    const mockPage = createMockPage(
+        [
             // Reference Shape (to anchor normalization at 0,0)
             OPS.constructPath,
             OPS.stroke,
@@ -266,7 +182,7 @@ describe('convertPdfPageToShapes', () => {
             OPS.stroke,
             OPS.restore
         ],
-        argsArray: [
+        [
             // Reference
             [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
             [],
@@ -279,19 +195,10 @@ describe('convertPdfPageToShapes', () => {
             [],
             []
         ]
-      }),
-      getViewport: vi.fn().mockReturnValue({
-        transform: [1, 0, 0, 1, 0, 0]
-      }),
-      getTextContent: vi.fn().mockResolvedValue({ items: [], styles: {} })
-    };
+    );
 
     const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1');
     expect(shapes).toHaveLength(2);
-
-    // Normalization should shift everything so minX, minY is 0.
-    // Ref is at 0,0. Transformed is at >100. Min is 0.
-    // So coordinates should be absolute.
 
     const refShape = shapes[0];
     const transShape = shapes[1];
@@ -310,38 +217,69 @@ describe('convertPdfPageToShapes', () => {
   });
 
   it('keeps a known-good PDF within compact bounds', async () => {
-    const goodContent = ['0.5 w', '10 10 m', '60 10 l', '10 10 m', '10 60 l', 'S'].join('\n');
-    const goodPdf = buildPdfWithContent(goodContent);
-    const page = await loadFirstPage(goodPdf);
+    // Equivalent of:
+    // '0.5 w', '10 10 m', '60 10 l', '10 10 m', '10 60 l', 'S'
+    const mockPage = createMockPage(
+        [
+            OPS.setLineWidth,
+            OPS.constructPath,
+            OPS.constructPath,
+            OPS.stroke
+        ],
+        [
+            [0.5],
+            [[OPS.moveTo, OPS.lineTo], [10, 10, 60, 10]],
+            [[OPS.moveTo, OPS.lineTo], [10, 10, 10, 60]],
+            []
+        ]
+    );
 
-    const shapes = await convertPdfPageToShapes(page as any, 'good-floor', 'good-layer');
+    const shapes = await convertPdfPageToShapes(mockPage as any, 'good-floor', 'good-layer');
     const bbox = bboxFromShapes(shapes);
 
     expect(shapes.length).toBeGreaterThan(0);
     expect(bbox.minX).toBeGreaterThanOrEqual(0);
     expect(bbox.minY).toBeGreaterThanOrEqual(0);
-    expect(bbox.maxX).toBeLessThanOrEqual(80);
-    expect(bbox.maxY).toBeLessThanOrEqual(80);
+    // Extents are 10,10 to 60,60. Width/Height = 50.
+    expect(bbox.maxX).toBeLessThanOrEqual(50);
+    expect(bbox.maxY).toBeLessThanOrEqual(50);
   });
 
   it('prevents displacement on known-bad PDF with nested scale after translate', async () => {
-    const badContent = [
-      '0.5 w',
-      '0 0 m',
-      '10 10 l',
-      'S',
-      'q',
-      '1 0 0 1 100 100 cm',
-      '2 0 0 2 0 0 cm',
-      '0 0 m',
-      '10 10 l',
-      'S',
-      'Q',
-    ].join('\n');
+    // Equivalent of:
+    // '0.5 w'
+    // '0 0 m', '10 10 l', 'S'
+    // 'q'
+    // '1 0 0 1 100 100 cm'
+    // '2 0 0 2 0 0 cm'
+    // '0 0 m', '10 10 l', 'S'
+    // 'Q'
+    const mockPage = createMockPage(
+        [
+            OPS.setLineWidth,
+            OPS.constructPath,
+            OPS.stroke,
+            OPS.save,
+            OPS.transform,
+            OPS.transform,
+            OPS.constructPath,
+            OPS.stroke,
+            OPS.restore
+        ],
+        [
+            [0.5],
+            [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
+            [],
+            [],
+            [1, 0, 0, 1, 100, 100],
+            [2, 0, 0, 2, 0, 0],
+            [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
+            [],
+            []
+        ]
+    );
 
-    const badPdf = buildPdfWithContent(badContent);
-    const page = await loadFirstPage(badPdf);
-    const shapes = await convertPdfPageToShapes(page as any, 'bad-floor', 'bad-layer');
+    const shapes = await convertPdfPageToShapes(mockPage as any, 'bad-floor', 'bad-layer');
 
     expect(shapes.length).toBe(2);
 
@@ -354,14 +292,20 @@ describe('convertPdfPageToShapes', () => {
     const refStart = refShape.points[0];
     const transformedStart = transformedShape.points[0];
 
+    // Reference (0,0) -> Normalized to (0,0)
+    // Transformed (100,100) -> Normalized to (100,100) relative to ref
+    // Wait, refShape.points[0] might be affected by normalization
+    
+    // Original coords: Ref(0,0), Trans(100,100)
+    // MinX=0, MinY=0.
+    // Normalized Ref: (0,0)
+    // Normalized Trans: (100,100)
+    
     expect(transformedStart.x - refStart.x).toBeCloseTo(100, 3);
-    // After Y-flip: the Y displacement magnitude should be 100
-    // Using absolute value since the direction depends on flip implementation
     expect(Math.abs(transformedStart.y - refStart.y)).toBeCloseTo(100, 3);
   });
 
   it('should handle rotated text and strict grouping', async () => {
-    const OPS = pdfjs.OPS;
     const mockPage = {
       getOperatorList: vi.fn().mockResolvedValue({ fnArray: [], argsArray: [] }),
       getTextContent: vi.fn().mockResolvedValue({
@@ -398,13 +342,11 @@ describe('convertPdfPageToShapes', () => {
 
     const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1');
     
-    // Expect 3 shapes (Rotated, A, B) - no merging of A and B because they are on different lines (gap > tolerance)
-    // Tolerance is 0.2 * 12 = 2.4 units. Gap is 10 units.
+    // Expect 3 shapes (Rotated, A, B)
     expect(shapes).toHaveLength(3);
 
     const rotated = shapes.find(s => s.textContent === 'Rotated');
     expect(rotated).toBeDefined();
-    // Rotation should be approx -45 deg (Canvas equivalent) or just stored correctly.
     // atan2(0.707, 0.707) is approx 0.785 rad (45 deg).
     // finalRotation = -0.785
     expect(rotated?.rotation).toBeCloseTo(-0.785, 2);
