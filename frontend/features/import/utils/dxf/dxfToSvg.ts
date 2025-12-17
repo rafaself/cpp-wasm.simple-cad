@@ -164,7 +164,31 @@ const entityToSvg = (
     case 'MTEXT': {
        // Simplified Text Support
        if (!entity.text || (!entity.startPoint && !entity.position)) return null;
-       const pos = entity.startPoint || entity.position || { x: 0, y: 0 };
+       
+       // Resolve Position based on alignment
+       let pos = entity.startPoint || entity.position || { x: 0, y: 0 };
+       let halign = (entity as any).halign || 0;
+       let valign = (entity as any).valign || 0;
+
+       if (entity.type === 'TEXT') {
+            // For TEXT, if align is set, use alignmentPoint (Group 11) if available
+            const alignmentPoint = (entity as any).endPoint || (entity as any).alignmentPoint;
+            if ((halign !== 0 || valign !== 0) && alignmentPoint) {
+                pos = alignmentPoint;
+            }
+       } else if (entity.type === 'MTEXT') {
+            // MText attachment point mapping
+            const attachment = (entity as any).attachmentPoint;
+            if (attachment) {
+                 if ([1, 4, 7].includes(attachment)) halign = 0; // Left
+                 else if ([2, 5, 8].includes(attachment)) halign = 1; // Center
+                 else if ([3, 6, 9].includes(attachment)) halign = 2; // Right
+
+                 if ([1, 2, 3].includes(attachment)) valign = 3; // Top
+                 else if ([4, 5, 6].includes(attachment)) valign = 2; // Middle
+                 else if ([7, 8, 9].includes(attachment)) valign = 1; // Bottom
+            }
+       }
        
        let height = entity.textHeight || (entity as any).height;
        if (!height || height === 0) {
@@ -198,7 +222,36 @@ const entityToSvg = (
        // Clean text
        const cleanText = entity.text.replace(/\\P/g, '\n').replace(/\\[A-Z0-9]+;?/g, '').replace(/[{}]/g, '');
 
-       return `<text transform="${transform}" font-size="${formatFloat(height)}" fill="${color}" stroke="none" font-family="monospace">${escapeXml(cleanText)}</text>`;
+       // Map Alignment to SVG properties
+       let textAnchor = 'start';
+       if (halign === 1 || halign === 4) textAnchor = 'middle';
+       else if (halign === 2) textAnchor = 'end';
+
+       // Vertical alignment logic is tricky in SVG 1.1.
+       // 'dominant-baseline' support is spotty in some viewers/contexts (like simple img tag?).
+       // Safer to rely on manual dy shift if needed, but let's try standard first or minimal adjustment.
+       // For MText Top/Middle/Bottom:
+       let baseline = 'auto'; // 0 - Baseline
+       let dy = '0';
+       
+       if (valign === 3) { // Top
+           baseline = 'hanging'; 
+           // SVG hanging is top of em box. DXF Top is top of Cap Height? 
+           // Often 'hanging' works well enough.
+           // dy might be needed for 'text-before-edge' behavior.
+           dy = '0.8em'; // Shift down to simulate Top align? No, hanging means origin is at top.
+           // Actually, standard SVG text origin is baseline.
+           // If we want Top alignment, we want the baseline to be below the point.
+           // dominant-baseline="hanging" puts the "hanging baseline" at the point.
+       } else if (valign === 2) { // Middle
+           baseline = 'middle';
+       } else if (valign === 1) { // Bottom
+           // Point is at bottom of text. Standard baseline is slightly above bottom (descent).
+           // This usually matches 'auto' close enough or 'text-after-edge'.
+           baseline = 'auto'; 
+       }
+
+       return `<text transform="${transform}" font-size="${formatFloat(height)}" fill="${color}" stroke="none" font-family="monospace" text-anchor="${textAnchor}" dominant-baseline="${baseline}">${escapeXml(cleanText)}</text>`;
     }
 
     default:
@@ -336,7 +389,14 @@ export const dxfToSvg = (
   const minX = (acc.extents.minX !== Infinity) ? acc.extents.minX : 0;
   const minY = (acc.extents.minY !== Infinity) ? acc.extents.minY : 0;
 
-  const viewBox = `${formatFloat(minX)} ${formatFloat(minY)} ${formatFloat(safeWidth)} ${formatFloat(safeHeight)}`;
+  // Add Padding to prevent clipping (5%)
+  const padding = Math.max(safeWidth, safeHeight) * 0.05;
+  const paddedMinX = minX - padding;
+  const paddedMinY = minY - padding;
+  const paddedWidth = safeWidth + padding * 2;
+  const paddedHeight = safeHeight + padding * 2;
+
+  const viewBox = `${formatFloat(paddedMinX)} ${formatFloat(paddedMinY)} ${formatFloat(paddedWidth)} ${formatFloat(paddedHeight)}`;
 
   const defsSection = acc.defs.length > 0 ? `<defs>${acc.defs.join('')}</defs>` : '';
 
@@ -351,7 +411,7 @@ export const dxfToSvg = (
 
   return {
     svgRaw,
-    viewBox: { x: minX, y: minY, width: safeWidth, height: safeHeight },
+    viewBox: { x: paddedMinX, y: paddedMinY, width: paddedWidth, height: paddedHeight },
     unitsScale
   };
 };
