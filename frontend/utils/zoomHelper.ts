@@ -1,5 +1,6 @@
 
 import { Point, ViewTransform } from '../types';
+import { UI } from '../design/tokens';
 
 /**
  * Calculates the new ViewTransform based on wheel delta.
@@ -26,7 +27,7 @@ export const calculateZoomTransform = (
     const scaleFactor = Math.exp(delta * zoomIntensity);
 
     let newScale = currentTransform.scale * scaleFactor;
-    newScale = Math.max(0.01, Math.min(newScale, 50)); // Expanded zoom range
+    newScale = Math.max(UI.MIN_ZOOM, Math.min(newScale, UI.MAX_ZOOM));
 
     const w = screenToWorldFn(mousePos, currentTransform);
 

@@ -63,8 +63,8 @@ export const UI = {
   ZOOM_FIT_PADDING: 50,
   /** Max zoom level */
   MAX_ZOOM: 5,
-  /** Min zoom level */
-  MIN_ZOOM: 0.1,
+  /** Min zoom level (5%) */
+  MIN_ZOOM: 0.05,
   /** Default AutoCAD background color */
   BACKGROUND_DEFAULT: '#212830',
 } as const;

@@ -4,6 +4,7 @@ import { getCombinedBounds, getShapeBounds, getDistance, getShapeCenter, rotateP
 import { Shape, Patch, Point } from '../../../types';
 import { computeFrameData } from '../../../utils/frame';
 import { generateId } from '../../../utils/uuid';
+import { UI } from '../../../design/tokens';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
@@ -63,7 +64,7 @@ export const useEditorLogic = () => {
         const padding = 50;
         const availableW = canvasSize.width - padding * 2;
         const availableH = canvasSize.height - padding * 2;
-        const scale = Math.min(availableW / bounds.width, availableH / bounds.height, 5);
+        const scale = Math.min(availableW / bounds.width, availableH / bounds.height, UI.MAX_ZOOM);
         const centerX = bounds.x + bounds.width / 2;
         const centerY = bounds.y + bounds.height / 2;
         const newX = (canvasSize.width / 2) - (centerX * scale);
