@@ -34,7 +34,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     explodeBlocks: true,
     maintainLayers: true,
     grayscale: false,
-    readOnly: true,
+    readOnly: false,
     importMode: 'shapes',
     colorMode: 'original',
     sourceUnits: 'auto'
@@ -233,7 +233,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                     onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
                     className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
                     />
-                    Importar como Referência (Read-only)
+                    Apenas leitura.
                 </label>
               </div>
 

@@ -49,8 +49,8 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
             id: shapeId,
             type: 'rect',
             layerId: options.defaultLayerId, // Place container on import layer
-            x: x,
-            y: y,
+            x: 0,
+            y: 0,
             width: width,
             height: height,
             strokeColor: '#000000', // Placeholder
@@ -58,6 +58,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
             points: [], // Required by type
             svgRaw: svgRaw,
             svgViewBox: viewBox,
+            discipline: 'architecture',
             // svgHiddenLayers can be populated initially empty or handled by UI
             svgHiddenLayers: []
         };

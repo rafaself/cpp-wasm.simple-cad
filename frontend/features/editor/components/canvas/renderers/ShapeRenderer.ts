@@ -284,7 +284,10 @@ export const renderShape = (
             if ((shape.svgRaw || shape.svgOriginalRaw) && shape.svgViewBox) {
                 const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';
                 const hiddenLayers = shape.svgHiddenLayers ?? [];
-                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}-${hiddenLayers.join(',')}`;
+                // Skip tinting for Architecture shapes (Imported Plans) to preserve original colors
+                const shouldTint = shape.discipline !== 'architecture';
+                
+                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${shouldTint ? symbolColor : 'original'}-${hiddenLayers.join(',')}`;
 
                 // Optimized caching strategy:
                 // 1. Check if image is already cached (fastest)
@@ -294,7 +297,7 @@ export const renderShape = (
                 if (!img) {
                     const sourceSvg = shape.svgOriginalRaw ?? shape.svgRaw ?? '';
                     const layeredSvg = applyLayerVisibility(sourceSvg, hiddenLayers);
-                    const tintedSvg = applyStrokeColorToSvg(layeredSvg, symbolColor);
+                    const tintedSvg = shouldTint ? applyStrokeColorToSvg(layeredSvg, symbolColor) : layeredSvg;
                     img = getSvgImage(tintedSvg, cacheKey);
                 }
 

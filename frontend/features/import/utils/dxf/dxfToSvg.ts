@@ -170,10 +170,10 @@ export const dxfToSvg = (
     defs: [],
     layers: new Map(),
     extents: {
-      minX: data.header?.$EXTMIN?.x ?? Infinity,
-      minY: data.header?.$EXTMIN?.y ?? Infinity,
-      maxX: data.header?.$EXTMAX?.x ?? -Infinity,
-      maxY: data.header?.$EXTMAX?.y ?? -Infinity
+      minX: Infinity,
+      minY: Infinity,
+      maxX: -Infinity,
+      maxY: -Infinity
     }
   };
 
@@ -183,10 +183,12 @@ export const dxfToSvg = (
       const blockId = `block_${block.name.replace(/[^a-zA-Z0-9-_]/g, '_')}`;
       const parts: string[] = [];
 
-      block.entities.forEach(ent => {
-        const svgStr = entityToSvg(ent, data, options, true);
-        if (svgStr) parts.push(svgStr);
-      });
+      if (block.entities) {
+        block.entities.forEach(ent => {
+          const svgStr = entityToSvg(ent, data, options, true);
+          if (svgStr) parts.push(svgStr);
+        });
+      }
 
       const bx = block.position?.x ?? 0;
       const by = block.position?.y ?? 0;
@@ -202,11 +204,25 @@ export const dxfToSvg = (
     // Filter Paper Space if needed
     if (!options.includePaperSpace && entity.inPaperSpace) return;
 
-    // Update Extents (Approximation if header invalid)
-    if (acc.extents.minX === Infinity) {
-        if (entity.vertices) entity.vertices.forEach(v => updateExtents(acc, v.x, v.y));
-        if (entity.center) updateExtents(acc, entity.center.x, entity.center.y);
-        if (entity.position) updateExtents(acc, entity.position.x, entity.position.y);
+    // Update Extents (Always calculate from entities for accuracy)
+    if (entity.vertices) entity.vertices.forEach(v => updateExtents(acc, v.x, v.y));
+    if (entity.center) {
+        updateExtents(acc, entity.center.x, entity.center.y);
+        if (entity.radius) {
+            updateExtents(acc, entity.center.x - entity.radius, entity.center.y - entity.radius);
+            updateExtents(acc, entity.center.x + entity.radius, entity.center.y + entity.radius);
+        }
+    }
+    if (entity.position) {
+         updateExtents(acc, entity.position.x, entity.position.y);
+         // For INSERTs (Blocks), we should ideally estimate the block size, 
+         // but simple position check is better than nothing.
+         // TODO: Recurse into block for precise extents if needed.
+    }
+    // Text
+    if ((entity.type === 'TEXT' || entity.type === 'MTEXT') && (entity.startPoint || entity.position)) {
+        const p = entity.startPoint || entity.position;
+        if (p) updateExtents(acc, p.x, p.y);
     }
 
     const svgStr = entityToSvg(entity, data, options);
