@@ -4,6 +4,7 @@ import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer 
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
 import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, fromScaling, fromRotation } from './matrix2d';
 import { resolveColor, resolveLineweight, toGrayscale, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
+import { sanitizeMTextContent, getDxfTextAlignment, getDxfTextShift } from './textUtils';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -106,6 +107,14 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   if (data.tables?.layer?.layers) {
       Object.entries(data.tables.layer.layers).forEach(([k, v]) => {
           dxfLayers[k.toUpperCase()] = v;
+      });
+  }
+
+  // Prepare Styles
+  const dxfStyles: Record<string, any> = {};
+  if (data.tables?.style?.styles) {
+      Object.entries(data.tables.style.styles).forEach(([k, v]) => {
+          dxfStyles[k.toUpperCase()] = v;
       });
   }
 
@@ -363,10 +372,77 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'TEXT':
       case 'MTEXT':
       case 'ATTRIB':
-        const textContent = entity.text || (entity as any).value;
-        const textPoint = entity.startPoint || entity.position;
-        if (textPoint && textContent) {
-           const p = trans(textPoint);
+        const rawText = entity.text || (entity as any).value;
+        const textContent = (entity.type === 'MTEXT')
+            ? sanitizeMTextContent(rawText)
+            : rawText; // TEXT usually doesn't have MTEXT formatting codes, but can have %%u etc. We leave TEXT simple for now.
+
+        // Determine Alignment Point
+        // If halign or valign is set, we prefer Group 11 (endPoint/alignmentPoint) over Group 10 (startPoint/position)
+        // BUT only if Group 11 is defined and not (0,0)? DXF spec says it is valid even if 0,0, but usually if alignment is set, it is relevant.
+        // dxf-parser maps Group 10 to startPoint/position.
+        // Group 11 to endPoint (for TEXT). MTEXT uses insertionPoint (Group 10) primarily, and attachment point (71).
+
+        // For TEXT entities, we must decide between startPoint (Group 10) and endPoint (Group 11).
+        // Standard AutoCAD behavior:
+        // If Alignment is Left/Baseline (halign=0, valign=0), use Group 10.
+        // Otherwise, use Group 11 (sometimes called alignmentPoint).
+
+        let localPoint = entity.startPoint || entity.position;
+        let halign = (entity as any).halign || 0;
+        let valign = (entity as any).valign || 0;
+
+        if (entity.type === 'TEXT') {
+            // Force re-read of endPoint from object to ensure we get it even if typescript definitions vary
+            const alignmentPoint = (entity as any).endPoint || (entity as any).alignmentPoint;
+
+            if (halign !== 0 || valign !== 0) {
+               if (alignmentPoint) {
+                  // Ensure alignmentPoint is not (0,0,0) if startPoint is set?
+                  // Sometimes 0,0 is valid, but mostly it implies uninitialized if alignment is set.
+                  // But checking for object existence (alignmentPoint) is the key.
+                  localPoint = alignmentPoint;
+               }
+            }
+        } else if (entity.type === 'MTEXT') {
+            // MTEXT always uses insertion point (Group 10).
+            // Attachment point (71) determines how text relates to that point.
+            // We need to map attachment point to align properties.
+            // But 'dxf-parser' might not expose 71 directly nicely, or maps it to attachmentPoint.
+            // Let's check type.
+            const attachment = (entity as any).attachmentPoint; // 1=TL, 2=TC, 3=TR, 4=ML, 5=MC...
+            // Mappings:
+            // 1(TL) -> Left, Top
+            // 2(TC) -> Center, Top
+            // 3(TR) -> Right, Top
+            // 4(ML) -> Left, Middle
+            // 5(MC) -> Center, Middle
+            // 6(MR) -> Right, Middle
+            // 7(BL) -> Left, Bottom
+            // 8(BC) -> Center, Bottom
+            // 9(BR) -> Right, Bottom
+            // If attachment is present, derive halign/valign equivalents.
+
+            if (attachment) {
+                 // 1,4,7 -> Left
+                 // 2,5,8 -> Center
+                 // 3,6,9 -> Right
+                 // 1,2,3 -> Top
+                 // 4,5,6 -> Middle
+                 // 7,8,9 -> Bottom
+                 const att = attachment;
+                 if ([1, 4, 7].includes(att)) halign = 0; // Left
+                 else if ([2, 5, 8].includes(att)) halign = 1; // Center
+                 else if ([3, 6, 9].includes(att)) halign = 2; // Right
+
+                 if ([1, 2, 3].includes(att)) valign = 3; // Top
+                 else if ([4, 5, 6].includes(att)) valign = 2; // Middle
+                 else if ([7, 8, 9].includes(att)) valign = 1; // Bottom
+            }
+        }
+
+        if (localPoint && textContent) {
+           const p = trans(localPoint);
            const rotRad = (entity.rotation || 0) * (Math.PI / 180);
 
            const cos = Math.cos(rotRad);
@@ -387,27 +463,53 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            const scaleX_new = Math.sqrt(tx_vec.x * tx_vec.x + tx_vec.y * tx_vec.y);
            const scaleY_new = Math.sqrt(ty_vec.x * ty_vec.x + ty_vec.y * ty_vec.y);
 
+           // Normalize ty_vec for shift direction
+           const ty_len = scaleY_new || 1;
+           // If scaleY_new is 0 (unlikely), avoid NaN.
+           // Note: ty_vec is calculated from Rotation matrix * Global matrix.
+           // If global matrix is identity (scale 1), ty_vec length is 1.
+           const ty_dir = { x: ty_vec.x / ty_len, y: ty_vec.y / ty_len };
+
            const det = matrix.a * matrix.d - matrix.b * matrix.c;
            const isMirrored = det < 0;
            const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
            const h = Math.max(baseHeight, MIN_TEXT_SIZE);
 
-           let textAlign: 'left' | 'center' | 'right' = 'left';
-           const halign = (entity as any).halign;
-           if (halign === 1 || halign === 4) textAlign = 'center';
-           if (halign === 2) textAlign = 'right';
+           // Apply Style (Width Factor)
+           let widthFactor = 1.0;
+           if (entity.style) {
+               const styleDef = dxfStyles[entity.style.toUpperCase()];
+               if (styleDef && styleDef.widthFactor) {
+                   widthFactor = styleDef.widthFactor;
+               }
+           }
+           if ((entity as any).widthFactor) { // Override if entity has specific width factor (less common for TEXT, mostly MTEXT)
+                widthFactor = (entity as any).widthFactor;
+           }
+
+           // Use local variables halign/valign instead of re-reading entity properties
+           const textAlign = getDxfTextAlignment(halign, valign);
+
+           // Vertical Alignment Adjustment
+           const vShift = getDxfTextShift(valign, h);
+
+           // Calculate world shift vector.
+           // vShift is in local drawing units (e.g., -Height).
+           // We scale it by scaleY_new to match the world scale of the shape.
+           const shiftX = ty_dir.x * vShift * scaleY_new;
+           const shiftY = ty_dir.y * vShift * scaleY_new;
 
            outputShapes.push({
             id: generateId('dxf-text'),
             type: 'text',
-            x: p.x,
-            y: p.y,
+            x: p.x + shiftX,
+            y: p.y + shiftY,
             points: [],
             textContent: textContent,
             fontSize: h,
             rotation: newRot,
             align: textAlign,
-            scaleX: scaleX_new,
+            scaleX: scaleX_new * widthFactor,
             scaleY: scaleY_new * (isMirrored ? 1 : -1),
             ...shapeProps
           });
@@ -517,8 +619,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       } else if (s.x !== undefined && s.y !== undefined) {
            minX = Math.min(minX, s.x);
            minY = Math.min(minY, s.y);
-           maxX = Math.max(maxX, s.x + (s.width || 0));
-           maxY = Math.max(maxY, s.y + (s.height || 0));
+                // For text, we don't know the exact width/height without measureText,
+                // but we can estimate or just use the anchor.
+                // Text width is not stored in shape usually.
+                // This bounding box is for normalization.
+                // If we include only anchor, it's safer than excluding it.
+                maxX = Math.max(maxX, s.x);
+                maxY = Math.max(maxY, s.y);
       }
   });
 

@@ -30,11 +30,13 @@ export interface DxfEntity {
 
   // TEXT, MTEXT
   startPoint?: DxfVector;
+  endPoint?: DxfVector; // Added for alignment
   textHeight?: number;
   text?: string;
   rotation?: number; // Degrees
   halign?: number; // Horizontal alignment
   valign?: number; // Vertical alignment
+  attachmentPoint?: number; // MTEXT attachment point
 
   // INSERT (Block Reference)
   name?: string; // Block name
@@ -43,7 +45,7 @@ export interface DxfEntity {
   yScale?: number;
   zScale?: number;
   attribs?: DxfEntity[]; // Attributes associated with this INSERT
-  rotation?: number;
+  // rotation reused
 
   // SPLINE
   controlPoints?: DxfVector[];
@@ -52,6 +54,11 @@ export interface DxfEntity {
   closed?: boolean;
   knots?: number[];
   weights?: number[];
+
+  // STYLE
+  style?: string; // Style name reference
+  widthFactor?: number; // Group 41
+  obliqueAngle?: number; // Group 50
 }
 
 export interface DxfBlock {
@@ -76,6 +83,14 @@ export interface DxfLinetype {
     pattern?: number[]; // The raw dash lengths
 }
 
+export interface DxfStyle {
+    name: string;
+    fixedHeight?: number;
+    widthFactor?: number;
+    obliqueAngle?: number;
+    fontFile?: string;
+}
+
 export interface DxfData {
   entities: DxfEntity[];
   blocks?: Record<string, DxfBlock>;
@@ -85,7 +100,10 @@ export interface DxfData {
     };
     ltype?: {
         linetypes: Record<string, DxfLinetype>;
-    }
+    };
+    style?: {
+        styles: Record<string, DxfStyle>;
+    };
   };
   header?: {
     $INSUNITS?: number; // Unit code
