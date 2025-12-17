@@ -11,6 +11,7 @@ export interface DxfEntity {
   type: string;
   layer: string; // Layer name
   handle?: string;
+  inPaperSpace?: boolean; // True if entity is in Paper Space (Group 67 = 1)
 
   color?: number; // DXF color index (ACI)
   trueColor?: number; // 24-bit RGB value (optional)
@@ -121,6 +122,7 @@ export interface DxfImportOptions {
   explodeBlocks?: boolean;
   grayscale?: boolean;
   readOnly?: boolean;
+  includePaperSpace?: boolean; // Defaults to false
 }
 
 export interface DxfWorkerInput {
