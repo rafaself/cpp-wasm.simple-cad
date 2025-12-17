@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataStore } from '../../stores/useDataStore';
 import { NormalizedViewBox, Shape } from '../../types';
-import * as pdfjs from 'pdfjs-dist/build/pdf';
+import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';

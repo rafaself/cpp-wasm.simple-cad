@@ -1,9 +1,9 @@
-import DxfParser from 'dxf-parser';
+import DxfParser from 'dxf-parser/dist/dxf-parser.js';
 import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { cleanupShapes } from './cleanup';
 import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
-import { Shape } from '../../../../../types';
+import { Shape } from '../../../../types';
 
 // Extend Input Options to include mode
 export interface ExtendedDxfWorkerInput extends DxfWorkerInput {
