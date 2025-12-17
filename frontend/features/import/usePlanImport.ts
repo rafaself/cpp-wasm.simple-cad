@@ -34,11 +34,13 @@ interface PlanImportHook {
   closeImportModal: () => void;
   handleFileImport: (file: File, options?: ImportOptions) => Promise<void>;
   isImportModalOpen: boolean;
+  isLoading: boolean;
   importMode: 'pdf' | 'image' | 'dxf';
 }
 
 export const usePlanImport = (): PlanImportHook => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [importMode, setImportMode] = useState<'pdf' | 'image' | 'dxf'>('pdf');
   const uiStore = useUIStore();
   const dataStore = useDataStore();
@@ -197,6 +199,7 @@ export const usePlanImport = (): PlanImportHook => {
   }, [dataStore, uiStore]);
 
   const handleFileImport = useCallback(async (file: File, options?: ImportOptions) => {
+    setIsLoading(true);
     try {
       if (importMode === 'dxf') {
           // DXF/DWG Handling
@@ -324,11 +327,14 @@ export const usePlanImport = (): PlanImportHook => {
       closeImportModal();
     } catch (error) {
       alert(`Erro ao importar arquivo: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLoading(false);
     }
   }, [processFile, dataStore, closeImportModal, importMode, uiStore]);
 
   return {
     isImportModalOpen,
+    isLoading,
     importMode,
     openImportPdfModal,
     openImportImageModal,

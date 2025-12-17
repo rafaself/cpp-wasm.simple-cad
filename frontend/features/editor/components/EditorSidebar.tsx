@@ -28,7 +28,7 @@ const EditorSidebar: React.FC = () => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const openTab = useUIStore((s) => s.openTab);
 
-  const { isImportModalOpen, importMode, openImportPdfModal, openImportImageModal, openImportDxfModal, closeImportModal, handleFileImport } = usePlanImport();
+  const { isImportModalOpen, isLoading, importMode, openImportPdfModal, openImportImageModal, openImportDxfModal, closeImportModal, handleFileImport } = usePlanImport();
 
   const activeTab = sidebarTab;
   const setActiveTab = setSidebarTab;
@@ -223,6 +223,7 @@ const EditorSidebar: React.FC = () => {
             <ImportPlanModal
                 isOpen={isImportModalOpen}
                 mode={importMode}
+                isLoading={isLoading}
                 onClose={closeImportModal}
                 onImport={handleFileImport}
                 title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : importMode === 'dxf' ? "Importar DWG / DXF" : "Importar Imagem"}

@@ -14,6 +14,7 @@ export interface ImportOptions {
 
 interface ImportPlanModalProps {
   isOpen: boolean;
+  isLoading?: boolean;
   onClose: () => void;
   onImport: (file: File, options?: ImportOptions) => void;
   mode?: 'pdf' | 'image' | 'dxf';
@@ -23,6 +24,7 @@ interface ImportPlanModalProps {
 
 export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({ 
   isOpen, 
+  isLoading = false,
   onClose, 
   onImport, 
   mode = 'pdf',
@@ -96,8 +98,9 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             onDragOver={handleDrag}
             onDrop={handleDrop}
             onSubmit={(e) => e.preventDefault()}
-            className={`w-full border-2 border-dashed rounded-lg p-6 text-center transition-colors
-              ${dragActive ? 'border-blue-500 bg-blue-900/20' : 'border-slate-600 bg-slate-700/30'}`}
+            className={`w-full border-2 border-dashed rounded-lg p-6 text-center transition-colors relative
+              ${dragActive ? 'border-blue-500 bg-blue-900/20' : 'border-slate-600 bg-slate-700/30'}
+              ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
           >
             <input
               ref={inputRef}
@@ -123,6 +126,14 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                 Formatos suportados: {accept.replace(/\./g, '').toUpperCase().replace(/,/g, ', ')}
               </p>
             </label>
+            
+            {/* Loading Overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/60 rounded-lg backdrop-blur-sm">
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                <span className="text-sm font-medium text-white">Importando...</span>
+              </div>
+            )}
           </form>
 
           {/* DXF Specific Options */}
