@@ -51,10 +51,40 @@ const MIN_TEXT_SIZE = 0.001;
 
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
-  let entityCount = data.entities ? data.entities.length : 0;
-  if (data.blocks) {
-      Object.values(data.blocks).forEach(b => entityCount += (b.entities?.length || 0));
+
+  // Only count entities we plan to import (filter by space)
+  const shouldImportEntity = (e: DxfEntity) => {
+      // If includePaperSpace is true, import everything.
+      // If false (default), skip entities marked as inPaperSpace.
+      // Entities without inPaperSpace property are assumed to be Model Space.
+      return options.includePaperSpace || !e.inPaperSpace;
+  };
+
+  let entityCount = 0;
+  if (data.entities) {
+      entityCount = data.entities.filter(shouldImportEntity).length;
   }
+
+  // Note: We don't deeply check blocks for entity count filtering accurately because of recursion/instancing,
+  // but we should at least check the main entity list.
+  // Blocks definitions themselves are filtered when inserted? No, block definitions are just definitions.
+  // The INSERT entity is what matters. If INSERT is in Model Space, we count it.
+  // If INSERT is in Paper Space and we filter it out, we don't count it.
+  // For total limit check, we'll iterate over filtered entities.
+
+  if (data.blocks) {
+      // This part is tricky. Entities inside blocks are definitions.
+      // The limit usually refers to resulting shapes or input complexity.
+      // Let's keep the simple heuristic but applied to filtered entities?
+      // Actually, we can just check filtering during processing to be safe.
+      // But let's keep the pre-check.
+      // We'll count potential complexity: entities in Model Space + complexity of blocks used.
+      // But we don't know which blocks are used yet.
+      // Let's just stick to checking `data.entities` count for now as a rough guard.
+      // If the user has 30000 entities in paper space and 10 in model space, and we only import model space,
+      // we shouldn't fail.
+  }
+
   if (entityCount > ENTITY_LIMIT) {
       throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades.`);
   }
@@ -69,19 +99,34 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       let minY = Infinity, maxY = -Infinity;
       let sampleCount = 0;
       if (data.header?.$EXTMIN && data.header?.$EXTMAX) {
+          // Trust header extents only if we are importing everything or if they match filter?
+          // Header extents usually cover EVERYTHING (Model + Paper maybe? No, usually Model).
+          // $EXTMIN/$EXTMAX are usually Model Space extents.
+          // Paper space extents are $PEXTMIN/$PEXTMAX.
+          // So using $EXTMIN is fine for Model Space.
+          // If we are importing Paper Space ONLY (not supported yet, option is includePaperSpace meaning both),
+          // we might have issues if $EXTMIN is huge.
+
+          // Let's use calculated bounds from entities to be safer if we are filtering.
+          // Ignoring header extents for auto-detection if we are selective might be safer.
+          // Or just use them as seeds.
           minX = data.header.$EXTMIN.x;
           maxX = data.header.$EXTMAX.x;
           minY = data.header.$EXTMIN.y;
           maxY = data.header.$EXTMAX.y;
       }
+
       const updateBounds = (v: DxfVector) => {
           if (v.x < minX) minX = v.x;
           if (v.x > maxX) maxX = v.x;
           if (v.y < minY) minY = v.y;
           if (v.y > maxY) maxY = v.y;
       };
+
       if (data.entities) {
           for (const e of data.entities) {
+              if (!shouldImportEntity(e)) continue;
+
               if (sampleCount > 1000) break;
               if (e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
                   e.vertices?.forEach(updateBounds);
@@ -150,9 +195,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   const getLayerObject = (layerName: string) => dxfLayers[layerName?.toUpperCase()];
 
   // Helper to resolve dash array
-  // Returns 'BYBLOCK_LINETYPE_PLACEHOLDER' string if it's ByBlock, or number[] if resolved.
-  // Wait, TypeScript return type issue. We will handle BYBLOCK specially.
-  // Let's modify resolveStrokeDash to return number[] | 'BYBLOCK'
   const resolveStrokeDash = (entity: DxfEntity, layerName: string): number[] | 'BYBLOCK' => {
       let ltype = entity.lineType;
 
@@ -210,6 +252,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     parentLinetype?: number[], // Resolved dash array from parent
     targetShapes?: Shape[]
   ) => {
+    // If not processing recursively (i.e. top level), enforce space filter
+    if (!targetShapes) {
+       if (!shouldImportEntity(entity)) return;
+    }
+
     const outputShapes = targetShapes || shapes;
     if (shapes.length > ENTITY_LIMIT) return;
 
@@ -221,18 +268,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     const dxfLayer = getLayerObject(effectiveLayer);
 
     // Resolve Color
-    // If entity is in a block def (parentColor undefined), resolveColor might return BYBLOCK_COLOR_PLACEHOLDER
-    // if entity.color is 0.
     let color = resolveColor(entity, dxfLayer, parentColor);
-
-    // If color is resolved to BYBLOCK_COLOR_PLACEHOLDER, it means we are in a Block Definition (cached)
-    // and the entity wants to inherit from the future INSERT.
-    // If we are processing an INSERT (parentColor is defined), resolveColor should have used it.
-    // resolveColor implementation:
-    // if (colorIndex === 0) { if (parentColor) return parentColor; return BYBLOCK_COLOR_PLACEHOLDER; }
-
-    // If we are at root, parentColor is undefined.
-    // If we are recursively processing INSERT, parentColor is the Insert's color.
 
     if (color !== BYBLOCK_COLOR_PLACEHOLDER && options.grayscale) {
         color = toGrayscale(color);
@@ -249,20 +285,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         if (parentLinetype) {
             strokeDash = parentLinetype;
         } else {
-            // We are in block def, set placeholder?
-            // Shape.strokeDash is number[]. We can't set string.
-            // We need a way to mark it.
-            // We'll use a specific empty array reference or property on Shape?
-            // But Shape interface is fixed.
-            // Workaround: We resolve to "Continuous" (empty) but logic needs to handle it.
-            // If we are caching, we need to know.
-            // Actually, for Linetype, ByBlock is rare compared to ByLayer.
-            // Let's assume Continuous if not resolved in Block Def,
-            // AND we won't strictly support ByBlock Linetype change via INSERT for now (complexity),
-            // OR we use the same "Clone Modification" logic for Linetype if we detect a pattern.
-            // Let's just default to [] (Continuous) for Block Def.
             strokeDash = [];
-            // To support it properly, we'd need to store "isByBlockLinetype" on the shape.
         }
     } else {
         strokeDash = dashResult;
@@ -375,69 +398,30 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         const rawText = entity.text || (entity as any).value;
         const textContent = (entity.type === 'MTEXT')
             ? sanitizeMTextContent(rawText)
-            : rawText; // TEXT usually doesn't have MTEXT formatting codes, but can have %%u etc. We leave TEXT simple for now.
-
-        // Determine Alignment Point
-        // If halign or valign is set, we prefer Group 11 (endPoint/alignmentPoint) over Group 10 (startPoint/position)
-        // BUT only if Group 11 is defined and not (0,0)? DXF spec says it is valid even if 0,0, but usually if alignment is set, it is relevant.
-        // dxf-parser maps Group 10 to startPoint/position.
-        // Group 11 to endPoint (for TEXT). MTEXT uses insertionPoint (Group 10) primarily, and attachment point (71).
-
-        // For TEXT entities, we must decide between startPoint (Group 10) and endPoint (Group 11).
-        // Standard AutoCAD behavior:
-        // If Alignment is Left/Baseline (halign=0, valign=0), use Group 10.
-        // Otherwise, use Group 11 (sometimes called alignmentPoint).
+            : rawText;
 
         let localPoint = entity.startPoint || entity.position;
         let halign = (entity as any).halign || 0;
         let valign = (entity as any).valign || 0;
 
         if (entity.type === 'TEXT') {
-            // Force re-read of endPoint from object to ensure we get it even if typescript definitions vary
             const alignmentPoint = (entity as any).endPoint || (entity as any).alignmentPoint;
-
             if (halign !== 0 || valign !== 0) {
                if (alignmentPoint) {
-                  // Ensure alignmentPoint is not (0,0,0) if startPoint is set?
-                  // Sometimes 0,0 is valid, but mostly it implies uninitialized if alignment is set.
-                  // But checking for object existence (alignmentPoint) is the key.
                   localPoint = alignmentPoint;
                }
             }
         } else if (entity.type === 'MTEXT') {
-            // MTEXT always uses insertion point (Group 10).
-            // Attachment point (71) determines how text relates to that point.
-            // We need to map attachment point to align properties.
-            // But 'dxf-parser' might not expose 71 directly nicely, or maps it to attachmentPoint.
-            // Let's check type.
-            const attachment = (entity as any).attachmentPoint; // 1=TL, 2=TC, 3=TR, 4=ML, 5=MC...
-            // Mappings:
-            // 1(TL) -> Left, Top
-            // 2(TC) -> Center, Top
-            // 3(TR) -> Right, Top
-            // 4(ML) -> Left, Middle
-            // 5(MC) -> Center, Middle
-            // 6(MR) -> Right, Middle
-            // 7(BL) -> Left, Bottom
-            // 8(BC) -> Center, Bottom
-            // 9(BR) -> Right, Bottom
-            // If attachment is present, derive halign/valign equivalents.
-
+            const attachment = (entity as any).attachmentPoint;
             if (attachment) {
-                 // 1,4,7 -> Left
-                 // 2,5,8 -> Center
-                 // 3,6,9 -> Right
-                 // 1,2,3 -> Top
-                 // 4,5,6 -> Middle
-                 // 7,8,9 -> Bottom
                  const att = attachment;
-                 if ([1, 4, 7].includes(att)) halign = 0; // Left
-                 else if ([2, 5, 8].includes(att)) halign = 1; // Center
-                 else if ([3, 6, 9].includes(att)) halign = 2; // Right
+                 if ([1, 4, 7].includes(att)) halign = 0;
+                 else if ([2, 5, 8].includes(att)) halign = 1;
+                 else if ([3, 6, 9].includes(att)) halign = 2;
 
-                 if ([1, 2, 3].includes(att)) valign = 3; // Top
-                 else if ([4, 5, 6].includes(att)) valign = 2; // Middle
-                 else if ([7, 8, 9].includes(att)) valign = 1; // Bottom
+                 if ([1, 2, 3].includes(att)) valign = 3;
+                 else if ([4, 5, 6].includes(att)) valign = 2;
+                 else if ([7, 8, 9].includes(att)) valign = 1;
             }
         }
 
@@ -463,11 +447,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            const scaleX_new = Math.sqrt(tx_vec.x * tx_vec.x + tx_vec.y * tx_vec.y);
            const scaleY_new = Math.sqrt(ty_vec.x * ty_vec.x + ty_vec.y * ty_vec.y);
 
-           // Normalize ty_vec for shift direction
            const ty_len = scaleY_new || 1;
-           // If scaleY_new is 0 (unlikely), avoid NaN.
-           // Note: ty_vec is calculated from Rotation matrix * Global matrix.
-           // If global matrix is identity (scale 1), ty_vec length is 1.
            const ty_dir = { x: ty_vec.x / ty_len, y: ty_vec.y / ty_len };
 
            const det = matrix.a * matrix.d - matrix.b * matrix.c;
@@ -475,7 +455,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
            const h = Math.max(baseHeight, MIN_TEXT_SIZE);
 
-           // Apply Style (Width Factor)
            let widthFactor = 1.0;
            if (entity.style) {
                const styleDef = dxfStyles[entity.style.toUpperCase()];
@@ -483,19 +462,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
                    widthFactor = styleDef.widthFactor;
                }
            }
-           if ((entity as any).widthFactor) { // Override if entity has specific width factor (less common for TEXT, mostly MTEXT)
+           if ((entity as any).widthFactor) {
                 widthFactor = (entity as any).widthFactor;
            }
 
-           // Use local variables halign/valign instead of re-reading entity properties
            const textAlign = getDxfTextAlignment(halign, valign);
-
-           // Vertical Alignment Adjustment
            const vShift = getDxfTextShift(valign, h);
 
-           // Calculate world shift vector.
-           // vShift is in local drawing units (e.g., -Height).
-           // We scale it by scaleY_new to match the world scale of the shape.
            const shiftX = ty_dir.x * vShift * scaleY_new;
            const shiftY = ty_dir.y * vShift * scaleY_new;
 
@@ -526,9 +499,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             processingBlocks.add(blockName);
             const block = data.blocks[blockName];
             const localShapes: Shape[] = [];
-            // Process block definition with Identity matrix and NO parent color.
-            // This ensures entities with Color 0 (ByBlock) get BYBLOCK_COLOR_PLACEHOLDER.
+
             block.entities?.forEach(child => {
+                // Pass undefined as parentLayer/Color/Type to treat block definition as standalone
+                // But recursively it works.
+                // NOTE: Entities INSIDE a block definition do not have 'inPaperSpace' set usually,
+                // or it is irrelevant because the INSERT determines where it appears.
+                // We do NOT filter inside block definitions.
                 processEntity(child, identity(), undefined, undefined, undefined, localShapes);
             });
             blockCache.set(blockName, localShapes);
@@ -537,10 +514,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
           const cachedShapes = blockCache.get(blockName);
           if (!cachedShapes) return;
-
-          // 2. Resolve Attributes for THIS Insert instance
-          // We must do this *before* iterating shapes? No, attributes are separate entities usually attached to INSERT.
-          // But here we are just transforming the cached geometry.
 
           // 3. Transform Matrix
           const insPos = entity.position || { x: 0, y: 0 };
@@ -561,18 +534,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           cachedShapes.forEach(s => {
              const clone = { ...s, id: generateId(s.type) };
 
-             // Check if Clone needs ByBlock resolution
              if (clone.strokeColor === BYBLOCK_COLOR_PLACEHOLDER) {
-                 // Replace placeholder with THIS Insert's resolved color
-                 // Note: 'color' variable here is the resolved color of the INSERT entity
                  clone.strokeColor = color;
-                 // If Insert itself is ByLayer/ByBlock, 'color' is already resolved.
              }
              if (options.grayscale && clone.strokeColor && clone.strokeColor !== 'transparent') {
                  clone.strokeColor = toGrayscale(clone.strokeColor);
              }
 
-             // Apply Geometry Transform
              if (clone.points) {
                  clone.points = clone.points.map(p => applyToPoint(M_final, p));
              }
@@ -603,6 +571,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
   const globalMatrix = fromScaling(globalScale, globalScale);
   if (data.entities) {
+      // Loop over entities. The filter logic is now inside processEntity's guard for top-level.
       data.entities.forEach(e => processEntity(e, globalMatrix));
   }
 
@@ -619,11 +588,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       } else if (s.x !== undefined && s.y !== undefined) {
            minX = Math.min(minX, s.x);
            minY = Math.min(minY, s.y);
-                // For text, we don't know the exact width/height without measureText,
-                // but we can estimate or just use the anchor.
-                // Text width is not stored in shape usually.
-                // This bounding box is for normalization.
-                // If we include only anchor, it's safer than excluding it.
                 maxX = Math.max(maxX, s.x);
                 maxY = Math.max(maxY, s.y);
       }
@@ -638,7 +602,12 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
               s.y -= minY;
           }
       });
-  } else { minX = 0; minY = 0; }
+  } else {
+      minX = 0;
+      minY = 0;
+      maxX = 0;
+      maxY = 0;
+  }
 
   return {
       shapes,
