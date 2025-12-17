@@ -1,32 +1,134 @@
 import DxfParser from 'dxf-parser';
 import { convertDxfToShapes } from './dxfToShapes';
+import { dxfToSvg } from './dxfToSvg';
 import { cleanupShapes } from './cleanup';
-import { DxfWorkerInput, DxfWorkerOutput } from './types';
+import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
+import { Shape } from '../../../../../types';
+
+// Extend Input Options to include mode
+export interface ExtendedDxfWorkerInput extends DxfWorkerInput {
+    mode?: 'shapes' | 'svg';
+}
 
 const parser = new DxfParser();
 
-self.onmessage = (e: MessageEvent<DxfWorkerInput>) => {
+const generateUuid = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
+
+self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
   try {
-    const { text, options } = e.data;
-    const data = parser.parseSync(text);
+    const { text, options, mode } = e.data;
 
-    // Convert in worker
-    const result = convertDxfToShapes(data, options);
+    // Cast to unknown first to avoid IDxf incompatibility with our defined DxfData
+    const data = parser.parseSync(text) as unknown as DxfData;
 
-    // Cleanup in worker
-    const cleanShapes = cleanupShapes(result.shapes);
+    if (mode === 'svg') {
+        // SVG Mode
+        const { svgRaw, viewBox } = dxfToSvg(data, options);
 
-    const response: DxfWorkerOutput = {
-      success: true,
-      data: {
-          shapes: cleanShapes,
-          layers: result.layers,
-          width: result.width,
-          height: result.height,
-          origin: result.origin
-      }
-    };
-    self.postMessage(response);
+        // Create a single Shape of type 'rect' (as container)
+        // Center it based on viewBox
+        const shapeId = generateUuid();
+        const width = viewBox.width;
+        const height = viewBox.height;
+        const x = viewBox.x;
+        const y = viewBox.y;
+
+        const svgShape: Shape = {
+            id: shapeId,
+            type: 'rect',
+            layerId: options.defaultLayerId, // Place container on import layer
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            strokeColor: '#000000', // Placeholder
+            fillColor: 'transparent',
+            points: [], // Required by type
+            svgRaw: svgRaw,
+            svgViewBox: viewBox,
+            // svgHiddenLayers can be populated initially empty or handled by UI
+            svgHiddenLayers: []
+        };
+
+        // Layers metadata
+        // We need to return the layers found in the DXF so the UI can create them.
+        // dxfToSvg accumulated them. It would be better if dxfToSvg returned the list of layers.
+        // But currently it iterates locally.
+        // We can extract layers from data.tables.layer or iterate entities if tables missing.
+        // existing 'dxfToShapes' returns 'layers'.
+        // Let's minimally extract layers for the UI list.
+        const layersList = [];
+        if (data.tables && data.tables.layer && data.tables.layer.layers) {
+            for (const name in data.tables.layer.layers) {
+                const l = data.tables.layer.layers[name];
+                layersList.push({
+                    id: name.replace(/[^a-zA-Z0-9-_]/g, '_'), // Match sanitized ID used in SVG
+                    name: name,
+                    strokeColor: '#ffffff', // Default
+                    strokeEnabled: true,
+                    fillColor: 'transparent',
+                    fillEnabled: false,
+                    visible: l.visible !== false,
+                    locked: l.frozen === true,
+                    isNative: false
+                });
+            }
+        } else {
+             // Fallback: iterate entities to find layers
+             const distinctLayers = new Set<string>();
+             data.entities.forEach(e => { if(e.layer) distinctLayers.add(e.layer); });
+             distinctLayers.forEach(name => {
+                 layersList.push({
+                    id: name.replace(/[^a-zA-Z0-9-_]/g, '_'),
+                    name: name,
+                    strokeColor: '#ffffff',
+                    strokeEnabled: true,
+                    fillColor: 'transparent',
+                    fillEnabled: false,
+                    visible: true,
+                    locked: false,
+                    isNative: false
+                });
+             });
+        }
+
+        const response: DxfWorkerOutput = {
+            success: true,
+            data: {
+                shapes: [svgShape],
+                layers: layersList,
+                width: width,
+                height: height,
+                origin: { x, y }
+            }
+        };
+        self.postMessage(response);
+
+    } else {
+        // Shapes Mode (Legacy/Default)
+        const result = convertDxfToShapes(data, options);
+        const cleanShapes = cleanupShapes(result.shapes);
+        const response: DxfWorkerOutput = {
+            success: true,
+            data: {
+                shapes: cleanShapes,
+                layers: result.layers,
+                width: result.width,
+                height: result.height,
+                origin: result.origin
+            }
+        };
+        self.postMessage(response);
+    }
+
   } catch (err) {
     self.postMessage({
       success: false,

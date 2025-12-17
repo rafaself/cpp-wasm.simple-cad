@@ -1,11 +1,12 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { X, FileUp } from 'lucide-react';
+import { X, FileUp, Zap, Layers } from 'lucide-react';
 
 interface ImportOptions {
   explodeBlocks: boolean;
   maintainLayers: boolean;
   grayscale?: boolean;
   readOnly?: boolean;
+  importMode?: 'shapes' | 'svg';
 }
 
 interface ImportPlanModalProps {
@@ -30,7 +31,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     explodeBlocks: true,
     maintainLayers: true,
     grayscale: false,
-    readOnly: true
+    readOnly: true,
+    importMode: 'shapes'
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +71,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center">
-      <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[400px] flex flex-col text-slate-100">
+      <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[420px] flex flex-col text-slate-100">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
           <h2 className="font-semibold text-base">{title}</h2>
           <button
@@ -119,7 +121,45 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
 
           {/* DXF Specific Options */}
           {mode === 'dxf' && (
-            <div className="w-full flex flex-col gap-2 bg-slate-700/30 p-3 rounded text-sm text-slate-300">
+            <div className="w-full flex flex-col gap-3 bg-slate-700/30 p-3 rounded text-sm text-slate-300">
+
+              {/* Mode Selection */}
+              <div className="flex flex-col gap-2 border-b border-slate-600/50 pb-3 mb-1">
+                 <span className="text-xs font-semibold text-slate-400 uppercase">Modo de Importação</span>
+                 <div className="grid grid-cols-2 gap-2">
+                     <button
+                        type="button"
+                        onClick={() => setOptions(o => ({...o, importMode: 'shapes'}))}
+                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded border transition-colors ${
+                            options.importMode === 'shapes'
+                            ? 'bg-blue-600 border-blue-500 text-white shadow-sm'
+                            : 'bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600'
+                        }`}
+                     >
+                         <Layers size={14} />
+                         <span>Editável</span>
+                     </button>
+                     <button
+                        type="button"
+                        onClick={() => setOptions(o => ({...o, importMode: 'svg'}))}
+                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded border transition-colors ${
+                            options.importMode === 'svg'
+                            ? 'bg-blue-600 border-blue-500 text-white shadow-sm'
+                            : 'bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600'
+                        }`}
+                        title="Recomendado para plantas grandes. Importa como imagem vetorial única."
+                     >
+                         <Zap size={14} />
+                         <span>Alta Perf.</span>
+                     </button>
+                 </div>
+                 <p className="text-xs text-slate-500 mt-1">
+                     {options.importMode === 'shapes'
+                        ? 'Cria milhares de objetos editáveis. Mais pesado.'
+                        : 'Cria um único objeto de fundo. Leve e rápido.'}
+                 </p>
+              </div>
+
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -147,16 +187,19 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                 />
                 Importar como Referência (Read-only)
               </label>
-              <label className="flex items-center gap-2 cursor-pointer select-none opacity-75" title="Sempre ativo para renderização correta atualmente">
-                <input
-                  type="checkbox"
-                  checked={options.explodeBlocks}
-                  readOnly
-                  disabled
-                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
-                />
-                Explodir Blocos (obrigatório)
-              </label>
+
+              {options.importMode === 'shapes' && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none opacity-75" title="Sempre ativo para renderização correta atualmente">
+                    <input
+                      type="checkbox"
+                      checked={options.explodeBlocks}
+                      readOnly
+                      disabled
+                      className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                    />
+                    Explodir Blocos (obrigatório)
+                  </label>
+              )}
             </div>
           )}
         </div>
