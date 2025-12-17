@@ -436,11 +436,6 @@ export const renderShape = (
             // Use fontSize for first line (no extra leading on top), lineHeight for additional lines
             const textHeight = fontSize + (wrappedLines.length - 1) * lineHeight + pad * 2;
 
-            ctx.save();
-            // Translate to top of text box (sy + textHeight) before Y-flip
-            // This ensures text renders inside the bounding box, not below it
-            ctx.translate(sx, sy + textHeight);
-
             // Apply Non-Uniform Scale (Anamorphic Text)
             // Default scaleY is -1 (Y-Up to Screen-Down conversion)
             // If shape has scaleX/scaleY, use them.
@@ -450,6 +445,13 @@ export const renderShape = (
             // We use shape.scaleX ?? 1 and shape.scaleY ?? -1.
             const sX = shape.scaleX ?? 1;
             const sY = shape.scaleY ?? -1;
+
+            ctx.save();
+            // Translate to top of text box (sy + textHeight) before Y-flip
+            // This ensures text renders inside the bounding box, not below it
+            // Fix: Multiply textHeight by absolute scaleY to account for non-uniform scaling (e.g. DXF imports)
+            ctx.translate(sx, sy + textHeight * Math.abs(sY));
+
             ctx.scale(sX, sY);
 
             wrappedLines.forEach((line, index) => {
