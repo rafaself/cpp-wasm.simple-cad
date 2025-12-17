@@ -41,11 +41,12 @@ const CanvasManager: React.FC = () => {
   // Center view on initial load
   useEffect(() => {
     if (!hasInitialized.current && dims.width > 0 && dims.height > 0) {
-      hasInitialized.current = true;
-      // Small delay to ensure canvas size is set
-      setTimeout(() => {
+      // Small delay to ensure canvas size is set and layout is stable
+      const timer = setTimeout(() => {
         zoomToFit();
+        hasInitialized.current = true;
       }, 50);
+      return () => clearTimeout(timer);
     }
   }, [dims.width, dims.height, zoomToFit]);
 
