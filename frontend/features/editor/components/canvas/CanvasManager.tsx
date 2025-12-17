@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useUIStore } from "../../../../stores/useUIStore";
 import { useDataStore } from "../../../../stores/useDataStore";
+import { useSettingsStore } from "../../../../stores/useSettingsStore";
 import { useEditorLogic } from "../../hooks/useEditorLogic";
 import StaticCanvas from "./StaticCanvas";
 import DynamicOverlay from "./DynamicOverlay";
@@ -68,10 +69,13 @@ const CanvasManager: React.FC = () => {
     hintMessage =
       "Clique para inserir. R para girar, F/V para espelhar, continue clicando para duplicar.";
 
+  const backgroundColor = useSettingsStore(s => s.display.backgroundColor);
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-gray-50 overflow-hidden"
+      className="relative w-full h-full overflow-hidden"
+      style={{ backgroundColor }}
     >
       <StaticCanvas width={dims.width} height={dims.height} />
       <DynamicOverlay width={dims.width} height={dims.height} />
