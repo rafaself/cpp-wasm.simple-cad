@@ -1,5 +1,6 @@
 
 import { DxfData, DxfEntity, DxfImportOptions } from './types';
+import { tessellateBulge, tessellateSpline } from './curveTessellation';
 import { resolveColor, resolveLineweight, BYBLOCK_COLOR_PLACEHOLDER, toGrayscale } from './styles';
 
 // DXF Unit Codes to Centimeters (CM) Conversion Factors
@@ -59,6 +60,58 @@ const getTransform = (
   return parts.join(' ');
 };
 
+// Hardcoded fallbacks if table missing
+const STANDARD_LINETYPES: Record<string, number[]> = {
+  DASHED: [10, 5],
+  HIDDEN: [5, 5],
+  CENTER: [20, 5, 5, 5],
+  PHANTOM: [20, 5, 5, 5, 5, 5],
+  DOT: [2, 2],
+  DOT2: [2, 2],
+  CONTINUOUS: []
+};
+
+const resolveStrokeDash = (
+  entity: DxfEntity,
+  layer?: any,
+  data?: DxfData
+): number[] | 'BYBLOCK' => {
+  let ltype = entity.lineType;
+
+  if (ltype?.toUpperCase() === 'BYBLOCK') return 'BYBLOCK';
+
+  if (!ltype || ltype.toUpperCase() === 'BYLAYER') {
+    ltype = layer?.lineType || 'CONTINUOUS';
+  }
+
+  const ltypeName = ltype.toUpperCase();
+  if (ltypeName === 'CONTINUOUS') return [];
+
+  let pattern: number[] = [];
+
+  const table = data?.tables?.ltype?.linetypes || {};
+  const tableDef = Object.values(table).find(lt => lt.name.toUpperCase() === ltypeName);
+  if (tableDef?.pattern?.length) {
+    const converted: number[] = [];
+    for (const val of tableDef.pattern) {
+      if (Math.abs(val) < 1e-6) converted.push(0.1);
+      else if (val > 0) converted.push(val);
+      else converted.push(Math.abs(val));
+    }
+    pattern = converted;
+  } else {
+    pattern = STANDARD_LINETYPES[ltypeName] || [];
+  }
+
+  if (!pattern.length) return [];
+
+  const ltScale = data?.header?.$LTSCALE || 1.0;
+  const entityScale = entity.lineTypeScale || 1.0;
+  const finalScale = ltScale * entityScale;
+
+  return pattern.map(v => v * finalScale);
+};
+
 interface SvgAccumulator {
   defs: string[];
   layers: Map<string, string[]>;
@@ -92,9 +145,13 @@ const entityToSvg = (
   }
 
   const strokeWidth = resolveLineweight(entity, data.tables?.layer?.layers[entity.layer]);
+  const dash = resolveStrokeDash(entity, data.tables?.layer?.layers[entity.layer], data);
+  const dashAttr = (dash === 'BYBLOCK' || (Array.isArray(dash) && dash.length === 0))
+    ? ''
+    : ` stroke-dasharray="${dash.join(' ')}"`;
 
   // vector-effect="non-scaling-stroke" ensures line thickness is consistent regardless of zoom/scale
-  const commonAttrs = `stroke="${color}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke"`;
+  const commonAttrs = `stroke="${color}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke"${dashAttr}`;
 
   switch (entity.type) {
     case 'LINE': {
@@ -106,13 +163,52 @@ const entityToSvg = (
     case 'LWPOLYLINE':
     case 'POLYLINE': {
       if (!entity.vertices || entity.vertices.length < 2) return null;
-      // Note: Ignoring bulges (arcs) for MVP performance mode
-      const points = entity.vertices.map(v => `${formatFloat(v.x)},${formatFloat(v.y)}`).join(' ');
+      const isClosed = (entity as any).closed === true || (entity as any).shape === true || entity.closed === true;
+      const rawPts = entity.vertices;
+      const expanded: typeof rawPts = [];
 
-      if (entity.closed) {
+      for (let i = 0; i < rawPts.length; i++) {
+        const curr = rawPts[i];
+        expanded.push(curr);
+        const next = (i === rawPts.length - 1) ? (isClosed ? rawPts[0] : null) : rawPts[i + 1];
+        if (next && curr.bulge && Math.abs(curr.bulge) > 1e-10) {
+          expanded.push(...tessellateBulge(curr, next, curr.bulge));
+        }
+      }
+
+      // Ensure closed shape ends at start point (avoid gaps when bulges add points)
+      if (isClosed && expanded.length > 2) {
+        const first = expanded[0];
+        const last = expanded[expanded.length - 1];
+        if (Math.abs(first.x - last.x) > 1e-6 || Math.abs(first.y - last.y) > 1e-6) {
+          expanded.push({ ...first });
+        }
+      }
+
+      const points = expanded.map(v => `${formatFloat(v.x)},${formatFloat(v.y)}`).join(' ');
+
+      if (isClosed) {
           return `<polygon points="${points}" ${commonAttrs} />`;
       }
       return `<polyline points="${points}" ${commonAttrs} />`;
+    }
+
+    case 'SPLINE': {
+      const cps = (entity as any).controlPoints as any[] | undefined;
+      const fit = (entity as any).fitPoints as any[] | undefined;
+      const controlPoints = (cps && cps.length > 0) ? cps : fit;
+      if (!controlPoints || controlPoints.length < 2) return null;
+
+      const degree = (entity as any).degreeOfSplineCurve ?? (entity as any).degree ?? 3;
+      const knots = (entity as any).knotValues ?? (entity as any).knots;
+
+      // Lower resolution than editable mode to keep SVG size reasonable, while preserving shape characteristics.
+      const pts = tessellateSpline(controlPoints as any, degree, knots, undefined, 12);
+      if (!pts.length) return null;
+
+      const d = `M ${formatFloat(pts[0].x)} ${formatFloat(pts[0].y)} ` +
+        pts.slice(1).map(p => `L ${formatFloat(p.x)} ${formatFloat(p.y)}`).join(' ');
+      return `<path d="${d}" ${commonAttrs} />`;
     }
 
     case 'CIRCLE': {
@@ -252,12 +348,12 @@ const entityToSvg = (
        }
 
        return `<text transform="${transform}" font-size="${formatFloat(height)}" fill="${color}" stroke="none" font-family="monospace" text-anchor="${textAnchor}" dominant-baseline="${baseline}">${escapeXml(cleanText)}</text>`;
-    }
+	    }
 
-    default:
-      return null;
-  }
-};
+	    default:
+	      return null;
+	  }
+	};
 
 export const dxfToSvg = (
   data: DxfData,
@@ -349,7 +445,26 @@ export const dxfToSvg = (
     if (!options.includePaperSpace && entity.inPaperSpace) return;
 
     // Update Extents (Always calculate from entities for accuracy)
-    if (entity.vertices) entity.vertices.forEach(v => updateExtents(acc, v.x, v.y));
+    if (entity.vertices) {
+        // If polyline has bulges, include tessellated points to avoid clipping.
+        const rawPts = entity.vertices;
+        const hasBulge = rawPts.some(v => v.bulge && Math.abs(v.bulge) > 1e-10);
+        if (hasBulge && (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE')) {
+            const isClosed = (entity as any).closed === true || (entity as any).shape === true || entity.closed === true;
+            const expanded: typeof rawPts = [];
+            for (let i = 0; i < rawPts.length; i++) {
+                const curr = rawPts[i];
+                expanded.push(curr);
+                const next = (i === rawPts.length - 1) ? (isClosed ? rawPts[0] : null) : rawPts[i + 1];
+                if (next && curr.bulge && Math.abs(curr.bulge) > 1e-10) {
+                    expanded.push(...tessellateBulge(curr, next, curr.bulge));
+                }
+            }
+            expanded.forEach(v => updateExtents(acc, v.x, v.y));
+        } else {
+            rawPts.forEach(v => updateExtents(acc, v.x, v.y));
+        }
+    }
     if (entity.center) {
         updateExtents(acc, entity.center.x, entity.center.y);
         if (entity.radius) {
@@ -362,6 +477,12 @@ export const dxfToSvg = (
          // For INSERTs (Blocks), we should ideally estimate the block size, 
          // but simple position check is better than nothing.
          // TODO: Recurse into block for precise extents if needed.
+    }
+    if (entity.type === 'SPLINE') {
+        const cps = (entity as any).controlPoints as any[] | undefined;
+        const fit = (entity as any).fitPoints as any[] | undefined;
+        (cps || []).forEach(p => updateExtents(acc, p.x, p.y));
+        (fit || []).forEach(p => updateExtents(acc, p.x, p.y));
     }
     // Text
     if ((entity.type === 'TEXT' || entity.type === 'MTEXT') && (entity.startPoint || entity.position)) {
