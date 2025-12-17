@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataStore } from '../../stores/useDataStore';
+import { useEditorLogic } from '../editor/hooks/useEditorLogic';
 import { NormalizedViewBox, Shape } from '../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
@@ -41,6 +42,7 @@ export const usePlanImport = (): PlanImportHook => {
   const [importMode, setImportMode] = useState<'pdf' | 'image' | 'dxf'>('pdf');
   const uiStore = useUIStore();
   const dataStore = useDataStore();
+  const { zoomToFit } = useEditorLogic();
 
   const openImportPdfModal = useCallback(() => {
     setImportMode('pdf');
@@ -281,6 +283,15 @@ export const usePlanImport = (): PlanImportHook => {
           dataStore.addShapes(shapesToAdd);
           uiStore.setSelectedShapeIds(new Set(shapesToAdd.map(s => s.id)));
           uiStore.setTool('select');
+          
+          // Center content after import
+          // We use a slightly longer timeout and requestAnimationFrame to ensure
+          // the modal has started closing and layout has updated.
+          setTimeout(() => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => zoomToFit());
+            });
+          }, 150);
 
           closeImportModal();
           return;
@@ -302,6 +313,13 @@ export const usePlanImport = (): PlanImportHook => {
         dataStore.addShapes(result.shapes);
         uiStore.setSelectedShapeIds(new Set(result.shapes.map(s => s.id)));
         uiStore.setTool('select');
+        
+        // Center content after import
+        setTimeout(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => zoomToFit());
+          });
+        }, 150);
       }
       closeImportModal();
     } catch (error) {
