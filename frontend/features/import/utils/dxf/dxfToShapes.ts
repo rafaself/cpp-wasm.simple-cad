@@ -558,6 +558,8 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const T_ins = fromTranslation(insPos.x, insPos.y);
           const M_local = multiply(multiply(multiply(T_ins, R), S), T_base);
           const M_final = multiply(matrix, M_local);
+          const det = M_final.a * M_final.d - M_final.b * M_final.c;
+          const parentSign = det < 0 ? -1 : 1;
 
           // 4. Instantiate and Fix Colors
           cachedShapes.forEach(s => {
@@ -579,19 +581,19 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
                  clone.points = clone.points.map(p => applyToPoint(M_final, p));
              }
              if (clone.type === 'text') {
-                 const p = applyToPoint(M_final, { x: s.x!, y: s.y! });
-                 clone.x = p.x;
-                 clone.y = p.y;
-                 const sRot = s.rotation || 0;
-                 const cos = Math.cos(sRot);
-                 const sin = Math.sin(sRot);
-                 const ux = { x: cos, y: sin };
-                 const tx = { x: M_final.a * ux.x + M_final.c * ux.y, y: M_final.b * ux.x + M_final.d * ux.y };
-                 clone.rotation = Math.atan2(tx.y, tx.x);
-                 const sx_new = Math.sqrt(tx.x*tx.x + tx.y*tx.y);
-                 clone.scaleX = (s.scaleX||1) * sx_new;
-                 clone.scaleY = (s.scaleY||-1) * sx_new;
-             }
+               const p = applyToPoint(M_final, { x: s.x!, y: s.y! });
+               clone.x = p.x;
+               clone.y = p.y;
+               const sRot = s.rotation || 0;
+               const cos = Math.cos(sRot);
+               const sin = Math.sin(sRot);
+               const ux = { x: cos, y: sin };
+               const tx = { x: M_final.a * ux.x + M_final.c * ux.y, y: M_final.b * ux.x + M_final.d * ux.y };
+               clone.rotation = Math.atan2(tx.y, tx.x);
+               const sx_new = Math.sqrt(tx.x*tx.x + tx.y*tx.y);
+               clone.scaleX = (s.scaleX||1) * sx_new;
+                clone.scaleY = (s.scaleY||-1) * sx_new * parentSign;
+            }
              outputShapes.push(clone);
           });
 
@@ -642,6 +644,22 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       maxX = 0;
       maxY = 0;
   }
+
+  // Normalize text scaling: bake magnitude into fontSize and keep scaleY sign-only.
+  // This prevents subpixel font sizes and aligns text bounds with visual size.
+  shapes.forEach(s => {
+      if (s.type !== 'text') return;
+      if (!s.fontSize) return;
+
+      const rawScaleY = s.scaleY ?? -1;
+      const scaleYAbs = Math.abs(rawScaleY);
+      if (!isFinite(scaleYAbs) || scaleYAbs === 0) return;
+
+      const rawScaleX = s.scaleX ?? scaleYAbs;
+      s.fontSize *= scaleYAbs;
+      s.scaleX = rawScaleX / scaleYAbs;
+      s.scaleY = rawScaleY < 0 ? -1 : 1;
+  });
 
   return {
       shapes,

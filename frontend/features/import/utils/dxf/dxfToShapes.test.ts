@@ -215,9 +215,9 @@ describe('convertDxfToShapes', () => {
     // It should expect 0.05.
 
     // @ts-ignore
-    expect(result.shapes[0].fontSize).toBe(0.05);
+    expect(result.shapes[0].fontSize).toBe(5);
     // @ts-ignore
-    expect(result.shapes[0].scaleX).toBe(100);
+    expect(result.shapes[0].scaleX).toBe(1);
     expect(result.shapes[0].fillColor).toBe('transparent');
   });
 

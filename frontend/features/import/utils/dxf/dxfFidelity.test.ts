@@ -77,9 +77,9 @@ describe('DXF Fidelity & Requirements', () => {
               sourceUnits: 'meters'
           });
 
-          // Now scale is 100.
+          // Now scale is 100; widthFactor should survive normalization.
           // @ts-ignore
-          expect(result2.shapes[0].scaleX).toBeCloseTo(80, 1);
+          expect(result2.shapes[0].scaleX).toBeCloseTo(0.8, 2);
           expect(result2.shapes[0].textContent).toBe('Narrow Text');
       });
 

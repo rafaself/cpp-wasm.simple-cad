@@ -450,10 +450,8 @@ export const renderShape = (
             const sY = shape.scaleY ?? -1;
 
             ctx.save();
-            // Translate to top of text box (sy + textHeight) before Y-flip
-            // This ensures text renders inside the bounding box, not below it
-            // Fix: Multiply textHeight by absolute scaleY to account for non-uniform scaling (e.g. DXF imports)
-            ctx.translate(sx, sy + textHeight * Math.abs(sY));
+            // Translate so the DXF baseline origin is preserved, adjusting for the signed scaleY.
+            ctx.translate(sx, sy - textHeight * sY);
 
             ctx.scale(sX, sY);
 
