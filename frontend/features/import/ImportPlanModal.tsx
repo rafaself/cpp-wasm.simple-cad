@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { X, FileUp, Zap, Layers } from 'lucide-react';
+import { FileUp, Zap, Layers } from 'lucide-react';
+import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 
 interface ImportOptions {
   explodeBlocks: boolean;
@@ -67,22 +68,23 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     inputRef.current?.click();
   }, []);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center">
-      <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[420px] flex flex-col text-slate-100">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <h2 className="font-semibold text-base">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="p-4 flex flex-col items-center gap-4">
+    <Dialog
+      modelValue={isOpen}
+      onUpdate={(val) => !val && onClose()}
+      maxWidth="420px"
+      showCloseButton
+      zIndex={1200}
+    >
+      <DialogCard
+        title={title}
+        actions={
+          <DialogButton onClick={onClose} variant="secondary">
+            Cancelar
+          </DialogButton>
+        }
+      >
+        <div className="flex flex-col items-center gap-4">
           <form
             id="form-file-upload"
             onDragEnter={handleDrag}
@@ -203,16 +205,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             </div>
           )}
         </div>
-
-        <div className="px-4 py-3 border-t border-slate-700 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300"
-          >
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogCard>
+    </Dialog>
   );
 };
