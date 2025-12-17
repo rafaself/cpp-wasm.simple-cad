@@ -52,7 +52,7 @@ export interface DxfEntity {
   controlPoints?: DxfVector[];
   numberOfControlPoints?: number;
   degree?: number;
-  closed?: boolean;
+
   knots?: number[];
   weights?: number[];
 
@@ -87,6 +87,7 @@ export interface DxfLinetype {
 export interface DxfStyle {
     name: string;
     fixedHeight?: number;
+    fixedTextHeight?: number;
     widthFactor?: number;
     obliqueAngle?: number;
     fontFile?: string;

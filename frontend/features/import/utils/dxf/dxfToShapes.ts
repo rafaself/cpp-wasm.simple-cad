@@ -1,10 +1,10 @@
 import { Shape, Layer, Point } from '../../../../types';
 import { generateId } from '../../../../utils/uuid';
-import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer } from './types';
+import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer, DxfStyle } from './types';
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
 import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, fromScaling, fromRotation } from './matrix2d';
 import { resolveColor, resolveLineweight, toGrayscale, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
-import { parseMTextContent, getDxfTextAlignment, getDxfTextShift } from './textUtils';
+import { parseMTextContent, getDxfTextAlignment, getDxfTextShift, ParsedMText } from './textUtils';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -392,9 +392,9 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'MTEXT':
       case 'ATTRIB':
         const rawText = entity.text || (entity as any).value;
-        const parsed = (entity.type === 'MTEXT')
+        const parsed: ParsedMText = (entity.type === 'MTEXT')
             ? parseMTextContent(rawText)
-            : { text: rawText };
+            : { text: rawText, widthFactor: undefined, oblique: undefined };
 
         const textContent = parsed.text;
 
@@ -508,7 +508,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             fontSize: h,
             fontFamily: fontFamily,
             // If oblique > 10, treat as italic
-            fontStyle: (finalOblique > 10) ? 'italic' : 'normal',
+            italic: (finalOblique > 10),
             rotation: newRot,
             align: textAlign,
             scaleX: scaleX_new * finalWidthFactor,
