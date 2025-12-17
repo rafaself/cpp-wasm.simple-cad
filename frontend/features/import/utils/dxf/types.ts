@@ -120,7 +120,9 @@ export interface DxfImportOptions {
   floorId: string;
   defaultLayerId: string;
   explodeBlocks?: boolean;
-  grayscale?: boolean;
+  grayscale?: boolean; // Deprecated, use colorMode
+  colorMode?: 'original' | 'grayscale' | 'monochrome';
+  sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
   readOnly?: boolean;
   includePaperSpace?: boolean; // Defaults to false
 }

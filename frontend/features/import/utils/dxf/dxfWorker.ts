@@ -22,6 +22,10 @@ const generateUuid = () => {
     });
 };
 
+const sanitizeLayerId = (name: string): string => {
+    return name.replace(/[^a-zA-Z0-9-_]/g, '_');
+};
+
 self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
   try {
     const { text, options, mode } = e.data;
@@ -60,17 +64,12 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
 
         // Layers metadata
         // We need to return the layers found in the DXF so the UI can create them.
-        // dxfToSvg accumulated them. It would be better if dxfToSvg returned the list of layers.
-        // But currently it iterates locally.
-        // We can extract layers from data.tables.layer or iterate entities if tables missing.
-        // existing 'dxfToShapes' returns 'layers'.
-        // Let's minimally extract layers for the UI list.
         const layersList = [];
         if (data.tables && data.tables.layer && data.tables.layer.layers) {
             for (const name in data.tables.layer.layers) {
                 const l = data.tables.layer.layers[name];
                 layersList.push({
-                    id: name.replace(/[^a-zA-Z0-9-_]/g, '_'), // Match sanitized ID used in SVG
+                    id: sanitizeLayerId(name), // Match sanitized ID used in SVG
                     name: name,
                     strokeColor: '#ffffff', // Default
                     strokeEnabled: true,
@@ -87,7 +86,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
              data.entities.forEach(e => { if(e.layer) distinctLayers.add(e.layer); });
              distinctLayers.forEach(name => {
                  layersList.push({
-                    id: name.replace(/[^a-zA-Z0-9-_]/g, '_'),
+                    id: sanitizeLayerId(name),
                     name: name,
                     strokeColor: '#ffffff',
                     strokeEnabled: true,

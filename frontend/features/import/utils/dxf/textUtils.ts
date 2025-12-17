@@ -1,40 +1,54 @@
 /**
- * Sanitizes MTEXT content by handling control codes and formatting tags.
- *
- * Common MTEXT Codes:
- * \P - New paragraph (newline)
- * \L, \l - Start/End Underline (strip)
- * \O, \o - Start/End Overline (strip)
- * \K, \k - Start/End Strike (strip)
- * \H...; - Text height (strip)
- * \W...; - Width factor (strip)
- * \Q...; - Obliquing angle (strip)
- * \C...; - Color (strip)
- * \T...; - Tracking (strip)
- * \f...; - Font (strip)
- * \A...; - Alignment (strip)
- * \S...^...; - Stacking (convert to "num/den")
- * {} - Braces for grouping (strip)
+ * MTEXT Formatting Result
  */
-export const sanitizeMTextContent = (text: string): string => {
-    if (!text) return '';
+export interface ParsedMText {
+    text: string;
+    widthFactor?: number; // From \W...;
+    oblique?: number; // From \Q...;
+}
 
-    let s = text;
+/**
+ * Parses MTEXT content, extracting key formatting overrides (\W, \Q)
+ * and sanitizing the rest for display.
+ */
+export const parseMTextContent = (rawText: string): ParsedMText => {
+    if (!rawText) return { text: '' };
+
+    let s = rawText;
+    let widthFactor: number | undefined;
+    let oblique: number | undefined;
+
+    // 0. Extract Overrides (First occurrence only for simplicity, applied to whole block)
+    // Looking for \W1.2; or \Q30;
+
+    // Width Factor
+    const wMatch = s.match(/\\W([\d.]+);/i);
+    if (wMatch && wMatch[1]) {
+        const val = parseFloat(wMatch[1]);
+        if (!isNaN(val) && val > 0) {
+            widthFactor = val;
+        }
+    }
+
+    // Oblique Angle
+    const qMatch = s.match(/\\Q([\d.-]+);/i);
+    if (qMatch && qMatch[1]) {
+        const val = parseFloat(qMatch[1]);
+        if (!isNaN(val)) {
+            oblique = val;
+        }
+    }
 
     // 1. Handle Newlines (\P)
     s = s.replace(/\\P/gi, '\n');
 
     // 2. Handle Stacking \S...^...; (Simple conversion to /)
-    // Matches \S numerator ^ denominator ;
     s = s.replace(/\\S(.*?)\^(.*?);/gi, '$1/$2');
-    s = s.replace(/\\S(.*?)\#(.*?);/gi, '$1/$2'); // Stack with line
-    s = s.replace(/\\S(.*?)\s(.*?);/gi, '$1/$2'); // Stack without line
+    s = s.replace(/\\S(.*?)\#(.*?);/gi, '$1/$2');
+    s = s.replace(/\\S(.*?)\s(.*?);/gi, '$1/$2');
 
-    // 3. Strip formatting tags with arguments (\H10;, \C5;, etc.)
-    // Matches Backslash + One Character + anything until semicolon
-    // We strictly look for known formatters to avoid false positives?
-    // Or just generic \[A-Z0-9]+.*?;
-    // AutoCAD formatting tags are usually uppercase letters.
+    // 3. Strip formatting tags with arguments (\H..., \C..., \W..., \Q..., etc.)
+    // We already extracted W/Q, so we strip them now.
     s = s.replace(/\\[ACFHQTWf].*?;/g, '');
 
     // 4. Strip simple toggles (\L, \O, \K, etc.)
@@ -43,11 +57,22 @@ export const sanitizeMTextContent = (text: string): string => {
     // 5. Remove grouping braces
     s = s.replace(/[{}]/g, '');
 
-    // 6. Remove any remaining backslashes that might be escapes?
-    // But keep literal backslashes if needed. MTEXT uses \\ for \.
+    // 6. Remove any remaining backslashes that might be escapes (keep \\ as \)
     s = s.replace(/\\\\/g, '\\');
 
-    return s.trim();
+    return {
+        text: s.trim(),
+        widthFactor,
+        oblique
+    };
+};
+
+/**
+ * Legacy wrapper for backward compatibility if needed,
+ * but we should prefer parseMTextContent in logic.
+ */
+export const sanitizeMTextContent = (text: string): string => {
+    return parseMTextContent(text).text;
 };
 
 export const getDxfTextAlignment = (halign: number, valign: number) => {
@@ -59,7 +84,7 @@ export const getDxfTextAlignment = (halign: number, valign: number) => {
 
     if (halign === 1 || halign === 4) align = 'center'; // Center or Middle(Horiz)
     if (halign === 2) align = 'right';
-    if (halign === 3 || halign === 5) align = 'center'; // Fit/Align - approximate as center or left? Center is safer for placement usually.
+    if (halign === 3 || halign === 5) align = 'center'; // Fit/Align
 
     return align;
 };

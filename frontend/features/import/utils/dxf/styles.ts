@@ -28,51 +28,136 @@ export const LINEWEIGHTS: Record<number, number> = {
     211: 10
 };
 
+export const FONT_MAP: Record<string, string> = {
+    // Serif / "CAD-like"
+    'romans': 'serif',
+    'romand': 'serif',
+    'simplex': 'serif',
+    'complex': 'serif',
+    'times': 'serif',
+
+    // Monospace
+    'txt': 'monospace',
+    'monotxt': 'monospace',
+
+    // Sans-serif
+    'arial': 'Arial, sans-serif',
+    'verdana': 'Verdana, sans-serif',
+    'tahoma': 'Tahoma, sans-serif',
+    'calibri': 'Calibri, sans-serif',
+    'isocp': 'sans-serif',
+    'isocpeur': 'sans-serif',
+    'isoct': 'sans-serif',
+    'swiss': 'sans-serif',
+
+    // Default fallback
+    'default': 'sans-serif'
+};
+
 export const DEFAULT_LINEWEIGHT = 1;
 export const BYBLOCK_COLOR_PLACEHOLDER = '__BYBLOCK__';
 export const BYBLOCK_LINETYPE_PLACEHOLDER = '__BYBLOCK__';
+
+export const resolveFontFamily = (fontFile?: string): string => {
+    if (!fontFile) return FONT_MAP['default'];
+
+    // Extract filename without extension
+    const name = fontFile.split('.')[0].toLowerCase();
+
+    // Direct map check
+    if (FONT_MAP[name]) return FONT_MAP[name];
+
+    // Heuristics
+    if (name.includes('roman')) return 'serif';
+    if (name.includes('mono') || name.includes('txt')) return 'monospace';
+
+    return FONT_MAP['default'];
+};
 
 export const resolveColor = (
     entity: DxfEntity,
     layer?: DxfLayer,
     parentColor?: string,
-    isDarkTheme: boolean = false
+    isDarkTheme: boolean = false,
+    colorMode: 'original' | 'grayscale' | 'monochrome' = 'original'
 ): string => {
+    // Handle ByBlock Placeholder immediately
+    if (parentColor === BYBLOCK_COLOR_PLACEHOLDER) {
+         // If we are resolving nested entity and parent is placeholder, return placeholder.
+         // Actually, resolveColor is called FOR the child using parent's resolved color.
+         // But if parentColor ITSELF is the placeholder (meaning we are inside a block definition cache context),
+         // we should also return placeholder if entity is ByBlock.
+         // If entity is ByLayer, we resolve it.
+    }
+
+    let hex = '#000000';
+
     // 1. True Color (24-bit RGB)
     if (entity.trueColor !== undefined) {
-        return '#' + entity.trueColor.toString(16).padStart(6, '0');
-    }
+        hex = '#' + entity.trueColor.toString(16).padStart(6, '0');
+    } else {
+        // 2. ACI Color
+        let colorIndex = entity.color; // 0=ByBlock, 256=ByLayer
 
-    // 2. ACI Color
-    let colorIndex = entity.color; // 0=ByBlock, 256=ByLayer
+        if (colorIndex === undefined) colorIndex = 256; // Default to ByLayer
 
-    if (colorIndex === undefined) colorIndex = 256; // Default to ByLayer
+        if (colorIndex === 0) {
+            // ByBlock
+            if (parentColor) {
+                 // If parentColor is placeholder, return it
+                 if (parentColor === BYBLOCK_COLOR_PLACEHOLDER) return BYBLOCK_COLOR_PLACEHOLDER;
+                 hex = parentColor;
+            } else {
+                return BYBLOCK_COLOR_PLACEHOLDER;
+            }
+        } else if (colorIndex === 256) {
+            // ByLayer
+            if (layer && layer.color !== undefined) {
+                colorIndex = layer.color;
+            } else {
+                colorIndex = 7;
+            }
+            if (colorIndex < 0 || colorIndex > 255) colorIndex = 7;
 
-    if (colorIndex === 0) {
-        // ByBlock
-        if (parentColor) return parentColor;
-
-        // If no parentColor is provided, we might be resolving for a Block Definition (cached).
-        // Return placeholder.
-        return BYBLOCK_COLOR_PLACEHOLDER;
-    }
-
-    if (colorIndex === 256) {
-        // ByLayer
-        if (layer && layer.color !== undefined) {
-            colorIndex = layer.color;
+            if (colorIndex === 7) {
+                 // Color 7 is adaptive
+                 hex = isDarkTheme ? '#FFFFFF' : '#000000';
+            } else {
+                 hex = ACI_COLORS[colorIndex] || '#000000';
+            }
         } else {
-            colorIndex = 7;
+            // Explicit ACI
+            if (colorIndex < 0 || colorIndex > 255) colorIndex = 7;
+            if (colorIndex === 7) {
+                hex = isDarkTheme ? '#FFFFFF' : '#000000';
+            } else {
+                hex = ACI_COLORS[colorIndex] || '#000000';
+            }
         }
     }
 
-    if (colorIndex < 0 || colorIndex > 255) colorIndex = 7;
+    // Apply Mode Post-Processing
+    if (hex === BYBLOCK_COLOR_PLACEHOLDER || hex === 'transparent') return hex;
 
-    if (colorIndex === 7) {
-        return isDarkTheme ? '#FFFFFF' : '#000000';
+    if (colorMode === 'monochrome') {
+        // Force Black (or White if Dark Theme? No, req says Force B&W "Photocopy")
+        // "Force Black & White (colors become black)"
+        // But if theme is dark, black is invisible.
+        // Assuming "Black" means "Ink Color".
+        // If the canvas background is dark, we might need White.
+        // But "Monochrome" usually implies "Printed Look".
+        // Let's assume strict #000000 as requested, unless user strictly wants visible.
+        // If I return #000000 and the canvas is #1e293b (slate-800), it's hard to see.
+        // However, the requirement says "Force Black & White... colors become black".
+        // I will return #000000.
+        return '#000000';
     }
 
-    return ACI_COLORS[colorIndex] || '#000000';
+    if (colorMode === 'grayscale') {
+        return toGrayscale(hex);
+    }
+
+    return hex;
 };
 
 export const resolveLineweight = (

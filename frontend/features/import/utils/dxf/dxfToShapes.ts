@@ -3,8 +3,8 @@ import { generateId } from '../../../../utils/uuid';
 import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer } from './types';
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
 import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, fromScaling, fromRotation } from './matrix2d';
-import { resolveColor, resolveLineweight, toGrayscale, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
-import { sanitizeMTextContent, getDxfTextAlignment, getDxfTextShift } from './textUtils';
+import { resolveColor, resolveLineweight, toGrayscale, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
+import { parseMTextContent, getDxfTextAlignment, getDxfTextShift } from './textUtils';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -65,82 +65,76 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       entityCount = data.entities.filter(shouldImportEntity).length;
   }
 
-  // Note: We don't deeply check blocks for entity count filtering accurately because of recursion/instancing,
-  // but we should at least check the main entity list.
-  // Blocks definitions themselves are filtered when inserted? No, block definitions are just definitions.
-  // The INSERT entity is what matters. If INSERT is in Model Space, we count it.
-  // If INSERT is in Paper Space and we filter it out, we don't count it.
-  // For total limit check, we'll iterate over filtered entities.
-
-  if (data.blocks) {
-      // This part is tricky. Entities inside blocks are definitions.
-      // The limit usually refers to resulting shapes or input complexity.
-      // Let's keep the simple heuristic but applied to filtered entities?
-      // Actually, we can just check filtering during processing to be safe.
-      // But let's keep the pre-check.
-      // We'll count potential complexity: entities in Model Space + complexity of blocks used.
-      // But we don't know which blocks are used yet.
-      // Let's just stick to checking `data.entities` count for now as a rough guard.
-      // If the user has 30000 entities in paper space and 10 in model space, and we only import model space,
-      // we shouldn't fail.
-  }
-
   if (entityCount > ENTITY_LIMIT) {
       throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades.`);
   }
 
-  // 1. Determine Scale Factor based on DXF Units
+  // 1. Determine Scale Factor based on Units & Overrides
   const insUnits = data.header?.$INSUNITS;
-  let globalScale = (insUnits !== undefined && DXF_UNITS[insUnits]) ? DXF_UNITS[insUnits] : 1;
+  let globalScale = 1;
 
-  if (insUnits === undefined) {
-      // Auto-Detect logic...
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
-      let sampleCount = 0;
-      if (data.header?.$EXTMIN && data.header?.$EXTMAX) {
-          // Trust header extents only if we are importing everything or if they match filter?
-          // Header extents usually cover EVERYTHING (Model + Paper maybe? No, usually Model).
-          // $EXTMIN/$EXTMAX are usually Model Space extents.
-          // Paper space extents are $PEXTMIN/$PEXTMAX.
-          // So using $EXTMIN is fine for Model Space.
-          // If we are importing Paper Space ONLY (not supported yet, option is includePaperSpace meaning both),
-          // we might have issues if $EXTMIN is huge.
+  // Determine Source Unit to Meters factor
+  let sourceToMeters = 1.0;
 
-          // Let's use calculated bounds from entities to be safer if we are filtering.
-          // Ignoring header extents for auto-detection if we are selective might be safer.
-          // Or just use them as seeds.
-          minX = data.header.$EXTMIN.x;
-          maxX = data.header.$EXTMAX.x;
-          minY = data.header.$EXTMIN.y;
-          maxY = data.header.$EXTMAX.y;
+  // If override provided
+  if (options.sourceUnits && options.sourceUnits !== 'auto') {
+      switch (options.sourceUnits) {
+          case 'meters': sourceToMeters = 1.0; break;
+          case 'cm': sourceToMeters = 0.01; break;
+          case 'mm': sourceToMeters = 0.001; break;
+          case 'feet': sourceToMeters = 0.3048; break;
+          case 'inches': sourceToMeters = 0.0254; break;
       }
+      // Global scale (to Pixels) = Source(m) * 100
+      globalScale = sourceToMeters * 100;
+      console.log(`DXF Import: Override Units (${options.sourceUnits}). Scale: ${globalScale}`);
+  } else {
+      // Auto-Detect
+      if (insUnits !== undefined && DXF_UNITS[insUnits]) {
+          // DXF_UNITS maps to CM.
+          // We want Meters * 100 = CM.
+          // So DXF_UNITS[insUnits] IS the scale factor to Pixels (CM = px).
+          globalScale = DXF_UNITS[insUnits];
+      } else {
+          // Heuristic for Unitless
+          let minX = Infinity, maxX = -Infinity;
+          let minY = Infinity, maxY = -Infinity;
+          let sampleCount = 0;
 
-      const updateBounds = (v: DxfVector) => {
-          if (v.x < minX) minX = v.x;
-          if (v.x > maxX) maxX = v.x;
-          if (v.y < minY) minY = v.y;
-          if (v.y > maxY) maxY = v.y;
-      };
+          const updateBounds = (v: DxfVector) => {
+              if (v.x < minX) minX = v.x;
+              if (v.x > maxX) maxX = v.x;
+              if (v.y < minY) minY = v.y;
+              if (v.y > maxY) maxY = v.y;
+          };
 
-      if (data.entities) {
-          for (const e of data.entities) {
-              if (!shouldImportEntity(e)) continue;
-
-              if (sampleCount > 1000) break;
-              if (e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
-                  e.vertices?.forEach(updateBounds);
-                  sampleCount++;
-              } else if (e.type === 'INSERT' && e.position) {
-                  updateBounds(e.position);
-                  sampleCount++;
+          if (data.entities) {
+              for (const e of data.entities) {
+                  if (!shouldImportEntity(e)) continue;
+                  if (sampleCount > 1000) break;
+                  if (e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
+                      e.vertices?.forEach(updateBounds);
+                      sampleCount++;
+                  } else if (e.type === 'INSERT' && e.position) {
+                      updateBounds(e.position);
+                      sampleCount++;
+                  }
               }
           }
-      }
-      const extent = Math.max(maxX - minX, maxY - minY);
-      if (extent > 0 && extent < 2000) {
-          globalScale = 100;
-          console.log(`DXF Import: Auto-detected unitless file with small extents (${extent.toFixed(2)}). Assuming Meters. Scale: 100`);
+          const extent = Math.max(maxX - minX, maxY - minY);
+          if (extent > 0 && extent < 2000) {
+              // Heuristic: Small numbers -> Likely Meters.
+              globalScale = 100; // 1 unit = 1 meter = 100px
+              console.log(`DXF Import: Auto-detected unitless file with small extents (${extent.toFixed(2)}). Assuming Meters. Scale: 100`);
+          } else {
+              // Default to Millimeters?? Or just 1?
+              // Existing logic defaulted to 1 (Centimeters / Unitless).
+              // If extent is huge (e.g. 50000), likely Millimeters.
+              // 50000 mm = 50 m.
+              // If we use scale 1 (CM), 50000 units = 50000 cm = 500 m.
+              // Safe bet: Assume CM (Scale 1) or let user override.
+              globalScale = 1;
+          }
       }
   }
 
@@ -156,10 +150,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   }
 
   // Prepare Styles
-  const dxfStyles: Record<string, any> = {};
+  const dxfStyles: Record<string, DxfStyle> = {};
   if (data.tables?.style?.styles) {
+      // @ts-ignore
       Object.entries(data.tables.style.styles).forEach(([k, v]) => {
-          dxfStyles[k.toUpperCase()] = v;
+          dxfStyles[k.toUpperCase()] = v as any;
       });
   }
 
@@ -171,8 +166,13 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   // Process Layers
   Object.values(data.tables?.layer?.layers || {}).forEach(l => {
       const layerId = generateId('layer');
-      let strokeColor = resolveColor({ type: 'LAYER', layer: l.name, color: l.color } as any, undefined, undefined, false); // Light theme default
-      if (options.grayscale) strokeColor = toGrayscale(strokeColor);
+      let strokeColor = resolveColor(
+          { type: 'LAYER', layer: l.name, color: l.color } as any,
+          undefined,
+          undefined,
+          false,
+          options.colorMode
+      );
 
       layersMap.set(l.name, {
         id: layerId,
@@ -268,11 +268,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     const dxfLayer = getLayerObject(effectiveLayer);
 
     // Resolve Color
-    let color = resolveColor(entity, dxfLayer, parentColor);
-
-    if (color !== BYBLOCK_COLOR_PLACEHOLDER && options.grayscale) {
-        color = toGrayscale(color);
-    }
+    let color = resolveColor(entity, dxfLayer, parentColor, false, options.colorMode);
 
     // Resolve Lineweight
     const strokeWidth = resolveLineweight(entity, dxfLayer);
@@ -396,9 +392,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'MTEXT':
       case 'ATTRIB':
         const rawText = entity.text || (entity as any).value;
-        const textContent = (entity.type === 'MTEXT')
-            ? sanitizeMTextContent(rawText)
-            : rawText;
+        const parsed = (entity.type === 'MTEXT')
+            ? parseMTextContent(rawText)
+            : { text: rawText };
+
+        const textContent = parsed.text;
 
         let localPoint = entity.startPoint || entity.position;
         let halign = (entity as any).halign || 0;
@@ -455,16 +453,33 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
            const h = Math.max(baseHeight, MIN_TEXT_SIZE);
 
-           let widthFactor = 1.0;
+           // Resolve Font
+           let fontFile: string | undefined;
+           let styleWidthFactor = 1.0;
+           let styleOblique = 0;
+
            if (entity.style) {
                const styleDef = dxfStyles[entity.style.toUpperCase()];
-               if (styleDef && styleDef.widthFactor) {
-                   widthFactor = styleDef.widthFactor;
+               if (styleDef) {
+                   fontFile = styleDef.fontFile;
+                   if (styleDef.widthFactor) styleWidthFactor = styleDef.widthFactor;
+                   if (styleDef.obliqueAngle) styleOblique = styleDef.obliqueAngle;
                }
            }
-           if ((entity as any).widthFactor) {
-                widthFactor = (entity as any).widthFactor;
-           }
+
+           const fontFamily = resolveFontFamily(fontFile);
+
+           // Combine Width Factors: Style * Entity * MTextOverride
+           let finalWidthFactor = styleWidthFactor;
+           if ((entity as any).widthFactor) finalWidthFactor *= (entity as any).widthFactor;
+           if (parsed.widthFactor) finalWidthFactor *= parsed.widthFactor;
+
+           // Combine Oblique: Style + Entity(N/A) + MTextOverride
+           let finalOblique = styleOblique;
+           if (parsed.oblique) finalOblique += parsed.oblique;
+           // TODO: Apply oblique skew to matrix or use css font-style?
+           // Currently Shape renderer doesn't support skew property easily.
+           // We'll leave it for now or assume italics if oblique > 0.
 
            const textAlign = getDxfTextAlignment(halign, valign);
            const vShift = getDxfTextShift(valign, h);
@@ -480,9 +495,12 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             points: [],
             textContent: textContent,
             fontSize: h,
+            fontFamily: fontFamily,
+            // If oblique > 10, treat as italic
+            fontStyle: (finalOblique > 10) ? 'italic' : 'normal',
             rotation: newRot,
             align: textAlign,
-            scaleX: scaleX_new * widthFactor,
+            scaleX: scaleX_new * finalWidthFactor,
             scaleY: scaleY_new * (isMirrored ? 1 : -1),
             ...shapeProps
           });
@@ -534,10 +552,15 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           cachedShapes.forEach(s => {
              const clone = { ...s, id: generateId(s.type) };
 
+             // Resolve ByBlock colors
              if (clone.strokeColor === BYBLOCK_COLOR_PLACEHOLDER) {
                  clone.strokeColor = color;
              }
-             if (options.grayscale && clone.strokeColor && clone.strokeColor !== 'transparent') {
+
+             // Apply Color Mode again for the resolved block color if needed
+             if (options.colorMode === 'monochrome' && clone.strokeColor && clone.strokeColor !== 'transparent') {
+                 clone.strokeColor = '#000000';
+             } else if (options.colorMode === 'grayscale' && clone.strokeColor) {
                  clone.strokeColor = toGrayscale(clone.strokeColor);
              }
 
