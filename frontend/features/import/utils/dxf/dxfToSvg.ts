@@ -2,6 +2,27 @@
 import { DxfData, DxfEntity, DxfImportOptions } from './types';
 import { resolveColor, resolveLineweight, BYBLOCK_COLOR_PLACEHOLDER, toGrayscale } from './styles';
 
+// DXF Unit Codes to Centimeters (CM) Conversion Factors
+const DXF_UNITS: Record<number, number> = {
+    1: 2.54,      // Inches
+    2: 30.48,     // Feet
+    3: 160934.4,  // Miles
+    4: 0.1,       // Millimeters
+    5: 1.0,       // Centimeters
+    6: 100.0,     // Meters
+    7: 100000.0,  // Kilometers
+    8: 0.00000254, // Microinches
+    9: 0.00254,   // Mils
+    10: 91.44,    // Yards
+    11: 1.0e-8,   // Angstroms
+    12: 1.0e-7,   // Nanometers
+    13: 0.0001,   // Microns
+    14: 10.0,     // Decimeters
+    15: 1000.0,   // Decameters
+    16: 10000.0,  // Hectometers
+    17: 1.0e11,   // Gigameters
+};
+
 // Helper to escape XML characters
 const escapeXml = (unsafe: string): string => {
   return unsafe.replace(/[<>&'"]/g, (c) => {
@@ -144,12 +165,35 @@ const entityToSvg = (
        // Simplified Text Support
        if (!entity.text || (!entity.startPoint && !entity.position)) return null;
        const pos = entity.startPoint || entity.position || { x: 0, y: 0 };
-       const height = entity.textHeight || 1;
+       
+       let height = entity.textHeight || (entity as any).height;
+       if (!height || height === 0) {
+           // Fallback to Style fixed height
+           if (entity.style && data.tables?.style?.styles) {
+               const styleName = entity.style.toUpperCase();
+               const styles = data.tables.style.styles;
+               // Case-insensitive lookup
+               const styleKey = Object.keys(styles).find(k => k.toUpperCase() === styleName);
+               if (styleKey) {
+                   const style = styles[styleKey];
+                   // fixedTextHeight (40) is the property
+                   const fixedH = style.fixedTextHeight || style.fixedHeight;
+                   if (fixedH && fixedH > 0) {
+                       height = fixedH;
+                   }
+               }
+           }
+       }
+       // Fallback to global default
+       height = height || data.header?.$TEXTSIZE || 1;
+
+       const widthFactor = (entity as any).widthFactor || 1;
 
        // Handle rotation and flip
        // Entity rotation is CCW. We need to flip Y for text to be readable if global Y is flipped.
+       // Since we flip the entire container (scaleY: -1), we keep text in logical DXF space (Y-Up).
        const rot = entity.rotation || 0;
-       const transform = `translate(${formatFloat(pos.x)} ${formatFloat(pos.y)}) rotate(${formatFloat(rot)}) scale(1, -1)`;
+       const transform = `translate(${formatFloat(pos.x)} ${formatFloat(pos.y)}) rotate(${formatFloat(rot)}) scale(${formatFloat(widthFactor)}, -1)`;
 
        // Clean text
        const cleanText = entity.text.replace(/\\P/g, '\n').replace(/\\[A-Z0-9]+;?/g, '').replace(/[{}]/g, '');
@@ -165,7 +209,54 @@ const entityToSvg = (
 export const dxfToSvg = (
   data: DxfData,
   options: DxfImportOptions
-): { svgRaw: string; viewBox: { x: number; y: number; width: number; height: number } } => {
+): { svgRaw: string; viewBox: { x: number; y: number; width: number; height: number }, unitsScale: number } => {
+  // Determine Scale Factor (Logic copied from dxfToShapes)
+  const insUnits = data.header?.$INSUNITS;
+  let unitsScale = 1;
+  let sourceToMeters = 1.0;
+
+  if (options.sourceUnits && options.sourceUnits !== 'auto') {
+      switch (options.sourceUnits) {
+          case 'meters': sourceToMeters = 1.0; break;
+          case 'cm': sourceToMeters = 0.01; break;
+          case 'mm': sourceToMeters = 0.001; break;
+          case 'feet': sourceToMeters = 0.3048; break;
+          case 'inches': sourceToMeters = 0.0254; break;
+      }
+      unitsScale = sourceToMeters * 100;
+  } else {
+      if (insUnits !== undefined && DXF_UNITS[insUnits]) {
+          unitsScale = DXF_UNITS[insUnits];
+      } else {
+          // Heuristic for Unitless
+          let minX = Infinity, maxX = -Infinity;
+          let minY = Infinity, maxY = -Infinity;
+          let sampleCount = 0;
+          const shouldImport = (e: DxfEntity) => options.includePaperSpace || !e.inPaperSpace;
+
+          data.entities.forEach(e => {
+              if (sampleCount > 1000 || !shouldImport(e)) return;
+              if (e.vertices) {
+                  e.vertices.forEach(v => {
+                      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
+                      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+                  });
+                  sampleCount++;
+              } else if (e.position) {
+                  minX = Math.min(minX, e.position.x); maxX = Math.max(maxX, e.position.x);
+                  minY = Math.min(minY, e.position.y); maxY = Math.max(maxY, e.position.y);
+                  sampleCount++;
+              }
+          });
+          const extent = Math.max(maxX - minX, maxY - minY);
+          if (extent > 0 && extent < 2000) {
+              unitsScale = 100; // Assume Meters
+          } else {
+              unitsScale = 1; // Assume CM or MM (already huge)
+          }
+      }
+  }
+
   const acc: SvgAccumulator = {
     defs: [],
     layers: new Map(),
@@ -260,6 +351,7 @@ export const dxfToSvg = (
 
   return {
     svgRaw,
-    viewBox: { x: minX, y: minY, width: safeWidth, height: safeHeight }
+    viewBox: { x: minX, y: minY, width: safeWidth, height: safeHeight },
+    unitsScale
   };
 };

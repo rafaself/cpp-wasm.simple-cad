@@ -35,13 +35,13 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
 
     if (mode === 'svg') {
         // SVG Mode
-        const { svgRaw, viewBox } = dxfToSvg(data, options);
+        const { svgRaw, viewBox, unitsScale } = dxfToSvg(data, options);
 
         // Create a single Shape of type 'rect' (as container)
         // Center it based on viewBox
         const shapeId = generateUuid();
-        const width = viewBox.width;
-        const height = viewBox.height;
+        const width = viewBox.width * unitsScale;
+        const height = viewBox.height * unitsScale;
         const x = viewBox.x;
         const y = viewBox.y;
 
@@ -59,6 +59,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
             svgRaw: svgRaw,
             svgViewBox: viewBox,
             discipline: 'architecture',
+            scaleY: -1,
             // svgHiddenLayers can be populated initially empty or handled by UI
             svgHiddenLayers: []
         };
