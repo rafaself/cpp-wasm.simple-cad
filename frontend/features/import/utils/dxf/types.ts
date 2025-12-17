@@ -11,8 +11,12 @@ export interface DxfEntity {
   type: string;
   layer: string; // Layer name
   handle?: string;
-  color?: number; // DXF color index
+
+  color?: number; // DXF color index (ACI)
+  trueColor?: number; // 24-bit RGB value (optional)
+  lineweight?: number; // Lineweight enum value (optional)
   lineType?: string; // Linetype name
+  lineTypeScale?: number; // Entity linetype scale factor (CELTSCALE equivalent)
 
   // LINE, POLYLINE, LWPOLYLINE
   vertices?: DxfVector[];
@@ -21,7 +25,7 @@ export interface DxfEntity {
   // CIRCLE, ARC
   center?: DxfVector;
   radius?: number;
-  startAngle?: number; // ARC (radians or degrees? Usually degrees in DXF)
+  startAngle?: number; // ARC
   endAngle?: number; // ARC
 
   // TEXT, MTEXT
@@ -61,6 +65,15 @@ export interface DxfLayer {
   color?: number;
   frozen?: boolean;
   visible?: boolean;
+  lineType?: string; // Default linetype for layer
+  lineweight?: number; // Default lineweight for layer (optional)
+}
+
+export interface DxfLinetype {
+    name: string;
+    description?: string;
+    patternLength?: number;
+    pattern?: number[]; // The raw dash lengths
 }
 
 export interface DxfData {
@@ -70,12 +83,17 @@ export interface DxfData {
     layer?: {
       layers: Record<string, DxfLayer>;
     };
+    ltype?: {
+        linetypes: Record<string, DxfLinetype>;
+    }
   };
   header?: {
     $INSUNITS?: number; // Unit code
     $EXTMIN?: DxfVector;
     $EXTMAX?: DxfVector;
     $TEXTSIZE?: number;
+    $LTSCALE?: number; // Global Linetype Scale
+    $CELTSCALE?: number; // Current Entity Linetype Scale
   };
 }
 
