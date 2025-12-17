@@ -167,7 +167,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   Object.values(data.tables?.layer?.layers || {}).forEach(l => {
       const layerId = generateId('layer');
       let strokeColor = resolveColor(
-          { type: 'LAYER', layer: l.name, color: l.color } as any,
+          { type: 'LAYER', layer: l.name, trueColor: (l as any).color, colorIndex: (l as any).colorIndex } as any,
           undefined,
           undefined,
           false,
@@ -319,7 +319,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         if (entity.vertices && entity.vertices.length >= 2) {
           const rawPts: DxfVector[] = [];
           const vs = entity.vertices;
-          const isClosed = (entity as any).closed === true || (entity.closed === true);
+          const isClosed = (entity as any).closed === true || (entity as any).shape === true || (entity.closed === true);
 
           for (let i = 0; i < vs.length; i++) {
               const curr = vs[i];
@@ -337,11 +337,21 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           }
           const pts = rawPts.map(v => trans(v));
 
+          const isHatch = (entity as any).isHatch === true;
+
           outputShapes.push({
             id: generateId('dxf-poly'),
             type: 'polyline',
             points: pts,
-            ...shapeProps
+            ...shapeProps,
+            ...(isHatch
+              ? {
+                  strokeEnabled: false,
+                  fillColor: color,
+                  fillEnabled: true,
+                  colorMode: { fill: 'custom', stroke: 'custom' }
+                }
+              : {})
           });
         }
         break;

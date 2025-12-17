@@ -188,6 +188,10 @@ const entityToSvg = (
       const points = expanded.map(v => `${formatFloat(v.x)},${formatFloat(v.y)}`).join(' ');
 
       if (isClosed) {
+          if ((entity as any).isHatch === true) {
+              const hatchAttrs = `stroke="none" fill="${color}"`;
+              return `<polygon points="${points}" ${hatchAttrs} />`;
+          }
           return `<polygon points="${points}" ${commonAttrs} />`;
       }
       return `<polyline points="${points}" ${commonAttrs} />`;

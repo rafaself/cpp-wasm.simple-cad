@@ -334,7 +334,14 @@ export const renderShape = (
             if (shape.points && shape.points.length > 0) {
                 ctx.moveTo(shape.points[0].x, shape.points[0].y);
                 for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
-                ctx.stroke();
+
+                const first = shape.points[0];
+                const last = shape.points[shape.points.length - 1];
+                const isClosed = Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.y - last.y) < 1e-6;
+
+                if (isClosed) ctx.closePath();
+                if (fillEnabled && effectiveFill !== 'transparent' && isClosed) ctx.fill();
+                if (strokeEnabled && effectiveStroke !== 'transparent') ctx.stroke();
             }
         } else if (shape.type === 'polygon') {
             // Polygon rendering with width/height scale support

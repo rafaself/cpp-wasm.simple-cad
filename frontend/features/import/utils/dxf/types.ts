@@ -14,6 +14,8 @@ export interface DxfEntity {
   inPaperSpace?: boolean; // True if entity is in Paper Space (Group 67 = 1)
 
   color?: number; // DXF color index (ACI)
+  // dxf-parser exposes ACI separately from derived RGB
+  colorIndex?: number;
   trueColor?: number; // 24-bit RGB value (optional)
   lineweight?: number; // Lineweight enum value (optional)
   lineType?: string; // Linetype name
@@ -22,6 +24,8 @@ export interface DxfEntity {
   // LINE, POLYLINE, LWPOLYLINE
   vertices?: DxfVector[];
   closed?: boolean; // LWPOLYLINE closed flag
+  // dxf-parser uses `shape` for closed polylines
+  shape?: boolean;
 
   // CIRCLE, ARC
   center?: DxfVector;
@@ -71,6 +75,7 @@ export interface DxfBlock {
 export interface DxfLayer {
   name: string;
   color?: number;
+  colorIndex?: number;
   frozen?: boolean;
   visible?: boolean;
   lineType?: string; // Default linetype for layer

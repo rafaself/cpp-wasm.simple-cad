@@ -253,6 +253,7 @@ describe('convertDxfToShapes', () => {
               // @ts-ignore - attribs is optional in our type but verified in logic
               attribs: [{
                   type: 'ATTRIB',
+                  layer: '0',
                   text: 'Room Name',
                   startPoint: { x: 10, y: 10 },
                   textHeight: 5
@@ -276,6 +277,7 @@ describe('convertDxfToShapes', () => {
       // No header.$INSUNITS
       entities: [{
         type: 'LINE',
+        layer: '0',
         vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }] // 10 units wide (likely 10m)
       }]
     };

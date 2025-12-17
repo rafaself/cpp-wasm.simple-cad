@@ -2,6 +2,7 @@ import DxfParser from 'dxf-parser/dist/dxf-parser.js';
 import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { cleanupShapes } from './cleanup';
+import { augmentParsedDxfDataWithRaw } from './dxfRawExtras';
 import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
 import { Shape } from '../../../../types';
 
@@ -31,7 +32,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
     const { text, options, mode } = e.data;
 
     // Cast to unknown first to avoid IDxf incompatibility with our defined DxfData
-    const data = parser.parseSync(text) as unknown as DxfData;
+    const data = augmentParsedDxfDataWithRaw(text, parser.parseSync(text) as unknown as DxfData);
 
     if (mode === 'svg') {
         // SVG Mode

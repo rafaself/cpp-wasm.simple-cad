@@ -93,11 +93,15 @@ export const resolveColor = (
     let hex = '#000000';
 
     // 1. True Color (24-bit RGB)
+    // dxf-parser may populate `colorIndex` + `color` where `color` is derived RGB.
     if (entity.trueColor !== undefined) {
         hex = '#' + entity.trueColor.toString(16).padStart(6, '0');
+    } else if (entity.colorIndex !== undefined && entity.color !== undefined) {
+        // Treat as derived RGB (0xRRGGBB)
+        hex = '#' + entity.color.toString(16).padStart(6, '0');
     } else {
         // 2. ACI Color
-        let colorIndex = entity.color; // 0=ByBlock, 256=ByLayer
+        let colorIndex = (entity.colorIndex !== undefined) ? entity.colorIndex : entity.color; // 0=ByBlock, 256=ByLayer
 
         if (colorIndex === undefined) colorIndex = 256; // Default to ByLayer
 
@@ -112,18 +116,30 @@ export const resolveColor = (
             }
         } else if (colorIndex === 256) {
             // ByLayer
-            if (layer && layer.color !== undefined) {
-                colorIndex = layer.color;
+            if (layer) {
+                // dxf-parser exposes both `colorIndex` (ACI) and `color` (derived RGB).
+                if (layer.colorIndex !== undefined) {
+                    if (layer.color !== undefined) {
+                        hex = '#' + layer.color.toString(16).padStart(6, '0');
+                    } else {
+                        const li = layer.colorIndex;
+                        if (li === 7) hex = isDarkTheme ? '#FFFFFF' : '#000000';
+                        else hex = ACI_COLORS[li] || '#000000';
+                    }
+                } else if (layer.color !== undefined) {
+                    // Fallback: treat as ACI if it's in range, otherwise RGB.
+                    if (layer.color >= 0 && layer.color <= 255) {
+                        const li = layer.color;
+                        if (li === 7) hex = isDarkTheme ? '#FFFFFF' : '#000000';
+                        else hex = ACI_COLORS[li] || '#000000';
+                    } else {
+                        hex = '#' + layer.color.toString(16).padStart(6, '0');
+                    }
+                } else {
+                    hex = isDarkTheme ? '#FFFFFF' : '#000000';
+                }
             } else {
-                colorIndex = 7;
-            }
-            if (colorIndex < 0 || colorIndex > 255) colorIndex = 7;
-
-            if (colorIndex === 7) {
-                 // Color 7 is adaptive
-                 hex = isDarkTheme ? '#FFFFFF' : '#000000';
-            } else {
-                 hex = ACI_COLORS[colorIndex] || '#000000';
+                hex = isDarkTheme ? '#FFFFFF' : '#000000';
             }
         } else {
             // Explicit ACI
