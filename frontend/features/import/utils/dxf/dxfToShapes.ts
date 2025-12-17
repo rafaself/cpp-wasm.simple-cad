@@ -450,8 +450,19 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
            const det = matrix.a * matrix.d - matrix.b * matrix.c;
            const isMirrored = det < 0;
-           const baseHeight = entity.textHeight || data.header?.$TEXTSIZE || 1;
-           const h = Math.max(baseHeight, MIN_TEXT_SIZE);
+
+           let h = entity.textHeight || (entity as any).height;
+           if (!h || h === 0) {
+               if (entity.style) {
+                   const styleDef = dxfStyles[entity.style.toUpperCase()];
+                   if (styleDef) {
+                       const fixedH = styleDef.fixedTextHeight || styleDef.fixedHeight;
+                       if (fixedH && fixedH > 0) h = fixedH;
+                   }
+               }
+           }
+           h = h || data.header?.$TEXTSIZE || 1;
+           h = Math.max(h, MIN_TEXT_SIZE);
 
            // Resolve Font
            let fontFile: string | undefined;
