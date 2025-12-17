@@ -2,12 +2,14 @@ import React, { useCallback, useRef, useState } from 'react';
 import { FileUp, Zap, Layers } from 'lucide-react';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 
-interface ImportOptions {
+export interface ImportOptions {
   explodeBlocks: boolean;
   maintainLayers: boolean;
   grayscale?: boolean;
   readOnly?: boolean;
   importMode?: 'shapes' | 'svg';
+  colorMode?: 'original' | 'grayscale' | 'monochrome';
+  sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
 }
 
 interface ImportPlanModalProps {
@@ -33,7 +35,9 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     maintainLayers: true,
     grayscale: false,
     readOnly: true,
-    importMode: 'shapes'
+    importMode: 'shapes',
+    colorMode: 'original',
+    sourceUnits: 'auto'
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -155,53 +159,84 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                          <span>Alta Perf.</span>
                      </button>
                  </div>
-                 <p className="text-xs text-slate-500 mt-1">
-                     {options.importMode === 'shapes'
-                        ? 'Cria milhares de objetos editáveis. Mais pesado.'
-                        : 'Cria um único objeto de fundo. Leve e rápido.'}
-                 </p>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={options.maintainLayers}
-                  onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
-                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
-                />
-                Manter Layers do arquivo
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={options.grayscale}
-                  onChange={e => setOptions(o => ({...o, grayscale: e.target.checked}))}
-                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
-                />
-                Importar em Tons de Cinza
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={options.readOnly}
-                  onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
-                  className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
-                />
-                Importar como Referência (Read-only)
-              </label>
+              {/* Unit Override */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-slate-400 uppercase font-semibold">Unidade do Arquivo</span>
+                <select
+                    value={options.sourceUnits || 'auto'}
+                    onChange={e => setOptions(o => ({...o, sourceUnits: e.target.value as any}))}
+                    className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+                >
+                    <option value="auto">Auto-Detectar ($INSUNITS)</option>
+                    <option value="meters">Metros</option>
+                    <option value="cm">Centímetros</option>
+                    <option value="mm">Milímetros</option>
+                    <option value="inches">Polegadas</option>
+                    <option value="feet">Pés</option>
+                </select>
+                {options.sourceUnits === 'auto' && (
+                  <p className="text-[10px] text-slate-500">Se indefinido, tentaremos adivinhar.</p>
+                )}
+              </div>
 
-              {options.importMode === 'shapes' && (
-                  <label className="flex items-center gap-2 cursor-pointer select-none opacity-75" title="Sempre ativo para renderização correta atualmente">
+              {/* Color Mode */}
+              <div className="flex flex-col gap-1 mt-2">
+                  <span className="text-xs text-slate-400 uppercase font-semibold">Cores</span>
+                  <div className="flex gap-2">
+                      <button
+                         type="button"
+                         onClick={() => setOptions(o => ({...o, colorMode: 'original', grayscale: false}))}
+                         className={`flex-1 py-1 px-2 text-xs rounded border ${
+                            options.colorMode === 'original' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'
+                         }`}
+                      >
+                          Original
+                      </button>
+                       <button
+                         type="button"
+                         onClick={() => setOptions(o => ({...o, colorMode: 'grayscale', grayscale: true}))}
+                         className={`flex-1 py-1 px-2 text-xs rounded border ${
+                            options.colorMode === 'grayscale' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'
+                         }`}
+                      >
+                          Cinza
+                      </button>
+                       <button
+                         type="button"
+                         onClick={() => setOptions(o => ({...o, colorMode: 'monochrome', grayscale: false}))}
+                         className={`flex-1 py-1 px-2 text-xs rounded border ${
+                            options.colorMode === 'monochrome' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'
+                         }`}
+                         title="Force Black & White (Xerox Style)"
+                      >
+                          P&B
+                      </button>
+                  </div>
+              </div>
+
+              <div className="border-t border-slate-600/50 my-1 pt-2 flex flex-col gap-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
-                      type="checkbox"
-                      checked={options.explodeBlocks}
-                      readOnly
-                      disabled
-                      className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                    type="checkbox"
+                    checked={options.maintainLayers}
+                    onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
+                    className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
                     />
-                    Explodir Blocos (obrigatório)
-                  </label>
-              )}
+                    Manter Layers
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                    type="checkbox"
+                    checked={options.readOnly}
+                    onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
+                    className="rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500/50"
+                    />
+                    Importar como Referência (Read-only)
+                </label>
+              </div>
+
             </div>
           )}
         </div>
