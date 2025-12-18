@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useDataStore } from '../../../stores/useDataStore';
 import { useUIStore } from '../../../stores/useUIStore';
+import { generateId } from '../../../utils/uuid';
 import { NormalizedViewBox, Shape } from '../../../types';
 
 interface ImportPlanResult {
@@ -38,7 +39,7 @@ const buildPlanShape = (
 ): Shape => {
   const vb = viewBox ?? { x: 0, y: 0, width: 1000, height: 1000 };
   return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: generateId(),
     type: 'rect',
     layerId: defaults.layerId,
     discipline: defaults.discipline,

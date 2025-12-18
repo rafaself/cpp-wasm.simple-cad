@@ -89,7 +89,12 @@ const EditorStatusBar: React.FC = () => {
               <button onClick={toggleSnap} className={`flex items-center gap-1 px-2 py-0.5 hover:bg-slate-700 ${snapSettings.enabled ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>
                 <Magnet size={14} /> SNAP
               </button>
-              <button onClick={() => setShowSnapMenu(!showSnapMenu)} className="px-1 py-0.5 border-l border-slate-600 hover:bg-slate-700">
+              <button
+                onClick={() => setShowSnapMenu(!showSnapMenu)}
+                className="px-1 py-0.5 border-l border-slate-600 hover:bg-slate-700"
+                title="Opções de Snap"
+                aria-label="Opções de Snap"
+              >
                 <ChevronUp size={14} />
               </button>
            </div>
@@ -118,12 +123,35 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2">
-         <button onClick={dataStore.undo} className={`p-1 hover:bg-slate-700 rounded ${dataStore.past.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={dataStore.past.length === 0} title="Desfazer (Ctrl+Z)"><Undo size={14} /></button>
-         <button onClick={dataStore.redo} className={`p-1 hover:bg-slate-700 rounded ${dataStore.future.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={dataStore.future.length === 0} title="Refazer (Ctrl+Y)"><Redo size={14} /></button>
+         <button
+           onClick={dataStore.undo}
+           className={`p-1 hover:bg-slate-700 rounded ${dataStore.past.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+           disabled={dataStore.past.length === 0}
+           title="Desfazer (Ctrl+Z)"
+           aria-label="Desfazer"
+         >
+           <Undo size={14} />
+         </button>
+         <button
+           onClick={dataStore.redo}
+           className={`p-1 hover:bg-slate-700 rounded ${dataStore.future.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+           disabled={dataStore.future.length === 0}
+           title="Refazer (Ctrl+Y)"
+           aria-label="Refazer"
+         >
+           <Redo size={14} />
+         </button>
          
          <div className="h-4 w-px bg-slate-600 mx-2" />
          
-         <button onClick={zoomToFit} className="p-1 hover:bg-slate-700 rounded" title={selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}><Scan size={14} /></button>
+         <button
+           onClick={zoomToFit}
+           className="p-1 hover:bg-slate-700 rounded"
+           title={selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+           aria-label={selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+         >
+           <Scan size={14} />
+         </button>
          
          <div className="w-16 h-full flex items-center justify-center py-0.5">
             <EditableNumber
@@ -139,8 +167,22 @@ const EditorStatusBar: React.FC = () => {
             />
          </div>
 
-         <button onClick={handleZoomOut} className="p-1 hover:bg-slate-700 rounded"><ZoomOut size={14} /></button>
-         <button onClick={handleZoomIn} className="p-1 hover:bg-slate-700 rounded"><ZoomIn size={14} /></button>
+         <button
+           onClick={handleZoomOut}
+           className="p-1 hover:bg-slate-700 rounded"
+           title="Diminuir Zoom"
+           aria-label="Diminuir Zoom"
+         >
+           <ZoomOut size={14} />
+         </button>
+         <button
+           onClick={handleZoomIn}
+           className="p-1 hover:bg-slate-700 rounded"
+           title="Aumentar Zoom"
+           aria-label="Aumentar Zoom"
+         >
+           <ZoomIn size={14} />
+         </button>
       </div>
     </div>
   );
