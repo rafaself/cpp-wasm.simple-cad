@@ -194,3 +194,9 @@ See:
 - `docs/TESTING.md` (general guidelines)
 - `docs/TESTING_FRONTEND.md` (frontend/Vitest specifics)
 - `docs/TESTING_BACKEND.md` (backend/Pytest specifics)
+
+## 15) Task Execution Protocol
+
+- **Investigate First**: Whenever a task is requested, assume that investigation steps are required first.
+- **Authorization Required**: Do not apply changes based on the investigation unless explicitly authorized by the developer.
+- **Verification Allowed**: You are authorized to perform tests and create verification files without prior permission, provided that these actions **do not modify the base codebase**.
