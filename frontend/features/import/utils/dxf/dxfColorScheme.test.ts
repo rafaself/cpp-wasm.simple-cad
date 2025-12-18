@@ -5,6 +5,7 @@ import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { DxfData } from './types';
 import { toGrayscale } from './styles';
+import { DxfColorScheme } from './colorScheme';
 
 const parser = new DxfParser();
 const fixturePath = new URL('../../../../verification/color-schemes-test.dxf', import.meta.url);
@@ -12,12 +13,18 @@ const dxfText = fs.readFileSync(fixturePath, 'utf-8');
 const fixtureData = parser.parseSync(dxfText) as DxfData;
 
 const baseLayerColor = '#ff0000';
-const combinations = [
+type SchemeCombination = {
+  scheme: DxfColorScheme;
+  expected: string;
+  customColor?: string;
+};
+
+const combinations: readonly SchemeCombination[] = [
   { scheme: 'original', expected: baseLayerColor },
   { scheme: 'fixedGray153', expected: '#999999' },
   { scheme: 'grayscale', expected: toGrayscale(baseLayerColor) },
   { scheme: 'custom', expected: '#123456', customColor: '#123456' }
-] as const;
+];
 
 describe('DXF Color Scheme Matrix', () => {
   combinations.forEach(({ scheme, expected, customColor }) => {

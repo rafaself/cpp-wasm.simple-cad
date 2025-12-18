@@ -1,4 +1,4 @@
-import { Shape, Layer, Point } from '../../../../types';
+import { Shape, Layer, Point, ShapeColorMode } from '../../../../types';
 import { generateId } from '../../../../utils/uuid';
 import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer, DxfStyle } from './types';
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
@@ -89,7 +89,8 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   }
 
   const colorScheme = resolveColorScheme(options);
-  const buildCustomColorMode = () => (usesCustomColorMode(colorScheme.scheme) ? { fill: 'custom', stroke: 'custom' } : undefined);
+  const buildCustomColorMode = (): ShapeColorMode | undefined =>
+    usesCustomColorMode(colorScheme.scheme) ? { fill: 'custom', stroke: 'custom' } : undefined;
 
   // 1. Determine Scale Factor based on Units & Overrides
   const insUnits = data.header?.$INSUNITS;
@@ -139,6 +140,14 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
                       sampleCount++;
                   } else if (e.type === 'INSERT' && e.position) {
                       updateBounds(e.position);
+                      sampleCount++;
+                  } else if (e.type === 'CIRCLE' && e.center && typeof e.radius === 'number') {
+                      updateBounds({ x: e.center.x - e.radius, y: e.center.y - e.radius });
+                      updateBounds({ x: e.center.x + e.radius, y: e.center.y + e.radius });
+                      sampleCount++;
+                  } else if (e.type === 'ARC' && e.center && typeof e.radius === 'number') {
+                      updateBounds({ x: e.center.x - e.radius, y: e.center.y - e.radius });
+                      updateBounds({ x: e.center.x + e.radius, y: e.center.y + e.radius });
                       sampleCount++;
                   }
               }

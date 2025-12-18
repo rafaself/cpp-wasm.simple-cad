@@ -3,6 +3,17 @@ import { convertDxfToShapes } from './dxfToShapes';
 import { DxfData } from './types';
 
 describe('convertDxfToShapes', () => {
+  const boundsOf = (points: Array<{ x: number; y: number }>) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of points) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+    return { minX, minY, maxX, maxY };
+  };
+
   it('converts basic LINE', () => {
     const data: DxfData = {
       entities: [{
@@ -49,7 +60,7 @@ describe('convertDxfToShapes', () => {
     expect(result.origin).toEqual({ x: 10000, y: 10000 });
   });
 
-  it('handles CIRCLE by converting to polyline', () => {
+  it('handles CIRCLE by preserving as circle', () => {
       const data: DxfData = {
           entities: [{
               type: 'CIRCLE',
@@ -64,11 +75,9 @@ describe('convertDxfToShapes', () => {
           defaultLayerId: 'def'
       });
 
-      // Updated expectation: Circle is now a Polyline
-      expect(result.shapes[0].type).toBe('polyline');
-      // Should have many points
-      expect(result.shapes[0].points?.length).toBeGreaterThan(8);
-      // Removed exact radius/x/y check as they are now embedded in points
+      // Similarity transform (uniform scale) should preserve circle representation.
+      expect(result.shapes[0].type).toBe('circle');
+      expect(result.shapes[0].radius).toBeCloseTo(1000);
   });
 
   it('throws error if too many entities', () => {
@@ -147,76 +156,8 @@ describe('convertDxfToShapes', () => {
     });
 
     // Calculated: 5cm.
-    // Result should be 5 (previously clamped to 12).
     expect(result.shapes[0].type).toBe('text');
-    // @ts-ignore
-    // MIN_TEXT_SIZE is 0.1.
-    // 5 is > 0.1, so it should be 5.
-    // Wait, test failed saying Expected 0.1, Received 5? No.
-    // "AssertionError: expected 0.1 to be 5"
-    // "Expected: 5"
-    // "Received: 0.1"
-    // This means fontSize resulted in 0.1.
-    // Why? 5 should be > 0.1.
-    // Because MIN_TEXT_SIZE is applied to baseHeight.
-    // baseHeight = entity.textHeight || ... || 1.
-    // entity.textHeight is 0.05.
-    // So baseHeight is 0.05.
-    // Math.max(0.05, 0.1) -> 0.1.
-    // Then it's scaled by scaleX/Y later? No, fontSize property is 'h'.
-    // `const h = Math.max(baseHeight, MIN_TEXT_SIZE);`
-    // So it IS clamped to 0.1.
-    // But then the SHAPE is scaled by global matrix?
-    // processEntity is called with globalMatrix (scale 100).
-    // Text points (p) are transformed.
-    // But `fontSize` property is NOT transformed by matrix in `dxfToShapes.ts`!
-    // `fontSize: h` is set directly.
-    // Wait, for TEXT entity in `processEntity`:
-    // `const baseHeight = entity.textHeight || ...`
-    // `const h = Math.max(baseHeight, MIN_TEXT_SIZE);`
-    // `scaleX_new` and `scaleY_new` ARE calculated from matrix.
-    // So visual size = fontSize * scaleY_new.
-    // If matrix scale is 100, scaleY_new is 100.
-    // If h is 0.1, visual size is 10.
-    // But the test expects `fontSize` to be 5?
-    // If textHeight is 0.05 (raw). 0.05 * 100 = 5.
-    // If we clamp baseHeight (0.05) to 0.1 -> visual size becomes 10.
-    // This is WRONG. We should clamp AFTER scaling?
-    // OR we should allow very small textHeight if we know we are scaling up.
-    // `MIN_TEXT_SIZE` constant is 0.1.
-    // If we want to support 0.05 raw height, we must lower MIN_TEXT_SIZE or apply it differently.
-    // The previous code had MIN_TEXT_SIZE = 12 (huge), changed to 0.1.
-    // But 0.05 is still smaller.
-    // Let's change MIN_TEXT_SIZE to 0.01 or fix the logic to check scaled size.
-    // However, fixing the logic is out of scope of "Styling", but I need tests to pass.
-    // I will lower MIN_TEXT_SIZE to 0.001 in dxfToShapes.ts to be safe for meter-based files.
-    // The test expects 5 because it assumes the textHeight (0.05) is scaled by 100 (Meters->CM) automatically?
-    // Wait, the test data says $INSUNITS: 6 (Meters).
-    // The convert logic determines globalScale = 100.
-    // Entities are processed with globalMatrix (Scale 100).
-    // For TEXT:
-    // P (startPoint) is transformed. (0,0 -> 0,0).
-    // Matrix is decomposed to get scaleX/scaleY.
-    // The `fontSize` (h) is calculated from `entity.textHeight` (0.05).
-    // BUT `fontSize` is NOT multiplied by scale in the Shape object.
-    // The Shape object has `fontSize` AND `scaleX`/`scaleY`.
-    // The renderer uses `fontSize` * `scaleX` (effectively).
-    // In `dxfToShapes.ts`:
-    // `scaleX_new` comes from matrix decomposition. If matrix is scale(100), scaleX_new is 100.
-    // `fontSize` (h) is 0.05.
-    // So visual size is 5.
-    // The previous test expectation `expect(result.shapes[0].fontSize).toBe(5)` assumed fontSize IS the final size?
-    // Or maybe the previous implementation baked scale into fontSize?
-    // Let's check `dxfToShapes.ts` logic again.
-    // `const h = Math.max(baseHeight, MIN_TEXT_SIZE);`
-    // `outputShapes.push({ ... fontSize: h, scaleX: scaleX_new, ... })`
-    // So `fontSize` remains 0.05. `scaleX` becomes 100.
-    // So the test assertion `toBe(5)` is WRONG for the current implementation which uses Anamorphic Text (ScaleX/Y).
-    // It should expect 0.05.
-
-    // @ts-ignore
     expect(result.shapes[0].fontSize).toBe(5);
-    // @ts-ignore
     expect(result.shapes[0].scaleX).toBe(1);
     expect(result.shapes[0].fillColor).toBe('transparent');
   });
@@ -381,41 +322,16 @@ describe('convertDxfToShapes', () => {
       expect(result.shapes[0].type).toBe('polyline');
       expect(result.shapes[0].points?.length).toBeGreaterThan(4);
 
-      // Check rough coordinates (Start at 10,0. End at -10,0. Top at 0,10)
-      // Since it's tessellated, we check bounds or specific points approximately.
       const pts = result.shapes[0].points!;
-      // Start (Radius 10, Angle 0 -> x=10, y=0)
-      // Note: Data is normalized, so x/y might be shifted if bounding box is calculated.
-      // But here minimal x is -10, minimal y is 0. So minX=-10, minY=0.
-      // Shape coordinates are shifted by -minX, -minY.
-      // So minX (-10) becomes 0. MaxX (10) becomes 20.
-      // MinY (0) becomes 0. MaxY (10) becomes 10.
+      const b = boundsOf(pts);
 
-      // Let's verify origin shift logic first.
-      // The test 'normalizes coordinates to zero origin' says it subtracts minX/minY.
-
-      // Original Arc:
-      // Center 0,0. Radius 10.
-      // Start (10,0). Top (0,10). End (-10, 0).
-      // Bounds: X[-10, 10], Y[0, 10].
-      // MinX = -10, MinY = 0.
-      // Shift: x -> x - (-10) = x + 10. y -> y - 0 = y.
-
-      // Expected Transformed Points:
-      // Start: (10,0) -> (20, 0).
-      // End: (-10,0) -> (0, 0).
-      // Top: (0,10) -> (10, 10).
-
-      const start = pts[0];
-      const end = pts[pts.length - 1];
-
-      // Start angle 0 is (10,0) -> Transformed (20,0)
-      expect(Math.abs(start.x - 20)).toBeLessThan(0.1);
-      expect(Math.abs(start.y - 0)).toBeLessThan(0.1);
-
-      // End angle 180 is (-10,0) -> Transformed (0,0)
-      expect(Math.abs(end.x - 0)).toBeLessThan(0.1);
-      expect(Math.abs(end.y - 0)).toBeLessThan(0.1);
+      // Bounds-based assertions are stable across tessellation density/ordering.
+      // ARC: center (0,0), radius 10, start 0 end 180 => width 20, height 10.
+      // Default unitless heuristic scales by 100 for small files (width ~2000, height ~1000).
+      expect(b.minX).toBeCloseTo(0, 1);
+      expect(b.minY).toBeCloseTo(0, 1);
+      expect(b.maxX).toBeCloseTo(2000, 1);
+      expect(b.maxY).toBeCloseTo(1000, 1);
   });
 
   it('correctly resolves ByBlock color inheritance in Blocks', () => {
@@ -443,13 +359,17 @@ describe('convertDxfToShapes', () => {
     // Should have 2 line shapes (one from each insert)
     expect(result.shapes).toHaveLength(2);
 
-    // First line (Red - #FF0000)
-    const s1 = result.shapes[0];
-    expect(s1.strokeColor).toBe('#FF0000');
+    const [left, right] = [...result.shapes].sort((a, b) => {
+      const ax = Math.min(...(a.points?.map(p => p.x) ?? [0]));
+      const bx = Math.min(...(b.points?.map(p => p.x) ?? [0]));
+      return ax - bx;
+    });
 
-    // Second line (Blue - #0000FF)
-    const s2 = result.shapes[1];
-    expect(s2.strokeColor).toBe('#0000FF');
+    // Left insert (Red - #FF0000)
+    expect(left.strokeColor?.toLowerCase()).toBe('#ff0000');
+
+    // Right insert (Blue - #0000FF)
+    expect(right.strokeColor?.toLowerCase()).toBe('#0000ff');
   });
 
   it('correctly inherits Lineweight from Layer', () => {

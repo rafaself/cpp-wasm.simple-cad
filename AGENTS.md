@@ -151,3 +151,5 @@ For complex changes:
 ### Frontend (React)
 
 - The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
+- Tests can be run with `npx vitest run`.
+

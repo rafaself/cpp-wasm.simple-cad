@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import DxfParser from 'dxf-parser/dist/dxf-parser.js';
 import { dxfToSvg } from './dxfToSvg';
+import { DxfData } from './types';
 
 describe('dxfToSvg fidelity (Alta Perf)', () => {
   it('renders SPLINE entities as paths', () => {
@@ -57,8 +58,8 @@ ENDSEC
 0
 EOF
 `;
-    const data = new DxfParser().parseSync(dxf) as any;
-    const out = dxfToSvg(data, { floorId: 'f1', defaultLayerId: 'def' } as any);
+    const data = new DxfParser().parseSync(dxf.trim()) as unknown as DxfData;
+    const out = dxfToSvg(data, { floorId: 'f1', defaultLayerId: 'def' });
     expect(out.svgRaw).toContain('<path');
   });
 
@@ -87,9 +88,8 @@ ENDSEC
 0
 EOF
 `;
-    const data = new DxfParser().parseSync(dxf) as any;
-    const out = dxfToSvg(data, { floorId: 'f1', defaultLayerId: 'def' } as any);
+    const data = new DxfParser().parseSync(dxf.trim()) as unknown as DxfData;
+    const out = dxfToSvg(data, { floorId: 'f1', defaultLayerId: 'def' });
     expect(out.svgRaw).toContain('stroke-dasharray="');
   });
 });
-
