@@ -113,7 +113,7 @@
 }
 /* Custom Scrollbar Styles */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 12px;
+  width: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -121,14 +121,15 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.12);
-  border: 4px solid transparent; /* Espaçamento de segurança */
+  background-color: rgba(71, 85, 105, 0.4); /* Slate-600 */
+  border: 3px solid transparent;
   background-clip: padding-box;
   border-radius: 10px;
+  transition: background-color 0.2s;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.25);
+  background-color: rgba(71, 85, 105, 0.8);
 }
 
 .custom-scrollbar::-webkit-scrollbar-corner {
@@ -138,8 +139,7 @@
 /* Scrollbar functionality for non-webkit browsers */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
-  scrollbar-gutter: stable;
+  scrollbar-color: rgba(71, 85, 105, 0.4) transparent;
 }
 
 @keyframes dropdownContentEnter {
@@ -158,4 +158,79 @@
 
 .dropdown-animate {
   animation: dropdownContentEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Premium Switch Toggle */
+.premium-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.premium-switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.premium-switch-track {
+  width: 38px;
+  height: 20px;
+  background-color: #334155; /* slate-700 */
+  border-radius: 9999px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.premium-switch-handle {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background-color: white;
+  border-radius: 9999px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.premium-switch-input:checked + .premium-switch-track {
+  background-color: #2563eb; /* blue-600 */
+}
+
+.premium-switch-input:checked + .premium-switch-track .premium-switch-handle {
+  transform: translateX(18px); /* 38(track) - 16(handle) - 4(2px padding each side) = 18px */
+}
+
+/* Hover Effects */
+.premium-switch:hover .premium-switch-track {
+  background-color: #475569; /* slate-600 */
+}
+
+.premium-switch-input:checked:hover + .premium-switch-track {
+  background-color: #3b82f6; /* blue-500 */
+}
+
+.premium-switch:hover .premium-switch-handle {
+  transform: scale(1.05);
+}
+
+.premium-switch-input:checked:hover + .premium-switch-track .premium-switch-handle {
+  transform: translateX(18px) scale(1.05);
+}
+
+/* Focus state */
+.premium-switch-input:focus-visible + .premium-switch-track {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }

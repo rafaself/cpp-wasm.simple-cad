@@ -230,8 +230,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     >
       <DialogCard
         title={title}
-        className="h-full"
-        contentClassName="flex flex-col overflow-hidden"
+        className="max-h-[85vh] flex flex-col"
+        contentClassName="flex flex-col overflow-y-auto custom-scrollbar p-0"
         actions={
           <div className="flex gap-2 w-full justify-end">
             <DialogButton onClick={onClose} variant="secondary">
@@ -247,8 +247,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
           </div>
         }
       >
-        {/* Fixed Area: Header and File Selector */}
-        <div className="flex flex-col gap-5 pt-1 shrink-0">
+        <div className="flex flex-col px-6 py-4 gap-5">
           {/* File Selection Area */}
           <div className="flex flex-col gap-2">
             <form
@@ -366,14 +365,14 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
           )}
         </div>
 
-        {/* Dynamic/Scrollable Area: DXF Options */}
+        {/* Dynamic Area: DXF Options */}
         {mode === 'dxf' && (
-          <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex-grow min-h-0 ${advancedOpen ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'}`}>
-            <div className="overflow-hidden flex flex-col min-h-0">
+          <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${advancedOpen ? 'grid-rows-[1fr] opacity-100 mt-1' : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'}`}>
+            <div className="overflow-hidden">
               {/* Outer Container with Border and Background */}
-              <div className="flex flex-col rounded-xl bg-slate-800/30 border border-slate-600/60 flex-grow min-h-0 overflow-hidden">
+              <div className="flex flex-col rounded-xl bg-slate-800/30 border border-slate-600/60 overflow-hidden mx-6 mb-6">
                 {/* Inner Scrollable Area - Isolated from the border */}
-                <div className="flex flex-col gap-6 py-4 px-4 overflow-y-auto custom-scrollbar flex-grow min-h-0">
+                <div className="flex flex-col gap-6 py-4 px-4">
                   
                   {/* Primary Option: Import Mode */}
                   <div className="flex flex-col gap-6">
@@ -517,14 +516,16 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                         <div className="group flex flex-col p-4 transition-colors hover:bg-slate-800/20 gap-2">
                           <div className="flex items-center justify-between w-full">
                             <span className="text-[14px] font-bold text-slate-50">Preservar Layers Originais</span>
-                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                            <label className="premium-switch">
                               <input
                                 type="checkbox"
                                 checked={options.maintainLayers}
                                 onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
-                                className="sr-only peer"
+                                className="premium-switch-input"
                               />
-                              <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                              <div className="premium-switch-track">
+                                <div className="premium-switch-handle" />
+                              </div>
                             </label>
                           </div>
                           <span className="text-[13px] text-slate-300 group-hover:text-slate-200 leading-relaxed">
@@ -585,14 +586,16 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                         <div className="group flex flex-col p-4 transition-colors hover:bg-slate-800/20 gap-2">
                           <div className="flex items-center justify-between w-full">
                             <span className="text-[14px] font-bold text-slate-50">Trancar Edição</span>
-                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                            <label className="premium-switch">
                               <input
                                 type="checkbox"
                                 checked={options.readOnly}
                                 onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
-                                className="sr-only peer"
+                                className="premium-switch-input"
                               />
-                              <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                              <div className="premium-switch-track">
+                                <div className="premium-switch-handle" />
+                              </div>
                             </label>
                           </div>
                           <span className="text-[13px] text-slate-300 group-hover:text-slate-200 leading-relaxed">
