@@ -153,3 +153,44 @@ For complex changes:
 - The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
 - Tests can be run with `npx vitest run`.
 
+## 14) Testing Standards (High Priority)
+
+Tests are a first-class deliverable in this project. When changing behavior that is critical or non-trivial, prefer adding or updating tests **before** broad refactors.
+
+### 14.1) General expectations
+
+- Keep tests deterministic: no reliance on wall-clock time, randomness, locale, filesystem ordering, or network.
+- Prefer small, single-purpose tests with clear names and minimal setup.
+- Avoid brittle assertions:
+  - Do not depend on array order unless order is an explicit contract.
+  - Do not assert exact serialized strings when the contract is structural (e.g., prefer parsing values and asserting invariants).
+- Avoid `any`/`@ts-ignore` in tests. If types are missing, add minimal local types/guards in the test instead of bypassing TS.
+- Avoid global mocks unless necessary; when used, reset/restore between tests.
+
+### 14.2) Test types & how to choose
+
+- **Unit/contract tests**: validate one behavior with synthetic inputs; preferred for domain logic.
+- **Fixture-based tests**: validate end-to-end properties using real fixtures (e.g., DXF/PDF/SVG). Keep fixtures minimal and documented.
+- **Smoke tests**: validate that a feature renders/executes without crashing; do not pretend they validate visual fidelity.
+
+### 14.3) Fixtures & documentation
+
+- Put fixtures under the appropriate `verification` folder (e.g., `frontend/verification/`).
+- Every fixture must be documented in `frontend/verification/README.md` with:
+  - which tests use it
+  - what feature/regression it covers
+  - which minimal entities/resources it contains
+- Keep fixtures small, deterministic, and focused on a single feature/regression.
+
+### 14.4) Running tests & environment constraints
+
+- Default: run `npx vitest run` from `frontend/`.
+- If tests cannot be executed due to environment/toolchain constraints (e.g., Windows `esbuild` spawn `EPERM` under OneDrive/Controlled Folder Access), make it explicit in the PR/summary and provide concrete remediation steps (move repo out of OneDrive-controlled folders or allowlist the toolchain executables).
+
+### 14.5) Canonical testing guide
+
+See:
+
+- `docs/TESTING.md` (general guidelines)
+- `docs/TESTING_FRONTEND.md` (frontend/Vitest specifics)
+- `docs/TESTING_BACKEND.md` (backend/Pytest specifics)
