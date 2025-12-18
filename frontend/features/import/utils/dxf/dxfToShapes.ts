@@ -3,7 +3,8 @@ import { generateId } from '../../../../utils/uuid';
 import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer, DxfStyle } from './types';
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
 import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, fromScaling, fromRotation } from './matrix2d';
-import { resolveColor, resolveLineweight, toGrayscale, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
+import { resolveColor, resolveLineweight, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
+import { applyColorScheme, resolveColorScheme, usesCustomColorMode } from './colorScheme';
 import { parseMTextContent, getDxfTextAlignment, getDxfTextShift, ParsedMText } from './textUtils';
 
 export interface DxfImportResult {
@@ -86,6 +87,9 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   if (entityCount > ENTITY_LIMIT) {
       throw new Error(`Arquivo excede o limite de segurança de ${ENTITY_LIMIT} entidades.`);
   }
+
+  const colorScheme = resolveColorScheme(options);
+  const buildCustomColorMode = () => (usesCustomColorMode(colorScheme.scheme) ? { fill: 'custom', stroke: 'custom' } : undefined);
 
   // 1. Determine Scale Factor based on Units & Overrides
   const insUnits = data.header?.$INSUNITS;
@@ -189,8 +193,11 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           undefined,
           undefined,
           false,
-          options.colorMode
+          'original'
       );
+      if (strokeColor !== BYBLOCK_COLOR_PLACEHOLDER) {
+          strokeColor = applyColorScheme(strokeColor, colorScheme.scheme, colorScheme.customColor);
+      }
 
       layersMap.set(l.name, {
         id: layerId,
@@ -286,7 +293,10 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     const dxfLayer = getLayerObject(effectiveLayer);
 
     // Resolve Color
-    let color = resolveColor(entity, dxfLayer, parentColor, false, options.colorMode);
+    let color = resolveColor(entity, dxfLayer, parentColor, false, 'original');
+    if (color !== BYBLOCK_COLOR_PLACEHOLDER) {
+        color = applyColorScheme(color, colorScheme.scheme, colorScheme.customColor);
+    }
 
     // Resolve Lineweight
     const strokeWidth = resolveLineweight(entity, dxfLayer);
@@ -308,6 +318,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     const trans = (p: DxfVector): Point => applyToPoint(matrix, p);
 
     // Common properties for shape creation
+    const colorModeOverride = buildCustomColorMode();
     const shapeProps = {
         strokeColor: color,
         strokeWidth: strokeWidth,
@@ -317,7 +328,8 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         fillEnabled: false,
         layerId,
         floorId: options.floorId,
-        discipline: 'architecture' as const
+        discipline: 'architecture' as const,
+        ...(colorModeOverride ? { colorMode: colorModeOverride } : {})
     };
 
     switch (entity.type) {
@@ -634,20 +646,18 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const sim = isSimilarityTransform(M_final);
 
           // 4. Instantiate and Fix Colors
-          cachedShapes.forEach(s => {
-             const clone = { ...s, id: generateId(s.type) };
+           cachedShapes.forEach(s => {
+              const clone = { ...s, id: generateId(s.type) };
 
-             // Resolve ByBlock colors
-             if (clone.strokeColor === BYBLOCK_COLOR_PLACEHOLDER) {
-                 clone.strokeColor = color;
-             }
+              // Resolve ByBlock colors
+              if (clone.strokeColor === BYBLOCK_COLOR_PLACEHOLDER) {
+                  clone.strokeColor = color;
+              }
 
-             // Apply Color Mode again for the resolved block color if needed
-             if (options.colorMode === 'monochrome' && clone.strokeColor && clone.strokeColor !== 'transparent') {
-                 clone.strokeColor = '#000000';
-             } else if (options.colorMode === 'grayscale' && clone.strokeColor) {
-                 clone.strokeColor = toGrayscale(clone.strokeColor);
-             }
+              const cloneColorMode = buildCustomColorMode();
+              if (cloneColorMode) {
+                  clone.colorMode = cloneColorMode;
+              }
 
              if (clone.points) {
                  clone.points = clone.points.map(p => applyToPoint(M_final, p));

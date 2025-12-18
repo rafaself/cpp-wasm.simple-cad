@@ -3,7 +3,8 @@ import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { cleanupShapes } from './cleanup';
 import { augmentParsedDxfDataWithRaw } from './dxfRawExtras';
-import { resolveColor } from './styles';
+import { resolveColor, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
+import { applyColorScheme, resolveColorScheme } from './colorScheme';
 import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
 import { Shape } from '../../../../types';
 
@@ -38,6 +39,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
     if (mode === 'svg') {
         // SVG Mode
         const { svgRaw, viewBox, unitsScale } = dxfToSvg(data, options);
+        const colorScheme = resolveColorScheme(options);
 
         // Create a single Shape of type 'rect' (as container)
         // Center it based on viewBox
@@ -72,10 +74,21 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
         if (data.tables && data.tables.layer && data.tables.layer.layers) {
             for (const name in data.tables.layer.layers) {
                 const l = data.tables.layer.layers[name];
+                const baseLayerColor = resolveColor(
+                    { type: 'LAYER', layer: name, trueColor: (l as any).color, colorIndex: (l as any).colorIndex } as any,
+                    undefined,
+                    undefined,
+                    false,
+                    'original'
+                );
+                let strokeColor = baseLayerColor;
+                if (strokeColor !== BYBLOCK_COLOR_PLACEHOLDER) {
+                    strokeColor = applyColorScheme(strokeColor, colorScheme.scheme, colorScheme.customColor);
+                }
                 layersList.push({
                     id: sanitizeLayerId(name), // Match sanitized ID used in SVG
                     name: name,
-                    strokeColor: resolveColor({ type: 'LAYER', layer: name, trueColor: (l as any).color, colorIndex: (l as any).colorIndex } as any, undefined, undefined, false, options.colorMode),
+                    strokeColor,
                     strokeEnabled: true,
                     fillColor: 'transparent',
                     fillEnabled: false,

@@ -2,6 +2,7 @@
 import { DxfData, DxfEntity, DxfImportOptions } from './types';
 import { tessellateBulge, tessellateSpline } from './curveTessellation';
 import { resolveColor, resolveLineweight, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
+import { applyColorScheme, resolveColorScheme, ColorSchemePreferences } from './colorScheme';
 
 // DXF Unit Codes to Centimeters (CM) Conversion Factors
 const DXF_UNITS: Record<number, number> = {
@@ -135,19 +136,23 @@ const entityToSvg = (
   entity: DxfEntity,
   data: DxfData,
   options: DxfImportOptions,
+  colorScheme: ColorSchemePreferences,
   blockContext: boolean = false
 ): string | null => {
   // Resolve Style
   // If blockContext is true, we are inside a symbol definition.
   // We don't have access to the parent layer here, so we return 'currentColor' for ByBlock.
-  const colorMode = options.colorMode ?? (options.grayscale ? 'grayscale' : 'original');
   let color = resolveColor(
     entity,
     data.tables?.layer?.layers[entity.layer],
     undefined,
     false,
-    colorMode
+    'original'
   );
+
+  if (color !== BYBLOCK_COLOR_PLACEHOLDER) {
+      color = applyColorScheme(color, colorScheme.scheme, colorScheme.customColor);
+  }
 
   if (color === BYBLOCK_COLOR_PLACEHOLDER) {
       color = 'currentColor';
@@ -389,6 +394,7 @@ export const dxfToSvg = (
   data: DxfData,
   options: DxfImportOptions
 ): { svgRaw: string; viewBox: { x: number; y: number; width: number; height: number }, unitsScale: number } => {
+  const colorScheme = resolveColorScheme(options);
   // Determine Scale Factor (Logic copied from dxfToShapes)
   const insUnits = data.header?.$INSUNITS;
   let unitsScale = 1;
@@ -455,7 +461,7 @@ export const dxfToSvg = (
 
       if (block.entities) {
         block.entities.forEach(ent => {
-          const svgStr = entityToSvg(ent, data, options, true);
+          const svgStr = entityToSvg(ent, data, options, colorScheme, true);
           if (svgStr) parts.push(svgStr);
         });
       }
@@ -520,7 +526,7 @@ export const dxfToSvg = (
         if (p) updateExtents(acc, p.x, p.y);
     }
 
-    const svgStr = entityToSvg(entity, data, options);
+    const svgStr = entityToSvg(entity, data, options, colorScheme);
     if (svgStr) {
       const layerName = entity.layer || '0';
       if (!acc.layers.has(layerName)) {

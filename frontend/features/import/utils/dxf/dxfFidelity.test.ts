@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { convertDxfToShapes } from './dxfToShapes';
 import { DxfData } from './types';
-import { resolveColor } from './styles';
 
 describe('DXF Fidelity & Requirements', () => {
 
@@ -32,19 +31,17 @@ describe('DXF Fidelity & Requirements', () => {
     });
   });
 
-  describe('Color Modes', () => {
-     it('Force B&W turns red line to black', () => {
+  describe('Color Schemes', () => {
+     it('Force B&W via custom scheme defaults to black', () => {
          const data: DxfData = { entities: [{ type: 'LINE', color: 1, vertices: [{x:0,y:0},{x:10,y:0}], layer: '0' }] };
-         // @ts-ignore
-         const result = convertDxfToShapes(data, { floorId: 'f1', defaultLayerId: 'def', colorMode: 'monochrome' });
+         const result = convertDxfToShapes(data, {
+             floorId: 'f1',
+             defaultLayerId: 'def',
+             colorScheme: 'custom'
+         });
          expect(result.shapes[0].strokeColor).toBe('#000000');
      });
-
-     it('Force B&W keeps transparency? (TBD - usually alpha is separate)', () => {
-         // Assuming our resolving logic handles it.
-         // For now just check it's black.
-     });
-  });
+   });
 
   describe('Text Fidelity', () => {
       it('Extracts \\W width factor from MText', () => {

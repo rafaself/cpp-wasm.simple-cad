@@ -95,23 +95,24 @@ describe('dxfToSvg', () => {
       expect(result.svgRaw).toContain('transform="translate(20 20) rotate(45) scale(2 2)"');
   });
 
-  it('respects grayscale color mode', () => {
+  it('respects grayscale color scheme', () => {
     const result = dxfToSvg(mockDxfData, {
       floorId: '1',
       defaultLayerId: '1',
-      colorMode: 'grayscale'
+      colorScheme: 'grayscale'
     });
 
-    expect(result.svgRaw).toContain('stroke="#4c4c4c"');
+    expect(result.svgRaw.toLowerCase()).toContain('stroke="#4c4c4c"');
   });
 
-  it('respects monochrome color mode', () => {
+  it('respects custom color scheme', () => {
     const result = dxfToSvg(mockDxfData, {
       floorId: '1',
       defaultLayerId: '1',
-      colorMode: 'monochrome'
+      colorScheme: 'custom',
+      customColor: '#1a2b3c'
     });
 
-    expect(result.svgRaw).toContain('stroke="#000000"');
+    expect(result.svgRaw.toLowerCase()).toContain('stroke="#1a2b3c"');
   });
 });

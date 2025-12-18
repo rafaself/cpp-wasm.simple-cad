@@ -1,16 +1,25 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { FileUp, Home, Layers, ChevronDown, ChevronUp, Info, Settings2, CheckCircle2 } from 'lucide-react';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
+import ColorPicker from '../../components/ColorPicker';
+import { DxfColorScheme } from './utils/dxf/colorScheme';
 
 export interface ImportOptions {
   explodeBlocks: boolean;
   maintainLayers: boolean;
-  grayscale?: boolean;
   readOnly?: boolean;
   importMode?: 'shapes' | 'svg';
-  colorMode?: 'original' | 'grayscale' | 'monochrome';
+  colorScheme?: DxfColorScheme;
+  customColor?: string;
   sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
 }
+
+const DXF_COLOR_SCHEMES: Array<{ id: DxfColorScheme; label: string; description: string; swatch?: string }> = [
+  { id: 'original', label: 'Cores originais', description: 'Mantém as cores definidas no arquivo DXF.' },
+  { id: 'fixedGray153', label: 'Cinza (153,153,153)', description: 'Aplica um cinza neutro (#999999) para toda a geometria.', swatch: '#999999' },
+  { id: 'grayscale', label: 'Tons de cinza', description: 'Converte cada cor para tons de cinza mantendo a luminância relativa.' },
+  { id: 'custom', label: 'Escolher cor', description: 'Define uma única cor personalizada para todos os elementos.', swatch: '#000000' }
+];
 
 interface ImportPlanModalProps {
   isOpen: boolean;
@@ -39,14 +48,32 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
   const [options, setOptions] = useState<ImportOptions>({
     explodeBlocks: true,
     maintainLayers: true,
-    grayscale: false,
     readOnly: false,
     importMode: 'svg',
-    colorMode: 'original',
+    colorScheme: 'original',
+    customColor: '#000000',
     sourceUnits: 'auto'
   });
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<{ top: number; left: number } | null>(null);
+  const customColorButtonRef = useRef<HTMLButtonElement>(null);
+
+  const openColorPicker = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    const rect = customColorButtonRef.current?.getBoundingClientRect();
+    if (rect) {
+      setColorPickerAnchor({ top: rect.bottom + 8, left: rect.left });
+    }
+    setIsColorPickerOpen(true);
+  };
+
+  const closeColorPicker = () => {
+    setIsColorPickerOpen(false);
+    setColorPickerAnchor(null);
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeColorScheme = DXF_COLOR_SCHEMES.find((scheme) => scheme.id === options.colorScheme) ?? DXF_COLOR_SCHEMES[0];
 
   // Reset state when modal opens
   useEffect(() => {
@@ -334,29 +361,62 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                     </p>
                   </div>
 
-                  {/* Color Modes */}
+                  {/* Color Schemes */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Esquema de Cores</label>
-                    <div className="flex gap-1.5">
-                      {([
-                        { id: 'original', label: 'Original', props: { colorMode: 'original', grayscale: false } },
-                        { id: 'grayscale', label: 'Cinza', props: { colorMode: 'grayscale', grayscale: true } },
-                        { id: 'monochrome', label: 'Preto e Branco', props: { colorMode: 'monochrome', grayscale: false } }
-                      ] as const).map((mode) => (
+                    <div className="grid grid-cols-2 gap-2">
+                      {DXF_COLOR_SCHEMES.map((scheme) => (
                         <button
-                          key={mode.id}
+                          key={scheme.id}
                           type="button"
-                          onClick={() => setOptions(o => ({ ...o, ...mode.props }))}
-                          className={`flex-1 py-1.5 px-2 text-[11px] font-medium rounded-md border transition-all duration-200 ${
-                            options.colorMode === mode.id 
-                              ? 'bg-slate-700 border-slate-500 text-blue-400 shadow-sm' 
-                              : 'bg-slate-800/80 border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                          onClick={() => {
+                            setOptions(o => ({ ...o, colorScheme: scheme.id }));
+                            if (scheme.id !== 'custom') closeColorPicker();
+                          }}
+                          className={`flex flex-col gap-1 p-3 rounded-lg border text-left transition-all duration-200 ${
+                            options.colorScheme === scheme.id
+                              ? 'bg-slate-700 border-slate-500 text-blue-200 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
+                              : 'bg-slate-800/70 border-slate-700 hover:border-slate-600 hover:text-slate-100'
                           }`}
                         >
-                          {mode.label}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-wide">{scheme.label}</span>
+                            {(scheme.swatch || scheme.id === 'custom') && (
+                              <span
+                                className="w-3 h-3 rounded border border-slate-500"
+                                style={{
+                                  background: scheme.id === 'custom'
+                                    ? options.customColor ?? '#000000'
+                                    : scheme.swatch
+                                }}
+                              />
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>
+                    <p className="text-[10px] text-slate-500">
+                      {activeColorScheme.description}
+                    </p>
+                    {options.colorScheme === 'custom' && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 py-1.5 px-3 rounded-full border border-slate-600 bg-slate-900/80 text-[11px] font-semibold text-slate-100"
+                          onClick={openColorPicker}
+                          ref={customColorButtonRef}
+                        >
+                          <span
+                            className="w-4 h-4 rounded border border-slate-500 shadow-inner"
+                            style={{ backgroundColor: options.customColor || '#000000' }}
+                          />
+                          Escolher cor
+                        </button>
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wide">
+                          Aplicada em todos os elementos
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Structure Options */}
@@ -393,7 +453,18 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             </div>
           </div>
         )}
-      </DialogCard>
+        </DialogCard>
+        {isColorPickerOpen && (
+          <>
+            <div className="fixed inset-0 z-[110]" onClick={closeColorPicker} />
+            <ColorPicker
+              color={options.customColor || '#000000'}
+              onChange={(color) => setOptions(o => ({ ...o, customColor: color }))}
+              onClose={closeColorPicker}
+              initialPosition={colorPickerAnchor ?? undefined}
+            />
+          </>
+        )}
     </Dialog>
   );
 };

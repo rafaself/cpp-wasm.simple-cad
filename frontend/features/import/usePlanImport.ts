@@ -7,6 +7,7 @@ import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
+import { DxfColorScheme } from './utils/dxf/colorScheme';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -20,10 +21,10 @@ interface PlanImportResult {
 interface ImportOptions {
   explodeBlocks?: boolean;
   maintainLayers?: boolean;
-  grayscale?: boolean;
   readOnly?: boolean;
   importMode?: 'shapes' | 'svg';
-  colorMode?: 'original' | 'grayscale' | 'monochrome';
+  colorScheme?: DxfColorScheme;
+  customColor?: string;
   sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
 }
 
@@ -241,19 +242,19 @@ export const usePlanImport = (): PlanImportHook => {
                   reject(err);
                   worker.terminate();
               };
-              worker.postMessage({
-                  text,
-                  mode: options?.importMode || 'shapes',
-                  options: {
-                      floorId: uiStore.activeFloorId || 'default',
-                      defaultLayerId: dataStore.activeLayerId,
-                      explodeBlocks: true,
-                      // Mapping legacy boolean to new colorMode if not present
-                      colorMode: options?.colorMode || (options?.grayscale ? 'grayscale' : 'original'),
-                      readOnly: options?.readOnly,
-                      sourceUnits: options?.sourceUnits || 'auto'
-                  }
-              });
+                worker.postMessage({
+                    text,
+                    mode: options?.importMode || 'shapes',
+                    options: {
+                        floorId: uiStore.activeFloorId || 'default',
+                        defaultLayerId: dataStore.activeLayerId,
+                        explodeBlocks: true,
+                        colorScheme: options?.colorScheme,
+                        customColor: options?.customColor,
+                        readOnly: options?.readOnly,
+                        sourceUnits: options?.sourceUnits || 'auto'
+                    }
+                });
           });
 
           let shapesToAdd = workerData.shapes;

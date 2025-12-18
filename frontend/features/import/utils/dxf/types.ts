@@ -1,4 +1,5 @@
 import { Shape, Layer } from '../../../../types';
+import { DxfColorScheme } from './colorScheme';
 
 export interface DxfVector {
   x: number;
@@ -126,8 +127,8 @@ export interface DxfImportOptions {
   floorId: string;
   defaultLayerId: string;
   explodeBlocks?: boolean;
-  grayscale?: boolean; // Deprecated, use colorMode
-  colorMode?: 'original' | 'grayscale' | 'monochrome';
+  colorScheme?: DxfColorScheme;
+  customColor?: string;
   sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
   readOnly?: boolean;
   includePaperSpace?: boolean; // Defaults to false

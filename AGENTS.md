@@ -16,6 +16,7 @@ These instructions apply to any AI agent working in this repository.
 - No breaking API changes without a migration plan.
 - If uncertain, ask for clarification in comments or leave a TODO.
 - Do not invent requirements, edge cases, or constraints not stated in the task.
+- Avoid carrying over legacy configuration flags; work only with the currently agreed-upon inputs and options even if older flags still exist.
 
 ## 2) Engineering Principles
 
