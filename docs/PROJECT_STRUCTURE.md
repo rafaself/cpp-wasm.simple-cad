@@ -38,6 +38,12 @@ Notes:
 Recommended usage:
 - `cd frontend` then `npm run build:wasm`
 
+## Dev environment (Windows note)
+
+On Windows, running the repo inside OneDrive-managed folders can cause `spawn EPERM` for Vite/esbuild.
+
+See: `docs/DEV_ENVIRONMENT.md`
+
 ## frontend/ (React/Vite)
 
 ```text

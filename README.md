@@ -115,6 +115,16 @@ npm run build:wasm
 
 (Uses the `wasm-builder` service; it exits when the build finishes.)
 
+## Troubleshooting (Windows / OneDrive)
+
+If you see a blank page and Vite fails with `Error: spawn EPERM` (often while loading `frontend/vite.config.ts`), your repo is likely inside OneDrive/Controlled Folder Access.
+
+Recommended fixes:
+- Move the repository out of OneDrive (e.g. `C:\\dev\\EndeavourCanvas\\`)
+- Or use the Docker dev environment: `docker compose up`
+
+More details: `docs/DEV_ENVIRONMENT.md`
+
 ## Notes
 
 frontend/vite.config.ts already sets COOP/COEP headers to prepare for SharedArrayBuffer in the future.

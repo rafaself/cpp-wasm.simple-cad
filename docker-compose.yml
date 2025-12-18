@@ -12,7 +12,7 @@ services:
       - CHOKIDAR_USEPOLLING=1
     volumes:
       - ./frontend:/workspace/frontend
-      - /workspace/frontend/node_modules
+      - frontend_node_modules:/workspace/frontend/node_modules
     depends_on:
       - backend
 
@@ -21,13 +21,14 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     working_dir: /workspace/backend
-    command: bash -lc "pip install -r requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+    command: bash -lc "python -m venv /workspace/backend/.venv || true && . /workspace/backend/.venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend:/workspace/backend
+      - backend_venv:/workspace/backend/.venv
 
   wasm-builder:
     image: emscripten/emsdk:latest
@@ -43,3 +44,7 @@ services:
         -DCMAKE_BUILD_TYPE=Release
         -DOUTPUT_DIR=/workspace/output
         && cmake --build build -j
+
+volumes:
+  frontend_node_modules:
+  backend_venv:
