@@ -5,6 +5,7 @@ import { useEditorLogic } from '../editor/hooks/useEditorLogic';
 import { NormalizedViewBox, Shape } from '../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
+import { pdfShapesToSvg } from './utils/pdfShapesToSvg';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
@@ -86,7 +87,7 @@ export const usePlanImport = (): PlanImportHook => {
             originalWidth = viewport.width;
             originalHeight = viewport.height;
 
-            if (importAs === 'shapes') {
+            if (importAs === 'shapes' || importAs === 'svg') {
               const vectorShapes = await convertPdfPageToShapes(
                   page, 
                   uiStore.activeFloorId || 'default', 
@@ -98,6 +99,32 @@ export const usePlanImport = (): PlanImportHook => {
               );
 
               if (vectorShapes.length > 0) {
+                   if (importAs === 'svg') {
+                     const svg = pdfShapesToSvg(vectorShapes);
+                     const newShapeId = generateId('plan');
+                     const newShape: Shape = {
+                       id: newShapeId,
+                       layerId: targetLayerId,
+                       type: 'rect',
+                       x: 0,
+                       y: 0,
+                       points: [],
+                       width: svg.width,
+                       height: svg.height,
+                       strokeColor: 'transparent',
+                       strokeWidth: 0,
+                       strokeEnabled: false,
+                       fillColor: 'transparent',
+                       colorMode: { fill: 'custom', stroke: 'custom' },
+                       svgRaw: svg.svgRaw,
+                       svgViewBox: svg.viewBox,
+                       discipline: 'architecture',
+                       floorId: uiStore.activeFloorId,
+                     };
+                     resolve({ shapes: [newShape], originalWidth: svg.width, originalHeight: svg.height });
+                     return;
+                   }
+
                    resolve({ shapes: vectorShapes, originalWidth, originalHeight });
                    return;
               }

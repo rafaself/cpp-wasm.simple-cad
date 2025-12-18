@@ -396,7 +396,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                         }`}
                       >
                         <span className={`text-[12px] font-bold ${options.importMode === 'svg' ? 'text-blue-50' : 'text-slate-200'}`}>Planta de Referência</span>
-                        <span className="text-[10px] opacity-70">Objeto único (raster)</span>
+                        <span className="text-[10px] opacity-70">Objeto único (SVG)</span>
                       </button>
                       <button
                         type="button"
