@@ -60,7 +60,10 @@ export const usePlanImport = (): PlanImportHook => {
 
   const closeImportModal = useCallback(() => setIsImportModalOpen(false), []);
 
-  const processFile = useCallback(async (file: File): Promise<PlanImportResult | null> => {
+  const processFile = useCallback(async (
+    file: File,
+    params?: { targetLayerId?: string; options?: ImportOptions }
+  ): Promise<PlanImportResult | null> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -70,6 +73,8 @@ export const usePlanImport = (): PlanImportHook => {
           let viewBox: NormalizedViewBox = { x: 0, y: 0, width: 1000, height: 1000 };
           let originalWidth = 1000;
           let originalHeight = 1000;
+          const targetLayerId = params?.targetLayerId ?? dataStore.activeLayerId;
+          const importAs = params?.options?.importMode ?? 'shapes';
 
           if (file.type === 'application/pdf') {
             const pdfData = new Uint8Array(fileContent as ArrayBuffer);
@@ -81,15 +86,21 @@ export const usePlanImport = (): PlanImportHook => {
             originalWidth = viewport.width;
             originalHeight = viewport.height;
 
-            const vectorShapes = await convertPdfPageToShapes(
-                page, 
-                uiStore.activeFloorId || 'default', 
-                dataStore.activeLayerId
-            );
+            if (importAs === 'shapes') {
+              const vectorShapes = await convertPdfPageToShapes(
+                  page, 
+                  uiStore.activeFloorId || 'default', 
+                  targetLayerId,
+                  {
+                    colorScheme: params?.options?.colorScheme,
+                    customColor: params?.options?.customColor,
+                  }
+              );
 
-            if (vectorShapes.length > 0) {
-                 resolve({ shapes: vectorShapes, originalWidth, originalHeight });
-                 return;
+              if (vectorShapes.length > 0) {
+                   resolve({ shapes: vectorShapes, originalWidth, originalHeight });
+                   return;
+              }
             }
 
             console.warn("No vector shapes found, falling back to raster import.");
@@ -139,7 +150,7 @@ export const usePlanImport = (): PlanImportHook => {
           const newShapeId = generateId('plan');
           const newShape: Shape = {
             id: newShapeId,
-            layerId: dataStore.activeLayerId,
+            layerId: targetLayerId,
             type: 'rect',
             x: 0,
             y: 0,
@@ -291,7 +302,27 @@ export const usePlanImport = (): PlanImportHook => {
           }
       }
 
-      const result = await processFile(file);
+      let targetLayerId = dataStore.activeLayerId;
+      if (importMode === 'pdf' && file.type === 'application/pdf') {
+        const baseName = `PDF - ${file.name.replace(/\\.[^/.]+$/i, '')}`;
+        const existingNames = dataStore.layers.map((l) => l.name);
+        const { mapping } = mapImportedLayerNames({
+          importedNames: [baseName],
+          existingNames,
+          policy: 'createUnique',
+        });
+        const layerName = mapping.get(baseName) ?? baseName;
+        targetLayerId = dataStore.ensureLayer(layerName, {
+          strokeColor: '#000000',
+          strokeEnabled: true,
+          fillColor: 'transparent',
+          fillEnabled: false,
+          visible: true,
+          locked: false,
+        });
+      }
+
+      const result = await processFile(file, { targetLayerId, options });
       if (result && result.shapes.length > 0) {
         console.log(`Importing ${result.shapes.length} shapes.`);
         dataStore.addShapes(result.shapes);

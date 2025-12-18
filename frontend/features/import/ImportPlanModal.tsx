@@ -44,12 +44,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
   title = "Importar Planta",
   accept = ".pdf,.svg"
 }) => {
-  const [dragActive, setDragActive] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  
-  const [options, setOptions] = useState<ImportOptions>({
+  const DEFAULT_OPTIONS_DXF: ImportOptions = {
     explodeBlocks: true,
     maintainLayers: true,
     readOnly: false,
@@ -57,8 +52,26 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     colorScheme: 'fixedGray153',
     customColor: '#000000',
     layerNameConflictPolicy: 'merge',
-    sourceUnits: 'auto'
-  });
+    sourceUnits: 'auto',
+  };
+
+  const DEFAULT_OPTIONS_PDF: ImportOptions = {
+    explodeBlocks: false,
+    maintainLayers: false,
+    readOnly: false,
+    importMode: 'shapes',
+    colorScheme: 'custom',
+    customColor: '#000000',
+    layerNameConflictPolicy: 'merge',
+    sourceUnits: 'auto',
+  };
+
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  
+  const [options, setOptions] = useState<ImportOptions>(() => (mode === 'dxf' ? DEFAULT_OPTIONS_DXF : DEFAULT_OPTIONS_PDF));
   const existingLayers = useDataStore((s) => s.layers);
   const [dxfLayerNames, setDxfLayerNames] = useState<string[] | null>(null);
   const [dxfLayerAnalysisError, setDxfLayerAnalysisError] = useState<string | null>(null);
@@ -93,8 +106,9 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
       setDxfLayerNames(null);
       setDxfLayerAnalysisError(null);
       setIsAnalyzingDxfLayers(false);
+      setOptions(mode === 'dxf' ? DEFAULT_OPTIONS_DXF : DEFAULT_OPTIONS_PDF);
     }
-  }, [isOpen]);
+  }, [isOpen, mode]);
 
   // DXF-only: analyze layers after file selection so we can warn about name collisions.
   useEffect(() => {
@@ -348,8 +362,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             </div>
           )}
 
-          {/* DXF Advanced Toggle (Fixed) */}
-          {mode === 'dxf' && (
+          {/* Advanced Toggle */}
+          {(mode === 'dxf' || mode === 'pdf') && (
             <div className="mt-1 pb-1">
               <button
                 type="button"
@@ -364,6 +378,83 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Dynamic Area: Import Options */}
+        {mode === 'pdf' && (
+          <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${advancedOpen ? 'grid-rows-[1fr] opacity-100 mt-1' : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'}`}>
+            <div className="overflow-hidden">
+              <div className="flex flex-col rounded-xl bg-slate-800/30 border border-slate-600/60 overflow-hidden mx-6 mb-6">
+                <div className="flex flex-col gap-6 py-4 px-4">
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Tipo de Importação</label>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-900/40 border border-slate-700/60 rounded-xl p-2">
+                      <button
+                        type="button"
+                        onClick={() => setOptions(o => ({ ...o, importMode: 'svg' }))}
+                        className={`flex flex-col gap-1 p-3 rounded-lg border text-left transition-all ${
+                          options.importMode === 'svg' ? 'bg-blue-500/10 border-blue-500/40' : 'bg-slate-800/30 border-slate-700/50 text-slate-500 hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <span className={`text-[12px] font-bold ${options.importMode === 'svg' ? 'text-blue-50' : 'text-slate-200'}`}>Planta de Referência</span>
+                        <span className="text-[10px] opacity-70">Objeto único (raster)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOptions(o => ({ ...o, importMode: 'shapes' }))}
+                        className={`flex flex-col gap-1 p-3 rounded-lg border text-left transition-all ${
+                          options.importMode === 'shapes' ? 'bg-blue-500/10 border-blue-500/40' : 'bg-slate-800/30 border-slate-700/50 text-slate-500 hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <span className={`text-[12px] font-bold ${options.importMode === 'shapes' ? 'text-blue-50' : 'text-slate-200'}`}>Geometria Editável</span>
+                        <span className="text-[10px] opacity-70">Vetor em shapes</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Estilo e Cores</label>
+                    <div className="flex flex-col bg-slate-900/40 border border-slate-700/60 rounded-xl overflow-hidden">
+                      {DXF_COLOR_SCHEMES.map((scheme) => (
+                        <button
+                          key={scheme.id}
+                          type="button"
+                          onClick={() => setOptions(o => ({ ...o, colorScheme: scheme.id }))}
+                          className={`flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                            options.colorScheme === scheme.id ? 'bg-slate-700/60' : 'hover:bg-slate-800/40'
+                          }`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-slate-500/70 shrink-0"
+                            style={{ background: scheme.swatch }}
+                          />
+                          <span className="flex flex-col">
+                            <span className="text-[13px] font-bold text-slate-50">{scheme.label}</span>
+                            <span className="text-[11px] text-slate-300/80 leading-snug">{scheme.description}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {activeColorScheme.id === 'custom' && (
+                      <button
+                        type="button"
+                        ref={customColorButtonRef}
+                        onClick={openColorPicker}
+                        className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-700/60 bg-slate-900/40 hover:bg-slate-800/40 transition-colors"
+                      >
+                        <span className="text-[13px] font-bold text-slate-50">Cor personalizada</span>
+                        <span className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-300/70">{options.customColor}</span>
+                          <span className="w-5 h-5 rounded border border-slate-600" style={{ background: options.customColor }} />
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Area: DXF Options */}
         {mode === 'dxf' && (
