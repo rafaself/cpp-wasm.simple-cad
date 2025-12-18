@@ -1,6 +1,36 @@
 version: "3.8"
 
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    working_dir: /workspace/frontend
+    command: bash -lc "npm install && npm run dev -- --host 0.0.0.0 --port 3000"
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=1
+    volumes:
+      - ./frontend:/workspace/frontend
+      - /workspace/frontend/node_modules
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    working_dir: /workspace/backend
+    command: bash -lc "pip install -r requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/workspace/backend
+
   wasm-builder:
     image: emscripten/emsdk:latest
     working_dir: /workspace/cpp

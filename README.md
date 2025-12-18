@@ -90,6 +90,32 @@ pytest
 - Project structure: docs/PROJECT_STRUCTURE.md
 - WASM tech spec: resources/reports/report_5_cad-wasm-tech-spec.md
 
+## Docker (dev environment)
+
+### Full stack (frontend + backend)
+
+Prerequisite: Docker (Docker Desktop on Windows).
+
+```bash
+docker compose up
+```
+
+- Frontend: http://localhost:3000
+- Backend:  http://localhost:8000
+
+> The frontend/backend containers install deps on first start (volume-mounted).
+> The wasm-builder job is separate and only runs when invoked (see below).
+
+### WASM build inside Docker
+
+```bash
+cd frontend
+npm run build:wasm
+```
+
+(Uses the `wasm-builder` service; it exits when the build finishes.)
+
 ## Notes
 
 frontend/vite.config.ts already sets COOP/COEP headers to prepare for SharedArrayBuffer in the future.
+
