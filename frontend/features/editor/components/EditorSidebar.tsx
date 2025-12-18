@@ -226,8 +226,8 @@ const EditorSidebar: React.FC = () => {
                 isLoading={isLoading}
                 onClose={closeImportModal}
                 onImport={handleFileImport}
-                title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : importMode === 'dxf' ? "Importar DWG / DXF" : "Importar Imagem"}
-                accept={importMode === 'pdf' ? ".pdf,.svg" : importMode === 'dxf' ? ".dxf,.dwg" : ".png,.jpg,.jpeg"}
+                title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : importMode === 'dxf' ? "Importar Planta (DXF)" : "Importar Imagem"}
+                accept={importMode === 'pdf' ? ".pdf,.svg" : importMode === 'dxf' ? ".dxf" : ".png,.jpg,.jpeg"}
             />
         )}
     </div>

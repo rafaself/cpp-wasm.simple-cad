@@ -202,12 +202,12 @@ export const usePlanImport = (): PlanImportHook => {
     setIsLoading(true);
     try {
       if (importMode === 'dxf') {
-          // DXF/DWG Handling
+          // DXF Handling
           const isDwg = file.name.toLowerCase().endsWith('.dwg');
           const isDxf = file.name.toLowerCase().endsWith('.dxf');
 
           if (isDwg) {
-             throw new Error("Arquivos DWG binários requerem conversão prévia. Por favor, converta para DXF (AutoCAD 2000+ ASCII) e tente novamente.");
+             throw new Error("Formato não suportado diretamente. Por favor, utilize um arquivo DXF (recomendado: versão AutoCAD 2000 ASCII).");
           }
           if (!isDxf) {
              throw new Error("Por favor, selecione um arquivo .DXF válido.");
