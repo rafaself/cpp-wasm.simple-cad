@@ -145,7 +145,7 @@ const EditorSidebar: React.FC = () => {
 
   const renderEdificacao = () => (
     <div className="flex-grow overflow-y-auto p-3 flex flex-col gap-2 bg-white text-slate-700">
-        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1">
+        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1 cursor-default">
             Plantas e Disciplinas
         </h3>
 
@@ -153,9 +153,8 @@ const EditorSidebar: React.FC = () => {
             <div key={floor.id} className="flex flex-col gap-1">
                 {/* Floor Header */}
                 <div
-                    className={`flex items-center gap-2 p-2 rounded-md transition-colors cursor-pointer
+                    className={`flex items-center gap-2 p-2 rounded-md transition-colors cursor-default
                                 ${activeFloorId === floor.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}`}
-                    onClick={() => openTab({ floorId: floor.id, discipline: 'electrical' })}
                 >
                     <Building2 size={16} />
                     <span className="font-semibold text-xs">{floor.name}</span>
@@ -173,15 +172,6 @@ const EditorSidebar: React.FC = () => {
                                         }`}
                             onClick={(e) => {
                                 openTab({ floorId: floor.id, discipline });
-                                if (discipline === 'architecture' || discipline === 'electrical') {
-                                    setContextMenu({
-                                        visible: true,
-                                        x: e.clientX - 200,
-                                        y: e.clientY,
-                                        discipline,
-                                        floorId: floor.id
-                                    });
-                                }
                             }}
                             onContextMenu={(e) => {
                                 e.preventDefault();
@@ -214,8 +204,11 @@ const EditorSidebar: React.FC = () => {
             />
         )}
 
-        <button className="w-full mt-2 border-2 border-dashed border-slate-300 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all group">
-           <Plus size={14} className="group-hover:scale-110 transition-transform" />
+        <button 
+            disabled 
+            className="w-full mt-2 border-2 border-dashed border-slate-200 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-300 cursor-not-allowed opacity-60"
+        >
+           <Plus size={14} />
            <span className="text-xs font-medium">Adicionar Andar</span>
         </button>
 
@@ -313,9 +306,9 @@ const EditorSidebar: React.FC = () => {
   );
 
   return (
-    <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden">
+    <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden select-none">
       {/* Header */}
-      <div className="h-10 border-b border-slate-200 flex items-center px-3 gap-2 bg-slate-50 shrink-0">
+      <div className="h-10 border-b border-slate-200 flex items-center px-3 gap-2 bg-slate-50 shrink-0 cursor-default">
         {headerConfig.icon}
         <span className="font-bold text-xs tracking-wide text-slate-700 uppercase">{headerConfig.title}</span>
       </div>
