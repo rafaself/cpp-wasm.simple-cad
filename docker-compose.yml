@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   frontend:
     build:
@@ -37,10 +35,11 @@ services:
     volumes:
       - ./cpp:/workspace/cpp
       - ./frontend/public/wasm:/workspace/output
-    command: >
-      bash -lc "
-      emcmake cmake -S . -B build
+    command:
+      - bash
+      - -lc
+      - >-
+        emcmake cmake -S . -B build
         -DCMAKE_BUILD_TYPE=Release
         -DOUTPUT_DIR=/workspace/output
-      && cmake --build build --config Release
-      "
+        && cmake --build build -j
