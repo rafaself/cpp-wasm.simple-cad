@@ -284,7 +284,10 @@ export const renderShape = (
             if ((shape.svgRaw || shape.svgOriginalRaw) && shape.svgViewBox) {
                 const symbolColor = getEffectiveStrokeColor(shape, layer) || '#000000';
                 const hiddenLayers = shape.svgHiddenLayers ?? [];
-                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${symbolColor}-${hiddenLayers.join(',')}`;
+                // Skip tinting for Architecture shapes (Imported Plans) to preserve original colors
+                const shouldTint = shape.discipline !== 'architecture';
+                
+                const cacheKey = `${shape.svgSymbolId ?? shape.id}-${shouldTint ? symbolColor : 'original'}-${hiddenLayers.join(',')}`;
 
                 // Optimized caching strategy:
                 // 1. Check if image is already cached (fastest)
@@ -294,7 +297,7 @@ export const renderShape = (
                 if (!img) {
                     const sourceSvg = shape.svgOriginalRaw ?? shape.svgRaw ?? '';
                     const layeredSvg = applyLayerVisibility(sourceSvg, hiddenLayers);
-                    const tintedSvg = applyStrokeColorToSvg(layeredSvg, symbolColor);
+                    const tintedSvg = shouldTint ? applyStrokeColorToSvg(layeredSvg, symbolColor) : layeredSvg;
                     img = getSvgImage(tintedSvg, cacheKey);
                 }
 
@@ -331,7 +334,14 @@ export const renderShape = (
             if (shape.points && shape.points.length > 0) {
                 ctx.moveTo(shape.points[0].x, shape.points[0].y);
                 for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
-                ctx.stroke();
+
+                const first = shape.points[0];
+                const last = shape.points[shape.points.length - 1];
+                const isClosed = Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.y - last.y) < 1e-6;
+
+                if (isClosed) ctx.closePath();
+                if (fillEnabled && effectiveFill !== 'transparent' && isClosed) ctx.fill();
+                if (strokeEnabled && effectiveStroke !== 'transparent') ctx.stroke();
             }
         } else if (shape.type === 'polygon') {
             // Polygon rendering with width/height scale support
@@ -447,10 +457,8 @@ export const renderShape = (
             const sY = shape.scaleY ?? -1;
 
             ctx.save();
-            // Translate to top of text box (sy + textHeight) before Y-flip
-            // This ensures text renders inside the bounding box, not below it
-            // Fix: Multiply textHeight by absolute scaleY to account for non-uniform scaling (e.g. DXF imports)
-            ctx.translate(sx, sy + textHeight * Math.abs(sY));
+            // Translate so the DXF baseline origin is preserved, adjusting for the signed scaleY.
+            ctx.translate(sx, sy - textHeight * sY);
 
             ctx.scale(sX, sY);
 

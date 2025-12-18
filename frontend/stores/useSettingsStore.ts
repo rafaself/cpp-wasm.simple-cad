@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { SnapOptions } from '../types';
+import { UI } from '../design/tokens';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
 
@@ -22,6 +23,7 @@ export interface DisplaySettings {
     show: boolean;
     color: string;
   };
+  backgroundColor: string;
 }
 
 export interface ToolDefaults {
@@ -63,6 +65,7 @@ interface SettingsState {
   setAxisYDashed: (dashed: boolean) => void;
   setShowCenterIcon: (show: boolean) => void;
   setCenterIconColor: (color: string) => void;
+  setCanvasBackgroundColor: (color: string) => void;
 
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
@@ -82,7 +85,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set) => ({
   grid: {
     size: 100,
-    color: '#B2B2B2',
+    color: '#313943',
     showDots: true,
     showLines: false,
   },
@@ -107,9 +110,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       show: true,
       color: 'rgba(100, 116, 139, 0.5)',
     },
+    backgroundColor: UI.BACKGROUND_DEFAULT,
   },
   toolDefaults: {
-    strokeColor: '#000000',
+    strokeColor: '#FFFFFF',
     strokeWidth: 1,
     strokeEnabled: true,
     fillColor: 'transparent',
@@ -141,6 +145,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setAxisYDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yDashed: dashed } } })),
   setShowCenterIcon: (show) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, show } } })),
   setCenterIconColor: (color) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, color } } })),
+  setCanvasBackgroundColor: (color) => set((state) => ({ display: { ...state.display, backgroundColor: color } })),
 
   setStrokeColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),
   setStrokeWidth: (width) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),

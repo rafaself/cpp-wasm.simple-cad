@@ -1,4 +1,5 @@
 import { Shape, Layer } from '../../../../types';
+import { DxfColorScheme } from './colorScheme';
 
 export interface DxfVector {
   x: number;
@@ -14,6 +15,8 @@ export interface DxfEntity {
   inPaperSpace?: boolean; // True if entity is in Paper Space (Group 67 = 1)
 
   color?: number; // DXF color index (ACI)
+  // dxf-parser exposes ACI separately from derived RGB
+  colorIndex?: number;
   trueColor?: number; // 24-bit RGB value (optional)
   lineweight?: number; // Lineweight enum value (optional)
   lineType?: string; // Linetype name
@@ -22,6 +25,8 @@ export interface DxfEntity {
   // LINE, POLYLINE, LWPOLYLINE
   vertices?: DxfVector[];
   closed?: boolean; // LWPOLYLINE closed flag
+  // dxf-parser uses `shape` for closed polylines
+  shape?: boolean;
 
   // CIRCLE, ARC
   center?: DxfVector;
@@ -52,7 +57,7 @@ export interface DxfEntity {
   controlPoints?: DxfVector[];
   numberOfControlPoints?: number;
   degree?: number;
-  closed?: boolean;
+
   knots?: number[];
   weights?: number[];
 
@@ -71,6 +76,7 @@ export interface DxfBlock {
 export interface DxfLayer {
   name: string;
   color?: number;
+  colorIndex?: number;
   frozen?: boolean;
   visible?: boolean;
   lineType?: string; // Default linetype for layer
@@ -87,6 +93,7 @@ export interface DxfLinetype {
 export interface DxfStyle {
     name: string;
     fixedHeight?: number;
+    fixedTextHeight?: number;
     widthFactor?: number;
     obliqueAngle?: number;
     fontFile?: string;
@@ -120,8 +127,8 @@ export interface DxfImportOptions {
   floorId: string;
   defaultLayerId: string;
   explodeBlocks?: boolean;
-  grayscale?: boolean; // Deprecated, use colorMode
-  colorMode?: 'original' | 'grayscale' | 'monochrome';
+  colorScheme?: DxfColorScheme;
+  customColor?: string;
   sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
   readOnly?: boolean;
   includePaperSpace?: boolean; // Defaults to false
@@ -132,14 +139,22 @@ export interface DxfWorkerInput {
   options: DxfImportOptions;
 }
 
+export interface DxfWorkerConvertData {
+  kind: 'convert';
+  shapes: Shape[];
+  layers: Layer[];
+  width: number;
+  height: number;
+  origin: { x: number; y: number };
+}
+
+export interface DxfWorkerAnalyzeLayersData {
+  kind: 'analysis';
+  layerNames: string[];
+}
+
 export interface DxfWorkerOutput {
   success: boolean;
-  data?: {
-      shapes: Shape[];
-      layers: Layer[];
-      width: number;
-      height: number;
-      origin: { x: number; y: number };
-  };
+  data?: DxfWorkerConvertData | DxfWorkerAnalyzeLayersData;
   error?: string;
 }

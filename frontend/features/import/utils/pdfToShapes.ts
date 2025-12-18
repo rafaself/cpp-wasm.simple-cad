@@ -1,6 +1,7 @@
 import { Shape, Point, NormalizedViewBox } from '../../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { generateId } from '../../../utils/uuid';
+import { applyColorScheme, resolveColorScheme, type DxfColorScheme } from './dxf/colorScheme';
 
 // Basic Matrix [a, b, c, d, e, f]
 // x' = ax + cy + e
@@ -33,30 +34,50 @@ const applyMatrix = (p: Point, m: Matrix): Point => {
   };
 };
 
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+const toHex2From01 = (v01: number): string =>
+  Math.round(clamp01(v01) * 255)
+    .toString(16)
+    .padStart(2, '0');
+
 const formatColor = (args: number[]): string => {
   if (args.length === 1) {
-    // Grayscale
-    const v = Math.round(args[0] * 255);
-    return `rgb(${v}, ${v}, ${v})`;
-  } else if (args.length === 3) {
-    // RGB
-    const r = Math.round(args[0] * 255);
-    const g = Math.round(args[1] * 255);
-    const b = Math.round(args[2] * 255);
-    return `rgb(${r}, ${g}, ${b})`;
-  } else if (args.length === 4) {
-    // CMYK
-    const c = args[0];
-    const m = args[1];
-    const y = args[2];
-    const k = args[3];
+    const h = toHex2From01(args[0]);
+    return `#${h}${h}${h}`;
+  }
+  if (args.length === 3) {
+    return `#${toHex2From01(args[0])}${toHex2From01(args[1])}${toHex2From01(args[2])}`;
+  }
+  if (args.length === 4) {
+    const c = clamp01(args[0]);
+    const m = clamp01(args[1]);
+    const y = clamp01(args[2]);
+    const k = clamp01(args[3]);
     const r = Math.round(255 * (1 - c) * (1 - k));
     const g = Math.round(255 * (1 - m) * (1 - k));
     const b = Math.round(255 * (1 - y) * (1 - k));
-    return `rgb(${r}, ${g}, ${b})`;
+    const rh = Math.min(255, Math.max(0, r)).toString(16).padStart(2, '0');
+    const gh = Math.min(255, Math.max(0, g)).toString(16).padStart(2, '0');
+    const bh = Math.min(255, Math.max(0, b)).toString(16).padStart(2, '0');
+    return `#${rh}${gh}${bh}`;
   }
   return '#000000';
 };
+
+const isNearWhiteHex = (hex: string): boolean => {
+  if (!hex.startsWith('#') || hex.length < 7) return false;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  // 0.95 * 255 ~= 242
+  return r >= 242 && g >= 242 && b >= 242;
+};
+
+interface PdfImportColorOptions {
+  colorScheme?: DxfColorScheme;
+  customColor?: string;
+}
 
 interface GraphicsState {
   ctm: Matrix;
@@ -69,8 +90,11 @@ interface GraphicsState {
 export const convertPdfPageToShapes = async (
   page: any, // PDFPageProxy type is tricky to import directly sometimes
   floorId: string,
-  layerId: string
+  layerId: string,
+  options?: PdfImportColorOptions
 ): Promise<Shape[]> => {
+  const colorPrefs = resolveColorScheme(options);
+  const applyScheme = (base: string): string => applyColorScheme(base, colorPrefs.scheme, colorPrefs.customColor);
   const opList = await page.getOperatorList();
   const viewport = page.getViewport({ scale: 1.0 }); // 1pt = 1px, usually
   
@@ -83,8 +107,8 @@ export const convertPdfPageToShapes = async (
   const stateStack: GraphicsState[] = [];
   let currentState: GraphicsState = {
     ctm: IDENTITY_MATRIX,
-    strokeColor: '#000000',
-    fillColor: '#000000',
+    strokeColor: applyScheme('#000000'),
+    fillColor: applyScheme('#000000'),
     lineWidth: 1,
   };
 
@@ -203,24 +227,25 @@ export const convertPdfPageToShapes = async (
     mergedItems.forEach(item => {
         let finalRotation = -item.rotation;
 
-        shapes.push({
-          id: generateId('pdf-text'),
-          type: 'text',
-          x: item.x,
-          y: item.y,
-          textContent: item.str,
-          fontSize: item.fontSize || 12,
-          fontFamily: 'sans-serif',
-          strokeColor: '#000000',
-          strokeWidth: 1,
-          strokeEnabled: true,
-          fillColor: 'transparent',
-          fillEnabled: false,
-          rotation: finalRotation, 
-          points: [], 
-          layerId,
-          floorId,
-          discipline: 'architecture',
+         shapes.push({
+           id: generateId('pdf-text'),
+           type: 'text',
+           x: item.x,
+           y: item.y,
+           textContent: item.str,
+           fontSize: item.fontSize || 12,
+           fontFamily: 'sans-serif',
+           strokeColor: applyScheme('#000000'),
+           strokeWidth: 1,
+           strokeEnabled: true,
+           fillColor: 'transparent',
+           fillEnabled: false,
+           colorMode: { fill: 'custom', stroke: 'custom' },
+           rotation: finalRotation, 
+           points: [], 
+           layerId,
+            floorId,
+            discipline: 'architecture',
         });
     });
 
@@ -283,38 +308,17 @@ export const convertPdfPageToShapes = async (
       case OPS.setStrokeRGBColor: // RG
       case OPS.setStrokeGray: // G
       case OPS.setStrokeCMYKColor: // K
-        // Force Black as per user request
-        currentState.strokeColor = '#000000';
+        currentState.strokeColor = applyScheme(formatColor(args));
         break;
 
       case OPS.setFillColor: // sc, scn
       case OPS.setFillRGBColor: // rg
       case OPS.setFillGray: // g
       case OPS.setFillCMYKColor: // k
-        // Handle Background Artifacts:
-        // If the color is White (1, 1, 1) or very bright, treat as transparent for imported CAD drawings
-        // to prevent occluding lines.
-        // Assuming args are normalized 0-1
-        let isWhite = false;
-        if (args.length >= 3) {
-            // RGB/CMYK logic
-            const r = args[0];
-            const g = args[1];
-            const b = args[2];
-            if (r > 0.95 && g > 0.95 && b > 0.95) isWhite = true;
-        } else if (args.length === 1) {
-            // Gray
-            if (args[0] > 0.95) isWhite = true;
-        }
-
-        if (isWhite) {
-            currentState.fillColor = 'transparent';
-        } else {
-            // Force Black for content as per user request, IF it's not white background
-            // Actually, we might want to preserve colors if it's not black? 
-            // For now, adhere to "Force Black" rule but skip white.
-            currentState.fillColor = '#000000';
-        }
+        // Handle background artifacts: treat near-white fills as transparent so they don't
+        // occlude linework in imported plans.
+        const fillHex = formatColor(args);
+        currentState.fillColor = isNearWhiteHex(fillHex) ? 'transparent' : applyScheme(fillHex);
         break;
 
       // Path Construction
@@ -424,19 +428,20 @@ export const convertPdfPageToShapes = async (
 
         // Simple Line Detection: Only if NOT filled (lines usually aren't filled)
         if (finalSegments.length === 2 && finalSegments[0].type === 'M' && finalSegments[1].type === 'L' && !isFill) {
-            shapes.push({
-                id: generateId('pdf-line'),
-                type: 'line',
-                points: [finalSegments[0].points[0], finalSegments[1].points[0]],
-                strokeColor: currentState.strokeColor,
-                strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
-                strokeEnabled: true,
-                fillColor: 'transparent',
-                fillEnabled: false,
-                layerId,
-                floorId,
-                discipline: 'architecture',
-            });
+             shapes.push({
+                 id: generateId('pdf-line'),
+                 type: 'line',
+                 points: [finalSegments[0].points[0], finalSegments[1].points[0]],
+                 strokeColor: currentState.strokeColor,
+                 strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
+                 strokeEnabled: true,
+                 fillColor: 'transparent',
+                 fillEnabled: false,
+                 colorMode: { fill: 'custom', stroke: 'custom' },
+                 layerId,
+                 floorId,
+                 discipline: 'architecture',
+             });
         } 
         // Polyline / Rect Detection
         else if (finalSegments.every(s => s.type === 'M' || s.type === 'L' || s.type === 'Z')) {
@@ -485,19 +490,20 @@ export const convertPdfPageToShapes = async (
                      createSvgShapeFromPoints(points);
                 } else if (isStroke) {
                     // Just stroke -> Polyline
-                    shapes.push({
-                        id: generateId('pdf-poly'),
-                        type: 'polyline',
-                        points: points,
-                        strokeColor: currentState.strokeColor,
-                        strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
-                        strokeEnabled: true,
-                        fillColor: 'transparent',
-                        fillEnabled: false,
-                        layerId,
-                        floorId,
-                        discipline: 'architecture',
-                    });
+                     shapes.push({
+                         id: generateId('pdf-poly'),
+                         type: 'polyline',
+                         points: points,
+                         strokeColor: currentState.strokeColor,
+                         strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1), // Force min 1px
+                         strokeEnabled: true,
+                         fillColor: 'transparent',
+                         fillEnabled: false,
+                         colorMode: { fill: 'custom', stroke: 'custom' },
+                         layerId,
+                         floorId,
+                         discipline: 'architecture',
+                     });
                 } else {
                      // Fill and Stroke -> SVG
                      createSvgShapeFromPoints(points);
@@ -547,22 +553,25 @@ export const convertPdfPageToShapes = async (
                 
                 const svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><path d="${d}" fill="${currentState.fillColor}" ${strokeAttr} /></svg>`;
 
-                shapes.push({
-                    id: generateId('pdf-fill'),
-                    type: 'rect',
-                    x: minX,
-                    y: minY,
-                    width: w,
-                    height: h,
-                    svgRaw: svg,
-                    svgViewBox: { x: 0, y: 0, width: w, height: h },
-                    strokeColor: 'transparent', // Handled by SVG
-                    fillColor: 'transparent',
-                    layerId,
-                    floorId,
-                    discipline: 'architecture',
-                    points: [],
-                });
+                 shapes.push({
+                     id: generateId('pdf-fill'),
+                     type: 'rect',
+                     x: minX,
+                     y: minY,
+                     width: w,
+                     height: h,
+                     svgRaw: svg,
+                     svgViewBox: { x: 0, y: 0, width: w, height: h },
+                     strokeColor: currentState.strokeColor,
+                     fillColor: currentState.fillColor,
+                     strokeEnabled: isStroke,
+                     fillEnabled: isFill && currentState.fillColor !== 'transparent',
+                     colorMode: { fill: 'custom', stroke: 'custom' },
+                     layerId,
+                     floorId,
+                     discipline: 'architecture',
+                     points: [],
+                 });
              } else {
                 // Fallback for curves without fill -> Polyline approximation
                 // Split into subpaths to avoid phantom lines
@@ -616,20 +625,21 @@ export const convertPdfPageToShapes = async (
                 subpaths.forEach(flattenedPoints => {
                     if (flattenedPoints.length < 2) return;
                     
-                    shapes.push({
-                        id: generateId('pdf-complex'),
-                        type: 'polyline',
-                        points: flattenedPoints,
-                        strokeColor: currentState.strokeColor,
-                        strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1),
-                        strokeEnabled: true,
-                        fillColor: 'transparent',
-                        fillEnabled: false,
-                        layerId,
-                        floorId,
-                        discipline: 'architecture',
-                    });
-                });
+                     shapes.push({
+                         id: generateId('pdf-complex'),
+                         type: 'polyline',
+                         points: flattenedPoints,
+                         strokeColor: currentState.strokeColor,
+                         strokeWidth: Math.max(currentState.lineWidth * viewportMatrix[0], 1),
+                         strokeEnabled: true,
+                         fillColor: 'transparent',
+                         fillEnabled: false,
+                         colorMode: { fill: 'custom', stroke: 'custom' },
+                         layerId,
+                         floorId,
+                         discipline: 'architecture',
+                     });
+                 });
              }
         }
 
@@ -665,23 +675,26 @@ export const convertPdfPageToShapes = async (
             
             const svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><path d="${d}" fill="${currentState.fillColor}" ${strokeAttr} /></svg>`;
 
-            shapes.push({
-                id: generateId('pdf-fill'),
-                type: 'rect',
-                x: minX,
-                y: minY,
-                width: w,
-                height: h,
-                svgRaw: svg,
-                svgViewBox: { x: 0, y: 0, width: w, height: h },
-                strokeColor: 'transparent',
-                fillColor: 'transparent',
-                layerId,
-                floorId,
-                discipline: 'architecture',
-                points: [],
-            });
-        }
+             shapes.push({
+                 id: generateId('pdf-fill'),
+                 type: 'rect',
+                 x: minX,
+                 y: minY,
+                 width: w,
+                 height: h,
+                 svgRaw: svg,
+                 svgViewBox: { x: 0, y: 0, width: w, height: h },
+                 strokeColor: currentState.strokeColor,
+                 fillColor: currentState.fillColor,
+                 strokeEnabled: isStroke,
+                 fillEnabled: isFill && currentState.fillColor !== 'transparent',
+                 colorMode: { fill: 'custom', stroke: 'custom' },
+                 layerId,
+                 floorId,
+                 discipline: 'architecture',
+                 points: [],
+             });
+         }
 
         // Reset path
         currentPath = [];

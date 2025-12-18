@@ -13,3 +13,7 @@
 ## 2025-12-16 - Focus Visibility
 **Learning:** When converting interactive `div`s to `button`s, default browser focus styles may be suppressed or look inconsistent. Explicit `focus-visible` styles are essential for keyboard navigation.
 **Action:** Always add `focus-visible:ring` (or similar) when making custom elements interactive.
+
+## 2025-12-17 - Icon-Only Button Accessibility
+**Learning:** Key navigation and status bar components contained icon-only buttons that relied solely on `title` attributes or visual icons, making them inaccessible to screen readers.
+**Action:** Enforce `aria-label` on all icon-only buttons to ensure they are accessible, using the same text as the `title` attribute where appropriate.

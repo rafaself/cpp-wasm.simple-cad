@@ -8,7 +8,6 @@ interface DisciplineContextMenuProps {
   position: { x: number; y: number };
   onClose: () => void;
   onImportPdf?: () => void;
-  onImportImage?: () => void;
   onImportDxf?: () => void;
 }
 
@@ -18,7 +17,6 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   position,
   onClose,
   onImportPdf,
-  onImportImage,
   onImportDxf
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -70,18 +68,7 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
                     <span>Importar Planta (PDF/SVG)</span>
                 </button>
             )}
-            {onImportImage && (
-                <button
-                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-                    onClick={() => {
-                        onImportImage();
-                        onClose();
-                    }}
-                >
-                    <Import size={14} />
-                    <span>Importar Imagem (PNG/JPG)</span>
-                </button>
-            )}
+
             {onImportDxf && (
                 <button
                     className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
@@ -91,7 +78,7 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
                     }}
                 >
                     <Import size={14} />
-                    <span>Importar DWG / DXF</span>
+                    <span>Importar Planta (DXF)</span>
                 </button>
             )}
         </>

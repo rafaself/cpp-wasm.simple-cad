@@ -4,6 +4,7 @@ import { getCombinedBounds, getShapeBounds, getDistance, getShapeCenter, rotateP
 import { Shape, Patch, Point } from '../../../types';
 import { computeFrameData } from '../../../utils/frame';
 import { generateId } from '../../../utils/uuid';
+import { UI } from '../../../design/tokens';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
@@ -41,15 +42,22 @@ export const useEditorLogic = () => {
     };
 
     const zoomToFit = () => {
-        const frameData = computeFrameData(dataStore.frame, dataStore.worldScale);
+        const currentData = useDataStore.getState();
+        const currentUI = useUIStore.getState();
+        
+        const frameData = computeFrameData(currentData.frame, currentData.worldScale);
+        const activeFloorId = currentUI.activeFloorId || 'terreo';
+        
         const allShapes = [
-            ...Object.values(dataStore.shapes) as Shape[],
+            ...(Object.values(currentData.shapes) as Shape[]).filter(s => (s.floorId || 'terreo') === activeFloorId),
             ...(frameData ? frameData.shapes : []),
         ];
-        const { canvasSize } = uiStore;
+        const { canvasSize } = currentUI;
+
+        if (canvasSize.width <= 0 || canvasSize.height <= 0) return;
 
         if (allShapes.length === 0) {
-            uiStore.setViewTransform({
+            currentUI.setViewTransform({
                 x: canvasSize.width / 2,
                 y: canvasSize.height / 2,
                 scale: 1
@@ -63,13 +71,13 @@ export const useEditorLogic = () => {
         const padding = 50;
         const availableW = canvasSize.width - padding * 2;
         const availableH = canvasSize.height - padding * 2;
-        const scale = Math.min(availableW / bounds.width, availableH / bounds.height, 5);
+        const scale = Math.min(availableW / bounds.width, availableH / bounds.height, UI.MAX_ZOOM);
         const centerX = bounds.x + bounds.width / 2;
         const centerY = bounds.y + bounds.height / 2;
         const newX = (canvasSize.width / 2) - (centerX * scale);
-        const newY = (canvasSize.height / 2) - (centerY * scale);
+        const newY = (canvasSize.height / 2) + (centerY * scale);
 
-        uiStore.setViewTransform({ x: newX, y: newY, scale });
+        currentUI.setViewTransform({ x: newX, y: newY, scale });
     };
 
     const joinSelected = () => {

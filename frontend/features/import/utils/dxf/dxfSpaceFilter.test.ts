@@ -25,16 +25,17 @@ describe('DXF Space Filtering (Model/Paper)', () => {
 
     const optionsBase = {
         floorId: 'f1',
-        defaultLayerId: 'def'
+        defaultLayerId: 'def',
+        // Make scale deterministic; these tests focus on space filtering and extents.
+        sourceUnits: 'meters' as const
     };
 
     it('should import only Model Space entities by default', () => {
         const result = convertDxfToShapes(data, { ...optionsBase });
         expect(result.shapes).toHaveLength(1);
         // Normalized coordinate check:
-        // Model Space Line (0,0)->(10,0).
-        // Since it's the only one, minX=0, minY=0.
-        // P1: 0,0. P2: 1000, 0 (Scale 100).
+        // Model Space Line (0,0)->(10,0) with sourceUnits=meters (scale=100).
+        // Since it's the only imported entity, minX=0, minY=0.
         expect(result.shapes[0].points?.[0]).toEqual({ x: 0, y: 0 });
     });
 
@@ -53,7 +54,6 @@ describe('DXF Space Filtering (Model/Paper)', () => {
         // With only Model Space:
         // Width: 10 * 100 = 1000.
         // Height: 0 (Line).
-        // Origin: (0,0) scaled.
         expect(result.width).toBe(1000);
 
         // If Paper Space was included (incorrectly), extents would be huge

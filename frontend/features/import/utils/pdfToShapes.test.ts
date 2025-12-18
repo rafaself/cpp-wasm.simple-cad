@@ -70,9 +70,29 @@ describe('convertPdfPageToShapes', () => {
     // After normalization and Y-flip: (10,10) -> (0, 90), (100,100) -> (90, 0)
     // The Y is flipped: contentHeight - (y - minY) where contentHeight = 90, minY = 10
     expect(line.points).toEqual([{ x: 0, y: 90 }, { x: 90, y: 0 }]);
-    // We are forcing black now
-    expect(line.strokeColor).toBe('#000000'); 
+    expect(line.strokeColor).toBe('#ff0000');
+    expect(line.colorMode).toEqual({ fill: 'custom', stroke: 'custom' });
     expect(line.strokeWidth).toBe(2);
+  });
+
+  it('applies custom color scheme when provided', async () => {
+    const mockPage = createMockPage(
+      [OPS.setStrokeRGBColor, OPS.constructPath, OPS.stroke],
+      [
+        [0, 1, 0], // green in PDF args (0-1)
+        [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
+        []
+      ]
+    );
+
+    const shapes = await convertPdfPageToShapes(mockPage as any, 'floor1', 'layer1', {
+      colorScheme: 'custom',
+      customColor: '#123456'
+    });
+
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].strokeColor).toBe('#123456');
+    expect(shapes[0].colorMode).toEqual({ fill: 'custom', stroke: 'custom' });
   });
 
   it('should convert a rectangle to a Polyline/Polygon/Rect representation', async () => {

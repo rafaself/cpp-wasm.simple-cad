@@ -3,6 +3,8 @@ import ColorPicker from "../../../components/ColorPicker";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
 import { Section } from "../../../components/ui/Section";
 import { Toggle } from "../../../components/ui/Toggle";
+import { UI } from "../../../design/tokens";
+import { RotateCcw } from "lucide-react";
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
@@ -25,13 +27,29 @@ const CanvasSettings: React.FC = () => {
     label,
     color,
     pickerId,
+    onReset,
   }: {
     label: string;
     color: string;
     pickerId: string;
+    onReset?: () => void;
   }) => (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-slate-300">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-slate-300">{label}</span>
+        {onReset && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onReset();
+            }}
+            className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+            title="Restaurar cor padrão"
+          >
+            <RotateCcw size={12} />
+          </button>
+        )}
+      </div>
       <div
         className="w-8 h-6 rounded border border-slate-600 cursor-pointer hover:border-slate-400"
         style={{ backgroundColor: color }}
@@ -166,6 +184,15 @@ const CanvasSettings: React.FC = () => {
           />
       </Section>
 
+      <Section title="Interface">
+          <ColorField
+            label="Cor de Fundo"
+            color={settings.display.backgroundColor}
+            pickerId="canvasBackground"
+            onReset={() => settings.setCanvasBackgroundColor(UI.BACKGROUND_DEFAULT)}
+          />
+      </Section>
+
       {/* Color Picker Portal */}
       {activeColorPicker && (
         <>
@@ -178,7 +205,9 @@ const CanvasSettings: React.FC = () => {
                 ? settings.display.centerAxes.xColor
                 : activeColorPicker === "axisY"
                 ? settings.display.centerAxes.yColor
-                : settings.display.centerIcon.color
+                : activeColorPicker === "centerIcon"
+                ? settings.display.centerIcon.color
+                : settings.display.backgroundColor
             }
             onChange={(c) => {
               if (activeColorPicker === "grid") settings.setGridColor(c);
@@ -186,6 +215,8 @@ const CanvasSettings: React.FC = () => {
               else if (activeColorPicker === "axisY") settings.setAxisYColor(c);
               else if (activeColorPicker === "centerIcon")
                 settings.setCenterIconColor(c);
+              else if (activeColorPicker === "canvasBackground")
+                settings.setCanvasBackgroundColor(c);
             }}
             onClose={closeColorPicker}
             initialPosition={colorPickerPos}

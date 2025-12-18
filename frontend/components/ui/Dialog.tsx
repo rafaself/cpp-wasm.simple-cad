@@ -164,9 +164,10 @@ const Dialog: React.FC<DialogProps> = ({
           relative bg-slate-800 border border-slate-700 rounded-lg shadow-2xl
           transform transition-all duration-200 ease-out
           animate-in fade-in zoom-in-95
+          overflow-hidden flex flex-col
           ${className}
         `}
-        style={{ maxWidth, width: '100%', margin: '16px' }}
+        style={{ maxWidth, width: '100%', margin: '16px', maxHeight: 'calc(100vh - 32px)' }}
       >
         {showCloseButton && (
           <button
@@ -196,6 +197,7 @@ export interface DialogCardProps {
   children: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }
 
 export const DialogCard: React.FC<DialogCardProps> = ({
@@ -203,17 +205,20 @@ export const DialogCard: React.FC<DialogCardProps> = ({
   children,
   actions,
   className = '',
+  contentClassName = '',
 }) => {
   return (
-    <div className={`flex flex-col ${className}`}>
+    <div className={`flex flex-col min-h-0 max-h-full ${className}`}>
       {title && (
-        <div className="px-6 py-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <div className="px-6 py-4 border-b border-slate-700 shrink-0">
+          <h2 className="text-lg font-semibold text-white leading-none">{title}</h2>
         </div>
       )}
-      <div className="px-6 py-4 text-slate-300">{children}</div>
+      <div className={`px-6 py-4 text-slate-300 flex-grow min-h-0 ${contentClassName}`}>
+        {children}
+      </div>
       {actions && (
-        <div className="px-6 py-3 border-t border-slate-700 flex justify-end gap-2">
+        <div className="px-6 py-3 border-t border-slate-700 flex justify-end gap-2 shrink-0 bg-slate-800/50">
           {actions}
         </div>
       )}
@@ -226,6 +231,7 @@ export interface DialogButtonProps {
   onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'text';
   className?: string;
+  disabled?: boolean;
 }
 
 export const DialogButton: React.FC<DialogButtonProps> = ({
@@ -233,9 +239,10 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
   onClick,
   variant = 'text',
   className = '',
+  disabled = false,
 }) => {
   const variantClasses = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
     secondary: 'bg-slate-700 hover:bg-slate-600 text-white',
     text: 'text-slate-300 hover:text-white hover:bg-slate-700/50',
   };
@@ -243,9 +250,11 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`
-        px-4 py-2 rounded-md text-sm font-medium transition-colors
+        px-4 py-2 rounded-md text-sm font-medium transition-all
         ${variantClasses[variant]}
+        ${disabled ? 'opacity-40 cursor-not-allowed grayscale-[0.5]' : 'active:scale-[0.98]'}
         ${className}
       `}
     >

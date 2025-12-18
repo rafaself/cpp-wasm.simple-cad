@@ -4,9 +4,18 @@ import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter,
 import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
 import { detachAnchoredNodesForShape, getConduitNodeUsage, normalizeConnectionTopology, resolveConnectionNodePosition } from '../utils/connections';
+import { generateId } from '../utils/uuid';
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
+
+const generateLayerId = (existingIds: Set<string>): string => {
+  let id = generateId();
+  while (existingIds.has(id)) {
+    id = generateId();
+  }
+  return id;
+};
 
 interface DataState {
   // Document State
@@ -436,7 +445,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           const shared = (usage[nodeId] ?? 0) > 1;
           const anchored = node.kind === 'anchored';
             if (shared || anchored) {
-              const newNodeId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+              const newNodeId = generateId();
               nextNodes = { ...nextNodes, [newNodeId]: { id: newNodeId, kind: 'free', position: p, pinned: true } };
               newShape = endpoint === 'from'
                 ? { ...newShape, fromNodeId: newNodeId }
@@ -519,7 +528,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   createFreeConnectionNode: (position) => {
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const id = generateId();
     set((state) => ({ connectionNodes: { ...state.connectionNodes, [id]: { id, kind: 'free', position } } }));
     return id;
   },
@@ -529,7 +538,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     const existing = Object.values(connectionNodes).find((n) => n.kind === 'anchored' && n.anchorShapeId === shapeId);
     if (existing) return existing.id;
 
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const id = generateId();
     const node: ConnectionNode = { id, kind: 'anchored', anchorShapeId: shapeId };
     const pos = resolveConnectionNodePosition(node, shapes);
     set((state) => ({ connectionNodes: { ...state.connectionNodes, [id]: { ...node, position: pos ?? undefined } } }));
@@ -538,7 +547,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   addConduitBetweenNodes: ({ fromNodeId, toNodeId, layerId, strokeColor }) => {
     const data = get();
-    const id = `${Date.now()}`;
+    const id = generateId();
     const fromNode = data.connectionNodes[fromNodeId];
     const toNode = data.connectionNodes[toNodeId];
     const start = fromNode ? (resolveConnectionNodePosition(fromNode, data.shapes) ?? fromNode.position) : null;
@@ -658,7 +667,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   setActiveLayerId: (id) => set({ activeLayerId: id }),
 
   addLayer: () => set((state) => {
-    const newId = Date.now().toString();
+    const newId = generateLayerId(new Set(state.layers.map(l => l.id)));
     const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', strokeEnabled: true, fillColor: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'), fillEnabled: true, visible: true, locked: false };
     return { layers: [...state.layers, newLayer], activeLayerId: newId };
   }),
@@ -904,7 +913,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
       if (existing) return existing.id;
 
-      const newId = Date.now().toString();
+      const existingIds = new Set(layers.map(l => l.id));
+      const newId = generateLayerId(existingIds);
       const newLayer: Layer = {
         id: newId,
         name,
