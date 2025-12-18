@@ -19,9 +19,9 @@ export interface ImportOptions {
 }
 
 const DXF_COLOR_SCHEMES: Array<{ id: DxfColorScheme; label: string; description: string; swatch?: string }> = [
-  { id: 'original', label: 'Cores originais', description: 'Mantém as cores definidas no arquivo DXF.' },
-  { id: 'fixedGray153', label: 'Cinza (153,153,153)', description: 'Aplica um cinza neutro (#999999) para toda a geometria.', swatch: '#999999' },
-  { id: 'grayscale', label: 'Tons de cinza', description: 'Converte cada cor para tons de cinza mantendo a luminância relativa.' },
+  { id: 'original', label: 'Cores originais', description: 'Mantém as cores definidas no arquivo DXF.', swatch: 'conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)' },
+  { id: 'fixedGray153', label: 'Cinza', description: 'Aplica um cinza neutro (#999999) para toda a geometria.', swatch: '#999999' },
+  { id: 'grayscale', label: 'Tons de cinza', description: 'Converte cada cor para tons de cinza mantendo a luminância relativa.', swatch: 'linear-gradient(135deg, #ffffff 0%, #64748b 100%)' },
   { id: 'custom', label: 'Escolher cor', description: 'Define uma única cor personalizada para todos os elementos.', swatch: '#000000' }
 ];
 
@@ -376,214 +376,233 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                 <div className="flex flex-col gap-6 py-4 px-4 overflow-y-auto custom-scrollbar flex-grow min-h-0">
                   
                   {/* Primary Option: Import Mode */}
-                  <div className="flex flex-col gap-3">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Qualidade da Importação</label>
-                    <div className="grid grid-cols-1 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setOptions(o => ({...o, importMode: 'svg'}))}
-                        className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
-                            options.importMode === 'svg'
-                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                            : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className={`mt-0.5 p-1.5 rounded ${options.importMode === 'svg' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                          <Home size={16} />
-                        </div>
-                        <div>
-                          <div className={`text-sm font-semibold ${options.importMode === 'svg' ? 'text-blue-100' : 'text-slate-300'}`}>Planta de Referência</div>
-                          <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Modo de <strong>alta performance</strong>. O desenho é importado como uma referência visual única, garantindo fluidez total em arquivos grandes e complexos.</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setOptions(o => ({...o, importMode: 'shapes'}))}
-                        className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
-                            options.importMode === 'shapes'
-                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                            : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className={`mt-0.5 p-1.5 rounded ${options.importMode === 'shapes' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                          <Layers size={16} />
-                        </div>
-                        <div>
-                          <div className={`text-sm font-semibold ${options.importMode === 'shapes' ? 'text-blue-100' : 'text-slate-300'}`}>Geometria Editável</div>
-                          <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Importa cada linha e arco como um elemento individual. Recomendado para pequenas correções e medições precisas.</div>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Unit Selection */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5 leading-none">
-                      Unidade do Arquivo
-                      <div title="Define como a escala do arquivo original será interpretada.">
-                        <Info size={10} />
-                      </div>
-                    </label>
-                    <select
-                      value={options.sourceUnits || 'auto'}
-                      onChange={e => setOptions(o => ({...o, sourceUnits: e.target.value as any}))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 transition-all cursor-pointer"
-                    >
-                      <option value="auto">Auto-detectar (Recomendado)</option>
-                      <option value="meters">Metros (m)</option>
-                      <option value="cm">Centímetros (cm)</option>
-                      <option value="mm">Milímetros (mm)</option>
-                      <option value="inches">Polegadas (in)</option>
-                      <option value="feet">Pés (ft)</option>
-                    </select>
-                    <p className="text-[10px] text-slate-500 italic">
-                      {options.sourceUnits === 'auto' 
-                        ? "O sistema identificará a unidade ideal baseada nos metadados do arquivo original."
-                        : "Forçar a interpretação da escala para a unidade selecionada."}
-                    </p>
-                  </div>
-
-                  {/* Color Schemes */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Esquema de Cores</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {DXF_COLOR_SCHEMES.map((scheme) => (
+                  <div className="flex flex-col gap-6">
+                    {/* --- SEÇÃO: QUALIDADE --- */}
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Processamento e Qualidade</label>
+                      <div className="flex flex-col bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden divide-y divide-slate-700/30">
+                        {/* Planta de Referência */}
                         <button
-                          key={scheme.id}
                           type="button"
-                          onClick={() => {
-                            setOptions(o => ({ ...o, colorScheme: scheme.id }));
-                            if (scheme.id !== 'custom') closeColorPicker();
-                          }}
-                          className={`flex flex-col gap-1 p-3 rounded-lg border text-left transition-all duration-200 ${
-                            options.colorScheme === scheme.id
-                              ? 'bg-slate-700 border-slate-500 text-blue-200 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                              : 'bg-slate-800/70 border-slate-700 hover:border-slate-600 hover:text-slate-100'
+                          onClick={() => setOptions(o => ({...o, importMode: 'svg'}))}
+                          className={`group flex items-start gap-4 p-4 text-left transition-all duration-300 ${
+                              options.importMode === 'svg' ? 'bg-blue-500/10' : 'hover:bg-slate-800/40'
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wide">{scheme.label}</span>
-                            {(scheme.swatch || scheme.id === 'custom') && (
-                              <span
-                                className="w-3 h-3 rounded border border-slate-500"
-                                style={{
-                                  background: scheme.id === 'custom'
-                                    ? options.customColor ?? '#000000'
-                                    : scheme.swatch
-                                }}
-                              />
-                            )}
+                          <div className={`mt-0.5 p-2 rounded-lg transition-all ${options.importMode === 'svg' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-700 text-slate-400'}`}>
+                            <Home size={18} />
+                          </div>
+                          <div className="flex-grow">
+                            <div className={`text-[14px] font-bold transition-colors ${options.importMode === 'svg' ? 'text-blue-50' : 'text-slate-50'}`}>Planta de Referência</div>
+                            <div className="text-[13px] text-slate-300 leading-relaxed mt-1">
+                              Foco em <strong>performance</strong>. O desenho é importado como uma referência visual única, ideal para plantas muito grandes ou complexas.
+                            </div>
+                          </div>
+                          <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 transition-all ${
+                            options.importMode === 'svg' ? 'border-blue-500 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'border-slate-600'
+                          }`}>
+                            {options.importMode === 'svg' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                           </div>
                         </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      {activeColorScheme.description}
-                    </p>
-                    {options.colorScheme === 'custom' && (
-                      <div className="flex items-center gap-2 mt-2">
+
+                        {/* Geometria Editável */}
                         <button
                           type="button"
-                          className="flex items-center gap-2 py-1.5 px-3 rounded-full border border-slate-600 bg-slate-900/80 text-[11px] font-semibold text-slate-100"
-                          onClick={openColorPicker}
-                          ref={customColorButtonRef}
+                          onClick={() => setOptions(o => ({...o, importMode: 'shapes'}))}
+                          className={`group flex items-start gap-4 p-4 text-left transition-all duration-300 ${
+                              options.importMode === 'shapes' ? 'bg-blue-500/10' : 'hover:bg-slate-800/40'
+                          }`}
                         >
-                          <span
-                            className="w-4 h-4 rounded border border-slate-500 shadow-inner"
-                            style={{ backgroundColor: options.customColor || '#000000' }}
-                          />
-                          Escolher cor
+                          <div className={`mt-0.5 p-2 rounded-lg transition-all ${options.importMode === 'shapes' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-700 text-slate-400'}`}>
+                            <Layers size={18} />
+                          </div>
+                          <div className="flex-grow">
+                            <div className={`text-[14px] font-bold transition-colors ${options.importMode === 'shapes' ? 'text-blue-50' : 'text-slate-50'}`}>Geometria Editável</div>
+                            <div className="text-[13px] text-slate-300 leading-relaxed mt-1">
+                              Cada linha e arco torna-se um elemento <strong>individual e editável</strong>. Recomendado para medições precisas e pequenas alterações.
+                            </div>
+                          </div>
+                          <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 transition-all ${
+                            options.importMode === 'shapes' ? 'border-blue-500 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'border-slate-600'
+                          }`}>
+                            {options.importMode === 'shapes' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </div>
                         </button>
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wide">
-                          Aplicada em todos os elementos
-                        </span>
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Structure Options */}
-                  <div className="flex flex-col gap-3 pt-4 border-t border-slate-700/50">
-                    <label className="flex items-center gap-2.5 cursor-pointer group select-none">
-                      <div className="relative flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={options.maintainLayers}
-                          onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
-                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
-                        />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Aplicar camadas do DXF aos elementos importados</span>
-                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter">As camadas do DXF sempre serAœo criadas no projeto; esta opA§A£o controla apenas em qual camada os elementos vA£o cair</span>
-                      </div>
-                    </label>
-
-                    {mode === 'dxf' && (
-                      <div className="flex flex-col gap-2 pl-6">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Conflito de nomes de camadas</span>
-                          {isAnalyzingDxfLayers && (
-                            <span className="text-[10px] text-slate-500 uppercase tracking-wide">Analisando...</span>
-                          )}
-                        </div>
-
-                        {dxfLayerAnalysisError && (
-                          <div className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
-                            NA£o foi possA­vel analisar as camadas do DXF: {dxfLayerAnalysisError}
+                    {/* --- SEÇÃO: UNIDADE --- */}
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Configuração de Escala</label>
+                      <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden p-4">
+                        <div className="flex flex-col gap-3">
+                          <div className="text-slate-50 font-bold text-[14px]">Unidade do Arquivo</div>
+                          <div className="relative">
+                            <select
+                              value={options.sourceUnits || 'auto'}
+                              onChange={e => setOptions(o => ({...o, sourceUnits: e.target.value as any}))}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500/50 cursor-pointer hover:border-slate-600 appearance-none transition-all font-medium"
+                            >
+                              <option value="auto">Auto-detectar</option>
+                              <option value="meters">Metros (m)</option>
+                              <option value="cm">Centímetros (cm)</option>
+                              <option value="mm">Milímetros (mm)</option>
+                              <option value="inches">Polegadas (in)</option>
+                              <option value="feet">Pés (ft)</option>
+                            </select>
+                            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
                           </div>
-                        )}
+                          <div className="text-[13px] text-slate-300 leading-relaxed">
+                            {options.sourceUnits === 'auto' 
+                              ? "Auto-detectar: O sistema identifica a unidade ideal baseada nos metadados do arquivo."
+                              : "Unidade personalizada: Força a escala do desenho para a unidade selecionada."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
+                    {/* --- SEÇÃO: CORES --- */}
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Estilo e Cores</label>
+                      <div className="flex flex-col bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden p-4 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-[14px] font-bold text-slate-50 uppercase tracking-tight">Esquema de Cores</div>
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setOptions(o => ({ ...o, layerNameConflictPolicy: 'merge' }))}
-                            className={`text-left px-3 py-2 rounded border text-[11px] transition-colors ${
-                              (options.layerNameConflictPolicy ?? 'merge') === 'merge'
-                                ? 'bg-slate-700 border-slate-500 text-blue-200'
-                                : 'bg-slate-800/70 border-slate-700 hover:border-slate-600 text-slate-200'
-                            }`}
-                          >
-                            <div className="font-semibold">Reutilizar existente</div>
-                            <div className="text-[10px] text-slate-400">PadrA£o CAD: se `C1` jA¡ existir, usa `C1` e mantA©m o estilo do projeto</div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setOptions(o => ({ ...o, layerNameConflictPolicy: 'createUnique' }))}
-                            className={`text-left px-3 py-2 rounded border text-[11px] transition-colors ${
-                              (options.layerNameConflictPolicy ?? 'merge') === 'createUnique'
-                                ? 'bg-slate-700 border-slate-500 text-blue-200'
-                                : 'bg-slate-800/70 border-slate-700 hover:border-slate-600 text-slate-200'
-                            }`}
-                          >
-                            <div className="font-semibold">Criar nova (1), (2)...</div>
-                            <div className="text-[10px] text-slate-400">Evita heranA§a silenciosa entre imports com nomes repetidos</div>
-                          </button>
+                          {DXF_COLOR_SCHEMES.map((scheme) => (
+                            <button
+                              key={scheme.id}
+                              type="button"
+                              onClick={() => {
+                                setOptions(o => ({ ...o, colorScheme: scheme.id }));
+                                if (scheme.id !== 'custom') closeColorPicker();
+                              }}
+                              className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
+                                options.colorScheme === scheme.id
+                                  ? 'bg-blue-500/10 border-blue-500/50 text-blue-50 ring-1 ring-blue-500/20'
+                                  : 'bg-slate-800/40 border-slate-700 hover:border-slate-600 hover:text-slate-100'
+                              }`}
+                            >
+                              <div className="shrink-0 w-3 h-3 rounded-full border border-white/10 shadow-sm" style={{
+                                background: scheme.id === 'custom' ? options.customColor ?? '#000000' : scheme.swatch
+                              }} />
+                              <span className="text-[12px] font-semibold truncate uppercase tracking-tight">{scheme.label}</span>
+                            </button>
+                          ))}
                         </div>
+                        
+                        <div className="text-[13px] text-slate-300 leading-relaxed">{activeColorScheme.description}</div>
 
-                        {dxfLayerCollisionInfo && dxfLayerCollisionInfo.conflicts.length > 0 && (
-                          <div className="text-[10px] text-slate-300 bg-slate-900/50 border border-slate-700 rounded px-2 py-1">
-                            Conflitos detectados: {dxfLayerCollisionInfo.conflicts.slice(0, 6).join(', ')}
-                            {dxfLayerCollisionInfo.conflicts.length > 6 ? '...' : ''}
+                        {options.colorScheme === 'custom' && (
+                          <div className="flex items-center gap-3 animate-in fade-in duration-300">
+                            <button
+                              type="button"
+                              className="flex items-center gap-2.5 py-2 px-4 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700/60 transition-all font-bold text-[11px] text-slate-100 shadow-sm"
+                              onClick={openColorPicker}
+                              ref={customColorButtonRef}
+                            >
+                              <div className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: options.customColor || '#000000' }} />
+                              Escolher Cor Personalizada
+                            </button>
                           </div>
                         )}
                       </div>
-                    )}
-                    
-                    <label className="flex items-center gap-2.5 cursor-pointer group select-none">
-                      <div className="relative flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={options.readOnly}
-                          onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
-                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
-                        />
+                    </div>
+
+                    {/* --- SEÇÃO: ESTRUTURA --- */}
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Estrutura e Organização</label>
+                      <div className="flex flex-col bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden divide-y divide-slate-700/30">
+                        {/* Maintain Layers */}
+                        <div className="group flex flex-col p-4 transition-colors hover:bg-slate-800/20 gap-2">
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-[14px] font-bold text-slate-50">Preservar Layers Originais</span>
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={options.maintainLayers}
+                                onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
+                                className="sr-only peer"
+                              />
+                              <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                            </label>
+                          </div>
+                          <span className="text-[13px] text-slate-300 group-hover:text-slate-200 leading-relaxed">
+                            {options.maintainLayers 
+                              ? "Mantém a organização de camadas original do arquivo DXF no projeto."
+                              : "Ignora camadas originais e importa elementos para a camada ativa."}
+                          </span>
+                        </div>
+
+                        {/* Layer Conflicts */}
+                        {options.maintainLayers && mode === 'dxf' && (
+                          <div className="flex flex-col gap-4 p-4 bg-slate-800/10 shadow-inner animate-in fade-in duration-300">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center justify-between text-[11px] uppercase tracking-widest text-slate-400 font-bold mb-1">
+                                Conflito de Nomes
+                                {isAnalyzingDxfLayers && <span className="text-blue-500 animate-pulse">Analisando DXF...</span>}
+                              </div>
+                              <div className="text-[13px] text-slate-300 mb-2">
+                                {(options.layerNameConflictPolicy ?? 'merge') === 'merge'
+                                  ? "Fundir: Reutiliza a camada existente se o nome for igual ao do DXF."
+                                  : "Único: Cria uma nova camada (ex: Parede (1)) para evitar alterações na existente."}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setOptions(o => ({ ...o, layerNameConflictPolicy: 'merge' }))}
+                                className={`flex flex-col gap-0.5 p-3 rounded-lg border text-left transition-all ${
+                                  (options.layerNameConflictPolicy ?? 'merge') === 'merge' ? 'bg-slate-700 border-slate-500 shadow-sm' : 'bg-slate-800/30 border-slate-700/50 text-slate-500'
+                                }`}
+                              >
+                                <span className={`text-[12px] font-bold ${ (options.layerNameConflictPolicy ?? 'merge') === 'merge' ? 'text-blue-50' : 'text-slate-400' }`}>Merge</span>
+                                <span className="text-[10px] opacity-70">Fundir com existentes</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setOptions(o => ({ ...o, layerNameConflictPolicy: 'createUnique' }))}
+                                className={`flex flex-col gap-0.5 p-3 rounded-lg border text-left transition-all ${
+                                  (options.layerNameConflictPolicy ?? 'merge') === 'createUnique' ? 'bg-slate-700 border-slate-500 shadow-sm' : 'bg-slate-800/30 border-slate-700/50 text-slate-500'
+                                }`}
+                              >
+                                <span className={`text-[12px] font-bold ${ (options.layerNameConflictPolicy ?? 'merge') === 'createUnique' ? 'text-blue-50' : 'text-slate-400' }`}>Único</span>
+                                <span className="text-[10px] opacity-70">Criar nova separada</span>
+                              </button>
+                            </div>
+
+                            {dxfLayerCollisionInfo && dxfLayerCollisionInfo.conflicts.length > 0 && (
+                              <div className="flex items-start gap-2 bg-amber-900/10 border border-amber-500/20 p-2.5 rounded-lg text-[11px] text-amber-200/80">
+                                <Info size={14} className="shrink-0 mt-0.5" />
+                                <span><strong>{dxfLayerCollisionInfo.conflicts.length} conflitos encontrados:</strong> {dxfLayerCollisionInfo.conflicts.slice(0, 3).join(', ')}...</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Read Only Toggle */}
+                        <div className="group flex flex-col p-4 transition-colors hover:bg-slate-800/20 gap-2">
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-[14px] font-bold text-slate-50">Trancar Edição</span>
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={options.readOnly}
+                                onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
+                                className="sr-only peer"
+                              />
+                              <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                            </label>
+                          </div>
+                          <span className="text-[13px] text-slate-300 group-hover:text-slate-200 leading-relaxed">
+                            {options.readOnly 
+                              ? "O desenho será importado como Apenas Leitura, evitando modificações acidentais."
+                              : "O desenho será importado normalmente e poderá ser editado livremente."}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Bloquear edição (Apenas Leitura)</span>
-                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter">Evita alterações acidentais na planta base</span>
-                      </div>
-                    </label>
+                    </div>
                   </div>
                 </div>
               </div>
