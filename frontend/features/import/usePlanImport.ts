@@ -5,7 +5,7 @@ import { useEditorLogic } from '../editor/hooks/useEditorLogic';
 import { NormalizedViewBox, Shape } from '../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
-import { pdfShapesToSvg } from './utils/pdfShapesToSvg';
+import { pdfShapesToSvgWithOptions } from './utils/pdfShapesToSvg';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
@@ -98,9 +98,9 @@ export const usePlanImport = (): PlanImportHook => {
                   }
               );
 
-              if (vectorShapes.length > 0) {
-                   if (importAs === 'svg') {
-                     const svg = pdfShapesToSvg(vectorShapes);
+                if (vectorShapes.length > 0) {
+                    if (importAs === 'svg') {
+                     const svg = pdfShapesToSvgWithOptions(vectorShapes, { paddingPx: 1 });
                      const newShapeId = generateId('plan');
                      const newShape: Shape = {
                        id: newShapeId,
@@ -111,11 +111,13 @@ export const usePlanImport = (): PlanImportHook => {
                        points: [],
                        width: svg.width,
                        height: svg.height,
+                       proportionsLinked: true,
                        strokeColor: 'transparent',
                        strokeWidth: 0,
                        strokeEnabled: false,
                        fillColor: 'transparent',
                        colorMode: { fill: 'custom', stroke: 'custom' },
+                       svgSymbolId: 'plan:pdf',
                        svgRaw: svg.svgRaw,
                        svgViewBox: svg.viewBox,
                        discipline: 'architecture',
@@ -123,7 +125,7 @@ export const usePlanImport = (): PlanImportHook => {
                      };
                      resolve({ shapes: [newShape], originalWidth: svg.width, originalHeight: svg.height });
                      return;
-                   }
+                    }
 
                    resolve({ shapes: vectorShapes, originalWidth, originalHeight });
                    return;
@@ -139,11 +141,16 @@ export const usePlanImport = (): PlanImportHook => {
             if (canvasContext) {
               await page.render({ canvasContext, viewport }).promise;
               const pngDataUrl = canvas.toDataURL('image/png');
-              
-              svgString = `<svg width="${originalWidth}" height="${originalHeight}" viewBox="0 0 ${originalWidth} ${originalHeight}" xmlns="http://www.w3.org/2000/svg">
-                             <image href="${pngDataUrl}" x="0" y="0" width="${originalWidth}" height="${originalHeight}"/>
+              const paddingPx = importAs === 'svg' ? 1 : 0;
+              const paddedWidth = originalWidth + paddingPx * 2;
+              const paddedHeight = originalHeight + paddingPx * 2;
+               
+              svgString = `<svg width="${paddedWidth}" height="${paddedHeight}" viewBox="0 0 ${paddedWidth} ${paddedHeight}" xmlns="http://www.w3.org/2000/svg">
+                             <image href="${pngDataUrl}" x="${paddingPx}" y="${paddingPx}" width="${originalWidth}" height="${originalHeight}"/>
                            </svg>`;
-              viewBox = { x: 0, y: 0, width: originalWidth, height: originalHeight };
+              originalWidth = paddedWidth;
+              originalHeight = paddedHeight;
+              viewBox = { x: 0, y: 0, width: paddedWidth, height: paddedHeight };
             } else {
               throw new Error("Could not get 2D canvas context.");
             }
@@ -184,11 +191,14 @@ export const usePlanImport = (): PlanImportHook => {
             points: [],
             width: originalWidth,
             height: originalHeight,
+            ...(file.type === 'image/svg+xml' ? { proportionsLinked: true } : {}),
+            ...(file.type === 'application/pdf' && importAs === 'svg' ? { proportionsLinked: true } : {}),
             strokeColor: 'transparent',
             strokeWidth: 0,
             strokeEnabled: false,
             fillColor: 'transparent',
             colorMode: { fill: 'custom', stroke: 'custom' },
+            ...(file.type === 'application/pdf' && importAs === 'svg' ? { svgSymbolId: 'plan:pdf' } : {}),
             svgRaw: svgString,
             svgViewBox: viewBox,
             discipline: 'architecture',
@@ -270,6 +280,14 @@ export const usePlanImport = (): PlanImportHook => {
 
           let shapesToAdd = workerData.shapes;
           const newLayers = workerData.layers;
+
+          // For any SVG container import, keep proportions linked by default (as requested).
+          if (options?.importMode === 'svg') {
+              shapesToAdd = shapesToAdd.map((s: any) => ({
+                  ...s,
+                  ...(s && s.type === 'rect' && s.svgRaw && !s.electricalElementId ? { proportionsLinked: true } : {})
+              }));
+          }
 
           // Always import the DXF layers into the project (as requested), but only
           // assign imported shapes to those layers when maintainLayers is enabled.

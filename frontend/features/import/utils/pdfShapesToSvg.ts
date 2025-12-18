@@ -50,13 +50,14 @@ const estimateTextWidth = (text: string, fontSize: number): number => {
 
 const accumulateBoundsFromPoints = (
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
-  pts: readonly Point[]
+  pts: readonly Point[],
+  expandBy: number = 0
 ) => {
   pts.forEach((p) => {
-    bounds.minX = Math.min(bounds.minX, p.x);
-    bounds.minY = Math.min(bounds.minY, p.y);
-    bounds.maxX = Math.max(bounds.maxX, p.x);
-    bounds.maxY = Math.max(bounds.maxY, p.y);
+    bounds.minX = Math.min(bounds.minX, p.x - expandBy);
+    bounds.minY = Math.min(bounds.minY, p.y - expandBy);
+    bounds.maxX = Math.max(bounds.maxX, p.x + expandBy);
+    bounds.maxY = Math.max(bounds.maxY, p.y + expandBy);
   });
 };
 
@@ -64,8 +65,14 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
   const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
 
   shapes.forEach((s) => {
+    const strokeEnabled = s.strokeEnabled !== false && !isTransparent(s.strokeColor);
+    const strokeWidth = Math.max(0, coerceNumber(s.strokeWidth, 1));
+    // SVG strokes extend half inside and half outside the geometry. Expand bounds so the selection box
+    // encloses the visible stroke, then the caller can apply a fixed 1px padding.
+    const strokeExpand = strokeEnabled ? strokeWidth / 2 : 0;
+
     if (s.type === 'line' || s.type === 'polyline') {
-      if (s.points?.length) accumulateBoundsFromPoints(bounds, s.points);
+      if (s.points?.length) accumulateBoundsFromPoints(bounds, s.points, strokeExpand);
       return;
     }
 
@@ -79,7 +86,7 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
         { x: x + w, y },
         { x: x + w, y: y + h },
         { x, y: y + h },
-      ]);
+      ], strokeExpand);
       return;
     }
 
@@ -94,7 +101,7 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
         { x: x + w, y },
         { x: x + w, y: y + h },
         { x, y: y + h },
-      ]);
+      ], strokeExpand);
     }
   });
 

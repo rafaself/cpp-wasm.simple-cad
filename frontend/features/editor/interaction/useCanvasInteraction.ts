@@ -937,7 +937,8 @@ export const useCanvasInteraction = (canvasRef: React.RefObject<HTMLCanvasElemen
                         }
 
                         // 3. Proportional resize with Shift (Figma-style)
-                        if (e.shiftKey && (orientation.x !== 0 || orientation.y !== 0)) {
+                        // If the shape has "Proporções linkadas" enabled, keep aspect ratio by default too.
+                        if ((e.shiftKey || s.proportionsLinked === true) && (orientation.x !== 0 || orientation.y !== 0)) {
                             const scaleX = orientation.x !== 0 ? finalW / Math.max(minSize, originalBounds.width) : 0;
                             const scaleY = orientation.y !== 0 ? finalH / Math.max(minSize, originalBounds.height) : 0;
                             const uniformScale = Math.max(scaleX, scaleY) || 1;

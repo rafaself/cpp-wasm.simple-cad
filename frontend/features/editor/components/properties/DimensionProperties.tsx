@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Shape } from '../../../../types';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { Link2, Link2Off, CornerUpLeft } from 'lucide-react';
@@ -9,7 +9,7 @@ interface DimensionPropertiesProps {
 
 export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ selectedShape }) => {
   const store = useDataStore();
-  const [proportionLinked, setProportionLinked] = useState(true);
+  const proportionLinked = selectedShape.proportionsLinked ?? false;
 
   const isElectrical = !!selectedShape.electricalElementId;
 
@@ -71,7 +71,7 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
           </div>
 
           <button
-            onClick={() => setProportionLinked(!proportionLinked)}
+            onClick={() => store.updateShape(selectedShape.id, { proportionsLinked: !proportionLinked })}
             className={`p-1.5 rounded transition-colors ${proportionLinked ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400 hover:text-slate-600'}`}
             title={proportionLinked ? 'Proporções linkadas' : 'Proporções independentes'}
           >

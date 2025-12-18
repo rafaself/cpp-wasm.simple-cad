@@ -149,6 +149,8 @@ export interface Shape {
   y?: number;
   width?: number;
   height?: number;
+  /** When true, keep width/height resizing proportional (used by DimensionProperties + selection resize). */
+  proportionsLinked?: boolean;
   radius?: number;
   sides?: number;
   startAngle?: number;
