@@ -11,6 +11,7 @@ import { Shape } from '../../../../types';
 // Extend Input Options to include mode
 export interface ExtendedDxfWorkerInput extends DxfWorkerInput {
     mode?: 'shapes' | 'svg';
+    task?: 'convert' | 'analyzeLayers';
 }
 
 const parser = new DxfParser();
@@ -31,7 +32,30 @@ const sanitizeLayerId = (name: string): string => {
 
 self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
   try {
-    const { text, options, mode } = e.data;
+    const { text, options, mode, task } = e.data;
+
+    if (task === 'analyzeLayers') {
+        const parsed = parser.parseSync(text) as unknown as DxfData;
+
+        const names: string[] = [];
+        if (parsed.tables?.layer?.layers) {
+            Object.keys(parsed.tables.layer.layers).forEach((name) => {
+                if (name) names.push(name);
+            });
+        } else if (parsed.entities) {
+            const distinct = new Set<string>();
+            parsed.entities.forEach((ent) => {
+                if (ent.layer) distinct.add(ent.layer);
+            });
+            distinct.forEach((name) => names.push(name));
+        }
+
+        self.postMessage({
+            success: true,
+            data: { kind: 'analysis', layerNames: names }
+        } as DxfWorkerOutput);
+        return;
+    }
 
     // Cast to unknown first to avoid IDxf incompatibility with our defined DxfData
     const data = augmentParsedDxfDataWithRaw(text, parser.parseSync(text) as unknown as DxfData);
@@ -119,6 +143,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
         const response: DxfWorkerOutput = {
             success: true,
             data: {
+                kind: 'convert',
                 shapes: [svgShape],
                 layers: layersList,
                 width: width,
@@ -135,6 +160,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
         const response: DxfWorkerOutput = {
             success: true,
             data: {
+                kind: 'convert',
                 shapes: cleanShapes,
                 layers: result.layers,
                 width: result.width,

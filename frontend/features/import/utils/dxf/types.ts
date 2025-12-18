@@ -139,14 +139,22 @@ export interface DxfWorkerInput {
   options: DxfImportOptions;
 }
 
+export interface DxfWorkerConvertData {
+  kind: 'convert';
+  shapes: Shape[];
+  layers: Layer[];
+  width: number;
+  height: number;
+  origin: { x: number; y: number };
+}
+
+export interface DxfWorkerAnalyzeLayersData {
+  kind: 'analysis';
+  layerNames: string[];
+}
+
 export interface DxfWorkerOutput {
   success: boolean;
-  data?: {
-      shapes: Shape[];
-      layers: Layer[];
-      width: number;
-      height: number;
-      origin: { x: number; y: number };
-  };
+  data?: DxfWorkerConvertData | DxfWorkerAnalyzeLayersData;
   error?: string;
 }

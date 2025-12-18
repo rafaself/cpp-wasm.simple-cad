@@ -8,6 +8,7 @@ import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
+import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -21,6 +22,7 @@ interface PlanImportResult {
 interface ImportOptions {
   explodeBlocks?: boolean;
   maintainLayers?: boolean;
+  layerNameConflictPolicy?: LayerNameConflictPolicy;
   readOnly?: boolean;
   importMode?: 'shapes' | 'svg';
   colorScheme?: DxfColorScheme;
@@ -260,11 +262,22 @@ export const usePlanImport = (): PlanImportHook => {
           let shapesToAdd = workerData.shapes;
           const newLayers = workerData.layers;
 
-          if (options?.maintainLayers && newLayers && newLayers.length > 0) {
-              const layerMap = new Map<string, string>();
+          // Always import the DXF layers into the project (as requested), but only
+          // assign imported shapes to those layers when maintainLayers is enabled.
+          const layerMap = new Map<string, string>();
+
+          if (newLayers && newLayers.length > 0) {
+              const existingLayerNames = dataStore.layers.map((l) => l.name);
+              const policy: LayerNameConflictPolicy = options?.layerNameConflictPolicy ?? 'merge';
+              const { mapping: nameMap } = mapImportedLayerNames({
+                  importedNames: newLayers.map((l: any) => l.name),
+                  existingNames: existingLayerNames,
+                  policy
+              });
 
               newLayers.forEach((l: any) => {
-                  const storeId = dataStore.ensureLayer(l.name, {
+                  const targetName = nameMap.get(l.name) ?? l.name;
+                  const storeId = dataStore.ensureLayer(targetName, {
                       strokeColor: l.strokeColor,
                       strokeEnabled: l.strokeEnabled,
                       fillColor: l.fillColor,
@@ -274,13 +287,13 @@ export const usePlanImport = (): PlanImportHook => {
                   });
                   layerMap.set(l.id, storeId);
               });
+          }
 
-              if (options?.importMode !== 'svg') {
-                  shapesToAdd = shapesToAdd.map((s: any) => ({
-                      ...s,
-                      layerId: layerMap.get(s.layerId) || dataStore.activeLayerId
-                  }));
-              }
+          if (options?.maintainLayers && options?.importMode !== 'svg') {
+              shapesToAdd = shapesToAdd.map((s: any) => ({
+                  ...s,
+                  layerId: layerMap.get(s.layerId) || dataStore.activeLayerId
+              }));
           }
 
           console.log(`Imported ${shapesToAdd.length} shapes from DXF (Mode: ${options?.importMode})`);

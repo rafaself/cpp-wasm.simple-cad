@@ -132,27 +132,6 @@ For complex changes:
 - `<short-task-name>` should be a brief, filesystem-safe slug (lowercase, words separated by `-`, no spaces, keep it short).
 - Report content should follow the project's standard output format (problem, plan, changed files, risk, verification).
 
-## Review guidelines
-
-- Don't log PII.
-- Verify that authentication middleware wraps every route.
-
-## Project Structure
-
-- **`frontend/`**: React / Vite frontend application.
-- **`backend/`**: FastAPI backend application.
-
-## Getting Started
-
-### Backend (FastAPI)
-
-- The API is available at `http://localhost:8000`.
-
-### Frontend (React)
-
-- The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
-- Tests can be run with `npx vitest run`.
-
 ## 14) Testing Standards (High Priority)
 
 Tests are a first-class deliverable in this project. When changing behavior that is critical or non-trivial, prefer adding or updating tests **before** broad refactors.
@@ -200,3 +179,24 @@ See:
 - **Investigate First**: Whenever a task is requested, assume that investigation steps are required first.
 - **Authorization Required**: Do not apply changes based on the investigation unless explicitly authorized by the developer.
 - **Verification Allowed**: You are authorized to perform tests and create verification files without prior permission, provided that these actions **do not modify the base codebase**.
+
+## Review guidelines
+
+- Don't log PII.
+- Verify that authentication middleware wraps every route.
+
+## Project Structure
+
+- **`frontend/`**: React / Vite frontend application.
+- **`backend/`**: FastAPI backend application.
+
+## Getting Started
+
+### Backend (FastAPI)
+
+- The API is available at `http://localhost:8000`.
+
+### Frontend (React)
+
+- The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
+- Tests can be run with `npx vitest run`.

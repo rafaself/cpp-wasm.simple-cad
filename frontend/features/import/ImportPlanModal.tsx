@@ -3,10 +3,14 @@ import { FileUp, Home, Layers, ChevronDown, ChevronUp, Info, Settings2, CheckCir
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 import ColorPicker from '../../components/ColorPicker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
+import DxfWorker from './utils/dxf/dxfWorker?worker';
+import { useDataStore } from '../../stores/useDataStore';
+import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
 
 export interface ImportOptions {
   explodeBlocks: boolean;
   maintainLayers: boolean;
+  layerNameConflictPolicy?: LayerNameConflictPolicy;
   readOnly?: boolean;
   importMode?: 'shapes' | 'svg';
   colorScheme?: DxfColorScheme;
@@ -52,8 +56,13 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     importMode: 'svg',
     colorScheme: 'original',
     customColor: '#000000',
+    layerNameConflictPolicy: 'merge',
     sourceUnits: 'auto'
   });
+  const existingLayers = useDataStore((s) => s.layers);
+  const [dxfLayerNames, setDxfLayerNames] = useState<string[] | null>(null);
+  const [dxfLayerAnalysisError, setDxfLayerAnalysisError] = useState<string | null>(null);
+  const [isAnalyzingDxfLayers, setIsAnalyzingDxfLayers] = useState(false);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [colorPickerAnchor, setColorPickerAnchor] = useState<{ top: number; left: number } | null>(null);
   const customColorButtonRef = useRef<HTMLButtonElement>(null);
@@ -81,8 +90,82 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
       setSelectedFile(null);
       setError(null);
       setAdvancedOpen(false);
+      setDxfLayerNames(null);
+      setDxfLayerAnalysisError(null);
+      setIsAnalyzingDxfLayers(false);
     }
   }, [isOpen]);
+
+  // DXF-only: analyze layers after file selection so we can warn about name collisions.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (mode !== 'dxf') return;
+    if (!selectedFile) return;
+    if (!selectedFile.name.toLowerCase().endsWith('.dxf')) return;
+
+    let cancelled = false;
+    setIsAnalyzingDxfLayers(true);
+    setDxfLayerAnalysisError(null);
+
+    (async () => {
+      try {
+        const buffer = await selectedFile.arrayBuffer();
+        let text: string;
+        try {
+          const decoder = new TextDecoder('utf-8', { fatal: true });
+          text = decoder.decode(buffer);
+        } catch {
+          const decoder = new TextDecoder('windows-1252');
+          text = decoder.decode(buffer);
+        }
+
+        const worker = new DxfWorker();
+        const result = await new Promise<string[]>((resolve, reject) => {
+          worker.onmessage = (e) => {
+            const data = e.data as {
+              success: boolean;
+              data?: { kind?: string; layerNames?: string[] };
+              error?: string;
+            };
+            if (data.success && data.data?.kind === 'analysis' && Array.isArray(data.data.layerNames)) {
+              resolve(data.data.layerNames);
+            }
+            else reject(new Error(data.error || 'Falha ao analisar camadas do DXF'));
+            worker.terminate();
+          };
+          worker.onerror = (err) => {
+            reject(err);
+            worker.terminate();
+          };
+          worker.postMessage({ text, task: 'analyzeLayers' });
+        });
+
+        if (cancelled) return;
+        setDxfLayerNames(result);
+      } catch (err) {
+        if (cancelled) return;
+        setDxfLayerAnalysisError(err instanceof Error ? err.message : String(err));
+        setDxfLayerNames(null);
+      } finally {
+        if (!cancelled) setIsAnalyzingDxfLayers(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, mode, selectedFile]);
+
+  const dxfLayerCollisionInfo = (() => {
+    if (mode !== 'dxf') return null;
+    if (!dxfLayerNames) return null;
+    const existingNames = existingLayers.map((l) => l.name);
+    return mapImportedLayerNames({
+      importedNames: dxfLayerNames,
+      existingNames,
+      policy: options.layerNameConflictPolicy ?? 'merge',
+    });
+  })();
 
   const validateFile = (file: File) => {
     const fileName = file.name.toLowerCase();
@@ -430,8 +513,62 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                           className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
                         />
                       </div>
-                      <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Preservar camadas (Layers) originais</span>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Aplicar camadas do DXF aos elementos importados</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter">As camadas do DXF sempre serAœo criadas no projeto; esta opA§A£o controla apenas em qual camada os elementos vA£o cair</span>
+                      </div>
                     </label>
+
+                    {mode === 'dxf' && (
+                      <div className="flex flex-col gap-2 pl-6">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Conflito de nomes de camadas</span>
+                          {isAnalyzingDxfLayers && (
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wide">Analisando...</span>
+                          )}
+                        </div>
+
+                        {dxfLayerAnalysisError && (
+                          <div className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                            NA£o foi possA­vel analisar as camadas do DXF: {dxfLayerAnalysisError}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setOptions(o => ({ ...o, layerNameConflictPolicy: 'merge' }))}
+                            className={`text-left px-3 py-2 rounded border text-[11px] transition-colors ${
+                              (options.layerNameConflictPolicy ?? 'merge') === 'merge'
+                                ? 'bg-slate-700 border-slate-500 text-blue-200'
+                                : 'bg-slate-800/70 border-slate-700 hover:border-slate-600 text-slate-200'
+                            }`}
+                          >
+                            <div className="font-semibold">Reutilizar existente</div>
+                            <div className="text-[10px] text-slate-400">PadrA£o CAD: se `C1` jA¡ existir, usa `C1` e mantA©m o estilo do projeto</div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOptions(o => ({ ...o, layerNameConflictPolicy: 'createUnique' }))}
+                            className={`text-left px-3 py-2 rounded border text-[11px] transition-colors ${
+                              (options.layerNameConflictPolicy ?? 'merge') === 'createUnique'
+                                ? 'bg-slate-700 border-slate-500 text-blue-200'
+                                : 'bg-slate-800/70 border-slate-700 hover:border-slate-600 text-slate-200'
+                            }`}
+                          >
+                            <div className="font-semibold">Criar nova (1), (2)...</div>
+                            <div className="text-[10px] text-slate-400">Evita heranA§a silenciosa entre imports com nomes repetidos</div>
+                          </button>
+                        </div>
+
+                        {dxfLayerCollisionInfo && dxfLayerCollisionInfo.conflicts.length > 0 && (
+                          <div className="text-[10px] text-slate-300 bg-slate-900/50 border border-slate-700 rounded px-2 py-1">
+                            Conflitos detectados: {dxfLayerCollisionInfo.conflicts.slice(0, 6).join(', ')}
+                            {dxfLayerCollisionInfo.conflicts.length > 6 ? '...' : ''}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     <label className="flex items-center gap-2.5 cursor-pointer group select-none">
                       <div className="relative flex items-center">
