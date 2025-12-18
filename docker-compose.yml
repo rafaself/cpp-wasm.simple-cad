@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  wasm-builder:
+    image: emscripten/emsdk:latest
+    working_dir: /workspace/cpp
+    volumes:
+      - ./cpp:/workspace/cpp
+      - ./frontend/public/wasm:/workspace/output
+    command: >
+      bash -lc "
+      emcmake cmake -S . -B build
+        -DCMAKE_BUILD_TYPE=Release
+        -DOUTPUT_DIR=/workspace/output
+      && cmake --build build --config Release
+      "

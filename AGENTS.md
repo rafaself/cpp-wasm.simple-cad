@@ -8,6 +8,14 @@ These instructions apply to any AI agent working in this repository.
 - Prefer small, safe, reviewable changes.
 - Keep the project scalable and maintainable.
 
+## 0.1) Current Direction (Project Context)
+
+This repo is transitioning from a Canvas2D-first CAD MVP to a high-performance stack:
+
+- **Frontend:** React + TypeScript (Vite). (Future: R3F/Three.js)
+- **Core Engine:** **C++ → WebAssembly (Emscripten)**.
+- **Non-negotiables:** Data-Oriented Design, deterministic tools, and performance-critical hot paths.
+
 ## 1) Non-negotiables
 
 - Use TypeScript or Python types strictly; avoid `any` unless justified.
@@ -68,6 +76,16 @@ These instructions apply to any AI agent working in this repository.
 - Avoid unnecessary allocations in render or hot paths.
 - Validate inputs; never trust external data.
 - Prefer predictable performance over micro-optimizations.
+
+## 7.1) WASM/C++ Performance Rules (High Priority)
+
+When working on `cpp/` or JS↔WASM interop:
+
+- **No allocations in hot paths:** frame step / mouse-drag loops must not heap-allocate.
+- **Prefer POD / standard-layout structs** for shared-memory data. No `std::string`/`std::vector`/pointers inside shared structs.
+- **Interop batching:** avoid chatty per-entity calls across the boundary; prefer batch APIs and shared buffers.
+- **Memory stability:** resizing `std::vector` invalidates views. Use `reserve()`/fixed capacities (Phase 1) or stable arenas/slabs (later).
+- **Generated artifacts:** treat `frontend/public/wasm/*` as build outputs; do not hand-edit.
 
 ## 8) Scope, Focus, and Inputs
 
@@ -189,6 +207,7 @@ See:
 
 - **`frontend/`**: React / Vite frontend application.
 - **`backend/`**: FastAPI backend application.
+- **`cpp/`**: C++ → WebAssembly engine (Emscripten/CMake).
 
 ## Getting Started
 
@@ -200,3 +219,8 @@ See:
 
 - The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
 - Tests can be run with `npx vitest run`.
+
+### WASM (C++ → WebAssembly)
+
+- Build outputs are emitted to `frontend/public/wasm/`.
+- Default build command: `cd frontend && npm run build:wasm` (runs Docker + Emscripten toolchain).
