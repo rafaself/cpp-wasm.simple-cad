@@ -19,8 +19,8 @@ export interface ImportOptions {
 }
 
 const DXF_COLOR_SCHEMES: Array<{ id: DxfColorScheme; label: string; description: string; swatch?: string }> = [
-  { id: 'original', label: 'Cores originais', description: 'Mantém as cores definidas no arquivo DXF.', swatch: 'conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)' },
   { id: 'fixedGray153', label: 'Cinza', description: 'Aplica um cinza neutro (#999999) para toda a geometria.', swatch: '#999999' },
+  { id: 'original', label: 'Cores originais', description: 'Mantém as cores definidas no arquivo DXF.', swatch: 'conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)' },
   { id: 'grayscale', label: 'Tons de cinza', description: 'Converte cada cor para tons de cinza mantendo a luminância relativa.', swatch: 'linear-gradient(135deg, #ffffff 0%, #64748b 100%)' },
   { id: 'custom', label: 'Escolher cor', description: 'Define uma única cor personalizada para todos os elementos.', swatch: '#000000' }
 ];
@@ -54,7 +54,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     maintainLayers: true,
     readOnly: false,
     importMode: 'svg',
-    colorScheme: 'original',
+    colorScheme: 'fixedGray153',
     customColor: '#000000',
     layerNameConflictPolicy: 'merge',
     sourceUnits: 'auto'
@@ -376,6 +376,54 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                   
                   {/* Primary Option: Import Mode */}
                   <div className="flex flex-col gap-6">
+                    {/* --- SEÇÃO: CORES --- */}
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Estilo e Cores</label>
+                      <div className="flex flex-col bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden p-4 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-[14px] font-bold text-slate-50 uppercase tracking-tight">Esquema de Cores</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {DXF_COLOR_SCHEMES.map((scheme) => (
+                            <button
+                              key={scheme.id}
+                              type="button"
+                              onClick={() => {
+                                setOptions(o => ({ ...o, colorScheme: scheme.id }));
+                                if (scheme.id !== 'custom') closeColorPicker();
+                              }}
+                              className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
+                                options.colorScheme === scheme.id
+                                  ? 'bg-blue-500/10 border-blue-500/50 text-blue-50 ring-1 ring-blue-500/20'
+                                  : 'bg-slate-800/40 border-slate-700 hover:border-slate-600 hover:text-slate-100'
+                              }`}
+                            >
+                              <div className="shrink-0 w-3 h-3 rounded-full border border-white/10 shadow-sm" style={{
+                                background: scheme.id === 'custom' ? options.customColor ?? '#000000' : scheme.swatch
+                              }} />
+                              <span className="text-[12px] font-semibold truncate uppercase tracking-tight">{scheme.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        
+                        <div className="text-[13px] text-slate-300 leading-relaxed">{activeColorScheme.description}</div>
+
+                        {options.colorScheme === 'custom' && (
+                          <div className="flex items-center gap-3 animate-in fade-in duration-300">
+                            <button
+                              type="button"
+                              className="flex items-center gap-2.5 py-2 px-4 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700/60 transition-all font-bold text-[11px] text-slate-100 shadow-sm"
+                              onClick={openColorPicker}
+                              ref={customColorButtonRef}
+                            >
+                              <div className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: options.customColor || '#000000' }} />
+                              Escolher Cor Personalizada
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {/* --- SEÇÃO: QUALIDADE --- */}
                     <div className="flex flex-col gap-3">
                       <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Processamento e Qualidade</label>
@@ -457,54 +505,6 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                               : "Unidade personalizada: Força a escala do desenho para a unidade selecionada."}
                           </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* --- SEÇÃO: CORES --- */}
-                    <div className="flex flex-col gap-3">
-                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Estilo e Cores</label>
-                      <div className="flex flex-col bg-slate-900/40 border border-slate-700/50 rounded-xl overflow-hidden p-4 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="text-[14px] font-bold text-slate-50 uppercase tracking-tight">Esquema de Cores</div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {DXF_COLOR_SCHEMES.map((scheme) => (
-                            <button
-                              key={scheme.id}
-                              type="button"
-                              onClick={() => {
-                                setOptions(o => ({ ...o, colorScheme: scheme.id }));
-                                if (scheme.id !== 'custom') closeColorPicker();
-                              }}
-                              className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
-                                options.colorScheme === scheme.id
-                                  ? 'bg-blue-500/10 border-blue-500/50 text-blue-50 ring-1 ring-blue-500/20'
-                                  : 'bg-slate-800/40 border-slate-700 hover:border-slate-600 hover:text-slate-100'
-                              }`}
-                            >
-                              <div className="shrink-0 w-3 h-3 rounded-full border border-white/10 shadow-sm" style={{
-                                background: scheme.id === 'custom' ? options.customColor ?? '#000000' : scheme.swatch
-                              }} />
-                              <span className="text-[12px] font-semibold truncate uppercase tracking-tight">{scheme.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                        
-                        <div className="text-[13px] text-slate-300 leading-relaxed">{activeColorScheme.description}</div>
-
-                        {options.colorScheme === 'custom' && (
-                          <div className="flex items-center gap-3 animate-in fade-in duration-300">
-                            <button
-                              type="button"
-                              className="flex items-center gap-2.5 py-2 px-4 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700/60 transition-all font-bold text-[11px] text-slate-100 shadow-sm"
-                              onClick={openColorPicker}
-                              ref={customColorButtonRef}
-                            >
-                              <div className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: options.customColor || '#000000' }} />
-                              Escolher Cor Personalizada
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
 
