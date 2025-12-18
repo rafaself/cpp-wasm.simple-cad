@@ -30,7 +30,7 @@ interface ImportPlanModalProps {
   isLoading?: boolean;
   onClose: () => void;
   onImport: (file: File, options?: ImportOptions) => void;
-  mode?: 'pdf' | 'image' | 'dxf';
+  mode?: 'pdf' | 'dxf';
   title?: string;
   accept?: string;
 }
@@ -338,7 +338,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             </form>
           </div>
 
-          {/* PDF/Image info for consistency (Only when not in DXF mode) */}
+          {/* PDF info for consistency (Only when not in DXF mode) */}
           {mode !== 'dxf' && !selectedFile && (
             <div className="flex flex-col gap-3 py-2">
                <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-800/30 p-3 rounded-lg border border-slate-700/50">

@@ -32,30 +32,24 @@ interface ImportOptions {
 
 interface PlanImportHook {
   openImportPdfModal: () => void;
-  openImportImageModal: () => void;
   openImportDxfModal: () => void;
   closeImportModal: () => void;
   handleFileImport: (file: File, options?: ImportOptions) => Promise<void>;
   isImportModalOpen: boolean;
   isLoading: boolean;
-  importMode: 'pdf' | 'image' | 'dxf';
+  importMode: 'pdf' | 'dxf';
 }
 
 export const usePlanImport = (): PlanImportHook => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [importMode, setImportMode] = useState<'pdf' | 'image' | 'dxf'>('pdf');
+  const [importMode, setImportMode] = useState<'pdf' | 'dxf'>('pdf');
   const uiStore = useUIStore();
   const dataStore = useDataStore();
   const { zoomToFit } = useEditorLogic();
 
   const openImportPdfModal = useCallback(() => {
     setImportMode('pdf');
-    setIsImportModalOpen(true);
-  }, []);
-
-  const openImportImageModal = useCallback(() => {
-    setImportMode('image');
     setIsImportModalOpen(true);
   }, []);
 
@@ -137,29 +131,6 @@ export const usePlanImport = (): PlanImportHook => {
                 originalHeight = Number(svgElement.getAttribute('height')) || 1000;
                 viewBox = { x: 0, y: 0, width: originalWidth, height: originalHeight };
             }
-
-          } else if (file.type.startsWith('image/')) {
-             const imgDataUrl = await new Promise<string>((resolveImg, rejectImg) => {
-                 const imgReader = new FileReader();
-                 imgReader.onload = () => resolveImg(imgReader.result as string);
-                 imgReader.onerror = rejectImg;
-                 imgReader.readAsDataURL(file);
-             });
-
-             const img = new Image();
-             await new Promise<void>((resolveImgLoad, rejectImgLoad) => {
-                 img.onload = () => resolveImgLoad();
-                 img.onerror = rejectImgLoad;
-                 img.src = imgDataUrl;
-             });
-
-             originalWidth = img.width;
-             originalHeight = img.height;
-             viewBox = { x: 0, y: 0, width: originalWidth, height: originalHeight };
-             
-             svgString = `<svg width="${originalWidth}" height="${originalHeight}" viewBox="0 0 ${originalWidth} ${originalHeight}" xmlns="http://www.w3.org/2000/svg">
-                             <image href="${imgDataUrl}" x="0" y="0" width="${originalWidth}" height="${originalHeight}"/>
-                           </svg>`;
 
           } else {
             throw new Error(`Unsupported file type: ${file.type}`);
@@ -318,10 +289,6 @@ export const usePlanImport = (): PlanImportHook => {
           if (file.type !== 'application/pdf' && file.type !== 'image/svg+xml') {
               throw new Error("Por favor, selecione um arquivo PDF ou SVG.");
           }
-      } else if (importMode === 'image') {
-          if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
-              throw new Error("Por favor, selecione uma imagem (PNG, JPG).");
-          }
       }
 
       const result = await processFile(file);
@@ -351,7 +318,6 @@ export const usePlanImport = (): PlanImportHook => {
     isLoading,
     importMode,
     openImportPdfModal,
-    openImportImageModal,
     openImportDxfModal,
     closeImportModal,
     handleFileImport,
