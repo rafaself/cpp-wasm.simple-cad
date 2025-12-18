@@ -16,6 +16,8 @@ export interface ImportOptions {
   colorScheme?: DxfColorScheme;
   customColor?: string;
   sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
+  /** PDF-only: attempts to remove the outer page/frame border (often present in architectural PDFs). */
+  pdfRemoveBorder?: boolean;
 }
 
 const DXF_COLOR_SCHEMES: Array<{ id: DxfColorScheme; label: string; description: string; swatch?: string }> = [
@@ -62,6 +64,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     importMode: 'shapes',
     colorScheme: 'custom',
     customColor: '#000000',
+    pdfRemoveBorder: false,
     layerNameConflictPolicy: 'merge',
     sourceUnits: 'auto',
   };
@@ -449,6 +452,31 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                         </span>
                       </button>
                     )}
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.15em] leading-none px-1">Ajustes do PDF</label>
+                    <div className="flex flex-col bg-slate-900/40 border border-slate-700/60 rounded-xl overflow-hidden">
+                      <div className="group flex flex-col p-4 transition-colors hover:bg-slate-800/20 gap-2">
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-[14px] font-bold text-slate-50">Remover borda/moldura</span>
+                          <label className="premium-switch">
+                            <input
+                              type="checkbox"
+                              checked={options.pdfRemoveBorder ?? false}
+                              onChange={(e) => setOptions(o => ({ ...o, pdfRemoveBorder: e.target.checked }))}
+                              className="premium-switch-input"
+                            />
+                            <div className="premium-switch-track">
+                              <div className="premium-switch-handle" />
+                            </div>
+                          </label>
+                        </div>
+                        <span className="text-[13px] text-slate-300 group-hover:text-slate-200 leading-relaxed">
+                          Remove automaticamente a moldura externa da página quando ela estiver presente no PDF.
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

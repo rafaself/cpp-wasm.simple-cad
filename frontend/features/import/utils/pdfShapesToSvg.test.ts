@@ -37,7 +37,8 @@ describe('pdfShapesToSvg', () => {
         layerId: 'layer',
         points: [{ x: 0, y: 0 }, { x: 0, y: 10 }],
         strokeColor: '#000000',
-        strokeWidth: 1,
+        // Use 0 so bounds are not expanded by strokeWidth/2 for this coordinate-flip test.
+        strokeWidth: 0,
         strokeEnabled: true,
         fillColor: 'transparent',
         fillEnabled: false,
@@ -58,6 +59,28 @@ describe('pdfShapesToSvg', () => {
     // (0,0) -> yDown = 10 ; (0,10) -> yDown = 0
     expect(points[0][1]).toBeCloseTo(10, 6);
     expect(points[1][1]).toBeCloseTo(0, 6);
+  });
+
+  it('expands bounds by strokeWidth/2 to include visible stroke', () => {
+    const shapes: Shape[] = [
+      {
+        id: 'p1',
+        type: 'polyline',
+        layerId: 'layer',
+        points: [{ x: 0, y: 0 }, { x: 0, y: 10 }],
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        strokeEnabled: true,
+        fillColor: 'transparent',
+        fillEnabled: false,
+        colorMode: { fill: 'custom', stroke: 'custom' },
+        discipline: 'architecture',
+      },
+    ];
+
+    const result = pdfShapesToSvg(shapes);
+    // Base height is 10, expand by 1px on top and bottom => 12.
+    expect(result.viewBox.height).toBe(12);
   });
 });
 

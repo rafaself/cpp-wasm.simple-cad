@@ -6,6 +6,7 @@ import { NormalizedViewBox, Shape } from '../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { pdfShapesToSvgWithOptions } from './utils/pdfShapesToSvg';
+import { removePdfBorderShapes } from './utils/pdfBorderFilter';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
@@ -98,9 +99,10 @@ export const usePlanImport = (): PlanImportHook => {
                   }
               );
 
-                if (vectorShapes.length > 0) {
+              if (vectorShapes.length > 0) {
+                   const filteredShapes = removePdfBorderShapes(vectorShapes, { enabled: params?.options?.pdfRemoveBorder === true });
                     if (importAs === 'svg') {
-                     const svg = pdfShapesToSvgWithOptions(vectorShapes, { paddingPx: 1 });
+                     const svg = pdfShapesToSvgWithOptions(filteredShapes, { paddingPx: 1 });
                      const newShapeId = generateId('plan');
                      const newShape: Shape = {
                        id: newShapeId,
@@ -127,7 +129,7 @@ export const usePlanImport = (): PlanImportHook => {
                      return;
                     }
 
-                   resolve({ shapes: vectorShapes, originalWidth, originalHeight });
+                   resolve({ shapes: filteredShapes, originalWidth, originalHeight });
                    return;
               }
             }
