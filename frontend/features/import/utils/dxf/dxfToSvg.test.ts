@@ -94,4 +94,24 @@ describe('dxfToSvg', () => {
       expect(result.svgRaw).toContain('<use href="#block_myBlock"');
       expect(result.svgRaw).toContain('transform="translate(20 20) rotate(45) scale(2 2)"');
   });
+
+  it('respects grayscale color mode', () => {
+    const result = dxfToSvg(mockDxfData, {
+      floorId: '1',
+      defaultLayerId: '1',
+      colorMode: 'grayscale'
+    });
+
+    expect(result.svgRaw).toContain('stroke="#4c4c4c"');
+  });
+
+  it('respects monochrome color mode', () => {
+    const result = dxfToSvg(mockDxfData, {
+      floorId: '1',
+      defaultLayerId: '1',
+      colorMode: 'monochrome'
+    });
+
+    expect(result.svgRaw).toContain('stroke="#000000"');
+  });
 });

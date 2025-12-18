@@ -1,7 +1,7 @@
 
 import { DxfData, DxfEntity, DxfImportOptions } from './types';
 import { tessellateBulge, tessellateSpline } from './curveTessellation';
-import { resolveColor, resolveLineweight, BYBLOCK_COLOR_PLACEHOLDER, toGrayscale } from './styles';
+import { resolveColor, resolveLineweight, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
 
 // DXF Unit Codes to Centimeters (CM) Conversion Factors
 const DXF_UNITS: Record<number, number> = {
@@ -140,11 +140,14 @@ const entityToSvg = (
   // Resolve Style
   // If blockContext is true, we are inside a symbol definition.
   // We don't have access to the parent layer here, so we return 'currentColor' for ByBlock.
-  let color = resolveColor(entity, data.tables?.layer?.layers[entity.layer]);
-
-  if (options.grayscale) {
-      color = toGrayscale(color);
-  }
+  const colorMode = options.colorMode ?? (options.grayscale ? 'grayscale' : 'original');
+  let color = resolveColor(
+    entity,
+    data.tables?.layer?.layers[entity.layer],
+    undefined,
+    false,
+    colorMode
+  );
 
   if (color === BYBLOCK_COLOR_PLACEHOLDER) {
       color = 'currentColor';
