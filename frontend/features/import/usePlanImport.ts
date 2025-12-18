@@ -5,7 +5,7 @@ import { useEditorLogic } from '../editor/hooks/useEditorLogic';
 import { NormalizedViewBox, Shape } from '../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
-import { pdfShapesToSvgWithOptions } from './utils/pdfShapesToSvg';
+import { pdfShapesToSvg } from './utils/pdfShapesToSvg';
 import { removePdfBorderShapes } from './utils/pdfBorderFilter';
 import { generateId } from '../../utils/uuid';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
@@ -30,6 +30,7 @@ interface ImportOptions {
   colorScheme?: DxfColorScheme;
   customColor?: string;
   sourceUnits?: 'auto' | 'meters' | 'cm' | 'mm' | 'feet' | 'inches';
+  pdfRemoveBorder?: boolean;
 }
 
 interface PlanImportHook {
@@ -102,7 +103,7 @@ export const usePlanImport = (): PlanImportHook => {
               if (vectorShapes.length > 0) {
                    const filteredShapes = removePdfBorderShapes(vectorShapes, { enabled: params?.options?.pdfRemoveBorder === true });
                     if (importAs === 'svg') {
-                     const svg = pdfShapesToSvgWithOptions(filteredShapes, { paddingPx: 1 });
+                     const svg = pdfShapesToSvg(filteredShapes, { paddingPx: 1 });
                      const newShapeId = generateId('plan');
                      const newShape: Shape = {
                        id: newShapeId,

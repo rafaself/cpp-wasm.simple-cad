@@ -8,6 +8,10 @@ export interface PdfShapesToSvgResult {
   origin: { x: number; y: number };
 }
 
+export interface PdfShapesToSvgOptions {
+  paddingPx?: number;
+}
+
 const escapeXml = (unsafe: string): string =>
   unsafe.replace(/[<>&'"]/g, (c) => {
     switch (c) {
@@ -112,7 +116,10 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
  * Converts already-normalized PDF shapes (using the editor/world coordinate system, where Y increases "up")
  * into a single SVG string (standard SVG Y-down), so it can be rendered as a single object like DXF SVG mode.
  */
-export const pdfShapesToSvg = (shapes: readonly Shape[]): PdfShapesToSvgResult => {
+ export const pdfShapesToSvg = (
+  shapes: readonly Shape[],
+  options?: PdfShapesToSvgOptions
+ ): PdfShapesToSvgResult => {
   const nonEmpty = shapes.filter((s) => {
     if (s.type === 'line' || s.type === 'polyline') return (s.points?.length ?? 0) >= 2;
     if (s.type === 'rect') return isFiniteNumber(s.width) && isFiniteNumber(s.height) && s.width > 0 && s.height > 0;
@@ -209,9 +216,16 @@ export const pdfShapesToSvg = (shapes: readonly Shape[]): PdfShapesToSvgResult =
     }
   });
 
-  const viewBox: NormalizedViewBox = { x: 0, y: 0, width, height };
-  const svgRaw = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">${elements.join('')}</svg>`;
+  const content = elements.join('');
+  const paddingPx = Math.max(0, coerceNumber(options?.paddingPx, 0));
+  const paddedWidth = width + paddingPx * 2;
+  const paddedHeight = height + paddingPx * 2;
+  const contentWithPadding =
+    paddingPx > 0 ? `<g transform="translate(${paddingPx} ${paddingPx})">${content}</g>` : content;
 
-  return { svgRaw, viewBox, width, height, origin };
+  const viewBox: NormalizedViewBox = { x: 0, y: 0, width: paddedWidth, height: paddedHeight };
+  const svgRaw = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${paddedWidth} ${paddedHeight}">${contentWithPadding}</svg>`;
+
+  return { svgRaw, viewBox, width: paddedWidth, height: paddedHeight, origin };
 };
 

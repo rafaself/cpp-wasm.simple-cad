@@ -82,5 +82,31 @@ describe('pdfShapesToSvg', () => {
     // Base height is 10, expand by 1px on top and bottom => 12.
     expect(result.viewBox.height).toBe(12);
   });
+
+  it('applies padding when requested', () => {
+    const shapes: Shape[] = [
+      {
+        id: 'line',
+        type: 'line',
+        layerId: 'layer',
+        points: [{ x: 0, y: 0 }, { x: 5, y: 5 }],
+        strokeColor: '#000000',
+        strokeWidth: 1,
+        strokeEnabled: true,
+        fillColor: 'transparent',
+        fillEnabled: false,
+        colorMode: { fill: 'custom', stroke: 'custom' },
+        discipline: 'architecture',
+      },
+    ];
+
+    const baseResult = pdfShapesToSvg(shapes);
+    const paddingPx = 2;
+    const paddedResult = pdfShapesToSvg(shapes, { paddingPx });
+
+    expect(paddedResult.width).toBeCloseTo(baseResult.width + paddingPx * 2, 6);
+    expect(paddedResult.height).toBeCloseTo(baseResult.height + paddingPx * 2, 6);
+    expect(paddedResult.svgRaw).toContain(`<g transform="translate(${paddingPx} ${paddingPx})">`);
+  });
 });
 
