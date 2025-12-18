@@ -363,6 +363,7 @@ const EditorSidebar: React.FC = () => {
         <button 
           onClick={() => !isDragging && setActiveTab('propriedades')}
           title="Propriedades"
+          aria-label="Propriedades"
           className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'propriedades' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <SlidersHorizontal size={18} />
@@ -371,6 +372,7 @@ const EditorSidebar: React.FC = () => {
         <button 
           onClick={() => !isDragging && setActiveTab('desenho')}
           title="Desenho"
+          aria-label="Desenho"
           className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'desenho' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <PenTool size={18} />
@@ -379,6 +381,7 @@ const EditorSidebar: React.FC = () => {
         <button 
           onClick={() => !isDragging && setActiveTab('projeto')}
           title="Projeto"
+          aria-label="Projeto"
           className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'projeto' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <FolderOpen size={18} />
@@ -387,6 +390,7 @@ const EditorSidebar: React.FC = () => {
         <button 
           onClick={() => !isDragging && setActiveTab('edificacao')}
           title="Edificacao"
+          aria-label="Edificacao"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'edificacao' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Building2 size={18} />
@@ -395,6 +399,7 @@ const EditorSidebar: React.FC = () => {
         <button
           onClick={() => !isDragging && setActiveTab('camadas')}
           title="Camadas"
+          aria-label="Camadas"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'camadas' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Layers size={18} />
@@ -403,6 +408,7 @@ const EditorSidebar: React.FC = () => {
         <button
           onClick={() => !isDragging && setActiveTab('eletrica')}
           title="Lancamento"
+          aria-label="Lancamento"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'eletrica' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Zap size={18} />
@@ -410,6 +416,7 @@ const EditorSidebar: React.FC = () => {
         <button
           onClick={() => !isDragging && setActiveTab('diagrama')}
           title="Diagrama"
+          aria-label="Diagrama"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'diagrama' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <GitBranch size={18} />
@@ -419,6 +426,7 @@ const EditorSidebar: React.FC = () => {
         <button 
           onClick={() => !isDragging && setActiveTab('ajustes')}
           title="Ajustes"
+          aria-label="Ajustes"
           className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'ajustes' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
         >
           <Settings size={18} />
