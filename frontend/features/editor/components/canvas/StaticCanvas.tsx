@@ -27,7 +27,6 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     const axisYDashed = useSettingsStore(s => s.display.centerAxes.yDashed);
     const centerIconColor = useSettingsStore(s => s.display.centerIcon.color);
     const editingTextId = useUIStore(s => s.editingTextId);
-    const selectedShapeIds = useUIStore(s => s.selectedShapeIds);
     const activeFloorId = useUIStore(s => s.activeFloorId);
     const activeDiscipline = useUIStore(s => s.activeDiscipline);
     const referencedDisciplines = useUIStore(s => s.referencedDisciplines);
@@ -310,7 +309,7 @@ const StaticCanvas: React.FC<StaticCanvasProps> = ({ width, height }) => {
     // Re-render when any dependency changes, INCLUDING canvas dimensions
     useEffect(() => {
         render();
-    }, [renderTrigger, viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, layers, spatialIndex, editingTextId, selectedShapeIds, width, height, frame, worldScale, referencedDisciplines]);
+    }, [renderTrigger, viewTransform, gridSize, gridColor, gridShowDots, gridShowLines, showCenterAxes, showCenterIcon, axisXColor, axisYColor, axisXDashed, axisYDashed, centerIconColor, layers, spatialIndex, editingTextId, width, height, frame, worldScale, referencedDisciplines]);
 
     return (
         <canvas
