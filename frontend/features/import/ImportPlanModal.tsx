@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react';
-import { FileUp, Home, Layers, ChevronDown, ChevronUp, Info, Settings2, FileText, CheckCircle2 } from 'lucide-react';
+import { FileUp, Home, Layers, ChevronDown, ChevronUp, Info, Settings2, CheckCircle2 } from 'lucide-react';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 
 export interface ImportOptions {
@@ -120,6 +120,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     >
       <DialogCard
         title={title}
+        className="h-full"
+        contentClassName="flex flex-col overflow-hidden"
         actions={
           <div className="flex gap-2 w-full justify-end">
             <DialogButton onClick={onClose} variant="secondary">
@@ -135,7 +137,8 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
           </div>
         }
       >
-        <div className="flex flex-col gap-5 pt-1">
+        {/* Fixed Area: Header and File Selector */}
+        <div className="flex flex-col gap-5 pt-1 shrink-0">
           {/* File Selection Area */}
           <div className="flex flex-col gap-2">
             <form
@@ -226,159 +229,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
             </form>
           </div>
 
-          {/* DXF Options */}
-          {mode === 'dxf' && (
-            <div className="flex flex-col gap-4">
-              
-              {/* Advanced Settings Toggle */}
-              <div className="mt-1">
-                <button
-                  type="button"
-                  onClick={() => setAdvancedOpen(!advancedOpen)}
-                  className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors w-full group"
-                >
-                  <Settings2 size={14} className={advancedOpen ? 'text-blue-400' : ''} />
-                  <span>Configurações Avançadas</span>
-                  <div className="h-px flex-grow bg-slate-700/30 group-hover:bg-slate-700/60 transition-colors" />
-                  {advancedOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
-
-                <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${advancedOpen ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'}`}>
-                  <div className="overflow-hidden">
-                    <div className="flex flex-col gap-6 p-4 pb-6 rounded-xl bg-slate-800/30 border border-slate-700/50">
-                      
-                      {/* Primary Option: Import Mode */}
-                      <div className="flex flex-col gap-3">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Qualidade da Importação</label>
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setOptions(o => ({...o, importMode: 'svg'}))}
-                            className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
-                                options.importMode === 'svg'
-                                ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                                : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
-                            }`}
-                          >
-                            <div className={`mt-0.5 p-1.5 rounded ${options.importMode === 'svg' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                              <Home size={16} />
-                            </div>
-                            <div>
-                              <div className={`text-sm font-semibold ${options.importMode === 'svg' ? 'text-blue-100' : 'text-slate-300'}`}>Planta de Referência</div>
-                              <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Modo de <strong>alta performance</strong>. O desenho é importado como uma referência visual única, garantindo fluidez total em arquivos grandes e complexos.</div>
-                            </div>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setOptions(o => ({...o, importMode: 'shapes'}))}
-                            className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
-                                options.importMode === 'shapes'
-                                ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                                : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
-                            }`}
-                          >
-                            <div className={`mt-0.5 p-1.5 rounded ${options.importMode === 'shapes' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                              <Layers size={16} />
-                            </div>
-                            <div>
-                              <div className={`text-sm font-semibold ${options.importMode === 'shapes' ? 'text-blue-100' : 'text-slate-300'}`}>Geometria Editável</div>
-                              <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Importa cada linha e arco como um elemento individual. Recomendado para pequenas correções e medições precisas.</div>
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Unit Selection */}
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5 leading-none">
-                          Unidade do Arquivo
-                          <div title="Define como a escala do arquivo original será interpretada.">
-                            <Info size={10} />
-                          </div>
-                        </label>
-                        <select
-                          value={options.sourceUnits || 'auto'}
-                          onChange={e => setOptions(o => ({...o, sourceUnits: e.target.value as any}))}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 transition-all cursor-pointer"
-                        >
-                          <option value="auto">Auto-detectar (Recomendado)</option>
-                          <option value="meters">Metros (m)</option>
-                          <option value="cm">Centímetros (cm)</option>
-                          <option value="mm">Milímetros (mm)</option>
-                          <option value="inches">Polegadas (in)</option>
-                          <option value="feet">Pés (ft)</option>
-                        </select>
-                        <p className="text-[10px] text-slate-500 italic">
-                          {options.sourceUnits === 'auto' 
-                            ? "O sistema identificará a unidade ideal baseada nos metadados do arquivo original."
-                            : "Forçar a interpretação da escala para a unidade selecionada."}
-                        </p>
-                      </div>
-
-                      {/* Color Modes */}
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Esquema de Cores</label>
-                        <div className="flex gap-1.5">
-                          {([
-                            { id: 'original', label: 'Original', props: { colorMode: 'original', grayscale: false } },
-                            { id: 'grayscale', label: 'Cinza', props: { colorMode: 'grayscale', grayscale: true } },
-                            { id: 'monochrome', label: 'Preto e Branco', props: { colorMode: 'monochrome', grayscale: false } }
-                          ] as const).map((mode) => (
-                            <button
-                              key={mode.id}
-                              type="button"
-                              onClick={() => setOptions(o => ({ ...o, ...mode.props }))}
-                              className={`flex-1 py-1.5 px-2 text-[11px] font-medium rounded-md border transition-all duration-200 ${
-                                options.colorMode === mode.id 
-                                  ? 'bg-slate-700 border-slate-500 text-blue-400 shadow-sm' 
-                                  : 'bg-slate-800/80 border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
-                              }`}
-                            >
-                              {mode.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Structure Options */}
-                      <div className="flex flex-col gap-3 pt-4 border-t border-slate-700/50">
-                        <label className="flex items-center gap-2.5 cursor-pointer group select-none">
-                          <div className="relative flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={options.maintainLayers}
-                              onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
-                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
-                            />
-                          </div>
-                          <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Preservar camadas (Layers) originais</span>
-                        </label>
-                        
-                        <label className="flex items-center gap-2.5 cursor-pointer group select-none">
-                          <div className="relative flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={options.readOnly}
-                              onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
-                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
-                            />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Bloquear edição (Apenas Leitura)</span>
-                            <span className="text-[9px] text-slate-500 uppercase tracking-tighter">Evita alterações acidentais na planta base</span>
-                          </div>
-                        </label>
-                      </div>
-
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* PDF/Image info for consistency */}
+          {/* PDF/Image info for consistency (Only when not in DXF mode) */}
           {mode !== 'dxf' && !selectedFile && (
             <div className="flex flex-col gap-3 py-2">
                <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-800/30 p-3 rounded-lg border border-slate-700/50">
@@ -387,7 +238,161 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
                </div>
             </div>
           )}
+
+          {/* DXF Advanced Toggle (Fixed) */}
+          {mode === 'dxf' && (
+            <div className="mt-1 pb-1">
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen(!advancedOpen)}
+                className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors w-full group"
+              >
+                <Settings2 size={14} className={advancedOpen ? 'text-blue-400' : ''} />
+                <span>Configurações Avançadas</span>
+                <div className="h-px flex-grow bg-slate-700/30 group-hover:bg-slate-700/60 transition-colors" />
+                {advancedOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Dynamic/Scrollable Area: DXF Options */}
+        {mode === 'dxf' && (
+          <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex-grow min-h-0 ${advancedOpen ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'}`}>
+            <div className="overflow-hidden flex flex-col min-h-0">
+              {/* Outer Container with Border and Background */}
+              <div className="flex flex-col rounded-xl bg-slate-800/30 border border-slate-600/60 flex-grow min-h-0 overflow-hidden">
+                {/* Inner Scrollable Area - Isolated from the border */}
+                <div className="flex flex-col gap-6 py-4 px-4 overflow-y-auto custom-scrollbar flex-grow min-h-0">
+                  
+                  {/* Primary Option: Import Mode */}
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Qualidade da Importação</label>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOptions(o => ({...o, importMode: 'svg'}))}
+                        className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
+                            options.importMode === 'svg'
+                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
+                            : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className={`mt-0.5 p-1.5 rounded ${options.importMode === 'svg' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                          <Home size={16} />
+                        </div>
+                        <div>
+                          <div className={`text-sm font-semibold ${options.importMode === 'svg' ? 'text-blue-100' : 'text-slate-300'}`}>Planta de Referência</div>
+                          <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Modo de <strong>alta performance</strong>. O desenho é importado como uma referência visual única, garantindo fluidez total em arquivos grandes e complexos.</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOptions(o => ({...o, importMode: 'shapes'}))}
+                        className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-200 ${
+                            options.importMode === 'shapes'
+                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
+                            : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className={`mt-0.5 p-1.5 rounded ${options.importMode === 'shapes' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                          <Layers size={16} />
+                        </div>
+                        <div>
+                          <div className={`text-sm font-semibold ${options.importMode === 'shapes' ? 'text-blue-100' : 'text-slate-300'}`}>Geometria Editável</div>
+                          <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Importa cada linha e arco como um elemento individual. Recomendado para pequenas correções e medições precisas.</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Unit Selection */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5 leading-none">
+                      Unidade do Arquivo
+                      <div title="Define como a escala do arquivo original será interpretada.">
+                        <Info size={10} />
+                      </div>
+                    </label>
+                    <select
+                      value={options.sourceUnits || 'auto'}
+                      onChange={e => setOptions(o => ({...o, sourceUnits: e.target.value as any}))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 transition-all cursor-pointer"
+                    >
+                      <option value="auto">Auto-detectar (Recomendado)</option>
+                      <option value="meters">Metros (m)</option>
+                      <option value="cm">Centímetros (cm)</option>
+                      <option value="mm">Milímetros (mm)</option>
+                      <option value="inches">Polegadas (in)</option>
+                      <option value="feet">Pés (ft)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-500 italic">
+                      {options.sourceUnits === 'auto' 
+                        ? "O sistema identificará a unidade ideal baseada nos metadados do arquivo original."
+                        : "Forçar a interpretação da escala para a unidade selecionada."}
+                    </p>
+                  </div>
+
+                  {/* Color Modes */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Esquema de Cores</label>
+                    <div className="flex gap-1.5">
+                      {([
+                        { id: 'original', label: 'Original', props: { colorMode: 'original', grayscale: false } },
+                        { id: 'grayscale', label: 'Cinza', props: { colorMode: 'grayscale', grayscale: true } },
+                        { id: 'monochrome', label: 'Preto e Branco', props: { colorMode: 'monochrome', grayscale: false } }
+                      ] as const).map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => setOptions(o => ({ ...o, ...mode.props }))}
+                          className={`flex-1 py-1.5 px-2 text-[11px] font-medium rounded-md border transition-all duration-200 ${
+                            options.colorMode === mode.id 
+                              ? 'bg-slate-700 border-slate-500 text-blue-400 shadow-sm' 
+                              : 'bg-slate-800/80 border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Structure Options */}
+                  <div className="flex flex-col gap-3 pt-4 border-t border-slate-700/50">
+                    <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+                      <div className="relative flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={options.maintainLayers}
+                          onChange={e => setOptions(o => ({...o, maintainLayers: e.target.checked}))}
+                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
+                        />
+                      </div>
+                      <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Preservar camadas (Layers) originais</span>
+                    </label>
+                    
+                    <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+                      <div className="relative flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={options.readOnly}
+                          onChange={e => setOptions(o => ({...o, readOnly: e.target.checked}))}
+                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 transition-all border"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] text-slate-300 group-hover:text-slate-100 transition-colors font-medium">Bloquear edição (Apenas Leitura)</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter">Evita alterações acidentais na planta base</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </DialogCard>
     </Dialog>
   );

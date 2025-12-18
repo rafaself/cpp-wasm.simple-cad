@@ -197,6 +197,7 @@ export interface DialogCardProps {
   children: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }
 
 export const DialogCard: React.FC<DialogCardProps> = ({
@@ -204,6 +205,7 @@ export const DialogCard: React.FC<DialogCardProps> = ({
   children,
   actions,
   className = '',
+  contentClassName = '',
 }) => {
   return (
     <div className={`flex flex-col min-h-0 max-h-full ${className}`}>
@@ -212,7 +214,7 @@ export const DialogCard: React.FC<DialogCardProps> = ({
           <h2 className="text-lg font-semibold text-white leading-none">{title}</h2>
         </div>
       )}
-      <div className="px-6 py-4 text-slate-300 overflow-y-auto custom-scrollbar flex-grow min-h-0">
+      <div className={`px-6 py-4 text-slate-300 flex-grow min-h-0 ${contentClassName}`}>
         {children}
       </div>
       {actions && (
