@@ -8,6 +8,22 @@ import { detachAnchoredNodesForShape, getConduitNodeUsage, normalizeConnectionTo
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
 
+const generateLayerId = (existingIds: Set<string>): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    const id = crypto.randomUUID();
+    if (!existingIds.has(id)) return id;
+  }
+
+  // Fallback: timestamp + random suffix, collision-checked.
+  for (let i = 0; i < 10; i += 1) {
+    const id = `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+    if (!existingIds.has(id)) return id;
+  }
+
+  // Extremely unlikely, but keep function total.
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+};
+
 interface DataState {
   // Document State
   shapes: Record<string, Shape>;
@@ -904,7 +920,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
       if (existing) return existing.id;
 
-      const newId = Date.now().toString();
+      const existingIds = new Set(layers.map(l => l.id));
+      const newId = generateLayerId(existingIds);
       const newLayer: Layer = {
         id: newId,
         name,

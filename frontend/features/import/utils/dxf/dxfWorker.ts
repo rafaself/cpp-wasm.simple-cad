@@ -3,6 +3,7 @@ import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { cleanupShapes } from './cleanup';
 import { augmentParsedDxfDataWithRaw } from './dxfRawExtras';
+import { resolveColor } from './styles';
 import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
 import { Shape } from '../../../../types';
 
@@ -74,7 +75,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
                 layersList.push({
                     id: sanitizeLayerId(name), // Match sanitized ID used in SVG
                     name: name,
-                    strokeColor: '#ffffff', // Default
+                    strokeColor: resolveColor({ type: 'LAYER', layer: name, trueColor: (l as any).color, colorIndex: (l as any).colorIndex } as any, undefined, undefined, false, options.colorMode),
                     strokeEnabled: true,
                     fillColor: 'transparent',
                     fillEnabled: false,
@@ -91,7 +92,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
                  layersList.push({
                     id: sanitizeLayerId(name),
                     name: name,
-                    strokeColor: '#ffffff',
+                    strokeColor: '#000000',
                     strokeEnabled: true,
                     fillColor: 'transparent',
                     fillEnabled: false,

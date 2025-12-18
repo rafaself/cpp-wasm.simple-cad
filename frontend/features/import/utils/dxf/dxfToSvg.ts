@@ -60,6 +60,12 @@ const getTransform = (
   return parts.join(' ');
 };
 
+const toRadiansIfNeeded = (angle: number): number => {
+  if (!isFinite(angle)) return 0;
+  const abs = Math.abs(angle);
+  return abs > Math.PI * 2 + 0.5 ? (angle * Math.PI) / 180 : angle;
+};
+
 // Hardcoded fallbacks if table missing
 const STANDARD_LINETYPES: Record<string, number[]> = {
   DASHED: [10, 5],
@@ -164,6 +170,24 @@ const entityToSvg = (
     case 'POLYLINE': {
       if (!entity.vertices || entity.vertices.length < 2) return null;
       const isClosed = (entity as any).closed === true || (entity as any).shape === true || entity.closed === true;
+
+      // Special case: closed 2-vertex bulge circle.
+      // Render as <circle> to avoid huge polygon point counts.
+      if (
+        isClosed &&
+        entity.vertices.length === 2 &&
+        entity.vertices.every(v => v.bulge !== undefined && Math.abs(v.bulge) > 1e-10) &&
+        Math.abs(Math.abs(entity.vertices[0].bulge!) - 1) < 1e-6 &&
+        Math.abs(Math.abs(entity.vertices[1].bulge!) - 1) < 1e-6
+      ) {
+        const p1 = entity.vertices[0];
+        const p2 = entity.vertices[1];
+        const cx = (p1.x + p2.x) / 2;
+        const cy = (p1.y + p2.y) / 2;
+        const r = Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2;
+        return `<circle cx="${formatFloat(cx)}" cy="${formatFloat(cy)}" r="${formatFloat(r)}" ${commonAttrs} />`;
+      }
+
       const rawPts = entity.vertices;
       const expanded: typeof rawPts = [];
 
@@ -222,10 +246,9 @@ const entityToSvg = (
 
     case 'ARC': {
       if (!entity.center || !entity.radius || entity.startAngle === undefined || entity.endAngle === undefined) return null;
-      // Convert angles to radians and calculate start/end points
-      // DXF angles are degrees CCW from X-axis.
-      const startRad = (entity.startAngle * Math.PI) / 180;
-      const endRad = (entity.endAngle * Math.PI) / 180;
+      // dxf-parser typically returns radians; fall back to degrees if needed.
+      const startRad = toRadiansIfNeeded(entity.startAngle);
+      const endRad = toRadiansIfNeeded(entity.endAngle);
 
       const x1 = entity.center.x + entity.radius * Math.cos(startRad);
       const y1 = entity.center.y + entity.radius * Math.sin(startRad);
@@ -233,9 +256,9 @@ const entityToSvg = (
       const y2 = entity.center.y + entity.radius * Math.sin(endRad);
 
       // Large arc flag
-      let diff = entity.endAngle - entity.startAngle;
-      if (diff < 0) diff += 360;
-      const largeArc = diff > 180 ? 1 : 0;
+      let diff = endRad - startRad;
+      if (diff < 0) diff += Math.PI * 2;
+      const largeArc = diff > Math.PI ? 1 : 0;
       const sweep = 1; // CCW
 
       const d = `M ${formatFloat(x1)} ${formatFloat(y1)} A ${formatFloat(entity.radius)} ${formatFloat(entity.radius)} 0 ${largeArc} ${sweep} ${formatFloat(x2)} ${formatFloat(y2)}`;

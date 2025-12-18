@@ -48,6 +48,24 @@ const STANDARD_LINETYPES: Record<string, number[]> = {
 };
 
 const MIN_TEXT_SIZE = 0.001;
+const DXF_CURVE_TOLERANCE_DEG = 2.5;
+
+const toRadiansIfNeeded = (angle: number): number => {
+    // dxf-parser typically returns ARC angles in radians.
+    // If we detect degrees (values beyond ~2π), convert to radians.
+    if (!isFinite(angle)) return 0;
+    const abs = Math.abs(angle);
+    return abs > Math.PI * 2 + 0.5 ? (angle * Math.PI) / 180 : angle;
+};
+
+const isSimilarityTransform = (m: Mat2D): { ok: boolean; scale: number } => {
+    const sx = Math.hypot(m.a, m.b);
+    const sy = Math.hypot(m.c, m.d);
+    const dot = m.a * m.c + m.b * m.d;
+    const scale = sx || 1;
+    const ok = Math.abs(sx - sy) < 1e-6 && Math.abs(dot) < 1e-6 && isFinite(scale) && scale > 0;
+    return { ok, scale };
+};
 
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
@@ -317,16 +335,44 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       case 'LWPOLYLINE':
       case 'POLYLINE':
         if (entity.vertices && entity.vertices.length >= 2) {
+          const sim = isSimilarityTransform(matrix);
           const rawPts: DxfVector[] = [];
           const vs = entity.vertices;
           const isClosed = (entity as any).closed === true || (entity as any).shape === true || (entity.closed === true);
+
+          // Special case: closed 2-vertex bulge circle (common in diagram markers).
+          // When closed with 2 vertices, segment v0->v1 and v1->v0 form a full circle.
+          if (
+              sim.ok &&
+              isClosed &&
+              vs.length === 2 &&
+              vs.every(v => v.bulge !== undefined && Math.abs(v.bulge) > 1e-10) &&
+              Math.abs(Math.abs(vs[0].bulge!) - 1) < 1e-6 &&
+              Math.abs(Math.abs(vs[1].bulge!) - 1) < 1e-6
+          ) {
+              const p1 = trans(vs[0]);
+              const p2 = trans(vs[1]);
+              const cx = (p1.x + p2.x) / 2;
+              const cy = (p1.y + p2.y) / 2;
+              const r = Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2;
+              outputShapes.push({
+                  id: generateId('dxf-circle'),
+                  type: 'circle',
+                  x: cx,
+                  y: cy,
+                  radius: r,
+                  points: [],
+                  ...shapeProps
+              });
+              break;
+          }
 
           for (let i = 0; i < vs.length; i++) {
               const curr = vs[i];
               rawPts.push(curr);
               const next = (i === vs.length - 1) ? (isClosed ? vs[0] : null) : vs[i+1];
               if (next && curr.bulge && Math.abs(curr.bulge) > 1e-10) {
-                  const curvePts = tessellateBulge(curr, next, curr.bulge);
+                  const curvePts = tessellateBulge(curr, next, curr.bulge, DXF_CURVE_TOLERANCE_DEG);
                   rawPts.push(...curvePts);
               }
           }
@@ -372,22 +418,37 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       case 'CIRCLE':
         if (entity.center && entity.radius) {
-          const localPts = tessellateCircle(entity.center, entity.radius);
-          const pts = localPts.map(p => trans(p));
-          outputShapes.push({
-            id: generateId('dxf-circle'),
-            type: 'polyline',
-            points: pts,
-            ...shapeProps
-          });
+          const sim = isSimilarityTransform(matrix);
+          if (sim.ok) {
+              const c = trans(entity.center);
+              outputShapes.push({
+                  id: generateId('dxf-circle'),
+                  type: 'circle',
+                  x: c.x,
+                  y: c.y,
+                  radius: entity.radius * sim.scale,
+                  points: [],
+                  ...shapeProps
+              });
+          } else {
+              // Non-uniform/sheared transforms can turn circles into rotated ellipses; fall back to polyline for fidelity.
+              const localPts = tessellateCircle(entity.center, entity.radius, DXF_CURVE_TOLERANCE_DEG);
+              const pts = localPts.map(p => trans(p));
+              outputShapes.push({
+                id: generateId('dxf-circle'),
+                type: 'polyline',
+                points: pts,
+                ...shapeProps
+              });
+          }
         }
         break;
 
       case 'ARC':
         if (entity.center && entity.radius) {
-           const startAngle = (entity.startAngle || 0) * (Math.PI / 180);
-           const endAngle = (entity.endAngle || 0) * (Math.PI / 180);
-           const localPts = tessellateArc(entity.center, entity.radius, startAngle, endAngle);
+           const startAngle = toRadiansIfNeeded(entity.startAngle || 0);
+           const endAngle = toRadiansIfNeeded(entity.endAngle || 0);
+           const localPts = tessellateArc(entity.center, entity.radius, startAngle, endAngle, true, DXF_CURVE_TOLERANCE_DEG);
            const pts = localPts.map(p => trans(p));
            outputShapes.push({
             id: generateId('dxf-arc'),
@@ -570,6 +631,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const M_final = multiply(matrix, M_local);
           const det = M_final.a * M_final.d - M_final.b * M_final.c;
           const parentSign = det < 0 ? -1 : 1;
+          const sim = isSimilarityTransform(M_final);
 
           // 4. Instantiate and Fix Colors
           cachedShapes.forEach(s => {
@@ -589,6 +651,25 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
              if (clone.points) {
                  clone.points = clone.points.map(p => applyToPoint(M_final, p));
+             }
+             if (clone.type === 'circle' && s.x !== undefined && s.y !== undefined) {
+                 const c = applyToPoint(M_final, { x: s.x, y: s.y });
+                 clone.x = c.x;
+                 clone.y = c.y;
+                 if (typeof s.radius === 'number' && sim.ok) {
+                     clone.radius = s.radius * sim.scale;
+                 } else {
+                     // If we can't safely preserve it as a circle under transform, approximate it as a polyline.
+                     // This keeps existing behavior for non-similarity transforms.
+                     if (typeof s.radius === 'number') {
+                         const localPts = tessellateCircle({ x: s.x, y: s.y }, s.radius, DXF_CURVE_TOLERANCE_DEG);
+                         clone.type = 'polyline';
+                         clone.points = localPts.map(p => applyToPoint(M_final, p));
+                         delete (clone as any).x;
+                         delete (clone as any).y;
+                         delete (clone as any).radius;
+                     }
+                 }
              }
              if (clone.type === 'text') {
                const p = applyToPoint(M_final, { x: s.x!, y: s.y! });

@@ -43,14 +43,6 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
     return { point: { x, y }, nextIndex: startIndex + 4 };
   };
 
-  const ensureClosedVertices = (vertices: DxfVector[]): DxfVector[] => {
-    if (vertices.length < 2) return vertices;
-    const first = vertices[0];
-    const last = vertices[vertices.length - 1];
-    if (dist2(first, last) > EPS2) vertices.push({ x: first.x, y: first.y });
-    return vertices;
-  };
-
   const parsedEntities: DxfEntity[] = [];
   const parsedBlockEntities: Record<string, DxfEntity[]> = {};
 
@@ -147,7 +139,7 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
       const entity: DxfEntity = {
         type: 'LWPOLYLINE',
         layer,
-        vertices: closed ? ensureClosedVertices(vertices) : vertices,
+        vertices,
         closed
       };
       // dxf-parser uses `shape` as a closed indicator in some cases; set it for compatibility.
@@ -258,7 +250,6 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
 
         // If loop yields usable points, record as a closed LWPOLYLINE with hatch flag.
         if (pts.length >= 3) {
-          ensureClosedVertices(pts);
           const hatchPolyline: DxfEntity = {
             type: 'LWPOLYLINE',
             layer,
