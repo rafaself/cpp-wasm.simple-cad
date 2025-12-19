@@ -239,21 +239,16 @@ export const useDataStore = create<DataState>((set, get) => ({
             delete newShapes[patch.id];
             if (patch.diagramNode) delete newDiagramNodes[patch.diagramNode.id];
             if (patch.diagramEdge) delete newDiagramEdges[patch.diagramEdge.id];
-            redoPatches.push({
-              type: 'DELETE',
-              id: patch.id,
-              prev: patch.data,
-              electricalElement: patch.electricalElement,
-              diagramNode: patch.diagramNode,
-              diagramEdge: patch.diagramEdge
-            });
+            // Redo must re-apply the original forward patch.
+            redoPatches.push(patch);
         } else if (patch.type === 'UPDATE') {
             const oldS = newShapes[patch.id];
             if (oldS) {
                 const updated = { ...oldS, ...(patch.prev as Partial<Shape>) };
                 spatialIndex.update(oldS, updated);
                 newShapes[patch.id] = updated;
-                redoPatches.push({ type: 'UPDATE', id: patch.id, diff: patch.diff, prev: patch.prev });
+                // Redo must re-apply the original forward patch (apply diff).
+                redoPatches.push(patch);
             }
         } else if (patch.type === 'DELETE') {
             if (patch.prev) {
@@ -272,14 +267,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
                 newShapes[patch.id] = restoredShape;
                 spatialIndex.insert(restoredShape);
-                redoPatches.push({
-                  type: 'ADD',
-                  id: patch.id,
-                  data: restoredShape,
-                  electricalElement: patch.electricalElement,
-                  diagramNode: patch.diagramNode,
-                  diagramEdge: patch.diagramEdge
-                });
+                // Redo must re-apply the original forward patch (delete).
+                redoPatches.push(patch);
             }
         }
     });
