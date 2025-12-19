@@ -29,6 +29,9 @@ export type CadEngineInstance = {
     rectCount: number;
     lineCount: number;
     polylineCount: number;
+    symbolCount?: number;
+    nodeCount?: number;
+    conduitCount?: number;
     pointCount: number;
     triangleVertexCount: number;
     lineVertexCount: number;
@@ -78,4 +81,3 @@ export class EngineRuntime {
     }
   }
 }
-

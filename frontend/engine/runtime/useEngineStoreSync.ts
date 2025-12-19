@@ -33,9 +33,47 @@ const toUpsertCommand = (shape: Shape, ensureId: (id: string) => number): Engine
     return { op: CommandOp.UpsertLine, id, line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y } };
   }
 
+  // Conduits are rendered in WASM from nodes + endpoints; do not mirror as generic polylines.
+  if (shape.type === 'eletroduto' || shape.type === 'conduit') {
+    if (!shape.fromNodeId || !shape.toNodeId) return null;
+    const fromNodeId = ensureId(shape.fromNodeId);
+    const toNodeId = ensureId(shape.toNodeId);
+    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId } };
+  }
+
   const points = shape.points;
   if (!points || points.length < 2) return null;
   return { op: CommandOp.UpsertPolyline, id, polyline: { points } };
+};
+
+const toUpsertSymbolCommand = (shape: Shape, ensureId: (id: string) => number): EngineCommand | null => {
+  if (shape.type !== 'rect') return null;
+  if (!shape.svgSymbolId) return null;
+  if (!shape.connectionPoint) return null;
+  if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
+
+  const id = ensureId(shape.id);
+  const symbolKey = ensureId(`sym:${shape.svgSymbolId}`);
+  const rotation = shape.rotation ?? 0;
+  const scaleX = shape.scaleX ?? 1;
+  const scaleY = shape.scaleY ?? 1;
+
+  return {
+    op: CommandOp.UpsertSymbol,
+    id,
+    symbol: {
+      symbolKey,
+      x: shape.x,
+      y: shape.y,
+      w: shape.width,
+      h: shape.height,
+      rotation,
+      scaleX,
+      scaleY,
+      connX: shape.connectionPoint.x,
+      connY: shape.connectionPoint.y,
+    },
+  };
 };
 
 export const useEngineStoreSync = (): void => {
@@ -50,8 +88,29 @@ export const useEngineStoreSync = (): void => {
       const ensureId = runtime.ids.ensureIdForString;
 
       // Initial full sync (batched) to guarantee deterministic engine state.
-      const initialShapes = Object.values(useDataStore.getState().shapes);
+      const initialState = useDataStore.getState();
+      const initialShapes = Object.values(initialState.shapes);
       const initialCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
+
+      // Connection nodes first (conduits depend on them).
+      for (const n of Object.values(initialState.connectionNodes)) {
+        const id = ensureId(n.id);
+        if (n.kind === 'anchored' && n.anchorShapeId) {
+          const anchorSymbolId = ensureId(n.anchorShapeId);
+          initialCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 1, anchorSymbolId, x: 0, y: 0 } });
+        } else {
+          const x = n.position?.x ?? 0;
+          const y = n.position?.y ?? 0;
+          initialCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 0, anchorSymbolId: 0, x, y } });
+        }
+      }
+
+      // Symbols (used by anchored nodes).
+      for (const s of initialShapes) {
+        const cmd = toUpsertSymbolCommand(s, ensureId);
+        if (cmd) initialCommands.push(cmd);
+      }
+
       for (const s of initialShapes) {
         const cmd = toUpsertCommand(s, ensureId);
         if (cmd) initialCommands.push(cmd);
@@ -63,6 +122,8 @@ export const useEngineStoreSync = (): void => {
 
         const nextShapes = state.shapes;
         const prevShapes = prev.shapes;
+        const nextNodes = state.connectionNodes;
+        const prevNodes = prev.connectionNodes;
 
         // Deletes
         for (const prevId of Object.keys(prevShapes)) {
@@ -72,10 +133,37 @@ export const useEngineStoreSync = (): void => {
           commands.push({ op: CommandOp.DeleteEntity, id: eid });
         }
 
+        for (const prevNodeId of Object.keys(prevNodes)) {
+          if (nextNodes[prevNodeId]) continue;
+          const eid = runtime.ids.maps.idStringToHash.get(prevNodeId);
+          if (eid === undefined) continue;
+          commands.push({ op: CommandOp.DeleteEntity, id: eid });
+        }
+
+        // Nodes: adds/updates
+        for (const [id, nextNode] of Object.entries(nextNodes)) {
+          const prevNode = prevNodes[id];
+          if (prevNode === nextNode) continue;
+          const eid = ensureId(id);
+          if (nextNode.kind === 'anchored' && nextNode.anchorShapeId) {
+            const anchorSymbolId = ensureId(nextNode.anchorShapeId);
+            commands.push({ op: CommandOp.UpsertNode, id: eid, node: { kind: 1, anchorSymbolId, x: 0, y: 0 } });
+          } else {
+            const x = nextNode.position?.x ?? 0;
+            const y = nextNode.position?.y ?? 0;
+            commands.push({ op: CommandOp.UpsertNode, id: eid, node: { kind: 0, anchorSymbolId: 0, x, y } });
+          }
+        }
+
         // Adds + updates (reference inequality means immutable replacement)
         for (const [id, nextShape] of Object.entries(nextShapes)) {
           const prevShape = prevShapes[id];
           if (prevShape === nextShape) continue;
+
+          // Symbols are not rendered as rects by WASM, but they need to exist for anchored node resolution.
+          const symCmd = toUpsertSymbolCommand(nextShape, ensureId);
+          if (symCmd) commands.push(symCmd);
+
           const cmd = toUpsertCommand(nextShape, ensureId);
           if (cmd) {
             commands.push(cmd);

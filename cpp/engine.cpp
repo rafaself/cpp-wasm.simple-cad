@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -219,6 +220,38 @@ public:
                     upsertPolyline(id, offset, count);
                     break;
                 }
+                case static_cast<std::uint32_t>(CommandOp::UpsertSymbol): {
+                    if (payloadByteCount != 40) throw std::runtime_error("Invalid symbol payload size");
+                    const std::uint32_t symbolKey = readU32(src, o + 0);
+                    const float x = readF32(src, o + 4);
+                    const float y = readF32(src, o + 8);
+                    const float w = readF32(src, o + 12);
+                    const float h = readF32(src, o + 16);
+                    const float rot = readF32(src, o + 20);
+                    const float sx = readF32(src, o + 24);
+                    const float sy = readF32(src, o + 28);
+                    const float connX = readF32(src, o + 32);
+                    const float connY = readF32(src, o + 36);
+                    upsertSymbol(id, symbolKey, x, y, w, h, rot, sx, sy, connX, connY);
+                    break;
+                }
+                case static_cast<std::uint32_t>(CommandOp::UpsertNode): {
+                    if (payloadByteCount != 16) throw std::runtime_error("Invalid node payload size");
+                    const std::uint32_t kindU32 = readU32(src, o + 0);
+                    const std::uint32_t anchorId = readU32(src, o + 4);
+                    const float x = readF32(src, o + 8);
+                    const float y = readF32(src, o + 12);
+                    const NodeKind kind = kindU32 == 1 ? NodeKind::Anchored : NodeKind::Free;
+                    upsertNode(id, kind, anchorId, x, y);
+                    break;
+                }
+                case static_cast<std::uint32_t>(CommandOp::UpsertConduit): {
+                    if (payloadByteCount != 8) throw std::runtime_error("Invalid conduit payload size");
+                    const std::uint32_t fromNodeId = readU32(src, o + 0);
+                    const std::uint32_t toNodeId = readU32(src, o + 4);
+                    upsertConduit(id, fromNodeId, toNodeId);
+                    break;
+                }
                 default:
                     throw std::runtime_error("Unknown command op");
             }
@@ -277,6 +310,9 @@ public:
         std::uint32_t rectCount;
         std::uint32_t lineCount;
         std::uint32_t polylineCount;
+        std::uint32_t symbolCount;
+        std::uint32_t nodeCount;
+        std::uint32_t conduitCount;
         std::uint32_t pointCount;
         std::uint32_t triangleVertexCount;
         std::uint32_t lineVertexCount;
@@ -291,6 +327,9 @@ public:
             static_cast<std::uint32_t>(rects.size()),
             static_cast<std::uint32_t>(lines.size()),
             static_cast<std::uint32_t>(polylines.size()),
+            static_cast<std::uint32_t>(symbols.size()),
+            static_cast<std::uint32_t>(nodes.size()),
+            static_cast<std::uint32_t>(conduits.size()),
             static_cast<std::uint32_t>(points.size()),
             static_cast<std::uint32_t>(triangleVertices.size() / 3),
             static_cast<std::uint32_t>(lineVertices.size() / 3),
@@ -324,7 +363,36 @@ private:
     struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; };
     struct Point2 { float x; float y; };
 
-    enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3 };
+    struct SymbolRec {
+        std::uint32_t id;
+        std::uint32_t symbolKey;
+        float x;
+        float y;
+        float w;
+        float h;
+        float rotation;
+        float scaleX;
+        float scaleY;
+        float connX;
+        float connY;
+    };
+
+    enum class NodeKind : std::uint32_t { Free = 0, Anchored = 1 };
+    struct NodeRec {
+        std::uint32_t id;
+        NodeKind kind;
+        std::uint32_t anchorSymbolId; // 0 when not anchored
+        float x;
+        float y;
+    };
+
+    struct ConduitRec {
+        std::uint32_t id;
+        std::uint32_t fromNodeId;
+        std::uint32_t toNodeId;
+    };
+
+    enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3, Symbol = 4, Node = 5, Conduit = 6 };
     struct EntityRef { EntityKind kind; std::uint32_t index; };
 
     enum class CommandOp : std::uint32_t {
@@ -333,12 +401,18 @@ private:
         UpsertLine = 3,
         UpsertPolyline = 4,
         DeleteEntity = 5,
+        UpsertSymbol = 6,
+        UpsertNode = 7,
+        UpsertConduit = 8,
     };
 
     std::vector<RectRec> rects;
     std::vector<LineRec> lines;
     std::vector<PolyRec> polylines;
     std::vector<Point2> points;
+    std::vector<SymbolRec> symbols;
+    std::vector<NodeRec> nodes;
+    std::vector<ConduitRec> conduits;
     std::unordered_map<std::uint32_t, EntityRef> entities;
 
     std::vector<float> triangleVertices;
@@ -374,6 +448,9 @@ private:
         lines.clear();
         polylines.clear();
         points.clear();
+        symbols.clear();
+        nodes.clear();
+        conduits.clear();
         entities.clear();
         triangleVertices.clear();
         lineVertices.clear();
@@ -411,13 +488,46 @@ private:
             return;
         }
 
-        const std::uint32_t idx = ref.index;
-        const std::uint32_t lastIdx = static_cast<std::uint32_t>(polylines.size() - 1);
-        if (idx != lastIdx) {
-            polylines[idx] = polylines[lastIdx];
-            entities[polylines[idx].id] = EntityRef{EntityKind::Polyline, idx};
+        if (ref.kind == EntityKind::Polyline) {
+            const std::uint32_t idx = ref.index;
+            const std::uint32_t lastIdx = static_cast<std::uint32_t>(polylines.size() - 1);
+            if (idx != lastIdx) {
+                polylines[idx] = polylines[lastIdx];
+                entities[polylines[idx].id] = EntityRef{EntityKind::Polyline, idx};
+            }
+            polylines.pop_back();
+            return;
         }
-        polylines.pop_back();
+
+        if (ref.kind == EntityKind::Symbol) {
+            const std::uint32_t idx = ref.index;
+            const std::uint32_t lastIdx = static_cast<std::uint32_t>(symbols.size() - 1);
+            if (idx != lastIdx) {
+                symbols[idx] = symbols[lastIdx];
+                entities[symbols[idx].id] = EntityRef{EntityKind::Symbol, idx};
+            }
+            symbols.pop_back();
+            return;
+        }
+
+        if (ref.kind == EntityKind::Node) {
+            const std::uint32_t idx = ref.index;
+            const std::uint32_t lastIdx = static_cast<std::uint32_t>(nodes.size() - 1);
+            if (idx != lastIdx) {
+                nodes[idx] = nodes[lastIdx];
+                entities[nodes[idx].id] = EntityRef{EntityKind::Node, idx};
+            }
+            nodes.pop_back();
+            return;
+        }
+
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
+        if (idx != lastIdx) {
+            conduits[idx] = conduits[lastIdx];
+            entities[conduits[idx].id] = EntityRef{EntityKind::Conduit, idx};
+        }
+        conduits.pop_back();
     }
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h) {
@@ -470,6 +580,123 @@ private:
 
         polylines.push_back(PolyRec{id, offset, count});
         entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
+    }
+
+    void upsertSymbol(
+        std::uint32_t id,
+        std::uint32_t symbolKey,
+        float x,
+        float y,
+        float w,
+        float h,
+        float rotation,
+        float scaleX,
+        float scaleY,
+        float connX,
+        float connY
+    ) {
+        const auto it = entities.find(id);
+        if (it != entities.end() && it->second.kind != EntityKind::Symbol) {
+            deleteEntity(id);
+        }
+
+        const auto it2 = entities.find(id);
+        if (it2 != entities.end()) {
+            auto& s = symbols[it2->second.index];
+            s.symbolKey = symbolKey;
+            s.x = x; s.y = y; s.w = w; s.h = h;
+            s.rotation = rotation;
+            s.scaleX = scaleX;
+            s.scaleY = scaleY;
+            s.connX = connX;
+            s.connY = connY;
+            return;
+        }
+
+        symbols.push_back(SymbolRec{id, symbolKey, x, y, w, h, rotation, scaleX, scaleY, connX, connY});
+        entities[id] = EntityRef{EntityKind::Symbol, static_cast<std::uint32_t>(symbols.size() - 1)};
+    }
+
+    void upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y) {
+        const auto it = entities.find(id);
+        if (it != entities.end() && it->second.kind != EntityKind::Node) {
+            deleteEntity(id);
+        }
+
+        const auto it2 = entities.find(id);
+        if (it2 != entities.end()) {
+            auto& n = nodes[it2->second.index];
+            n.kind = kind;
+            n.anchorSymbolId = anchorSymbolId;
+            n.x = x;
+            n.y = y;
+            return;
+        }
+
+        nodes.push_back(NodeRec{id, kind, anchorSymbolId, x, y});
+        entities[id] = EntityRef{EntityKind::Node, static_cast<std::uint32_t>(nodes.size() - 1)};
+    }
+
+    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId) {
+        const auto it = entities.find(id);
+        if (it != entities.end() && it->second.kind != EntityKind::Conduit) {
+            deleteEntity(id);
+        }
+
+        const auto it2 = entities.find(id);
+        if (it2 != entities.end()) {
+            auto& c = conduits[it2->second.index];
+            c.fromNodeId = fromNodeId;
+            c.toNodeId = toNodeId;
+            return;
+        }
+
+        conduits.push_back(ConduitRec{id, fromNodeId, toNodeId});
+        entities[id] = EntityRef{EntityKind::Conduit, static_cast<std::uint32_t>(conduits.size() - 1)};
+    }
+
+    const SymbolRec* findSymbol(std::uint32_t id) const noexcept {
+        const auto it = entities.find(id);
+        if (it == entities.end()) return nullptr;
+        if (it->second.kind != EntityKind::Symbol) return nullptr;
+        return &symbols[it->second.index];
+    }
+
+    const NodeRec* findNode(std::uint32_t id) const noexcept {
+        const auto it = entities.find(id);
+        if (it == entities.end()) return nullptr;
+        if (it->second.kind != EntityKind::Node) return nullptr;
+        return &nodes[it->second.index];
+    }
+
+    bool resolveNodePosition(std::uint32_t nodeId, Point2& out) const noexcept {
+        const NodeRec* n = findNode(nodeId);
+        if (!n) return false;
+        if (n->kind == NodeKind::Free) {
+            out.x = n->x;
+            out.y = n->y;
+            return true;
+        }
+
+        if (n->anchorSymbolId == 0) return false;
+        const SymbolRec* s = findSymbol(n->anchorSymbolId);
+        if (!s) return false;
+
+        const float cx = s->x + s->w * 0.5f;
+        const float cy = s->y + s->h * 0.5f;
+        float px = (s->connX - 0.5f) * s->w;
+        float py = (s->connY - 0.5f) * s->h;
+
+        px *= s->scaleX;
+        py *= s->scaleY;
+
+        const float c = std::cos(s->rotation);
+        const float si = std::sin(s->rotation);
+        const float rx = px * c - py * si;
+        const float ry = px * si + py * c;
+        out.x = cx + rx;
+        out.y = cy + ry;
+        return true;
     }
 
     void compactPolylinePoints() {
@@ -602,7 +829,8 @@ private:
 
         std::size_t lineFloatBudget =
             rects.size() * rectOutlineFloats +
-            lines.size() * lineSegmentFloats;
+            lines.size() * lineSegmentFloats +
+            conduits.size() * lineSegmentFloats;
         for (const auto& pl : polylines) {
             if (pl.count >= 2) lineFloatBudget += static_cast<std::size_t>(pl.count - 1) * lineSegmentFloats;
         }
@@ -627,6 +855,14 @@ private:
                 const auto& p1 = points[i + 1];
                 addLineSegment(p0.x, p0.y, p1.x, p1.y);
             }
+        }
+
+        for (const auto& c : conduits) {
+            Point2 a;
+            Point2 b;
+            if (!resolveNodePosition(c.fromNodeId, a)) continue;
+            if (!resolveNodePosition(c.toNodeId, b)) continue;
+            addLineSegment(a.x, a.y, b.x, b.y);
         }
     }
 };
@@ -665,6 +901,9 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("rectCount", &CadEngine::EngineStats::rectCount)
         .field("lineCount", &CadEngine::EngineStats::lineCount)
         .field("polylineCount", &CadEngine::EngineStats::polylineCount)
+        .field("symbolCount", &CadEngine::EngineStats::symbolCount)
+        .field("nodeCount", &CadEngine::EngineStats::nodeCount)
+        .field("conduitCount", &CadEngine::EngineStats::conduitCount)
         .field("pointCount", &CadEngine::EngineStats::pointCount)
         .field("triangleVertexCount", &CadEngine::EngineStats::triangleVertexCount)
         .field("lineVertexCount", &CadEngine::EngineStats::lineVertexCount)
