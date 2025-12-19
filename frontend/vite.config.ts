@@ -37,6 +37,19 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        chunkSizeWarningLimit: 1000,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'vendor-react': ['react', 'react-dom', 'zustand'],
+              'vendor-three': ['three', '@react-three/fiber'],
+              'vendor-pdf': ['pdfjs-dist'],
+              'vendor-utils': ['dxf-parser', 'lucide-react'],
+            }
+          }
+        }
       }
     };
 });

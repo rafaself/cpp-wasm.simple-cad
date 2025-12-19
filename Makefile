@@ -1,24 +1,33 @@
+
 FRONTEND_DIR := frontend
+NPM := npm --prefix $(FRONTEND_DIR)
+DC := docker compose
 
-.PHONY: frontend-install frontend-test frontend-build-wasm frontend-build frontend-dev frontend-all
+.PHONY: fbuild up install test wasm build dev all
 
-frontend-install:
-	cd $(FRONTEND_DIR) && npm install
+fbuild:
+	$(DC) up && $(NPM) install && $(NPM) run build:wasm && $(NPM) run build
 
-frontend-test:
-	cd $(FRONTEND_DIR) && npx vitest run
+up:
+	$(DC) up
 
-frontend-build-wasm:
-	cd $(FRONTEND_DIR) && npm run build:wasm
+install:
+	$(NPM) install
 
-frontend-build:
-	cd $(FRONTEND_DIR) && npm run build
+test:
+	$(NPM) run test
 
-frontend-dev:
-	cd $(FRONTEND_DIR) && npm run dev
+wasm:
+	$(NPM) run build:wasm
 
-frontend-all: frontend-install frontend-build-wasm frontend-build
+build:
+	$(NPM) run build
+
+dev:
+	$(NPM) run dev
+
+all: install wasm build
 
 # Default target
-.DEFAULT_GOAL := frontend-all
+.DEFAULT_GOAL := all
 
