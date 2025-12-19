@@ -171,6 +171,21 @@ const EditorRibbon: React.FC = () => {
         if (!file) return;
         const buf = await file.arrayBuffer();
         const payload = decodeNextDocumentFile(new Uint8Array(buf));
+
+        // The WASM runtime is a singleton; restore (or at least clear) it immediately
+        // to avoid rendering stale geometry from the previous document.
+        try {
+          const runtime = await getEngineRuntime();
+          runtime.resetIds();
+          if (payload.engineSnapshot && payload.engineSnapshot.byteLength > 0) {
+            runtime.loadSnapshotBytes(payload.engineSnapshot);
+          } else {
+            runtime.clear();
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
         dataStore.loadSerializedProject({
           project: payload.project,
           worldScale: payload.worldScale,
@@ -184,6 +199,15 @@ const EditorRibbon: React.FC = () => {
   }, [dataStore]);
 
   const newNextDocument = useCallback(() => {
+      void (async () => {
+        try {
+          const runtime = await getEngineRuntime();
+          runtime.resetIds();
+          runtime.clear();
+        } catch (e) {
+          console.error(e);
+        }
+      })();
       dataStore.resetDocument();
       useUIStore.getState().setSelectedShapeIds(new Set());
       useUIStore.getState().setTool('select');

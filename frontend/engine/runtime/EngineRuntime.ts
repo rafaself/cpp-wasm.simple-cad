@@ -21,6 +21,7 @@ export type CadEngineInstance = {
   allocBytes: (byteCount: number) => number;
   freeBytes: (ptr: number) => void;
   applyCommandBuffer: (ptr: number, byteCount: number) => void;
+  loadSnapshotFromPtr: (ptr: number, byteCount: number) => void;
   getPositionBufferMeta: () => BufferMeta;
   getLineBufferMeta: () => BufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
@@ -65,8 +66,23 @@ export class EngineRuntime {
     return this.ids.maps;
   }
 
+  public resetIds(): void {
+    this.ids.maps.idHashToString.clear();
+    this.ids.maps.idStringToHash.clear();
+  }
+
   public clear(): void {
     this.engine.clear();
+  }
+
+  public loadSnapshotBytes(bytes: Uint8Array): void {
+    const ptr = this.engine.allocBytes(bytes.byteLength);
+    try {
+      this.module.HEAPU8.set(bytes, ptr);
+      this.engine.loadSnapshotFromPtr(ptr, bytes.byteLength);
+    } finally {
+      this.engine.freeBytes(ptr);
+    }
   }
 
   public apply(commands: readonly EngineCommand[]): void {

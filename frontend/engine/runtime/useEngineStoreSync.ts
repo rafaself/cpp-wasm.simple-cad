@@ -88,11 +88,15 @@ export const useEngineStoreSync = (): void => {
 
       // Initial full sync (batched) to guarantee deterministic engine state.
       const initialState = useDataStore.getState();
-      const initialShapes = Object.values(initialState.shapes);
+      const initialShapes = Object.keys(initialState.shapes)
+        .sort((a, b) => a.localeCompare(b))
+        .map((id) => initialState.shapes[id])
+        .filter(Boolean) as Shape[];
       const initialCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
 
       // Connection nodes first (conduits depend on them).
-      for (const n of Object.values(initialState.connectionNodes)) {
+      for (const nodeId of Object.keys(initialState.connectionNodes).sort((a, b) => a.localeCompare(b))) {
+        const n = initialState.connectionNodes[nodeId]!;
         const id = ensureId(n.id);
         if (n.kind === 'anchored' && n.anchorShapeId) {
           const anchorSymbolId = ensureId(n.anchorShapeId);
@@ -125,14 +129,14 @@ export const useEngineStoreSync = (): void => {
         const prevNodes = prev.connectionNodes;
 
         // Deletes
-        for (const prevId of Object.keys(prevShapes)) {
+        for (const prevId of Object.keys(prevShapes).sort((a, b) => a.localeCompare(b))) {
           if (nextShapes[prevId]) continue;
           const eid = runtime.ids.maps.idStringToHash.get(prevId);
           if (eid === undefined) continue;
           commands.push({ op: CommandOp.DeleteEntity, id: eid });
         }
 
-        for (const prevNodeId of Object.keys(prevNodes)) {
+        for (const prevNodeId of Object.keys(prevNodes).sort((a, b) => a.localeCompare(b))) {
           if (nextNodes[prevNodeId]) continue;
           const eid = runtime.ids.maps.idStringToHash.get(prevNodeId);
           if (eid === undefined) continue;
@@ -140,7 +144,8 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Nodes: adds/updates
-        for (const [id, nextNode] of Object.entries(nextNodes)) {
+        for (const id of Object.keys(nextNodes).sort((a, b) => a.localeCompare(b))) {
+          const nextNode = nextNodes[id]!;
           const prevNode = prevNodes[id];
           if (prevNode === nextNode) continue;
           const eid = ensureId(id);
@@ -155,7 +160,8 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Adds + updates (reference inequality means immutable replacement)
-        for (const [id, nextShape] of Object.entries(nextShapes)) {
+        for (const id of Object.keys(nextShapes).sort((a, b) => a.localeCompare(b))) {
+          const nextShape = nextShapes[id]!;
           const prevShape = prevShapes[id];
           if (prevShape === nextShape) continue;
 
