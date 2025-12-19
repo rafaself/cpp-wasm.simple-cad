@@ -208,10 +208,8 @@ const SymbolAtlasLayer: React.FC = () => {
   const shapesById = useDataStore((s) => s.shapes);
   const layers = useDataStore((s) => s.layers);
   const electricalSymbols = useLibraryStore((s) => s.electricalSymbols);
-  const { activeFloorId, activeDiscipline } = useUIStore((s) => ({
-    activeFloorId: s.activeFloorId ?? 'terreo',
-    activeDiscipline: s.activeDiscipline,
-  }));
+  const activeFloorId = useUIStore((s) => s.activeFloorId ?? 'terreo');
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
   const atlasEntries = useMemo(() => {
     return Object.values(electricalSymbols).map((sym) => ({ id: sym.id, svg: sym.canvasSvg }));
@@ -277,4 +275,3 @@ const SymbolAtlasLayer: React.FC = () => {
 };
 
 export default SymbolAtlasLayer;
-

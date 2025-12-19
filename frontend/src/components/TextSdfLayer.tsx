@@ -171,10 +171,8 @@ const TextSdfBatch: React.FC<{ atlas: FontAtlas; instances: readonly GlyphInstan
 const TextSdfLayer: React.FC = () => {
   const shapesById = useDataStore((s) => s.shapes);
   const layers = useDataStore((s) => s.layers);
-  const { activeFloorId, activeDiscipline } = useUIStore((s) => ({
-    activeFloorId: s.activeFloorId ?? 'terreo',
-    activeDiscipline: s.activeDiscipline,
-  }));
+  const activeFloorId = useUIStore((s) => s.activeFloorId ?? 'terreo');
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
   const textShapes = useMemo(() => {
     const out: Shape[] = [];
