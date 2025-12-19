@@ -11,8 +11,9 @@
 **Referências (source of truth):**
 
 - `AGENTS.md`
-- `wasm-migration-plan.md`
-- `wasm-migration-backlog.md`
+- `docs/DEV_ENVIRONMENT.md`
+- `resources/reports/report_6_wasm-migration-plan.md`
+- `resources/reports/report_7_wasm-migration-backlog.md`
 
 ## Objetivo
 

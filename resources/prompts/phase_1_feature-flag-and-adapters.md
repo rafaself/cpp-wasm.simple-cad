@@ -10,7 +10,7 @@
 **Referências (source of truth):**
 
 - `AGENTS.md`
-- `resources/source_of_truth/wasm-migration-backlog.md` (MVP da Fase 1)
+- `resources/reports/report_7_wasm-migration-backlog.md` (MVP da Fase 1)
 
 ## Objetivo
 
