@@ -20,6 +20,7 @@ import ColorControl from '../ribbon/components/ColorControl';
 import GridControl from '../ribbon/components/GridControl';
 import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
+import { getEngineRuntime } from '@/engine/runtime/singleton';
 
 // Shared styles - using design tokens
 const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
@@ -138,20 +139,27 @@ const EditorRibbon: React.FC = () => {
   }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
 
   const saveNextDocument = useCallback(() => {
-      const payload = {
-        worldScale,
-        frame,
-        project: serializeProject(),
-        history: { past: dataStore.past, future: dataStore.future },
-      };
-      const bytes = encodeNextDocumentFile(payload);
-      const blob = new Blob([bytes], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'eletrocad-next.ewnd';
-      a.click();
-      URL.revokeObjectURL(url);
+      void (async () => {
+        const payload = {
+          worldScale,
+          frame,
+          project: serializeProject(),
+          history: { past: dataStore.past, future: dataStore.future },
+        };
+
+        const runtime = await getEngineRuntime();
+        const snapMeta = runtime.engine.getSnapshotBufferMeta();
+        const engineSnapshot = new Uint8Array(runtime.module.HEAPU8.subarray(snapMeta.ptr, snapMeta.ptr + snapMeta.byteCount));
+
+        const bytes = encodeNextDocumentFile(payload, { engineSnapshot });
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'eletrocad-next.ewnd';
+        a.click();
+        URL.revokeObjectURL(url);
+      })();
   }, [dataStore.future, dataStore.past, frame, serializeProject, worldScale]);
 
   const openNextDocument = useCallback(() => {

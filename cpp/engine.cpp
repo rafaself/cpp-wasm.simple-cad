@@ -59,7 +59,7 @@ public:
         const double t0 = emscripten_get_now();
 
         const std::uint8_t* src = reinterpret_cast<const std::uint8_t*>(ptr);
-        if (!src || byteCount < snapshotHeaderBytes) {
+        if (!src || byteCount < snapshotHeaderBytesV2) {
             throw std::runtime_error("Invalid snapshot payload");
         }
 
@@ -68,7 +68,7 @@ public:
             throw std::runtime_error("Snapshot magic mismatch");
         }
         const std::uint32_t version = readU32(src, 4);
-        if (version != 1 && version != 2) {
+        if (version != 2 && version != 3) {
             throw std::runtime_error("Unsupported snapshot version");
         }
 
@@ -77,12 +77,27 @@ public:
         const std::uint32_t polyCount = readU32(src, 16);
         const std::uint32_t pointCount = readU32(src, 20);
 
+        std::uint32_t symbolCount = 0;
+        std::uint32_t nodeCount = 0;
+        std::uint32_t conduitCount = 0;
+        std::size_t headerBytes = snapshotHeaderBytesV2;
+        if (version == 3) {
+            if (byteCount < snapshotHeaderBytesV3) throw std::runtime_error("Snapshot truncated (v3 header)");
+            symbolCount = readU32(src, 24);
+            nodeCount = readU32(src, 28);
+            conduitCount = readU32(src, 32);
+            headerBytes = snapshotHeaderBytesV3;
+        }
+
         const std::size_t expected =
-            snapshotHeaderBytes +
+            headerBytes +
             static_cast<std::size_t>(rectCount) * rectRecordBytes +
             static_cast<std::size_t>(lineCount) * lineRecordBytes +
             static_cast<std::size_t>(polyCount) * polyRecordBytes +
-            static_cast<std::size_t>(pointCount) * pointRecordBytes;
+            static_cast<std::size_t>(pointCount) * pointRecordBytes +
+            static_cast<std::size_t>(symbolCount) * symbolRecordBytes +
+            static_cast<std::size_t>(nodeCount) * nodeRecordBytes +
+            static_cast<std::size_t>(conduitCount) * conduitRecordBytes;
 
         if (expected > byteCount) {
             throw std::runtime_error("Snapshot truncated");
@@ -90,11 +105,14 @@ public:
 
         clear();
         reserveWorld(rectCount, lineCount, polyCount, pointCount);
+        symbols.reserve(symbolCount);
+        nodes.reserve(nodeCount);
+        conduits.reserve(conduitCount);
 
         // Keep an owned copy for export/debug (not used in hot path).
         snapshotBytes.assign(src, src + expected);
 
-        std::size_t o = snapshotHeaderBytes;
+        std::size_t o = headerBytes;
 
         rects.resize(rectCount);
         for (std::uint32_t i = 0; i < rectCount; i++) {
@@ -103,6 +121,7 @@ public:
             rects[i].y = readF32(src, o); o += 4;
             rects[i].w = readF32(src, o); o += 4;
             rects[i].h = readF32(src, o); o += 4;
+            entities[rects[i].id] = EntityRef{EntityKind::Rect, i};
         }
 
         lines.resize(lineCount);
@@ -112,6 +131,7 @@ public:
             lines[i].y0 = readF32(src, o); o += 4;
             lines[i].x1 = readF32(src, o); o += 4;
             lines[i].y1 = readF32(src, o); o += 4;
+            entities[lines[i].id] = EntityRef{EntityKind::Line, i};
         }
 
         polylines.resize(polyCount);
@@ -119,12 +139,50 @@ public:
             polylines[i].id = readU32(src, o); o += 4;
             polylines[i].offset = readU32(src, o); o += 4;
             polylines[i].count = readU32(src, o); o += 4;
+            entities[polylines[i].id] = EntityRef{EntityKind::Polyline, i};
         }
 
         points.resize(pointCount);
         for (std::uint32_t i = 0; i < pointCount; i++) {
             points[i].x = readF32(src, o); o += 4;
             points[i].y = readF32(src, o); o += 4;
+        }
+
+        if (version == 3) {
+            symbols.resize(symbolCount);
+            for (std::uint32_t i = 0; i < symbolCount; i++) {
+                symbols[i].id = readU32(src, o); o += 4;
+                symbols[i].symbolKey = readU32(src, o); o += 4;
+                symbols[i].x = readF32(src, o); o += 4;
+                symbols[i].y = readF32(src, o); o += 4;
+                symbols[i].w = readF32(src, o); o += 4;
+                symbols[i].h = readF32(src, o); o += 4;
+                symbols[i].rotation = readF32(src, o); o += 4;
+                symbols[i].scaleX = readF32(src, o); o += 4;
+                symbols[i].scaleY = readF32(src, o); o += 4;
+                symbols[i].connX = readF32(src, o); o += 4;
+                symbols[i].connY = readF32(src, o); o += 4;
+                entities[symbols[i].id] = EntityRef{EntityKind::Symbol, i};
+            }
+
+            nodes.resize(nodeCount);
+            for (std::uint32_t i = 0; i < nodeCount; i++) {
+                nodes[i].id = readU32(src, o); o += 4;
+                const std::uint32_t kindU32 = readU32(src, o); o += 4;
+                nodes[i].kind = kindU32 == 1 ? NodeKind::Anchored : NodeKind::Free;
+                nodes[i].anchorSymbolId = readU32(src, o); o += 4;
+                nodes[i].x = readF32(src, o); o += 4;
+                nodes[i].y = readF32(src, o); o += 4;
+                entities[nodes[i].id] = EntityRef{EntityKind::Node, i};
+            }
+
+            conduits.resize(conduitCount);
+            for (std::uint32_t i = 0; i < conduitCount; i++) {
+                conduits[i].id = readU32(src, o); o += 4;
+                conduits[i].fromNodeId = readU32(src, o); o += 4;
+                conduits[i].toNodeId = readU32(src, o); o += 4;
+                entities[conduits[i].id] = EntityRef{EntityKind::Conduit, i};
+            }
         }
 
         const double t1 = emscripten_get_now();
@@ -402,13 +460,17 @@ private:
 
     static constexpr std::uint32_t snapshotMagicEwc1 = 0x31435745; // "EWC1"
     static constexpr std::uint32_t commandMagicEwdc = 0x43445745; // "EWDC"
-    static constexpr std::size_t snapshotHeaderBytes = 8 * 4;
+    static constexpr std::size_t snapshotHeaderBytesV2 = 8 * 4;
+    static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
     static constexpr std::size_t commandHeaderBytes = 4 * 4;
     static constexpr std::size_t perCommandHeaderBytes = 4 * 4;
     static constexpr std::size_t rectRecordBytes = 20;
     static constexpr std::size_t lineRecordBytes = 20;
     static constexpr std::size_t polyRecordBytes = 12;
     static constexpr std::size_t pointRecordBytes = 8;
+    static constexpr std::size_t symbolRecordBytes = 44;
+    static constexpr std::size_t nodeRecordBytes = 20;
+    static constexpr std::size_t conduitRecordBytes = 12;
 
     static constexpr std::size_t rectTriangleFloats = 6 * 3;
     static constexpr std::size_t rectOutlineFloats = 8 * 3; // 4 segments, 2 vertices each
@@ -787,15 +849,18 @@ private:
     }
 
     void rebuildSnapshotBytes() {
-        // Snapshot V2: same binary layout as V1, but we always export as v2.
-        const std::uint32_t version = 2;
+        // Snapshot V3: extends V2 with electrical entities (symbols/nodes/conduits).
+        const std::uint32_t version = 3;
 
         const std::size_t totalBytes =
-            snapshotHeaderBytes +
+            snapshotHeaderBytesV3 +
             rects.size() * rectRecordBytes +
             lines.size() * lineRecordBytes +
             polylines.size() * polyRecordBytes +
-            points.size() * pointRecordBytes;
+            points.size() * pointRecordBytes +
+            symbols.size() * symbolRecordBytes +
+            nodes.size() * nodeRecordBytes +
+            conduits.size() * conduitRecordBytes;
 
         snapshotBytes.resize(totalBytes);
         std::uint8_t* dst = snapshotBytes.data();
@@ -807,6 +872,9 @@ private:
         writeU32LE(dst, o, static_cast<std::uint32_t>(lines.size())); o += 4;
         writeU32LE(dst, o, static_cast<std::uint32_t>(polylines.size())); o += 4;
         writeU32LE(dst, o, static_cast<std::uint32_t>(points.size())); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(symbols.size())); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(nodes.size())); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(conduits.size())); o += 4;
         writeU32LE(dst, o, 0); o += 4;
         writeU32LE(dst, o, 0); o += 4;
 
@@ -835,6 +903,34 @@ private:
         for (const auto& p : points) {
             writeF32LE(dst, o, p.x); o += 4;
             writeF32LE(dst, o, p.y); o += 4;
+        }
+
+        for (const auto& s : symbols) {
+            writeU32LE(dst, o, s.id); o += 4;
+            writeU32LE(dst, o, s.symbolKey); o += 4;
+            writeF32LE(dst, o, s.x); o += 4;
+            writeF32LE(dst, o, s.y); o += 4;
+            writeF32LE(dst, o, s.w); o += 4;
+            writeF32LE(dst, o, s.h); o += 4;
+            writeF32LE(dst, o, s.rotation); o += 4;
+            writeF32LE(dst, o, s.scaleX); o += 4;
+            writeF32LE(dst, o, s.scaleY); o += 4;
+            writeF32LE(dst, o, s.connX); o += 4;
+            writeF32LE(dst, o, s.connY); o += 4;
+        }
+
+        for (const auto& n : nodes) {
+            writeU32LE(dst, o, n.id); o += 4;
+            writeU32LE(dst, o, n.kind == NodeKind::Anchored ? 1u : 0u); o += 4;
+            writeU32LE(dst, o, n.anchorSymbolId); o += 4;
+            writeF32LE(dst, o, n.x); o += 4;
+            writeF32LE(dst, o, n.y); o += 4;
+        }
+
+        for (const auto& c : conduits) {
+            writeU32LE(dst, o, c.id); o += 4;
+            writeU32LE(dst, o, c.fromNodeId); o += 4;
+            writeU32LE(dst, o, c.toNodeId); o += 4;
         }
     }
 
