@@ -227,37 +227,50 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
   const meshGeometry = useMemo(() => new THREE.BufferGeometry(), []);
   const lineGeometry = useMemo(() => new THREE.BufferGeometry(), []);
 
-  const meshAttrRef = useRef<THREE.BufferAttribute | null>(null);
-  const lineAttrRef = useRef<THREE.BufferAttribute | null>(null);
+  // Removed attrRefs as they are no longer the source of truth for updates.
+
   const lastHeapRef = useRef<ArrayBuffer | null>(null);
   const lastMeshGenRef = useRef<number>(-1);
   const lastLineGenRef = useRef<number>(-1);
   const sentMeshGenRef = useRef<number>(-1);
   const sentLineGenRef = useRef<number>(-1);
 
-  const bindAttribute = (
+  const bindInterleavedAttribute = (
     geometry: THREE.BufferGeometry,
-    attrRef: React.MutableRefObject<THREE.BufferAttribute | null>,
     meta: BufferMeta,
     force: boolean,
+    floatsPerVertex: number,
   ) => {
     const heapChanged = module.HEAPF32.buffer !== lastHeapRef.current;
-    const needsRebind = force || heapChanged || attrRef.current === null || meta.ptr !== (attrRef.current as any)?.__ptr;
+    const currentPosition = geometry.attributes.position as THREE.InterleavedBufferAttribute;
+    const needsRebind = force || heapChanged || !currentPosition || meta.ptr !== (currentPosition.data as any)?.__ptr;
 
     if (needsRebind) {
-      const start = meta.ptr >>> 2; // bytes -> float32 index
+      const start = meta.ptr >>> 2;
       const end = start + meta.floatCount;
       const view = module.HEAPF32.subarray(start, end);
 
-      const attr = new THREE.BufferAttribute(view, 3);
-      (attr as any).__ptr = meta.ptr; // track pointer for cheap equality
-      attr.setUsage(THREE.DynamicDrawUsage);
-      geometry.setAttribute('position', attr);
-      attrRef.current = attr;
+      const interleavedBuffer = new THREE.InterleavedBuffer(view, floatsPerVertex);
+      interleavedBuffer.setUsage(THREE.DynamicDrawUsage);
+      (interleavedBuffer as any).__ptr = meta.ptr; // track pointer for cheap equality
+
+      geometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 0));
+      
+      if (floatsPerVertex === 6) {
+        geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 3));
+      } else {
+        geometry.deleteAttribute('color');
+      }
+      
       lastHeapRef.current = module.HEAPF32.buffer;
     }
-
+    
     geometry.setDrawRange(0, meta.vertexCount);
+
+    const positionAttr = geometry.attributes.position as THREE.InterleavedBufferAttribute;
+    if (positionAttr) {
+        positionAttr.data.needsUpdate = true;
+    }
   };
 
   useFrame(() => {
@@ -269,19 +282,13 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
     const forceRebind = module.HEAPF32.buffer !== lastHeapRef.current;
 
     if (meshMeta.floatCount > 0) {
-      bindAttribute(meshGeometry, meshAttrRef, meshMeta, forceRebind);
-      if (meshGenChanged && meshAttrRef.current) {
-        meshAttrRef.current.needsUpdate = true;
-      }
+      bindInterleavedAttribute(meshGeometry, meshMeta, forceRebind || meshGenChanged, 6);
     } else {
       meshGeometry.setDrawRange(0, 0);
     }
 
     if (lineMeta.floatCount > 0) {
-      bindAttribute(lineGeometry, lineAttrRef, lineMeta, forceRebind);
-      if (lineGenChanged && lineAttrRef.current) {
-        lineAttrRef.current.needsUpdate = true;
-      }
+      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 3);
     } else {
       lineGeometry.setDrawRange(0, 0);
     }
@@ -299,7 +306,7 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
   return (
     <>
       <mesh geometry={meshGeometry}>
-        <meshBasicMaterial color="#22c55e" wireframe />
+        <meshBasicMaterial vertexColors={true} />
       </mesh>
       <lineSegments geometry={lineGeometry}>
         <lineBasicMaterial color="#93c5fd" linewidth={1} />

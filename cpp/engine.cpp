@@ -129,6 +129,9 @@ public:
             rects[i].y = readF32(src, o); o += 4;
             rects[i].w = readF32(src, o); o += 4;
             rects[i].h = readF32(src, o); o += 4;
+            rects[i].r = readF32(src, o); o += 4; // New
+            rects[i].g = readF32(src, o); o += 4; // New
+            rects[i].b = readF32(src, o); o += 4; // New
             entities[rects[i].id] = EntityRef{EntityKind::Rect, i};
         }
 
@@ -247,12 +250,15 @@ public:
                     break;
                 }
                 case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
-                    if (payloadByteCount != 16) throw std::runtime_error("Invalid rect payload size");
+                    if (payloadByteCount != 28) throw std::runtime_error("Invalid rect payload size"); // 7 floats * 4 bytes/float
                     const float x = readF32(src, o + 0);
                     const float y = readF32(src, o + 4);
                     const float w = readF32(src, o + 8);
                     const float h = readF32(src, o + 12);
-                    upsertRect(id, x, y, w, h);
+                    const float r = readF32(src, o + 16);
+                    const float g = readF32(src, o + 20);
+                    const float b = readF32(src, o + 24);
+                    upsertRect(id, x, y, w, h, r, g, b);
                     break;
                 }
                 case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
@@ -337,8 +343,8 @@ public:
     }
 
     std::uint32_t getVertexCount() const noexcept {
-        // vertex count (not float count) for triangle buffer
-        return static_cast<std::uint32_t>(triangleVertices.size() / 3);
+        // vertex count (not float count) for triangle buffer (x,y,z,r,g,b)
+        return static_cast<std::uint32_t>(triangleVertices.size() / 6);
     }
 
     std::uintptr_t getVertexDataPtr() const noexcept {
@@ -353,12 +359,19 @@ public:
         std::uintptr_t ptr;       // byte offset in WASM linear memory
     };
 
+    BufferMeta buildMeta(const std::vector<float>& buffer, std::size_t floatsPerVertex) const noexcept {
+        const std::uint32_t vertexCount = static_cast<std::uint32_t>(buffer.size() / floatsPerVertex);
+        const std::uint32_t capacityVertices = static_cast<std::uint32_t>(buffer.capacity() / floatsPerVertex);
+        const std::uint32_t floatCount = static_cast<std::uint32_t>(buffer.size());
+        return BufferMeta{generation, vertexCount, capacityVertices, floatCount, reinterpret_cast<std::uintptr_t>(buffer.data())};
+    }
+
     BufferMeta getPositionBufferMeta() const noexcept {
-        return buildMeta(triangleVertices);
+        return buildMeta(triangleVertices, 6); // 6 floats per vertex (pos + color)
     }
 
     BufferMeta getLineBufferMeta() const noexcept {
-        return buildMeta(lineVertices);
+        return buildMeta(lineVertices, 3); // 3 floats per vertex (pos only)
     }
 
     struct ByteBufferMeta {
@@ -397,7 +410,7 @@ public:
             static_cast<std::uint32_t>(nodes.size()),
             static_cast<std::uint32_t>(conduits.size()),
             static_cast<std::uint32_t>(points.size()),
-            static_cast<std::uint32_t>(triangleVertices.size() / 3),
+            static_cast<std::uint32_t>(triangleVertices.size() / 6), // Divided by 6 for new stride
             static_cast<std::uint32_t>(lineVertices.size() / 3),
             lastLoadMs,
             lastRebuildMs,
@@ -476,7 +489,7 @@ public:
     static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
     static constexpr std::size_t commandHeaderBytes = 4 * 4;
     static constexpr std::size_t perCommandHeaderBytes = 4 * 4;
-    static constexpr std::size_t rectRecordBytes = 20;
+    static constexpr std::size_t rectRecordBytes = 32; // id (4) + x,y,w,h,r,g,b (7 * 4 = 28) = 32
     static constexpr std::size_t lineRecordBytes = 20;
     static constexpr std::size_t polyRecordBytes = 12;
     static constexpr std::size_t pointRecordBytes = 8;
@@ -484,11 +497,11 @@ public:
     static constexpr std::size_t nodeRecordBytes = 20;
     static constexpr std::size_t conduitRecordBytes = 12;
 
-    static constexpr std::size_t rectTriangleFloats = 6 * 3;
+    static constexpr std::size_t rectTriangleFloats = 6 * 6; // 6 vertices * (x,y,z,r,g,b)
     static constexpr std::size_t rectOutlineFloats = 8 * 3; // 4 segments, 2 vertices each
     static constexpr std::size_t lineSegmentFloats = 2 * 3;
 
-    struct RectRec { std::uint32_t id; float x; float y; float w; float h; };
+    struct RectRec { std::uint32_t id; float x; float y; float w; float h; float r, g, b; };
     struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; };
     struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; };
     struct Point2 { float x; float y; };
@@ -660,7 +673,7 @@ public:
         conduits.pop_back();
     }
 
-    void upsertRect(std::uint32_t id, float x, float y, float w, float h) {
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b) {
         const auto it = entities.find(id);
         if (it != entities.end() && it->second.kind != EntityKind::Rect) {
             deleteEntity(id);
@@ -668,12 +681,13 @@ public:
 
         const auto it2 = entities.find(id);
         if (it2 != entities.end()) {
-            auto& r = rects[it2->second.index];
-            r.x = x; r.y = y; r.w = w; r.h = h;
+            auto& existingRect = rects[it2->second.index];
+            existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h;
+            existingRect.r = r; existingRect.g = g; existingRect.b = b;
             return;
         }
 
-        rects.push_back(RectRec{id, x, y, w, h});
+        rects.push_back(RectRec{id, x, y, w, h, r, g, b});
         entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
     }
 
@@ -896,6 +910,9 @@ public:
             writeF32LE(dst, o, r.y); o += 4;
             writeF32LE(dst, o, r.w); o += 4;
             writeF32LE(dst, o, r.h); o += 4;
+            writeF32LE(dst, o, r.r); o += 4; // New
+            writeF32LE(dst, o, r.g); o += 4; // New
+            writeF32LE(dst, o, r.b); o += 4; // New
         }
 
         for (const auto& l : lines) {
@@ -953,13 +970,15 @@ public:
         return BufferMeta{generation, vertexCount, capacityVertices, floatCount, reinterpret_cast<std::uintptr_t>(buffer.data())};
     }
 
+    void pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target) {
+        target.push_back(x); target.push_back(y); target.push_back(z);
+        target.push_back(r); target.push_back(g); target.push_back(b);
+    }
     void pushVertex(float x, float y, float z, std::vector<float>& target) {
-        target.push_back(x);
-        target.push_back(y);
-        target.push_back(z);
+        target.push_back(x); target.push_back(y); target.push_back(z);
     }
 
-    void addRect(float x, float y, float w, float h) {
+    void addRect(float x, float y, float w, float h, float r, float g, float b) {
         const float x0 = x;
         const float y0 = y;
         const float x1 = x + w;
@@ -967,14 +986,14 @@ public:
         constexpr float z = 0.0f;
 
         // Triangle 1: (x0,y0) (x1,y0) (x1,y1)
-        pushVertex(x0, y0, z, triangleVertices);
-        pushVertex(x1, y0, z, triangleVertices);
-        pushVertex(x1, y1, z, triangleVertices);
+        pushVertex(x0, y0, z, r, g, b, triangleVertices);
+        pushVertex(x1, y0, z, r, g, b, triangleVertices);
+        pushVertex(x1, y1, z, r, g, b, triangleVertices);
 
         // Triangle 2: (x0,y0) (x1,y1) (x0,y1)
-        pushVertex(x0, y0, z, triangleVertices);
-        pushVertex(x1, y1, z, triangleVertices);
-        pushVertex(x0, y1, z, triangleVertices);
+        pushVertex(x0, y0, z, r, g, b, triangleVertices);
+        pushVertex(x1, y1, z, r, g, b, triangleVertices);
+        pushVertex(x0, y1, z, r, g, b, triangleVertices);
     }
 
     void addRectOutline(float x, float y, float w, float h) {
@@ -1011,7 +1030,7 @@ public:
         lineVertices.reserve(lineFloatBudget);
 
         for (const auto& r : rects) {
-            addRect(r.x, r.y, r.w, r.h);
+            addRect(r.x, r.y, r.w, r.h, r.r, r.g, r.b);
             addRectOutline(r.x, r.y, r.w, r.h);
         }
 

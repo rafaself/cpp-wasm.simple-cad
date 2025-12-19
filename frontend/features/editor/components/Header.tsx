@@ -14,7 +14,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 
 const Header: React.FC = () => {
-  const store = useDataStore();
+  const { undo, redo } = useDataStore();
   const setSettingsModalOpen = useUIStore(s => s.setSettingsModalOpen);
   const [isFullScreen, setIsFullScreen] = React.useState(false);
 
@@ -77,14 +77,14 @@ const Header: React.FC = () => {
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title="Desfazer (Ctrl+Z)"
-            onClick={() => store.undo()}
+            onClick={undo}
           >
             <Undo2 size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title="Refazer (Ctrl+Y)"
-            onClick={() => store.redo()}
+            onClick={redo}
           >
             <Redo2 size={14} />
           </button>

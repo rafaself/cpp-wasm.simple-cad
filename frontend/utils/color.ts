@@ -1,7 +1,7 @@
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 /** Convert a hex color (#RRGGBB or #RGB) to RGB components. */
-const hexToRgb = (hex: string) => {
+export const hexToRgb = (hex: string) => {
   if (!hex.startsWith('#')) return null;
   let clean = hex.slice(1);
   if (clean.length === 3) {

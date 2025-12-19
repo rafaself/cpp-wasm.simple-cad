@@ -11,7 +11,7 @@ export const enum CommandOp {
   UpsertConduit = 8,
 }
 
-export type RectPayload = { x: number; y: number; w: number; h: number };
+export type RectPayload = { x: number; y: number; w: number; h: number; r: number; g: number; b: number };
 export type LinePayload = { x0: number; y0: number; x1: number; y1: number };
 export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }> };
 export type SymbolPayload = {
@@ -56,7 +56,7 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.DeleteEntity:
       return 0;
     case CommandOp.UpsertRect:
-      return 16;
+      return 28; // x, y, w, h, r, g, b (7 floats * 4 bytes/float)
     case CommandOp.UpsertLine:
       return 16;
     case CommandOp.UpsertPolyline:
@@ -103,6 +103,9 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.rect.y);
         o = writeF32(view, o, cmd.rect.w);
         o = writeF32(view, o, cmd.rect.h);
+        o = writeF32(view, o, cmd.rect.r); // NEW
+        o = writeF32(view, o, cmd.rect.g); // NEW
+        o = writeF32(view, o, cmd.rect.b); // NEW
         break;
       case CommandOp.UpsertLine:
         o = writeF32(view, o, cmd.line.x0);
