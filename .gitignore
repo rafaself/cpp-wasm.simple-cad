@@ -8,6 +8,7 @@
 *.suo
 *.sln
 *.sw?
+draft.md
 
 # --- Frontend (Node/React) ---
 # Dependencies
