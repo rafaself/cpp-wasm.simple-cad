@@ -1,7 +1,7 @@
-import { SerializedProject, Shape } from '@/types';
+import { SerializedProject, Shape } from '../../types/index.ts';
 
 export const WORLD_SNAPSHOT_MAGIC_EWC1 = 0x31435745; // "EWC1" little-endian bytes
-export const WORLD_SNAPSHOT_VERSION_LATEST = 1 as const;
+export const WORLD_SNAPSHOT_VERSION_LATEST = 2 as const;
 
 export type WorldRect = { id: number; x: number; y: number; w: number; h: number };
 export type WorldLine = { id: number; x0: number; y0: number; x1: number; y1: number };
@@ -16,7 +16,15 @@ export type WorldSnapshotV1 = {
   points: WorldPoint2[];
 };
 
-export type WorldSnapshot = WorldSnapshotV1;
+export type WorldSnapshotV2 = {
+  version: 2;
+  rects: WorldRect[];
+  lines: WorldLine[];
+  polylines: WorldPolyline[];
+  points: WorldPoint2[];
+};
+
+export type WorldSnapshot = WorldSnapshotV1 | WorldSnapshotV2;
 
 export type WorldSnapshotImportReport = {
   idMap: Map<number, string>;
@@ -33,7 +41,7 @@ export function fnv1a32(str: string): number {
   return hash >>> 0;
 }
 
-export function snapshotFromLegacyProject(project: SerializedProject): { snapshot: WorldSnapshotV1; report: WorldSnapshotImportReport } {
+export function snapshotFromLegacyProject(project: SerializedProject): { snapshot: WorldSnapshotV2; report: WorldSnapshotImportReport } {
   const rects: WorldRect[] = [];
   const lines: WorldLine[] = [];
   const polylines: WorldPolyline[] = [];
@@ -48,13 +56,23 @@ export function snapshotFromLegacyProject(project: SerializedProject): { snapsho
     if (!idMap.has(idHash)) idMap.set(idHash, idStr);
   };
 
-  for (const shape of project.shapes) {
-    const idHash = fnv1a32(shape.id);
-    rememberId(idHash, shape.id);
+  // Phase 6 hardening: avoid hash collisions by allocating deterministic numeric IDs.
+  // Determinism rule: sort by legacy string id so the same project produces the same IDs.
+  const sorted = [...project.shapes].sort((a, b) => a.id.localeCompare(b.id));
+  let nextId = 1;
+
+  for (const shape of sorted) {
+    if (shape.type !== 'rect' && shape.type !== 'line' && shape.type !== 'polyline') {
+      droppedByType[shape.type] = (droppedByType[shape.type] ?? 0) + 1;
+      continue;
+    }
+
+    const id = nextId++;
+    rememberId(id, shape.id);
 
     if (shape.type === 'rect') {
       if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) continue;
-      rects.push({ id: idHash, x: shape.x, y: shape.y, w: shape.width, h: shape.height });
+      rects.push({ id, x: shape.x, y: shape.y, w: shape.width, h: shape.height });
       supportedCount++;
       continue;
     }
@@ -63,7 +81,7 @@ export function snapshotFromLegacyProject(project: SerializedProject): { snapsho
       if (!shape.points || shape.points.length < 2) continue;
       const p0 = shape.points[0];
       const p1 = shape.points[1];
-      lines.push({ id: idHash, x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y });
+      lines.push({ id, x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y });
       supportedCount++;
       continue;
     }
@@ -72,32 +90,21 @@ export function snapshotFromLegacyProject(project: SerializedProject): { snapsho
       if (!shape.points || shape.points.length < 2) continue;
       const offset = points.length;
       for (const p of shape.points) points.push({ x: p.x, y: p.y });
-      polylines.push({ id: idHash, offset, count: shape.points.length });
+      polylines.push({ id, offset, count: shape.points.length });
       supportedCount++;
-      continue;
     }
-
-    droppedByType[shape.type] = (droppedByType[shape.type] ?? 0) + 1;
   }
 
   return {
-    snapshot: {
-      version: 1,
-      rects,
-      lines,
-      polylines,
-      points,
-    },
-    report: {
-      idMap,
-      supportedCount,
-      droppedByType,
-    },
+    snapshot: { version: 2, rects, lines, polylines, points },
+    report: { idMap, supportedCount, droppedByType },
   };
 }
 
-export function encodeWorldSnapshot(snapshot: WorldSnapshotV1): Uint8Array {
-  if (snapshot.version !== 1) throw new Error(`Unsupported snapshot version ${String((snapshot as any).version)}`);
+export function encodeWorldSnapshot(snapshot: WorldSnapshot): Uint8Array {
+  if (snapshot.version !== 1 && snapshot.version !== 2) {
+    throw new Error(`Unsupported snapshot version ${String((snapshot as any).version)}`);
+  }
 
   const headerBytes = 8 * 4;
   const rectBytes = snapshot.rects.length * 20;
@@ -111,7 +118,7 @@ export function encodeWorldSnapshot(snapshot: WorldSnapshotV1): Uint8Array {
   let o = 0;
 
   view.setUint32(o, WORLD_SNAPSHOT_MAGIC_EWC1, true); o += 4;
-  view.setUint32(o, 1, true); o += 4;
+  view.setUint32(o, snapshot.version, true); o += 4;
   view.setUint32(o, snapshot.rects.length, true); o += 4;
   view.setUint32(o, snapshot.lines.length, true); o += 4;
   view.setUint32(o, snapshot.polylines.length, true); o += 4;
@@ -149,7 +156,7 @@ export function encodeWorldSnapshot(snapshot: WorldSnapshotV1): Uint8Array {
   return new Uint8Array(buf);
 }
 
-export function decodeWorldSnapshot(bytes: Uint8Array): WorldSnapshotV1 {
+export function decodeWorldSnapshot(bytes: Uint8Array): WorldSnapshot {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let o = 0;
 
@@ -157,7 +164,7 @@ export function decodeWorldSnapshot(bytes: Uint8Array): WorldSnapshotV1 {
   if (magic !== WORLD_SNAPSHOT_MAGIC_EWC1) throw new Error(`Invalid snapshot magic: 0x${magic.toString(16)}`);
 
   const version = view.getUint32(o, true); o += 4;
-  if (version !== 1) throw new Error(`Unsupported snapshot version: ${version}`);
+  if (version !== 1 && version !== 2) throw new Error(`Unsupported snapshot version: ${version}`);
 
   const rectCount = view.getUint32(o, true); o += 4;
   const lineCount = view.getUint32(o, true); o += 4;
@@ -200,16 +207,17 @@ export function decodeWorldSnapshot(bytes: Uint8Array): WorldSnapshotV1 {
     points[i] = { x, y };
   }
 
-  return { version: 1, rects, lines, polylines, points };
+  return { version: version as 1 | 2, rects, lines, polylines, points };
 }
 
-export function migrateWorldSnapshotToLatest(snapshot: WorldSnapshot): WorldSnapshotV1 {
-  // v1 is the current latest.
-  if (snapshot.version === 1) return snapshot;
-  throw new Error(`Unhandled snapshot version ${(snapshot as any).version}`);
+export function migrateWorldSnapshotToLatest(snapshot: WorldSnapshot): WorldSnapshotV2 {
+  if (snapshot.version === 2) return snapshot;
+  // v1 -> v2: binary layout is identical, but v1 IDs may be hashes (collision possible).
+  // We preserve the IDs for compatibility; new exports should be v2.
+  return { version: 2, rects: snapshot.rects, lines: snapshot.lines, polylines: snapshot.polylines, points: snapshot.points };
 }
 
-export function snapshotFromLegacyShapes(shapes: Shape[]): WorldSnapshotV1 {
+export function snapshotFromLegacyShapes(shapes: Shape[]): WorldSnapshotV2 {
   // Convenience for callers that only have shapes (no layers/electrical/etc).
   return snapshotFromLegacyProject({ layers: [], shapes, activeLayerId: '', electricalElements: [], connectionNodes: [], diagramNodes: [], diagramEdges: [] }).snapshot;
 }

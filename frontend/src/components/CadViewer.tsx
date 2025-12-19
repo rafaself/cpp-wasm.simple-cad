@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import engineUrl from '/wasm/engine.js?url';
 import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { screenToWorld } from '@/utils/geometry';
@@ -9,9 +10,10 @@ import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { importLegacyProjectIntoWasm } from '../next/wasmDocument';
-import type { WorldSnapshotV1 } from '../next/worldSnapshot';
+import type { WorldSnapshot } from '../next/worldSnapshot';
 import { buildRenderBatch, type RenderExtractResult, type RenderExtractShape, type RenderExtractStats } from '../next/renderExtract';
 import type { Shape } from '@/types';
+import { buildSnapIndex, querySnapIndex } from '../next/snapIndex';
 
 // Mirrors the C++ BufferMeta exposed via Embind
 export type BufferMeta = {
@@ -102,7 +104,7 @@ const pointSegmentDistance = (p: { x: number; y: number }, a: { x: number; y: nu
 
 const pickShapeAt = (
   worldPoint: { x: number; y: number },
-  snapshot: WorldSnapshotV1,
+  snapshot: WorldSnapshot,
   idHashToString: Map<number, string>,
   tolerance: number,
 ): string | null => {
@@ -184,7 +186,7 @@ const toWorldPoint = (evt: React.PointerEvent<HTMLDivElement>, viewTransform: Re
 
 const SelectionOverlay: React.FC<{
   selectedIds: Set<string>;
-  snapshot: WorldSnapshotV1 | null;
+  snapshot: WorldSnapshot | null;
   idStringToHash: Map<string, number>;
 }> = ({ selectedIds, snapshot, idStringToHash }) => {
   const material = useMemo(() => new THREE.LineBasicMaterial({ color: 0xfbbf24 }), []);
@@ -421,7 +423,7 @@ const DebugOverlay: React.FC<{
     >
       {importStats ? <div>imported (supported): {importStats.supportedCount}</div> : null}
       {legacyStats ? (
-        <div>legacy->wasm (fallback): {legacyStats.supported} / {legacyStats.totalShapes}</div>
+        <div>legacy-&gt;wasm (fallback): {legacyStats.supported} / {legacyStats.totalShapes}</div>
       ) : null}
       {engineStats ? (
         <>
@@ -445,7 +447,7 @@ const CadViewer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [module, setModule] = useState<WasmModule | null>(null);
   const [engine, setEngine] = useState<CadEngineInstance | null>(null);
-  const [worldSnapshot, setWorldSnapshot] = useState<WorldSnapshotV1 | null>(null);
+  const [worldSnapshot, setWorldSnapshot] = useState<WorldSnapshot | null>(null);
   const [idHashToString, setIdHashToString] = useState<Map<number, string>>(() => new Map());
   const [idStringToHash, setIdStringToHash] = useState<Map<string, number>>(() => new Map());
   const [importStats, setImportStats] = useState<ImportStats | null>(null);
@@ -473,6 +475,12 @@ const CadViewer: React.FC = () => {
 
   const supportsSnapshot = !!engine && isSnapshotCapableEngine(engine);
 
+  const snapIndex = useMemo(() => {
+    if (!supportsSnapshot || !worldSnapshot) return null;
+    // Cell size is in world units; tuned for low overhead for 10k+.
+    return buildSnapIndex(worldSnapshot, 64);
+  }, [supportsSnapshot, worldSnapshot]);
+
   const renderExtract: RenderExtractResult = useMemo(() => {
     if (supportsSnapshot) {
       return { batch: [], stats: { totalShapes: 0, supported: 0, skipped: 0, byType: {} } };
@@ -491,7 +499,8 @@ const CadViewer: React.FC = () => {
 
     (async () => {
       try {
-        const factory = (await import('/wasm/engine.js')).default as EngineFactory;
+        const mod = await import(/* @vite-ignore */ engineUrl);
+        const factory = mod.default as EngineFactory;
         const wasm = await factory();
         if (cancelled) return;
         const instance = new wasm.CadEngine();
@@ -587,19 +596,34 @@ const CadViewer: React.FC = () => {
 
       // Snapping preview (grid-only during Phase 6 flip; object snapping will move to WASM).
       const worldPt = toWorldPoint(evt, viewTransform);
-      if (!snapOptions.enabled || !snapOptions.grid) {
+      const threshold = HIT_TOLERANCE / (viewTransform.scale || 1);
+      if (!snapOptions.enabled) {
         setSnapPoint(null);
         return;
       }
-      const gx = Math.round(worldPt.x / gridSize) * gridSize;
-      const gy = Math.round(worldPt.y / gridSize) * gridSize;
-      const dx = worldPt.x - gx;
-      const dy = worldPt.y - gy;
-      const d = Math.hypot(dx, dy);
-      const threshold = HIT_TOLERANCE / (viewTransform.scale || 1);
-      setSnapPoint(d <= threshold ? { x: gx, y: gy } : null);
+
+      // 1) Object snapping (from current snapshot), then 2) grid snapping.
+      if (supportsSnapshot && snapIndex && (snapOptions.endpoint || snapOptions.midpoint || snapOptions.center || snapOptions.nearest)) {
+        const hit = querySnapIndex(snapIndex, worldPt, threshold);
+        if (hit) {
+          setSnapPoint(hit);
+          return;
+        }
+      }
+
+      if (snapOptions.grid) {
+        const gx = Math.round(worldPt.x / gridSize) * gridSize;
+        const gy = Math.round(worldPt.y / gridSize) * gridSize;
+        const dx = worldPt.x - gx;
+        const dy = worldPt.y - gy;
+        const d = Math.hypot(dx, dy);
+        setSnapPoint(d <= threshold ? { x: gx, y: gy } : null);
+        return;
+      }
+
+      setSnapPoint(null);
     },
-    [gridSize, isPanning, setViewTransform, snapOptions.enabled, snapOptions.grid, viewTransform],
+    [gridSize, isPanning, setViewTransform, snapIndex, snapOptions.center, snapOptions.enabled, snapOptions.endpoint, snapOptions.grid, snapOptions.midpoint, snapOptions.nearest, supportsSnapshot, viewTransform],
   );
 
   const handlePointerUp = useCallback(

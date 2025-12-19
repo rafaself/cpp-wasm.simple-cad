@@ -5,7 +5,13 @@ This document covers frontend-specific testing practices for the React/Vite/Vite
 ## How to run
 
 - `cd frontend`
-- `npx vitest run`
+- `npm test` (recomendado: roda um preflight antes do Vitest)
+- ou `npx vitest run --configLoader native`
+
+## Onde ficam os testes
+
+- Pasta principal: `frontend/tests/`
+- Também existem testes co-localizados (ex.: `frontend/features/**/**.test.ts`)
 
 ## What to test
 

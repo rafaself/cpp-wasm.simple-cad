@@ -1,5 +1,5 @@
-import type { SerializedProject } from '@/types';
-import { decodeWorldSnapshot, encodeWorldSnapshot, snapshotFromLegacyProject, type WorldSnapshotV1 } from './worldSnapshot';
+import type { SerializedProject } from '../../types/index.ts';
+import { decodeWorldSnapshot, encodeWorldSnapshot, snapshotFromLegacyProject, type WorldSnapshot } from './worldSnapshot';
 
 export type WasmDocumentEngine = {
   allocBytes: (byteCount: number) => number;
@@ -14,7 +14,7 @@ export type WasmDocumentModule = {
 };
 
 export type WasmDocumentImportResult = {
-  snapshot: WorldSnapshotV1;
+  snapshot: WorldSnapshot;
   idHashToString: Map<number, string>;
   idStringToHash: Map<string, number>;
   supportedCount: number;
@@ -57,4 +57,3 @@ export function exportWasmSnapshotBytes(engine: WasmDocumentEngine, module: Wasm
   // Export must be stable even if the WASM heap later changes; copy out.
   return new Uint8Array(view);
 }
-

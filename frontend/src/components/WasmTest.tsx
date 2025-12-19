@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import engineUrl from '/wasm/engine.js?url';
 
 type CadEngineInstance = { add: (a: number, b: number) => number };
 type CadEngineModule = { CadEngine: new () => CadEngineInstance };
@@ -15,7 +16,8 @@ const WasmTest: React.FC = () => {
     (async () => {
       try {
         // engine.js está em /public/wasm após build
-        const factory = (await import('/wasm/engine.js')).default as EngineFactory;
+        const mod = await import(/* @vite-ignore */ engineUrl);
+        const factory = mod.default as EngineFactory;
         const module = await factory();
         if (cancelled) return;
         const engine = new module.CadEngine();

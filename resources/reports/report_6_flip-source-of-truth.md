@@ -35,12 +35,12 @@ The project needs to transition from a TS/Zustand document (legacy Canvas2D) to 
 
 ---
 
-## 3) Snapshot Schema (v1)
+## 3) Snapshot Schema (v2)
 
 Binary header (little-endian):
 
 - `u32 magic = 0x31435745` (`"EWC1"`)
-- `u32 version = 1`
+- `u32 version = 2`
 - `u32 rectCount`
 - `u32 lineCount`
 - `u32 polylineCount`
@@ -55,10 +55,10 @@ Records:
 - Polyline record (12 bytes): `u32 id, u32 offset, u32 count`
 - Point record (8 bytes): `f32 x, f32 y`
 
-ID strategy (Phase 6 MVP):
+ID strategy (Phase 6 MVP hardening):
 
-- `id` is a **deterministic** `u32` FNV-1a hash of the legacy `shape.id` string.
-- Collision handling is best-effort in TS (keeps the first mapping). Production should move to a collision-free numeric ID strategy (e.g., u64 or allocator-based IDs).
+- `id` is a **deterministic collision-free** `u32` allocated by TS during import.
+- Determinism rule: supported legacy shapes are sorted by legacy string id and assigned ids `1..N`.
 
 ---
 
@@ -67,7 +67,7 @@ ID strategy (Phase 6 MVP):
 ### Import (legacy → WASM)
 
 1) TS calls `useDataStore.getState().serializeProject()`.
-2) TS converts to `WorldSnapshotV1` and encodes to bytes.
+2) TS converts to `WorldSnapshotV2` and encodes to bytes.
 3) TS allocates WASM memory via `engine.allocBytes(byteCount)`.
 4) TS copies bytes into `HEAPU8` and calls `engine.loadSnapshotFromPtr(ptr, byteCount)`.
 5) TS frees the transient buffer via `engine.freeBytes(ptr)`.
@@ -129,7 +129,7 @@ Viewer overlay should show these values in dev-only mode.
 
 ## 8) Risks / Known Gaps
 
-- **ID collisions**: `u32` hash is not collision-free; must be upgraded before “Next default” for production.
+- **ID stability across edits**: ids are stable within a loaded snapshot, but future “edit commands” must be WASM-allocated ids (not re-derived from TS) to preserve stability across incremental changes.
 - **Undo/redo source-of-truth**: not yet migrated to a WASM command log. Current path must evolve to:
   - TS sends batched commands to WASM (deterministic ordering),
   - WASM maintains the authoritative command log and can export it or checkpoints.
@@ -154,4 +154,3 @@ Manual:
 Environment note:
 
 - Running tests under OneDrive can fail with `spawn EPERM` (esbuild). Prefer moving the repo out of OneDrive-controlled folders or allowlisting toolchain executables.
-

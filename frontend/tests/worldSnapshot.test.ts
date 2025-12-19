@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeWorldSnapshot, encodeWorldSnapshot, fnv1a32, snapshotFromLegacyProject } from '../src/next/worldSnapshot';
 import type { SerializedProject } from '../types';
 
-describe('worldSnapshot v1', () => {
+describe('worldSnapshot v2', () => {
   it('fnv1a32 is deterministic', () => {
     expect(fnv1a32('abc')).toBe(fnv1a32('abc'));
     expect(fnv1a32('abc')).not.toBe(fnv1a32('abcd'));
@@ -46,9 +46,8 @@ describe('worldSnapshot v1', () => {
     expect(bytes1).toEqual(bytes2);
 
     const decoded = decodeWorldSnapshot(bytes1);
-    expect(decoded.version).toBe(1);
+    expect(decoded.version).toBe(2);
     expect(decoded.rects.length).toBe(1);
     expect(decoded.lines.length).toBe(1);
   });
 });
-

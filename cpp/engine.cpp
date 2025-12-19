@@ -109,7 +109,7 @@ public:
             throw std::runtime_error("Snapshot magic mismatch");
         }
         const std::uint32_t version = readU32(src, 4);
-        if (version != 1) {
+        if (version != 1 && version != 2) {
             throw std::runtime_error("Unsupported snapshot version");
         }
 
