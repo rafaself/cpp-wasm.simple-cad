@@ -7,16 +7,17 @@ export default defineConfig(({ mode }) => {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const env = loadEnv(mode, '.', '');
     const isTest = mode === 'test';
+    const enableCrossOriginIsolation = env.VITE_ENABLE_CROSS_ORIGIN_ISOLATION === '1';
     return {
       ...(isTest ? { esbuild: false, optimizeDeps: { disabled: true } } : {}),
       server: {
         port: 3000,
         host: '0.0.0.0',
-        headers: {
+        headers: enableCrossOriginIsolation ? {
           // Preparação para SharedArrayBuffer/COOP+COEP em builds futuros
           'Cross-Origin-Opener-Policy': 'same-origin',
           'Cross-Origin-Embedder-Policy': 'require-corp',
-        }
+        } : undefined
       },
       plugins: [
         react(),

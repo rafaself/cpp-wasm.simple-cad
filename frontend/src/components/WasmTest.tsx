@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import engineUrl from '/wasm/engine.js?url';
+
+// `engine.js` é um artefato gerado em `public/wasm` e não deve ser importado do código-fonte (Vite bloqueia).
+const ENGINE_URL = '/wasm/engine.js';
 
 type CadEngineInstance = { add: (a: number, b: number) => number };
 type CadEngineModule = { CadEngine: new () => CadEngineInstance };
@@ -16,7 +18,7 @@ const WasmTest: React.FC = () => {
     (async () => {
       try {
         // engine.js está em /public/wasm após build
-        const mod = await import(/* @vite-ignore */ engineUrl);
+        const mod = await import(/* @vite-ignore */ ENGINE_URL);
         const factory = mod.default as EngineFactory;
         const module = await factory();
         if (cancelled) return;

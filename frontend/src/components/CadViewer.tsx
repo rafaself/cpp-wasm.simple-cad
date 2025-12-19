@@ -2,7 +2,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import engineUrl from '/wasm/engine.js?url';
 import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { screenToWorld } from '@/utils/geometry';
@@ -14,6 +13,10 @@ import type { WorldSnapshot } from '../next/worldSnapshot';
 import { buildRenderBatch, type RenderExtractResult, type RenderExtractShape, type RenderExtractStats } from '../next/renderExtract';
 import type { Shape } from '@/types';
 import { buildSnapIndex, querySnapIndex } from '../next/snapIndex';
+
+// `engine.js` é um artefato gerado em `public/wasm` e não deve ser importado do código-fonte (Vite bloqueia).
+// Use um URL estático e carregue via dynamic import com `@vite-ignore`.
+const ENGINE_URL = '/wasm/engine.js';
 
 // Mirrors the C++ BufferMeta exposed via Embind
 export type BufferMeta = {
@@ -499,7 +502,7 @@ const CadViewer: React.FC = () => {
 
     (async () => {
       try {
-        const mod = await import(/* @vite-ignore */ engineUrl);
+        const mod = await import(/* @vite-ignore */ ENGINE_URL);
         const factory = mod.default as EngineFactory;
         const wasm = await factory();
         if (cancelled) return;
