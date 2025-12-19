@@ -41,6 +41,8 @@ This repo is transitioning from a Canvas2D-first CAD MVP to a high-performance s
 - Side effects (IO, network, storage) must be isolated in dedicated modules.
 - Avoid circular dependencies.
 - Favor explicit data flow over implicit coupling.
+- Avoid introducing new external dependencies unless absolutely necessary.
+- If a new dependency is required, please state the reason.
 
 ## 4) Code Style & Quality
 
@@ -50,6 +52,9 @@ This repo is transitioning from a Canvas2D-first CAD MVP to a high-performance s
 - Use meaningful names (no `data2`, `temp`, `handle2`).
 - Add or update tests when behavior is critical or non-trivial.
 - **Frontend IDs (Best Practice):** never generate persistent IDs with `Date.now()` or `Math.random()` alone. Prefer `crypto.randomUUID()` (with a safe fallback) or the project’s UUID helper (e.g. `frontend/utils/uuid`), and ensure IDs are unique across the current document.
+- Interface names should be prefixed with `I` (e.g., `IUserService`).
+- Private class members should be prefixed with an underscore (`_`).
+- Always use strict equality (`===` and `!==`).
 
 ## 5) React-Specific Rules (if applicable)
 
