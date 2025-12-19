@@ -79,6 +79,37 @@ enum class CommandOp : std::uint32_t {
     UpsertConduit = 8,
 };
 
+enum class EngineError : std::uint32_t {
+    Ok = 0,
+    InvalidMagic = 1,
+    UnsupportedVersion = 2,
+    BufferTruncated = 3,
+    InvalidPayloadSize = 4,
+    UnknownCommand = 5,
+    InvalidOperation = 6,
+};
+
+// Command Payloads (POD)
+struct RectPayload { float x, y, w, h, r, g, b; };
+struct LinePayload { float x0, y0, x1, y1; };
+// Polyline payload is variable length, handled manually
+struct SymbolPayload {
+    std::uint32_t symbolKey;
+    float x, y, w, h;
+    float rotation;
+    float scaleX, scaleY;
+    float connX, connY;
+};
+struct NodePayload {
+    std::uint32_t kind;
+    std::uint32_t anchorId;
+    float x, y;
+};
+struct ConduitPayload {
+    std::uint32_t fromNodeId;
+    std::uint32_t toNodeId;
+};
+
 struct SnapResult {
     std::uint32_t kind; // 0 none, 1 node, 2 symbol-connection
     std::uint32_t id;   // node id or symbol id

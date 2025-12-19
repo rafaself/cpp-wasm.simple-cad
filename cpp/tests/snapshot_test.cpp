@@ -14,7 +14,9 @@ TEST(SnapshotTest, RoundTrip) {
     auto bytes = buildSnapshotBytes(data);
     ASSERT_GT(bytes.size(), 0u);
 
-    auto parsed = parseSnapshot(bytes.data(), static_cast<uint32_t>(bytes.size()));
+    SnapshotData parsed;
+    EngineError err = parseSnapshot(bytes.data(), static_cast<uint32_t>(bytes.size()), parsed);
+    EXPECT_EQ(err, EngineError::Ok);
     EXPECT_EQ(parsed.rects.size(), data.rects.size());
     EXPECT_EQ(parsed.lines.size(), data.lines.size());
     EXPECT_EQ(parsed.points.size(), data.points.size());

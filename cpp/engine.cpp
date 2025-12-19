@@ -1,17 +1,19 @@
-
 // engine.cpp now contains only a thin TU; public `CadEngine` lives in engine/engine.h
 #include "engine/engine.h"
 
 // Implement CadEngine methods moved out of the header to keep the header small.
 
 #include <cmath>
-#include <stdexcept>
+#include <cstring>
 
 // Constructor
 CadEngine::CadEngine() {
     triangleVertices.reserve(defaultCapacityFloats);
     lineVertices.reserve(defaultLineCapacityFloats);
     snapshotBytes.reserve(defaultSnapshotCapacityBytes);
+    renderDirty = false;
+    snapshotDirty = false;
+    lastError = EngineError::Ok;
 }
 
 void CadEngine::clear() noexcept {
@@ -43,9 +45,15 @@ void CadEngine::reserveWorld(std::uint32_t maxRects, std::uint32_t maxLines, std
 }
 
 void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount) {
+    clearError();
     const double t0 = emscripten_get_now();
     const std::uint8_t* src = reinterpret_cast<const std::uint8_t*>(ptr);
-    engine::SnapshotData sd = engine::parseSnapshot(src, byteCount);
+    engine::SnapshotData sd;
+    EngineError err = engine::parseSnapshot(src, byteCount, sd);
+    if (err != EngineError::Ok) {
+        setError(err);
+        return;
+    }
 
     clear();
     reserveWorld(static_cast<std::uint32_t>(sd.rects.size()), static_cast<std::uint32_t>(sd.lines.size()), static_cast<std::uint32_t>(sd.polylines.size()), static_cast<std::uint32_t>(sd.points.size()));
@@ -59,23 +67,33 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     snapshotBytes = std::move(sd.rawBytes);
 
     const double t1 = emscripten_get_now();
-    rebuildRenderBuffers();
+    
+    // Lazy rebuild
+    renderDirty = true;
+    snapshotDirty = false; // Snapshot loaded is already valid byte-wise
+
     const double t2 = emscripten_get_now();
 
     lastLoadMs = static_cast<float>(t1 - t0);
-    lastRebuildMs = static_cast<float>(t2 - t1);
+    lastRebuildMs = static_cast<float>(t2 - t1); 
     lastApplyMs = 0.0f;
     generation++;
 }
 
 void CadEngine::applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) {
+    clearError();
     const double t0 = emscripten_get_now();
     const std::uint8_t* src = reinterpret_cast<const std::uint8_t*>(ptr);
-    engine::parseCommandBuffer(src, byteCount, &CadEngine::cad_command_callback, this);
+    EngineError err = engine::parseCommandBuffer(src, byteCount, &CadEngine::cad_command_callback, this);
+    if (err != EngineError::Ok) {
+        setError(err);
+    }
 
     compactPolylinePoints();
-    rebuildRenderBuffers();
-    rebuildSnapshotBytes();
+    
+    // Lazy rebuild
+    renderDirty = true;
+    snapshotDirty = true;
     generation++;
 
     const double t1 = emscripten_get_now();
@@ -85,10 +103,12 @@ void CadEngine::applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) 
 }
 
 std::uint32_t CadEngine::getVertexCount() const noexcept {
+    if (renderDirty) rebuildRenderBuffers();
     return static_cast<std::uint32_t>(triangleVertices.size() / 6);
 }
 
 std::uintptr_t CadEngine::getVertexDataPtr() const noexcept {
+    if (renderDirty) rebuildRenderBuffers();
     return reinterpret_cast<std::uintptr_t>(triangleVertices.data());
 }
 
@@ -99,12 +119,22 @@ CadEngine::BufferMeta CadEngine::buildMeta(const std::vector<float>& buffer, std
     return BufferMeta{generation, vertexCount, capacityVertices, floatCount, reinterpret_cast<std::uintptr_t>(buffer.data())};
 }
 
-CadEngine::BufferMeta CadEngine::getPositionBufferMeta() const noexcept { return buildMeta(triangleVertices, 6); }
-CadEngine::BufferMeta CadEngine::getLineBufferMeta() const noexcept { return buildMeta(lineVertices, 3); }
+CadEngine::BufferMeta CadEngine::getPositionBufferMeta() const noexcept { 
+    if (renderDirty) rebuildRenderBuffers();
+    return buildMeta(triangleVertices, 6); 
+}
+CadEngine::BufferMeta CadEngine::getLineBufferMeta() const noexcept { 
+    if (renderDirty) rebuildRenderBuffers();
+    return buildMeta(lineVertices, 3); 
+}
 
-CadEngine::ByteBufferMeta CadEngine::getSnapshotBufferMeta() const noexcept { return ByteBufferMeta{generation, static_cast<std::uint32_t>(snapshotBytes.size()), reinterpret_cast<std::uintptr_t>(snapshotBytes.data())}; }
+CadEngine::ByteBufferMeta CadEngine::getSnapshotBufferMeta() const noexcept { 
+    if (snapshotDirty) rebuildSnapshotBytes();
+    return ByteBufferMeta{generation, static_cast<std::uint32_t>(snapshotBytes.size()), reinterpret_cast<std::uintptr_t>(snapshotBytes.data())}; 
+}
 
 CadEngine::EngineStats CadEngine::getStats() const noexcept {
+    if (renderDirty) rebuildRenderBuffers();
     return EngineStats{
         generation,
         static_cast<std::uint32_t>(rects.size()),
@@ -141,9 +171,14 @@ void CadEngine::clearWorld() noexcept {
     lastLoadMs = 0.0f;
     lastRebuildMs = 0.0f;
     lastApplyMs = 0.0f;
+    renderDirty = true;
+    snapshotDirty = true;
 }
 
 void CadEngine::deleteEntity(std::uint32_t id) noexcept {
+    renderDirty = true;
+    snapshotDirty = true;
+    
     const auto it = entities.find(id);
     if (it == entities.end()) return;
     const EntityRef ref = it->second;
@@ -214,6 +249,9 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
 }
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b) {
+    renderDirty = true;
+    snapshotDirty = true;
+    
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Rect) {
         deleteEntity(id);
@@ -232,6 +270,9 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
+    renderDirty = true;
+    snapshotDirty = true;
+
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Line) {
         deleteEntity(id);
@@ -249,6 +290,9 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
+    renderDirty = true;
+    snapshotDirty = true;
+
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Polyline) {
         deleteEntity(id);
@@ -279,6 +323,9 @@ void CadEngine::upsertSymbol(
     float connX,
     float connY
 ) {
+    renderDirty = true;
+    snapshotDirty = true;
+
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Symbol) {
         deleteEntity(id);
@@ -302,6 +349,9 @@ void CadEngine::upsertSymbol(
 }
 
 void CadEngine::upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y) {
+    renderDirty = true;
+    snapshotDirty = true;
+
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Node) {
         deleteEntity(id);
@@ -322,6 +372,9 @@ void CadEngine::upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchor
 }
 
 void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId) {
+    renderDirty = true;
+    snapshotDirty = true;
+
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Conduit) {
         deleteEntity(id);
@@ -340,7 +393,7 @@ void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::u
 }
 
 // Static member callback implementation
-void CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount) {
+EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount) {
     CadEngine* self = reinterpret_cast<CadEngine*>(ctx);
     switch (op) {
         case static_cast<std::uint32_t>(CommandOp::ClearAll): {
@@ -352,31 +405,25 @@ void CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t 
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
-            if (payloadByteCount != 28) throw std::runtime_error("Invalid rect payload size"); // 7 floats * 4 bytes/float
-            const float x = readF32(payload, 0);
-            const float y = readF32(payload, 4);
-            const float w = readF32(payload, 8);
-            const float h = readF32(payload, 12);
-            const float r = readF32(payload, 16);
-            const float g = readF32(payload, 20);
-            const float b = readF32(payload, 24);
-            self->upsertRect(id, x, y, w, h, r, g, b);
+            if (payloadByteCount != sizeof(RectPayload)) return EngineError::InvalidPayloadSize;
+            RectPayload p;
+            std::memcpy(&p, payload, sizeof(RectPayload));
+            self->upsertRect(id, p.x, p.y, p.w, p.h, p.r, p.g, p.b);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
-            if (payloadByteCount != 16) throw std::runtime_error("Invalid line payload size");
-            const float x0 = readF32(payload, 0);
-            const float y0 = readF32(payload, 4);
-            const float x1 = readF32(payload, 8);
-            const float y1 = readF32(payload, 12);
-            self->upsertLine(id, x0, y0, x1, y1);
+            if (payloadByteCount != sizeof(LinePayload)) return EngineError::InvalidPayloadSize;
+            LinePayload p;
+            std::memcpy(&p, payload, sizeof(LinePayload));
+            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolyline): {
-            if (payloadByteCount < 4) throw std::runtime_error("Invalid polyline payload size");
-            const std::uint32_t count = readU32(payload, 0);
+            if (payloadByteCount < 4) return EngineError::InvalidPayloadSize;
+            std::uint32_t count;
+            std::memcpy(&count, payload, 4);
             const std::size_t expected = 4 + static_cast<std::size_t>(count) * 8;
-            if (expected != payloadByteCount) throw std::runtime_error("Invalid polyline payload length");
+            if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
             if (count < 2) {
                 // Treat degenerate polyline as deletion.
                 self->deleteEntity(id);
@@ -387,48 +434,40 @@ void CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t 
             self->points.reserve(self->points.size() + count);
             std::size_t p = 4;
             for (std::uint32_t j = 0; j < count; j++) {
-                const float x = readF32(payload, p); p += 4;
-                const float y = readF32(payload, p); p += 4;
-                self->points.push_back(Point2{x, y});
+                Point2 pt;
+                std::memcpy(&pt, payload + p, sizeof(Point2));
+                p += sizeof(Point2);
+                self->points.push_back(pt);
             }
             self->upsertPolyline(id, offset, count);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertSymbol): {
-            if (payloadByteCount != 40) throw std::runtime_error("Invalid symbol payload size");
-            const std::uint32_t symbolKey = readU32(payload, 0);
-            const float x = readF32(payload, 4);
-            const float y = readF32(payload, 8);
-            const float w = readF32(payload, 12);
-            const float h = readF32(payload, 16);
-            const float rot = readF32(payload, 20);
-            const float sx = readF32(payload, 24);
-            const float sy = readF32(payload, 28);
-            const float connX = readF32(payload, 32);
-            const float connY = readF32(payload, 36);
-            self->upsertSymbol(id, symbolKey, x, y, w, h, rot, sx, sy, connX, connY);
+            if (payloadByteCount != sizeof(SymbolPayload)) return EngineError::InvalidPayloadSize;
+            SymbolPayload p;
+            std::memcpy(&p, payload, sizeof(SymbolPayload));
+            self->upsertSymbol(id, p.symbolKey, p.x, p.y, p.w, p.h, p.rotation, p.scaleX, p.scaleY, p.connX, p.connY);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertNode): {
-            if (payloadByteCount != 16) throw std::runtime_error("Invalid node payload size");
-            const std::uint32_t kindU32 = readU32(payload, 0);
-            const std::uint32_t anchorId = readU32(payload, 4);
-            const float x = readF32(payload, 8);
-            const float y = readF32(payload, 12);
-            const NodeKind kind = kindU32 == 1 ? NodeKind::Anchored : NodeKind::Free;
-            self->upsertNode(id, kind, anchorId, x, y);
+            if (payloadByteCount != sizeof(NodePayload)) return EngineError::InvalidPayloadSize;
+            NodePayload p;
+            std::memcpy(&p, payload, sizeof(NodePayload));
+            const NodeKind kind = p.kind == 1 ? NodeKind::Anchored : NodeKind::Free;
+            self->upsertNode(id, kind, p.anchorId, p.x, p.y);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertConduit): {
-            if (payloadByteCount != 8) throw std::runtime_error("Invalid conduit payload size");
-            const std::uint32_t fromNodeId = readU32(payload, 0);
-            const std::uint32_t toNodeId = readU32(payload, 4);
-            self->upsertConduit(id, fromNodeId, toNodeId);
+            if (payloadByteCount != sizeof(ConduitPayload)) return EngineError::InvalidPayloadSize;
+            ConduitPayload p;
+            std::memcpy(&p, payload, sizeof(ConduitPayload));
+            self->upsertConduit(id, p.fromNodeId, p.toNodeId);
             break;
         }
         default:
-            throw std::runtime_error("Unknown command op");
+            return EngineError::UnknownCommand;
     }
+    return EngineError::Ok;
 }
 
 const SymbolRec* CadEngine::findSymbol(std::uint32_t id) const noexcept {
@@ -470,7 +509,7 @@ void CadEngine::compactPolylinePoints() {
     points.swap(next);
 }
 
-void CadEngine::rebuildSnapshotBytes() {
+void CadEngine::rebuildSnapshotBytes() const {
     engine::SnapshotData sd;
     sd.rects = rects;
     sd.lines = lines;
@@ -481,17 +520,18 @@ void CadEngine::rebuildSnapshotBytes() {
     sd.conduits = conduits;
 
     snapshotBytes = engine::buildSnapshotBytes(sd);
+    snapshotDirty = false;
 }
 
-void CadEngine::pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target) {
+void CadEngine::pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target) const {
     target.push_back(x); target.push_back(y); target.push_back(z);
     target.push_back(r); target.push_back(g); target.push_back(b);
 }
-void CadEngine::pushVertex(float x, float y, float z, std::vector<float>& target) {
+void CadEngine::pushVertex(float x, float y, float z, std::vector<float>& target) const {
     target.push_back(x); target.push_back(y); target.push_back(z);
 }
 
-void CadEngine::addRect(float x, float y, float w, float h, float r, float g, float b) {
+void CadEngine::addRect(float x, float y, float w, float h, float r, float g, float b) const {
     const float x0 = x;
     const float y0 = y;
     const float x1 = x + w;
@@ -507,7 +547,7 @@ void CadEngine::addRect(float x, float y, float w, float h, float r, float g, fl
     pushVertex(x0, y1, z, r, g, b, triangleVertices);
 }
 
-void CadEngine::addRectOutline(float x, float y, float w, float h) {
+void CadEngine::addRectOutline(float x, float y, float w, float h) const {
     const float x0 = x;
     const float y0 = y;
     const float x1 = x + w;
@@ -519,12 +559,14 @@ void CadEngine::addRectOutline(float x, float y, float w, float h) {
     addLineSegment(x0, y1, x0, y0, z);
 }
 
-void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) {
+void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) const {
     pushVertex(x0, y0, z, lineVertices);
     pushVertex(x1, y1, z, lineVertices);
 }
 
-void CadEngine::rebuildRenderBuffers() {
+void CadEngine::rebuildRenderBuffers() const {
+    const double t0 = emscripten_get_now();
+    
     engine::rebuildRenderBuffers(
         rects,
         lines,
@@ -535,9 +577,11 @@ void CadEngine::rebuildRenderBuffers() {
         nodes,
         triangleVertices,
         lineVertices,
-        /*resolveCb*/ reinterpret_cast<engine::ResolveNodeCallback>(+[](void* ctx, std::uint32_t nodeId, Point2& out){ CadEngine* self = reinterpret_cast<CadEngine*>(ctx); return self->resolveNodePosition(nodeId, out); }),
-        this
+        /*resolveCb*/ reinterpret_cast<engine::ResolveNodeCallback>(+[](void* ctx, std::uint32_t nodeId, Point2& out){ const CadEngine* self = reinterpret_cast<const CadEngine*>(ctx); return self->resolveNodePosition(nodeId, out); }),
+        const_cast<CadEngine*>(this) 
     );
+    renderDirty = false;
+    
+    const double t1 = emscripten_get_now();
+    lastRebuildMs = static_cast<float>(t1 - t0);
 }
-// EMSCRIPTEN bindings moved to engine/bindings.cpp to keep the engine
-// implementation and bindings in the same translation unit when building.

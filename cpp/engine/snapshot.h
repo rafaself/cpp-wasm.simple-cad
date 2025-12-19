@@ -19,8 +19,9 @@ struct SnapshotData {
     std::uint32_t version{0};
 };
 
-// Parse snapshot bytes into a SnapshotData structure. Throws std::runtime_error on error.
-SnapshotData parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount);
+// Parse snapshot bytes into a SnapshotData structure.
+// Returns EngineError::Ok on success.
+EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, SnapshotData& out);
 
 // Build bytes for a V3 snapshot from SnapshotData.
 std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data);

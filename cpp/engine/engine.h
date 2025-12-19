@@ -110,13 +110,21 @@ public:
     std::vector<ConduitRec> conduits;
     std::unordered_map<std::uint32_t, EntityRef> entities;
 
-    std::vector<float> triangleVertices;
-    std::vector<float> lineVertices;
-    std::vector<std::uint8_t> snapshotBytes;
+    mutable std::vector<float> triangleVertices;
+    mutable std::vector<float> lineVertices;
+    mutable std::vector<std::uint8_t> snapshotBytes;
+    mutable bool renderDirty{false};
+    mutable bool snapshotDirty{false};
     std::uint32_t generation{0};
-    float lastLoadMs{0.0f};
-    float lastRebuildMs{0.0f};
+    mutable float lastLoadMs{0.0f};
+    mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
+
+    // Error handling
+    mutable EngineError lastError{EngineError::Ok};
+    // Helper to clear error
+    void clearError() const { lastError = EngineError::Ok; }
+    void setError(EngineError err) const { lastError = err; }
 
     // read/write helpers moved to engine/util.h
 
@@ -144,7 +152,7 @@ public:
     void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId);
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
-    static void cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);
+    static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);
 
     const SymbolRec* findSymbol(std::uint32_t id) const noexcept;
     const NodeRec* findNode(std::uint32_t id) const noexcept;
@@ -153,16 +161,16 @@ public:
 
     void compactPolylinePoints();
 
-    void rebuildSnapshotBytes();
+    void rebuildSnapshotBytes() const;
 
     // legacy single-stride buildMeta removed (use buildMeta(buffer, floatsPerVertex))
 
-    void pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target);
-    void pushVertex(float x, float y, float z, std::vector<float>& target);
+    void pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target) const;
+    void pushVertex(float x, float y, float z, std::vector<float>& target) const;
 
-    void addRect(float x, float y, float w, float h, float r, float g, float b);
-    void addRectOutline(float x, float y, float w, float h);
-    void addLineSegment(float x0, float y0, float x1, float y1, float z = 0.0f);
+    void addRect(float x, float y, float w, float h, float r, float g, float b) const;
+    void addRectOutline(float x, float y, float w, float h) const;
+    void addLineSegment(float x0, float y0, float x1, float y1, float z = 0.0f) const;
 
-    void rebuildRenderBuffers();
+    void rebuildRenderBuffers() const;
 };

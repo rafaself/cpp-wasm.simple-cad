@@ -3,10 +3,11 @@
 
 struct Ctx { int count = 0; };
 
-static void cb(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount) {
+static EngineError cb(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount) {
     Ctx* c = reinterpret_cast<Ctx*>(ctx);
-    (void)payload; (void)payloadByteCount; (void)id;
+    (void)payload; (void)payloadByteCount; (void)id; (void)op;
     c->count++;
+    return EngineError::Ok;
 }
 
 TEST(CommandsTest, ParseSingle) {
@@ -26,6 +27,7 @@ TEST(CommandsTest, ParseSingle) {
     pushU32(0);
 
     Ctx ctx;
-    EXPECT_NO_THROW(engine::parseCommandBuffer(buf.data(), static_cast<uint32_t>(buf.size()), &cb, &ctx));
+    EngineError err = engine::parseCommandBuffer(buf.data(), static_cast<uint32_t>(buf.size()), &cb, &ctx);
+    EXPECT_EQ(err, EngineError::Ok);
     EXPECT_EQ(ctx.count, 1);
 }

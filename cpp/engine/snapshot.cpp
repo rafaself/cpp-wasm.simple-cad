@@ -1,20 +1,20 @@
 #include "engine/snapshot.h"
 #include "engine/util.h"
-#include <stdexcept>
+#include "engine/types.h"
 #include <cstring>
+#include <vector>
 
 namespace engine {
 
-SnapshotData parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount) {
-    SnapshotData out;
+EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, SnapshotData& out) {
     if (!src || byteCount < snapshotHeaderBytesV2) {
-        throw std::runtime_error("Invalid snapshot payload");
+        return EngineError::BufferTruncated;
     }
 
     const std::uint32_t magic = readU32(src, 0);
-    if (magic != snapshotMagicEwc1) throw std::runtime_error("Snapshot magic mismatch");
+    if (magic != snapshotMagicEwc1) return EngineError::InvalidMagic;
     const std::uint32_t version = readU32(src, 4);
-    if (version != 2 && version != 3) throw std::runtime_error("Unsupported snapshot version");
+    if (version != 2 && version != 3) return EngineError::UnsupportedVersion;
     out.version = version;
 
     const std::uint32_t rectCount = readU32(src, 8);
@@ -27,7 +27,7 @@ SnapshotData parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount) {
     std::uint32_t conduitCount = 0;
     std::size_t headerBytes = snapshotHeaderBytesV2;
     if (version == 3) {
-        if (byteCount < snapshotHeaderBytesV3) throw std::runtime_error("Snapshot truncated (v3 header)");
+        if (byteCount < snapshotHeaderBytesV3) return EngineError::BufferTruncated;
         symbolCount = readU32(src, 24);
         nodeCount = readU32(src, 28);
         conduitCount = readU32(src, 32);
@@ -44,7 +44,7 @@ SnapshotData parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount) {
         static_cast<std::size_t>(nodeCount) * nodeRecordBytes +
         static_cast<std::size_t>(conduitCount) * conduitRecordBytes;
 
-    if (expected > byteCount) throw std::runtime_error("Snapshot truncated");
+    if (expected > byteCount) return EngineError::BufferTruncated;
 
     out.rawBytes.assign(src, src + expected);
 
@@ -118,7 +118,7 @@ SnapshotData parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount) {
         }
     }
 
-    return out;
+    return EngineError::Ok;
 }
 
 std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
