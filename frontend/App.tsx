@@ -1,8 +1,8 @@
 import React from 'react';
-import CadSurfaceHost from './src/components/CadSurfaceHost';
+import NextSurface from './src/components/NextSurface';
 
 const App: React.FC = () => {
-  return <CadSurfaceHost />;
+  return <NextSurface />;
 };
 
 export default App;

@@ -13,10 +13,7 @@ import type { WorldSnapshot } from '../next/worldSnapshot';
 import { buildRenderBatch, type RenderExtractResult, type RenderExtractShape, type RenderExtractStats } from '../next/renderExtract';
 import type { Shape } from '@/types';
 import { buildSnapIndex, querySnapIndex } from '../next/snapIndex';
-
-// `engine.js` é um artefato gerado em `public/wasm` e não deve ser importado do código-fonte (Vite bloqueia).
-// Use um URL estático e carregue via dynamic import com `@vite-ignore`.
-const ENGINE_URL = '/wasm/engine.js';
+import { initCadEngineModule } from '@/wasm/getCadEngineFactory';
 
 // Mirrors the C++ BufferMeta exposed via Embind
 export type BufferMeta = {
@@ -59,8 +56,6 @@ type WasmModule = {
   HEAPF32: Float32Array;
   HEAPU8: Uint8Array;
 };
-
-type EngineFactory = (opts?: unknown) => Promise<WasmModule>;
 
 type BufferMetaPair = { triangles: BufferMeta | null; lines: BufferMeta | null };
 
@@ -502,9 +497,7 @@ const CadViewer: React.FC = () => {
 
     (async () => {
       try {
-        const mod = await import(/* @vite-ignore */ ENGINE_URL);
-        const factory = mod.default as EngineFactory;
-        const wasm = await factory();
+        const wasm = await initCadEngineModule<WasmModule>();
         if (cancelled) return;
         const instance = new wasm.CadEngine();
         setModule(wasm);
@@ -657,7 +650,7 @@ const CadViewer: React.FC = () => {
 
   return (
     <div
-      style={{ width: '100%', height: '100vh', position: 'relative', background: '#0b1021', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100%', position: 'relative', background: '#0b1021', overflow: 'hidden' }}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
