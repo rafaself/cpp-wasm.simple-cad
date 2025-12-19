@@ -3,10 +3,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useUIStore } from '@/stores/useUIStore';
+import { useDataStore } from '@/stores/useDataStore';
 import { screenToWorld } from '@/utils/geometry';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { getShapeBoundingBox } from '@/utils/geometry';
+import type { Shape } from '@/types';
+import TextSdfLayer from './TextSdfLayer';
+import SymbolAtlasLayer from './SymbolAtlasLayer';
 import { decodeWorldSnapshot, migrateWorldSnapshotToLatest, type WorldSnapshot } from '../next/worldSnapshot';
 import { buildSnapIndex, querySnapIndex } from '../next/snapIndex';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
@@ -138,27 +143,22 @@ const toWorldPoint = (evt: React.PointerEvent<HTMLDivElement>, viewTransform: Re
   return screenToWorld(screen, viewTransform);
 };
 
-const SelectionOverlay: React.FC<{
-  selectedIds: Set<string>;
-  snapshot: WorldSnapshot | null;
-  idStringToHash: Map<string, number>;
-}> = ({ selectedIds, snapshot, idStringToHash }) => {
+const SelectionOverlay: React.FC<{ selectedIds: Set<string> }> = ({ selectedIds }) => {
   const material = useMemo(() => new THREE.LineBasicMaterial({ color: 0xfbbf24 }), []);
+  const shapesById = useDataStore((s) => s.shapes);
 
   const lines = useMemo(() => {
     const out: { id: string; obj: THREE.Line }[] = [];
-    if (!snapshot) return out;
-
     selectedIds.forEach((id) => {
-      const idHash = idStringToHash.get(id);
-      if (idHash === undefined) return;
+      const shape = shapesById[id];
+      if (!shape) return;
 
-      const r = snapshot.rects.find((x) => x.id === idHash);
-      if (r) {
-        const x0 = r.x;
-        const y0 = r.y;
-        const x1 = r.x + r.w;
-        const y1 = r.y + r.h;
+      const buildRectOutline = (s: Shape) => {
+        const b = getShapeBoundingBox(s);
+        const x0 = b.x;
+        const y0 = b.y;
+        const x1 = b.x + b.width;
+        const y1 = b.y + b.height;
         const pts = [
           new THREE.Vector3(x0, y0, 0),
           new THREE.Vector3(x1, y0, 0),
@@ -166,33 +166,32 @@ const SelectionOverlay: React.FC<{
           new THREE.Vector3(x0, y1, 0),
           new THREE.Vector3(x0, y0, 0),
         ];
-        const geom = new THREE.BufferGeometry().setFromPoints(pts);
+        return new THREE.BufferGeometry().setFromPoints(pts);
+      };
+
+      if (shape.type === 'rect' || shape.type === 'text') {
+        out.push({ id, obj: new THREE.Line(buildRectOutline(shape), material) });
+        return;
+      }
+
+      if (shape.type === 'line' || shape.type === 'arrow') {
+        const p0 = shape.points?.[0];
+        const p1 = shape.points?.[1];
+        if (!p0 || !p1) return;
+        const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(p0.x, p0.y, 0), new THREE.Vector3(p1.x, p1.y, 0)]);
         out.push({ id, obj: new THREE.Line(geom, material) });
         return;
       }
 
-      const l = snapshot.lines.find((x) => x.id === idHash);
-      if (l) {
-        const geom = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(l.x0, l.y0, 0),
-          new THREE.Vector3(l.x1, l.y1, 0),
-        ]);
-        out.push({ id, obj: new THREE.Line(geom, material) });
-        return;
-      }
-
-      const pl = snapshot.polylines.find((x) => x.id === idHash);
-      if (pl) {
-        const start = pl.offset;
-        const end = pl.offset + pl.count;
-        if (end > snapshot.points.length) return;
-        const pts = snapshot.points.slice(start, end).map((p) => new THREE.Vector3(p.x, p.y, 0));
+      if (shape.type === 'polyline' || shape.type === 'eletroduto' || shape.type === 'conduit') {
+        const pts = (shape.points ?? []).map((p) => new THREE.Vector3(p.x, p.y, 0));
+        if (pts.length < 2) return;
         const geom = new THREE.BufferGeometry().setFromPoints(pts);
         out.push({ id, obj: new THREE.Line(geom, material) });
       }
     });
     return out;
-  }, [idStringToHash, material, selectedIds, snapshot]);
+  }, [material, selectedIds, shapesById]);
 
   return (
     <>
@@ -548,14 +547,10 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
         <CameraParitySync viewTransform={viewTransform} />
         <ambientLight intensity={0.8} />
         <SharedGeometry module={module} engine={engine} onBufferMeta={handleBufferMeta} />
+        <SymbolAtlasLayer />
+        <TextSdfLayer />
         <axesHelper args={[5]} />
-        {!embedded ? (
-          supportsSnapshot ? (
-            <SelectionOverlay selectedIds={selectedShapeIds} snapshot={worldSnapshot} idStringToHash={idStringToHash} />
-          ) : (
-            null
-          )
-        ) : null}
+        <SelectionOverlay selectedIds={selectedShapeIds} />
         {!embedded && snapPoint ? (
           <mesh position={[snapPoint.x, snapPoint.y, 0]}>
             <sphereGeometry args={[0.1, 8, 8]} />

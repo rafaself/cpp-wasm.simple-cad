@@ -19,6 +19,7 @@ import LayerControl from '../ribbon/components/LayerControl';
 import ColorControl from '../ribbon/components/ColorControl';
 import GridControl from '../ribbon/components/GridControl';
 import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
+import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
 
 // Shared styles - using design tokens
 const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
@@ -135,6 +136,50 @@ const EditorRibbon: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
   }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
+
+  const saveNextDocument = useCallback(() => {
+      const payload = {
+        worldScale,
+        frame,
+        project: serializeProject(),
+        history: { past: dataStore.past, future: dataStore.future },
+      };
+      const bytes = encodeNextDocumentFile(payload);
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'eletrocad-next.ewnd';
+      a.click();
+      URL.revokeObjectURL(url);
+  }, [dataStore.future, dataStore.past, frame, serializeProject, worldScale]);
+
+  const openNextDocument = useCallback(() => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.ewnd,application/octet-stream';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const buf = await file.arrayBuffer();
+        const payload = decodeNextDocumentFile(new Uint8Array(buf));
+        dataStore.loadSerializedProject({
+          project: payload.project,
+          worldScale: payload.worldScale,
+          frame: payload.frame,
+          history: payload.history,
+        });
+        useUIStore.getState().setSelectedShapeIds(new Set());
+        useUIStore.getState().setTool('select');
+      };
+      input.click();
+  }, [dataStore]);
+
+  const newNextDocument = useCallback(() => {
+      dataStore.resetDocument();
+      useUIStore.getState().setSelectedShapeIds(new Set());
+      useUIStore.getState().setTool('select');
+  }, [dataStore]);
 
   const openProjectPreview = useCallback(() => {
       const project = serializeProject();
@@ -291,6 +336,9 @@ tr:nth-child(even){background:#111827;}
   }, [dataStore.shapes, dataStore.electricalElements, dataStore.connectionNodes]);
 
   const handleAction = (action?: string) => {
+      if (action === 'new-file') newNextDocument();
+      if (action === 'open-file') openNextDocument();
+      if (action === 'save-file') saveNextDocument();
       if (action === 'delete') deleteSelected();
       if (action === 'join') joinSelected();
       if (action === 'explode') explodeSelected();

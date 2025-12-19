@@ -8,7 +8,7 @@ type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'arrow' | 'eletroduto' 
 
 const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
   return (
-    s.type === 'rect' ||
+    (s.type === 'rect' && !s.svgSymbolId && !s.svgRaw) ||
     s.type === 'line' ||
     s.type === 'polyline' ||
     s.type === 'arrow' ||

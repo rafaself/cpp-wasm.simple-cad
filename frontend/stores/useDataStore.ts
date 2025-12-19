@@ -81,6 +81,13 @@ interface DataState {
 
   // Serialization
   serializeProject: () => SerializedProject;
+  resetDocument: () => void;
+  loadSerializedProject: (params: {
+    project: SerializedProject;
+    worldScale: number;
+    frame: FrameSettings;
+    history?: { past: Patch[][]; future: Patch[][] };
+  }) => void;
 
   // Helpers
   syncQuadTree: () => void;
@@ -909,6 +916,40 @@ export const useDataStore = create<DataState>((set, get) => ({
           diagramNodes: Object.values(diagramNodes),
           diagramEdges: Object.values(diagramEdges)
       };
+  },
+
+  resetDocument: () => {
+    const initial = buildInitialState();
+    set({ ...initial });
+  },
+
+  loadSerializedProject: ({ project, worldScale, frame, history }) => {
+    const nextShapes = Object.fromEntries(project.shapes.map((s) => [s.id, s]));
+    const nextElectrical = Object.fromEntries(project.electricalElements.map((e) => [e.id, e]));
+    const nextNodes = Object.fromEntries(project.connectionNodes.map((n) => [n.id, n]));
+    const nextDiagramNodes = Object.fromEntries(project.diagramNodes.map((n) => [n.id, n]));
+    const nextDiagramEdges = Object.fromEntries(project.diagramEdges.map((e) => [e.id, e]));
+
+    const spatialIndex = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
+    Object.values(nextShapes).forEach((shape) => spatialIndex.insert(shape));
+
+    set({
+      layers: [...project.layers],
+      shapes: nextShapes,
+      electricalElements: nextElectrical,
+      connectionNodes: nextNodes,
+      diagramNodes: nextDiagramNodes,
+      diagramEdges: nextDiagramEdges,
+      activeLayerId: project.activeLayerId,
+      worldScale,
+      frame,
+      spatialIndex,
+      past: history?.past ?? [],
+      future: history?.future ?? [],
+    });
+
+    get().syncConnections();
+    get().syncDiagramEdgesGeometry();
   },
 
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => {

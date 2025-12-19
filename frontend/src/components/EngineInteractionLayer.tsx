@@ -3,18 +3,20 @@ import type { ElectricalElement } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, getDistance, getShapeBoundingBox } from '@/utils/geometry';
+import { screenToWorld, getDistance, getShapeBoundingBox, isPointInShape } from '@/utils/geometry';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
 import { generateId } from '@/utils/uuid';
 import type { Shape } from '@/types';
 import { getDefaultColorMode } from '@/utils/shapeColors';
-import { decodeWorldSnapshot, migrateWorldSnapshotToLatest, type WorldSnapshot } from '../next/worldSnapshot';
-import { getEngineRuntime } from '@/engine/runtime/singleton';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
 import { resolveConnectionNodePosition } from '@/utils/connections';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
+import type { Patch } from '@/types';
+import { isConduitShape } from '@/features/editor/utils/tools';
+import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
+import { isShapeInteractable } from '@/utils/visibility';
 
 type Draft =
   | { kind: 'none' }
@@ -63,42 +65,31 @@ const pointSegmentDistance = (
 
 const pickShapeAt = (
   worldPoint: { x: number; y: number },
-  snapshot: WorldSnapshot,
-  idHashToString: Map<number, string>,
-  tolerance: number,
+  toleranceWorld: number,
 ): string | null => {
-  let best: { shapeId: string; distance: number } | null = null;
-  for (const r of snapshot.rects) {
-    const inside = worldPoint.x >= r.x && worldPoint.x <= r.x + r.w && worldPoint.y >= r.y && worldPoint.y <= r.y + r.h;
-    if (inside) {
-      const dist = 0;
-      const shapeId = idHashToString.get(r.id) ?? String(r.id);
-      if (!best || dist < best.distance) best = { shapeId, distance: dist };
-    }
+  const data = useDataStore.getState();
+  const ui = useUIStore.getState();
+
+  const queryRect = {
+    x: worldPoint.x - toleranceWorld,
+    y: worldPoint.y - toleranceWorld,
+    width: toleranceWorld * 2,
+    height: toleranceWorld * 2,
+  };
+
+  const candidates = data.spatialIndex
+    .query(queryRect)
+    .map((c) => data.shapes[c.id])
+    .filter(Boolean) as Shape[];
+
+  for (const shape of candidates) {
+    const layer = data.layers.find((l) => l.id === shape.layerId);
+    if (layer && (!layer.visible || layer.locked)) continue;
+    if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+    if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
   }
-  for (const l of snapshot.lines) {
-    const d = pointSegmentDistance(worldPoint, { x: l.x0, y: l.y0 }, { x: l.x1, y: l.y1 });
-    if (d <= tolerance) {
-      const shapeId = idHashToString.get(l.id) ?? String(l.id);
-      if (!best || d < best.distance) best = { shapeId, distance: d };
-    }
-  }
-  for (const pl of snapshot.polylines) {
-    if (pl.count < 2) continue;
-    const start = pl.offset;
-    const end = pl.offset + pl.count;
-    if (end > snapshot.points.length) continue;
-    for (let i = start; i + 1 < end; i++) {
-      const p0 = snapshot.points[i];
-      const p1 = snapshot.points[i + 1];
-      const d = pointSegmentDistance(worldPoint, p0, p1);
-      if (d <= tolerance) {
-        const shapeId = idHashToString.get(pl.id) ?? String(pl.id);
-        if (!best || d < best.distance) best = { shapeId, distance: d };
-      }
-    }
-  }
-  return best?.shapeId ?? null;
+
+  return null;
 };
 
 const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
@@ -126,6 +117,7 @@ const getCursorForTool = (tool: ReturnType<typeof useUIStore.getState>['activeTo
 };
 
 type ConduitStart = { nodeId: string; point: { x: number; y: number } };
+type MoveState = { start: { x: number; y: number }; snapshot: Map<string, Shape> };
 
 const EngineInteractionLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
@@ -150,47 +142,10 @@ const EngineInteractionLayer: React.FC = () => {
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const transformStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
 
-  const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
-  const snapshotRef = useRef<WorldSnapshot | null>(null);
-  const lastGenRef = useRef<number>(-1);
-
   const [draft, setDraft] = useState<Draft>({ kind: 'none' });
   const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
-
-  useEffect(() => {
-    let disposed = false;
-    let raf = 0;
-
-    (async () => {
-      const runtime = await getEngineRuntime();
-      if (disposed) return;
-      runtimeRef.current = runtime;
-
-      const tick = () => {
-        if (disposed) return;
-        try {
-          const stats = runtime.engine.getStats();
-          if (stats.generation !== lastGenRef.current) {
-            lastGenRef.current = stats.generation;
-            const meta = runtime.engine.getSnapshotBufferMeta();
-            const bytes = new Uint8Array(runtime.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
-            const decoded = decodeWorldSnapshot(bytes);
-            snapshotRef.current = migrateWorldSnapshotToLatest(decoded);
-          }
-        } catch {
-          // Avoid hard-crashing input loop; CadViewer will show error if engine is broken.
-        }
-        raf = window.requestAnimationFrame(tick);
-      };
-
-      raf = window.requestAnimationFrame(tick);
-    })();
-
-    return () => {
-      disposed = true;
-      if (raf) window.cancelAnimationFrame(raf);
-    };
-  }, []);
+  const moveRef = useRef<MoveState | null>(null);
+  const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
 
   const cursor = useMemo(() => getCursorForTool(activeTool), [activeTool]);
 
@@ -435,6 +390,8 @@ const EngineInteractionLayer: React.FC = () => {
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
 
+    if (textEditState) return;
+
     if (evt.button === 1 || evt.button === 2 || evt.altKey || activeTool === 'pan') {
       beginPan(evt);
       return;
@@ -446,6 +403,31 @@ const EngineInteractionLayer: React.FC = () => {
     const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
 
     pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
+
+    if (activeTool === 'text') {
+      // Click establishes the visual top; TextEditorOverlay converts to bottom-left on commit.
+      setTextEditState({ x: snapped.x, y: snapped.y, content: '' });
+      useUIStore.getState().setEditingTextId(null);
+      return;
+    }
+
+    if (activeTool === 'move') {
+      const data = useDataStore.getState();
+      const selected = Array.from(selectedShapeIds)
+        .map((id) => data.shapes[id])
+        .filter(Boolean) as Shape[];
+
+      const movable = selected.filter((s) => {
+        const layer = data.layers.find((l) => l.id === s.layerId);
+        if (layer?.locked) return false;
+        if (isConduitShape(s)) return false; // avoid breaking anchored connection semantics for now
+        return true;
+      });
+
+      if (movable.length === 0) return;
+      moveRef.current = { start: snapped, snapshot: new Map(movable.map((s) => [s.id, s])) };
+      return;
+    }
 
     if (activeTool === 'electrical-symbol') {
       commitElectricalSymbolAt(snapped);
@@ -491,8 +473,31 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
+    if (textEditState) return;
+
     const world = toWorldPoint(evt, viewTransform);
     const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
+
+    if (activeTool === 'move') {
+      const moveState = moveRef.current;
+      if (moveState) {
+        const data = useDataStore.getState();
+        const dx = snapped.x - moveState.start.x;
+        const dy = snapped.y - moveState.start.y;
+        moveState.snapshot.forEach((shape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+
+          const diff: Partial<Shape> = {};
+          if (shape.x !== undefined) diff.x = clampTiny(shape.x + dx);
+          if (shape.y !== undefined) diff.y = clampTiny(shape.y + dy);
+          if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
+
+          if (Object.keys(diff).length) data.updateShape(id, diff, false);
+        });
+      }
+      return;
+    }
 
     setDraft((prev) => {
       if (prev.kind === 'line') return { ...prev, current: snapped };
@@ -511,6 +516,29 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (evt.button !== 0) return;
 
+    if (textEditState) return;
+
+    if (activeTool === 'move') {
+      const moveState = moveRef.current;
+      moveRef.current = null;
+      if (moveState) {
+        const data = useDataStore.getState();
+        const patches: Patch[] = [];
+        moveState.snapshot.forEach((prevShape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+          const diff: Partial<Shape> = {};
+          if (prevShape.x !== curr.x) diff.x = curr.x;
+          if (prevShape.y !== curr.y) diff.y = curr.y;
+          if (prevShape.points || curr.points) diff.points = curr.points;
+          if (Object.keys(diff).length === 0) return;
+          patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
+        });
+        data.saveToHistory(patches);
+      }
+      return;
+    }
+
     const down = pointerDownRef.current;
     pointerDownRef.current = null;
 
@@ -520,16 +548,9 @@ const EngineInteractionLayer: React.FC = () => {
       const dy = evt.clientY - down.y;
       if (isDrag(dx, dy)) return;
 
-      const runtime = runtimeRef.current;
-      const snapshot = snapshotRef.current;
-      if (!runtime || !snapshot) {
-        setSelectedShapeIds(new Set());
-        return;
-      }
-
       const worldPt = down.world;
       const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-      const hit = pickShapeAt(worldPt, snapshot, runtime.getIdMaps().idHashToString, tolerance);
+      const hit = pickShapeAt(worldPt, tolerance);
       setSelectedShapeIds(hit ? new Set([hit]) : new Set());
       return;
     }
@@ -631,6 +652,9 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
+      {textEditState ? (
+        <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />
+      ) : null}
     </div>
   );
 };
