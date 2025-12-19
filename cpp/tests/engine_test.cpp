@@ -19,12 +19,12 @@ TEST_F(CadEngineTest, InitialState) {
 
 TEST_F(CadEngineTest, EntityManagement) {
     // Direct API usage updates the logical state, but not the render buffers
-    engine.upsertRect(100, 10, 20, 30, 40, 1.0f, 0.0f, 0.0f); // Add color
+    engine.upsertRect(100, 10, 20, 30, 40, 1.0f, 0.0f, 0.0f, 1.0f); // Add color
     auto stats = engine.getStats();
     EXPECT_EQ(stats.rectCount, 1);
     
     // Update
-    engine.upsertRect(100, 15, 25, 35, 45, 0.0f, 1.0f, 0.0f); // Add color
+    engine.upsertRect(100, 15, 25, 35, 45, 0.0f, 1.0f, 0.0f, 1.0f); // Add color
     stats = engine.getStats();
     EXPECT_EQ(stats.rectCount, 1); // ID mismatch would create new, same ID updates
     
@@ -54,16 +54,17 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     // Command 1: UpsertRect
     pushU32(static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertRect)); // Op
     pushU32(10);         // ID
-    pushU32(28);         // Payload Bytes (7 floats * 4 bytes/float) - UPDATED
+    pushU32(32);         // Payload Bytes (8 floats * 4 bytes/float) - UPDATED
     pushU32(0);          // Reserved
 
     pushF32(10.0f); // x
     pushF32(20.0f); // y
     pushF32(50.0f); // w
     pushF32(60.0f); // h
-    pushF32(1.0f);  // r - NEW
-    pushF32(0.5f);  // g - NEW
-    pushF32(0.0f);  // b - NEW
+    pushF32(1.0f);  // r
+    pushF32(0.5f);  // g
+    pushF32(0.0f);  // b
+    pushF32(1.0f);  // a - NEW
 
     // Pass to engine
     uintptr_t ptr = reinterpret_cast<uintptr_t>(buffer.data());
@@ -109,7 +110,7 @@ TEST_F(CadEngineTest, SnappingElectrical) {
 
 TEST_F(CadEngineTest, SnapshotRoundTrip) {
     // 1. Populate initial state
-    engine.upsertRect(1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f); // Add color
+    engine.upsertRect(1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f, 1.0f); // Add color
     engine.upsertLine(2, 0, 0, 50, 50);
     // Trigger rebuilds
     engine.rebuildRenderBuffers();

@@ -60,6 +60,7 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         out.rects[i].r = readF32(src, o); o += 4;
         out.rects[i].g = readF32(src, o); o += 4;
         out.rects[i].b = readF32(src, o); o += 4;
+        out.rects[i].a = readF32(src, o); o += 4;
     }
 
     out.lines.resize(lineCount);
@@ -160,6 +161,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
         writeF32LE(dst, o, r.r); o += 4;
         writeF32LE(dst, o, r.g); o += 4;
         writeF32LE(dst, o, r.b); o += 4;
+        writeF32LE(dst, o, r.a); o += 4;
     }
 
     for (const auto& l : data.lines) {

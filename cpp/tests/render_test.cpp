@@ -12,7 +12,7 @@ TEST(RenderTest, SimpleBuffers) {
     std::vector<SymbolRec> symbols;
     std::vector<NodeRec> nodes;
 
-    rects.push_back(RectRec{1, 0,0,10,10, 1,0,0});
+    rects.push_back(RectRec{1, 0,0,10,10, 1,0,0, 1});
     lines.push_back(LineRec{2, 0,0,5,5});
     polylines.push_back(PolyRec{3, 0, 2});
     points.push_back(Point2{0,0}); points.push_back(Point2{5,5});

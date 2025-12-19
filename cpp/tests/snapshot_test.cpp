@@ -5,7 +5,7 @@ using namespace engine;
 
 TEST(SnapshotTest, RoundTrip) {
     SnapshotData data;
-    data.rects.push_back(RectRec{1, 10.0f, 20.0f, 30.0f, 40.0f, 0.1f, 0.2f, 0.3f});
+    data.rects.push_back(RectRec{1, 10.0f, 20.0f, 30.0f, 40.0f, 0.1f, 0.2f, 0.3f, 1.0f});
     data.lines.push_back(LineRec{2, 0.0f, 0.0f, 5.0f, 5.0f});
     data.polylines.push_back(PolyRec{3, 0, 2});
     data.points.push_back(Point2{1.0f, 1.0f});

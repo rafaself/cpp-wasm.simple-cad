@@ -248,7 +248,7 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
     conduits.pop_back();
 }
 
-void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b) {
+void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
     renderDirty = true;
     snapshotDirty = true;
     
@@ -261,11 +261,11 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
     if (it2 != entities.end()) {
         auto& existingRect = rects[it2->second.index];
         existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h;
-        existingRect.r = r; existingRect.g = g; existingRect.b = b;
+        existingRect.r = r; existingRect.g = g; existingRect.b = b; existingRect.a = a;
         return;
     }
 
-    rects.push_back(RectRec{id, x, y, w, h, r, g, b});
+    rects.push_back(RectRec{id, x, y, w, h, r, g, b, a});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
 }
 
@@ -408,7 +408,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             if (payloadByteCount != sizeof(RectPayload)) return EngineError::InvalidPayloadSize;
             RectPayload p;
             std::memcpy(&p, payload, sizeof(RectPayload));
-            self->upsertRect(id, p.x, p.y, p.w, p.h, p.r, p.g, p.b);
+            self->upsertRect(id, p.x, p.y, p.w, p.h, p.r, p.g, p.b, p.a);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
@@ -532,6 +532,11 @@ void CadEngine::pushVertex(float x, float y, float z, std::vector<float>& target
 }
 
 void CadEngine::addRect(float x, float y, float w, float h, float r, float g, float b) const {
+    // This overload is likely deprecated or unused for internal logic now, 
+    // but kept for API compatibility if needed. It assumes full opacity if called directly.
+    // However, the main render loop uses engine::rebuildRenderBuffers -> addRectToBuffers 
+    // which operates on RectRec (containing 'a').
+    // Let's implement it assuming full opacity or just delegate to helper.
     const float x0 = x;
     const float y0 = y;
     const float x1 = x + w;

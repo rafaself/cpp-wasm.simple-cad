@@ -21,13 +21,16 @@ static void addRectToBuffers(const RectRec& r, std::vector<float>& triangleVerti
     const float x1 = r.x + r.w;
     const float y1 = r.y + r.h;
     constexpr float z = 0.0f;
-    // Triangles
-    pushVertexColored(x0, y0, z, r.r, r.g, r.b, triangleVertices);
-    pushVertexColored(x1, y0, z, r.r, r.g, r.b, triangleVertices);
-    pushVertexColored(x1, y1, z, r.r, r.g, r.b, triangleVertices);
-    pushVertexColored(x0, y0, z, r.r, r.g, r.b, triangleVertices);
-    pushVertexColored(x1, y1, z, r.r, r.g, r.b, triangleVertices);
-    pushVertexColored(x0, y1, z, r.r, r.g, r.b, triangleVertices);
+    
+    // Triangles - Only if alpha > 0 (visible fill)
+    if (r.a > 0.0f) {
+        pushVertexColored(x0, y0, z, r.r, r.g, r.b, triangleVertices);
+        pushVertexColored(x1, y0, z, r.r, r.g, r.b, triangleVertices);
+        pushVertexColored(x1, y1, z, r.r, r.g, r.b, triangleVertices);
+        pushVertexColored(x0, y0, z, r.r, r.g, r.b, triangleVertices);
+        pushVertexColored(x1, y1, z, r.r, r.g, r.b, triangleVertices);
+        pushVertexColored(x0, y1, z, r.r, r.g, r.b, triangleVertices);
+    }
 
     // Outline
     pushVertexPos(x0, y0, z, lineVertices);

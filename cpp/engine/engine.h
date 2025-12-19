@@ -132,7 +132,7 @@ public:
 
     void deleteEntity(std::uint32_t id) noexcept;
 
-    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b);
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
     void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count);
     void upsertSymbol(

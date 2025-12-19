@@ -18,7 +18,7 @@ static constexpr std::size_t snapshotHeaderBytesV2 = 8 * 4;
 static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
 static constexpr std::size_t commandHeaderBytes = 4 * 4;
 static constexpr std::size_t perCommandHeaderBytes = 4 * 4;
-static constexpr std::size_t rectRecordBytes = 32; // id (4) + x,y,w,h,r,g,b (7 * 4 = 28) = 32
+static constexpr std::size_t rectRecordBytes = 36; // id (4) + x,y,w,h,r,g,b,a (8 * 4 = 32) = 36
 static constexpr std::size_t lineRecordBytes = 20;
 static constexpr std::size_t polyRecordBytes = 12;
 static constexpr std::size_t pointRecordBytes = 8;
@@ -31,7 +31,7 @@ static constexpr std::size_t rectTriangleFloats = 6 * 6; // 6 vertices * (x,y,z,
 static constexpr std::size_t rectOutlineFloats = 8 * 3; // 4 segments, 2 vertices each
 static constexpr std::size_t lineSegmentFloats = 2 * 3;
 
-struct RectRec { std::uint32_t id; float x; float y; float w; float h; float r, g, b; };
+struct RectRec { std::uint32_t id; float x; float y; float w; float h; float r, g, b, a; };
 struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; };
 struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; };
 struct Point2 { float x; float y; };
@@ -90,7 +90,7 @@ enum class EngineError : std::uint32_t {
 };
 
 // Command Payloads (POD)
-struct RectPayload { float x, y, w, h, r, g, b; };
+struct RectPayload { float x, y, w, h, r, g, b, a; };
 struct LinePayload { float x0, y0, x1, y1; };
 // Polyline payload is variable length, handled manually
 struct SymbolPayload {

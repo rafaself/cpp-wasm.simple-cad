@@ -24,18 +24,19 @@ const toUpsertCommand = (shape: Shape, ensureId: (id: string) => number): Engine
   if (shape.type === 'rect') {
     if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
     
-    // Determine fill color
-    let r = 0.0, g = 0.0, b = 0.0;
+    // Determine fill color and alpha
+    let r = 0.0, g = 0.0, b = 0.0, a = 0.0;
     if (shape.fillEnabled && shape.fillColor && shape.fillColor !== 'transparent') {
       const rgb = hexToRgb(shape.fillColor);
       if (rgb) {
         r = rgb.r / 255.0;
         g = rgb.g / 255.0;
         b = rgb.b / 255.0;
+        a = 1.0;
       }
     }
     
-    return { op: CommandOp.UpsertRect, id, rect: { x: shape.x, y: shape.y, w: shape.width, h: shape.height, r, g, b } };
+    return { op: CommandOp.UpsertRect, id, rect: { x: shape.x, y: shape.y, w: shape.width, h: shape.height, r, g, b, a } };
   }
 
   if (shape.type === 'line' || shape.type === 'arrow') {
