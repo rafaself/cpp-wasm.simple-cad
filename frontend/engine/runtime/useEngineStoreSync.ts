@@ -4,8 +4,17 @@ import { useDataStore } from '@/stores/useDataStore';
 import { CommandOp, type EngineCommand } from './commandBuffer';
 import { getEngineRuntime } from './singleton';
 
-const isSupportedShape = (s: Shape): s is Shape & ({ type: 'rect' } | { type: 'line' } | { type: 'polyline' }) => {
-  return s.type === 'rect' || s.type === 'line' || s.type === 'polyline';
+type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'arrow' | 'eletroduto' | 'conduit';
+
+const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
+  return (
+    s.type === 'rect' ||
+    s.type === 'line' ||
+    s.type === 'polyline' ||
+    s.type === 'arrow' ||
+    s.type === 'eletroduto' ||
+    s.type === 'conduit'
+  );
 };
 
 const toUpsertCommand = (shape: Shape, ensureId: (id: string) => number): EngineCommand | null => {
@@ -17,7 +26,7 @@ const toUpsertCommand = (shape: Shape, ensureId: (id: string) => number): Engine
     return { op: CommandOp.UpsertRect, id, rect: { x: shape.x, y: shape.y, w: shape.width, h: shape.height } };
   }
 
-  if (shape.type === 'line') {
+  if (shape.type === 'line' || shape.type === 'arrow') {
     const p0 = shape.points?.[0];
     const p1 = shape.points?.[1];
     if (!p0 || !p1) return null;

@@ -11,12 +11,12 @@ import EditorStatusBar from '@/features/editor/components/EditorStatusBar';
 import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import EditorTabs from '@/features/editor/components/EditorTabs';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
-import DynamicOverlay from '@/features/editor/components/canvas/DynamicOverlay';
 import { useDataStore } from '@/stores/useDataStore';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useEngineStoreSync } from '@/engine/runtime/useEngineStoreSync';
 import CadViewer from './CadViewer';
+import EngineInteractionLayer from './EngineInteractionLayer';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
@@ -43,10 +43,10 @@ const NextCanvasArea: React.FC = () => {
       <EditorTabs />
 
       <div className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none" ref={containerRef}>
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 pointer-events-none">
           <CadViewer embedded />
         </div>
-        <DynamicOverlay width={width} height={height} />
+        <EngineInteractionLayer />
       </div>
 
       <QuickAccessToolbar />
