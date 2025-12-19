@@ -564,9 +564,6 @@ export const useDataStore = create<DataState>((set, get) => ({
     const end = toNode ? (resolveConnectionNodePosition(toNode, data.shapes) ?? toNode.position) : null;
     const points: Point[] = start && end ? [start, end] : [];
 
-    const fromConnectionId = fromNode?.kind === 'anchored' ? fromNode.anchorShapeId : undefined;
-    const toConnectionId = toNode?.kind === 'anchored' ? toNode.anchorShapeId : undefined;
-
     data.addShape({
       id,
       layerId,
@@ -580,10 +577,6 @@ export const useDataStore = create<DataState>((set, get) => ({
       points,
       fromNodeId,
       toNodeId,
-      fromConnectionId,
-      toConnectionId,
-      connectedStartId: fromConnectionId,
-      connectedEndId: toConnectionId,
     });
     return id;
   },

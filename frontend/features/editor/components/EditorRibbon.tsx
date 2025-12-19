@@ -232,24 +232,21 @@ const EditorRibbon: React.FC = () => {
 
       const conduits = Object.values(shapes)
         .filter(isConduitShape)
-        .map(s => {
-            const fromNodeId = s.fromNodeId ?? null;
-            const toNodeId = s.toNodeId ?? null;
-            const from = s.fromConnectionId ?? s.connectedStartId ?? null;
-            const to = s.toConnectionId ?? s.connectedEndId ?? null;
-            if (!fromNodeId || !toNodeId) return null;
-            return {
-                id: s.id,
-                fromNodeId,
-                toNodeId,
-                fromConnectionId: from,
-                toConnectionId: to,
-                length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]) : null,
-                controlPoint: s.controlPoint,
-                layerId: s.layerId,
-            };
-        })
-        .filter(Boolean) as any[];
+        .flatMap((s) => {
+          const fromNodeId = s.fromNodeId ?? null;
+          const toNodeId = s.toNodeId ?? null;
+          if (!fromNodeId || !toNodeId) return [];
+          return [
+            {
+              id: s.id,
+              fromNodeId,
+              toNodeId,
+              length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]) : null,
+              controlPoint: s.controlPoint,
+              layerId: s.layerId,
+            },
+          ];
+        });
 
       const payload = {
           generatedAt: new Date().toISOString(),
@@ -288,30 +285,27 @@ const EditorRibbon: React.FC = () => {
 
       const conduits = Object.values(shapes)
         .filter(isConduitShape)
-        .map(s => {
-            const fromNodeId = s.fromNodeId ?? null;
-            const toNodeId = s.toNodeId ?? null;
-            const fromConnectionId = s.fromConnectionId ?? s.connectedStartId ?? null;
-            const toConnectionId = s.toConnectionId ?? s.connectedEndId ?? null;
-            if (!fromNodeId || !toNodeId) return null;
-            return {
-                id: s.id,
-                fromNodeId,
-                toNodeId,
-                fromConnectionId,
-                toConnectionId,
-                length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]).toFixed(2) : '0.00',
-            };
-        })
-        .filter(Boolean) as any[];
+        .flatMap((s) => {
+          const fromNodeId = s.fromNodeId ?? null;
+          const toNodeId = s.toNodeId ?? null;
+          if (!fromNodeId || !toNodeId) return [];
+          return [
+            {
+              id: s.id,
+              fromNodeId,
+              toNodeId,
+              length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]).toFixed(2) : '0.00',
+            },
+          ];
+        });
 
       const htmlRows = conduits.map(c => {
           const fromNode = c.fromNodeId ? nodesById[c.fromNodeId] : null;
           const toNode = c.toNodeId ? nodesById[c.toNodeId] : null;
           const fromAnchor = fromNode?.kind === 'anchored' && fromNode.anchorShapeId ? connections.find(n => n.id === fromNode.anchorShapeId) : null;
           const toAnchor = toNode?.kind === 'anchored' && toNode.anchorShapeId ? connections.find(n => n.id === toNode.anchorShapeId) : null;
-          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromConnectionId || c.fromNodeId || '—';
-          const toLabel = toAnchor?.name || toAnchor?.id || c.toConnectionId || c.toNodeId || '—';
+          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—';
+          const toLabel = toAnchor?.name || toAnchor?.id || c.toNodeId || '—';
           return `<tr><td>${c.id}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${c.length}</td></tr>`;
       }).join('');
 

@@ -17,6 +17,7 @@ import type { Patch } from '@/types';
 import { isConduitShape } from '@/features/editor/utils/tools';
 import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
 import { isShapeInteractable } from '@/utils/visibility';
+import { getEngineRuntime } from '@/engine/runtime/singleton';
 
 type Draft =
   | { kind: 'none' }
@@ -146,6 +147,18 @@ const EngineInteractionLayer: React.FC = () => {
   const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
   const moveRef = useRef<MoveState | null>(null);
   const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
+  const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      const runtime = await getEngineRuntime();
+      if (!disposed) runtimeRef.current = runtime;
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   const cursor = useMemo(() => getCursorForTool(activeTool), [activeTool]);
 
@@ -183,6 +196,28 @@ const EngineInteractionLayer: React.FC = () => {
     const ui = useUIStore.getState();
     const scale = Math.max(ui.viewTransform.scale || 1, 0.01);
     const tolerance = CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX / scale;
+
+    const runtime = runtimeRef.current;
+    if (runtime && typeof runtime.engine.snapElectrical === 'function') {
+      try {
+        const r = runtime.engine.snapElectrical(world.x, world.y, tolerance);
+        if (r.kind === 1 && r.id !== 0) {
+          const nodeStringId = runtime.getIdMaps().idHashToString.get(r.id);
+          if (nodeStringId && data.connectionNodes[nodeStringId]) {
+            return { nodeId: nodeStringId, point: { x: r.x, y: r.y } };
+          }
+        }
+        if (r.kind === 2 && r.id !== 0) {
+          const symbolStringId = runtime.getIdMaps().idHashToString.get(r.id);
+          if (symbolStringId) {
+            const nodeId = data.getOrCreateAnchoredConnectionNode(symbolStringId);
+            return { nodeId, point: { x: r.x, y: r.y } };
+          }
+        }
+      } catch {
+        // Fall back to TS snap below.
+      }
+    }
 
     const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
     const candidates = data.spatialIndex.query(queryRect).map((c) => data.shapes[c.id]).filter(Boolean) as Shape[];

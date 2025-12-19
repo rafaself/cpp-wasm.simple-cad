@@ -339,6 +339,62 @@ public:
         };
     }
 
+    struct SnapResult {
+        std::uint32_t kind; // 0 none, 1 node, 2 symbol-connection
+        std::uint32_t id;   // node id or symbol id
+        float x;
+        float y;
+    };
+
+    SnapResult snapElectrical(float x, float y, float tolerance) const noexcept {
+        const float tol2 = tolerance * tolerance;
+        float bestD2 = tol2 + 1.0f;
+        SnapResult best{0u, 0u, 0.0f, 0.0f};
+
+        const Point2 q{x, y};
+
+        // Prefer snapping to nodes (explicit topology) over raw symbol connection points.
+        for (const auto& n : nodes) {
+            Point2 p;
+            if (!resolveNodePosition(n.id, p)) continue;
+            const float dx = p.x - q.x;
+            const float dy = p.y - q.y;
+            const float d2 = dx * dx + dy * dy;
+            if (d2 <= tol2 && d2 < bestD2) {
+                bestD2 = d2;
+                best = SnapResult{1u, n.id, p.x, p.y};
+            }
+        }
+
+        for (const auto& s : symbols) {
+            // If a symbol already has an anchored node, the loop above will win (same point).
+            Point2 p;
+            // Resolve symbol connection point directly to avoid requiring a node record.
+            const float cx = s.x + s.w * 0.5f;
+            const float cy = s.y + s.h * 0.5f;
+            float px = (s.connX - 0.5f) * s.w;
+            float py = (s.connY - 0.5f) * s.h;
+            px *= s.scaleX;
+            py *= s.scaleY;
+            const float c = std::cos(s.rotation);
+            const float si = std::sin(s.rotation);
+            const float rx = px * c - py * si;
+            const float ry = px * si + py * c;
+            p.x = cx + rx;
+            p.y = cy + ry;
+
+            const float dx = p.x - q.x;
+            const float dy = p.y - q.y;
+            const float d2 = dx * dx + dy * dy;
+            if (d2 <= tol2 && d2 < bestD2) {
+                bestD2 = d2;
+                best = SnapResult{2u, s.id, p.x, p.y};
+            }
+        }
+
+        return best;
+    }
+
 private:
     static constexpr std::size_t defaultCapacityFloats = 50000;   // ~16.6k vertices
     static constexpr std::size_t defaultLineCapacityFloats = 20000; // ~6.6k line vertices
@@ -678,9 +734,19 @@ private:
             return true;
         }
 
-        if (n->anchorSymbolId == 0) return false;
+        // Anchored nodes prefer resolving from their symbol (follows device transforms),
+        // but must always have a stable fallback position (e.g. device deleted).
+        if (n->anchorSymbolId == 0) {
+            out.x = n->x;
+            out.y = n->y;
+            return true;
+        }
         const SymbolRec* s = findSymbol(n->anchorSymbolId);
-        if (!s) return false;
+        if (!s) {
+            out.x = n->x;
+            out.y = n->y;
+            return true;
+        }
 
         const float cx = s->x + s->w * 0.5f;
         const float cy = s->y + s->h * 0.5f;
@@ -882,6 +948,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getPositionBufferMeta", &CadEngine::getPositionBufferMeta)
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
+        .function("snapElectrical", &CadEngine::snapElectrical)
         .function("getStats", &CadEngine::getStats);
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
@@ -910,4 +977,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
         .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
         .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
+
+    emscripten::value_object<CadEngine::SnapResult>("SnapResult")
+        .field("kind", &CadEngine::SnapResult::kind)
+        .field("id", &CadEngine::SnapResult::id)
+        .field("x", &CadEngine::SnapResult::x)
+        .field("y", &CadEngine::SnapResult::y);
 }

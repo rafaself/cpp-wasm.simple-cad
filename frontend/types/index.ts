@@ -201,11 +201,6 @@ export interface Shape {
   fromNodeId?: string;
   toNodeId?: string;
 
-  fromConnectionId?: string; // Shape ID connected to start point (preferred)
-  toConnectionId?: string;   // Shape ID connected to end point (preferred)
-  connectedStartId?: string; // Legacy alias for fromConnectionId
-  connectedEndId?: string;   // Legacy alias for toConnectionId
-
   // Special flags
   diagramNodeId?: string;
   diagramEdgeId?: string;

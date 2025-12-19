@@ -24,6 +24,7 @@ export type CadEngineInstance = {
   getPositionBufferMeta: () => BufferMeta;
   getLineBufferMeta: () => BufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
+  snapElectrical: (x: number, y: number, tolerance: number) => { kind: number; id: number; x: number; y: number };
   getStats: () => {
     generation: number;
     rectCount: number;
