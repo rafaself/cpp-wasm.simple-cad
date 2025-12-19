@@ -440,7 +440,11 @@ const DebugOverlay: React.FC<{
   );
 };
 
-const CadViewer: React.FC = () => {
+type CadViewerProps = {
+  embedded?: boolean;
+};
+
+const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [module, setModule] = useState<WasmModule | null>(null);
@@ -472,6 +476,21 @@ const CadViewer: React.FC = () => {
   const gridSize = useSettingsStore((state) => state.grid.size);
 
   const supportsSnapshot = !!engine && isSnapshotCapableEngine(engine);
+
+  const rebuildSnapshotFromStores = useCallback(() => {
+    if (!engine) return;
+    if (!module) return;
+    if (!supportsSnapshot) return;
+
+    const project = useDataStore.getState().serializeProject();
+    const imported = importLegacyProjectIntoWasm(engine, module, project);
+    setIdHashToString(imported.idHashToString);
+    setIdStringToHash(imported.idStringToHash);
+    setImportStats({ supportedCount: imported.supportedCount, droppedByType: imported.droppedByType });
+    setWorldSnapshot(imported.snapshot);
+    setEngineStats(engine.getStats());
+    setLegacyStats(null);
+  }, [engine, module, supportsSnapshot]);
 
   const snapIndex = useMemo(() => {
     if (!supportsSnapshot || !worldSnapshot) return null;
@@ -520,21 +539,55 @@ const CadViewer: React.FC = () => {
   useEffect(() => {
     if (!engine) return;
     if (!module) return;
-    if (worldSnapshot) return;
+    if (!supportsSnapshot) return;
 
-    try {
-      if (supportsSnapshot) {
-        const project = useDataStore.getState().serializeProject();
-        const imported = importLegacyProjectIntoWasm(engine, module, project);
-        setIdHashToString(imported.idHashToString);
-        setIdStringToHash(imported.idStringToHash);
-        setImportStats({ supportedCount: imported.supportedCount, droppedByType: imported.droppedByType });
-        setWorldSnapshot(imported.snapshot);
-        setEngineStats(engine.getStats());
-        setLegacyStats(null);
+    let timeoutId: number | null = null;
+    let disposed = false;
+
+    const schedule = () => {
+      if (disposed) return;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        if (disposed) return;
+        try {
+          rebuildSnapshotFromStores();
+          if (status !== 'ready') setStatus('ready');
+        } catch (e) {
+          console.error(e);
+          setError((e as Error)?.message ?? 'Failed to rebuild WASM snapshot');
+          setStatus('error');
+        }
+      }, 50);
+    };
+
+    // Initial import + keep up-to-date with editor changes.
+    schedule();
+
+    const unsubscribe = useDataStore.subscribe((state, prev) => {
+      if (
+        state.shapes === prev.shapes &&
+        state.layers === prev.layers &&
+        state.frame === prev.frame &&
+        state.worldScale === prev.worldScale
+      ) {
         return;
       }
+      schedule();
+    });
 
+    return () => {
+      disposed = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
+  }, [engine, module, rebuildSnapshotFromStores, status, supportsSnapshot]);
+
+  useEffect(() => {
+    if (!engine) return;
+    if (!module) return;
+    if (supportsSnapshot) return;
+
+    try {
       // Phase 3 fallback: if WASM artifacts aren't rebuilt yet, keep the old TS->WASM path.
       if (engine.loadShapes) {
         engine.loadShapes(renderExtract.batch as unknown as RenderExtractShape[]);
@@ -546,10 +599,10 @@ const CadViewer: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
-      setError((e as Error)?.message ?? 'Failed to import legacy project into WASM document');
+      setError((e as Error)?.message ?? 'Failed to load fallback shapes into WASM engine');
       setStatus('error');
     }
-  }, [engine, module, renderExtract.batch, renderExtract.stats, supportsSnapshot, worldSnapshot]);
+  }, [engine, module, renderExtract.batch, renderExtract.stats, supportsSnapshot]);
 
   const handleBufferMeta = useCallback((meta: BufferMetaPair) => {
     setBufferStats(meta);
@@ -651,29 +704,37 @@ const CadViewer: React.FC = () => {
   return (
     <div
       style={{ width: '100%', height: '100%', position: 'relative', background: '#0b1021', overflow: 'hidden' }}
-      onWheel={handleWheel}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onWheel={embedded ? undefined : handleWheel}
+      onPointerDown={embedded ? undefined : handlePointerDown}
+      onPointerMove={embedded ? undefined : handlePointerMove}
+      onPointerUp={embedded ? undefined : handlePointerUp}
     >
-      <Canvas orthographic camera={{ position: [0, 0, 50], near: -1000, far: 1000, zoom: viewTransform.scale }}>
+      <Canvas
+        orthographic
+        camera={{ position: [0, 0, 50], near: -1000, far: 1000, zoom: viewTransform.scale }}
+        style={embedded ? { pointerEvents: 'none' } : undefined}
+      >
         <CameraParitySync viewTransform={viewTransform} />
         <ambientLight intensity={0.8} />
         <SharedGeometry module={module} engine={engine} onBufferMeta={handleBufferMeta} />
         <axesHelper args={[5]} />
-        {supportsSnapshot ? (
-          <SelectionOverlay selectedIds={selectedShapeIds} snapshot={worldSnapshot} idStringToHash={idStringToHash} />
-        ) : (
-          <SelectionOverlayLegacy selectedIds={selectedShapeIds} shapes={legacyShapes} />
-        )}
-        {snapPoint ? (
+        {!embedded ? (
+          supportsSnapshot ? (
+            <SelectionOverlay selectedIds={selectedShapeIds} snapshot={worldSnapshot} idStringToHash={idStringToHash} />
+          ) : (
+            <SelectionOverlayLegacy selectedIds={selectedShapeIds} shapes={legacyShapes} />
+          )
+        ) : null}
+        {!embedded && snapPoint ? (
           <mesh position={[snapPoint.x, snapPoint.y, 0]}>
             <sphereGeometry args={[0.1, 8, 8]} />
             <meshBasicMaterial color="#f472b6" />
           </mesh>
         ) : null}
       </Canvas>
-      <DebugOverlay importStats={importStats} legacyStats={legacyStats} engineStats={engineStats} buffers={bufferStats} />
+      {!embedded ? (
+        <DebugOverlay importStats={importStats} legacyStats={legacyStats} engineStats={engineStats} buffers={bufferStats} />
+      ) : null}
     </div>
   );
 };

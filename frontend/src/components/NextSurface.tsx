@@ -9,9 +9,9 @@ import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
 import LoadingOverlay from '@/components/LoadingOverlay';
 import EditorStatusBar from '@/features/editor/components/EditorStatusBar';
 import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
-import UserHint from '@/features/editor/components/UserHint';
 import EditorTabs from '@/features/editor/components/EditorTabs';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
+import DynamicOverlay from '@/features/editor/components/canvas/DynamicOverlay';
 import { useDataStore } from '@/stores/useDataStore';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -19,6 +19,7 @@ import CadViewer from './CadViewer';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
+  const { width, height } = useUIStore((s) => s.canvasSize);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,15 +43,12 @@ const NextCanvasArea: React.FC = () => {
 
       <div className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none" ref={containerRef}>
         <div className="absolute inset-0">
-          <CadViewer />
+          <CadViewer embedded />
         </div>
+        <DynamicOverlay width={width} height={height} />
       </div>
 
       <QuickAccessToolbar />
-
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
-        <UserHint />
-      </div>
 
       <div className="absolute bottom-0 left-0 right-0 z-50">
         <EditorStatusBar />
@@ -91,4 +89,3 @@ const NextSurface: React.FC = () => {
 };
 
 export default NextSurface;
-
