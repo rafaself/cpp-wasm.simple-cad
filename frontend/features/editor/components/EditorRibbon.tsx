@@ -105,7 +105,7 @@ const EditorRibbon: React.FC = () => {
   const layerDropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
-  const isConduitShape = (s: Shape) => s.type === 'eletroduto' || s.type === 'conduit';
+  const isConduitShape = (s: Shape) => s.type === 'eletroduto';
 
   const serializeProject = useDataStore((state) => state.serializeProject);
   const worldScale = useDataStore((state) => state.worldScale);

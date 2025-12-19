@@ -278,7 +278,6 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
     case 'measure':
       if (!shape.points || shape.points.length < 2) return false;
       return isPointNearSegments(point, shape.points, threshold);
-    case 'conduit':
     case 'eletroduto':
       if (shape.points.length < 2) return false;
       const pathPoints = getConduitPathPoints(shape);
@@ -385,10 +384,10 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
 
   const pts = shape.points || [];
   let curvePoints = shape.points;
-  if ((shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
+  if (shape.type === 'eletroduto' && shape.points) {
       curvePoints = getConduitPathPoints(shape);
   }
-  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') {
+  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'eletroduto') {
       if (pts.some(p => isPointInRect(p, rect))) return true;
       const candidatePoints = curvePoints && curvePoints.length > 0 ? curvePoints : pts;
       for (let i = 0; i < candidatePoints.length - 1; i++) {
@@ -441,13 +440,13 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
          }
     }
     // Point-based shapes rely on already-rotated coordinates
-    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
-        let pointList: Point[] = shape.points;
-        if (shape.type === 'conduit' || shape.type === 'eletroduto') {
-            pointList = getConduitPathPoints(shape);
-        }
-        pointList.forEach(addPoint);
-    } 
+    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'eletroduto') && shape.points) {
+	        let pointList: Point[] = shape.points;
+	        if (shape.type === 'eletroduto') {
+	            pointList = getConduitPathPoints(shape);
+	        }
+	        pointList.forEach(addPoint);
+	    } 
     else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
         const bounds = getShapeBoundingBox(shape);
         const center = getShapeCenter(shape);
@@ -587,11 +586,11 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
     if (shape.electricalElementId) return handles;
     
-    if (shape.type === 'eletroduto' || shape.type === 'conduit') {
-        if (shape.points && shape.points.length >= 2) {
-            // Start point
-            handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });
-            // End point
+	    if (shape.type === 'eletroduto') {
+	        if (shape.points && shape.points.length >= 2) {
+	            // Start point
+	            handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });
+	            // End point
             handles.push({ x: shape.points[1].x, y: shape.points[1].y, cursor: 'move', index: 1, type: 'vertex' });
             // Control point
             const cp = shape.controlPoint ?? { x: (shape.points[0].x + shape.points[1].x)/2, y: (shape.points[0].y + shape.points[1].y)/2 };

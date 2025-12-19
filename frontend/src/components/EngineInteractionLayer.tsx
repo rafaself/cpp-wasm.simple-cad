@@ -469,7 +469,7 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'eletroduto' || activeTool === 'conduit') {
+    if (activeTool === 'eletroduto') {
       if (!conduitStart) {
         const startHit = tryFindAnchoredNode(snapped);
         const startNodeId = startHit ? startHit.nodeId : useDataStore.getState().createFreeConnectionNode(snapped);

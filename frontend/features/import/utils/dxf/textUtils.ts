@@ -68,8 +68,7 @@ export const parseMTextContent = (rawText: string): ParsedMText => {
 };
 
 /**
- * Legacy wrapper for backward compatibility if needed,
- * but we should prefer parseMTextContent in logic.
+ * Compatibility wrapper (prefer `parseMTextContent` for logic).
  */
 export const sanitizeMTextContent = (text: string): string => {
     return parseMTextContent(text).text;

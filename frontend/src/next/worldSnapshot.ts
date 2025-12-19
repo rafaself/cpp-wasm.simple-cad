@@ -1,5 +1,3 @@
-import { SerializedProject, Shape } from '../../types/index.ts';
-
 export const WORLD_SNAPSHOT_MAGIC_EWC1 = 0x31435745; // "EWC1" little-endian bytes
 export const WORLD_SNAPSHOT_VERSION_LATEST = 3 as const;
 
@@ -53,81 +51,6 @@ export type WorldSnapshotV3 = {
 };
 
 export type WorldSnapshot = WorldSnapshotV1 | WorldSnapshotV2 | WorldSnapshotV3;
-
-export type WorldSnapshotImportReport = {
-  idMap: Map<number, string>;
-  supportedCount: number;
-  droppedByType: Record<string, number>;
-};
-
-export function fnv1a32(str: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
-export function snapshotFromLegacyProject(project: SerializedProject): { snapshot: WorldSnapshotV2; report: WorldSnapshotImportReport } {
-  const rects: WorldRect[] = [];
-  const lines: WorldLine[] = [];
-  const polylines: WorldPolyline[] = [];
-  const points: WorldPoint2[] = [];
-
-  const idMap = new Map<number, string>();
-  const droppedByType: Record<string, number> = {};
-  let supportedCount = 0;
-
-  const rememberId = (idHash: number, idStr: string) => {
-    // Best-effort collision handling: keep first occurrence.
-    if (!idMap.has(idHash)) idMap.set(idHash, idStr);
-  };
-
-  // Phase 6 hardening: avoid hash collisions by allocating deterministic numeric IDs.
-  // Determinism rule: sort by legacy string id so the same project produces the same IDs.
-  const sorted = [...project.shapes].sort((a, b) => a.id.localeCompare(b.id));
-  let nextId = 1;
-
-  for (const shape of sorted) {
-    if (shape.type !== 'rect' && shape.type !== 'line' && shape.type !== 'polyline') {
-      droppedByType[shape.type] = (droppedByType[shape.type] ?? 0) + 1;
-      continue;
-    }
-
-    const id = nextId++;
-    rememberId(id, shape.id);
-
-    if (shape.type === 'rect') {
-      if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) continue;
-      rects.push({ id, x: shape.x, y: shape.y, w: shape.width, h: shape.height });
-      supportedCount++;
-      continue;
-    }
-
-    if (shape.type === 'line') {
-      if (!shape.points || shape.points.length < 2) continue;
-      const p0 = shape.points[0];
-      const p1 = shape.points[1];
-      lines.push({ id, x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y });
-      supportedCount++;
-      continue;
-    }
-
-    if (shape.type === 'polyline') {
-      if (!shape.points || shape.points.length < 2) continue;
-      const offset = points.length;
-      for (const p of shape.points) points.push({ x: p.x, y: p.y });
-      polylines.push({ id, offset, count: shape.points.length });
-      supportedCount++;
-    }
-  }
-
-  return {
-    snapshot: { version: 2, rects, lines, polylines, points },
-    report: { idMap, supportedCount, droppedByType },
-  };
-}
 
 export function encodeWorldSnapshot(snapshot: WorldSnapshot): Uint8Array {
   if (snapshot.version !== 1 && snapshot.version !== 2 && snapshot.version !== 3) {
@@ -331,9 +254,4 @@ export function migrateWorldSnapshotToLatest(snapshot: WorldSnapshot): WorldSnap
     nodes: [],
     conduits: [],
   };
-}
-
-export function snapshotFromLegacyShapes(shapes: Shape[]): WorldSnapshotV2 {
-  // Convenience for callers that only have shapes (no layers/electrical/etc).
-  return snapshotFromLegacyProject({ layers: [], shapes, activeLayerId: '', electricalElements: [], connectionNodes: [], diagramNodes: [], diagramEdges: [] }).snapshot;
 }

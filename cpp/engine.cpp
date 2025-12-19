@@ -21,8 +21,6 @@ public:
         snapshotBytes.reserve(defaultSnapshotCapacityBytes);
     }
 
-    int add(int a, int b) const noexcept { return a + b; }
-
     void clear() noexcept {
         clearWorld();
         generation++;
@@ -1032,7 +1030,6 @@ private:
 EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
-        .function("add", &CadEngine::add)
         .function("clear", &CadEngine::clear)
         .function("allocBytes", &CadEngine::allocBytes)
         .function("freeBytes", &CadEngine::freeBytes)

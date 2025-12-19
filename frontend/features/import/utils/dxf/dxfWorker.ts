@@ -153,11 +153,11 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
         };
         self.postMessage(response);
 
-    } else {
-        // Shapes Mode (Legacy/Default)
-        const result = convertDxfToShapes(data, options);
-        const cleanShapes = cleanupShapes(result.shapes);
-        const response: DxfWorkerOutput = {
+	    } else {
+	        // Shapes mode
+	        const result = convertDxfToShapes(data, options);
+	        const cleanShapes = cleanupShapes(result.shapes);
+	        const response: DxfWorkerOutput = {
             success: true,
             data: {
                 kind: 'convert',

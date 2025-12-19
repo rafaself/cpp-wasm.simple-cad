@@ -714,7 +714,7 @@ export const convertPdfPageToShapes = async (
 
       // First pass: find bounding box
       shapes.forEach(s => {
-          if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto' || s.type === 'conduit') {
+          if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto') {
               s.points?.forEach(p => {
                   if (p.x < minX) minX = p.x;
                   if (p.y < minY) minY = p.y;
@@ -742,7 +742,7 @@ export const convertPdfPageToShapes = async (
           
           // Second pass: normalize to (0,0) AND flip Y to correct orientation
           shapes.forEach(s => {
-              if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto' || s.type === 'conduit') {
+              if (s.type === 'line' || s.type === 'polyline' || s.type === 'eletroduto') {
                   s.points = s.points?.map(p => ({ 
                       x: p.x - minX, 
                       y: contentHeight - (p.y - minY) // Flip Y

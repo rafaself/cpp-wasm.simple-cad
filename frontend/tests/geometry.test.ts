@@ -32,7 +32,7 @@ describe('geometry utils', () => {
         const conduit: Shape = {
             id: 'curved',
             layerId: 'layer-1',
-            type: 'conduit',
+            type: 'eletroduto',
             points: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
             controlPoint: { x: 50, y: 50 },
             strokeColor: 'black',
@@ -51,7 +51,7 @@ describe('geometry utils', () => {
         const curvedShape: Shape = {
             id: 'curved-conduit',
             layerId: 'layer-1',
-            type: 'conduit',
+            type: 'eletroduto',
             points: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
             controlPoint: { x: 50, y: 50 },
             strokeColor: 'black',

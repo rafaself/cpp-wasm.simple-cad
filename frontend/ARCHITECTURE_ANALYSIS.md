@@ -1,6 +1,6 @@
 # Frontend Architecture Overview (Current)
 
-This repo is transitioning away from the legacy Canvas2D renderer. The current runtime path is:
+This repo has moved away from the Canvas2D renderer. The current runtime path is:
 
 - `frontend/App.tsx` → `frontend/src/components/NextSurface.tsx`
   - `frontend/src/components/CadViewer.tsx` (R3F/WebGL renderer fed by WASM buffers)
@@ -32,7 +32,7 @@ The migration goal is to make **WASM the authoritative document model** (not jus
   - `line`, `rect`, `polyline`
   - `select`, `pan`, `zoom`
   - `move` (basic translate)
-  - `electrical-symbol` (places symbol; currently renders as rect in WASM)
+  - `electrical-symbol` (places symbol; rendered via WebGL instancing)
   - `eletroduto` (creates conduit segment between nodes)
 - `frontend/engine/runtime/useEngineStoreSync.ts` subscribes to `useDataStore` and mirrors supported shapes into the WASM engine via commands.
 

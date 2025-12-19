@@ -139,7 +139,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     Object.values(nextShapes).forEach((s) => {
       const prev = shapes[s.id];
       if (!prev) return;
-      const isConduit = (s.type === 'eletroduto' || s.type === 'conduit');
+      const isConduit = s.type === 'eletroduto';
       if (!isConduit) return;
       const prevPts = prev.points ?? [];
       const nextPts = s.points ?? [];
@@ -431,7 +431,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       // If editing a conduit endpoint that is anchored or shared, detach to a new free node
       // to preserve the "edit this conduit only" behavior.
-      const isConduit = (newShape.type === 'eletroduto' || newShape.type === 'conduit');
+      const isConduit = newShape.type === 'eletroduto';
       if (isConduit && diff.points && diff.points.length >= 2) {
         const usage = getConduitNodeUsage(shapes);
         let nextNodes = connectionNodes;

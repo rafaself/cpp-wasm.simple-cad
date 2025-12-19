@@ -4,7 +4,7 @@ import { useDataStore } from '@/stores/useDataStore';
 import { CommandOp, type EngineCommand } from './commandBuffer';
 import { getEngineRuntime } from './singleton';
 
-type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'arrow' | 'eletroduto' | 'conduit';
+type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'arrow' | 'eletroduto';
 
 const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
   return (
@@ -12,8 +12,7 @@ const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } =
     s.type === 'line' ||
     s.type === 'polyline' ||
     s.type === 'arrow' ||
-    s.type === 'eletroduto' ||
-    s.type === 'conduit'
+    s.type === 'eletroduto'
   );
 };
 
@@ -34,7 +33,7 @@ const toUpsertCommand = (shape: Shape, ensureId: (id: string) => number): Engine
   }
 
   // Conduits are rendered in WASM from nodes + endpoints; do not mirror as generic polylines.
-  if (shape.type === 'eletroduto' || shape.type === 'conduit') {
+  if (shape.type === 'eletroduto') {
     if (!shape.fromNodeId || !shape.toNodeId) return null;
     const fromNodeId = ensureId(shape.fromNodeId);
     const toNodeId = ensureId(shape.toNodeId);

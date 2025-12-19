@@ -186,7 +186,7 @@ const SelectionOverlay: React.FC<{ selectedIds: Set<string> }> = ({ selectedIds 
         return;
       }
 
-      if (shape.type === 'polyline' || shape.type === 'eletroduto' || shape.type === 'conduit') {
+      if (shape.type === 'polyline' || shape.type === 'eletroduto') {
         const pts = (shape.points ?? []).map((p) => new THREE.Vector3(p.x, p.y, 0));
         if (pts.length < 2) return;
         const geom = new THREE.BufferGeometry().setFromPoints(pts);

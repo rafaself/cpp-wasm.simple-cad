@@ -2,7 +2,7 @@ import { ConnectionNode, Point, Shape } from '../types';
 import { getShapeBoundingBox } from './geometry';
 import { generateId } from './uuid';
 
-const isConduitShape = (shape: Shape) => shape.type === 'eletroduto' || shape.type === 'conduit';
+const isConduitShape = (shape: Shape) => shape.type === 'eletroduto';
 
 const resolveShapeConnectionPoint = (shape: Shape): Point | null => {
   if (
