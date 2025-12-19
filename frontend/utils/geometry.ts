@@ -371,39 +371,84 @@ export const getSelectionRect = (start: Point, end: Point): { rect: Rect, direct
 export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'CROSSING'): boolean => {
   const bounds = getShapeBounds(shape);
   if (!bounds) return false;
+
   const rectRight = rect.x + rect.width;
   const rectBottom = rect.y + rect.height;
   const shapeRight = bounds.x + bounds.width;
   const shapeBottom = bounds.y + bounds.height;
 
-  if (shapeRight < rect.x || bounds.x > rectRight || shapeBottom < rect.y || bounds.y > rectBottom) return false;
-
-  const isFullyInside = bounds.x >= rect.x && shapeRight <= rectRight && bounds.y >= rect.y && shapeBottom <= rectBottom;
-  if (isFullyInside) return true;
-  if (mode === 'WINDOW') return isFullyInside;
-
-  const pts = shape.points || [];
-  let curvePoints = shape.points;
-  if (shape.type === 'eletroduto' && shape.points) {
-      curvePoints = getConduitPathPoints(shape);
+  // Broad-phase check: if AABBs don't intersect, no selection is possible.
+  if (shapeRight < rect.x || bounds.x > rectRight || shapeBottom < rect.y || bounds.y > rectBottom) {
+    return false;
   }
-  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'eletroduto') {
-      if (pts.some(p => isPointInRect(p, rect))) return true;
-      const candidatePoints = curvePoints && curvePoints.length > 0 ? curvePoints : pts;
-      for (let i = 0; i < candidatePoints.length - 1; i++) {
-          if (isLineIntersectingRect(candidatePoints[i], candidatePoints[i+1], rect)) return true;
+
+  // --- Rotated Shapes: Use precise corner/edge checks ---
+  const rotation = shape.rotation || 0;
+  if (rotation !== 0 && (shape.type === 'rect' || shape.type === 'text')) {
+    const shapeBounds = getShapeBoundingBox(shape);
+    const center = getShapeCenter(shape);
+    const corners = [
+      { x: shapeBounds.x, y: shapeBounds.y },
+      { x: shapeBounds.x + shapeBounds.width, y: shapeBounds.y },
+      { x: shapeBounds.x + shapeBounds.width, y: shapeBounds.y + shapeBounds.height },
+      { x: shapeBounds.x, y: shapeBounds.y + shapeBounds.height }
+    ];
+    const rotatedCorners = corners.map(c => rotatePoint(c, center, rotation));
+
+    if (mode === 'WINDOW') {
+      // For WINDOW, all corners of the rotated shape must be inside the selection rect.
+      return rotatedCorners.every(p => isPointInRect(p, rect));
+    } else { // CROSSING mode
+      // Any corner inside the rect is an intersection.
+      if (rotatedCorners.some(p => isPointInRect(p, rect))) return true;
+      
+      // Check if any edge of the rotated shape intersects the selection rect bounds.
+      for (let i = 0; i < rotatedCorners.length; i++) {
+        const p1 = rotatedCorners[i];
+        const p2 = rotatedCorners[(i + 1) % rotatedCorners.length];
+        if (isLineIntersectingRect(p1, p2, rect)) return true;
       }
-      return false;
+      
+      // Finally, check if the selection box is entirely contained within the rotated shape.
+      if (isPointInShape({x: rect.x, y: rect.y}, shape)) return true;
+      
+      return false; // No intersection found.
+    }
   }
-  if (shape.type === 'rect' && shape.width && shape.height && shape.x !== undefined && shape.y !== undefined) return true;
 
+  // --- Standard Shapes: Use AABB checks ---
+  const isFullyInside = bounds.x >= rect.x && shapeRight <= rectRight && bounds.y >= rect.y && shapeBottom <= rectBottom;
+
+  // If fully inside, it's always a match, regardless of mode.
+  if (isFullyInside) return true;
+
+  // For WINDOW mode, if not fully inside, it's a miss.
+  if (mode === 'WINDOW') return false;
+
+  // --- CROSSING Mode Logic for remaining shapes ---
+  // We know the AABB intersects, but the shape isn't fully inside.
+
+  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'eletroduto') {
+    const points = shape.type === 'eletroduto' ? getConduitPathPoints(shape) : shape.points;
+    if (!points || points.length === 0) return false;
+    // Any point inside rect?
+    if (points.some(p => isPointInRect(p, rect))) return true;
+    // Any segment intersects rect?
+    for (let i = 0; i < points.length - 1; i++) {
+      if (isLineIntersectingRect(points[i], points[i+1], rect)) return true;
+    }
+    return false;
+  }
+  
   if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-     if (isPointInRect({x: shape.x, y: shape.y}, rect)) return true;
+     // Precise circle-rectangle intersection check.
      const closestX = Math.max(rect.x, Math.min(shape.x, rect.x + rect.width));
      const closestY = Math.max(rect.y, Math.min(shape.y, rect.y + rect.height));
      const dist = getDistance({x: shape.x, y: shape.y}, {x: closestX, y: closestY});
      return dist <= shape.radius;
   }
+
+  // For non-rotated rects and other simple shapes, AABB intersection is sufficient for a crossing match.
   return true;
 };
 

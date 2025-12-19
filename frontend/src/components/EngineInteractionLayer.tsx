@@ -3,7 +3,7 @@ import type { ElectricalElement } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, getDistance, getShapeBoundingBox, isPointInShape } from '@/utils/geometry';
+import { screenToWorld, getDistance, getShapeBoundingBox, isPointInShape, isShapeInSelection } from '@/utils/geometry';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
 import { generateId } from '@/utils/uuid';
@@ -25,6 +25,12 @@ type Draft =
   | { kind: 'rect'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
   | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } };
+
+type SelectionBox = {
+  start: { x: number; y: number };
+  current: { x: number; y: number };
+  direction: 'LTR' | 'RTL';
+};
 
 const toWorldPoint = (
   evt: React.PointerEvent<HTMLDivElement>,
@@ -147,6 +153,7 @@ const EngineInteractionLayer: React.FC = () => {
   const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
   const moveRef = useRef<MoveState | null>(null);
   const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
+  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
 
   useEffect(() => {
@@ -161,6 +168,10 @@ const EngineInteractionLayer: React.FC = () => {
   }, []);
 
   const cursor = useMemo(() => getCursorForTool(activeTool), [activeTool]);
+
+  useEffect(() => {
+    setSelectionBox(null);
+  }, [activeTool]);
 
   const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
     evt.preventDefault();
@@ -435,9 +446,10 @@ const EngineInteractionLayer: React.FC = () => {
     if (evt.button !== 0) return;
 
     const world = toWorldPoint(evt, viewTransform);
-    const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
+    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
 
     pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
+    if (activeTool === 'select') setSelectionBox(null);
 
     if (activeTool === 'text') {
       // Click establishes the visual top; TextEditorOverlay converts to bottom-left on commit.
@@ -511,7 +523,22 @@ const EngineInteractionLayer: React.FC = () => {
     if (textEditState) return;
 
     const world = toWorldPoint(evt, viewTransform);
-    const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
+    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+
+    if (activeTool === 'select') {
+      const down = pointerDownRef.current;
+      if (!down) return;
+      const dx = evt.clientX - down.x;
+      const dy = evt.clientY - down.y;
+      if (!isDrag(dx, dy)) {
+        if (selectionBox) setSelectionBox(null);
+        return;
+      }
+
+      const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
+      setSelectionBox({ start: down.world, current: snapped, direction });
+      return;
+    }
 
     if (activeTool === 'move') {
       const moveState = moveRef.current;
@@ -581,11 +608,38 @@ const EngineInteractionLayer: React.FC = () => {
       if (!down) return;
       const dx = evt.clientX - down.x;
       const dy = evt.clientY - down.y;
-      if (isDrag(dx, dy)) return;
+      if (isDrag(dx, dy)) {
+        const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
+        const mode: 'WINDOW' | 'CROSSING' = direction === 'LTR' ? 'WINDOW' : 'CROSSING';
+        const worldUp = toWorldPoint(evt, viewTransform);
+        const rect = normalizeRect(down.world, worldUp);
+
+        const data = useDataStore.getState();
+        const ui = useUIStore.getState();
+        const queryRect = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
+        const candidates = data.spatialIndex
+          .query(queryRect)
+          .map((c) => data.shapes[c.id])
+          .filter(Boolean) as Shape[];
+
+        const selected = new Set<string>();
+        for (const shape of candidates) {
+          const layer = data.layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+          if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
+          selected.add(shape.id);
+        }
+
+        setSelectionBox(null);
+        setSelectedShapeIds(selected);
+        return;
+      }
 
       const worldPt = down.world;
       const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
       const hit = pickShapeAt(worldPt, tolerance);
+      setSelectionBox(null);
       setSelectedShapeIds(hit ? new Set([hit]) : new Set());
       return;
     }
@@ -675,6 +729,28 @@ const EngineInteractionLayer: React.FC = () => {
     );
   }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform]);
 
+  const selectionSvg = useMemo(() => {
+    if (!selectionBox) return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const a = worldToScreen(selectionBox.start, viewTransform);
+    const b = worldToScreen(selectionBox.current, viewTransform);
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    const w = Math.abs(a.x - b.x);
+    const h = Math.abs(a.y - b.y);
+
+    const isWindow = selectionBox.direction === 'LTR';
+    const stroke = isWindow ? '#3b82f6' : '#22c55e';
+    const fill = isWindow ? 'rgba(59,130,246,0.12)' : 'rgba(34,197,94,0.10)';
+
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <rect x={x} y={y} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1} strokeDasharray="4 3" />
+      </svg>
+    );
+  }, [canvasSize.height, canvasSize.width, selectionBox, viewTransform]);
+
   // Important: this is the only interactive layer above the WebGL canvas.
   return (
     <div
@@ -687,6 +763,7 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
+      {selectionSvg}
       {textEditState ? (
         <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />
       ) : null}
