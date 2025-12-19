@@ -5,12 +5,22 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Make engine/ headers discoverable when compiling tests and native targets
+include_directories(${PROJECT_SOURCE_DIR})
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Main source file for the WASM engine
-set(ENGINE_SOURCES engine.cpp)
+# Main source files for the WASM engine (engine core + extracted modules)
+set(ENGINE_SOURCES
+  engine/bindings.cpp
+  engine.cpp
+  engine/commands.cpp
+  engine/snapshot.cpp
+  engine/render.cpp
+  engine/electrical.cpp
+)
 
 # --- WASM Build Configuration (Emscripten) ---
 if(EMSCRIPTEN)
@@ -69,6 +79,10 @@ if(NOT EMSCRIPTEN)
   add_executable(
     engine_tests
     tests/engine_test.cpp
+    tests/commands_test.cpp
+    tests/snapshot_test.cpp
+    tests/render_test.cpp
+    tests/electrical_test.cpp
   )
   
   # Link engine sources and gtest

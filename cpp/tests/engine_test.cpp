@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../engine.cpp"
+#include "../engine/engine.h"
 #include <vector>
 
 class CadEngineTest : public ::testing::Test {
