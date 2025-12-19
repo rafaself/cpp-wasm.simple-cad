@@ -78,6 +78,10 @@ env/
 .coverage
 htmlcov/
 
+# --- C++/WASM ---
+cpp/build/
+cpp/build_native/
+
 # --- OS ---
 Thumbs.db
 Desktop.ini

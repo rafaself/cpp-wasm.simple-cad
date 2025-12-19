@@ -70,18 +70,31 @@ Expected output:
 
 ## Tests
 
-Frontend:
+### Frontend (including WASM integration)
 
 ```bash
 cd frontend
 npm run test
+# OR for specific tests:
+npx vitest run tests/engineRuntime.test.ts
 ```
 
-Backend:
+### Backend
 
 ```bash
 cd backend
 pytest
+```
+
+### C++ Engine (Native)
+
+Native tests are recommended for fast development (TDD) of core logic without Docker overhead.
+
+```bash
+mkdir -p cpp/build_native && cd cpp/build_native
+cmake ..
+make
+ctest
 ```
 
 ## Important docs

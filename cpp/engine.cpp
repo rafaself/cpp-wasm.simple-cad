@@ -1,7 +1,17 @@
 
+#ifdef EMSCRIPTEN
 #include <emscripten/bind.h>
 #include <emscripten/emscripten.h>
 #include <emscripten/val.h>
+#else
+#include <chrono>
+// Polyfill for native testing
+inline double emscripten_get_now() {
+    using namespace std::chrono;
+    return duration_cast<duration<double, std::milli>>(high_resolution_clock::now().time_since_epoch()).count();
+}
+#endif
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -451,7 +461,11 @@ public:
         return best;
     }
 
+#ifdef EMSCRIPTEN
 private:
+#else
+public:
+#endif
     static constexpr std::size_t defaultCapacityFloats = 50000;   // ~16.6k vertices
     static constexpr std::size_t defaultLineCapacityFloats = 20000; // ~6.6k line vertices
     static constexpr std::size_t defaultSnapshotCapacityBytes = 1 * 1024 * 1024;
@@ -1027,6 +1041,7 @@ private:
     }
 };
 
+#ifdef EMSCRIPTEN
 EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
@@ -1077,3 +1092,4 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("x", &CadEngine::SnapResult::x)
         .field("y", &CadEngine::SnapResult::y);
 }
+#endif

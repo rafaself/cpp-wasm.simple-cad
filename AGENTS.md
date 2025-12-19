@@ -91,6 +91,7 @@ When working on `cpp/` or JS↔WASM interop:
 - **Interop batching:** avoid chatty per-entity calls across the boundary; prefer batch APIs and shared buffers.
 - **Memory stability:** resizing `std::vector` invalidates views. Use `reserve()`/fixed capacities (Phase 1) or stable arenas/slabs (later).
 - **Generated artifacts:** treat `frontend/public/wasm/*` as build outputs; do not hand-edit.
+- **Native Testability:** use `#ifdef EMSCRIPTEN` to guard Emscripten-specific headers and bindings. Provide native polyfills (e.g. for `emscripten_get_now`) to allow core logic testing in standard C++ environments.
 
 ## 8) Scope, Focus, and Inputs
 
@@ -186,7 +187,9 @@ Tests are a first-class deliverable in this project. When changing behavior that
 
 ### 14.4) Running tests & environment constraints
 
-- Default: run `npx vitest run` from `frontend/`.
+- **Frontend (TS/WASM Integration):** run `npx vitest run` from `frontend/`.
+- **C++ Engine (Native):** run tests from `cpp/build_native/` using `cmake .. && make && ctest`. This is the preferred way to test core logic before deploying to WASM.
+- **Backend (Python):** run `pytest` from `backend/`.
 - If tests cannot be executed due to environment/toolchain constraints (e.g., Windows `esbuild` spawn `EPERM` under OneDrive/Controlled Folder Access), make it explicit in the PR/summary and provide concrete remediation steps (move repo out of OneDrive-controlled folders or allowlist the toolchain executables).
 
 ### 14.5) Canonical testing guide
