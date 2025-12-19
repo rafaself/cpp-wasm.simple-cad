@@ -31,11 +31,18 @@ target_compile_options(engine PRIVATE
 )
 
 # Linker / Emscripten flags
+option(ENGINE_ALLOW_MEMORY_GROWTH "Allow WASM memory growth (dev-friendly, but invalidates JS views on grow)" ON)
+
+set(ENGINE_ALLOW_MEMORY_GROWTH_FLAG "1")
+if(NOT ENGINE_ALLOW_MEMORY_GROWTH)
+  set(ENGINE_ALLOW_MEMORY_GROWTH_FLAG "0")
+endif()
+
 target_link_options(engine PRIVATE
   -sMODULARIZE=1
   -sEXPORT_ES6=1
   -sENVIRONMENT=web
-  -sALLOW_MEMORY_GROWTH=1
+  -sALLOW_MEMORY_GROWTH=${ENGINE_ALLOW_MEMORY_GROWTH_FLAG}
   -lembind
 )
 

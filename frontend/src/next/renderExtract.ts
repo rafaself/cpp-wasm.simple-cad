@@ -1,5 +1,5 @@
 
-import { Layer, Point, Shape, ViewTransform } from '../types';
+import { Layer, Point, Shape, ViewTransform } from '@/types';
 
 export const SUPPORTED_TYPES = ['rect', 'line', 'polyline'] as const;
 export type SupportedType = (typeof SUPPORTED_TYPES)[number];

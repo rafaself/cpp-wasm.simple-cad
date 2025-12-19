@@ -85,8 +85,8 @@ const CadSurfaceHost: React.FC = () => {
   );
 };
 
-class ErrorBoundary extends React.Component<{ onError: () => void }, { hasError: boolean }> {
-  constructor(props: { onError: () => void }) {
+class ErrorBoundary extends React.Component<React.PropsWithChildren<{ onError: () => void }>, { hasError: boolean }> {
+  constructor(props: React.PropsWithChildren<{ onError: () => void }>) {
     super(props);
     this.state = { hasError: false };
   }

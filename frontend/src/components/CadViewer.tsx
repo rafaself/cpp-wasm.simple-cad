@@ -2,15 +2,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useDataStore } from '../stores/useDataStore';
-import { useUIStore } from '../stores/useUIStore';
-import { buildRenderBatch, RenderExtractResult, RenderExtractShape, RenderExtractStats } from '../next/renderExtract';
-import { screenToWorld } from '../utils/geometry';
-import { HIT_TOLERANCE } from '../config/constants';
-import { calculateZoomTransform } from '../utils/zoomHelper';
-import { Shape } from '../types';
-import { useSettingsStore } from '../stores/useSettingsStore';
-import { snapBatch } from '../next/snapBatch';
+import { useDataStore } from '@/stores/useDataStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { screenToWorld } from '@/utils/geometry';
+import { HIT_TOLERANCE } from '@/config/constants';
+import { calculateZoomTransform } from '@/utils/zoomHelper';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { importLegacyProjectIntoWasm } from '../next/wasmDocument';
+import type { WorldSnapshotV1 } from '../next/worldSnapshot';
+import { buildRenderBatch, type RenderExtractResult, type RenderExtractShape, type RenderExtractStats } from '../next/renderExtract';
+import type { Shape } from '@/types';
 
 // Mirrors the C++ BufferMeta exposed via Embind
 export type BufferMeta = {
@@ -24,14 +25,34 @@ export type BufferMeta = {
 type CadEngineInstance = {
   addWall: (x: number, y: number, w: number, h: number) => void; // legacy POC
   clear: () => void;
-  loadShapes: (shapes: RenderExtractShape[]) => void;
+  // Phase 3 compatibility
+  loadShapes?: (shapes: unknown) => void;
+
+  // Phase 6 snapshot APIs (may be absent if WASM artifacts are not rebuilt)
+  allocBytes?: (byteCount: number) => number;
+  freeBytes?: (ptr: number) => void;
+  reserveWorld?: (maxRects: number, maxLines: number, maxPolylines: number, maxPoints: number) => void;
+  loadSnapshotFromPtr?: (ptr: number, byteCount: number) => void;
   getPositionBufferMeta: () => BufferMeta; // triangles
   getLineBufferMeta: () => BufferMeta;      // line segments
+  getSnapshotBufferMeta?: () => { generation: number; byteCount: number; ptr: number };
+  getStats?: () => {
+    generation: number;
+    rectCount: number;
+    lineCount: number;
+    polylineCount: number;
+    pointCount: number;
+    triangleVertexCount: number;
+    lineVertexCount: number;
+    lastLoadMs: number;
+    lastRebuildMs: number;
+  };
 };
 
 type WasmModule = {
   CadEngine: new () => CadEngineInstance;
   HEAPF32: Float32Array;
+  HEAPU8: Uint8Array;
 };
 
 type EngineFactory = (opts?: unknown) => Promise<WasmModule>;
@@ -42,6 +63,21 @@ type MeshProps = {
   module: WasmModule;
   engine: CadEngineInstance;
   onBufferMeta: (meta: BufferMetaPair) => void;
+};
+
+type SnapshotCapableEngine = CadEngineInstance & Required<
+  Pick<CadEngineInstance, 'allocBytes' | 'freeBytes' | 'reserveWorld' | 'loadSnapshotFromPtr' | 'getSnapshotBufferMeta' | 'getStats'>
+>;
+
+const isSnapshotCapableEngine = (engine: CadEngineInstance): engine is SnapshotCapableEngine => {
+  return (
+    typeof engine.allocBytes === 'function' &&
+    typeof engine.freeBytes === 'function' &&
+    typeof engine.reserveWorld === 'function' &&
+    typeof engine.loadSnapshotFromPtr === 'function' &&
+    typeof engine.getSnapshotBufferMeta === 'function' &&
+    typeof engine.getStats === 'function'
+  );
 };
 
 type PickingTarget = {
@@ -64,30 +100,73 @@ const pointSegmentDistance = (p: { x: number; y: number }, a: { x: number; y: nu
   return Math.hypot(p.x - projX, p.y - projY);
 };
 
-const pickShapeAt = (worldPoint: { x: number; y: number }, batch: RenderExtractShape[], tolerance: number): string | null => {
+const pickShapeAt = (
+  worldPoint: { x: number; y: number },
+  snapshot: WorldSnapshotV1,
+  idHashToString: Map<number, string>,
+  tolerance: number,
+): string | null => {
   let best: PickingTarget | null = null;
-  for (const shape of batch) {
-    if (shape.type === 'rect') {
-      const inside = worldPoint.x >= shape.x && worldPoint.x <= shape.x + shape.width && worldPoint.y >= shape.y && worldPoint.y <= shape.y + shape.height;
+  for (const r of snapshot.rects) {
+    const inside = worldPoint.x >= r.x && worldPoint.x <= r.x + r.w && worldPoint.y >= r.y && worldPoint.y <= r.y + r.h;
       if (inside) {
         const dist = 0;
         if (!best || dist < best.distance) {
-          best = { shapeId: shape.id, distance: dist };
+          best = { shapeId: idHashToString.get(r.id) ?? String(r.id), distance: dist };
         }
       }
-    } else if (shape.type === 'line') {
-      const [p0, p1] = shape.points;
+  }
+  for (const l of snapshot.lines) {
+    const d = pointSegmentDistance(worldPoint, { x: l.x0, y: l.y0 }, { x: l.x1, y: l.y1 });
+    if (d <= tolerance && (!best || d < best.distance)) {
+      best = { shapeId: idHashToString.get(l.id) ?? String(l.id), distance: d };
+    }
+  }
+  for (const pl of snapshot.polylines) {
+    if (pl.count < 2) continue;
+    const start = pl.offset;
+    const end = pl.offset + pl.count;
+    if (end > snapshot.points.length) continue;
+    for (let i = start; i + 1 < end; i++) {
+      const p0 = snapshot.points[i];
+      const p1 = snapshot.points[i + 1];
       const d = pointSegmentDistance(worldPoint, p0, p1);
       if (d <= tolerance && (!best || d < best.distance)) {
-        best = { shapeId: shape.id, distance: d };
+        best = { shapeId: idHashToString.get(pl.id) ?? String(pl.id), distance: d };
       }
-    } else if (shape.type === 'polyline') {
+    }
+  }
+  return best?.shapeId ?? null;
+};
+
+const pickRenderExtractAt = (worldPoint: { x: number; y: number }, batch: RenderExtractShape[], tolerance: number): string | null => {
+  let best: PickingTarget | null = null;
+  for (const shape of batch) {
+    if (shape.type === 'rect') {
+      const inside =
+        worldPoint.x >= shape.x &&
+        worldPoint.x <= shape.x + shape.width &&
+        worldPoint.y >= shape.y &&
+        worldPoint.y <= shape.y + shape.height;
+      if (inside) {
+        const dist = 0;
+        if (!best || dist < best.distance) best = { shapeId: shape.id, distance: dist };
+      }
+      continue;
+    }
+
+    if (shape.type === 'line') {
+      const [p0, p1] = shape.points;
+      const d = pointSegmentDistance(worldPoint, p0, p1);
+      if (d <= tolerance && (!best || d < best.distance)) best = { shapeId: shape.id, distance: d };
+      continue;
+    }
+
+    if (shape.type === 'polyline') {
       const pts = shape.points;
       for (let i = 0; i + 1 < pts.length; i++) {
         const d = pointSegmentDistance(worldPoint, pts[i], pts[i + 1]);
-        if (d <= tolerance && (!best || d < best.distance)) {
-          best = { shapeId: shape.id, distance: d };
-        }
+        if (d <= tolerance && (!best || d < best.distance)) best = { shapeId: shape.id, distance: d };
       }
     }
   }
@@ -103,41 +182,108 @@ const toWorldPoint = (evt: React.PointerEvent<HTMLDivElement>, viewTransform: Re
   return screenToWorld(screen, viewTransform);
 };
 
-const SelectionOverlay: React.FC<{ selectedIds: Set<string>; shapes: Record<string, Shape> }> = ({ selectedIds, shapes }) => {
+const SelectionOverlay: React.FC<{
+  selectedIds: Set<string>;
+  snapshot: WorldSnapshotV1 | null;
+  idStringToHash: Map<string, number>;
+}> = ({ selectedIds, snapshot, idStringToHash }) => {
+  const material = useMemo(() => new THREE.LineBasicMaterial({ color: 0xfbbf24 }), []);
+
   const lines = useMemo(() => {
-    const entries: { id: string; points: THREE.Vector3[] }[] = [];
+    const out: { id: string; obj: THREE.Line }[] = [];
+    if (!snapshot) return out;
+
     selectedIds.forEach((id) => {
-      const shape = shapes[id];
-      if (!shape) return;
-      if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-        const x0 = shape.x;
-        const y0 = shape.y;
-        const x1 = x0 + shape.width;
-        const y1 = y0 + shape.height;
-        entries.push({
-          id,
-          points: [
-            new THREE.Vector3(x0, y0, 0),
-            new THREE.Vector3(x1, y0, 0),
-            new THREE.Vector3(x1, y1, 0),
-            new THREE.Vector3(x0, y1, 0),
-            new THREE.Vector3(x0, y0, 0),
-          ],
-        });
-      } else if ((shape.type === 'line' || shape.type === 'polyline') && Array.isArray(shape.points) && shape.points.length >= 2) {
-        const pts = shape.points.map((p: any) => new THREE.Vector3(p.x, p.y, 0));
-        entries.push({ id, points: pts });
+      const idHash = idStringToHash.get(id);
+      if (idHash === undefined) return;
+
+      const r = snapshot.rects.find((x) => x.id === idHash);
+      if (r) {
+        const x0 = r.x;
+        const y0 = r.y;
+        const x1 = r.x + r.w;
+        const y1 = r.y + r.h;
+        const pts = [
+          new THREE.Vector3(x0, y0, 0),
+          new THREE.Vector3(x1, y0, 0),
+          new THREE.Vector3(x1, y1, 0),
+          new THREE.Vector3(x0, y1, 0),
+          new THREE.Vector3(x0, y0, 0),
+        ];
+        const geom = new THREE.BufferGeometry().setFromPoints(pts);
+        out.push({ id, obj: new THREE.Line(geom, material) });
+        return;
+      }
+
+      const l = snapshot.lines.find((x) => x.id === idHash);
+      if (l) {
+        const geom = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(l.x0, l.y0, 0),
+          new THREE.Vector3(l.x1, l.y1, 0),
+        ]);
+        out.push({ id, obj: new THREE.Line(geom, material) });
+        return;
+      }
+
+      const pl = snapshot.polylines.find((x) => x.id === idHash);
+      if (pl) {
+        const start = pl.offset;
+        const end = pl.offset + pl.count;
+        if (end > snapshot.points.length) return;
+        const pts = snapshot.points.slice(start, end).map((p) => new THREE.Vector3(p.x, p.y, 0));
+        const geom = new THREE.BufferGeometry().setFromPoints(pts);
+        out.push({ id, obj: new THREE.Line(geom, material) });
       }
     });
-    return entries;
-  }, [selectedIds, shapes]);
+    return out;
+  }, [idStringToHash, material, selectedIds, snapshot]);
 
   return (
     <>
-      {lines.map(({ id, points }) => (
-        <line key={id} geometry={new THREE.BufferGeometry().setFromPoints(points)}>
-          <lineBasicMaterial color="#fbbf24" linewidth={2} />
-        </line>
+      {lines.map(({ id, obj }) => (
+        <primitive key={id} object={obj} />
+      ))}
+    </>
+  );
+};
+
+const SelectionOverlayLegacy: React.FC<{ selectedIds: Set<string>; shapes: Record<string, Shape> }> = ({ selectedIds, shapes }) => {
+  const material = useMemo(() => new THREE.LineBasicMaterial({ color: 0xfbbf24 }), []);
+
+  const lines = useMemo(() => {
+    const out: { id: string; obj: THREE.Line }[] = [];
+    selectedIds.forEach((id) => {
+      const shape = shapes[id];
+      if (!shape) return;
+
+      if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
+        const x0 = shape.x;
+        const y0 = shape.y;
+        const x1 = shape.x + shape.width;
+        const y1 = shape.y + shape.height;
+        const geom = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x0, y0, 0),
+          new THREE.Vector3(x1, y0, 0),
+          new THREE.Vector3(x1, y1, 0),
+          new THREE.Vector3(x0, y1, 0),
+          new THREE.Vector3(x0, y0, 0),
+        ]);
+        out.push({ id, obj: new THREE.Line(geom, material) });
+        return;
+      }
+
+      if ((shape.type === 'line' || shape.type === 'polyline') && Array.isArray(shape.points) && shape.points.length >= 2) {
+        const geom = new THREE.BufferGeometry().setFromPoints(shape.points.map((p) => new THREE.Vector3(p.x, p.y, 0)));
+        out.push({ id, obj: new THREE.Line(geom, material) });
+      }
+    });
+    return out;
+  }, [material, selectedIds, shapes]);
+
+  return (
+    <>
+      {lines.map(({ id, obj }) => (
+        <primitive key={id} object={obj} />
       ))}
     </>
   );
@@ -246,7 +392,17 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
   );
 };
 
-const DebugOverlay: React.FC<{ shapeStats: RenderExtractStats | null; buffers: BufferMetaPair }> = ({ shapeStats, buffers }) => {
+type ImportStats = {
+  supportedCount: number;
+  droppedByType: Record<string, number>;
+};
+
+const DebugOverlay: React.FC<{
+  importStats: ImportStats | null;
+  legacyStats: RenderExtractStats | null;
+  engineStats: ReturnType<CadEngineInstance['getStats']> | null;
+  buffers: BufferMetaPair;
+}> = ({ importStats, legacyStats, engineStats, buffers }) => {
   return (
     <div
       style={{
@@ -263,10 +419,15 @@ const DebugOverlay: React.FC<{ shapeStats: RenderExtractStats | null; buffers: B
         lineHeight: 1.4,
       }}
     >
-      {shapeStats ? (
+      {importStats ? <div>imported (supported): {importStats.supportedCount}</div> : null}
+      {legacyStats ? (
+        <div>legacy->wasm (fallback): {legacyStats.supported} / {legacyStats.totalShapes}</div>
+      ) : null}
+      {engineStats ? (
         <>
-          <div>shapes: {shapeStats.supported} / {shapeStats.totalShapes} (supported/total)</div>
-          <div>skipped: {shapeStats.skipped}</div>
+          <div>world: rect {engineStats.rectCount} line {engineStats.lineCount} poly {engineStats.polylineCount}</div>
+          <div>buffers: triVtx {engineStats.triangleVertexCount} lineVtx {engineStats.lineVertexCount}</div>
+          <div>timings: load {engineStats.lastLoadMs.toFixed(2)}ms rebuild {engineStats.lastRebuildMs.toFixed(2)}ms</div>
         </>
       ) : null}
       {buffers.triangles ? (
@@ -284,15 +445,22 @@ const CadViewer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [module, setModule] = useState<WasmModule | null>(null);
   const [engine, setEngine] = useState<CadEngineInstance | null>(null);
-  const [shapeStats, setShapeStats] = useState<RenderExtractStats | null>(null);
+  const [worldSnapshot, setWorldSnapshot] = useState<WorldSnapshotV1 | null>(null);
+  const [idHashToString, setIdHashToString] = useState<Map<number, string>>(() => new Map());
+  const [idStringToHash, setIdStringToHash] = useState<Map<string, number>>(() => new Map());
+  const [importStats, setImportStats] = useState<ImportStats | null>(null);
+  const [legacyStats, setLegacyStats] = useState<RenderExtractStats | null>(null);
+  const [engineStats, setEngineStats] = useState<ReturnType<CadEngineInstance['getStats']> | null>(null);
   const [bufferStats, setBufferStats] = useState<BufferMetaPair>({ triangles: null, lines: null });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const transformStart = useRef<{ x: number; y: number; scale: number } | null>(null);
   const [snapPoint, setSnapPoint] = useState<{ x: number; y: number } | null>(null);
 
-  const shapes = useDataStore((state) => state.shapes);
-  const layers = useDataStore((state) => state.layers);
+  // Legacy TS document (used for initial import and Phase 3 compatibility fallback).
+  const legacyShapes = useDataStore((state) => state.shapes);
+  const legacyLayers = useDataStore((state) => state.layers);
+
   const viewTransform = useUIStore((state) => state.viewTransform);
   const canvasSize = useUIStore((state) => state.canvasSize);
   const activeFloorId = useUIStore((state) => state.activeFloorId);
@@ -303,15 +471,20 @@ const CadViewer: React.FC = () => {
   const snapOptions = useSettingsStore((state) => state.snap);
   const gridSize = useSettingsStore((state) => state.grid.size);
 
+  const supportsSnapshot = !!engine && isSnapshotCapableEngine(engine);
+
   const renderExtract: RenderExtractResult = useMemo(() => {
+    if (supportsSnapshot) {
+      return { batch: [], stats: { totalShapes: 0, supported: 0, skipped: 0, byType: {} } };
+    }
     return buildRenderBatch(
-      Object.values(shapes),
-      layers,
+      Object.values(legacyShapes),
+      legacyLayers,
       viewTransform,
       canvasSize,
       { activeFloorId: activeFloorId || undefined, activeDiscipline },
     );
-  }, [shapes, layers, viewTransform, canvasSize, activeFloorId, activeDiscipline]);
+  }, [activeDiscipline, activeFloorId, canvasSize, legacyLayers, legacyShapes, supportsSnapshot, viewTransform]);
 
   useEffect(() => {
     let cancelled = false;
@@ -341,13 +514,42 @@ const CadViewer: React.FC = () => {
 
   useEffect(() => {
     if (!engine) return;
-    engine.loadShapes(renderExtract.batch as RenderExtractShape[]);
-    setShapeStats(renderExtract.stats);
-  }, [engine, renderExtract]);
+    if (!module) return;
+    if (worldSnapshot) return;
+
+    try {
+      if (supportsSnapshot) {
+        const project = useDataStore.getState().serializeProject();
+        const imported = importLegacyProjectIntoWasm(engine, module, project);
+        setIdHashToString(imported.idHashToString);
+        setIdStringToHash(imported.idStringToHash);
+        setImportStats({ supportedCount: imported.supportedCount, droppedByType: imported.droppedByType });
+        setWorldSnapshot(imported.snapshot);
+        setEngineStats(engine.getStats());
+        setLegacyStats(null);
+        return;
+      }
+
+      // Phase 3 fallback: if WASM artifacts aren't rebuilt yet, keep the old TS->WASM path.
+      if (engine.loadShapes) {
+        engine.loadShapes(renderExtract.batch as unknown as RenderExtractShape[]);
+        setLegacyStats(renderExtract.stats);
+      } else {
+        // Last resort: show something to avoid a blank screen.
+        engine.addWall(0, 0, 10, 2);
+        setLegacyStats(null);
+      }
+    } catch (e) {
+      console.error(e);
+      setError((e as Error)?.message ?? 'Failed to import legacy project into WASM document');
+      setStatus('error');
+    }
+  }, [engine, module, renderExtract.batch, renderExtract.stats, supportsSnapshot, worldSnapshot]);
 
   const handleBufferMeta = useCallback((meta: BufferMetaPair) => {
     setBufferStats(meta);
-  }, []);
+    if (engine && engine.getStats) setEngineStats(engine.getStats());
+  }, [engine]);
 
   const handleWheel = useCallback(
     (evt: React.WheelEvent<HTMLDivElement>) => {
@@ -383,17 +585,21 @@ const CadViewer: React.FC = () => {
         return;
       }
 
-      // Snapping preview (only when not panning)
+      // Snapping preview (grid-only during Phase 6 flip; object snapping will move to WASM).
       const worldPt = toWorldPoint(evt, viewTransform);
-      const snap = snapBatch([{ point: worldPt }], Object.values(shapes), {
-        snapOptions,
-        gridSize,
-        layers,
-        threshold: HIT_TOLERANCE / (viewTransform.scale || 1),
-      })[0];
-      setSnapPoint(snap);
+      if (!snapOptions.enabled || !snapOptions.grid) {
+        setSnapPoint(null);
+        return;
+      }
+      const gx = Math.round(worldPt.x / gridSize) * gridSize;
+      const gy = Math.round(worldPt.y / gridSize) * gridSize;
+      const dx = worldPt.x - gx;
+      const dy = worldPt.y - gy;
+      const d = Math.hypot(dx, dy);
+      const threshold = HIT_TOLERANCE / (viewTransform.scale || 1);
+      setSnapPoint(d <= threshold ? { x: gx, y: gy } : null);
     },
-    [isPanning, setViewTransform, viewTransform, shapes, snapOptions, gridSize, layers],
+    [gridSize, isPanning, setViewTransform, snapOptions.enabled, snapOptions.grid, viewTransform],
   );
 
   const handlePointerUp = useCallback(
@@ -405,14 +611,17 @@ const CadViewer: React.FC = () => {
       if (evt.button !== 0) return;
       const worldPt = toWorldPoint(evt, viewTransform);
       const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-      const hitId = pickShapeAt(worldPt, renderExtract.batch, tolerance);
+      const hitId =
+        supportsSnapshot && worldSnapshot
+          ? pickShapeAt(worldPt, worldSnapshot, idHashToString, tolerance)
+          : pickRenderExtractAt(worldPt, renderExtract.batch, tolerance);
       if (hitId) {
         setSelectedShapeIds(new Set([hitId]));
       } else {
         setSelectedShapeIds(new Set());
       }
     },
-    [isPanning, renderExtract.batch, setSelectedShapeIds, viewTransform],
+    [idHashToString, isPanning, renderExtract.batch, setSelectedShapeIds, supportsSnapshot, viewTransform, worldSnapshot],
   );
 
   if (status === 'loading') return <div>Loading CAD engine (WASM)...</div>;
@@ -432,7 +641,11 @@ const CadViewer: React.FC = () => {
         <ambientLight intensity={0.8} />
         <SharedGeometry module={module} engine={engine} onBufferMeta={handleBufferMeta} />
         <axesHelper args={[5]} />
-        <SelectionOverlay selectedIds={selectedShapeIds} shapes={shapes} />
+        {supportsSnapshot ? (
+          <SelectionOverlay selectedIds={selectedShapeIds} snapshot={worldSnapshot} idStringToHash={idStringToHash} />
+        ) : (
+          <SelectionOverlayLegacy selectedIds={selectedShapeIds} shapes={legacyShapes} />
+        )}
         {snapPoint ? (
           <mesh position={[snapPoint.x, snapPoint.y, 0]}>
             <sphereGeometry args={[0.1, 8, 8]} />
@@ -440,7 +653,7 @@ const CadViewer: React.FC = () => {
           </mesh>
         ) : null}
       </Canvas>
-      <DebugOverlay shapeStats={shapeStats} buffers={bufferStats} />
+      <DebugOverlay importStats={importStats} legacyStats={legacyStats} engineStats={engineStats} buffers={bufferStats} />
     </div>
   );
 };

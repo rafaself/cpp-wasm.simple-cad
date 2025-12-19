@@ -1,17 +1,15 @@
 import React, { useEffect } from 'react';
-import '../design/global.css';
-import EditorRibbon from '../features/editor/components/EditorRibbon';
-import EditorCanvas from '../features/editor/components/EditorCanvas';
-import EditorStatusBar from '../features/editor/components/EditorStatusBar';
-import EditorSidebar from '../features/editor/components/EditorSidebar';
-import QuickAccessToolbar from '../features/editor/components/QuickAccessToolbar';
-import SettingsModal from '../features/settings/SettingsModal';
-import LayerManagerModal from '../features/editor/components/LayerManagerModal';
-import Header from '../features/editor/components/Header';
-import { useKeyboardShortcuts } from '../features/editor/hooks/useKeyboardShortcuts';
-import { useDataStore } from '../stores/useDataStore';
-import { useLibraryStore } from '../stores/useLibraryStore';
-import LoadingOverlay from './LoadingOverlay';
+import '@/design/global.css';
+import EditorRibbon from '@/features/editor/components/EditorRibbon';
+import EditorCanvas from '@/features/editor/components/EditorCanvas';
+import EditorSidebar from '@/features/editor/components/EditorSidebar';
+import SettingsModal from '@/features/settings/SettingsModal';
+import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
+import Header from '@/features/editor/components/Header';
+import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
+import { useDataStore } from '@/stores/useDataStore';
+import { useLibraryStore } from '@/stores/useLibraryStore';
+import LoadingOverlay from '@/components/LoadingOverlay';
 
 const LegacySurface: React.FC = () => {
   useKeyboardShortcuts();
