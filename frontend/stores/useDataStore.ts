@@ -89,16 +89,16 @@ interface DataState {
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => string;
 }
 
-export const useDataStore = create<DataState>((set, get) => ({
-  shapes: {},
-  electricalElements: {},
-  connectionNodes: {},
-  diagramNodes: {},
-  diagramEdges: {},
+const buildInitialState = () => ({
+  shapes: {} as Record<string, Shape>,
+  electricalElements: {} as Record<string, ElectricalElement>,
+  connectionNodes: {} as Record<string, ConnectionNode>,
+  diagramNodes: {} as Record<string, DiagramNode>,
+  diagramEdges: {} as Record<string, DiagramEdge>,
   layers: [
-      { id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true },
-      { id: 'eletrodutos', name: 'Eletrodutos', strokeColor: '#8b5cf6', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: false, visible: true, locked: false, isNative: true }
-  ],
+    { id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true },
+    { id: 'eletrodutos', name: 'Eletrodutos', strokeColor: '#8b5cf6', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: false, visible: true, locked: false, isNative: true }
+  ] as Layer[],
   activeLayerId: 'desenho',
   worldScale: 100,
   frame: {
@@ -107,10 +107,13 @@ export const useDataStore = create<DataState>((set, get) => ({
     heightMm: 210,
     marginMm: 10,
   },
+  spatialIndex: new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 }),
+  past: [] as Patch[][],
+  future: [] as Patch[][],
+});
 
-  spatialIndex: initialQuadTree,
-  past: [],
-  future: [],
+export const useDataStore = create<DataState>((set, get) => ({
+  ...buildInitialState(),
 
   syncQuadTree: () => {
     const { shapes, spatialIndex } = get();
@@ -931,3 +934,12 @@ export const useDataStore = create<DataState>((set, get) => ({
       return newId;
   },
 }));
+
+// Test helper (intended for unit tests)
+export const __resetDataStoreForTests = () => {
+  const initial = buildInitialState();
+  useDataStore.setState({
+    ...useDataStore.getState(),
+    ...initial,
+  }, true);
+};
