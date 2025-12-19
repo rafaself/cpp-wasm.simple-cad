@@ -15,6 +15,7 @@ import DynamicOverlay from '@/features/editor/components/canvas/DynamicOverlay';
 import { useDataStore } from '@/stores/useDataStore';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { useEngineStoreSync } from '@/engine/runtime/useEngineStoreSync';
 import CadViewer from './CadViewer';
 
 const NextCanvasArea: React.FC = () => {
@@ -59,6 +60,7 @@ const NextCanvasArea: React.FC = () => {
 
 const NextSurface: React.FC = () => {
   useKeyboardShortcuts();
+  useEngineStoreSync();
 
   const worldScale = useDataStore((state) => state.worldScale);
   const loadLibrary = useLibraryStore((state) => state.loadLibrary);

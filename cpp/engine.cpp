@@ -7,6 +7,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class CadEngine {
@@ -22,50 +23,7 @@ public:
     int add(int a, int b) const noexcept { return a + b; }
 
     void clear() noexcept {
-        rects.clear();
-        lines.clear();
-        polylines.clear();
-        points.clear();
-        triangleVertices.clear();
-        lineVertices.clear();
-        generation++;
-    }
-
-    void addWall(float x, float y, float w, float h) {
-        addRect(x, y, w, h);
-    }
-
-    void loadShapes(emscripten::val shapes) {
-        clear();
-        const auto len = shapes["length"].as<std::uint32_t>();
-        for (std::uint32_t i = 0; i < len; ++i) {
-            auto s = shapes[i];
-            const std::string type = s["type"].as<std::string>();
-            if (type == "rect") {
-                const float x = s["x"].as<float>();
-                const float y = s["y"].as<float>();
-                const float w = s["width"].as<float>();
-                const float h = s["height"].as<float>();
-                addRect(x, y, w, h);
-                addRectOutline(x, y, w, h);
-            } else if (type == "line") {
-                auto points = s["points"];
-                if (points["length"].as<std::uint32_t>() >= 2) {
-                    const auto p0 = points[static_cast<std::uint32_t>(0)];
-                    const auto p1 = points[static_cast<std::uint32_t>(1)];
-                    addLineSegment(p0["x"].as<float>(), p0["y"].as<float>(), p1["x"].as<float>(), p1["y"].as<float>());
-                }
-            } else if (type == "polyline") {
-                auto points = s["points"];
-                const auto count = points["length"].as<std::uint32_t>();
-                if (count < 2) continue;
-                for (std::uint32_t j = 0; j + 1 < count; ++j) {
-                    const auto p0 = points[j];
-                    const auto p1 = points[j + 1];
-                    addLineSegment(p0["x"].as<float>(), p0["y"].as<float>(), p1["x"].as<float>(), p1["y"].as<float>());
-                }
-            }
-        }
+        clearWorld();
         generation++;
     }
 
@@ -174,7 +132,109 @@ public:
 
         lastLoadMs = static_cast<float>(t1 - t0);
         lastRebuildMs = static_cast<float>(t2 - t1);
+        lastApplyMs = 0.0f;
         generation++;
+    }
+
+    // Apply a batch of edit commands from a binary command buffer in WASM memory.
+    // This is the Phase 1 "no chatty interop" bridge: JS writes N commands + payloads, then calls once.
+    void applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) {
+        const double t0 = emscripten_get_now();
+
+        const std::uint8_t* src = reinterpret_cast<const std::uint8_t*>(ptr);
+        if (!src || byteCount < commandHeaderBytes) {
+            throw std::runtime_error("Invalid command buffer payload");
+        }
+
+        const std::uint32_t magic = readU32(src, 0);
+        if (magic != commandMagicEwdc) {
+            throw std::runtime_error("Command buffer magic mismatch");
+        }
+        const std::uint32_t version = readU32(src, 4);
+        if (version != 1) {
+            throw std::runtime_error("Unsupported command buffer version");
+        }
+        const std::uint32_t commandCount = readU32(src, 8);
+
+        std::size_t o = commandHeaderBytes;
+        for (std::uint32_t i = 0; i < commandCount; i++) {
+            if (o + perCommandHeaderBytes > byteCount) {
+                throw std::runtime_error("Command buffer truncated (header)");
+            }
+            const std::uint32_t op = readU32(src, o); o += 4;
+            const std::uint32_t id = readU32(src, o); o += 4;
+            const std::uint32_t payloadByteCount = readU32(src, o); o += 4;
+            o += 4; // reserved
+
+            if (o + payloadByteCount > byteCount) {
+                throw std::runtime_error("Command buffer truncated (payload)");
+            }
+
+            switch (op) {
+                case static_cast<std::uint32_t>(CommandOp::ClearAll): {
+                    clearWorld();
+                    break;
+                }
+                case static_cast<std::uint32_t>(CommandOp::DeleteEntity): {
+                    deleteEntity(id);
+                    break;
+                }
+                case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
+                    if (payloadByteCount != 16) throw std::runtime_error("Invalid rect payload size");
+                    const float x = readF32(src, o + 0);
+                    const float y = readF32(src, o + 4);
+                    const float w = readF32(src, o + 8);
+                    const float h = readF32(src, o + 12);
+                    upsertRect(id, x, y, w, h);
+                    break;
+                }
+                case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
+                    if (payloadByteCount != 16) throw std::runtime_error("Invalid line payload size");
+                    const float x0 = readF32(src, o + 0);
+                    const float y0 = readF32(src, o + 4);
+                    const float x1 = readF32(src, o + 8);
+                    const float y1 = readF32(src, o + 12);
+                    upsertLine(id, x0, y0, x1, y1);
+                    break;
+                }
+                case static_cast<std::uint32_t>(CommandOp::UpsertPolyline): {
+                    if (payloadByteCount < 4) throw std::runtime_error("Invalid polyline payload size");
+                    const std::uint32_t count = readU32(src, o);
+                    const std::size_t expected = 4 + static_cast<std::size_t>(count) * 8;
+                    if (expected != payloadByteCount) throw std::runtime_error("Invalid polyline payload length");
+                    if (count < 2) {
+                        // Treat degenerate polyline as deletion.
+                        deleteEntity(id);
+                        break;
+                    }
+
+                    const std::uint32_t offset = static_cast<std::uint32_t>(points.size());
+                    points.reserve(points.size() + count);
+                    std::size_t p = o + 4;
+                    for (std::uint32_t j = 0; j < count; j++) {
+                        const float x = readF32(src, p); p += 4;
+                        const float y = readF32(src, p); p += 4;
+                        points.push_back(Point2{x, y});
+                    }
+                    upsertPolyline(id, offset, count);
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown command op");
+            }
+
+            o += payloadByteCount;
+        }
+
+        compactPolylinePoints();
+        rebuildRenderBuffers();
+        rebuildSnapshotBytes();
+        generation++;
+
+        const double t1 = emscripten_get_now();
+        lastApplyMs = static_cast<float>(t1 - t0);
+        lastLoadMs = 0.0f;
+        lastRebuildMs = 0.0f; // rebuild cost is accounted into lastApplyMs for this path (Phase 1)
     }
 
     std::uint32_t getVertexCount() const noexcept {
@@ -222,6 +282,7 @@ public:
         std::uint32_t lineVertexCount;
         float lastLoadMs;
         float lastRebuildMs;
+        float lastApplyMs;
     };
 
     EngineStats getStats() const noexcept {
@@ -234,7 +295,8 @@ public:
             static_cast<std::uint32_t>(triangleVertices.size() / 3),
             static_cast<std::uint32_t>(lineVertices.size() / 3),
             lastLoadMs,
-            lastRebuildMs
+            lastRebuildMs,
+            lastApplyMs
         };
     }
 
@@ -244,7 +306,10 @@ private:
     static constexpr std::size_t defaultSnapshotCapacityBytes = 1 * 1024 * 1024;
 
     static constexpr std::uint32_t snapshotMagicEwc1 = 0x31435745; // "EWC1"
+    static constexpr std::uint32_t commandMagicEwdc = 0x43445745; // "EWDC"
     static constexpr std::size_t snapshotHeaderBytes = 8 * 4;
+    static constexpr std::size_t commandHeaderBytes = 4 * 4;
+    static constexpr std::size_t perCommandHeaderBytes = 4 * 4;
     static constexpr std::size_t rectRecordBytes = 20;
     static constexpr std::size_t lineRecordBytes = 20;
     static constexpr std::size_t polyRecordBytes = 12;
@@ -259,10 +324,22 @@ private:
     struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; };
     struct Point2 { float x; float y; };
 
+    enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3 };
+    struct EntityRef { EntityKind kind; std::uint32_t index; };
+
+    enum class CommandOp : std::uint32_t {
+        ClearAll = 1,
+        UpsertRect = 2,
+        UpsertLine = 3,
+        UpsertPolyline = 4,
+        DeleteEntity = 5,
+    };
+
     std::vector<RectRec> rects;
     std::vector<LineRec> lines;
     std::vector<PolyRec> polylines;
     std::vector<Point2> points;
+    std::unordered_map<std::uint32_t, EntityRef> entities;
 
     std::vector<float> triangleVertices;
     std::vector<float> lineVertices;
@@ -270,6 +347,7 @@ private:
     std::uint32_t generation{0};
     float lastLoadMs{0.0f};
     float lastRebuildMs{0.0f};
+    float lastApplyMs{0.0f};
 
     static std::uint32_t readU32(const std::uint8_t* src, std::size_t offset) noexcept {
         std::uint32_t v;
@@ -281,6 +359,190 @@ private:
         float v;
         std::memcpy(&v, src + offset, sizeof(v));
         return v;
+    }
+
+    static void writeU32LE(std::uint8_t* dst, std::size_t offset, std::uint32_t v) noexcept {
+        std::memcpy(dst + offset, &v, sizeof(v));
+    }
+
+    static void writeF32LE(std::uint8_t* dst, std::size_t offset, float v) noexcept {
+        std::memcpy(dst + offset, &v, sizeof(v));
+    }
+
+    void clearWorld() noexcept {
+        rects.clear();
+        lines.clear();
+        polylines.clear();
+        points.clear();
+        entities.clear();
+        triangleVertices.clear();
+        lineVertices.clear();
+        snapshotBytes.clear();
+        lastLoadMs = 0.0f;
+        lastRebuildMs = 0.0f;
+        lastApplyMs = 0.0f;
+    }
+
+    void deleteEntity(std::uint32_t id) noexcept {
+        const auto it = entities.find(id);
+        if (it == entities.end()) return;
+        const EntityRef ref = it->second;
+        entities.erase(it);
+
+        if (ref.kind == EntityKind::Rect) {
+            const std::uint32_t idx = ref.index;
+            const std::uint32_t lastIdx = static_cast<std::uint32_t>(rects.size() - 1);
+            if (idx != lastIdx) {
+                rects[idx] = rects[lastIdx];
+                entities[rects[idx].id] = EntityRef{EntityKind::Rect, idx};
+            }
+            rects.pop_back();
+            return;
+        }
+
+        if (ref.kind == EntityKind::Line) {
+            const std::uint32_t idx = ref.index;
+            const std::uint32_t lastIdx = static_cast<std::uint32_t>(lines.size() - 1);
+            if (idx != lastIdx) {
+                lines[idx] = lines[lastIdx];
+                entities[lines[idx].id] = EntityRef{EntityKind::Line, idx};
+            }
+            lines.pop_back();
+            return;
+        }
+
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(polylines.size() - 1);
+        if (idx != lastIdx) {
+            polylines[idx] = polylines[lastIdx];
+            entities[polylines[idx].id] = EntityRef{EntityKind::Polyline, idx};
+        }
+        polylines.pop_back();
+    }
+
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h) {
+        const auto it = entities.find(id);
+        if (it != entities.end() && it->second.kind != EntityKind::Rect) {
+            deleteEntity(id);
+        }
+
+        const auto it2 = entities.find(id);
+        if (it2 != entities.end()) {
+            auto& r = rects[it2->second.index];
+            r.x = x; r.y = y; r.w = w; r.h = h;
+            return;
+        }
+
+        rects.push_back(RectRec{id, x, y, w, h});
+        entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
+    }
+
+    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
+        const auto it = entities.find(id);
+        if (it != entities.end() && it->second.kind != EntityKind::Line) {
+            deleteEntity(id);
+        }
+
+        const auto it2 = entities.find(id);
+        if (it2 != entities.end()) {
+            auto& l = lines[it2->second.index];
+            l.x0 = x0; l.y0 = y0; l.x1 = x1; l.y1 = y1;
+            return;
+        }
+
+        lines.push_back(LineRec{id, x0, y0, x1, y1});
+        entities[id] = EntityRef{EntityKind::Line, static_cast<std::uint32_t>(lines.size() - 1)};
+    }
+
+    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
+        const auto it = entities.find(id);
+        if (it != entities.end() && it->second.kind != EntityKind::Polyline) {
+            deleteEntity(id);
+        }
+
+        const auto it2 = entities.find(id);
+        if (it2 != entities.end()) {
+            auto& pl = polylines[it2->second.index];
+            pl.offset = offset;
+            pl.count = count;
+            return;
+        }
+
+        polylines.push_back(PolyRec{id, offset, count});
+        entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
+    }
+
+    void compactPolylinePoints() {
+        std::size_t total = 0;
+        for (const auto& pl : polylines) total += pl.count;
+        std::vector<Point2> next;
+        next.reserve(total);
+
+        for (auto& pl : polylines) {
+            const std::uint32_t start = pl.offset;
+            const std::uint32_t end = pl.offset + pl.count;
+            if (end > points.size()) {
+                pl.offset = static_cast<std::uint32_t>(next.size());
+                pl.count = 0;
+                continue;
+            }
+            pl.offset = static_cast<std::uint32_t>(next.size());
+            for (std::uint32_t i = start; i < end; i++) next.push_back(points[i]);
+        }
+
+        points.swap(next);
+    }
+
+    void rebuildSnapshotBytes() {
+        // Snapshot V2: same binary layout as V1, but we always export as v2.
+        const std::uint32_t version = 2;
+
+        const std::size_t totalBytes =
+            snapshotHeaderBytes +
+            rects.size() * rectRecordBytes +
+            lines.size() * lineRecordBytes +
+            polylines.size() * polyRecordBytes +
+            points.size() * pointRecordBytes;
+
+        snapshotBytes.resize(totalBytes);
+        std::uint8_t* dst = snapshotBytes.data();
+        std::size_t o = 0;
+
+        writeU32LE(dst, o, snapshotMagicEwc1); o += 4;
+        writeU32LE(dst, o, version); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(rects.size())); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(lines.size())); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(polylines.size())); o += 4;
+        writeU32LE(dst, o, static_cast<std::uint32_t>(points.size())); o += 4;
+        writeU32LE(dst, o, 0); o += 4;
+        writeU32LE(dst, o, 0); o += 4;
+
+        for (const auto& r : rects) {
+            writeU32LE(dst, o, r.id); o += 4;
+            writeF32LE(dst, o, r.x); o += 4;
+            writeF32LE(dst, o, r.y); o += 4;
+            writeF32LE(dst, o, r.w); o += 4;
+            writeF32LE(dst, o, r.h); o += 4;
+        }
+
+        for (const auto& l : lines) {
+            writeU32LE(dst, o, l.id); o += 4;
+            writeF32LE(dst, o, l.x0); o += 4;
+            writeF32LE(dst, o, l.y0); o += 4;
+            writeF32LE(dst, o, l.x1); o += 4;
+            writeF32LE(dst, o, l.y1); o += 4;
+        }
+
+        for (const auto& pl : polylines) {
+            writeU32LE(dst, o, pl.id); o += 4;
+            writeU32LE(dst, o, pl.offset); o += 4;
+            writeU32LE(dst, o, pl.count); o += 4;
+        }
+
+        for (const auto& p : points) {
+            writeF32LE(dst, o, p.x); o += 4;
+            writeF32LE(dst, o, p.y); o += 4;
+        }
     }
 
     BufferMeta buildMeta(const std::vector<float>& buffer) const noexcept {
@@ -373,11 +635,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
         .function("add", &CadEngine::add)
-        .function("addWall", &CadEngine::addWall)
         .function("clear", &CadEngine::clear)
-        .function("loadShapes", &CadEngine::loadShapes)
         .function("allocBytes", &CadEngine::allocBytes)
         .function("freeBytes", &CadEngine::freeBytes)
+        .function("applyCommandBuffer", &CadEngine::applyCommandBuffer)
         .function("reserveWorld", &CadEngine::reserveWorld)
         .function("loadSnapshotFromPtr", &CadEngine::loadSnapshotFromPtr)
         .function("getVertexCount", &CadEngine::getVertexCount)
@@ -408,5 +669,6 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("triangleVertexCount", &CadEngine::EngineStats::triangleVertexCount)
         .field("lineVertexCount", &CadEngine::EngineStats::lineVertexCount)
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
-        .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs);
+        .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
+        .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
 }
