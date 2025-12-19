@@ -646,8 +646,9 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (activeTool === 'line') {
       setDraft((prev) => {
-        if (prev.kind !== 'line') return { kind: 'none' };
-        commitLine(prev.start, prev.current);
+        if (prev.kind === 'line') {
+          Promise.resolve().then(() => commitLine(prev.start, prev.current));
+        }
         return { kind: 'none' };
       });
       return;
@@ -655,8 +656,9 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (activeTool === 'rect') {
       setDraft((prev) => {
-        if (prev.kind !== 'rect') return { kind: 'none' };
-        commitRect(prev.start, prev.current);
+        if (prev.kind === 'rect') {
+          Promise.resolve().then(() => commitRect(prev.start, prev.current));
+        }
         return { kind: 'none' };
       });
       return;
@@ -668,9 +670,10 @@ const EngineInteractionLayer: React.FC = () => {
     evt.preventDefault();
 
     setDraft((prev) => {
-      if (prev.kind !== 'polyline') return { kind: 'none' };
-      const pts = prev.current ? [...prev.points, prev.current] : prev.points;
-      commitPolyline(pts);
+      if (prev.kind === 'polyline') {
+        const pts = prev.current ? [...prev.points, prev.current] : prev.points;
+        Promise.resolve().then(() => commitPolyline(pts));
+      }
       return { kind: 'none' };
     });
   };
