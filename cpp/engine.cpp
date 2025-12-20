@@ -117,6 +117,7 @@ void CadEngine::applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) 
     EngineError err = engine::parseCommandBuffer(src, byteCount, &CadEngine::cad_command_callback, this);
     if (err != EngineError::Ok) {
         setError(err);
+        return;
     }
 
     compactPolylinePoints();

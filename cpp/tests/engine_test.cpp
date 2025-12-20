@@ -153,3 +153,28 @@ TEST_F(CadEngineTest, SnapshotRoundTrip) {
     EXPECT_EQ(engine2.rects[0].g, 0.0f);
     EXPECT_EQ(engine2.rects[0].b, 1.0f);
 }
+
+TEST_F(CadEngineTest, CommandBufferError) {
+    auto initialStats = engine.getStats();
+    
+    // Construct an invalid command buffer (bad magic)
+    std::vector<uint8_t> buffer;
+    auto pushU32 = [&](uint32_t v) {
+        uint8_t b[4]; memcpy(b, &v, 4);
+        buffer.insert(buffer.end(), b, b+4);
+    };
+    
+    pushU32(0xDEADBEEF); // Bad Magic
+    
+    // Pass to engine
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(buffer.data());
+    engine.applyCommandBuffer(ptr, buffer.size());
+
+    // Verify error is set
+    EXPECT_NE(engine.lastError, EngineError::Ok);
+    
+    // Verify state did not change
+    auto finalStats = engine.getStats();
+    EXPECT_EQ(finalStats.generation, initialStats.generation);
+    EXPECT_EQ(finalStats.lastApplyMs, 0.0f); // Should not have updated timing
+}
