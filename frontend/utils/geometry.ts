@@ -1,7 +1,7 @@
 import { Layer, Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
 import { HIT_TOLERANCE, TEXT_PADDING } from '../config/constants';
 export { TEXT_PADDING };
-import { getEffectiveFillColor } from './shapeColors';
+import { getEffectiveFillColor, isFillEffectivelyEnabled } from './shapeColors';
 
 // ... (Keeping imports and helper functions like getDistance, rotatePoint, screenToWorld, worldToScreen same)
 
@@ -229,6 +229,38 @@ const getConduitPathPoints = (shape: Shape): Point[] => {
   return shape.points;
 };
 
+const getPolygonVertices = (shape: Shape): Point[] => {
+  const cx = shape.x ?? 0;
+  const cy = shape.y ?? 0;
+  const sides = Math.max(3, Math.floor(shape.sides ?? 6));
+  const w = shape.width ?? (shape.radius ?? 50) * 2;
+  const h = shape.height ?? (shape.radius ?? 50) * 2;
+  const rx = w / 2;
+  const ry = h / 2;
+  const rotation = shape.rotation ?? 0;
+  const pts: Point[] = [];
+  for (let i = 0; i < sides; i++) {
+    const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    const local = { x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry };
+    pts.push(rotation ? rotatePoint(local, { x: cx, y: cy }, rotation) : local);
+  }
+  return pts;
+};
+
+const isPointInPolygon = (point: Point, polygon: readonly Point[]): boolean => {
+  // Ray casting algorithm (even-odd rule).
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const pi = polygon[i]!;
+    const pj = polygon[j]!;
+    const intersect =
+      (pi.y > point.y) !== (pj.y > point.y) &&
+      point.x < ((pj.x - pi.x) * (point.y - pi.y)) / (pj.y - pi.y + Number.EPSILON) + pi.x;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
   const hitToleranceScreen = HIT_TOLERANCE;
   const threshold = hitToleranceScreen / scale; 
@@ -237,6 +269,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
   const center = shouldUnrotate ? getShapeCenter(shape) : null;
   const checkPoint = (shouldUnrotate && center) ? rotatePoint(point, center, -rotation) : point;
   const effectiveFill = getEffectiveFillColor(shape, layer);
+  const fillEnabled = isFillEffectivelyEnabled(shape, layer) && effectiveFill !== 'transparent';
 
   switch (shape.type) {
     case 'circle':
@@ -250,7 +283,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const ny = (checkPoint.y - cy) / ry;
       const ellipseVal = nx * nx + ny * ny;
       const tolNorm = threshold / Math.max(rx, ry);
-      if (effectiveFill !== 'transparent') return ellipseVal <= 1 + tolNorm;
+      if (fillEnabled) return ellipseVal <= 1 + tolNorm;
       return Math.abs(Math.sqrt(ellipseVal) - 1) * Math.max(rx, ry) <= threshold;
 
     case 'rect':
@@ -258,7 +291,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const inX = checkPoint.x >= shape.x - threshold && checkPoint.x <= shape.x + shape.width + threshold;
       const inY = checkPoint.y >= shape.y - threshold && checkPoint.y <= shape.y + shape.height + threshold;
       if (!inX || !inY) return false;
-      if (effectiveFill !== 'transparent' || shape.svgRaw) return true; 
+      if (fillEnabled || shape.svgRaw) return true; 
       const nearLeft = Math.abs(checkPoint.x - shape.x) < threshold;
       const nearRight = Math.abs(checkPoint.x - (shape.x + shape.width)) < threshold;
       const nearTop = Math.abs(checkPoint.y - shape.y) < threshold;
@@ -295,11 +328,14 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const arrowProj = { x: a1.x + at * (a2.x - a1.x), y: a1.y + at * (a2.y - a1.y) };
       return getDistance(point, arrowProj) < threshold;
 
-    case 'polygon': 
-      if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
-      const pDist = getDistance(checkPoint, { x: shape.x, y: shape.y });
-      if (effectiveFill !== 'transparent') return pDist <= shape.radius + threshold;
-      return Math.abs(pDist - shape.radius) <= threshold;
+    case 'polygon': {
+      if (shape.x === undefined || shape.y === undefined) return false;
+      const verts = getPolygonVertices(shape);
+      if (verts.length < 3) return false;
+      if (fillEnabled) return isPointInPolygon(checkPoint, verts);
+      const closed = [...verts, verts[0]!];
+      return isPointNearSegments(point, closed, threshold);
+    }
 
     case 'polyline':
       for (let i = 0; i < shape.points.length - 1; i++) {
@@ -440,12 +476,9 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
     return false;
   }
   
-  if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-     // Precise circle-rectangle intersection check.
-     const closestX = Math.max(rect.x, Math.min(shape.x, rect.x + rect.width));
-     const closestY = Math.max(rect.y, Math.min(shape.y, rect.y + rect.height));
-     const dist = getDistance({x: shape.x, y: shape.y}, {x: closestX, y: closestY});
-     return dist <= shape.radius;
+  if (shape.type === 'circle' || shape.type === 'polygon') {
+     // For crossing selection, AABB intersection is sufficient and avoids expensive geometry checks.
+     return true;
   }
 
   // For non-rotated rects and other simple shapes, AABB intersection is sufficient for a crossing match.

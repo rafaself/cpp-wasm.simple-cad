@@ -531,9 +531,7 @@ tr:nth-child(even){background:#111827;}
                                     disabled={actionDisabled}
                                     aria-disabled={actionDisabled}
                                 >
-                                    <div className="text-slate-400">
-                                        {getIcon(item.icon)}
-                                    </div>
+                                    <div className="text-current">{getIcon(item.icon)}</div>
                                     <div className="flex flex-col items-center gap-0.5 text-[9px] text-center whitespace-nowrap leading-none">
                                         <span className={labelColorClass}>{item.label}</span>
                                         {actionBadge && (

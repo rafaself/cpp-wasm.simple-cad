@@ -23,7 +23,10 @@ type Draft =
   | { kind: 'none' }
   | { kind: 'line'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'rect'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'ellipse'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
+  | { kind: 'arrow'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } };
 
 type SelectionBox = {
@@ -133,13 +136,22 @@ type ResizeState = {
   fixedCornerWorld: { x: number; y: number };
   startPointerWorld: { x: number; y: number };
   snapshot: Shape;
+  applyMode: 'topLeft' | 'center';
+};
+
+type VertexDragState = {
+  shapeId: string;
+  vertexIndex: number;
+  startPointerWorld: { x: number; y: number };
+  snapshot: Shape;
 };
 
 type SelectInteraction =
   | { kind: 'none' }
   | { kind: 'marquee' }
   | { kind: 'move'; moved: boolean; state: MoveState }
-  | { kind: 'resize'; moved: boolean; state: ResizeState };
+  | { kind: 'resize'; moved: boolean; state: ResizeState }
+  | { kind: 'vertex'; moved: boolean; state: VertexDragState };
 
 const HANDLE_SIZE_PX = 8;
 const HANDLE_HIT_RADIUS_PX = 10;
@@ -148,6 +160,25 @@ const rotateVec = (v: { x: number; y: number }, angle: number): { x: number; y: 
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
+};
+
+const supportsBBoxResize = (shape: Shape): boolean => {
+  return shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon';
+};
+
+const applyResizeToShape = (
+  shape: Shape,
+  applyMode: ResizeState['applyMode'],
+  center: { x: number; y: number },
+  w: number,
+  h: number,
+  scaleX: number,
+  scaleY: number,
+): Partial<Shape> => {
+  if (applyMode === 'center') {
+    return { x: clampTiny(center.x), y: clampTiny(center.y), width: clampTiny(w), height: clampTiny(h), scaleX, scaleY };
+  }
+  return { x: clampTiny(center.x - w / 2), y: clampTiny(center.y - h / 2), width: clampTiny(w), height: clampTiny(h), scaleX, scaleY };
 };
 
 const getRectCornersWorld = (shape: Shape): { corners: { x: number; y: number }[]; center: { x: number; y: number } } | null => {
@@ -216,12 +247,42 @@ const EngineInteractionLayer: React.FC = () => {
     draftRef.current = draft;
   }, [draft]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+
+      if (activeTool !== 'polyline') return;
+      const prev = draftRef.current;
+
+      if (e.key === 'Escape') {
+        if (prev.kind === 'polyline') {
+          e.preventDefault();
+          setDraft({ kind: 'none' });
+        }
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        if (prev.kind === 'polyline') {
+          e.preventDefault();
+          commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+          setDraft({ kind: 'none' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTool]);
+
   const cursor = useMemo(() => (cursorOverride ? cursorOverride : getCursorForTool(activeTool)), [activeTool, cursorOverride]);
 
   useEffect(() => {
     setSelectionBox(null);
     selectInteractionRef.current = { kind: 'none' };
     setCursorOverride(null);
+    setDraft((prev) => (prev.kind === 'polyline' ? { kind: 'none' } : prev));
   }, [activeTool]);
 
   const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
@@ -328,7 +389,7 @@ const EngineInteractionLayer: React.FC = () => {
     selectedShapeIds.forEach((id) => {
       const shape = data.shapes[id];
       if (!shape) return;
-      if (shape.type !== 'rect') return;
+      if (!supportsBBoxResize(shape)) return;
 
       const layer = data.layers.find((l) => l.id === shape.layerId);
       if (layer && (!layer.visible || layer.locked)) return;
@@ -346,6 +407,41 @@ const EngineInteractionLayer: React.FC = () => {
     });
 
     return best ? { shapeId: best.shapeId, handleIndex: best.handleIndex, cursor: best.cursor } : null;
+  };
+
+  const pickEndpointHandleAtScreen = (
+    screenPoint: { x: number; y: number },
+    view: ReturnType<typeof useUIStore.getState>['viewTransform'],
+  ): { shapeId: string; vertexIndex: number } | null => {
+    const data = useDataStore.getState();
+    const ui = useUIStore.getState();
+
+    let best: { shapeId: string; vertexIndex: number; d2: number } | null = null;
+    const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
+
+    selectedShapeIds.forEach((id) => {
+      const shape = data.shapes[id];
+      if (!shape) return;
+      if (shape.type !== 'line' && shape.type !== 'arrow') return;
+      const p0 = shape.points?.[0];
+      const p1 = shape.points?.[1];
+      if (!p0 || !p1) return;
+
+      const layer = data.layers.find((l) => l.id === shape.layerId);
+      if (layer && (!layer.visible || layer.locked)) return;
+      if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
+
+      const pts = [p0, p1].map((p) => worldToScreen(p, view));
+      for (const [i, p] of pts.entries()) {
+        const dx = screenPoint.x - p.x;
+        const dy = screenPoint.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > hitR2) continue;
+        if (!best || d2 < best.d2) best = { shapeId: id, vertexIndex: i, d2 };
+      }
+    });
+
+    return best ? { shapeId: best.shapeId, vertexIndex: best.vertexIndex } : null;
   };
 
   const commitElectricalSymbolAt = (world: { x: number; y: number }) => {
@@ -503,6 +599,79 @@ const EngineInteractionLayer: React.FC = () => {
     setSelectedShapeIds(new Set([id]));
   };
 
+  const commitEllipse = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const r = normalizeRect(start, end);
+    if (r.w < 1e-3 || r.h < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const fillColor = layer?.fillColor ?? '#ffffff';
+    const strokeEnabled = layer?.strokeEnabled !== false;
+    const fillEnabled = layer?.fillEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'circle',
+      points: [],
+      x: clampTiny(r.x + r.w / 2),
+      y: clampTiny(r.y + r.h / 2),
+      width: clampTiny(r.w),
+      height: clampTiny(r.h),
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    setSelectedShapeIds(new Set([id]));
+  };
+
+  const commitPolygon = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const r = normalizeRect(start, end);
+    if (r.w < 1e-3 || r.h < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const fillColor = layer?.fillColor ?? '#ffffff';
+    const strokeEnabled = layer?.strokeEnabled !== false;
+    const fillEnabled = layer?.fillEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'polygon',
+      points: [],
+      x: clampTiny(r.x + r.w / 2),
+      y: clampTiny(r.y + r.h / 2),
+      width: clampTiny(r.w),
+      height: clampTiny(r.h),
+      sides: 6,
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    setSelectedShapeIds(new Set([id]));
+  };
+
   const commitPolyline = (points: { x: number; y: number }[]) => {
     if (points.length < 2) return;
 
@@ -531,10 +700,56 @@ const EngineInteractionLayer: React.FC = () => {
     setSelectedShapeIds(new Set([id]));
   };
 
+  const commitArrow = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (Math.hypot(dx, dy) < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const strokeEnabled = layer?.strokeEnabled !== false;
+    const strokeWidth = toolDefaults.strokeWidth ?? 2;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'arrow',
+      points: [
+        { x: clampTiny(start.x), y: clampTiny(start.y) },
+        { x: clampTiny(end.x), y: clampTiny(end.y) },
+      ],
+      arrowHeadSize: Math.max(8, strokeWidth * 4),
+      strokeColor,
+      strokeWidth,
+      strokeEnabled,
+      fillColor: layer?.fillColor ?? '#ffffff',
+      fillEnabled: false,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    setSelectedShapeIds(new Set([id]));
+  };
+
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
 
     if (textEditState) return;
+
+    if (evt.button === 2 && activeTool === 'polyline') {
+      const prev = draftRef.current;
+      if (prev.kind === 'polyline') {
+        evt.preventDefault();
+        commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+        setDraft({ kind: 'none' });
+        return;
+      }
+    }
 
     if (evt.button === 1 || evt.button === 2 || evt.altKey || activeTool === 'pan') {
       beginPan(evt);
@@ -603,11 +818,26 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
+    if (activeTool === 'circle') {
+      setDraft({ kind: 'ellipse', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'polygon') {
+      setDraft({ kind: 'polygon', start: snapped, current: snapped });
+      return;
+    }
+
     if (activeTool === 'polyline') {
       setDraft((prev) => {
         if (prev.kind !== 'polyline') return { kind: 'polyline', points: [snapped], current: snapped };
         return { kind: 'polyline', points: [...prev.points, snapped], current: snapped };
       });
+      return;
+    }
+
+    if (activeTool === 'arrow') {
+      setDraft({ kind: 'arrow', start: snapped, current: snapped });
       return;
     }
 
@@ -632,9 +862,28 @@ const EngineInteractionLayer: React.FC = () => {
               fixedCornerWorld: corners.corners[fixedCornerIndex],
               startPointerWorld: world,
               snapshot: shape,
+              applyMode: shape.type === 'circle' || shape.type === 'polygon' ? 'center' : 'topLeft',
             },
           };
           setCursorOverride(handleHit.cursor);
+          return;
+        }
+      }
+
+      const endpointHit = pickEndpointHandleAtScreen(screen, viewTransform);
+      if (endpointHit) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[endpointHit.shapeId];
+        const layer = shape ? data.layers.find((l) => l.id === shape.layerId) : null;
+        const movable = !!shape && !(layer?.locked) && !isConduitShape(shape);
+        if (shape && movable) {
+          if (!selectedShapeIds.has(shape.id) || selectedShapeIds.size !== 1) setSelectedShapeIds(new Set([shape.id]));
+          selectInteractionRef.current = {
+            kind: 'vertex',
+            moved: false,
+            state: { shapeId: shape.id, vertexIndex: endpointHit.vertexIndex, startPointerWorld: world, snapshot: shape },
+          };
+          setCursorOverride('move');
           return;
         }
       }
@@ -648,15 +897,39 @@ const EngineInteractionLayer: React.FC = () => {
         const hitShape = data.shapes[hitId];
         const layer = hitShape ? data.layers.find((l) => l.id === hitShape.layerId) : null;
         const movable = !!hitShape && !(layer?.locked) && !isConduitShape(hitShape);
-        if (movable) {
+        if (movable && hitShape) {
+          if (hitShape.type === 'line' || hitShape.type === 'arrow') {
+            const p0 = hitShape.points?.[0];
+            const p1 = hitShape.points?.[1];
+            if (p0 && p1) {
+              const s0 = worldToScreen(p0, viewTransform);
+              const s1 = worldToScreen(p1, viewTransform);
+              const d0 = (screen.x - s0.x) * (screen.x - s0.x) + (screen.y - s0.y) * (screen.y - s0.y);
+              const d1 = (screen.x - s1.x) * (screen.x - s1.x) + (screen.y - s1.y) * (screen.y - s1.y);
+              const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
+              const best = d0 <= d1 ? { idx: 0, d2: d0 } : { idx: 1, d2: d1 };
+              if (best.d2 <= hitR2) {
+                selectInteractionRef.current = {
+                  kind: 'vertex',
+                  moved: false,
+                  state: { shapeId: hitShape.id, vertexIndex: best.idx, startPointerWorld: world, snapshot: hitShape },
+                };
+                setCursorOverride('move');
+                return;
+              }
+            }
+          }
+
           selectInteractionRef.current = {
             kind: 'move',
             moved: false,
             state: { start: world, snapshot: new Map([[hitId, hitShape]]) },
           };
-        } else {
-          selectInteractionRef.current = { kind: 'none' };
+          setCursorOverride('move');
+          return;
         }
+
+        selectInteractionRef.current = { kind: 'none' };
         setCursorOverride('move');
         return;
       }
@@ -692,6 +965,12 @@ const EngineInteractionLayer: React.FC = () => {
           return;
         }
 
+        const endpointHover = pickEndpointHandleAtScreen(screen, viewTransform);
+        if (endpointHover) {
+          setCursorOverride('move');
+          return;
+        }
+
         const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
         const hit = pickShapeAt(world, tolerance);
         setCursorOverride(hit ? 'move' : null);
@@ -724,6 +1003,21 @@ const EngineInteractionLayer: React.FC = () => {
         return;
       }
 
+      if (interaction.kind === 'vertex') {
+        if (!interaction.moved && !dragged) return;
+        if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
+
+        const { state } = interaction;
+        const data = useDataStore.getState();
+        const curr = data.shapes[state.shapeId];
+        if (!curr) return;
+        if (!curr.points || curr.points.length < 2) return;
+
+        const nextPoints = curr.points.map((p, i) => (i === state.vertexIndex ? { x: clampTiny(snapped.x), y: clampTiny(snapped.y) } : p));
+        data.updateShape(state.shapeId, { points: nextPoints }, false);
+        return;
+      }
+
       if (interaction.kind === 'resize') {
         if (!interaction.moved && !dragged) return;
         if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
@@ -733,7 +1027,6 @@ const EngineInteractionLayer: React.FC = () => {
         const curr = data.shapes[state.shapeId];
         if (!curr) return;
 
-        const bbox = getShapeBoundingBox(state.snapshot);
         const rotation = state.snapshot.rotation || 0;
         const fixed = state.fixedCornerWorld;
 
@@ -742,8 +1035,34 @@ const EngineInteractionLayer: React.FC = () => {
 
         const expectedSignX = state.fixedCornerIndex === 0 || state.fixedCornerIndex === 3 ? 1 : -1;
         const expectedSignY = state.fixedCornerIndex === 0 || state.fixedCornerIndex === 1 ? 1 : -1;
-        const nextW = Math.max(1e-3, expectedSignX * vLocal.x);
-        const nextH = Math.max(1e-3, expectedSignY * vLocal.y);
+        const rawW0 = expectedSignX * vLocal.x;
+        const rawH0 = expectedSignY * vLocal.y;
+
+        const bbox0 = getShapeBoundingBox(state.snapshot);
+        const eps = 1e-3;
+        const baseW = Math.max(eps, bbox0.width || 1);
+        const baseH = Math.max(eps, bbox0.height || 1);
+        const ratio = baseH / baseW;
+
+        let rawW = rawW0;
+        let rawH = rawH0;
+
+        if (state.snapshot.proportionsLinked) {
+          const wAbs = Math.abs(rawW);
+          const hAbs = Math.abs(rawH);
+          const wRel = wAbs / baseW;
+          const hRel = hAbs / baseH;
+          if (wRel >= hRel) {
+            rawH = Math.sign(rawH || 1) * wAbs * ratio;
+          } else {
+            rawW = Math.sign(rawW || 1) * (hAbs / ratio);
+          }
+        }
+
+        const nextW = Math.max(eps, Math.abs(rawW));
+        const nextH = Math.max(eps, Math.abs(rawH));
+        const nextScaleX = (state.snapshot.scaleX ?? 1) * (rawW < 0 ? -1 : 1);
+        const nextScaleY = (state.snapshot.scaleY ?? 1) * (rawH < 0 ? -1 : 1);
 
         // Keep the fixed rotated corner anchored by solving for the unrotated center.
         const fixedOffset = {
@@ -754,15 +1073,9 @@ const EngineInteractionLayer: React.FC = () => {
           x: fixed.x - rotateVec(fixedOffset, rotation).x,
           y: fixed.y - rotateVec(fixedOffset, rotation).y,
         };
-        const nextX = clampTiny(center.x - nextW / 2);
-        const nextY = clampTiny(center.y - nextH / 2);
 
-        const diff: Partial<Shape> = { x: nextX, y: nextY, width: clampTiny(nextW), height: clampTiny(nextH) };
-        // Preserve optional bbox semantics (rect uses x/y/width/height).
-        // Also preserve style and rotation.
-        if (bbox.width !== diff.width || bbox.height !== diff.height || state.snapshot.x !== diff.x || state.snapshot.y !== diff.y) {
-          data.updateShape(state.shapeId, diff, false);
-        }
+        const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
+        data.updateShape(state.shapeId, diff, false);
         return;
       }
 
@@ -805,7 +1118,16 @@ const EngineInteractionLayer: React.FC = () => {
 
     setDraft((prev) => {
       if (prev.kind === 'line') return { ...prev, current: snapped };
-      if (prev.kind === 'rect') return { ...prev, current: snapped };
+      if (prev.kind === 'arrow') return { ...prev, current: snapped };
+      if (prev.kind === 'rect' || prev.kind === 'ellipse' || prev.kind === 'polygon') {
+        if (!evt.shiftKey) return { ...prev, current: snapped };
+        const dx = snapped.x - prev.start.x;
+        const dy = snapped.y - prev.start.y;
+        const size = Math.max(Math.abs(dx), Math.abs(dy));
+        const sx = dx === 0 ? 1 : Math.sign(dx);
+        const sy = dy === 0 ? 1 : Math.sign(dy);
+        return { ...prev, current: { x: prev.start.x + sx * size, y: prev.start.y + sy * size } };
+      }
       if (prev.kind === 'polyline') return { ...prev, current: snapped };
       if (prev.kind === 'conduit') return { ...prev, current: snapped };
       return prev;
@@ -884,6 +1206,21 @@ const EngineInteractionLayer: React.FC = () => {
         if (prevShape.y !== curr.y) diff.y = curr.y;
         if (prevShape.width !== curr.width) diff.width = curr.width;
         if (prevShape.height !== curr.height) diff.height = curr.height;
+        if (prevShape.scaleX !== curr.scaleX) diff.scaleX = curr.scaleX;
+        if (prevShape.scaleY !== curr.scaleY) diff.scaleY = curr.scaleY;
+        if (Object.keys(diff).length === 0) return;
+        data.saveToHistory([{ type: 'UPDATE', id: curr.id, diff, prev: prevShape }]);
+        return;
+      }
+
+      if (interaction.kind === 'vertex') {
+        if (!interaction.moved) return;
+        const data = useDataStore.getState();
+        const prevShape = interaction.state.snapshot;
+        const curr = data.shapes[interaction.state.shapeId];
+        if (!curr) return;
+        const diff: Partial<Shape> = {};
+        if (prevShape.points || curr.points) diff.points = curr.points;
         if (Object.keys(diff).length === 0) return;
         data.saveToHistory([{ type: 'UPDATE', id: curr.id, diff, prev: prevShape }]);
         return;
@@ -940,6 +1277,27 @@ const EngineInteractionLayer: React.FC = () => {
       if (prev.kind === 'rect') commitRect(prev.start, prev.current);
       return;
     }
+
+    if (activeTool === 'circle') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'ellipse') commitEllipse(prev.start, prev.current);
+      return;
+    }
+
+    if (activeTool === 'polygon') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'polygon') commitPolygon(prev.start, prev.current);
+      return;
+    }
+
+    if (activeTool === 'arrow') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'arrow') commitArrow(prev.start, prev.current);
+      return;
+    }
   };
 
   const handleDoubleClick = (evt: React.MouseEvent<HTMLDivElement>) => {
@@ -969,6 +1327,16 @@ const EngineInteractionLayer: React.FC = () => {
       );
     }
 
+    if (draft.kind === 'arrow') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
     if (draft.kind === 'rect') {
       const a = worldToScreen(draft.start, viewTransform);
       const b = worldToScreen(draft.current, viewTransform);
@@ -979,6 +1347,44 @@ const EngineInteractionLayer: React.FC = () => {
       return (
         <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'ellipse') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'polygon') {
+      const sides = 6;
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const rx = w / 2;
+      const ry = h / 2;
+      const pts = Array.from({ length: sides }, (_, i) => {
+        const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
+        return { x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry };
+      });
+      const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <polygon points={pointsAttr} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
         </svg>
       );
     }
@@ -1035,7 +1441,10 @@ const EngineInteractionLayer: React.FC = () => {
 
     const items: Array<{
       id: string;
-      outline: { kind: 'poly'; points: { x: number; y: number }[] } | { kind: 'rect'; x: number; y: number; w: number; h: number };
+      outline:
+        | { kind: 'poly'; points: { x: number; y: number }[] }
+        | { kind: 'rect'; x: number; y: number; w: number; h: number }
+        | { kind: 'segment'; a: { x: number; y: number }; b: { x: number; y: number } };
       handles: { x: number; y: number }[];
     }> = [];
 
@@ -1046,7 +1455,21 @@ const EngineInteractionLayer: React.FC = () => {
       if (layer && (!layer.visible || layer.locked)) return;
       if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) return;
 
-      if (shape.type === 'rect') {
+      if (shape.type === 'line' || shape.type === 'arrow') {
+        const a = shape.points?.[0];
+        const b = shape.points?.[1];
+        if (!a || !b) return;
+        const aa = worldToScreen(a, viewTransform);
+        const bb = worldToScreen(b, viewTransform);
+        items.push({
+          id,
+          outline: { kind: 'segment', a: aa, b: bb },
+          handles: [aa, bb],
+        });
+        return;
+      }
+
+      if (supportsBBoxResize(shape)) {
         const r = getRectCornersWorld(shape);
         if (!r) return;
         const handles = getShapeHandles(shape)
@@ -1084,6 +1507,26 @@ const EngineInteractionLayer: React.FC = () => {
             return (
               <g key={it.id}>
                 <polygon points={pts} fill="transparent" stroke={stroke} strokeWidth={1} />
+                {it.handles.map((p, i) => (
+                  <rect
+                    key={i}
+                    x={p.x - hh}
+                    y={p.y - hh}
+                    width={hs}
+                    height={hs}
+                    fill="#ffffff"
+                    stroke={stroke}
+                    strokeWidth={1}
+                  />
+                ))}
+              </g>
+            );
+          }
+
+          if (it.outline.kind === 'segment') {
+            return (
+              <g key={it.id}>
+                <line x1={it.outline.a.x} y1={it.outline.a.y} x2={it.outline.b.x} y2={it.outline.b.y} stroke={stroke} strokeWidth={1} />
                 {it.handles.map((p, i) => (
                   <rect
                     key={i}

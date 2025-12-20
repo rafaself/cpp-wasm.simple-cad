@@ -6,14 +6,13 @@ import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 
-type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'arrow' | 'eletroduto';
+type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'eletroduto';
 
 export const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
   return (
     (s.type === 'rect' && !s.svgSymbolId && !s.svgRaw) ||
     s.type === 'line' ||
     s.type === 'polyline' ||
-    s.type === 'arrow' ||
     s.type === 'eletroduto'
   );
 };
@@ -31,6 +30,8 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
   const strokeG = strokeRgb.g / 255.0;
   const strokeB = strokeRgb.b / 255.0;
   const strokeEnabled = effectiveStrokeEnabled ? 1.0 : 0.0;
+  const strokeOpacity = Math.max(0, Math.min(100, shape.strokeOpacity ?? 100)) / 100;
+  const strokeA = strokeOpacity;
 
   if (shape.type === 'rect') {
     if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
@@ -65,16 +66,17 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
         strokeR,
         strokeG,
         strokeB,
+        strokeA,
         strokeEnabled,
       },
     };
   }
 
-  if (shape.type === 'line' || shape.type === 'arrow') {
+  if (shape.type === 'line') {
     const p0 = shape.points?.[0];
     const p1 = shape.points?.[1];
     if (!p0 || !p1) return null;
-    return { op: CommandOp.UpsertLine, id, line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, r: strokeR, g: strokeG, b: strokeB, enabled: strokeEnabled } };
+    return { op: CommandOp.UpsertLine, id, line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
   }
 
   // Conduits are rendered in WASM from nodes + endpoints; do not mirror as generic polylines.
@@ -82,12 +84,12 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
     if (!shape.fromNodeId || !shape.toNodeId) return null;
     const fromNodeId = ensureId(shape.fromNodeId);
     const toNodeId = ensureId(shape.toNodeId);
-    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, r: strokeR, g: strokeG, b: strokeB, enabled: strokeEnabled } };
+    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
   }
 
   const points = shape.points;
   if (!points || points.length < 2) return null;
-  return { op: CommandOp.UpsertPolyline, id, polyline: { points, r: strokeR, g: strokeG, b: strokeB, enabled: strokeEnabled } };
+  return { op: CommandOp.UpsertPolyline, id, polyline: { points, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
 };
 
 export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers: readonly Layer[]): Set<string> => {

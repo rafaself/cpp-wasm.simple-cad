@@ -12,9 +12,9 @@ TEST(RenderTest, SimpleBuffers) {
     std::vector<SymbolRec> symbols;
     std::vector<NodeRec> nodes;
 
-    rects.push_back(RectRec{1, 0,0,10,10, 1,0,0, 1});
-    lines.push_back(LineRec{2, 0,0,5,5});
-    polylines.push_back(PolyRec{3, 0, 2});
+    rects.push_back(RectRec{1, 0,0,10,10, 1,0,0, 1, 1,0,0, 1, 1});
+    lines.push_back(LineRec{2, 0,0,5,5, 1,1,1, 1, 1});
+    polylines.push_back(PolyRec{3, 0, 2, 1,1,1, 1, 1});
     points.push_back(Point2{0,0}); points.push_back(Point2{5,5});
 
     std::vector<float> tri;
@@ -22,8 +22,8 @@ TEST(RenderTest, SimpleBuffers) {
 
     engine::rebuildRenderBuffers(rects, lines, polylines, points, conduits, symbols, nodes, tri, linev, nullptr, nullptr);
 
-    // One rect -> 6 triangle vertices (each with 6 floats) => float count = 6*6
-    EXPECT_EQ(tri.size(), static_cast<size_t>(6*6));
+    // One rect -> 6 triangle vertices (each with 7 floats) => float count = 6*7
+    EXPECT_EQ(tri.size(), static_cast<size_t>(6*7));
     // One rect outline (4 segments*2 vertices=8) + one line (2 vertices) + polyline (1 segment*2 vertices)
-    EXPECT_EQ(linev.size(), static_cast<size_t>((8 + 2 + 2) * 3));
+    EXPECT_EQ(linev.size(), static_cast<size_t>((8 + 2 + 2) * 7));
 }

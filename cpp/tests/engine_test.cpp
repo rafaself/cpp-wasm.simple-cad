@@ -54,7 +54,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     // Command 1: UpsertRect
     pushU32(static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertRect)); // Op
     pushU32(10);         // ID
-    pushU32(48);         // Payload Bytes (12 floats * 4 bytes/float)
+    pushU32(52);         // Payload Bytes (13 floats * 4 bytes/float)
     pushU32(0);          // Reserved
 
     pushF32(10.0f); // x
@@ -70,6 +70,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     pushF32(0.0f);  // strokeR
     pushF32(1.0f);  // strokeG
     pushF32(0.0f);  // strokeB
+    pushF32(1.0f);  // strokeA
     pushF32(1.0f);  // strokeEnabled
 
     // Pass to engine
@@ -80,7 +81,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     EXPECT_EQ(stats.rectCount, 1);
     
     // Verify render buffers were rebuilt
-    // 2 triangles = 6 vertices, each with 6 floats (pos+color)
+    // 2 triangles = 6 vertices, each with 7 floats (pos+rgba)
     EXPECT_EQ(stats.triangleVertexCount, 6);
     // 4 lines = 8 vertices
     EXPECT_EQ(stats.lineVertexCount, 8); // Outline only, colored vertices.

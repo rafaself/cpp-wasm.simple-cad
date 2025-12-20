@@ -11,6 +11,7 @@ import {
   isStrokeEffectivelyEnabled,
   isFillEffectivelyEnabled 
 } from '../../../../utils/shapeColors';
+import { hexToCssRgba, parseCssColorToHexAlpha } from '../../../../utils/cssColor';
 
 interface StylePropertiesProps {
   selectedShape: Shape;
@@ -133,8 +134,17 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   };
 
   const handleSidebarColorChange = (newColor: string) => {
-    if (colorPickerTarget === 'fill') setFillColorCustom(newColor);
-    if (colorPickerTarget === 'stroke') setStrokeColorCustom(newColor);
+    const parsed = parseCssColorToHexAlpha(newColor);
+    if (!parsed) return;
+
+    if (colorPickerTarget === 'fill') {
+      const nextMode = buildColorModeUpdate(selectedShape, { fill: 'custom' });
+      store.updateShape(selectedShape.id, { fillColor: parsed.hex, fillOpacity: Math.round(parsed.alpha * 100), colorMode: nextMode });
+    }
+    if (colorPickerTarget === 'stroke') {
+      const nextMode = buildColorModeUpdate(selectedShape, { stroke: 'custom' });
+      store.updateShape(selectedShape.id, { strokeColor: parsed.hex, strokeOpacity: Math.round(parsed.alpha * 100), colorMode: nextMode });
+    }
   };
 
   // Determine toggle button appearance based on effective state
@@ -393,7 +403,11 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setColorPickerTarget(null)} />
           <ColorPicker
-            color={colorPickerTarget === 'fill' ? displayFillColor : displayStrokeColor}
+            color={
+              colorPickerTarget === 'fill'
+                ? hexToCssRgba(displayFillColor, (selectedShape.fillOpacity ?? 100) / 100)
+                : hexToCssRgba(displayStrokeColor, (selectedShape.strokeOpacity ?? 100) / 100)
+            }
             onChange={handleSidebarColorChange}
             onClose={() => setColorPickerTarget(null)}
             initialPosition={colorPickerPos}

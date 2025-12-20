@@ -27,9 +27,9 @@ static constexpr std::size_t nodeRecordBytes = 20;
 static constexpr std::size_t conduitRecordBytes = 12;
 
 // Render budgeting constants
-static constexpr std::size_t rectTriangleFloats = 6 * 6; // 6 vertices * (x,y,z,r,g,b)
-static constexpr std::size_t rectOutlineFloats = 8 * 6; // 4 segments, 2 vertices each (x,y,z,r,g,b)
-static constexpr std::size_t lineSegmentFloats = 2 * 6;
+static constexpr std::size_t rectTriangleFloats = 6 * 7; // 6 vertices * (x,y,z,r,g,b,a)
+static constexpr std::size_t rectOutlineFloats = 8 * 7; // 4 segments, 2 vertices each (x,y,z,r,g,b,a)
+static constexpr std::size_t lineSegmentFloats = 2 * 7;
 
 // Snapshot (EWC1) persists only the "base" fields for these records.
 // Styling fields appended below are runtime-only and defaulted when loading a snapshot.
@@ -40,11 +40,11 @@ struct RectRec {
     float w;
     float h;
     float r, g, b, a; // fill RGBA (persisted)
-    float sr, sg, sb; // stroke RGB (runtime-only)
+    float sr, sg, sb, sa; // stroke RGBA (runtime-only)
     float strokeEnabled; // 0 or 1 (runtime-only)
 };
-struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b; float enabled; };
-struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float r, g, b; float enabled; };
+struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; };
+struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float r, g, b, a; float enabled; };
 struct Point2 { float x; float y; };
 
 struct SymbolRec {
@@ -74,7 +74,7 @@ struct ConduitRec {
     std::uint32_t id;
     std::uint32_t fromNodeId;
     std::uint32_t toNodeId;
-    float r, g, b;
+    float r, g, b, a;
     float enabled;
 };
 
@@ -103,10 +103,10 @@ enum class EngineError : std::uint32_t {
 };
 
 // Command Payloads (POD)
-struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeEnabled; };
-struct LinePayload { float x0, y0, x1, y1, r, g, b, enabled; };
+struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled; };
+struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled; };
 // Polyline payload is variable length, handled manually
-struct PolylinePayloadHeader { float r, g, b, enabled; std::uint32_t count; std::uint32_t reserved; };
+struct PolylinePayloadHeader { float r, g, b, a, enabled; std::uint32_t count; std::uint32_t reserved; };
 struct SymbolPayload {
     std::uint32_t symbolKey;
     float x, y, w, h;
@@ -122,7 +122,7 @@ struct NodePayload {
 struct ConduitPayload {
     std::uint32_t fromNodeId;
     std::uint32_t toNodeId;
-    float r, g, b, enabled;
+    float r, g, b, a, enabled;
 };
 
 struct SnapResult {

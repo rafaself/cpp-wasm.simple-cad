@@ -74,8 +74,7 @@ export const MENU_CONFIG: MenuTab[] = [
           { id: 'line', label: 'Linha', icon: 'Line', type: 'tool', tool: 'line', shortcut: getShortcutLabel('tools.line') },
           { id: 'arrow', label: 'Seta', icon: 'Arrow', type: 'tool', tool: 'arrow' },
           { id: 'polyline', label: 'Polilinha', icon: 'Polyline', type: 'tool', tool: 'polyline', shortcut: getShortcutLabel('tools.polyline') },
-          { id: 'circle', label: 'Circulo', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: getShortcutLabel('tools.circle') },
-          { id: 'arc', label: 'Arco', icon: 'Arc', type: 'tool', tool: 'arc', shortcut: getShortcutLabel('tools.arc') },
+          { id: 'circle', label: 'Elipse', icon: 'Circle', type: 'tool', tool: 'circle', shortcut: getShortcutLabel('tools.circle') },
           { id: 'rect', label: 'Retangulo', icon: 'Rect', type: 'tool', tool: 'rect', shortcut: getShortcutLabel('tools.rect') },
           { id: 'polygon', label: 'Poligono', icon: 'Polygon', type: 'tool', tool: 'polygon', shortcut: getShortcutLabel('tools.polygon') },
         ]

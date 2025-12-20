@@ -23,10 +23,11 @@ export type RectPayload = {
   strokeR: number;
   strokeG: number;
   strokeB: number;
+  strokeA: number;
   strokeEnabled: number; // 0 or 1
 };
-export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; enabled: number };
-export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; enabled: number };
+export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; a: number; enabled: number };
+export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number };
 export type SymbolPayload = {
   symbolKey: number;
   x: number;
@@ -41,7 +42,7 @@ export type SymbolPayload = {
 };
 
 export type NodePayload = { kind: 0 | 1; anchorSymbolId: number; x: number; y: number };
-export type ConduitPayload = { fromNodeId: number; toNodeId: number; r: number; g: number; b: number; enabled: number };
+export type ConduitPayload = { fromNodeId: number; toNodeId: number; r: number; g: number; b: number; a: number; enabled: number };
 
 export type EngineCommand =
   | { op: CommandOp.ClearAll }
@@ -69,17 +70,17 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.DeleteEntity:
       return 0;
     case CommandOp.UpsertRect:
-      return 48; // 12 floats * 4 bytes/float
+      return 52; // 13 floats * 4 bytes/float
     case CommandOp.UpsertLine:
-      return 32; // 8 floats * 4 bytes/float
+      return 36; // 9 floats * 4 bytes/float
     case CommandOp.UpsertPolyline:
-      return 24 + cmd.polyline.points.length * 8; // header (4 floats + u32 count + u32 reserved) + points
+      return 28 + cmd.polyline.points.length * 8; // header (5 floats + u32 count + u32 reserved) + points
     case CommandOp.UpsertSymbol:
       return 40;
     case CommandOp.UpsertNode:
       return 16;
     case CommandOp.UpsertConduit:
-      return 24; // 2 u32 + 4 floats
+      return 28; // 2 u32 + 5 floats
   }
 };
 
@@ -123,6 +124,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.rect.strokeR);
         o = writeF32(view, o, cmd.rect.strokeG);
         o = writeF32(view, o, cmd.rect.strokeB);
+        o = writeF32(view, o, cmd.rect.strokeA);
         o = writeF32(view, o, cmd.rect.strokeEnabled);
         break;
       case CommandOp.UpsertLine:
@@ -133,12 +135,14 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.line.r);
         o = writeF32(view, o, cmd.line.g);
         o = writeF32(view, o, cmd.line.b);
+        o = writeF32(view, o, cmd.line.a);
         o = writeF32(view, o, cmd.line.enabled);
         break;
       case CommandOp.UpsertPolyline:
         o = writeF32(view, o, cmd.polyline.r);
         o = writeF32(view, o, cmd.polyline.g);
         o = writeF32(view, o, cmd.polyline.b);
+        o = writeF32(view, o, cmd.polyline.a);
         o = writeF32(view, o, cmd.polyline.enabled);
         o = writeU32(view, o, cmd.polyline.points.length);
         o = writeU32(view, o, 0);
@@ -171,6 +175,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.conduit.r);
         o = writeF32(view, o, cmd.conduit.g);
         o = writeF32(view, o, cmd.conduit.b);
+        o = writeF32(view, o, cmd.conduit.a);
         o = writeF32(view, o, cmd.conduit.enabled);
         break;
     }

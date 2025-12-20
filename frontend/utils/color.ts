@@ -2,8 +2,20 @@ const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 /** Convert a hex color (#RRGGBB or #RGB) to RGB components. */
 export const hexToRgb = (hex: string) => {
-  if (!hex.startsWith('#')) return null;
-  let clean = hex.slice(1);
+  const c = hex.trim();
+
+  // rgba(r,g,b,a) / rgb(r,g,b)
+  const rgba = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+)\s*)?\)$/i.exec(c);
+  if (rgba) {
+    const r = Number.parseInt(rgba[1], 10);
+    const g = Number.parseInt(rgba[2], 10);
+    const b = Number.parseInt(rgba[3], 10);
+    if ([r, g, b].some((n) => Number.isNaN(n))) return null;
+    return { r: Math.max(0, Math.min(255, r)), g: Math.max(0, Math.min(255, g)), b: Math.max(0, Math.min(255, b)) };
+  }
+
+  if (!c.startsWith('#')) return null;
+  let clean = c.slice(1);
   if (clean.length === 3) {
     clean = clean.split('').map(ch => ch + ch).join('');
   }
@@ -67,4 +79,3 @@ export const ensureContrastColor = (color: string, background: string, minContra
   }
   return bleedTarget;
 };
-

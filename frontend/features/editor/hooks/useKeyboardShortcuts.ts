@@ -86,7 +86,6 @@ export const useKeyboardShortcuts = () => {
       else if (checkKey('tools.rect')) uiStore.setTool('rect');
       else if (checkKey('tools.circle')) uiStore.setTool('circle');
       else if (checkKey('tools.polygon')) uiStore.setTool('polygon');
-      else if (checkKey('tools.arc')) uiStore.setTool('arc');
       else if (checkKey('tools.measure')) uiStore.setTool('measure');
       else if (checkKey('tools.text')) uiStore.setTool('text');
       else if (checkKey('editor.delete')) deleteSelected();

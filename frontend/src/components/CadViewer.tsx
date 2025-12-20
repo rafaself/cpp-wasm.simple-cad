@@ -14,6 +14,8 @@ import SymbolAtlasLayer from './SymbolAtlasLayer';
 import { decodeWorldSnapshot, migrateWorldSnapshotToLatest, type WorldSnapshot } from '../next/worldSnapshot';
 import { buildSnapIndex, querySnapIndex } from '../next/snapIndex';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
+import { getEffectiveFillColor, getEffectiveStrokeColor, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
+import type { Layer } from '@/types';
 
 // Mirrors the C++ BufferMeta exposed via Embind
 export type BufferMeta = {
@@ -206,6 +208,241 @@ const SelectionOverlay: React.FC<{ selectedIds: Set<string> }> = ({ selectedIds 
   );
 };
 
+const OverlayShapesLayer: React.FC = () => {
+  const shapesById = useDataStore((s) => s.shapes);
+  const layers = useDataStore((s) => s.layers);
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+
+  const layerById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
+
+  const items = useMemo(() => {
+    const out: Array<
+      | { kind: 'ellipse'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
+      | { kind: 'polygon'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; sides: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
+      | { kind: 'arrow'; id: string; a: { x: number; y: number }; b: { x: number; y: number }; head: number; stroke: { color: string; opacity: number } }
+    > = [];
+
+    for (const id of Object.keys(shapesById)) {
+      const shape = shapesById[id]!;
+      if (!shape) continue;
+      if (shape.floorId && activeFloorId && shape.floorId !== activeFloorId) continue;
+      if (shape.discipline && activeDiscipline && shape.discipline !== activeDiscipline) continue;
+
+      const layer = layerById.get(shape.layerId) as Layer | undefined;
+      if (layer && !layer.visible) continue;
+
+      if (shape.type === 'circle') {
+        if (shape.x === undefined || shape.y === undefined) continue;
+        const w = shape.width ?? (shape.radius ?? 50) * 2;
+        const h = shape.height ?? (shape.radius ?? 50) * 2;
+        const rx = w / 2;
+        const ry = h / 2;
+        const rot = shape.rotation ?? 0;
+
+        const fillEnabled = isFillEffectivelyEnabled(shape, layer) && getEffectiveFillColor(shape, layer) !== 'transparent';
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+
+        out.push({
+          kind: 'ellipse',
+          id: shape.id,
+          cx: shape.x,
+          cy: shape.y,
+          rx,
+          ry,
+          rot,
+          fill: fillEnabled
+            ? { color: getEffectiveFillColor(shape, layer), opacity: (shape.fillOpacity ?? 100) / 100 }
+            : undefined,
+          stroke: strokeEnabled
+            ? { color: getEffectiveStrokeColor(shape, layer), opacity: (shape.strokeOpacity ?? 100) / 100 }
+            : undefined,
+        });
+        continue;
+      }
+
+      if (shape.type === 'polygon') {
+        if (shape.x === undefined || shape.y === undefined) continue;
+        const w = shape.width ?? (shape.radius ?? 50) * 2;
+        const h = shape.height ?? (shape.radius ?? 50) * 2;
+        const rx = w / 2;
+        const ry = h / 2;
+        const rot = shape.rotation ?? 0;
+        const sides = Math.max(3, Math.floor(shape.sides ?? 6));
+
+        const fillEnabled = isFillEffectivelyEnabled(shape, layer) && getEffectiveFillColor(shape, layer) !== 'transparent';
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+
+        out.push({
+          kind: 'polygon',
+          id: shape.id,
+          cx: shape.x,
+          cy: shape.y,
+          rx,
+          ry,
+          rot,
+          sides,
+          fill: fillEnabled
+            ? { color: getEffectiveFillColor(shape, layer), opacity: (shape.fillOpacity ?? 100) / 100 }
+            : undefined,
+          stroke: strokeEnabled
+            ? { color: getEffectiveStrokeColor(shape, layer), opacity: (shape.strokeOpacity ?? 100) / 100 }
+            : undefined,
+        });
+        continue;
+      }
+
+      if (shape.type === 'arrow') {
+        const p0 = shape.points?.[0];
+        const p1 = shape.points?.[1];
+        if (!p0 || !p1) continue;
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+        if (!strokeEnabled) continue;
+        out.push({
+          kind: 'arrow',
+          id: shape.id,
+          a: p0,
+          b: p1,
+          head: Math.max(2, shape.arrowHeadSize ?? 10),
+          stroke: { color: getEffectiveStrokeColor(shape, layer), opacity: (shape.strokeOpacity ?? 100) / 100 },
+        });
+      }
+    }
+
+    return out;
+  }, [activeDiscipline, activeFloorId, layerById, shapesById]);
+
+  return (
+    <>
+      {items.map((it) => {
+        if (it.kind === 'ellipse') {
+          const segments = 64;
+          const pts = Array.from({ length: segments + 1 }, (_, i) => {
+            const t = (i / segments) * Math.PI * 2;
+            const x = it.cx + Math.cos(t) * it.rx;
+            const y = it.cy + Math.sin(t) * it.ry;
+            const rotated = it.rot ? new THREE.Vector3(x, y, 0).sub(new THREE.Vector3(it.cx, it.cy, 0)).applyAxisAngle(new THREE.Vector3(0, 0, 1), it.rot).add(new THREE.Vector3(it.cx, it.cy, 0)) : new THREE.Vector3(x, y, 0);
+            return rotated;
+          });
+
+          const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
+
+          const fillGeom = (() => {
+            if (!it.fill || it.fill.opacity <= 0) return null;
+            const center = new THREE.Vector3(it.cx, it.cy, 0);
+            const positions: number[] = [];
+            for (let i = 0; i < segments; i++) {
+              const a = pts[i]!;
+              const b = pts[i + 1]!;
+              positions.push(center.x, center.y, 0, a.x, a.y, 0, b.x, b.y, 0);
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            return g;
+          })();
+
+          return (
+            <group key={it.id}>
+              {fillGeom && it.fill ? (
+                <mesh geometry={fillGeom}>
+                  <meshBasicMaterial color={it.fill.color} transparent opacity={it.fill.opacity} depthWrite={false} />
+                </mesh>
+              ) : null}
+              {it.stroke && it.stroke.opacity > 0 ? (
+                <line geometry={lineGeom}>
+                  <lineBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
+                </line>
+              ) : null}
+            </group>
+          );
+        }
+
+        if (it.kind === 'polygon') {
+          const pts = Array.from({ length: it.sides + 1 }, (_, i) => {
+            const t = (i / it.sides) * Math.PI * 2 - Math.PI / 2;
+            const x = it.cx + Math.cos(t) * it.rx;
+            const y = it.cy + Math.sin(t) * it.ry;
+            const rotated = it.rot ? new THREE.Vector3(x, y, 0).sub(new THREE.Vector3(it.cx, it.cy, 0)).applyAxisAngle(new THREE.Vector3(0, 0, 1), it.rot).add(new THREE.Vector3(it.cx, it.cy, 0)) : new THREE.Vector3(x, y, 0);
+            return rotated;
+          });
+
+          const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
+
+          const fillGeom = (() => {
+            if (!it.fill || it.fill.opacity <= 0) return null;
+            const center = new THREE.Vector3(it.cx, it.cy, 0);
+            const positions: number[] = [];
+            for (let i = 0; i < it.sides; i++) {
+              const a = pts[i]!;
+              const b = pts[i + 1]!;
+              positions.push(center.x, center.y, 0, a.x, a.y, 0, b.x, b.y, 0);
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            return g;
+          })();
+
+          return (
+            <group key={it.id}>
+              {fillGeom && it.fill ? (
+                <mesh geometry={fillGeom}>
+                  <meshBasicMaterial color={it.fill.color} transparent opacity={it.fill.opacity} depthWrite={false} />
+                </mesh>
+              ) : null}
+              {it.stroke && it.stroke.opacity > 0 ? (
+                <line geometry={lineGeom}>
+                  <lineBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
+                </line>
+              ) : null}
+            </group>
+          );
+        }
+
+        const ax = it.a.x;
+        const ay = it.a.y;
+        const bx = it.b.x;
+        const by = it.b.y;
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-6) return null;
+
+        const dirX = dx / len;
+        const dirY = dy / len;
+        const headLen = Math.min(it.head, len * 0.45);
+        const headW = headLen * 0.6;
+        const baseX = bx - dirX * headLen;
+        const baseY = by - dirY * headLen;
+        const perpX = -dirY;
+        const perpY = dirX;
+
+        const leftX = baseX + perpX * (headW / 2);
+        const leftY = baseY + perpY * (headW / 2);
+        const rightX = baseX - perpX * (headW / 2);
+        const rightY = baseY - perpY * (headW / 2);
+
+        const shaftGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ax, ay, 0), new THREE.Vector3(baseX, baseY, 0)]);
+        const headGeom = new THREE.BufferGeometry();
+        headGeom.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute([bx, by, 0, leftX, leftY, 0, rightX, rightY, 0], 3),
+        );
+
+        return (
+          <group key={it.id}>
+            <line geometry={shaftGeom}>
+              <lineBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
+            </line>
+            <mesh geometry={headGeom}>
+              <meshBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
+  );
+};
+
 const CameraParitySync: React.FC<{ viewTransform: ReturnType<typeof useUIStore.getState>['viewTransform'] }> = ({ viewTransform }) => {
   const { camera, size } = useThree();
   useEffect(() => {
@@ -227,6 +464,30 @@ const CameraParitySync: React.FC<{ viewTransform: ReturnType<typeof useUIStore.g
 const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) => {
   const meshGeometry = useMemo(() => new THREE.BufferGeometry(), []);
   const lineGeometry = useMemo(() => new THREE.BufferGeometry(), []);
+
+  const sharedVertexColorMaterial = useMemo(() => {
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: {},
+      vertexShader: `
+        attribute vec4 color;
+        varying vec4 vColor;
+        void main() {
+          vColor = color;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec4 vColor;
+        void main() {
+          gl_FragColor = vColor;
+        }
+      `,
+    });
+    mat.side = THREE.DoubleSide;
+    return mat;
+  }, []);
 
   // Removed attrRefs as they are no longer the source of truth for updates.
 
@@ -257,7 +518,9 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
 
       geometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 0));
       
-      if (floatsPerVertex === 6) {
+      if (floatsPerVertex === 7) {
+        geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedBuffer, 4, 3));
+      } else if (floatsPerVertex === 6) {
         geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 3));
       } else {
         geometry.deleteAttribute('color');
@@ -283,13 +546,13 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
     const forceRebind = module.HEAPF32.buffer !== lastHeapRef.current;
 
     if (meshMeta.floatCount > 0) {
-      bindInterleavedAttribute(meshGeometry, meshMeta, forceRebind || meshGenChanged, 6);
+      bindInterleavedAttribute(meshGeometry, meshMeta, forceRebind || meshGenChanged, 7);
     } else {
       meshGeometry.setDrawRange(0, 0);
     }
 
     if (lineMeta.floatCount > 0) {
-      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 6);
+      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 7);
     } else {
       lineGeometry.setDrawRange(0, 0);
     }
@@ -306,12 +569,8 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
 
   return (
     <>
-      <mesh geometry={meshGeometry} frustumCulled={false}>
-        <meshBasicMaterial vertexColors={true} />
-      </mesh>
-      <lineSegments geometry={lineGeometry} frustumCulled={false}>
-        <lineBasicMaterial vertexColors={true} linewidth={1} />
-      </lineSegments>
+      <mesh geometry={meshGeometry} material={sharedVertexColorMaterial} frustumCulled={false} />
+      <lineSegments geometry={lineGeometry} material={sharedVertexColorMaterial} frustumCulled={false} />
     </>
   );
 };
@@ -558,6 +817,7 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
         <CameraParitySync viewTransform={viewTransform} />
         <ambientLight intensity={0.8} />
         <SharedGeometry module={module} engine={engine} onBufferMeta={handleBufferMeta} />
+        <OverlayShapesLayer />
         <SymbolAtlasLayer />
         <TextSdfLayer />
         <axesHelper args={[5]} />

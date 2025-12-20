@@ -38,6 +38,7 @@ const rectShape = (overrides: Partial<Shape> = {}): Shape => ({
   height: 4,
   strokeColor: '#FF0000',
   strokeEnabled: true,
+  strokeOpacity: 100,
   fillColor: '#00FF00',
   fillEnabled: true,
   fillOpacity: 100,
@@ -55,6 +56,7 @@ const lineShape = (overrides: Partial<Shape> = {}): Shape => ({
   ],
   strokeColor: '#FF0000',
   strokeEnabled: true,
+  strokeOpacity: 100,
   fillColor: 'transparent',
   fillEnabled: false,
   colorMode: getDefaultColorMode(),
@@ -79,6 +81,7 @@ describe('shapeToEngineCommand (colors + inheritance)', () => {
     expect(cmd.rect.strokeR).toBeCloseTo(0x11 / 255, 6);
     expect(cmd.rect.strokeG).toBeCloseTo(0x22 / 255, 6);
     expect(cmd.rect.strokeB).toBeCloseTo(0x33 / 255, 6);
+    expect(cmd.rect.strokeA).toBeCloseTo(1, 6);
     expect(cmd.rect.strokeEnabled).toBe(1);
 
     // #AABBCC => (0xAA,0xBB,0xCC)
@@ -104,6 +107,7 @@ describe('shapeToEngineCommand (colors + inheritance)', () => {
     expect(cmd.rect.strokeR).toBeCloseTo(0x11 / 255, 6);
     expect(cmd.rect.strokeG).toBeCloseTo(0x22 / 255, 6);
     expect(cmd.rect.strokeB).toBeCloseTo(0x33 / 255, 6);
+    expect(cmd.rect.strokeA).toBeCloseTo(1, 6);
     expect(cmd.rect.strokeEnabled).toBe(1);
 
     expect(cmd.rect.fillR).toBeCloseTo(0xaa / 255, 6);
@@ -138,6 +142,7 @@ describe('shapeToEngineCommand (colors + inheritance)', () => {
     expect(cmd.line.r).toBeCloseTo(0x11 / 255, 6);
     expect(cmd.line.g).toBeCloseTo(0x22 / 255, 6);
     expect(cmd.line.b).toBeCloseTo(0x33 / 255, 6);
+    expect(cmd.line.a).toBeCloseTo(1, 6);
     expect(cmd.line.enabled).toBe(0);
   });
 });
@@ -169,4 +174,3 @@ describe('layer-driven re-upserts', () => {
     expect(ids).toHaveLength(3);
   });
 });
-
