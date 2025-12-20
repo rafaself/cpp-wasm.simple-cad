@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Shape } from '@/types';
+import type { Layer, Shape } from '@/types';
 import { useDataStore } from '@/stores/useDataStore';
 import { CommandOp, type EngineCommand } from './commandBuffer';
 import { getEngineRuntime } from './singleton';
@@ -8,7 +8,7 @@ import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFi
 
 type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'arrow' | 'eletroduto';
 
-const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
+export const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
   return (
     (s.type === 'rect' && !s.svgSymbolId && !s.svgRaw) ||
     s.type === 'line' ||
@@ -18,7 +18,9 @@ const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } =
   );
 };
 
-const toUpsertCommand = (shape: Shape, layer: { strokeColor: string; strokeEnabled: boolean; fillColor: string; fillEnabled: boolean } | null, ensureId: (id: string) => number): EngineCommand | null => {
+export type LayerStyle = Pick<Layer, 'strokeColor' | 'strokeEnabled' | 'fillColor' | 'fillEnabled'>;
+
+export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ensureId: (id: string) => number): EngineCommand | null => {
   if (!isSupportedShape(shape)) return null;
   const id = ensureId(shape.id);
 
@@ -86,6 +88,54 @@ const toUpsertCommand = (shape: Shape, layer: { strokeColor: string; strokeEnabl
   const points = shape.points;
   if (!points || points.length < 2) return null;
   return { op: CommandOp.UpsertPolyline, id, polyline: { points, r: strokeR, g: strokeG, b: strokeB, enabled: strokeEnabled } };
+};
+
+export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers: readonly Layer[]): Set<string> => {
+  const changedLayerIds = new Set<string>();
+  if (nextLayers === prevLayers) return changedLayerIds;
+
+  const prevById = new Map(prevLayers.map((l) => [l.id, l]));
+  for (const l of nextLayers) {
+    const prevL = prevById.get(l.id);
+    if (!prevL) continue;
+    if (
+      l.strokeColor !== prevL.strokeColor ||
+      l.fillColor !== prevL.fillColor ||
+      l.strokeEnabled !== prevL.strokeEnabled ||
+      l.fillEnabled !== prevL.fillEnabled
+    ) {
+      changedLayerIds.add(l.id);
+    }
+  }
+  return changedLayerIds;
+};
+
+export const computeLayerDrivenReupsertCommands = (
+  shapes: Readonly<Record<string, Shape>>,
+  layers: readonly Layer[],
+  changedLayerIds: ReadonlySet<string>,
+  ensureId: (id: string) => number,
+): EngineCommand[] => {
+  if (changedLayerIds.size === 0) return [];
+
+  const layersById = new Map(layers.map((l) => [l.id, l]));
+  const out: EngineCommand[] = [];
+
+  for (const id of Object.keys(shapes).sort((a, b) => a.localeCompare(b))) {
+    const s = shapes[id]!;
+    if (!changedLayerIds.has(s.layerId)) continue;
+    if (!isSupportedShape(s)) continue;
+
+    const mode = getShapeColorMode(s);
+    const dependsOnLayer = mode.stroke === 'layer' || (s.type === 'rect' && mode.fill === 'layer');
+    if (!dependsOnLayer) continue;
+
+    const layer = layersById.get(s.layerId) ?? null;
+    const cmd = shapeToEngineCommand(s, layer, ensureId);
+    if (cmd) out.push(cmd);
+  }
+
+  return out;
 };
 
 const toUpsertSymbolCommand = (shape: Shape, ensureId: (id: string) => number): EngineCommand | null => {
@@ -160,7 +210,7 @@ export const useEngineStoreSync = (): void => {
 
       for (const s of initialShapes) {
         const layer = initialLayersById.get(s.layerId) ?? null;
-        const cmd = toUpsertCommand(s, layer, ensureId);
+        const cmd = shapeToEngineCommand(s, layer, ensureId);
         if (cmd) initialCommands.push(cmd);
       }
       runtime.apply(initialCommands);
@@ -176,22 +226,7 @@ export const useEngineStoreSync = (): void => {
         const prevLayers = prev.layers;
         const layersById = new Map(nextLayers.map((l) => [l.id, l]));
 
-        const changedLayerIds = new Set<string>();
-        if (nextLayers !== prevLayers) {
-          const prevById = new Map(prevLayers.map((l) => [l.id, l]));
-          for (const l of nextLayers) {
-            const prevL = prevById.get(l.id);
-            if (!prevL) continue;
-            if (
-              l.strokeColor !== prevL.strokeColor ||
-              l.fillColor !== prevL.fillColor ||
-              l.strokeEnabled !== prevL.strokeEnabled ||
-              l.fillEnabled !== prevL.fillEnabled
-            ) {
-              changedLayerIds.add(l.id);
-            }
-          }
-        }
+        const changedLayerIds = computeChangedLayerIds(prevLayers, nextLayers);
 
         // Deletes
         for (const prevId of Object.keys(prevShapes).sort((a, b) => a.localeCompare(b))) {
@@ -235,7 +270,7 @@ export const useEngineStoreSync = (): void => {
           if (symCmd) commands.push(symCmd);
 
           const layer = layersById.get(nextShape.layerId) ?? null;
-          const cmd = toUpsertCommand(nextShape, layer, ensureId);
+          const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
           if (cmd) {
             commands.push(cmd);
           } else {
@@ -246,23 +281,7 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Layer style changes: re-upsert affected shapes even if the shape object did not change.
-        if (changedLayerIds.size) {
-          for (const id of Object.keys(nextShapes).sort((a, b) => a.localeCompare(b))) {
-            const s = nextShapes[id]!;
-            if (!changedLayerIds.has(s.layerId)) continue;
-            if (!isSupportedShape(s)) continue;
-
-            const mode = getShapeColorMode(s);
-            const dependsOnLayer =
-              mode.stroke === 'layer' ||
-              (s.type === 'rect' && mode.fill === 'layer');
-            if (!dependsOnLayer) continue;
-
-            const layer = layersById.get(s.layerId) ?? null;
-            const cmd = toUpsertCommand(s, layer, ensureId);
-            if (cmd) commands.push(cmd);
-          }
-        }
+        commands.push(...computeLayerDrivenReupsertCommands(nextShapes, nextLayers, changedLayerIds, ensureId));
 
         if (commands.length) runtime.apply(commands);
       });
