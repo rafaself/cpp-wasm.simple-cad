@@ -8,7 +8,6 @@ import { screenToWorld, getShapeBounds } from '@/utils/geometry';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { getShapeBoundingBox } from '@/utils/geometry';
 import type { Shape } from '@/types';
 import TextSdfLayer from './TextSdfLayer';
 import SymbolAtlasLayer from './SymbolAtlasLayer';
@@ -263,8 +262,8 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
       } else {
         geometry.deleteAttribute('color');
       }
-      
-      lastHeapRef.current = module.HEAPF32.buffer;
+
+      lastHeapRef.current = module.HEAPF32.buffer as ArrayBuffer;
     }
     
     geometry.setDrawRange(0, meta.vertexCount);
