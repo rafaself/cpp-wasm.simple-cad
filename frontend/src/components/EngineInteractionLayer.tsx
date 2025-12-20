@@ -3,8 +3,9 @@ import type { ElectricalElement } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint } from '@/utils/geometry';
+import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint, getRectCornersWorld, supportsBBoxResize, worldToScreen } from '@/utils/geometry';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
+import SelectionOverlay from './SelectionOverlay';
 import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
 import { generateId } from '@/utils/uuid';
 import type { Shape } from '@/types';
@@ -42,16 +43,6 @@ const toWorldPoint = (
   const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
   const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
   return screenToWorld(screen, viewTransform);
-};
-
-const worldToScreen = (
-  world: { x: number; y: number },
-  viewTransform: ReturnType<typeof useUIStore.getState>['viewTransform'],
-): { x: number; y: number } => {
-  return {
-    x: world.x * viewTransform.scale + viewTransform.x,
-    y: viewTransform.y - world.y * viewTransform.scale,
-  };
 };
 
 const pointSegmentDistance = (
@@ -174,10 +165,6 @@ const snapVectorTo45Deg = (from: { x: number; y: number }, to: { x: number; y: n
   return { x: from.x + len * Math.cos(snappedAngle), y: from.y + len * Math.sin(snappedAngle) };
 };
 
-const supportsBBoxResize = (shape: Shape): boolean => {
-  return shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon';
-};
-
 const applyResizeToShape = (
   shape: Shape,
   applyMode: ResizeState['applyMode'],
@@ -191,21 +178,6 @@ const applyResizeToShape = (
     return { x: clampTiny(center.x), y: clampTiny(center.y), width: clampTiny(w), height: clampTiny(h), scaleX, scaleY };
   }
   return { x: clampTiny(center.x - w / 2), y: clampTiny(center.y - h / 2), width: clampTiny(w), height: clampTiny(h), scaleX, scaleY };
-};
-
-const getRectCornersWorld = (shape: Shape): { corners: { x: number; y: number }[]; center: { x: number; y: number } } | null => {
-  const bbox = getShapeBoundingBox(shape);
-  if (!isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) return null;
-  const rotation = shape.rotation || 0;
-  const center = getShapeCenter(shape);
-  const corners = [
-    { x: bbox.x, y: bbox.y },
-    { x: bbox.x + bbox.width, y: bbox.y },
-    { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
-    { x: bbox.x, y: bbox.y + bbox.height },
-  ];
-  const rotated = rotation ? corners.map((c) => rotatePoint(c, center, rotation)) : corners;
-  return { corners: rotated, center };
 };
 
 const EngineInteractionLayer: React.FC = () => {
@@ -225,9 +197,6 @@ const EngineInteractionLayer: React.FC = () => {
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
-
-  const shapesById = useDataStore((s) => s.shapes);
-  const layers = useDataStore((s) => s.layers);
 
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const isPanningRef = useRef(false);
@@ -1551,158 +1520,6 @@ const EngineInteractionLayer: React.FC = () => {
     );
   }, [canvasSize.height, canvasSize.width, selectionBox, viewTransform]);
 
-  const selectedOverlaySvg = useMemo(() => {
-    if (selectedShapeIds.size === 0) return null;
-    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
-
-    const stroke = '#3b82f6';
-
-    const items: Array<{
-      id: string;
-      outline:
-        | { kind: 'poly'; points: { x: number; y: number }[] }
-        | { kind: 'polyline'; points: { x: number; y: number }[] }
-        | { kind: 'rect'; x: number; y: number; w: number; h: number }
-        | { kind: 'segment'; a: { x: number; y: number }; b: { x: number; y: number } };
-      handles: { x: number; y: number }[];
-    }> = [];
-
-    selectedShapeIds.forEach((id) => {
-      const shape = shapesById[id];
-      if (!shape) return;
-      const layer = layers.find((l) => l.id === shape.layerId);
-      if (layer && (!layer.visible || layer.locked)) return;
-      if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) return;
-
-      if (shape.type === 'line' || shape.type === 'arrow') {
-        const a = shape.points?.[0];
-        const b = shape.points?.[1];
-        if (!a || !b) return;
-        const aa = worldToScreen(a, viewTransform);
-        const bb = worldToScreen(b, viewTransform);
-        items.push({
-          id,
-          outline: { kind: 'segment', a: aa, b: bb },
-          handles: [aa, bb],
-        });
-        return;
-      }
-
-      if (shape.type === 'polyline') {
-        const pts = (shape.points ?? []).map((p) => worldToScreen(p, viewTransform));
-        if (pts.length < 2) return;
-        items.push({
-          id,
-          outline: { kind: 'polyline', points: pts },
-          handles: pts,
-        });
-        return;
-      }
-
-      if (supportsBBoxResize(shape)) {
-        const r = getRectCornersWorld(shape);
-        if (!r) return;
-        const handles = getShapeHandles(shape)
-          .filter((h) => h.type === 'resize')
-          .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform));
-        items.push({
-          id,
-          outline: { kind: 'poly', points: r.corners.map((p) => worldToScreen(p, viewTransform)) },
-          handles,
-        });
-        return;
-      }
-
-      // Fallback: axis-aligned bbox (screen space) without handles.
-      const bbox = getShapeBoundingBox(shape);
-      const a = worldToScreen({ x: bbox.x, y: bbox.y }, viewTransform);
-      const b = worldToScreen({ x: bbox.x + bbox.width, y: bbox.y + bbox.height }, viewTransform);
-      const x = Math.min(a.x, b.x);
-      const y = Math.min(a.y, b.y);
-      const w = Math.abs(a.x - b.x);
-      const h = Math.abs(a.y - b.y);
-      if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return;
-      items.push({ id, outline: { kind: 'rect', x, y, w, h }, handles: [] });
-    });
-
-    if (items.length === 0) return null;
-
-    const hs = HANDLE_SIZE_PX;
-    const hh = hs / 2;
-    return (
-      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {items.map((it) => {
-          if (it.outline.kind === 'poly') {
-            const pts = it.outline.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-            return (
-              <g key={it.id}>
-                <polygon points={pts} fill="transparent" stroke={stroke} strokeWidth={1} />
-                {it.handles.map((p, i) => (
-                  <rect
-                    key={i}
-                    x={p.x - hh}
-                    y={p.y - hh}
-                    width={hs}
-                    height={hs}
-                    fill="#ffffff"
-                    stroke={stroke}
-                    strokeWidth={1}
-                  />
-                ))}
-              </g>
-            );
-          }
-
-          if (it.outline.kind === 'polyline') {
-            const pts = it.outline.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-            return (
-              <g key={it.id}>
-                <polyline points={pts} fill="transparent" stroke={stroke} strokeWidth={1} />
-                {it.handles.map((p, i) => (
-                  <rect
-                    key={i}
-                    x={p.x - hh}
-                    y={p.y - hh}
-                    width={hs}
-                    height={hs}
-                    fill="#ffffff"
-                    stroke={stroke}
-                    strokeWidth={1}
-                  />
-                ))}
-              </g>
-            );
-          }
-
-          if (it.outline.kind === 'segment') {
-            return (
-              <g key={it.id}>
-                <line x1={it.outline.a.x} y1={it.outline.a.y} x2={it.outline.b.x} y2={it.outline.b.y} stroke={stroke} strokeWidth={1} />
-                {it.handles.map((p, i) => (
-                  <rect
-                    key={i}
-                    x={p.x - hh}
-                    y={p.y - hh}
-                    width={hs}
-                    height={hs}
-                    fill="#ffffff"
-                    stroke={stroke}
-                    strokeWidth={1}
-                  />
-                ))}
-              </g>
-            );
-          }
-
-          return (
-            <g key={it.id}>
-              <rect x={it.outline.x} y={it.outline.y} width={it.outline.w} height={it.outline.h} fill="transparent" stroke={stroke} strokeWidth={1} />
-            </g>
-          );
-        })}
-      </svg>
-    );
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, layers, selectedShapeIds, shapesById, viewTransform]);
 
   // Important: this is the only interactive layer above the WebGL canvas.
   return (
@@ -1716,7 +1533,7 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
-      {selectedOverlaySvg}
+      <SelectionOverlay />
       {selectionSvg}
       {textEditState ? (
         <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />

@@ -703,3 +703,22 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
     }
     return handles;
 };
+
+export const supportsBBoxResize = (shape: Shape): boolean => {
+  return shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon';
+};
+
+export const getRectCornersWorld = (shape: Shape): { corners: { x: number; y: number }[]; center: { x: number; y: number } } | null => {
+  const bbox = getShapeBoundingBox(shape);
+  if (!isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) return null;
+  const rotation = shape.rotation || 0;
+  const center = getShapeCenter(shape);
+  const corners = [
+    { x: bbox.x, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
+    { x: bbox.x, y: bbox.y + bbox.height },
+  ];
+  const rotated = rotation ? corners.map((c) => rotatePoint(c, center, rotation)) : corners;
+  return { corners: rotated, center };
+};
