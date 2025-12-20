@@ -7,6 +7,7 @@ import { resolveColor, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
 import { applyColorScheme, resolveColorScheme } from './colorScheme';
 import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
 import { Shape } from '../../../../types';
+import { generateId } from '../../../../utils/uuid';
 
 // Extend Input Options to include mode
 export interface ExtendedDxfWorkerInput extends DxfWorkerInput {
@@ -15,16 +16,6 @@ export interface ExtendedDxfWorkerInput extends DxfWorkerInput {
 }
 
 const parser = new DxfParser();
-
-const generateUuid = () => {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-};
 
 const sanitizeLayerId = (name: string): string => {
     return name.replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -67,7 +58,7 @@ self.onmessage = (e: MessageEvent<ExtendedDxfWorkerInput>) => {
 
         // Create a single Shape of type 'rect' (as container)
         // Center it based on viewBox
-        const shapeId = generateUuid();
+        const shapeId = generateId();
         const width = viewBox.width * unitsScale;
         const height = viewBox.height * unitsScale;
         const x = viewBox.x;
