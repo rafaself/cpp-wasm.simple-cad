@@ -7,7 +7,7 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, getRectCornersWorld, getShapeBounds } from '@/utils/geometry';
+import { screenToWorld, getShapeBounds } from '@/utils/geometry';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -429,7 +429,7 @@ const OverlayShapesLayer: React.FC = () => {
 
         return (
           <group key={it.id}>
-            <mesh geometry={headGeom}>
+            <mesh geometry={headGeom} renderOrder={30}>
               <meshBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
             </mesh>
           </group>
@@ -526,6 +526,8 @@ const StrokeSegmentsLayer: React.FC = () => {
 
       if (shape.type === 'rect' && (shape.svgSymbolId || shape.svgRaw)) continue;
       if (shape.type === 'text') continue;
+      // Closed-shape strokes are handled by screen-space StrokeOverlay (inside-only).
+      if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') continue;
 
       const layer = layerById.get(shape.layerId) as Layer | undefined;
       if (layer && !layer.visible) continue;
@@ -550,16 +552,6 @@ const StrokeSegmentsLayer: React.FC = () => {
         const pts = shape.points ?? [];
         if (pts.length < 2) continue;
         for (let i = 0; i + 1 < pts.length; i++) addSegment(key, pts[i]!, pts[i + 1]!);
-        continue;
-      }
-
-      if (shape.type === 'rect') {
-        const corners = getRectCornersWorld(shape)?.corners;
-        if (!corners || corners.length !== 4) continue;
-        addSegment(key, corners[0]!, corners[1]!);
-        addSegment(key, corners[1]!, corners[2]!);
-        addSegment(key, corners[2]!, corners[3]!);
-        addSegment(key, corners[3]!, corners[0]!);
         continue;
       }
 
@@ -833,6 +825,7 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
   const setViewTransform = useUIStore((state) => state.setViewTransform);
   const selectedShapeIds = useUIStore((state) => state.selectedShapeIds);
   const setSelectedShapeIds = useUIStore((state) => state.setSelectedShapeIds);
+  const isEditingAppearance = useUIStore((state) => state.isEditingAppearance);
   const snapOptions = useSettingsStore((state) => state.snap);
   const gridSize = useSettingsStore((state) => state.grid.size);
 
@@ -1016,7 +1009,7 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
         <SymbolAtlasLayer />
         <TextSdfLayer />
         <axesHelper args={[5]} />
-        <SelectionOverlay selectedIds={selectedShapeIds} />
+        {!isEditingAppearance ? <SelectionOverlay selectedIds={selectedShapeIds} /> : null}
         {!embedded && snapPoint ? (
           <mesh position={[snapPoint.x, snapPoint.y, 0]}>
             <sphereGeometry args={[0.1, 8, 8]} />

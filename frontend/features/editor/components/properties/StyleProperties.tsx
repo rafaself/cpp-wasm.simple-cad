@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ColorInheritanceMode, Shape, ShapeColorMode } from '../../../../types';
 import { useDataStore } from '../../../../stores/useDataStore';
+import { useUIStore } from '../../../../stores/useUIStore';
 import { CircleDot, Link, Unlink } from 'lucide-react';
 import ColorPicker from '../../../../components/ColorPicker';
 import { 
@@ -19,6 +20,7 @@ interface StylePropertiesProps {
 
 export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape }) => {
   const store = useDataStore();
+  const setIsEditingAppearance = useUIStore((s) => s.setIsEditingAppearance);
   const [colorPickerTarget, setColorPickerTarget] = useState<'fill' | 'stroke' | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
   const layer = store.layers.find(l => l.id === selectedShape.layerId);
@@ -46,6 +48,38 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   const updateProp = (prop: keyof Shape, value: any) => {
     store.updateShape(selectedShape.id, { [prop]: value });
   };
+
+  const pointerEditCleanupRef = useRef<(() => void) | null>(null);
+
+  const beginPointerEdit = useCallback(() => {
+    setIsEditingAppearance(true);
+    if (pointerEditCleanupRef.current) return;
+
+    const end = () => {
+      pointerEditCleanupRef.current?.();
+      pointerEditCleanupRef.current = null;
+      setIsEditingAppearance(false);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointerup', end, true);
+      window.removeEventListener('pointercancel', end, true);
+      window.removeEventListener('blur', end, true);
+    };
+
+    pointerEditCleanupRef.current = cleanup;
+    window.addEventListener('pointerup', end, true);
+    window.addEventListener('pointercancel', end, true);
+    window.addEventListener('blur', end, true);
+  }, [setIsEditingAppearance]);
+
+  useEffect(() => {
+    return () => {
+      pointerEditCleanupRef.current?.();
+      pointerEditCleanupRef.current = null;
+      setIsEditingAppearance(false);
+    };
+  }, [setIsEditingAppearance]);
 
   const setColorMode = (target: 'fill' | 'stroke', mode: ColorInheritanceMode) => {
     const current = target === 'fill' ? fillMode : strokeMode;
@@ -157,7 +191,11 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   };
 
   return (
-    <>
+    <div
+      onFocusCapture={() => setIsEditingAppearance(true)}
+      onBlurCapture={() => setIsEditingAppearance(false)}
+      onPointerDownCapture={beginPointerEdit}
+    >
       {/* --- LAYER INFO --- */}
       <div className="p-3 border-b border-slate-100">
         <div className="flex justify-between items-center">
@@ -414,6 +452,6 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
           />
         </>
       )}
-    </>
+    </div>
   );
 };

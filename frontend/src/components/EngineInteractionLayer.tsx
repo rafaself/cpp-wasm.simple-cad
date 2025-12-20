@@ -6,6 +6,7 @@ import { useDataStore } from '@/stores/useDataStore';
 import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint, getRectCornersWorld, supportsBBoxResize, worldToScreen } from '@/utils/geometry';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import SelectionOverlay from './SelectionOverlay';
+import StrokeOverlay from './StrokeOverlay';
 import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
 import { generateId } from '@/utils/uuid';
 import type { Shape } from '@/types';
@@ -1560,6 +1561,7 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
+      <StrokeOverlay />
       <SelectionOverlay />
       {selectionSvg}
       {textEditState ? (

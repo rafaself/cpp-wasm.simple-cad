@@ -229,7 +229,7 @@ const getConduitPathPoints = (shape: Shape): Point[] => {
   return shape.points;
 };
 
-const getPolygonVertices = (shape: Shape): Point[] => {
+export const getPolygonVertices = (shape: Shape): Point[] => {
   const cx = shape.x ?? 0;
   const cy = shape.y ?? 0;
   const sides = Math.max(3, Math.floor(shape.sides ?? 6));

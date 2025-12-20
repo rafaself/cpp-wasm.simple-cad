@@ -18,6 +18,7 @@ interface UIState {
   isSettingsModalOpen: boolean;
   isLayerManagerOpen: boolean;
   editingTextId: string | null;
+  isEditingAppearance: boolean;
 
 
   
@@ -44,6 +45,7 @@ interface UIState {
   setSettingsModalOpen: (isOpen: boolean) => void;
   setLayerManagerOpen: (isOpen: boolean) => void;
   setEditingTextId: (id: string | null) => void;
+  setIsEditingAppearance: (isEditing: boolean) => void;
 
   setActiveFloorId: (id: string) => void;
   setActiveDiscipline: (discipline: 'architecture' | 'electrical') => void;
@@ -69,6 +71,7 @@ export const useUIStore = create<UIState>((set) => ({
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
   editingTextId: null,
+  isEditingAppearance: false,
 
   activeFloorId: 'terreo',
   activeDiscipline: 'electrical',
@@ -146,6 +149,7 @@ export const useUIStore = create<UIState>((set) => ({
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
   setEditingTextId: (id) => set({ editingTextId: id }),
+  setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
 
   setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
   setActiveDiscipline: (discipline) =>
