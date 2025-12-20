@@ -131,7 +131,7 @@ type MoveState = { start: { x: number; y: number }; snapshot: Map<string, Shape>
 
 type ResizeState = {
   shapeId: string;
-  handleIndex: number; // 0 TL, 1 TR, 2 BR, 3 BL (matches geometry.ts corners order)
+  handleIndex: number; // 0 BL, 1 BR, 2 TR, 3 TL (matches geometry.ts corners order)
   fixedCornerIndex: number;
   fixedCornerWorld: { x: number; y: number };
   startPointerWorld: { x: number; y: number };
@@ -721,7 +721,7 @@ const EngineInteractionLayer: React.FC = () => {
         { x: clampTiny(start.x), y: clampTiny(start.y) },
         { x: clampTiny(end.x), y: clampTiny(end.y) },
       ],
-      arrowHeadSize: Math.max(16, strokeWidth * 10),
+      arrowHeadSize: Math.round(Math.max(16, strokeWidth * 10) * 1.1),
       strokeColor,
       strokeWidth,
       strokeEnabled,
@@ -1034,10 +1034,10 @@ const EngineInteractionLayer: React.FC = () => {
         const vWorld = { x: snapped.x - fixed.x, y: snapped.y - fixed.y };
         const vLocal = rotateVec(vWorld, -rotation);
 
-        const expectedSignX = state.fixedCornerIndex === 0 || state.fixedCornerIndex === 3 ? 1 : -1;
-        const expectedSignY = state.fixedCornerIndex === 0 || state.fixedCornerIndex === 1 ? 1 : -1;
-        const rawW0 = expectedSignX * vLocal.x;
-        const rawH0 = expectedSignY * vLocal.y;
+        // Always treat the fixed corner as local origin; the signed vector to the pointer defines size and flip.
+        // This keeps behavior consistent across all corners (Figma-like).
+        const rawW0 = vLocal.x;
+        const rawH0 = vLocal.y;
 
         const bbox0 = getShapeBoundingBox(state.snapshot);
         const eps = 1e-3;
