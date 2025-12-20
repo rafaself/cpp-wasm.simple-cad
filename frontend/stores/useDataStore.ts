@@ -103,8 +103,7 @@ const buildInitialState = () => ({
   diagramNodes: {} as Record<string, DiagramNode>,
   diagramEdges: {} as Record<string, DiagramEdge>,
   layers: [
-    { id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true },
-    { id: 'eletrodutos', name: 'Eletrodutos', strokeColor: '#8b5cf6', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: false, visible: true, locked: false, isNative: true }
+    { id: 'desenho', name: 'Desenho', strokeColor: '#ffffff', strokeEnabled: true, fillColor: "transparent", fillEnabled: true, visible: true, locked: false, isNative: true },
   ] as Layer[],
   activeLayerId: 'desenho',
   worldScale: 100,

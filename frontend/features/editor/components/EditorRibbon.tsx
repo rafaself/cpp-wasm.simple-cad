@@ -338,6 +338,7 @@ const EditorRibbon: React.FC = () => {
           return `<tr><td>${c.id}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${c.length}</td></tr>`;
       }).join('');
 
+      // TODO: Otimizar essa parte
       const html = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Relatorio de Conexoes</title>
 <style>
