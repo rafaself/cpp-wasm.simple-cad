@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  MousePointer2, Hand, Minus, Circle, Square, Hexagon, Activity, 
+  MousePointer2, Hand, Minus, Circle, Square, Triangle, Activity, 
   MoveDiagonal, Ruler, Trash2, Combine, Spline, Layers, Palette,
   Scan, Expand, Settings, Undo, Redo,
   AlignLeft, AlignCenterHorizontal, AlignRight,
@@ -18,7 +18,7 @@ export const IconMap: Record<string, React.ReactNode> = {
   'Arc': <Spline size={20} />,
   'Conduit': <Spline size={20} className="transform rotate-90" />,
   'Rect': <Square size={20} />,
-  'Polygon': <Hexagon size={20} />,
+  'Polygon': <Triangle size={20} />,
   'Select': <MousePointer2 size={20} />,
   'Delete': <Trash2 size={18} />,
   'Join': <Combine size={18} />,

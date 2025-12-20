@@ -148,7 +148,8 @@ export const useUIStore = create<UIState>((set) => ({
   setEditingTextId: (id) => set({ editingTextId: id }),
 
   setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
-  setActiveDiscipline: (discipline) => set({ activeDiscipline: discipline, selectedShapeIds: new Set() }),
+  setActiveDiscipline: (discipline) =>
+    set((state) => (state.activeDiscipline === discipline ? state : { activeDiscipline: discipline, selectedShapeIds: new Set() })),
 
   setElectricalSymbolId: (id) => set({ activeElectricalSymbolId: id }),
   rotateElectricalPreview: (delta) => set((state) => {

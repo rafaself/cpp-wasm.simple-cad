@@ -2,9 +2,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, getShapeBounds } from '@/utils/geometry';
+import { screenToWorld, getRectCornersWorld, getShapeBounds } from '@/utils/geometry';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -219,7 +222,7 @@ const OverlayShapesLayer: React.FC = () => {
   const items = useMemo(() => {
     const out: Array<
       | { kind: 'ellipse'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
-      | { kind: 'polygon'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; sides: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
+      | { kind: 'polygon'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; sides: number; sx: number; sy: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
       | { kind: 'arrow'; id: string; a: { x: number; y: number }; b: { x: number; y: number }; head: number; stroke: { color: string; opacity: number } }
     > = [];
 
@@ -269,6 +272,8 @@ const OverlayShapesLayer: React.FC = () => {
         const ry = h / 2;
         const rot = shape.rotation ?? 0;
         const sides = Math.max(3, Math.floor(shape.sides ?? 6));
+        const sx = shape.scaleX ?? 1;
+        const sy = shape.scaleY ?? 1;
 
         const fillEnabled = isFillEffectivelyEnabled(shape, layer) && getEffectiveFillColor(shape, layer) !== 'transparent';
         const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
@@ -282,6 +287,8 @@ const OverlayShapesLayer: React.FC = () => {
           ry,
           rot,
           sides,
+          sx,
+          sy,
           fill: fillEnabled
             ? { color: getEffectiveFillColor(shape, layer), opacity: (shape.fillOpacity ?? 100) / 100 }
             : undefined,
@@ -348,11 +355,6 @@ const OverlayShapesLayer: React.FC = () => {
                   <meshBasicMaterial color={it.fill.color} transparent opacity={it.fill.opacity} depthWrite={false} />
                 </mesh>
               ) : null}
-              {it.stroke && it.stroke.opacity > 0 ? (
-                <line geometry={lineGeom}>
-                  <lineBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
-                </line>
-              ) : null}
             </group>
           );
         }
@@ -360,10 +362,12 @@ const OverlayShapesLayer: React.FC = () => {
         if (it.kind === 'polygon') {
           const pts = Array.from({ length: it.sides + 1 }, (_, i) => {
             const t = (i / it.sides) * Math.PI * 2 - Math.PI / 2;
-            const x = it.cx + Math.cos(t) * it.rx;
-            const y = it.cy + Math.sin(t) * it.ry;
-            const rotated = it.rot ? new THREE.Vector3(x, y, 0).sub(new THREE.Vector3(it.cx, it.cy, 0)).applyAxisAngle(new THREE.Vector3(0, 0, 1), it.rot).add(new THREE.Vector3(it.cx, it.cy, 0)) : new THREE.Vector3(x, y, 0);
-            return rotated;
+            const dx0 = Math.cos(t) * it.rx * it.sx;
+            const dy0 = Math.sin(t) * it.ry * it.sy;
+            if (!it.rot) return new THREE.Vector3(it.cx + dx0, it.cy + dy0, 0);
+            const c = Math.cos(it.rot);
+            const s = Math.sin(it.rot);
+            return new THREE.Vector3(it.cx + dx0 * c - dy0 * s, it.cy + dx0 * s + dy0 * c, 0);
           });
 
           const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
@@ -388,11 +392,6 @@ const OverlayShapesLayer: React.FC = () => {
                 <mesh geometry={fillGeom}>
                   <meshBasicMaterial color={it.fill.color} transparent opacity={it.fill.opacity} depthWrite={false} />
                 </mesh>
-              ) : null}
-              {it.stroke && it.stroke.opacity > 0 ? (
-                <line geometry={lineGeom}>
-                  <lineBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
-                </line>
               ) : null}
             </group>
           );
@@ -430,15 +429,218 @@ const OverlayShapesLayer: React.FC = () => {
 
         return (
           <group key={it.id}>
-            <line geometry={shaftGeom}>
-              <lineBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
-            </line>
             <mesh geometry={headGeom}>
               <meshBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
             </mesh>
           </group>
         );
       })}
+    </>
+  );
+};
+
+type StrokeGroupKey = string;
+type StrokeGroup = {
+  key: StrokeGroupKey;
+  color: string;
+  opacity: number;
+  widthPx: number;
+  positions: Float32Array;
+};
+
+const StrokeSegments: React.FC<{ group: StrokeGroup }> = ({ group }) => {
+  const geom = useMemo(() => new LineSegmentsGeometry(), []);
+  const mat = useMemo(
+    () =>
+      new LineMaterial({
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    [],
+  );
+  const line = useMemo(() => new LineSegments2(geom, mat), [geom, mat]);
+  const { size } = useThree();
+
+  useEffect(() => {
+    line.renderOrder = 25;
+    line.frustumCulled = false;
+  }, [line]);
+
+  useEffect(() => {
+    geom.setPositions(group.positions);
+    geom.computeBoundingBox();
+    geom.computeBoundingSphere();
+  }, [geom, group.positions]);
+
+  useEffect(() => {
+    mat.color.set(group.color);
+    mat.opacity = group.opacity;
+    mat.linewidth = group.widthPx;
+    mat.resolution.set(size.width, size.height);
+    mat.needsUpdate = true;
+  }, [group.color, group.opacity, group.widthPx, mat, size.height, size.width]);
+
+  useEffect(() => {
+    return () => {
+      line.geometry.dispose();
+      (line.material as LineMaterial).dispose();
+    };
+  }, [line]);
+
+  return <primitive object={line} />;
+};
+
+const StrokeSegmentsLayer: React.FC = () => {
+  const shapesById = useDataStore((s) => s.shapes);
+  const layers = useDataStore((s) => s.layers);
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+
+  const layerById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
+
+  const groups = useMemo((): StrokeGroup[] => {
+    const buckets = new Map<StrokeGroupKey, { color: string; opacity: number; widthPx: number; floats: number[] }>();
+
+    const addSegment = (key: StrokeGroupKey, a: { x: number; y: number }, b: { x: number; y: number }) => {
+      const bucket = buckets.get(key);
+      if (!bucket) return;
+      bucket.floats.push(a.x, a.y, 0, b.x, b.y, 0);
+    };
+
+    const ensureBucket = (color: string, opacity: number, widthPx: number) => {
+      const o = Math.max(0, Math.min(1, opacity));
+      const w = Math.max(1, Math.min(100, Math.round(widthPx)));
+      const key = `${color}|${o.toFixed(3)}|${w}`;
+      if (!buckets.has(key)) buckets.set(key, { color, opacity: o, widthPx: w, floats: [] });
+      return key;
+    };
+
+    const ellipseSegments = 64;
+
+    for (const id of Object.keys(shapesById)) {
+      const shape = shapesById[id]!;
+      if (!shape) continue;
+      if (shape.floorId && activeFloorId && shape.floorId !== activeFloorId) continue;
+      if (shape.discipline && activeDiscipline && shape.discipline !== activeDiscipline) continue;
+
+      if (shape.type === 'rect' && (shape.svgSymbolId || shape.svgRaw)) continue;
+      if (shape.type === 'text') continue;
+
+      const layer = layerById.get(shape.layerId) as Layer | undefined;
+      if (layer && !layer.visible) continue;
+
+      const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+      if (!strokeEnabled) continue;
+
+      const color = getEffectiveStrokeColor(shape, layer);
+      const opacity = Math.max(0, Math.min(100, shape.strokeOpacity ?? 100)) / 100;
+      const widthPx = shape.strokeWidth ?? 1;
+      const key = ensureBucket(color, opacity, widthPx);
+
+      if (shape.type === 'line' || shape.type === 'arrow') {
+        const p0 = shape.points?.[0];
+        const p1 = shape.points?.[1];
+        if (!p0 || !p1) continue;
+        addSegment(key, p0, p1);
+        continue;
+      }
+
+      if (shape.type === 'polyline' || shape.type === 'eletroduto') {
+        const pts = shape.points ?? [];
+        if (pts.length < 2) continue;
+        for (let i = 0; i + 1 < pts.length; i++) addSegment(key, pts[i]!, pts[i + 1]!);
+        continue;
+      }
+
+      if (shape.type === 'rect') {
+        const corners = getRectCornersWorld(shape)?.corners;
+        if (!corners || corners.length !== 4) continue;
+        addSegment(key, corners[0]!, corners[1]!);
+        addSegment(key, corners[1]!, corners[2]!);
+        addSegment(key, corners[2]!, corners[3]!);
+        addSegment(key, corners[3]!, corners[0]!);
+        continue;
+      }
+
+      if (shape.type === 'circle') {
+        if (shape.x === undefined || shape.y === undefined) continue;
+        const w = shape.width ?? (shape.radius ?? 50) * 2;
+        const h = shape.height ?? (shape.radius ?? 50) * 2;
+        const rx = w / 2;
+        const ry = h / 2;
+        const rot = shape.rotation ?? 0;
+        const c = rot ? Math.cos(rot) : 1;
+        const s = rot ? Math.sin(rot) : 0;
+        const cx = shape.x;
+        const cy = shape.y;
+
+        const prev = { x: cx + rx * c, y: cy + rx * s };
+        let prevP = prev;
+        for (let i = 1; i <= ellipseSegments; i++) {
+          const t = (i / ellipseSegments) * Math.PI * 2;
+          const lx = Math.cos(t) * rx;
+          const ly = Math.sin(t) * ry;
+          const px = rot ? cx + lx * c - ly * s : cx + lx;
+          const py = rot ? cy + lx * s + ly * c : cy + ly;
+          const nextP = { x: px, y: py };
+          addSegment(key, prevP, nextP);
+          prevP = nextP;
+        }
+        continue;
+      }
+
+      if (shape.type === 'polygon') {
+        if (shape.x === undefined || shape.y === undefined) continue;
+        const w = shape.width ?? (shape.radius ?? 50) * 2;
+        const h = shape.height ?? (shape.radius ?? 50) * 2;
+        const rx = w / 2;
+        const ry = h / 2;
+        const rot = shape.rotation ?? 0;
+        const sides = Math.max(3, Math.floor(shape.sides ?? 6));
+        const cx = shape.x;
+        const cy = shape.y;
+        const sx = shape.scaleX ?? 1;
+        const sy = shape.scaleY ?? 1;
+
+        const pts = Array.from({ length: sides }, (_, i) => {
+          const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
+          const dx0 = Math.cos(t) * rx * sx;
+          const dy0 = Math.sin(t) * ry * sy;
+          if (!rot) return { x: cx + dx0, y: cy + dy0 };
+          const c = Math.cos(rot);
+          const s = Math.sin(rot);
+          return { x: cx + dx0 * c - dy0 * s, y: cy + dx0 * s + dy0 * c };
+        });
+
+        for (let i = 0; i < pts.length; i++) {
+          const a = pts[i]!;
+          const b = pts[(i + 1) % pts.length]!;
+          addSegment(key, a, b);
+        }
+      }
+    }
+
+    const out: StrokeGroup[] = [];
+    for (const [key, bucket] of buckets) {
+      if (bucket.floats.length === 0) continue;
+      out.push({
+        key,
+        color: bucket.color,
+        opacity: bucket.opacity,
+        widthPx: bucket.widthPx,
+        positions: new Float32Array(bucket.floats),
+      });
+    }
+    out.sort((a, b) => a.key.localeCompare(b.key));
+    return out;
+  }, [activeDiscipline, activeFloorId, layerById, shapesById]);
+
+  return (
+    <>
+      {groups.map((g) => (
+        <StrokeSegments key={`${g.key}:${g.positions.length}`} group={g} />
+      ))}
     </>
   );
 };
@@ -463,7 +665,6 @@ const CameraParitySync: React.FC<{ viewTransform: ReturnType<typeof useUIStore.g
 
 const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) => {
   const meshGeometry = useMemo(() => new THREE.BufferGeometry(), []);
-  const lineGeometry = useMemo(() => new THREE.BufferGeometry(), []);
 
   const sharedVertexColorMaterial = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
@@ -551,12 +752,6 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
       meshGeometry.setDrawRange(0, 0);
     }
 
-    if (lineMeta.floatCount > 0) {
-      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 7);
-    } else {
-      lineGeometry.setDrawRange(0, 0);
-    }
-
     if ((meshGenChanged || lineGenChanged) && (meshMeta.generation !== sentMeshGenRef.current || lineMeta.generation !== sentLineGenRef.current)) {
       onBufferMeta({ triangles: meshMeta, lines: lineMeta });
       sentMeshGenRef.current = meshMeta.generation;
@@ -570,7 +765,6 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
   return (
     <>
       <mesh geometry={meshGeometry} material={sharedVertexColorMaterial} frustumCulled={false} />
-      <lineSegments geometry={lineGeometry} material={sharedVertexColorMaterial} frustumCulled={false} />
     </>
   );
 };
@@ -817,6 +1011,7 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
         <CameraParitySync viewTransform={viewTransform} />
         <ambientLight intensity={0.8} />
         <SharedGeometry module={module} engine={engine} onBufferMeta={handleBufferMeta} />
+        <StrokeSegmentsLayer />
         <OverlayShapesLayer />
         <SymbolAtlasLayer />
         <TextSdfLayer />

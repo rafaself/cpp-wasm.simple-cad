@@ -206,7 +206,7 @@ const EngineInteractionLayer: React.FC = () => {
   const [draft, setDraft] = useState<Draft>({ kind: 'none' });
   const draftRef = useRef<Draft>({ kind: 'none' });
   const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
-  const [polygonSidesValue, setPolygonSidesValue] = useState<number>(6);
+  const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
   const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
   const moveRef = useRef<MoveState | null>(null);
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
@@ -519,6 +519,13 @@ const EngineInteractionLayer: React.FC = () => {
     setDraft({ kind: 'none' });
   };
 
+  const finalizeDrawCreation = (id: string) => {
+    setSelectedShapeIds(new Set([id]));
+    const ui = useUIStore.getState();
+    ui.setSidebarTab('desenho');
+    ui.setTool('select');
+  };
+
   const commitLine = (start: { x: number; y: number }, end: { x: number; y: number }) => {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
@@ -550,7 +557,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitRect = (start: { x: number; y: number }, end: { x: number; y: number }) => {
@@ -586,7 +593,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitDefaultRectAt = (center: { x: number; y: number }) => {
@@ -627,7 +634,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitDefaultEllipseAt = (center: { x: number; y: number }) => {
@@ -660,7 +667,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitPolygon = (start: { x: number; y: number }, end: { x: number; y: number }) => {
@@ -675,6 +682,8 @@ const EngineInteractionLayer: React.FC = () => {
     const fillColor = layer?.fillColor ?? '#ffffff';
     const strokeEnabled = layer?.strokeEnabled !== false;
     const fillEnabled = layer?.fillEnabled !== false;
+    const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+    const rotation = clampedSides === 3 ? Math.PI : 0;
 
     const s: Shape = {
       id,
@@ -685,7 +694,8 @@ const EngineInteractionLayer: React.FC = () => {
       y: clampTiny(r.y + r.h / 2),
       width: clampTiny(r.w),
       height: clampTiny(r.h),
-      sides: 6,
+      sides: clampedSides,
+      rotation,
       strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled,
@@ -697,7 +707,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
@@ -710,6 +720,7 @@ const EngineInteractionLayer: React.FC = () => {
     const strokeEnabled = layer?.strokeEnabled !== false;
     const fillEnabled = layer?.fillEnabled !== false;
     const clampedSides = Math.max(3, Math.min(24, Math.floor(sides)));
+    const rotation = clampedSides === 3 ? Math.PI : 0;
 
     const s: Shape = {
       id,
@@ -721,6 +732,7 @@ const EngineInteractionLayer: React.FC = () => {
       width: 100,
       height: 100,
       sides: clampedSides,
+      rotation,
       strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled,
@@ -732,7 +744,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitPolyline = (points: { x: number; y: number }[]) => {
@@ -760,7 +772,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const commitArrow = (start: { x: number; y: number }, end: { x: number; y: number }) => {
@@ -796,7 +808,7 @@ const EngineInteractionLayer: React.FC = () => {
     };
 
     data.addShape(s);
-    setSelectedShapeIds(new Set([id]));
+    finalizeDrawCreation(id);
   };
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
@@ -1147,7 +1159,21 @@ const EngineInteractionLayer: React.FC = () => {
         const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
         const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
 
-        const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, state.snapshot.scaleX ?? 1, state.snapshot.scaleY ?? 1);
+        const baseScaleX = state.snapshot.scaleX ?? 1;
+        const baseScaleY = state.snapshot.scaleY ?? 1;
+        const expectedSignX = state.handleIndex === 1 || state.handleIndex === 2 ? 1 : -1;
+        const expectedSignY = state.handleIndex === 2 || state.handleIndex === 3 ? 1 : -1;
+
+        const nextSignX = Math.sign(rawW || expectedSignX) || expectedSignX;
+        const nextSignY = Math.sign(rawH || expectedSignY) || expectedSignY;
+
+        const flippedX = nextSignX !== expectedSignX;
+        const flippedY = nextSignY !== expectedSignY;
+
+        const nextScaleX = (flippedX ? -1 : 1) * baseScaleX;
+        const nextScaleY = (flippedY ? -1 : 1) * baseScaleY;
+
+        const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
         data.updateShape(state.shapeId, diff, false);
         return;
       }
@@ -1370,7 +1396,8 @@ const EngineInteractionLayer: React.FC = () => {
       setDraft({ kind: 'none' });
       if (prev.kind === 'polygon') {
         if (clickNoDrag) {
-          setPolygonSidesValue(6);
+          const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+          setPolygonSidesValue(clampedSides);
           setPolygonSidesModal({ center: prev.start });
         } else {
           commitPolygon(prev.start, prev.current);
@@ -1453,7 +1480,7 @@ const EngineInteractionLayer: React.FC = () => {
     }
 
     if (draft.kind === 'polygon') {
-      const sides = 6;
+      const sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
       const a = worldToScreen(draft.start, viewTransform);
       const b = worldToScreen(draft.current, viewTransform);
       const x = Math.min(a.x, b.x);
@@ -1561,7 +1588,8 @@ const EngineInteractionLayer: React.FC = () => {
                   type="button"
                   className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
                   onClick={() => {
-                    const sides = Number.isFinite(polygonSidesValue) ? polygonSidesValue : 6;
+                    const defaultSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+                    const sides = Number.isFinite(polygonSidesValue) ? polygonSidesValue : defaultSides;
                     commitDefaultPolygonAt(polygonSidesModal.center, sides);
                     setPolygonSidesModal(null);
                   }}

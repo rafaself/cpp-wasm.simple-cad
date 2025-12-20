@@ -184,7 +184,7 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
                   type="number"
                   min={3}
                   max={24}
-                  value={selectedShape.sides || 6}
+                  value={selectedShape.sides || 3}
                   onChange={(e) => {
                       const val = parseInt(e.target.value);
                       if (!isNaN(val) && val >= 3 && val <= 24) {

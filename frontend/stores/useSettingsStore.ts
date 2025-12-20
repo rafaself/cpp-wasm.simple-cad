@@ -117,7 +117,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     strokeWidth: 1,
     strokeEnabled: true,
     fillColor: 'transparent',
-    polygonSides: 5,
+    polygonSides: 3,
     text: {
       fontSize: 16,
       fontFamily: 'Inter',

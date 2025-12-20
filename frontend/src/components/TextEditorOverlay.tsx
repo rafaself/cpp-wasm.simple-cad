@@ -117,6 +117,7 @@ const TextEditorOverlay: React.FC<Props> = ({ textEditState, setTextEditState, v
 
         dataStore.addShape(n);
         uiStore.setSelectedShapeIds(new Set([id]));
+        uiStore.setSidebarTab('desenho');
       }
     } else if (textEditState.id) {
       dataStore.deleteShapes([textEditState.id]);
@@ -189,4 +190,3 @@ const TextEditorOverlay: React.FC<Props> = ({ textEditState, setTextEditState, v
 };
 
 export default TextEditorOverlay;
-
