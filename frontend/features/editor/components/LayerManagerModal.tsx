@@ -4,6 +4,7 @@ import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
 import { X, Plus, Trash2, Check, Eye, EyeOff, Lock, Unlock, Pen, PaintBucket } from 'lucide-react';
 import ColorPicker from '../../../components/ColorPicker';
+import { parseCssColorToHexAlpha } from '../../../utils/cssColor';
 
 const LayerManagerModal: React.FC = () => {
   const uiStore = useUIStore();
@@ -25,10 +26,12 @@ const LayerManagerModal: React.FC = () => {
 
   const handleColorChange = (newColor: string) => {
     if (colorPickerLayerId && colorPickerType) {
+      const parsed = parseCssColorToHexAlpha(newColor);
+      if (!parsed) return;
       if (colorPickerType === 'stroke') {
-        dataStore.setLayerStrokeColor(colorPickerLayerId, newColor);
+        dataStore.setLayerStrokeColor(colorPickerLayerId, parsed.hex);
       } else {
-        dataStore.setLayerFillColor(colorPickerLayerId, newColor);
+        dataStore.setLayerFillColor(colorPickerLayerId, parsed.hex);
       }
     }
   };

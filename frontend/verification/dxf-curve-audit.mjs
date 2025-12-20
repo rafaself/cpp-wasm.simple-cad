@@ -228,6 +228,5 @@ console.log('Smallest ARC samples:', topSmallArcs);
 console.log('Bulged LWPOLYLINE (count):', lwBulge.length);
 console.log('Bulged LWPOLYLINE with 2 vertices samples:', topBulge2v);
 console.log('Raw HATCH count:', hatchInEntities.length, 'patterns:', [...new Set(hatchInEntities.map((h) => h.pattern))]);
-console.log('Raw legacy POLYLINE-in-BLOCKS count:', polylineInBlocks.length, 'blocks:', [...new Set(polylineInBlocks.map((p) => p.block))]);
-console.log('First few legacy POLYLINE-in-BLOCKS:', polylineInBlocks.slice(0, 5));
-
+console.log('Raw POLYLINE-in-BLOCKS count:', polylineInBlocks.length, 'blocks:', [...new Set(polylineInBlocks.map((p) => p.block))]);
+console.log('First few POLYLINE-in-BLOCKS:', polylineInBlocks.slice(0, 5));

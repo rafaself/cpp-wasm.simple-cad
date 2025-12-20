@@ -1,0 +1,16 @@
+# Global ignores for docker builds
+.git
+.gitignore
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/public/wasm
+backend/.venv
+backend/__pycache__
+backend/.pytest_cache
+cpp/build
+*.log
+*.tmp
+*.swp
+resources/reports

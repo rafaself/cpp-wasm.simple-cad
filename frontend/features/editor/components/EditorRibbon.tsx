@@ -7,7 +7,6 @@ import { MENU_CONFIG, MenuItem } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
-import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor } from '../../../utils/shapeColors';
 import { Shape } from '../../../types';
 import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
@@ -16,9 +15,10 @@ import { getConnectionPoint } from '../snapEngine/detectors';
 import { resolveConnectionNodePosition } from '../../../utils/connections';
 import { FontFamilyControl, FontSizeControl, TextAlignControl, TextStyleControl, TextFormatGroup } from '../ribbon/components/TextControls';
 import LayerControl from '../ribbon/components/LayerControl';
-import ColorControl from '../ribbon/components/ColorControl';
 import GridControl from '../ribbon/components/GridControl';
 import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
+import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
+import { getEngineRuntime } from '@/engine/runtime/singleton';
 
 // Shared styles - using design tokens
 const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
@@ -38,7 +38,6 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     ElectricalLibrary: ElectricalRibbonGallery,
     ElectricalShortcuts,
     LayerControl,
-    ColorControl,
     GridControl,
 };
 
@@ -103,7 +102,7 @@ const EditorRibbon: React.FC = () => {
   const layerDropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
-  const isConduitShape = (s: Shape) => s.type === 'eletroduto' || s.type === 'conduit';
+  const isConduitShape = (s: Shape) => s.type === 'eletroduto';
 
   const serializeProject = useDataStore((state) => state.serializeProject);
   const worldScale = useDataStore((state) => state.worldScale);
@@ -135,6 +134,81 @@ const EditorRibbon: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
   }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
+
+  const saveNextDocument = useCallback(() => {
+      void (async () => {
+        const payload = {
+          worldScale,
+          frame,
+          project: serializeProject(),
+          history: { past: dataStore.past, future: dataStore.future },
+        };
+
+        const runtime = await getEngineRuntime();
+        const snapMeta = runtime.engine.getSnapshotBufferMeta();
+        const engineSnapshot = new Uint8Array(runtime.module.HEAPU8.subarray(snapMeta.ptr, snapMeta.ptr + snapMeta.byteCount));
+
+        const bytes = encodeNextDocumentFile(payload, { engineSnapshot });
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'eletrocad-next.ewnd';
+        a.click();
+        URL.revokeObjectURL(url);
+      })();
+  }, [dataStore.future, dataStore.past, frame, serializeProject, worldScale]);
+
+  const openNextDocument = useCallback(() => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.ewnd,application/octet-stream';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const buf = await file.arrayBuffer();
+        const payload = decodeNextDocumentFile(new Uint8Array(buf));
+
+        // The WASM runtime is a singleton; restore (or at least clear) it immediately
+        // to avoid rendering stale geometry from the previous document.
+        try {
+          const runtime = await getEngineRuntime();
+          runtime.resetIds();
+          if (payload.engineSnapshot && payload.engineSnapshot.byteLength > 0) {
+            runtime.loadSnapshotBytes(payload.engineSnapshot);
+          } else {
+            runtime.clear();
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        dataStore.loadSerializedProject({
+          project: payload.project,
+          worldScale: payload.worldScale,
+          frame: payload.frame,
+          history: payload.history,
+        });
+        useUIStore.getState().setSelectedShapeIds(new Set());
+        useUIStore.getState().setTool('select');
+      };
+      input.click();
+  }, [dataStore]);
+
+  const newNextDocument = useCallback(() => {
+      void (async () => {
+        try {
+          const runtime = await getEngineRuntime();
+          runtime.resetIds();
+          runtime.clear();
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+      dataStore.resetDocument();
+      useUIStore.getState().setSelectedShapeIds(new Set());
+      useUIStore.getState().setTool('select');
+  }, [dataStore]);
 
   const openProjectPreview = useCallback(() => {
       const project = serializeProject();
@@ -187,24 +261,21 @@ const EditorRibbon: React.FC = () => {
 
       const conduits = Object.values(shapes)
         .filter(isConduitShape)
-        .map(s => {
-            const fromNodeId = s.fromNodeId ?? null;
-            const toNodeId = s.toNodeId ?? null;
-            const from = s.fromConnectionId ?? s.connectedStartId ?? null;
-            const to = s.toConnectionId ?? s.connectedEndId ?? null;
-            if (!fromNodeId || !toNodeId) return null;
-            return {
-                id: s.id,
-                fromNodeId,
-                toNodeId,
-                fromConnectionId: from,
-                toConnectionId: to,
-                length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]) : null,
-                controlPoint: s.controlPoint,
-                layerId: s.layerId,
-            };
-        })
-        .filter(Boolean) as any[];
+        .flatMap((s) => {
+          const fromNodeId = s.fromNodeId ?? null;
+          const toNodeId = s.toNodeId ?? null;
+          if (!fromNodeId || !toNodeId) return [];
+          return [
+            {
+              id: s.id,
+              fromNodeId,
+              toNodeId,
+              length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]) : null,
+              controlPoint: s.controlPoint,
+              layerId: s.layerId,
+            },
+          ];
+        });
 
       const payload = {
           generatedAt: new Date().toISOString(),
@@ -243,33 +314,31 @@ const EditorRibbon: React.FC = () => {
 
       const conduits = Object.values(shapes)
         .filter(isConduitShape)
-        .map(s => {
-            const fromNodeId = s.fromNodeId ?? null;
-            const toNodeId = s.toNodeId ?? null;
-            const fromConnectionId = s.fromConnectionId ?? s.connectedStartId ?? null;
-            const toConnectionId = s.toConnectionId ?? s.connectedEndId ?? null;
-            if (!fromNodeId || !toNodeId) return null;
-            return {
-                id: s.id,
-                fromNodeId,
-                toNodeId,
-                fromConnectionId,
-                toConnectionId,
-                length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]).toFixed(2) : '0.00',
-            };
-        })
-        .filter(Boolean) as any[];
+        .flatMap((s) => {
+          const fromNodeId = s.fromNodeId ?? null;
+          const toNodeId = s.toNodeId ?? null;
+          if (!fromNodeId || !toNodeId) return [];
+          return [
+            {
+              id: s.id,
+              fromNodeId,
+              toNodeId,
+              length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]).toFixed(2) : '0.00',
+            },
+          ];
+        });
 
       const htmlRows = conduits.map(c => {
           const fromNode = c.fromNodeId ? nodesById[c.fromNodeId] : null;
           const toNode = c.toNodeId ? nodesById[c.toNodeId] : null;
           const fromAnchor = fromNode?.kind === 'anchored' && fromNode.anchorShapeId ? connections.find(n => n.id === fromNode.anchorShapeId) : null;
           const toAnchor = toNode?.kind === 'anchored' && toNode.anchorShapeId ? connections.find(n => n.id === toNode.anchorShapeId) : null;
-          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromConnectionId || c.fromNodeId || '—';
-          const toLabel = toAnchor?.name || toAnchor?.id || c.toConnectionId || c.toNodeId || '—';
+          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—';
+          const toLabel = toAnchor?.name || toAnchor?.id || c.toNodeId || '—';
           return `<tr><td>${c.id}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${c.length}</td></tr>`;
       }).join('');
 
+      // TODO: Otimizar essa parte
       const html = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Relatorio de Conexoes</title>
 <style>
@@ -291,6 +360,9 @@ tr:nth-child(even){background:#111827;}
   }, [dataStore.shapes, dataStore.electricalElements, dataStore.connectionNodes]);
 
   const handleAction = (action?: string) => {
+      if (action === 'new-file') newNextDocument();
+      if (action === 'open-file') openNextDocument();
+      if (action === 'save-file') saveNextDocument();
       if (action === 'delete') deleteSelected();
       if (action === 'join') joinSelected();
       if (action === 'explode') explodeSelected();
@@ -359,68 +431,22 @@ tr:nth-child(even){background:#111827;}
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
   const openColorPicker = (e: React.MouseEvent, target: ColorPickerTarget) => {
+      if (target.type !== 'grid') return;
       e.stopPropagation();
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setColorPickerPos({ top: rect.bottom + 8, left: rect.left - 10 });
       setColorPickerTarget(target);
   };
 
-  // Get all selected shape IDs for color operations
-  const allSelectedIds = useMemo(
-    () => Array.from(selectedShapeIds) as string[],
-    [selectedShapeIds]
-  );
-  const firstSelectedShape = allSelectedIds.length > 0 ? dataStore.shapes[allSelectedIds[0]] : null;
-
   const activeColor = useMemo(() => {
     if (!colorPickerTarget) return '#FFFFFF';
-    if (colorPickerTarget.type === 'grid') {
-      return settingsStore.grid.color;
-    }
-    if (colorPickerTarget.type === 'stroke') {
-      // Show color of first selected shape or layer color
-      return firstSelectedShape 
-        ? getEffectiveStrokeColor(firstSelectedShape, activeLayer)
-        : (activeLayer?.strokeColor || '#000000');
-    }
-    // fill
-    return firstSelectedShape 
-      ? getEffectiveFillColor(firstSelectedShape, activeLayer)
-      : (activeLayer?.fillColor || '#ffffff');
-  }, [colorPickerTarget, firstSelectedShape, activeLayer, settingsStore.grid.color]);
+    return settingsStore.grid.color;
+  }, [colorPickerTarget, settingsStore.grid.color]);
 
   const handleColorChange = (newColor: string) => {
       if (!colorPickerTarget) return;
-
-      // Update settings defaults
-      if (colorPickerTarget.type === 'stroke') {
-        settingsStore.setStrokeColor(newColor);
-      } else {
-        settingsStore.setFillColor(newColor);
-      }
-
-      // Apply to ALL selected shapes (not just text), and set colorMode to 'custom'
-      allSelectedIds.forEach(id => {
-        const shape = dataStore.shapes[id];
-        if (!shape) return;
-        
-        if (colorPickerTarget.type === 'stroke') {
-          dataStore.updateShape(id, {
-            strokeColor: newColor,
-            colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
-          }, true);
-        } else if (colorPickerTarget.type === 'fill') {
-          dataStore.updateShape(id, {
-            fillColor: newColor,
-            colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
-          }, true);
-        }
-      });
-
-      // Handle grid color separately
-      if (colorPickerTarget.type === 'grid') {
-        settingsStore.setGridColor(newColor);
-      }
+      if (colorPickerTarget.type !== 'grid') return;
+      settingsStore.setGridColor(newColor);
   };
 
   const componentProps = {
@@ -505,9 +531,7 @@ tr:nth-child(even){background:#111827;}
                                     disabled={actionDisabled}
                                     aria-disabled={actionDisabled}
                                 >
-                                    <div className="text-slate-400">
-                                        {getIcon(item.icon)}
-                                    </div>
+                                    <div className="text-current">{getIcon(item.icon)}</div>
                                     <div className="flex flex-col items-center gap-0.5 text-[9px] text-center whitespace-nowrap leading-none">
                                         <span className={labelColorClass}>{item.label}</span>
                                         {actionBadge && (

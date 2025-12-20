@@ -1,0 +1,1603 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ElectricalElement } from '@/types';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { useDataStore } from '@/stores/useDataStore';
+import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint, getRectCornersWorld, supportsBBoxResize, worldToScreen } from '@/utils/geometry';
+import { calculateZoomTransform } from '@/utils/zoomHelper';
+import SelectionOverlay from './SelectionOverlay';
+import StrokeOverlay from './StrokeOverlay';
+import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
+import { generateId } from '@/utils/uuid';
+import type { Shape } from '@/types';
+import { getDefaultColorMode } from '@/utils/shapeColors';
+import { useLibraryStore } from '@/stores/useLibraryStore';
+import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
+import { resolveConnectionNodePosition } from '@/utils/connections';
+import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
+import type { Patch } from '@/types';
+import { isConduitShape } from '@/features/editor/utils/tools';
+import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
+import { isShapeInteractable } from '@/utils/visibility';
+import { getEngineRuntime } from '@/engine/runtime/singleton';
+
+type Draft =
+  | { kind: 'none' }
+  | { kind: 'line'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'rect'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'ellipse'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
+  | { kind: 'arrow'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } };
+
+type SelectionBox = {
+  start: { x: number; y: number };
+  current: { x: number; y: number };
+  direction: 'LTR' | 'RTL';
+};
+
+const toWorldPoint = (
+  evt: React.PointerEvent<HTMLDivElement>,
+  viewTransform: ReturnType<typeof useUIStore.getState>['viewTransform'],
+): { x: number; y: number } => {
+  const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+  const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  return screenToWorld(screen, viewTransform);
+};
+
+const pointSegmentDistance = (
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number => {
+  const vx = b.x - a.x;
+  const vy = b.y - a.y;
+  const wx = p.x - a.x;
+  const wy = p.y - a.y;
+  const c1 = vx * wx + vy * wy;
+  if (c1 <= 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const c2 = vx * vx + vy * vy;
+  if (c2 <= c1) return Math.hypot(p.x - b.x, p.y - b.y);
+  const t = c1 / c2;
+  const projX = a.x + t * vx;
+  const projY = a.y + t * vy;
+  return Math.hypot(p.x - projX, p.y - projY);
+};
+
+const pickShapeAt = (
+  worldPoint: { x: number; y: number },
+  toleranceWorld: number,
+): string | null => {
+  const data = useDataStore.getState();
+  const ui = useUIStore.getState();
+
+  const queryRect = {
+    x: worldPoint.x - toleranceWorld,
+    y: worldPoint.y - toleranceWorld,
+    width: toleranceWorld * 2,
+    height: toleranceWorld * 2,
+  };
+
+  const candidates = data.spatialIndex
+    .query(queryRect)
+    .map((c) => data.shapes[c.id])
+    .filter(Boolean) as Shape[];
+
+  for (const shape of candidates) {
+    const layer = data.layers.find((l) => l.id === shape.layerId);
+    if (layer && (!layer.visible || layer.locked)) continue;
+    if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+    if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
+  }
+
+  return null;
+};
+
+const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
+
+const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+  const x0 = Math.min(a.x, b.x);
+  const y0 = Math.min(a.y, b.y);
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+};
+
+const snapToGrid = (p: { x: number; y: number }, gridSize: number): { x: number; y: number } => {
+  if (!gridSize || gridSize <= 0) return p;
+  return { x: Math.round(p.x / gridSize) * gridSize, y: Math.round(p.y / gridSize) * gridSize };
+};
+
+const isDrag = (dx: number, dy: number): boolean => Math.hypot(dx, dy) > 2;
+
+const getCursorForTool = (tool: ReturnType<typeof useUIStore.getState>['activeTool']): string => {
+  if (tool === 'pan') return 'grab';
+  if (tool === 'select') return 'default';
+  if (tool === 'move' || tool === 'rotate') return 'default';
+  return 'crosshair';
+};
+
+type ConduitStart = { nodeId: string; point: { x: number; y: number } };
+type MoveState = { start: { x: number; y: number }; snapshot: Map<string, Shape> };
+
+type ResizeState = {
+  shapeId: string;
+  handleIndex: number; // 0 BL, 1 BR, 2 TR, 3 TL (matches geometry.ts corners order)
+  fixedCornerIndex: number;
+  fixedCornerWorld: { x: number; y: number };
+  startPointerWorld: { x: number; y: number };
+  snapshot: Shape;
+  applyMode: 'topLeft' | 'center';
+  startAspectRatio: number; // height/width at start of resize
+};
+
+type VertexDragState = {
+  shapeId: string;
+  vertexIndex: number;
+  startPointerWorld: { x: number; y: number };
+  snapshot: Shape;
+};
+
+type SelectInteraction =
+  | { kind: 'none' }
+  | { kind: 'marquee' }
+  | { kind: 'move'; moved: boolean; state: MoveState }
+  | { kind: 'resize'; moved: boolean; state: ResizeState }
+  | { kind: 'vertex'; moved: boolean; state: VertexDragState };
+
+const HANDLE_SIZE_PX = 8;
+const HANDLE_HIT_RADIUS_PX = 10;
+
+const rotateVec = (v: { x: number; y: number }, angle: number): { x: number; y: number } => {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
+};
+
+const snapVectorTo45Deg = (from: { x: number; y: number }, to: { x: number; y: number }): { x: number; y: number } => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return { x: from.x, y: from.y };
+  const angle = Math.atan2(dy, dx);
+  const step = Math.PI / 4;
+  const snappedAngle = Math.round(angle / step) * step;
+  return { x: from.x + len * Math.cos(snappedAngle), y: from.y + len * Math.sin(snappedAngle) };
+};
+
+const applyResizeToShape = (
+  shape: Shape,
+  applyMode: ResizeState['applyMode'],
+  center: { x: number; y: number },
+  w: number,
+  h: number,
+  scaleX: number,
+  scaleY: number,
+): Partial<Shape> => {
+  if (applyMode === 'center') {
+    return { x: clampTiny(center.x), y: clampTiny(center.y), width: clampTiny(w), height: clampTiny(h), scaleX, scaleY };
+  }
+  return { x: clampTiny(center.x - w / 2), y: clampTiny(center.y - h / 2), width: clampTiny(w), height: clampTiny(h), scaleX, scaleY };
+};
+
+const EngineInteractionLayer: React.FC = () => {
+  const viewTransform = useUIStore((s) => s.viewTransform);
+  const setViewTransform = useUIStore((s) => s.setViewTransform);
+  const activeTool = useUIStore((s) => s.activeTool);
+  const activeElectricalSymbolId = useUIStore((s) => s.activeElectricalSymbolId);
+  const electricalRotation = useUIStore((s) => s.electricalRotation);
+  const electricalFlipX = useUIStore((s) => s.electricalFlipX);
+  const electricalFlipY = useUIStore((s) => s.electricalFlipY);
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const setSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
+  const canvasSize = useUIStore((s) => s.canvasSize);
+
+  const toolDefaults = useSettingsStore((s) => s.toolDefaults);
+  const snapOptions = useSettingsStore((s) => s.snap);
+  const gridSize = useSettingsStore((s) => s.grid.size);
+
+  const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const transformStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
+
+  const [draft, setDraft] = useState<Draft>({ kind: 'none' });
+  const draftRef = useRef<Draft>({ kind: 'none' });
+  const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
+  const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
+  const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
+  const moveRef = useRef<MoveState | null>(null);
+  const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
+  const [cursorOverride, setCursorOverride] = useState<string | null>(null);
+  const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
+  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
+  const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      const runtime = await getEngineRuntime();
+      if (!disposed) runtimeRef.current = runtime;
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+
+      if (polygonSidesModal && e.key === 'Escape') {
+        e.preventDefault();
+        setPolygonSidesModal(null);
+        return;
+      }
+
+      if (activeTool !== 'polyline') return;
+      const prev = draftRef.current;
+
+      if (e.key === 'Escape') {
+        if (prev.kind === 'polyline') {
+          e.preventDefault();
+          setDraft({ kind: 'none' });
+        }
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        if (prev.kind === 'polyline') {
+          e.preventDefault();
+          commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+          setDraft({ kind: 'none' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTool, polygonSidesModal]);
+
+  const cursor = useMemo(() => (cursorOverride ? cursorOverride : getCursorForTool(activeTool)), [activeTool, cursorOverride]);
+
+  useEffect(() => {
+    setSelectionBox(null);
+    selectInteractionRef.current = { kind: 'none' };
+    setCursorOverride(null);
+    setDraft((prev) => (prev.kind === 'polyline' ? { kind: 'none' } : prev));
+    setPolygonSidesModal(null);
+  }, [activeTool]);
+
+  const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
+    evt.preventDefault();
+    const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const mouse = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    setViewTransform((prev) => calculateZoomTransform(prev, mouse, evt.deltaY, screenToWorld));
+  };
+
+  const beginPan = (evt: React.PointerEvent<HTMLDivElement>) => {
+    isPanningRef.current = true;
+    panStartRef.current = { x: evt.clientX, y: evt.clientY };
+    transformStartRef.current = { ...viewTransform };
+  };
+
+  const updatePan = (evt: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanningRef.current || !transformStartRef.current) return;
+    const dx = evt.clientX - panStartRef.current.x;
+    const dy = evt.clientY - panStartRef.current.y;
+    setViewTransform({
+      x: transformStartRef.current.x + dx,
+      y: transformStartRef.current.y + dy,
+      scale: transformStartRef.current.scale,
+    });
+  };
+
+  const endPan = () => {
+    isPanningRef.current = false;
+    transformStartRef.current = null;
+  };
+
+  const tryFindAnchoredNode = (world: { x: number; y: number }): { nodeId: string; point: { x: number; y: number } } | null => {
+    const data = useDataStore.getState();
+    const ui = useUIStore.getState();
+    const scale = Math.max(ui.viewTransform.scale || 1, 0.01);
+    const tolerance = CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX / scale;
+
+    const runtime = runtimeRef.current;
+    if (runtime && typeof runtime.engine.snapElectrical === 'function') {
+      try {
+        const r = runtime.engine.snapElectrical(world.x, world.y, tolerance);
+        if (r.kind === 1 && r.id !== 0) {
+          const nodeStringId = runtime.getIdMaps().idHashToString.get(r.id);
+          if (nodeStringId && data.connectionNodes[nodeStringId]) {
+            return { nodeId: nodeStringId, point: { x: r.x, y: r.y } };
+          }
+        }
+        if (r.kind === 2 && r.id !== 0) {
+          const symbolStringId = runtime.getIdMaps().idHashToString.get(r.id);
+          if (symbolStringId) {
+            const nodeId = data.getOrCreateAnchoredConnectionNode(symbolStringId);
+            return { nodeId, point: { x: r.x, y: r.y } };
+          }
+        }
+      } catch {
+        // Fall back to TS snap below.
+      }
+    }
+
+    const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+    const candidates = data.spatialIndex.query(queryRect).map((c) => data.shapes[c.id]).filter(Boolean) as Shape[];
+
+    for (const shape of candidates) {
+      const layer = data.layers.find((l) => l.id === shape.layerId);
+      if (layer && (!layer.visible || layer.locked)) continue;
+
+      const connPt = getConnectionPoint(shape);
+      if (!connPt) continue;
+
+      const nearConnection = getDistance(connPt, world) <= tolerance;
+      const bbox = getShapeBoundingBox(shape);
+      const insideBBox =
+        !!bbox &&
+        world.x >= bbox.x - tolerance &&
+        world.x <= bbox.x + bbox.width + tolerance &&
+        world.y >= bbox.y - tolerance &&
+        world.y <= bbox.y + bbox.height + tolerance;
+
+      if (nearConnection || insideBBox) {
+        const nodeId = data.getOrCreateAnchoredConnectionNode(shape.id);
+        return { nodeId, point: connPt };
+      }
+    }
+
+    for (const node of Object.values(data.connectionNodes)) {
+      const pos = resolveConnectionNodePosition(node, data.shapes);
+      if (!pos) continue;
+      if (getDistance(pos, world) <= tolerance) return { nodeId: node.id, point: pos };
+    }
+
+    return null;
+  };
+
+  const pickResizeHandleAtScreen = (
+    screenPoint: { x: number; y: number },
+    view: ReturnType<typeof useUIStore.getState>['viewTransform'],
+  ): { shapeId: string; handleIndex: number; cursor: string } | null => {
+    const data = useDataStore.getState();
+    const ui = useUIStore.getState();
+
+    let best: { shapeId: string; handleIndex: number; cursor: string; d2: number } | null = null;
+    const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
+
+    selectedShapeIds.forEach((id) => {
+      const shape = data.shapes[id];
+      if (!shape) return;
+      if (!supportsBBoxResize(shape)) return;
+
+      const layer = data.layers.find((l) => l.id === shape.layerId);
+      if (layer && (!layer.visible || layer.locked)) return;
+      if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
+
+      const handles = getShapeHandles(shape).filter((h) => h.type === 'resize');
+      for (const h of handles) {
+        const p = worldToScreen({ x: h.x, y: h.y }, view);
+        const dx = screenPoint.x - p.x;
+        const dy = screenPoint.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > hitR2) continue;
+        if (!best || d2 < best.d2) best = { shapeId: id, handleIndex: h.index, cursor: h.cursor, d2 };
+      }
+    });
+
+    return best ? { shapeId: best.shapeId, handleIndex: best.handleIndex, cursor: best.cursor } : null;
+  };
+
+  const pickVertexHandleAtScreen = (
+    screenPoint: { x: number; y: number },
+    view: ReturnType<typeof useUIStore.getState>['viewTransform'],
+  ): { shapeId: string; vertexIndex: number } | null => {
+    const data = useDataStore.getState();
+    const ui = useUIStore.getState();
+
+    let best: { shapeId: string; vertexIndex: number; d2: number } | null = null;
+    const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
+
+    selectedShapeIds.forEach((id) => {
+      const shape = data.shapes[id];
+      if (!shape) return;
+      if (shape.type !== 'line' && shape.type !== 'arrow' && shape.type !== 'polyline') return;
+      const ptsWorld = shape.points ?? [];
+      if (ptsWorld.length < 2) return;
+
+      const layer = data.layers.find((l) => l.id === shape.layerId);
+      if (layer && (!layer.visible || layer.locked)) return;
+      if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
+
+      const pts = ptsWorld.map((p) => worldToScreen(p, view));
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i]!;
+        const dx = screenPoint.x - p.x;
+        const dy = screenPoint.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > hitR2) continue;
+        if (!best || d2 < best.d2) best = { shapeId: id, vertexIndex: i, d2 };
+      }
+    });
+
+    return best ? { shapeId: best.shapeId, vertexIndex: best.vertexIndex } : null;
+  };
+
+  const commitElectricalSymbolAt = (world: { x: number; y: number }) => {
+    if (!activeElectricalSymbolId) return;
+    const library = useLibraryStore.getState();
+    const data = useDataStore.getState();
+
+    const symbol = library.electricalSymbols[activeElectricalSymbolId];
+    if (!symbol) return;
+
+    const layerConfig = getElectricalLayerConfig(symbol.id, symbol.category);
+    const targetLayerId = data.ensureLayer(layerConfig.name, {
+      strokeColor: layerConfig.strokeColor,
+      fillColor: layerConfig.fillColor ?? '#ffffff',
+      fillEnabled: layerConfig.fillEnabled ?? false,
+      strokeEnabled: true,
+      isNative: true,
+    });
+
+    const width = symbol.viewBox.width * symbol.scale;
+    const height = symbol.viewBox.height * symbol.scale;
+    const shapeId = generateId();
+
+    const shape: Shape = {
+      id: shapeId,
+      layerId: targetLayerId,
+      type: 'rect',
+      x: clampTiny(world.x - width / 2),
+      y: clampTiny(world.y - height / 2),
+      width: clampTiny(width),
+      height: clampTiny(height),
+      strokeColor: layerConfig.strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled: false,
+      fillColor: '#ffffff',
+      fillEnabled: false,
+      colorMode: getDefaultColorMode(),
+      points: [],
+      rotation: electricalRotation,
+      scaleX: electricalFlipX,
+      scaleY: electricalFlipY,
+      svgSymbolId: symbol.id,
+      svgRaw: symbol.canvasSvg,
+      svgViewBox: symbol.viewBox,
+      symbolScale: symbol.scale,
+      connectionPoint: symbol.defaultConnectionPoint,
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    const metadata = getDefaultMetadataForSymbol(symbol.id);
+    const electricalElement: ElectricalElement = {
+      id: `el-${shapeId}`,
+      shapeId,
+      category: symbol.category,
+      name: symbol.id,
+      metadata,
+    };
+
+    data.addShape(shape, electricalElement);
+    setSelectedShapeIds(new Set([shapeId]));
+  };
+
+  const commitConduitSegmentTo = (end: { x: number; y: number }) => {
+    const start = conduitStart;
+    if (!start) return;
+
+    const data = useDataStore.getState();
+    const endHit = tryFindAnchoredNode(end);
+    const endNodeId = endHit ? endHit.nodeId : data.createFreeConnectionNode(end);
+
+    if (endNodeId === start.nodeId) {
+      setConduitStart(null);
+      setDraft({ kind: 'none' });
+      return;
+    }
+
+    const layer = data.layers.find((l) => l.id === 'eletrodutos') ?? data.layers.find((l) => l.id === data.activeLayerId) ?? data.layers[0];
+    const layerId = layer?.id ?? data.activeLayerId;
+    const strokeColor = layer?.strokeColor ?? toolDefaults.strokeColor;
+
+    const conduitId = data.addConduitBetweenNodes({ fromNodeId: start.nodeId, toNodeId: endNodeId, layerId, strokeColor });
+    setSelectedShapeIds(new Set([conduitId]));
+    setConduitStart(null);
+    setDraft({ kind: 'none' });
+  };
+
+  const finalizeDrawCreation = (id: string) => {
+    setSelectedShapeIds(new Set([id]));
+    const ui = useUIStore.getState();
+    ui.setSidebarTab('desenho');
+    ui.setTool('select');
+  };
+
+  const commitLine = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (Math.hypot(dx, dy) < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'line',
+      points: [
+        { x: clampTiny(start.x), y: clampTiny(start.y) },
+        { x: clampTiny(end.x), y: clampTiny(end.y) },
+      ],
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor: toolDefaults.fillColor ?? '#D9D9D9',
+      fillEnabled: false,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitRect = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const r = normalizeRect(start, end);
+    if (r.w < 1e-3 || r.h < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'rect',
+      points: [],
+      x: clampTiny(r.x),
+      y: clampTiny(r.y),
+      width: clampTiny(r.w),
+      height: clampTiny(r.h),
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitDefaultRectAt = (center: { x: number; y: number }) => {
+    const half = 50;
+    commitRect({ x: center.x - half, y: center.y - half }, { x: center.x + half, y: center.y + half });
+  };
+
+  const commitEllipse = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const r = normalizeRect(start, end);
+    if (r.w < 1e-3 || r.h < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'circle',
+      points: [],
+      x: clampTiny(r.x + r.w / 2),
+      y: clampTiny(r.y + r.h / 2),
+      width: clampTiny(r.w),
+      height: clampTiny(r.h),
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitDefaultEllipseAt = (center: { x: number; y: number }) => {
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'circle',
+      points: [],
+      x: clampTiny(center.x),
+      y: clampTiny(center.y),
+      width: 100,
+      height: 100,
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitPolygon = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const r = normalizeRect(start, end);
+    if (r.w < 1e-3 || r.h < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
+    const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+    const rotation = clampedSides === 3 ? Math.PI : 0;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'polygon',
+      points: [],
+      x: clampTiny(r.x + r.w / 2),
+      y: clampTiny(r.y + r.h / 2),
+      width: clampTiny(r.w),
+      height: clampTiny(r.h),
+      sides: clampedSides,
+      rotation,
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
+    const clampedSides = Math.max(3, Math.min(24, Math.floor(sides)));
+    const rotation = clampedSides === 3 ? Math.PI : 0;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'polygon',
+      points: [],
+      x: clampTiny(center.x),
+      y: clampTiny(center.y),
+      width: 100,
+      height: 100,
+      sides: clampedSides,
+      rotation,
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitPolyline = (points: { x: number; y: number }[]) => {
+    if (points.length < 2) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'polyline',
+      points: points.map((p) => ({ x: clampTiny(p.x), y: clampTiny(p.y) })),
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor: toolDefaults.fillColor ?? '#D9D9D9',
+      fillEnabled: false,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const commitArrow = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (Math.hypot(dx, dy) < 1e-3) return;
+
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const strokeWidth = toolDefaults.strokeWidth ?? 2;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'arrow',
+      points: [
+        { x: clampTiny(start.x), y: clampTiny(start.y) },
+        { x: clampTiny(end.x), y: clampTiny(end.y) },
+      ],
+      arrowHeadSize: Math.round(Math.max(16, strokeWidth * 10) * 1.1),
+      strokeColor,
+      strokeWidth,
+      strokeEnabled,
+      fillColor: toolDefaults.fillColor ?? '#D9D9D9',
+      fillEnabled: false,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    finalizeDrawCreation(id);
+  };
+
+  const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
+    (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
+
+    if (textEditState) return;
+
+    if (evt.button === 2 && activeTool === 'polyline') {
+      const prev = draftRef.current;
+      if (prev.kind === 'polyline') {
+        evt.preventDefault();
+        commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+        setDraft({ kind: 'none' });
+        return;
+      }
+    }
+
+    if (evt.button === 1 || evt.button === 2 || evt.altKey || activeTool === 'pan') {
+      beginPan(evt);
+      return;
+    }
+
+    if (evt.button !== 0) return;
+
+    const world = toWorldPoint(evt, viewTransform);
+    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+
+    pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
+    if (activeTool === 'select') setSelectionBox(null);
+
+    if (activeTool === 'text') {
+      // Click establishes the visual top; TextEditorOverlay converts to bottom-left on commit.
+      setTextEditState({ x: snapped.x, y: snapped.y, content: '' });
+      useUIStore.getState().setEditingTextId(null);
+      return;
+    }
+
+    if (activeTool === 'move') {
+      const data = useDataStore.getState();
+      const selected = Array.from(selectedShapeIds)
+        .map((id) => data.shapes[id])
+        .filter(Boolean) as Shape[];
+
+      const movable = selected.filter((s) => {
+        const layer = data.layers.find((l) => l.id === s.layerId);
+        if (layer?.locked) return false;
+        if (isConduitShape(s)) return false; // avoid breaking anchored connection semantics for now
+        return true;
+      });
+
+      if (movable.length === 0) return;
+      moveRef.current = { start: snapped, snapshot: new Map(movable.map((s) => [s.id, s])) };
+      return;
+    }
+
+    if (activeTool === 'electrical-symbol') {
+      commitElectricalSymbolAt(snapped);
+      return;
+    }
+
+    if (activeTool === 'eletroduto') {
+      if (!conduitStart) {
+        const startHit = tryFindAnchoredNode(snapped);
+        const startNodeId = startHit ? startHit.nodeId : useDataStore.getState().createFreeConnectionNode(snapped);
+        const startPoint = startHit ? startHit.point : snapped;
+        setConduitStart({ nodeId: startNodeId, point: startPoint });
+        setDraft({ kind: 'conduit', start: startPoint, current: startPoint });
+        return;
+      }
+
+      commitConduitSegmentTo(snapped);
+      return;
+    }
+
+    if (activeTool === 'line') {
+      setDraft({ kind: 'line', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'rect') {
+      setDraft({ kind: 'rect', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'circle') {
+      setDraft({ kind: 'ellipse', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'polygon') {
+      setDraft({ kind: 'polygon', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'polyline') {
+      setDraft((prev) => {
+        if (prev.kind !== 'polyline') return { kind: 'polyline', points: [snapped], current: snapped };
+        return { kind: 'polyline', points: [...prev.points, snapped], current: snapped };
+      });
+      return;
+    }
+
+    if (activeTool === 'arrow') {
+      setDraft({ kind: 'arrow', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'select') {
+      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+
+      const handleHit = pickResizeHandleAtScreen(screen, viewTransform);
+      if (handleHit) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[handleHit.shapeId];
+        const corners = shape ? getRectCornersWorld(shape) : null;
+        if (shape && corners) {
+          const bbox0 = getShapeBoundingBox(shape);
+          const baseW = Math.max(1e-3, bbox0.width || 1);
+          const baseH = Math.max(1e-3, bbox0.height || 1);
+          const fixedCornerIndex = (handleHit.handleIndex + 2) % 4;
+          selectInteractionRef.current = {
+            kind: 'resize',
+            moved: false,
+            state: {
+              shapeId: shape.id,
+              handleIndex: handleHit.handleIndex,
+              fixedCornerIndex,
+              fixedCornerWorld: corners.corners[fixedCornerIndex],
+              startPointerWorld: world,
+              snapshot: shape,
+              applyMode: shape.type === 'circle' || shape.type === 'polygon' ? 'center' : 'topLeft',
+              startAspectRatio: baseH / baseW,
+            },
+          };
+          setCursorOverride(handleHit.cursor);
+          return;
+        }
+      }
+
+      const endpointHit = pickVertexHandleAtScreen(screen, viewTransform);
+      if (endpointHit) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[endpointHit.shapeId];
+        const layer = shape ? data.layers.find((l) => l.id === shape.layerId) : null;
+        const movable = !!shape && !(layer?.locked) && !isConduitShape(shape);
+        if (shape && movable) {
+          if (!selectedShapeIds.has(shape.id) || selectedShapeIds.size !== 1) setSelectedShapeIds(new Set([shape.id]));
+          selectInteractionRef.current = {
+            kind: 'vertex',
+            moved: false,
+            state: { shapeId: shape.id, vertexIndex: endpointHit.vertexIndex, startPointerWorld: world, snapshot: shape },
+          };
+          setCursorOverride('default');
+          return;
+        }
+      }
+
+      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const hitId = pickShapeAt(world, tolerance);
+      if (hitId) {
+        if (!selectedShapeIds.has(hitId) || selectedShapeIds.size !== 1) setSelectedShapeIds(new Set([hitId]));
+
+        const data = useDataStore.getState();
+        const hitShape = data.shapes[hitId];
+        const layer = hitShape ? data.layers.find((l) => l.id === hitShape.layerId) : null;
+        const movable = !!hitShape && !(layer?.locked) && !isConduitShape(hitShape);
+        if (movable && hitShape) {
+          if (hitShape.type === 'line' || hitShape.type === 'arrow' || hitShape.type === 'polyline') {
+            const pts = hitShape.points ?? [];
+            if (pts.length >= 2) {
+              const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
+              let best: { idx: number; d2: number } | null = null;
+              for (let i = 0; i < pts.length; i++) {
+                const s = worldToScreen(pts[i]!, viewTransform);
+                const d2 = (screen.x - s.x) * (screen.x - s.x) + (screen.y - s.y) * (screen.y - s.y);
+                if (d2 > hitR2) continue;
+                if (!best || d2 < best.d2) best = { idx: i, d2 };
+              }
+              if (best) {
+                selectInteractionRef.current = {
+                  kind: 'vertex',
+                  moved: false,
+                  state: { shapeId: hitShape.id, vertexIndex: best.idx, startPointerWorld: world, snapshot: hitShape },
+                };
+                setCursorOverride('default');
+                return;
+              }
+            }
+          }
+
+          selectInteractionRef.current = {
+            kind: 'move',
+            moved: false,
+            state: { start: world, snapshot: new Map([[hitId, hitShape]]) },
+          };
+          setCursorOverride('move');
+          return;
+        }
+
+        selectInteractionRef.current = { kind: 'none' };
+        setCursorOverride('move');
+        return;
+      }
+
+      selectInteractionRef.current = { kind: 'marquee' };
+      setCursorOverride(null);
+      return;
+    }
+  };
+
+  const handlePointerMove = (evt: React.PointerEvent<HTMLDivElement>) => {
+    if (isPanningRef.current) {
+      updatePan(evt);
+      return;
+    }
+
+    if (textEditState) return;
+
+    const world = toWorldPoint(evt, viewTransform);
+    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+
+    if (activeTool === 'select') {
+      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+
+      const down = pointerDownRef.current;
+      const interaction = selectInteractionRef.current;
+
+      if (!down) {
+        const handleHover = pickResizeHandleAtScreen(screen, viewTransform);
+        if (handleHover) {
+          setCursorOverride(handleHover.cursor);
+          return;
+        }
+
+        const endpointHover = pickVertexHandleAtScreen(screen, viewTransform);
+        if (endpointHover) {
+          setCursorOverride('default');
+          return;
+        }
+
+        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+        const hit = pickShapeAt(world, tolerance);
+        setCursorOverride(hit ? 'move' : null);
+        return;
+      }
+
+      const dx = evt.clientX - down.x;
+      const dy = evt.clientY - down.y;
+      const dragged = isDrag(dx, dy);
+
+      if (interaction.kind === 'move') {
+        if (!interaction.moved && !dragged) return;
+        if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
+
+        const moveState = interaction.state;
+        const data = useDataStore.getState();
+        const ddx = snapped.x - moveState.start.x;
+        const ddy = snapped.y - moveState.start.y;
+        moveState.snapshot.forEach((shape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+
+          const diff: Partial<Shape> = {};
+          if (shape.x !== undefined) diff.x = clampTiny(shape.x + ddx);
+          if (shape.y !== undefined) diff.y = clampTiny(shape.y + ddy);
+          if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + ddx), y: clampTiny(p.y + ddy) }));
+
+          if (Object.keys(diff).length) data.updateShape(id, diff, false);
+        });
+        return;
+      }
+
+      if (interaction.kind === 'vertex') {
+        if (!interaction.moved && !dragged) return;
+        if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
+
+        const { state } = interaction;
+        const data = useDataStore.getState();
+        const curr = data.shapes[state.shapeId];
+        if (!curr) return;
+        if (!curr.points || curr.points.length < 2) return;
+
+        let nextPoint = { x: clampTiny(snapped.x), y: clampTiny(snapped.y) };
+        if ((curr.type === 'line' || curr.type === 'arrow') && curr.points.length >= 2 && evt.shiftKey) {
+          const fixedIdx = state.vertexIndex === 0 ? 1 : 0;
+          const fixed = curr.points[fixedIdx]!;
+          nextPoint = snapVectorTo45Deg(fixed, nextPoint);
+        }
+
+        const nextPoints = curr.points.map((p, i) => (i === state.vertexIndex ? nextPoint : p));
+        data.updateShape(state.shapeId, { points: nextPoints }, false);
+        return;
+      }
+
+      if (interaction.kind === 'resize') {
+        if (!interaction.moved && !dragged) return;
+        if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
+
+        const { state } = interaction;
+        const data = useDataStore.getState();
+        const curr = data.shapes[state.shapeId];
+        if (!curr) return;
+
+        const rotation = state.snapshot.rotation || 0;
+        const fixed = state.fixedCornerWorld;
+
+        const vWorld = { x: snapped.x - fixed.x, y: snapped.y - fixed.y };
+        const vLocal = rotateVec(vWorld, -rotation);
+
+        // Always treat the fixed corner as local origin; the signed vector to the pointer defines size and flip.
+        // This keeps behavior consistent across all corners (Figma-like).
+        const rawW0 = vLocal.x;
+        const rawH0 = vLocal.y;
+
+        const bbox0 = getShapeBoundingBox(state.snapshot);
+        const eps = 1e-3;
+        const baseW = Math.max(eps, bbox0.width || 1);
+        const baseH = Math.max(eps, bbox0.height || 1);
+        const ratio = Number.isFinite(state.startAspectRatio) && state.startAspectRatio > 0 ? state.startAspectRatio : (baseH / baseW);
+
+        let rawW = rawW0;
+        let rawH = rawH0;
+
+        const constrainProportions = !!state.snapshot.proportionsLinked || evt.shiftKey;
+        if (constrainProportions) {
+          const wAbs = Math.abs(rawW);
+          const hAbs = Math.abs(rawH);
+          const wRel = wAbs / baseW;
+          const hRel = hAbs / baseH;
+          if (wRel >= hRel) {
+            rawH = Math.sign(rawH || 1) * wAbs * ratio;
+          } else {
+            rawW = Math.sign(rawW || 1) * (hAbs / ratio);
+          }
+        }
+
+        // Flip-friendly local AABB from (0,0) at fixed corner to signed (rawW, rawH).
+        const localMinX = Math.min(0, rawW);
+        const localMaxX = Math.max(0, rawW);
+        const localMinY = Math.min(0, rawH);
+        const localMaxY = Math.max(0, rawH);
+
+        const nextW = Math.max(eps, localMaxX - localMinX);
+        const nextH = Math.max(eps, localMaxY - localMinY);
+
+        const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
+        const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
+
+        const baseScaleX = state.snapshot.scaleX ?? 1;
+        const baseScaleY = state.snapshot.scaleY ?? 1;
+        const expectedSignX = state.handleIndex === 1 || state.handleIndex === 2 ? 1 : -1;
+        const expectedSignY = state.handleIndex === 2 || state.handleIndex === 3 ? 1 : -1;
+
+        const nextSignX = Math.sign(rawW || expectedSignX) || expectedSignX;
+        const nextSignY = Math.sign(rawH || expectedSignY) || expectedSignY;
+
+        const flippedX = nextSignX !== expectedSignX;
+        const flippedY = nextSignY !== expectedSignY;
+
+        const nextScaleX = (flippedX ? -1 : 1) * baseScaleX;
+        const nextScaleY = (flippedY ? -1 : 1) * baseScaleY;
+
+        const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
+        data.updateShape(state.shapeId, diff, false);
+        return;
+      }
+
+      if (interaction.kind !== 'marquee') {
+        if (selectionBox) setSelectionBox(null);
+        return;
+      }
+
+      // Marquee selection box.
+      if (!dragged) {
+        if (selectionBox) setSelectionBox(null);
+        return;
+      }
+
+      const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
+      setSelectionBox({ start: down.world, current: snapped, direction });
+      return;
+    }
+
+    if (activeTool === 'move') {
+      const moveState = moveRef.current;
+      if (moveState) {
+        const data = useDataStore.getState();
+        const dx = snapped.x - moveState.start.x;
+        const dy = snapped.y - moveState.start.y;
+        moveState.snapshot.forEach((shape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+
+          const diff: Partial<Shape> = {};
+          if (shape.x !== undefined) diff.x = clampTiny(shape.x + dx);
+          if (shape.y !== undefined) diff.y = clampTiny(shape.y + dy);
+          if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
+
+          if (Object.keys(diff).length) data.updateShape(id, diff, false);
+        });
+      }
+      return;
+    }
+
+    setDraft((prev) => {
+      if (prev.kind === 'line') return { ...prev, current: snapped };
+      if (prev.kind === 'arrow') return { ...prev, current: snapped };
+      if (prev.kind === 'rect' || prev.kind === 'ellipse' || prev.kind === 'polygon') {
+        if (!evt.shiftKey) return { ...prev, current: snapped };
+        const dx = snapped.x - prev.start.x;
+        const dy = snapped.y - prev.start.y;
+        const size = Math.max(Math.abs(dx), Math.abs(dy));
+        const sx = dx === 0 ? 1 : Math.sign(dx);
+        const sy = dy === 0 ? 1 : Math.sign(dy);
+        return { ...prev, current: { x: prev.start.x + sx * size, y: prev.start.y + sy * size } };
+      }
+      if (prev.kind === 'polyline') return { ...prev, current: snapped };
+      if (prev.kind === 'conduit') return { ...prev, current: snapped };
+      return prev;
+    });
+  };
+
+  const handlePointerUp = (evt: React.PointerEvent<HTMLDivElement>) => {
+    if (isPanningRef.current) {
+      endPan();
+      return;
+    }
+
+    if (evt.button !== 0) return;
+
+    if (textEditState) return;
+
+    if (activeTool === 'move') {
+      const moveState = moveRef.current;
+      moveRef.current = null;
+      if (moveState) {
+        const data = useDataStore.getState();
+        const patches: Patch[] = [];
+        moveState.snapshot.forEach((prevShape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+          const diff: Partial<Shape> = {};
+          if (prevShape.x !== curr.x) diff.x = curr.x;
+          if (prevShape.y !== curr.y) diff.y = curr.y;
+          if (prevShape.points || curr.points) diff.points = curr.points;
+          if (Object.keys(diff).length === 0) return;
+          patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
+        });
+        data.saveToHistory(patches);
+      }
+      return;
+    }
+
+    const down = pointerDownRef.current;
+    pointerDownRef.current = null;
+    const clickNoDrag = !!down && !isDrag(evt.clientX - down.x, evt.clientY - down.y);
+
+    if (activeTool === 'select') {
+      if (!down) return;
+      const dx = evt.clientX - down.x;
+      const dy = evt.clientY - down.y;
+
+      const interaction = selectInteractionRef.current;
+      selectInteractionRef.current = { kind: 'none' };
+      setCursorOverride(null);
+
+      if (interaction.kind === 'move') {
+        if (!interaction.moved) return;
+        const data = useDataStore.getState();
+        const patches: Patch[] = [];
+        interaction.state.snapshot.forEach((prevShape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+          const diff: Partial<Shape> = {};
+          if (prevShape.x !== curr.x) diff.x = curr.x;
+          if (prevShape.y !== curr.y) diff.y = curr.y;
+          if (prevShape.points || curr.points) diff.points = curr.points;
+          if (Object.keys(diff).length === 0) return;
+          patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
+        });
+        data.saveToHistory(patches);
+        return;
+      }
+
+      if (interaction.kind === 'resize') {
+        if (!interaction.moved) return;
+        const data = useDataStore.getState();
+        const prevShape = interaction.state.snapshot;
+        const curr = data.shapes[interaction.state.shapeId];
+        if (!curr) return;
+        const diff: Partial<Shape> = {};
+        if (prevShape.x !== curr.x) diff.x = curr.x;
+        if (prevShape.y !== curr.y) diff.y = curr.y;
+        if (prevShape.width !== curr.width) diff.width = curr.width;
+        if (prevShape.height !== curr.height) diff.height = curr.height;
+        if (prevShape.scaleX !== curr.scaleX) diff.scaleX = curr.scaleX;
+        if (prevShape.scaleY !== curr.scaleY) diff.scaleY = curr.scaleY;
+        if (Object.keys(diff).length === 0) return;
+        data.saveToHistory([{ type: 'UPDATE', id: curr.id, diff, prev: prevShape }]);
+        return;
+      }
+
+      if (interaction.kind === 'vertex') {
+        if (!interaction.moved) return;
+        const data = useDataStore.getState();
+        const prevShape = interaction.state.snapshot;
+        const curr = data.shapes[interaction.state.shapeId];
+        if (!curr) return;
+        const diff: Partial<Shape> = {};
+        if (prevShape.points || curr.points) diff.points = curr.points;
+        if (Object.keys(diff).length === 0) return;
+        data.saveToHistory([{ type: 'UPDATE', id: curr.id, diff, prev: prevShape }]);
+        return;
+      }
+
+      if (interaction.kind !== 'marquee') return;
+
+      if (isDrag(dx, dy)) {
+        const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
+        const mode: 'WINDOW' | 'CROSSING' = direction === 'LTR' ? 'WINDOW' : 'CROSSING';
+        const worldUp = toWorldPoint(evt, viewTransform);
+        const rect = normalizeRect(down.world, worldUp);
+
+        const data = useDataStore.getState();
+        const ui = useUIStore.getState();
+        const queryRect = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
+        const candidates = data.spatialIndex
+          .query(queryRect)
+          .map((c) => data.shapes[c.id])
+          .filter(Boolean) as Shape[];
+
+        const selected = new Set<string>();
+        for (const shape of candidates) {
+          const layer = data.layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+          if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
+          selected.add(shape.id);
+        }
+
+        setSelectionBox(null);
+        setSelectedShapeIds(selected);
+        return;
+      }
+
+      // Click selection (no marquee, no drag interactions).
+      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const hit = pickShapeAt(down.world, tolerance);
+      setSelectionBox(null);
+      setSelectedShapeIds(hit ? new Set([hit]) : new Set());
+      return;
+    }
+
+    if (activeTool === 'line') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'line') commitLine(prev.start, prev.current);
+      return;
+    }
+
+    if (activeTool === 'rect') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'rect') {
+        if (clickNoDrag) commitDefaultRectAt(prev.start);
+        else commitRect(prev.start, prev.current);
+      }
+      return;
+    }
+
+    if (activeTool === 'circle') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'ellipse') {
+        if (clickNoDrag) commitDefaultEllipseAt(prev.start);
+        else commitEllipse(prev.start, prev.current);
+      }
+      return;
+    }
+
+    if (activeTool === 'polygon') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'polygon') {
+        if (clickNoDrag) {
+          const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+          setPolygonSidesValue(clampedSides);
+          setPolygonSidesModal({ center: prev.start });
+        } else {
+          commitPolygon(prev.start, prev.current);
+        }
+      }
+      return;
+    }
+
+    if (activeTool === 'arrow') {
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'arrow') commitArrow(prev.start, prev.current);
+      return;
+    }
+  };
+
+  const handleDoubleClick = (evt: React.MouseEvent<HTMLDivElement>) => {
+    if (activeTool !== 'polyline') return;
+    evt.preventDefault();
+
+    const prev = draftRef.current;
+    setDraft({ kind: 'none' });
+    if (prev.kind === 'polyline') commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+  };
+
+  const draftSvg = useMemo(() => {
+    if (draft.kind === 'none') return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const stroke = toolDefaults.strokeColor || '#22c55e';
+    // SVG is rendered in screen space, so keep stroke width in pixels (do not scale with zoom).
+    const strokeWidth = Math.max(1, toolDefaults.strokeWidth ?? 2);
+
+    if (draft.kind === 'line') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'arrow') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'rect') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'ellipse') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'polygon') {
+      const sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const rx = w / 2;
+      const ry = h / 2;
+      const pts = Array.from({ length: sides }, (_, i) => {
+        const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
+        return { x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry };
+      });
+      const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <polygon points={pointsAttr} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'conduit') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    const pts = draft.points;
+    const pathPts = [...pts, ...(draft.current ? [draft.current] : [])].map((p) => worldToScreen(p, viewTransform));
+    const d = pathPts
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+      .join(' ');
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+      </svg>
+    );
+  }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform]);
+
+  const selectionSvg = useMemo(() => {
+    if (!selectionBox) return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const a = worldToScreen(selectionBox.start, viewTransform);
+    const b = worldToScreen(selectionBox.current, viewTransform);
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    const w = Math.abs(a.x - b.x);
+    const h = Math.abs(a.y - b.y);
+
+    const isWindow = selectionBox.direction === 'LTR';
+    const stroke = isWindow ? '#3b82f6' : '#22c55e';
+    const fill = isWindow ? 'rgba(59,130,246,0.12)' : 'rgba(34,197,94,0.10)';
+
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <rect x={x} y={y} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1} strokeDasharray="4 3" />
+      </svg>
+    );
+  }, [canvasSize.height, canvasSize.width, selectionBox, viewTransform]);
+
+
+  // Important: this is the only interactive layer above the WebGL canvas.
+  return (
+    <div
+      style={{ position: 'absolute', inset: 0, zIndex: 20, touchAction: 'none', cursor }}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {draftSvg}
+      <StrokeOverlay />
+      <SelectionOverlay />
+      {selectionSvg}
+      {textEditState ? (
+        <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />
+      ) : null}
+      {polygonSidesModal ? (
+        <>
+          <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />
+          <div
+            className="absolute left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[280px]"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-3 text-slate-100">
+              <div className="text-xs font-semibold mb-2">Lados do polígono</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={3}
+                  max={24}
+                  value={polygonSidesValue}
+                  onChange={(e) => setPolygonSidesValue(Number.parseInt(e.target.value, 10))}
+                  className="w-full h-8 bg-slate-800 border border-slate-700 rounded px-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
+                  onClick={() => {
+                    const defaultSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+                    const sides = Number.isFinite(polygonSidesValue) ? polygonSidesValue : defaultSides;
+                    commitDefaultPolygonAt(polygonSidesModal.center, sides);
+                    setPolygonSidesModal(null);
+                  }}
+                >
+                  OK
+                </button>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-400">Min 3, max 24. Tamanho inicial 100×100.</div>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+};
+
+export default EngineInteractionLayer;

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ColorInheritanceMode, Shape, ShapeColorMode } from '../../../../types';
 import { useDataStore } from '../../../../stores/useDataStore';
+import { useUIStore } from '../../../../stores/useUIStore';
 import { CircleDot, Link, Unlink } from 'lucide-react';
 import ColorPicker from '../../../../components/ColorPicker';
 import { 
@@ -11,6 +12,7 @@ import {
   isStrokeEffectivelyEnabled,
   isFillEffectivelyEnabled 
 } from '../../../../utils/shapeColors';
+import { hexToCssRgba, parseCssColorToHexAlpha } from '../../../../utils/cssColor';
 
 interface StylePropertiesProps {
   selectedShape: Shape;
@@ -18,6 +20,7 @@ interface StylePropertiesProps {
 
 export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape }) => {
   const store = useDataStore();
+  const setIsEditingAppearance = useUIStore((s) => s.setIsEditingAppearance);
   const [colorPickerTarget, setColorPickerTarget] = useState<'fill' | 'stroke' | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
   const layer = store.layers.find(l => l.id === selectedShape.layerId);
@@ -31,12 +34,10 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   const strokeEffectivelyEnabled = isStrokeEffectivelyEnabled(selectedShape, layer);
   const fillEffectivelyEnabled = isFillEffectivelyEnabled(selectedShape, layer);
   
-  // Display colors: never show 'transparent' - show the stored color so user knows what color will be used when re-enabled
-  // For layer mode: show layer color
-  // For custom mode: show shape's stored color (not transparent)
+  // Display colors: store never uses 'transparent'; disabled fill/stroke is represented via `*Enabled: false`.
   const displayFillColor = fillMode === 'layer' 
     ? (layer?.fillColor || '#ffffff')
-    : (selectedShape.fillColor === 'transparent' ? '#ffffff' : selectedShape.fillColor);
+    : (selectedShape.fillColor || '#ffffff');
   
   const displayStrokeColor = strokeMode === 'layer'
     ? (layer?.strokeColor || '#000000')
@@ -45,6 +46,38 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   const updateProp = (prop: keyof Shape, value: any) => {
     store.updateShape(selectedShape.id, { [prop]: value });
   };
+
+  const pointerEditCleanupRef = useRef<(() => void) | null>(null);
+
+  const beginPointerEdit = useCallback(() => {
+    setIsEditingAppearance(true);
+    if (pointerEditCleanupRef.current) return;
+
+    const end = () => {
+      pointerEditCleanupRef.current?.();
+      pointerEditCleanupRef.current = null;
+      setIsEditingAppearance(false);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointerup', end, true);
+      window.removeEventListener('pointercancel', end, true);
+      window.removeEventListener('blur', end, true);
+    };
+
+    pointerEditCleanupRef.current = cleanup;
+    window.addEventListener('pointerup', end, true);
+    window.addEventListener('pointercancel', end, true);
+    window.addEventListener('blur', end, true);
+  }, [setIsEditingAppearance]);
+
+  useEffect(() => {
+    return () => {
+      pointerEditCleanupRef.current?.();
+      pointerEditCleanupRef.current = null;
+      setIsEditingAppearance(false);
+    };
+  }, [setIsEditingAppearance]);
 
   const setColorMode = (target: 'fill' | 'stroke', mode: ColorInheritanceMode) => {
     const current = target === 'fill' ? fillMode : strokeMode;
@@ -68,30 +101,19 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
 
   /**
    * UNIFIED TOGGLE BEHAVIOR:
-   * - If mode === 'layer': toggle affects layer.strokeEnabled/fillEnabled
+   * - If mode === 'layer': layer state is managed only via Layer Manager (read-only here)
    * - If mode === 'custom': toggle affects shape.strokeEnabled/fillEnabled
-   * This prevents accidental mode changes and keeps behavior consistent.
    */
   const handleToggleFill = () => {
-    if (fillMode === 'layer' && layer) {
-      // Toggle on layer level - affects all elements inheriting from this layer
-      store.updateLayer(layer.id, { fillEnabled: !layer.fillEnabled });
-    } else {
-      // Toggle on element level
-      const currentEnabled = selectedShape.fillEnabled !== false;
-      updateProp('fillEnabled', !currentEnabled);
-    }
+    if (fillMode === 'layer') return;
+    const currentEnabled = selectedShape.fillEnabled !== false;
+    updateProp('fillEnabled', !currentEnabled);
   };
 
   const handleToggleStroke = () => {
-    if (strokeMode === 'layer' && layer) {
-      // Toggle on layer level - affects all elements inheriting from this layer
-      store.updateLayer(layer.id, { strokeEnabled: !layer.strokeEnabled });
-    } else {
-      // Toggle on element level
-      const currentEnabled = selectedShape.strokeEnabled !== false;
-      updateProp('strokeEnabled', !currentEnabled);
-    }
+    if (strokeMode === 'layer') return;
+    const currentEnabled = selectedShape.strokeEnabled !== false;
+    updateProp('strokeEnabled', !currentEnabled);
   };
 
   const renderModeToggle = (target: 'fill' | 'stroke', active: ColorInheritanceMode) => (
@@ -115,14 +137,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
     </div>
   );
 
-  const getSwatchStyle = (color: string) => ({
-    backgroundColor: color === 'transparent' ? 'transparent' : color,
-    backgroundImage:
-      color === 'transparent'
-        ? 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)'
-        : 'none',
-    backgroundSize: '4px 4px'
-  });
+  const getSwatchStyle = (color: string) => ({ backgroundColor: color });
 
   const openSidebarColorPicker = (e: React.MouseEvent, target: 'fill' | 'stroke') => {
     e.stopPropagation();
@@ -133,13 +148,25 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   };
 
   const handleSidebarColorChange = (newColor: string) => {
-    if (colorPickerTarget === 'fill') setFillColorCustom(newColor);
-    if (colorPickerTarget === 'stroke') setStrokeColorCustom(newColor);
+    const parsed = parseCssColorToHexAlpha(newColor);
+    if (!parsed) return;
+
+    if (colorPickerTarget === 'fill') {
+      const nextMode = buildColorModeUpdate(selectedShape, { fill: 'custom' });
+      store.updateShape(selectedShape.id, { fillColor: parsed.hex, fillOpacity: Math.round(parsed.alpha * 100), colorMode: nextMode });
+    }
+    if (colorPickerTarget === 'stroke') {
+      const nextMode = buildColorModeUpdate(selectedShape, { stroke: 'custom' });
+      store.updateShape(selectedShape.id, { strokeColor: parsed.hex, strokeOpacity: Math.round(parsed.alpha * 100), colorMode: nextMode });
+    }
   };
 
   // Determine toggle button appearance based on effective state
   const getToggleButtonClass = (isEnabled: boolean, mode: ColorInheritanceMode) => {
     const baseClass = 'p-1 rounded transition-colors cursor-pointer';
+    if (mode === 'layer') {
+      return `${baseClass} cursor-not-allowed text-slate-300 hover:text-slate-300`;
+    }
     if (isEnabled) {
       return `${baseClass} text-blue-600 hover:text-blue-700`;
     }
@@ -147,7 +174,11 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   };
 
   return (
-    <>
+    <div
+      onFocusCapture={() => setIsEditingAppearance(true)}
+      onBlurCapture={() => setIsEditingAppearance(false)}
+      onPointerDownCapture={beginPointerEdit}
+    >
       {/* --- LAYER INFO --- */}
       <div className="p-3 border-b border-slate-100">
         <div className="flex justify-between items-center">
@@ -195,9 +226,10 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
             <button
               onClick={handleToggleFill}
               className={getToggleButtonClass(fillEffectivelyEnabled, fillMode)}
+              disabled={fillMode === 'layer'}
               title={
                 fillMode === 'layer'
-                  ? (fillEffectivelyEnabled ? 'Desativar preenchimento na camada' : 'Ativar preenchimento na camada')
+                  ? 'Gerencie o estado da camada no Gerenciador de Camadas'
                   : (fillEffectivelyEnabled ? 'Desativar preenchimento' : 'Ativar preenchimento')
               }
             >
@@ -288,9 +320,10 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
             <button
               onClick={handleToggleStroke}
               className={getToggleButtonClass(strokeEffectivelyEnabled, strokeMode)}
+              disabled={strokeMode === 'layer'}
               title={
                 strokeMode === 'layer'
-                  ? (strokeEffectivelyEnabled ? 'Desativar traço na camada' : 'Ativar traço na camada')
+                  ? 'Gerencie o estado da camada no Gerenciador de Camadas'
                   : (strokeEffectivelyEnabled ? 'Desativar traço' : 'Ativar traço')
               }
             >
@@ -393,13 +426,17 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setColorPickerTarget(null)} />
           <ColorPicker
-            color={colorPickerTarget === 'fill' ? displayFillColor : displayStrokeColor}
+            color={
+              colorPickerTarget === 'fill'
+                ? hexToCssRgba(displayFillColor, (selectedShape.fillOpacity ?? 100) / 100)
+                : hexToCssRgba(displayStrokeColor, (selectedShape.strokeOpacity ?? 100) / 100)
+            }
             onChange={handleSidebarColorChange}
             onClose={() => setColorPickerTarget(null)}
             initialPosition={colorPickerPos}
           />
         </>
       )}
-    </>
+    </div>
   );
 };

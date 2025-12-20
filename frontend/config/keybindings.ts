@@ -39,16 +39,9 @@ export const KEYBINDINGS: Record<string, KeyBinding> = {
   },
   'tools.circle': {
     id: 'tools.circle',
-    label: 'Círculo',
+    label: 'Elipse',
     keys: ['c'],
-    description: 'Ferramenta de círculo',
-    category: 'ferramentas'
-  },
-  'tools.arc': {
-    id: 'tools.arc',
-    label: 'Arco',
-    keys: ['a'],
-    description: 'Ferramenta de arco',
+    description: 'Ferramenta de elipse',
     category: 'ferramentas'
   },
   'tools.polygon': {

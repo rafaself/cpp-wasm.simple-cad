@@ -8,6 +8,7 @@
 *.suo
 *.sln
 *.sw?
+drafts/
 
 # --- Frontend (Node/React) ---
 # Dependencies
@@ -77,6 +78,10 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# --- C++/WASM ---
+cpp/build/
+cpp/build_native/
 
 # --- OS ---
 Thumbs.db

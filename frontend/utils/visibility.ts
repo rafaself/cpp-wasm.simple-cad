@@ -7,10 +7,10 @@ interface ViewContext {
 }
 
 export const isShapeVisible = (shape: Shape, context: ViewContext): boolean => {
-  const shapeFloor = shape.floorId || 'terreo'; // Default legacy
+  const shapeFloor = shape.floorId || 'terreo'; // Default fallback
   if (shapeFloor !== context.activeFloorId) return false;
 
-  const shapeDiscipline = shape.discipline || 'electrical'; // Default legacy
+  const shapeDiscipline = shape.discipline || 'electrical'; // Default fallback
 
   // Architecture Mode: Show ONLY Architecture
   if (context.activeDiscipline === 'architecture') {

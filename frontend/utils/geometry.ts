@@ -1,7 +1,7 @@
 import { Layer, Point, Shape, ViewTransform, SnapOptions, Rect } from '../types/index';
 import { HIT_TOLERANCE, TEXT_PADDING } from '../config/constants';
 export { TEXT_PADDING };
-import { getEffectiveFillColor } from './shapeColors';
+import { getEffectiveFillColor, isFillEffectivelyEnabled } from './shapeColors';
 
 // ... (Keeping imports and helper functions like getDistance, rotatePoint, screenToWorld, worldToScreen same)
 
@@ -229,6 +229,45 @@ const getConduitPathPoints = (shape: Shape): Point[] => {
   return shape.points;
 };
 
+export const getPolygonVertices = (shape: Shape): Point[] => {
+  const cx = shape.x ?? 0;
+  const cy = shape.y ?? 0;
+  const sides = Math.max(3, Math.floor(shape.sides ?? 6));
+  const w = shape.width ?? (shape.radius ?? 50) * 2;
+  const h = shape.height ?? (shape.radius ?? 50) * 2;
+  const rx = w / 2;
+  const ry = h / 2;
+  const rotation = shape.rotation ?? 0;
+  const scaleX = shape.scaleX ?? 1;
+  const scaleY = shape.scaleY ?? 1;
+  const c = rotation ? Math.cos(rotation) : 1;
+  const s = rotation ? Math.sin(rotation) : 0;
+  const pts: Point[] = [];
+  for (let i = 0; i < sides; i++) {
+    const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    const dx0 = Math.cos(t) * rx * scaleX;
+    const dy0 = Math.sin(t) * ry * scaleY;
+    const dx = rotation ? dx0 * c - dy0 * s : dx0;
+    const dy = rotation ? dx0 * s + dy0 * c : dy0;
+    pts.push({ x: cx + dx, y: cy + dy });
+  }
+  return pts;
+};
+
+const isPointInPolygon = (point: Point, polygon: readonly Point[]): boolean => {
+  // Ray casting algorithm (even-odd rule).
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const pi = polygon[i]!;
+    const pj = polygon[j]!;
+    const intersect =
+      (pi.y > point.y) !== (pj.y > point.y) &&
+      point.x < ((pj.x - pi.x) * (point.y - pi.y)) / (pj.y - pi.y + Number.EPSILON) + pi.x;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
 export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, layer?: Layer): boolean => {
   const hitToleranceScreen = HIT_TOLERANCE;
   const threshold = hitToleranceScreen / scale; 
@@ -237,6 +276,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
   const center = shouldUnrotate ? getShapeCenter(shape) : null;
   const checkPoint = (shouldUnrotate && center) ? rotatePoint(point, center, -rotation) : point;
   const effectiveFill = getEffectiveFillColor(shape, layer);
+  const fillEnabled = isFillEffectivelyEnabled(shape, layer) && effectiveFill !== 'transparent';
 
   switch (shape.type) {
     case 'circle':
@@ -250,7 +290,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const ny = (checkPoint.y - cy) / ry;
       const ellipseVal = nx * nx + ny * ny;
       const tolNorm = threshold / Math.max(rx, ry);
-      if (effectiveFill !== 'transparent') return ellipseVal <= 1 + tolNorm;
+      if (fillEnabled) return ellipseVal <= 1 + tolNorm;
       return Math.abs(Math.sqrt(ellipseVal) - 1) * Math.max(rx, ry) <= threshold;
 
     case 'rect':
@@ -258,7 +298,7 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const inX = checkPoint.x >= shape.x - threshold && checkPoint.x <= shape.x + shape.width + threshold;
       const inY = checkPoint.y >= shape.y - threshold && checkPoint.y <= shape.y + shape.height + threshold;
       if (!inX || !inY) return false;
-      if (effectiveFill !== 'transparent' || shape.svgRaw) return true; 
+      if (fillEnabled || shape.svgRaw) return true; 
       const nearLeft = Math.abs(checkPoint.x - shape.x) < threshold;
       const nearRight = Math.abs(checkPoint.x - (shape.x + shape.width)) < threshold;
       const nearTop = Math.abs(checkPoint.y - shape.y) < threshold;
@@ -278,7 +318,6 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
     case 'measure':
       if (!shape.points || shape.points.length < 2) return false;
       return isPointNearSegments(point, shape.points, threshold);
-    case 'conduit':
     case 'eletroduto':
       if (shape.points.length < 2) return false;
       const pathPoints = getConduitPathPoints(shape);
@@ -296,11 +335,14 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
       const arrowProj = { x: a1.x + at * (a2.x - a1.x), y: a1.y + at * (a2.y - a1.y) };
       return getDistance(point, arrowProj) < threshold;
 
-    case 'polygon': 
-      if (shape.x === undefined || shape.y === undefined || shape.radius === undefined) return false;
-      const pDist = getDistance(checkPoint, { x: shape.x, y: shape.y });
-      if (effectiveFill !== 'transparent') return pDist <= shape.radius + threshold;
-      return Math.abs(pDist - shape.radius) <= threshold;
+    case 'polygon': {
+      if (shape.x === undefined || shape.y === undefined) return false;
+      const verts = getPolygonVertices(shape);
+      if (verts.length < 3) return false;
+      if (fillEnabled) return isPointInPolygon(checkPoint, verts);
+      const closed = [...verts, verts[0]!];
+      return isPointNearSegments(point, closed, threshold);
+    }
 
     case 'polyline':
       for (let i = 0; i < shape.points.length - 1; i++) {
@@ -372,39 +414,81 @@ export const getSelectionRect = (start: Point, end: Point): { rect: Rect, direct
 export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'CROSSING'): boolean => {
   const bounds = getShapeBounds(shape);
   if (!bounds) return false;
+
   const rectRight = rect.x + rect.width;
   const rectBottom = rect.y + rect.height;
   const shapeRight = bounds.x + bounds.width;
   const shapeBottom = bounds.y + bounds.height;
 
-  if (shapeRight < rect.x || bounds.x > rectRight || shapeBottom < rect.y || bounds.y > rectBottom) return false;
-
-  const isFullyInside = bounds.x >= rect.x && shapeRight <= rectRight && bounds.y >= rect.y && shapeBottom <= rectBottom;
-  if (isFullyInside) return true;
-  if (mode === 'WINDOW') return isFullyInside;
-
-  const pts = shape.points || [];
-  let curvePoints = shape.points;
-  if ((shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
-      curvePoints = getConduitPathPoints(shape);
+  // Broad-phase check: if AABBs don't intersect, no selection is possible.
+  if (shapeRight < rect.x || bounds.x > rectRight || shapeBottom < rect.y || bounds.y > rectBottom) {
+    return false;
   }
-  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') {
-      if (pts.some(p => isPointInRect(p, rect))) return true;
-      const candidatePoints = curvePoints && curvePoints.length > 0 ? curvePoints : pts;
-      for (let i = 0; i < candidatePoints.length - 1; i++) {
-          if (isLineIntersectingRect(candidatePoints[i], candidatePoints[i+1], rect)) return true;
+
+  // --- Rotated Shapes: Use precise corner/edge checks ---
+  const rotation = shape.rotation || 0;
+  if (rotation !== 0 && (shape.type === 'rect' || shape.type === 'text')) {
+    const shapeBounds = getShapeBoundingBox(shape);
+    const center = getShapeCenter(shape);
+    const corners = [
+      { x: shapeBounds.x, y: shapeBounds.y },
+      { x: shapeBounds.x + shapeBounds.width, y: shapeBounds.y },
+      { x: shapeBounds.x + shapeBounds.width, y: shapeBounds.y + shapeBounds.height },
+      { x: shapeBounds.x, y: shapeBounds.y + shapeBounds.height }
+    ];
+    const rotatedCorners = corners.map(c => rotatePoint(c, center, rotation));
+
+    if (mode === 'WINDOW') {
+      // For WINDOW, all corners of the rotated shape must be inside the selection rect.
+      return rotatedCorners.every(p => isPointInRect(p, rect));
+    } else { // CROSSING mode
+      // Any corner inside the rect is an intersection.
+      if (rotatedCorners.some(p => isPointInRect(p, rect))) return true;
+      
+      // Check if any edge of the rotated shape intersects the selection rect bounds.
+      for (let i = 0; i < rotatedCorners.length; i++) {
+        const p1 = rotatedCorners[i];
+        const p2 = rotatedCorners[(i + 1) % rotatedCorners.length];
+        if (isLineIntersectingRect(p1, p2, rect)) return true;
       }
-      return false;
+      
+      // Finally, check if the selection box is entirely contained within the rotated shape.
+      if (isPointInShape({x: rect.x, y: rect.y}, shape)) return true;
+      
+      return false; // No intersection found.
+    }
   }
-  if (shape.type === 'rect' && shape.width && shape.height && shape.x !== undefined && shape.y !== undefined) return true;
 
-  if ((shape.type === 'circle' || shape.type === 'polygon') && shape.x !== undefined && shape.y !== undefined && shape.radius !== undefined) {
-     if (isPointInRect({x: shape.x, y: shape.y}, rect)) return true;
-     const closestX = Math.max(rect.x, Math.min(shape.x, rect.x + rect.width));
-     const closestY = Math.max(rect.y, Math.min(shape.y, rect.y + rect.height));
-     const dist = getDistance({x: shape.x, y: shape.y}, {x: closestX, y: closestY});
-     return dist <= shape.radius;
+  // --- Standard Shapes: Use AABB checks ---
+  const isFullyInside = bounds.x >= rect.x && shapeRight <= rectRight && bounds.y >= rect.y && shapeBottom <= rectBottom;
+
+  // If fully inside, it's always a match, regardless of mode.
+  if (isFullyInside) return true;
+
+  // For WINDOW mode, if not fully inside, it's a miss.
+  if (mode === 'WINDOW') return false;
+
+  // --- CROSSING Mode Logic for remaining shapes ---
+  // We know the AABB intersects, but the shape isn't fully inside.
+
+  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'eletroduto') {
+    const points = shape.type === 'eletroduto' ? getConduitPathPoints(shape) : shape.points;
+    if (!points || points.length === 0) return false;
+    // Any point inside rect?
+    if (points.some(p => isPointInRect(p, rect))) return true;
+    // Any segment intersects rect?
+    for (let i = 0; i < points.length - 1; i++) {
+      if (isLineIntersectingRect(points[i], points[i+1], rect)) return true;
+    }
+    return false;
   }
+  
+  if (shape.type === 'circle' || shape.type === 'polygon') {
+     // For crossing selection, AABB intersection is sufficient and avoids expensive geometry checks.
+     return true;
+  }
+
+  // For non-rotated rects and other simple shapes, AABB intersection is sufficient for a crossing match.
   return true;
 };
 
@@ -441,13 +525,13 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
          }
     }
     // Point-based shapes rely on already-rotated coordinates
-    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'conduit' || shape.type === 'eletroduto') && shape.points) {
-        let pointList: Point[] = shape.points;
-        if (shape.type === 'conduit' || shape.type === 'eletroduto') {
-            pointList = getConduitPathPoints(shape);
-        }
-        pointList.forEach(addPoint);
-    } 
+    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'eletroduto') && shape.points) {
+	        let pointList: Point[] = shape.points;
+	        if (shape.type === 'eletroduto') {
+	            pointList = getConduitPathPoints(shape);
+	        }
+	        pointList.forEach(addPoint);
+	    } 
     else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
         const bounds = getShapeBoundingBox(shape);
         const center = getShapeCenter(shape);
@@ -587,11 +671,11 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
     if (shape.electricalElementId) return handles;
     
-    if (shape.type === 'eletroduto' || shape.type === 'conduit') {
-        if (shape.points && shape.points.length >= 2) {
-            // Start point
-            handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });
-            // End point
+	    if (shape.type === 'eletroduto') {
+	        if (shape.points && shape.points.length >= 2) {
+	            // Start point
+	            handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });
+	            // End point
             handles.push({ x: shape.points[1].x, y: shape.points[1].y, cursor: 'move', index: 1, type: 'vertex' });
             // Control point
             const cp = shape.controlPoint ?? { x: (shape.points[0].x + shape.points[1].x)/2, y: (shape.points[0].y + shape.points[1].y)/2 };
@@ -625,4 +709,23 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
         handles.push({ x: rotatedCorners[3].x, y: rotatedCorners[3].y, cursor: getRotatedCursor(3, rotation), index: 3, type: 'resize' });
     }
     return handles;
+};
+
+export const supportsBBoxResize = (shape: Shape): boolean => {
+  return shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon';
+};
+
+export const getRectCornersWorld = (shape: Shape): { corners: { x: number; y: number }[]; center: { x: number; y: number } } | null => {
+  const bbox = getShapeBoundingBox(shape);
+  if (!isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) return null;
+  const rotation = shape.rotation || 0;
+  const center = getShapeCenter(shape);
+  const corners = [
+    { x: bbox.x, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
+    { x: bbox.x, y: bbox.y + bbox.height },
+  ];
+  const rotated = rotation ? corners.map((c) => rotatePoint(c, center, rotation)) : corners;
+  return { corners: rotated, center };
 };

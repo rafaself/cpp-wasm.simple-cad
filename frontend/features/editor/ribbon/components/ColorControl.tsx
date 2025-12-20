@@ -24,10 +24,10 @@ const ColorControl: React.FC<ColorControlProps> = ({
   const updateShape = useDataStore((s) => s.updateShape);
   const updateLayer = useDataStore((s) => s.updateLayer);
   const strokeEnabledDefault = useSettingsStore((s) => s.toolDefaults.strokeEnabled);
-  const fillDefault = useSettingsStore((s) => s.toolDefaults.fillColor);
+  const fillEnabledDefault = useSettingsStore((s) => s.toolDefaults.fillEnabled);
   const strokeWidthDefault = useSettingsStore((s) => s.toolDefaults.strokeWidth);
   const setStrokeEnabled = useSettingsStore((s) => s.setStrokeEnabled);
-  const setFillColor = useSettingsStore((s) => s.setFillColor);
+  const setFillEnabled = useSettingsStore((s) => s.setFillEnabled);
   const setStrokeWidth = useSettingsStore((s) => s.setStrokeWidth);
 
   const firstSelectedId = selectedIds[0];
@@ -41,16 +41,14 @@ const ColorControl: React.FC<ColorControlProps> = ({
       : (activeLayer?.fillColor || '#ffffff');
 
   const displayStrokeColor = effectiveStroke;
-  const displayFillColor = effectiveFill === 'transparent'
-      ? (activeLayer?.fillColor || '#ffffff')
-      : effectiveFill;
+  const displayFillColor = effectiveFill;
 
   const strokeEnabled = firstSelectedShape
       ? isStrokeEffectivelyEnabled(firstSelectedShape, activeLayer)
-      : (activeLayer?.strokeEnabled !== false && strokeEnabledDefault !== false);
+      : (activeLayer ? activeLayer.strokeEnabled !== false : strokeEnabledDefault !== false);
   const fillEnabled = firstSelectedShape
       ? isFillEffectivelyEnabled(firstSelectedShape, activeLayer)
-      : (activeLayer?.fillEnabled !== false && fillDefault !== 'transparent');
+      : (activeLayer ? activeLayer.fillEnabled !== false : fillEnabledDefault !== false);
 
   const displayStrokeWidth = firstSelectedShape?.strokeWidth ?? strokeWidthDefault;
 
@@ -70,7 +68,7 @@ const ColorControl: React.FC<ColorControlProps> = ({
   };
 
   const handleFillEnabledChange = (checked: boolean) => {
-    setFillColor(checked ? '#eeeeee' : 'transparent');
+    setFillEnabled(checked);
     if (selectedIds.length === 0) return;
       selectedIds.forEach(id => {
       const shape = shapes[id];
@@ -131,11 +129,7 @@ const ColorControl: React.FC<ColorControlProps> = ({
               type="button"
               className="w-5 h-5 rounded border border-slate-400 shadow-sm hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none disabled:cursor-not-allowed cursor-pointer"
               style={{
-                backgroundColor: displayFillColor === 'transparent' ? 'transparent' : displayFillColor,
-                backgroundImage: displayFillColor === 'transparent'
-                  ? 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)'
-                  : 'none',
-                backgroundSize: '4px 4px'
+                backgroundColor: displayFillColor,
               }}
               onClick={(e) => openColorPicker(e, { type: 'fill' })}
               disabled={!fillEnabled}

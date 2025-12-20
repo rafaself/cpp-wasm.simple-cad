@@ -8,195 +8,73 @@ These instructions apply to any AI agent working in this repository.
 - Prefer small, safe, reviewable changes.
 - Keep the project scalable and maintainable.
 
-## 1) Non-negotiables
+## 0.1) Current Direction (Project Context)
 
-- Use TypeScript or Python types strictly; avoid `any` unless justified.
-- Do not change product behavior unless explicitly requested.
-- Do not delete features. Only remove dead code if proven unused.
-- No breaking API changes without a migration plan.
-- If uncertain, ask for clarification in comments or leave a TODO.
-- Do not invent requirements, edge cases, or constraints not stated in the task.
-- Avoid carrying over legacy configuration flags; work only with the currently agreed-upon inputs and options even if older flags still exist.
+This repo is transitioning from a Canvas2D-first CAD MVP to a high-performance stack:
 
-## 2) Engineering Principles
+# Project Agent Contract (core)
 
-- **SRP** (Single Responsibility): one module/function = one reason to change.
-- **DRY**: eliminate duplicated logic by centralizing.
-- **KISS**: simplest solution that works.
-- **YAGNI**: don't add abstractions for hypothetical future needs.
-- **Clean boundaries**: UI vs domain vs infrastructure.
+These are mandatory, non-negotiable guidelines that apply to every AI agent and automated process operating in this repository.
 
-## 3) Architecture Rules
+## Mission
+- Improve the codebase while preserving intended behavior.
+- Prefer small, safe, reviewable changes.
 
-- Keep domain logic framework-agnostic (no React-specific logic in domain).
-- Prefer pure functions for domain rules.
-- Side effects (IO, network, storage) must be isolated in dedicated modules.
-- Avoid circular dependencies.
-- Favor explicit data flow over implicit coupling.
+## Non-negotiables (applies to all tasks)
+- MUST NOT change product behavior unless explicitly requested and approved.
+- MUST NOT introduce breaking API or serialization changes without an explicit migration plan.
+- MUST use types (TypeScript/Python/C++) appropriately; avoid `any` or equivalent unless justified and documented.
+- MUST surface uncertainties with: "I need clarification on X before proceeding." and create a TODO or issue when necessary.
 
-## 4) Code Style & Quality
+## Agent Operating Model (mandatory flow)
+1. Investigate: gather minimal necessary files, tests, and failing evidence.
+2. Plan: produce a concise plan with steps and files to change.
+3. Authorize: wait for explicit developer approval when required by Change Classification.
+4. Implement: make focused edits, preferring minimal surface area changes.
+5. Verify: run available tests or provide explicit verification instructions.
 
-- Respect the repo's current TypeScript configuration; do not enable `strict` (or other breaking compiler flags) unless explicitly requested.
-- Prefer early returns; avoid deeply nested conditionals.
-- Keep functions small and named by intent.
-- Use meaningful names (no `data2`, `temp`, `handle2`).
-- Add or update tests when behavior is critical or non-trivial.
-- **Frontend IDs (Best Practice):** never generate persistent IDs with `Date.now()` or `Math.random()` alone. Prefer `crypto.randomUUID()` (with a safe fallback) or the project’s UUID helper (e.g. `frontend/utils/uuid`), and ensure IDs are unique across the current document.
+## Change Discipline (what each change MUST include)
+- Problem: one-sentence summary.
+- Plan: short list of steps to implement.
+- Files changed: explicit file paths.
+- Risk: short assessment (low/medium/high) and mitigations.
+- Verification: exact commands or tests to run.
 
-## 5) React-Specific Rules (if applicable)
+## Agent Anti-Patterns (MUST NOT)
+- MUST NOT refactor broadly for style or taste without request.
+- MUST NOT rename public symbols or files without explicit approval.
+- MUST NOT invent requirements or silently assume unstated constraints.
+- MUST NOT fix unrelated issues discovered during work unless approved.
 
-- State must be immutable.
-- Prefer a single source of truth.
-- Keep components presentational when possible.
-- Extract hooks for reusable stateful logic.
-- Avoid rerender traps (unstable callbacks or objects).
-- Do not mix domain logic directly into UI components.
+## Definition of Done (for code changes)
+- Build succeeds where applicable.
+- Lint passes or a clear justification is provided.
+- Tests pass (or a clear reason and verification steps are documented).
+- No new console warnings for the changed scope.
+- A concise changelog entry or PR description that follows Change Discipline.
 
-## 6) CAD / Canvas App Rules (if applicable)
+## Module Routing Rules (how to load additional context)
+- The core `AGENTS.md` is mandatory and MUST be loaded for every task.
+- Load domain modules from `docs/agents/` when the task scope matches the module title.
+  - Example: tasks touching `frontend/` or UI behavior MUST load `docs/agents/30_frontend-react.md`.
+  - Example: tasks touching `cpp/` or `frontend/public/wasm/` MUST load `docs/agents/50_wasm-cpp.md`.
+- Agents MUST NOT assume they will read all files. Load only the modules required by the task.
+- When in doubt, load: `00_operating-model.md`, `10_engineering-principles.md`, and `20_architecture-rules.md`.
 
-- Tools must be deterministic and reversible (support undo/redo).
-- Separate clearly:
-  - tool intent (user action)
-  - model update (domain)
-  - render (view)
-- Every drawable element must be serializable to JSON.
-- Never store computed UI-only values in the persisted model.
+## Where additional rules live
+- Domain- and task-specific rules live under `docs/agents/` as single-responsibility modules.
+- Module filenames are numbered and descriptive; load them as needed.
 
-## 7) Safety & Performance
+## What I will change / What I will not change (prompt hooks)
+- When proposing edits, always include: "What I will change" and "What I will not change".
 
-- Avoid heavy computations on the main thread when possible.
-- Avoid unnecessary allocations in render or hot paths.
-- Validate inputs; never trust external data.
-- Prefer predictable performance over micro-optimizations.
+## Verification and Reporting
+- When a report or artifact is requested, follow repository reporting rules in `docs/agents/80_reporting.md`.
 
-## 8) Scope, Focus, and Inputs
+## Last-resort guidance
+- If a task requires a behavior change classified as "Requires explicit approval" in the modules, STOP and ask for approval.
 
-- Focus only on the files, modules, or areas explicitly mentioned in the task.
-- When code pointers (files, functions, identifiers) are provided in the prompt, treat them as authoritative and prioritize them.
-- Avoid expanding scope to unrelated parts of the codebase without explicit justification.
-- Do not explore or refactor broadly unless explicitly requested.
+Files under `docs/agents/` contain the full domain rules; consult them selectively based on Module Routing Rules.
 
-## 9) Change Discipline
-
-When making changes, always:
-
-1. Explain the problem being solved.
-2. Explain the proposed plan or approach.
-3. List the files changed.
-4. Provide a short risk assessment.
-5. Provide clear test or verification instructions.
-
-For complex changes:
-
-- Propose a step-by-step plan before implementation.
-- Prefer multiple small, reviewable changes over a single large one.
-
-## 10) Verification & Quality Gates
-
-- When verification steps or validation criteria are provided in the prompt, treat them as the definition of correctness.
-- A change should be considered correct only if it satisfies the provided verification steps.
-- If verification cannot be performed, explicitly explain why.
-- All verification files must be well-documented and placed in the appropriate `verification` folder (`frontend/verification` or `backend/verification`).
-
-## 11) Definition of Done
-
-- Builds successfully.
-- Lints cleanly.
-- Tests pass (or a clear explanation is provided for why no tests apply).
-- No new warnings in console or logs.
-- No regression in core user or API flows.
-
-## 12) Optional Observations
-
-- You may point out related bugs, technical debt, or improvements.
-- Do not implement optional suggestions unless explicitly requested.
-
-## 12.1) Backend (FastAPI) Rules (if applicable)
-
-- Keep the API layer thin: request/response validation + orchestration only.
-- Prefer Pydantic models for I/O; validate all external input.
-- Isolate side effects (DB/files/network) behind dedicated modules/services.
-- Avoid breaking API changes without a migration plan (versioning or compatibility layer).
-- Add/adjust `pytest` tests for non-trivial backend behavior.
-- Keep configuration in environment variables (and a single settings module); avoid hardcoding secrets.
-
-## 13) Reporting (when requested)
-
-- If the prompt requests a final report, create and save it as a file (not only in the chat output).
-- Default report format is **Markdown (.md)** unless the prompt explicitly requests another format.
-- Save reports under: `/resources/reports/` (create the folder if it does not exist).
-- Naming must be **incremental** and stable:
-  - `report_<N>.md` if no short task name is provided
-  - `report_<N>_<short-task-name>.md` if a short task name is provided
-- `<N>` must be the next available integer in the `reports/` folder (e.g., after `report_1*.md` and `report_2*.md`, the next is `report_3*.md`).
-- `<short-task-name>` should be a brief, filesystem-safe slug (lowercase, words separated by `-`, no spaces, keep it short).
-- Report content should follow the project's standard output format (problem, plan, changed files, risk, verification).
-
-## 14) Testing Standards (High Priority)
-
-Tests are a first-class deliverable in this project. When changing behavior that is critical or non-trivial, prefer adding or updating tests **before** broad refactors.
-
-### 14.1) General expectations
-
-- Keep tests deterministic: no reliance on wall-clock time, randomness, locale, filesystem ordering, or network.
-- Prefer small, single-purpose tests with clear names and minimal setup.
-- Avoid brittle assertions:
-  - Do not depend on array order unless order is an explicit contract.
-  - Do not assert exact serialized strings when the contract is structural (e.g., prefer parsing values and asserting invariants).
-- Avoid `any`/`@ts-ignore` in tests. If types are missing, add minimal local types/guards in the test instead of bypassing TS.
-- Avoid global mocks unless necessary; when used, reset/restore between tests.
-
-### 14.2) Test types & how to choose
-
-- **Unit/contract tests**: validate one behavior with synthetic inputs; preferred for domain logic.
-- **Fixture-based tests**: validate end-to-end properties using real fixtures (e.g., DXF/PDF/SVG). Keep fixtures minimal and documented.
-- **Smoke tests**: validate that a feature renders/executes without crashing; do not pretend they validate visual fidelity.
-
-### 14.3) Fixtures & documentation
-
-- Put fixtures under the appropriate `verification` folder (e.g., `frontend/verification/`).
-- Every fixture must be documented in `frontend/verification/README.md` with:
-  - which tests use it
-  - what feature/regression it covers
-  - which minimal entities/resources it contains
-- Keep fixtures small, deterministic, and focused on a single feature/regression.
-
-### 14.4) Running tests & environment constraints
-
-- Default: run `npx vitest run` from `frontend/`.
-- If tests cannot be executed due to environment/toolchain constraints (e.g., Windows `esbuild` spawn `EPERM` under OneDrive/Controlled Folder Access), make it explicit in the PR/summary and provide concrete remediation steps (move repo out of OneDrive-controlled folders or allowlist the toolchain executables).
-
-### 14.5) Canonical testing guide
-
-See:
-
-- `docs/TESTING.md` (general guidelines)
-- `docs/TESTING_FRONTEND.md` (frontend/Vitest specifics)
-- `docs/TESTING_BACKEND.md` (backend/Pytest specifics)
-
-## 15) Task Execution Protocol
-
-- **Investigate First**: Whenever a task is requested, assume that investigation steps are required first.
-- **Authorization Required**: Do not apply changes based on the investigation unless explicitly authorized by the developer.
-- **Verification Allowed**: You are authorized to perform tests and create verification files without prior permission, provided that these actions **do not modify the base codebase**.
-
-## Review guidelines
-
-- Don't log PII.
-- Verify that authentication middleware wraps every route.
-
-## Project Structure
-
-- **`frontend/`**: React / Vite frontend application.
-- **`backend/`**: FastAPI backend application.
-
-## Getting Started
-
-### Backend (FastAPI)
-
-- The API is available at `http://localhost:8000`.
-
-### Frontend (React)
-
-- The application is usually available at `http://localhost:3000` (or the port shown in the terminal).
-- Tests can be run with `npx vitest run`.
+--
+(End of core agent contract)

@@ -14,9 +14,20 @@ export type ToolType =
   | 'rotate'
   | 'text'
   | 'electrical-symbol'
-  | 'conduit' // Legacy name kept for compatibility
   | 'eletroduto'
   | 'calibrate';
+
+export type ShapeType =
+  | 'line'
+  | 'arrow'
+  | 'circle'
+  | 'rect'
+  | 'polygon'
+  | 'polyline'
+  | 'arc'
+  | 'measure'
+  | 'text'
+  | 'eletroduto';
 
 export type DiagramNodeKind =
   | 'board'
@@ -82,7 +93,7 @@ export interface ElectricalElement {
   category: ElectricalCategory;
   /**
    * Optional semantic refinement (e.g. for POWER devices: outlet vs switch).
-   * Backward-compatible: legacy projects simply omit it.
+   * Optional and may be omitted.
    */
   subcategory?: string;
   name?: string;
@@ -141,7 +152,7 @@ export interface FrameSettings {
 export interface Shape {
   id: string;
   layerId: string;
-  type: ToolType;
+  type: ShapeType;
   points: Point[];
   floorId?: string;
   discipline?: 'architecture' | 'electrical';
@@ -201,19 +212,12 @@ export interface Shape {
   fromNodeId?: string;
   toNodeId?: string;
 
-  fromConnectionId?: string; // Shape ID connected to start point (preferred)
-  toConnectionId?: string;   // Shape ID connected to end point (preferred)
-  connectedStartId?: string; // Legacy alias for fromConnectionId
-  connectedEndId?: string;   // Legacy alias for toConnectionId
-
   // Special flags
   diagramNodeId?: string;
   diagramEdgeId?: string;
   isFrame?: boolean;
 
-  // Project Structure
-  floorId?: string;
-  discipline?: 'architecture' | 'electrical';
+  // Project Structure (already defined above)
 }
 
 export interface ViewTransform {

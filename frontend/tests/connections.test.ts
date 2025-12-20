@@ -13,7 +13,7 @@ const idFactoryFrom = (ids: string[]) => {
 };
 
 describe('connection topology', () => {
-  it('migrates legacy conduit endpoints (shape ids) into anchored nodes', () => {
+  it('updates conduit points from anchored node positions', () => {
     const a: Shape = {
       id: 'A',
       layerId: 'desenho',
@@ -49,30 +49,25 @@ describe('connection topology', () => {
       strokeColor: '#8b5cf6',
       fillColor: 'transparent',
       points: [{ x: 0, y: 0 }, { x: 0, y: 0 }],
-      fromConnectionId: 'A',
-      toConnectionId: 'B',
+      fromNodeId: 'n1',
+      toNodeId: 'n2',
     };
 
     const shapes = { A: a, B: b, C1: conduit };
-    const nodes: Record<string, ConnectionNode> = {};
+    const nodes: Record<string, ConnectionNode> = {
+      n1: { id: 'n1', kind: 'anchored', anchorShapeId: 'A' },
+      n2: { id: 'n2', kind: 'anchored', anchorShapeId: 'B' },
+    };
 
-    const normalized = normalizeConnectionTopology(shapes, nodes, { idFactory: idFactoryFrom(['n1', 'n2']) });
-
+    const normalized = normalizeConnectionTopology(shapes, nodes);
     const c1 = normalized.shapes.C1;
-    expect(c1.fromNodeId).toBe('n1');
-    expect(c1.toNodeId).toBe('n2');
-
-    expect(normalized.nodes.n1.kind).toBe('anchored');
-    expect(normalized.nodes.n1.anchorShapeId).toBe('A');
-    expect(normalized.nodes.n2.kind).toBe('anchored');
-    expect(normalized.nodes.n2.anchorShapeId).toBe('B');
 
     // Connection points should resolve to centers of the rect bounds per normalized connectionPoint (0.5,0.5).
     expect(c1.points[0]).toEqual({ x: 120, y: 210 });
     expect(c1.points[1]).toEqual({ x: 310, y: 410 });
   });
 
-  it('creates free nodes for conduits without legacy links', () => {
+  it('creates free nodes for conduits missing node refs', () => {
     const conduit: Shape = {
       id: 'C1',
       layerId: 'eletrodutos',

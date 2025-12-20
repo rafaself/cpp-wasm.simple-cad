@@ -17,7 +17,7 @@ const EPS2 = 1e-12;
 
 // dxf-parser currently does not surface some entities we need for fidelity:
 // - HATCH (solid fills)
-// - legacy POLYLINE/VERTEX/SEQEND (often used inside BLOCKS with bulge arcs)
+// - POLYLINE/VERTEX/SEQEND (often used inside BLOCKS with bulge arcs)
 //
 // This module performs a lightweight pass on the raw DXF text to extract those
 // entities and merge them into the parsed DxfData.
@@ -86,7 +86,7 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
       continue;
     }
 
-    // Legacy POLYLINE parsing (in ENTITIES and in BLOCKS)
+    // POLYLINE parsing (in ENTITIES and in BLOCKS)
     if ((currentSection === 'ENTITIES' || currentSection === 'BLOCKS') && g.code === 0 && g.value === 'POLYLINE') {
       let layer = '0';
       let flags70 = 0;

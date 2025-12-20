@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { LibrarySymbol, loadElectricalLibrary } from '../features/library/electricalLoader';
-import { preloadElectricalSymbol } from '../features/editor/components/canvas/renderers/ShapeRenderer';
 
 interface LibraryState {
   electricalSymbols: Record<string, LibrarySymbol>;
@@ -24,11 +23,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     // Simulate a small delay if needed to ensure UI can show loading state,
     // but here we just process synchronously as it's CPU bound
     const symbols = loadElectricalLibrary(worldScale);
-
-    // Preload images for renderer
-    symbols.forEach(symbol => {
-        preloadElectricalSymbol(symbol);
-    });
 
     const symbolMap = Object.fromEntries(symbols.map((symbol) => [symbol.id, symbol]));
     set({ electricalSymbols: symbolMap, isLoading: false, lastWorldScale: worldScale });

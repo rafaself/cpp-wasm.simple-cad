@@ -270,7 +270,7 @@ const EditorSidebar: React.FC = () => {
     // We allow showing properties for Electrical elements even in Architecture mode if they are selected (though selection might be prevented)
     // But mainly we care about the Active Discipline.
     // If selected shape is from a different discipline, we might show "Read Only" or limited props?
-    // Current logic: if selected, show props. `useCanvasInteraction` handles selection prevention.
+    // Current logic: if selected, show props. Interaction layer enforces selection rules.
 
     return (
       <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">

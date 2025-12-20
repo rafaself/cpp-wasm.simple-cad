@@ -5,6 +5,7 @@ import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
 import { detachAnchoredNodesForShape, getConduitNodeUsage, normalizeConnectionTopology, resolveConnectionNodePosition } from '../utils/connections';
 import { generateId } from '../utils/uuid';
+import { hexToRgb } from '../utils/color';
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
@@ -15,6 +16,54 @@ const generateLayerId = (existingIds: Set<string>): string => {
     id = generateId();
   }
   return id;
+};
+
+const isValidHexColor = (color: string | undefined): boolean => {
+  if (!color) return false;
+  if (!color.startsWith('#')) return false;
+  return hexToRgb(color) !== null;
+};
+
+const normalizeStoredColor = (color: string | undefined, fallback: string): string => {
+  if (!color) return fallback;
+  if (color.toLowerCase() === 'transparent') return fallback;
+  return isValidHexColor(color) ? color : fallback;
+};
+
+const normalizeLayerStyle = (layer: Layer): Layer => {
+  const next: Layer = { ...layer };
+
+  if (typeof next.fillColor === 'string' && next.fillColor.toLowerCase() === 'transparent') {
+    next.fillColor = '#ffffff';
+    next.fillEnabled = false;
+  }
+  if (typeof next.strokeColor === 'string' && next.strokeColor.toLowerCase() === 'transparent') {
+    next.strokeColor = '#000000';
+    next.strokeEnabled = false;
+  }
+
+  next.fillColor = normalizeStoredColor(next.fillColor, '#ffffff');
+  next.strokeColor = normalizeStoredColor(next.strokeColor, '#000000');
+
+  return next;
+};
+
+const normalizeShapeStyle = (shape: Shape): Shape => {
+  const next: Shape = { ...shape };
+
+  if (typeof next.fillColor === 'string' && next.fillColor.toLowerCase() === 'transparent') {
+    next.fillColor = '#ffffff';
+    next.fillEnabled = false;
+  }
+  if (typeof next.strokeColor === 'string' && next.strokeColor.toLowerCase() === 'transparent') {
+    next.strokeColor = '#000000';
+    next.strokeEnabled = false;
+  }
+
+  next.fillColor = normalizeStoredColor(next.fillColor, '#ffffff');
+  next.strokeColor = normalizeStoredColor(next.strokeColor, '#000000');
+
+  return next;
 };
 
 interface DataState {
@@ -81,6 +130,13 @@ interface DataState {
 
   // Serialization
   serializeProject: () => SerializedProject;
+  resetDocument: () => void;
+  loadSerializedProject: (params: {
+    project: SerializedProject;
+    worldScale: number;
+    frame: FrameSettings;
+    history?: { past: Patch[][]; future: Patch[][] };
+  }) => void;
 
   // Helpers
   syncQuadTree: () => void;
@@ -89,16 +145,15 @@ interface DataState {
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => string;
 }
 
-export const useDataStore = create<DataState>((set, get) => ({
-  shapes: {},
-  electricalElements: {},
-  connectionNodes: {},
-  diagramNodes: {},
-  diagramEdges: {},
+const buildInitialState = () => ({
+  shapes: {} as Record<string, Shape>,
+  electricalElements: {} as Record<string, ElectricalElement>,
+  connectionNodes: {} as Record<string, ConnectionNode>,
+  diagramNodes: {} as Record<string, DiagramNode>,
+  diagramEdges: {} as Record<string, DiagramEdge>,
   layers: [
-      { id: 'desenho', name: 'Desenho', strokeColor: '#000000', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: true, visible: true, locked: false, isNative: true },
-      { id: 'eletrodutos', name: 'Eletrodutos', strokeColor: '#8b5cf6', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: false, visible: true, locked: false, isNative: true }
-  ],
+    { id: 'desenho', name: 'Desenho', strokeColor: '#ffffff', strokeEnabled: true, fillColor: '#ffffff', fillEnabled: false, visible: true, locked: false, isNative: true },
+  ] as Layer[],
   activeLayerId: 'desenho',
   worldScale: 100,
   frame: {
@@ -107,10 +162,13 @@ export const useDataStore = create<DataState>((set, get) => ({
     heightMm: 210,
     marginMm: 10,
   },
+  spatialIndex: new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 }),
+  past: [] as Patch[][],
+  future: [] as Patch[][],
+});
 
-  spatialIndex: initialQuadTree,
-  past: [],
-  future: [],
+export const useDataStore = create<DataState>((set, get) => ({
+  ...buildInitialState(),
 
   syncQuadTree: () => {
     const { shapes, spatialIndex } = get();
@@ -129,7 +187,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     Object.values(nextShapes).forEach((s) => {
       const prev = shapes[s.id];
       if (!prev) return;
-      const isConduit = (s.type === 'eletroduto' || s.type === 'conduit');
+      const isConduit = s.type === 'eletroduto';
       if (!isConduit) return;
       const prevPts = prev.points ?? [];
       const nextPts = s.points ?? [];
@@ -229,21 +287,16 @@ export const useDataStore = create<DataState>((set, get) => ({
             delete newShapes[patch.id];
             if (patch.diagramNode) delete newDiagramNodes[patch.diagramNode.id];
             if (patch.diagramEdge) delete newDiagramEdges[patch.diagramEdge.id];
-            redoPatches.push({
-              type: 'DELETE',
-              id: patch.id,
-              prev: patch.data,
-              electricalElement: patch.electricalElement,
-              diagramNode: patch.diagramNode,
-              diagramEdge: patch.diagramEdge
-            });
+            // Redo must re-apply the original forward patch.
+            redoPatches.push(patch);
         } else if (patch.type === 'UPDATE') {
             const oldS = newShapes[patch.id];
             if (oldS) {
                 const updated = { ...oldS, ...(patch.prev as Partial<Shape>) };
                 spatialIndex.update(oldS, updated);
                 newShapes[patch.id] = updated;
-                redoPatches.push({ type: 'UPDATE', id: patch.id, diff: patch.diff, prev: patch.prev });
+                // Redo must re-apply the original forward patch (apply diff).
+                redoPatches.push(patch);
             }
         } else if (patch.type === 'DELETE') {
             if (patch.prev) {
@@ -262,14 +315,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
                 newShapes[patch.id] = restoredShape;
                 spatialIndex.insert(restoredShape);
-                redoPatches.push({
-                  type: 'ADD',
-                  id: patch.id,
-                  data: restoredShape,
-                  electricalElement: patch.electricalElement,
-                  diagramNode: patch.diagramNode,
-                  diagramEdge: patch.diagramEdge
-                });
+                // Redo must re-apply the original forward patch (delete).
+                redoPatches.push(patch);
             }
         }
     });
@@ -377,7 +424,8 @@ export const useDataStore = create<DataState>((set, get) => ({
   addShape: (shape, electricalElement, diagram) => {
       const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
 
-      const linkedShape = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
+      const linkedShapeRaw = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
+      const linkedShape = normalizeShapeStyle(linkedShapeRaw);
       const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
       const newElectrical = electricalElement
         ? { ...electricalElements, [electricalElement.id]: { ...electricalElement, shapeId: linkedShape.id } }
@@ -409,12 +457,13 @@ export const useDataStore = create<DataState>((set, get) => ({
       const patches: Patch[] = [];
 
       shapesToAdd.forEach(shape => {
-          newShapes[shape.id] = shape;
-          spatialIndex.insert(shape);
+          const normalized = normalizeShapeStyle(shape);
+          newShapes[normalized.id] = normalized;
+          spatialIndex.insert(normalized);
           patches.push({
               type: 'ADD',
-              id: shape.id,
-              data: shape
+              id: normalized.id,
+              data: normalized
           });
       });
       
@@ -428,11 +477,11 @@ export const useDataStore = create<DataState>((set, get) => ({
       const oldShape = shapes[id];
       if (!oldShape) return;
 
-      let newShape: Shape = { ...oldShape, ...diff };
+      let newShape: Shape = normalizeShapeStyle({ ...oldShape, ...diff });
 
       // If editing a conduit endpoint that is anchored or shared, detach to a new free node
       // to preserve the "edit this conduit only" behavior.
-      const isConduit = (newShape.type === 'eletroduto' || newShape.type === 'conduit');
+      const isConduit = newShape.type === 'eletroduto';
       if (isConduit && diff.points && diff.points.length >= 2) {
         const usage = getConduitNodeUsage(shapes);
         let nextNodes = connectionNodes;
@@ -554,9 +603,6 @@ export const useDataStore = create<DataState>((set, get) => ({
     const end = toNode ? (resolveConnectionNodePosition(toNode, data.shapes) ?? toNode.position) : null;
     const points: Point[] = start && end ? [start, end] : [];
 
-    const fromConnectionId = fromNode?.kind === 'anchored' ? fromNode.anchorShapeId : undefined;
-    const toConnectionId = toNode?.kind === 'anchored' ? toNode.anchorShapeId : undefined;
-
     data.addShape({
       id,
       layerId,
@@ -564,16 +610,12 @@ export const useDataStore = create<DataState>((set, get) => ({
       strokeColor,
       strokeWidth: 2,
       strokeEnabled: true,
-      fillColor: 'transparent',
+      fillColor: '#ffffff',
       fillEnabled: false,
       colorMode: { stroke: 'layer', fill: 'layer' },
       points,
       fromNodeId,
       toNodeId,
-      fromConnectionId,
-      toConnectionId,
-      connectedStartId: fromConnectionId,
-      connectedEndId: toConnectionId,
     });
     return id;
   },
@@ -729,11 +771,11 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   setLayerStrokeColor: (id, color) => set(state => ({
-      layers: state.layers.map(l => l.id === id ? { ...l, strokeColor: color } : l)
+      layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, strokeColor: color }) : l)
   })),
 
   setLayerFillColor: (id, color) => set(state => ({
-      layers: state.layers.map(l => l.id === id ? { ...l, fillColor: color } : l)
+      layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, fillColor: color }) : l)
   })),
 
   toggleLayerVisibility: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l) })),
@@ -741,7 +783,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   toggleLayerLock: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, locked: !l.locked } : l) })),
   
   updateLayer: (id, updates) => set((state) => ({
-      layers: state.layers.map(l => l.id === id ? { ...l, ...updates } : l)
+      layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, ...updates }) : l)
   })),
 
   setWorldScale: (scale) => set({ worldScale: Math.max(1, scale) }),
@@ -908,6 +950,40 @@ export const useDataStore = create<DataState>((set, get) => ({
       };
   },
 
+  resetDocument: () => {
+    const initial = buildInitialState();
+    set({ ...initial });
+  },
+
+  loadSerializedProject: ({ project, worldScale, frame, history }) => {
+    const nextShapes = Object.fromEntries(project.shapes.map((s) => [s.id, normalizeShapeStyle(s)]));
+    const nextElectrical = Object.fromEntries(project.electricalElements.map((e) => [e.id, e]));
+    const nextNodes = Object.fromEntries(project.connectionNodes.map((n) => [n.id, n]));
+    const nextDiagramNodes = Object.fromEntries(project.diagramNodes.map((n) => [n.id, n]));
+    const nextDiagramEdges = Object.fromEntries(project.diagramEdges.map((e) => [e.id, e]));
+
+    const spatialIndex = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
+    Object.values(nextShapes).forEach((shape) => spatialIndex.insert(shape));
+
+    set({
+      layers: project.layers.map(normalizeLayerStyle),
+      shapes: nextShapes,
+      electricalElements: nextElectrical,
+      connectionNodes: nextNodes,
+      diagramNodes: nextDiagramNodes,
+      diagramEdges: nextDiagramEdges,
+      activeLayerId: project.activeLayerId,
+      worldScale,
+      frame,
+      spatialIndex,
+      past: history?.past ?? [],
+      future: history?.future ?? [],
+    });
+
+    get().syncConnections();
+    get().syncDiagramEdgesGeometry();
+  },
+
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => {
       const { layers } = get();
       const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
@@ -915,7 +991,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       const existingIds = new Set(layers.map(l => l.id));
       const newId = generateLayerId(existingIds);
-      const newLayer: Layer = {
+      const newLayerRaw: Layer = {
         id: newId,
         name,
         strokeColor: defaults?.strokeColor ?? '#000000',
@@ -927,7 +1003,17 @@ export const useDataStore = create<DataState>((set, get) => ({
         isNative: defaults?.isNative,
       };
 
+      const newLayer = normalizeLayerStyle(newLayerRaw);
       set(state => ({ layers: [...state.layers, newLayer] }));
       return newId;
   },
 }));
+
+// Test helper (intended for unit tests)
+export const __resetDataStoreForTests = () => {
+  const initial = buildInitialState();
+  useDataStore.setState({
+    ...useDataStore.getState(),
+    ...initial,
+  }, true);
+};

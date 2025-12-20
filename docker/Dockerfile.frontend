@@ -1,0 +1,9 @@
+# Dev container for the frontend (Vite + Node 20)
+FROM node:20-bullseye
+
+WORKDIR /workspace/frontend
+
+# Keep image lean; dependencies are installed at runtime inside the mounted volume.
+ENV CI=false
+
+EXPOSE 3000

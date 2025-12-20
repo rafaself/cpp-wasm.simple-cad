@@ -2,7 +2,7 @@ import { ConnectionNode, Point, Shape } from '../types';
 import { getShapeBoundingBox } from './geometry';
 import { generateId } from './uuid';
 
-const isConduitShape = (shape: Shape) => shape.type === 'eletroduto' || shape.type === 'conduit';
+const isConduitShape = (shape: Shape) => shape.type === 'eletroduto';
 
 const resolveShapeConnectionPoint = (shape: Shape): Point | null => {
   if (
@@ -47,33 +47,6 @@ export type IdFactory = () => string;
 
 const defaultIdFactory: IdFactory = () => generateId();
 
-const ensureAnchoredNode = (
-  nodes: Record<string, ConnectionNode>,
-  shapes: Record<string, Shape>,
-  anchorShapeId: string,
-  idFactory: IdFactory
-): { nodes: Record<string, ConnectionNode>; nodeId: string } => {
-  const existing = Object.values(nodes).find((n) => n.kind === 'anchored' && n.anchorShapeId === anchorShapeId);
-  if (existing) {
-    const pos = resolveConnectionNodePosition(existing, shapes);
-    if (pos && (existing.position?.x !== pos.x || existing.position?.y !== pos.y)) {
-      return { nodes: { ...nodes, [existing.id]: { ...existing, position: pos } }, nodeId: existing.id };
-    }
-    return { nodes, nodeId: existing.id };
-  }
-
-  const nodeId = idFactory();
-  const anchorShape = shapes[anchorShapeId];
-  const pos = anchorShape ? resolveShapeConnectionPoint(anchorShape) : null;
-  const next: ConnectionNode = {
-    id: nodeId,
-    kind: 'anchored',
-    anchorShapeId,
-    position: pos ?? undefined,
-  };
-  return { nodes: { ...nodes, [nodeId]: next }, nodeId };
-};
-
 const ensureFreeNodeAt = (
   nodes: Record<string, ConnectionNode>,
   position: Point,
@@ -111,7 +84,7 @@ export const detachAnchoredNodesForShape = (
 
 /**
  * Normalizes conduit topology:
- * - Ensures every conduit has `fromNodeId/toNodeId` (created from legacy ids or points).
+ * - Ensures every conduit has `fromNodeId/toNodeId` (created from points if missing).
  * - Keeps node positions coherent (anchored nodes are resolved from their shape).
  * - Ensures conduit points match resolved node positions.
  * - Optionally prunes orphan free nodes.
@@ -145,15 +118,8 @@ export const normalizeConnectionTopology = (
     let fromNodeId = s.fromNodeId;
     let toNodeId = s.toNodeId;
 
-    const legacyFrom = s.fromConnectionId ?? s.connectedStartId;
-    const legacyTo = s.toConnectionId ?? s.connectedEndId;
-
     if (!fromNodeId) {
-      if (legacyFrom) {
-        const res = ensureAnchoredNode(nextNodes, nextShapes, legacyFrom, idFactory);
-        nextNodes = res.nodes;
-        fromNodeId = res.nodeId;
-      } else if (s.points?.[0]) {
+      if (s.points?.[0]) {
         const res = ensureFreeNodeAt(nextNodes, s.points[0], idFactory);
         nextNodes = res.nodes;
         fromNodeId = res.nodeId;
@@ -161,11 +127,7 @@ export const normalizeConnectionTopology = (
     }
 
     if (!toNodeId) {
-      if (legacyTo) {
-        const res = ensureAnchoredNode(nextNodes, nextShapes, legacyTo, idFactory);
-        nextNodes = res.nodes;
-        toNodeId = res.nodeId;
-      } else if (s.points?.[1]) {
+      if (s.points?.[1]) {
         const res = ensureFreeNodeAt(nextNodes, s.points[1], idFactory);
         nextNodes = res.nodes;
         toNodeId = res.nodeId;

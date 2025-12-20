@@ -54,10 +54,13 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
                     const currentHeight = selectedShape.height ?? (selectedShape.radius ? selectedShape.radius * 2 : 100);
                     const ratio = currentHeight / currentWidth;
 
-                    if (isCircle) {
-                        updateProp('radius', newWidth / 2);
-                    } else if (isPolygon) {
-                        updateProp('radius', newWidth / 2);
+                    if (isCircle || isPolygon) {
+                        if (proportionLinked) {
+                          const newHeight = newWidth * ratio;
+                          store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
+                        } else {
+                          updateProp('width', newWidth);
+                        }
                     } else if (proportionLinked) {
                         const newHeight = newWidth * ratio;
                         store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
@@ -90,10 +93,13 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
                     const currentHeight = selectedShape.height ?? (selectedShape.radius ? selectedShape.radius * 2 : 100);
                     const ratio = currentWidth / currentHeight;
 
-                    if (isCircle) {
-                        updateProp('radius', newHeight / 2);
-                    } else if (isPolygon) {
-                        updateProp('radius', newHeight / 2);
+                    if (isCircle || isPolygon) {
+                        if (proportionLinked) {
+                          const newWidth = newHeight * ratio;
+                          store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
+                        } else {
+                          updateProp('height', newHeight);
+                        }
                     } else if (proportionLinked) {
                         const newWidth = newHeight * ratio;
                         store.updateShape(selectedShape.id, { width: newWidth, height: newHeight });
@@ -178,7 +184,7 @@ export const DimensionProperties: React.FC<DimensionPropertiesProps> = ({ select
                   type="number"
                   min={3}
                   max={24}
-                  value={selectedShape.sides || 6}
+                  value={selectedShape.sides || 3}
                   onChange={(e) => {
                       const val = parseInt(e.target.value);
                       if (!isNaN(val) && val >= 3 && val <= 24) {
