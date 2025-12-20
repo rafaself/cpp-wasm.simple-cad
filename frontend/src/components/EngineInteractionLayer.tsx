@@ -409,7 +409,7 @@ const EngineInteractionLayer: React.FC = () => {
     return best ? { shapeId: best.shapeId, handleIndex: best.handleIndex, cursor: best.cursor } : null;
   };
 
-  const pickEndpointHandleAtScreen = (
+  const pickVertexHandleAtScreen = (
     screenPoint: { x: number; y: number },
     view: ReturnType<typeof useUIStore.getState>['viewTransform'],
   ): { shapeId: string; vertexIndex: number } | null => {
@@ -422,17 +422,17 @@ const EngineInteractionLayer: React.FC = () => {
     selectedShapeIds.forEach((id) => {
       const shape = data.shapes[id];
       if (!shape) return;
-      if (shape.type !== 'line' && shape.type !== 'arrow') return;
-      const p0 = shape.points?.[0];
-      const p1 = shape.points?.[1];
-      if (!p0 || !p1) return;
+      if (shape.type !== 'line' && shape.type !== 'arrow' && shape.type !== 'polyline') return;
+      const ptsWorld = shape.points ?? [];
+      if (ptsWorld.length < 2) return;
 
       const layer = data.layers.find((l) => l.id === shape.layerId);
       if (layer && (!layer.visible || layer.locked)) return;
       if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
 
-      const pts = [p0, p1].map((p) => worldToScreen(p, view));
-      for (const [i, p] of pts.entries()) {
+      const pts = ptsWorld.map((p) => worldToScreen(p, view));
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i]!;
         const dx = screenPoint.x - p.x;
         const dy = screenPoint.y - p.y;
         const d2 = dx * dx + dy * dy;
@@ -721,7 +721,7 @@ const EngineInteractionLayer: React.FC = () => {
         { x: clampTiny(start.x), y: clampTiny(start.y) },
         { x: clampTiny(end.x), y: clampTiny(end.y) },
       ],
-      arrowHeadSize: Math.max(8, strokeWidth * 4),
+      arrowHeadSize: Math.max(16, strokeWidth * 10),
       strokeColor,
       strokeWidth,
       strokeEnabled,
@@ -870,7 +870,7 @@ const EngineInteractionLayer: React.FC = () => {
         }
       }
 
-      const endpointHit = pickEndpointHandleAtScreen(screen, viewTransform);
+      const endpointHit = pickVertexHandleAtScreen(screen, viewTransform);
       if (endpointHit) {
         const data = useDataStore.getState();
         const shape = data.shapes[endpointHit.shapeId];
@@ -898,17 +898,18 @@ const EngineInteractionLayer: React.FC = () => {
         const layer = hitShape ? data.layers.find((l) => l.id === hitShape.layerId) : null;
         const movable = !!hitShape && !(layer?.locked) && !isConduitShape(hitShape);
         if (movable && hitShape) {
-          if (hitShape.type === 'line' || hitShape.type === 'arrow') {
-            const p0 = hitShape.points?.[0];
-            const p1 = hitShape.points?.[1];
-            if (p0 && p1) {
-              const s0 = worldToScreen(p0, viewTransform);
-              const s1 = worldToScreen(p1, viewTransform);
-              const d0 = (screen.x - s0.x) * (screen.x - s0.x) + (screen.y - s0.y) * (screen.y - s0.y);
-              const d1 = (screen.x - s1.x) * (screen.x - s1.x) + (screen.y - s1.y) * (screen.y - s1.y);
+          if (hitShape.type === 'line' || hitShape.type === 'arrow' || hitShape.type === 'polyline') {
+            const pts = hitShape.points ?? [];
+            if (pts.length >= 2) {
               const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
-              const best = d0 <= d1 ? { idx: 0, d2: d0 } : { idx: 1, d2: d1 };
-              if (best.d2 <= hitR2) {
+              let best: { idx: number; d2: number } | null = null;
+              for (let i = 0; i < pts.length; i++) {
+                const s = worldToScreen(pts[i]!, viewTransform);
+                const d2 = (screen.x - s.x) * (screen.x - s.x) + (screen.y - s.y) * (screen.y - s.y);
+                if (d2 > hitR2) continue;
+                if (!best || d2 < best.d2) best = { idx: i, d2 };
+              }
+              if (best) {
                 selectInteractionRef.current = {
                   kind: 'vertex',
                   moved: false,
@@ -965,7 +966,7 @@ const EngineInteractionLayer: React.FC = () => {
           return;
         }
 
-        const endpointHover = pickEndpointHandleAtScreen(screen, viewTransform);
+        const endpointHover = pickVertexHandleAtScreen(screen, viewTransform);
         if (endpointHover) {
           setCursorOverride('move');
           return;
@@ -1059,22 +1060,19 @@ const EngineInteractionLayer: React.FC = () => {
           }
         }
 
-        const nextW = Math.max(eps, Math.abs(rawW));
-        const nextH = Math.max(eps, Math.abs(rawH));
-        const nextScaleX = (state.snapshot.scaleX ?? 1) * (rawW < 0 ? -1 : 1);
-        const nextScaleY = (state.snapshot.scaleY ?? 1) * (rawH < 0 ? -1 : 1);
+        // Flip-friendly local AABB from (0,0) at fixed corner to signed (rawW, rawH).
+        const localMinX = Math.min(0, rawW);
+        const localMaxX = Math.max(0, rawW);
+        const localMinY = Math.min(0, rawH);
+        const localMaxY = Math.max(0, rawH);
 
-        // Keep the fixed rotated corner anchored by solving for the unrotated center.
-        const fixedOffset = {
-          x: (state.fixedCornerIndex === 0 || state.fixedCornerIndex === 3 ? -nextW / 2 : nextW / 2),
-          y: (state.fixedCornerIndex === 0 || state.fixedCornerIndex === 1 ? -nextH / 2 : nextH / 2),
-        };
-        const center = {
-          x: fixed.x - rotateVec(fixedOffset, rotation).x,
-          y: fixed.y - rotateVec(fixedOffset, rotation).y,
-        };
+        const nextW = Math.max(eps, localMaxX - localMinX);
+        const nextH = Math.max(eps, localMaxY - localMinY);
 
-        const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
+        const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
+        const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
+
+        const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, state.snapshot.scaleX ?? 1, state.snapshot.scaleY ?? 1);
         data.updateShape(state.shapeId, diff, false);
         return;
       }
@@ -1443,6 +1441,7 @@ const EngineInteractionLayer: React.FC = () => {
       id: string;
       outline:
         | { kind: 'poly'; points: { x: number; y: number }[] }
+        | { kind: 'polyline'; points: { x: number; y: number }[] }
         | { kind: 'rect'; x: number; y: number; w: number; h: number }
         | { kind: 'segment'; a: { x: number; y: number }; b: { x: number; y: number } };
       handles: { x: number; y: number }[];
@@ -1465,6 +1464,17 @@ const EngineInteractionLayer: React.FC = () => {
           id,
           outline: { kind: 'segment', a: aa, b: bb },
           handles: [aa, bb],
+        });
+        return;
+      }
+
+      if (shape.type === 'polyline') {
+        const pts = (shape.points ?? []).map((p) => worldToScreen(p, viewTransform));
+        if (pts.length < 2) return;
+        items.push({
+          id,
+          outline: { kind: 'polyline', points: pts },
+          handles: pts,
         });
         return;
       }
@@ -1507,6 +1517,27 @@ const EngineInteractionLayer: React.FC = () => {
             return (
               <g key={it.id}>
                 <polygon points={pts} fill="transparent" stroke={stroke} strokeWidth={1} />
+                {it.handles.map((p, i) => (
+                  <rect
+                    key={i}
+                    x={p.x - hh}
+                    y={p.y - hh}
+                    width={hs}
+                    height={hs}
+                    fill="#ffffff"
+                    stroke={stroke}
+                    strokeWidth={1}
+                  />
+                ))}
+              </g>
+            );
+          }
+
+          if (it.outline.kind === 'polyline') {
+            const pts = it.outline.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+            return (
+              <g key={it.id}>
+                <polyline points={pts} fill="transparent" stroke={stroke} strokeWidth={1} />
                 {it.handles.map((p, i) => (
                   <rect
                     key={i}
