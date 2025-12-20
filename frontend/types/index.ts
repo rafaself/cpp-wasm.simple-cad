@@ -217,9 +217,7 @@ export interface Shape {
   diagramEdgeId?: string;
   isFrame?: boolean;
 
-  // Project Structure
-  floorId?: string;
-  discipline?: 'architecture' | 'electrical';
+  // Project Structure (already defined above)
 }
 
 export interface ViewTransform {

@@ -9,3 +9,7 @@
 ## 2024-05-23 - [Manual Subscriptions vs Hooks in Dynamic Overlays]
 **Learning:** Replacing a manual `useDataStore.subscribe` with a `useShallow` hook in `DynamicOverlay` caused a regression where selection handles didn't update during shape manipulation. The manual subscription guaranteed immediate updates on shape reference changes, which the hook might have missed or delayed during the interaction loop.
 **Action:** Be extremely cautious when refactoring manual subscriptions in high-frequency interaction components. Verify dynamic behavior (dragging, resizing) explicitly, not just static rendering.
+
+## 2024-05-24 - Isolated Selection Rendering
+**Learning:** `EngineInteractionLayer` subscribed to all `shapes`, causing re-renders on every shape update even if off-screen.
+**Action:** Extracted `SelectionOverlay` and used `useDataStore(useShallow(...))` to subscribe ONLY to selected shapes. This isolates high-frequency interaction rendering from global store updates.
