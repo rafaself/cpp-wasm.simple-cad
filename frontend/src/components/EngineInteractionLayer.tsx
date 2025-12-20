@@ -137,6 +137,7 @@ type ResizeState = {
   startPointerWorld: { x: number; y: number };
   snapshot: Shape;
   applyMode: 'topLeft' | 'center';
+  startAspectRatio: number; // height/width at start of resize
 };
 
 type VertexDragState = {
@@ -160,6 +161,17 @@ const rotateVec = (v: { x: number; y: number }, angle: number): { x: number; y: 
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
+};
+
+const snapVectorTo45Deg = (from: { x: number; y: number }, to: { x: number; y: number }): { x: number; y: number } => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return { x: from.x, y: from.y };
+  const angle = Math.atan2(dy, dx);
+  const step = Math.PI / 4;
+  const snappedAngle = Math.round(angle / step) * step;
+  return { x: from.x + len * Math.cos(snappedAngle), y: from.y + len * Math.sin(snappedAngle) };
 };
 
 const supportsBBoxResize = (shape: Shape): boolean => {
@@ -224,6 +236,8 @@ const EngineInteractionLayer: React.FC = () => {
 
   const [draft, setDraft] = useState<Draft>({ kind: 'none' });
   const draftRef = useRef<Draft>({ kind: 'none' });
+  const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
+  const [polygonSidesValue, setPolygonSidesValue] = useState<number>(6);
   const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
   const moveRef = useRef<MoveState | null>(null);
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
@@ -252,6 +266,12 @@ const EngineInteractionLayer: React.FC = () => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
 
+      if (polygonSidesModal && e.key === 'Escape') {
+        e.preventDefault();
+        setPolygonSidesModal(null);
+        return;
+      }
+
       if (activeTool !== 'polyline') return;
       const prev = draftRef.current;
 
@@ -274,7 +294,7 @@ const EngineInteractionLayer: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool]);
+  }, [activeTool, polygonSidesModal]);
 
   const cursor = useMemo(() => (cursorOverride ? cursorOverride : getCursorForTool(activeTool)), [activeTool, cursorOverride]);
 
@@ -283,6 +303,7 @@ const EngineInteractionLayer: React.FC = () => {
     selectInteractionRef.current = { kind: 'none' };
     setCursorOverride(null);
     setDraft((prev) => (prev.kind === 'polyline' ? { kind: 'none' } : prev));
+    setPolygonSidesModal(null);
   }, [activeTool]);
 
   const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
@@ -599,6 +620,11 @@ const EngineInteractionLayer: React.FC = () => {
     setSelectedShapeIds(new Set([id]));
   };
 
+  const commitDefaultRectAt = (center: { x: number; y: number }) => {
+    const half = 50;
+    commitRect({ x: center.x - half, y: center.y - half }, { x: center.x + half, y: center.y + half });
+  };
+
   const commitEllipse = (start: { x: number; y: number }, end: { x: number; y: number }) => {
     const r = normalizeRect(start, end);
     if (r.w < 1e-3 || r.h < 1e-3) return;
@@ -621,6 +647,39 @@ const EngineInteractionLayer: React.FC = () => {
       y: clampTiny(r.y + r.h / 2),
       width: clampTiny(r.w),
       height: clampTiny(r.h),
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    setSelectedShapeIds(new Set([id]));
+  };
+
+  const commitDefaultEllipseAt = (center: { x: number; y: number }) => {
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const fillColor = layer?.fillColor ?? '#ffffff';
+    const strokeEnabled = layer?.strokeEnabled !== false;
+    const fillEnabled = layer?.fillEnabled !== false;
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'circle',
+      points: [],
+      x: clampTiny(center.x),
+      y: clampTiny(center.y),
+      width: 100,
+      height: 100,
       strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled,
@@ -658,6 +717,41 @@ const EngineInteractionLayer: React.FC = () => {
       width: clampTiny(r.w),
       height: clampTiny(r.h),
       sides: 6,
+      strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    data.addShape(s);
+    setSelectedShapeIds(new Set([id]));
+  };
+
+  const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
+    const id = generateId();
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const fillColor = layer?.fillColor ?? '#ffffff';
+    const strokeEnabled = layer?.strokeEnabled !== false;
+    const fillEnabled = layer?.fillEnabled !== false;
+    const clampedSides = Math.max(3, Math.min(24, Math.floor(sides)));
+
+    const s: Shape = {
+      id,
+      layerId,
+      type: 'polygon',
+      points: [],
+      x: clampTiny(center.x),
+      y: clampTiny(center.y),
+      width: 100,
+      height: 100,
+      sides: clampedSides,
       strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled,
@@ -851,6 +945,9 @@ const EngineInteractionLayer: React.FC = () => {
         const shape = data.shapes[handleHit.shapeId];
         const corners = shape ? getRectCornersWorld(shape) : null;
         if (shape && corners) {
+          const bbox0 = getShapeBoundingBox(shape);
+          const baseW = Math.max(1e-3, bbox0.width || 1);
+          const baseH = Math.max(1e-3, bbox0.height || 1);
           const fixedCornerIndex = (handleHit.handleIndex + 2) % 4;
           selectInteractionRef.current = {
             kind: 'resize',
@@ -863,6 +960,7 @@ const EngineInteractionLayer: React.FC = () => {
               startPointerWorld: world,
               snapshot: shape,
               applyMode: shape.type === 'circle' || shape.type === 'polygon' ? 'center' : 'topLeft',
+              startAspectRatio: baseH / baseW,
             },
           };
           setCursorOverride(handleHit.cursor);
@@ -883,7 +981,7 @@ const EngineInteractionLayer: React.FC = () => {
             moved: false,
             state: { shapeId: shape.id, vertexIndex: endpointHit.vertexIndex, startPointerWorld: world, snapshot: shape },
           };
-          setCursorOverride('move');
+          setCursorOverride('default');
           return;
         }
       }
@@ -915,7 +1013,7 @@ const EngineInteractionLayer: React.FC = () => {
                   moved: false,
                   state: { shapeId: hitShape.id, vertexIndex: best.idx, startPointerWorld: world, snapshot: hitShape },
                 };
-                setCursorOverride('move');
+                setCursorOverride('default');
                 return;
               }
             }
@@ -968,7 +1066,7 @@ const EngineInteractionLayer: React.FC = () => {
 
         const endpointHover = pickVertexHandleAtScreen(screen, viewTransform);
         if (endpointHover) {
-          setCursorOverride('move');
+          setCursorOverride('default');
           return;
         }
 
@@ -1014,7 +1112,14 @@ const EngineInteractionLayer: React.FC = () => {
         if (!curr) return;
         if (!curr.points || curr.points.length < 2) return;
 
-        const nextPoints = curr.points.map((p, i) => (i === state.vertexIndex ? { x: clampTiny(snapped.x), y: clampTiny(snapped.y) } : p));
+        let nextPoint = { x: clampTiny(snapped.x), y: clampTiny(snapped.y) };
+        if ((curr.type === 'line' || curr.type === 'arrow') && curr.points.length >= 2 && evt.shiftKey) {
+          const fixedIdx = state.vertexIndex === 0 ? 1 : 0;
+          const fixed = curr.points[fixedIdx]!;
+          nextPoint = snapVectorTo45Deg(fixed, nextPoint);
+        }
+
+        const nextPoints = curr.points.map((p, i) => (i === state.vertexIndex ? nextPoint : p));
         data.updateShape(state.shapeId, { points: nextPoints }, false);
         return;
       }
@@ -1043,12 +1148,13 @@ const EngineInteractionLayer: React.FC = () => {
         const eps = 1e-3;
         const baseW = Math.max(eps, bbox0.width || 1);
         const baseH = Math.max(eps, bbox0.height || 1);
-        const ratio = baseH / baseW;
+        const ratio = Number.isFinite(state.startAspectRatio) && state.startAspectRatio > 0 ? state.startAspectRatio : (baseH / baseW);
 
         let rawW = rawW0;
         let rawH = rawH0;
 
-        if (state.snapshot.proportionsLinked) {
+        const constrainProportions = !!state.snapshot.proportionsLinked || evt.shiftKey;
+        if (constrainProportions) {
           const wAbs = Math.abs(rawW);
           const hAbs = Math.abs(rawH);
           const wRel = wAbs / baseW;
@@ -1165,6 +1271,7 @@ const EngineInteractionLayer: React.FC = () => {
 
     const down = pointerDownRef.current;
     pointerDownRef.current = null;
+    const clickNoDrag = !!down && !isDrag(evt.clientX - down.x, evt.clientY - down.y);
 
     if (activeTool === 'select') {
       if (!down) return;
@@ -1272,21 +1379,34 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool === 'rect') {
       const prev = draftRef.current;
       setDraft({ kind: 'none' });
-      if (prev.kind === 'rect') commitRect(prev.start, prev.current);
+      if (prev.kind === 'rect') {
+        if (clickNoDrag) commitDefaultRectAt(prev.start);
+        else commitRect(prev.start, prev.current);
+      }
       return;
     }
 
     if (activeTool === 'circle') {
       const prev = draftRef.current;
       setDraft({ kind: 'none' });
-      if (prev.kind === 'ellipse') commitEllipse(prev.start, prev.current);
+      if (prev.kind === 'ellipse') {
+        if (clickNoDrag) commitDefaultEllipseAt(prev.start);
+        else commitEllipse(prev.start, prev.current);
+      }
       return;
     }
 
     if (activeTool === 'polygon') {
       const prev = draftRef.current;
       setDraft({ kind: 'none' });
-      if (prev.kind === 'polygon') commitPolygon(prev.start, prev.current);
+      if (prev.kind === 'polygon') {
+        if (clickNoDrag) {
+          setPolygonSidesValue(6);
+          setPolygonSidesModal({ center: prev.start });
+        } else {
+          commitPolygon(prev.start, prev.current);
+        }
+      }
       return;
     }
 
@@ -1600,6 +1720,42 @@ const EngineInteractionLayer: React.FC = () => {
       {selectionSvg}
       {textEditState ? (
         <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />
+      ) : null}
+      {polygonSidesModal ? (
+        <>
+          <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />
+          <div
+            className="absolute left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[280px]"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-3 text-slate-100">
+              <div className="text-xs font-semibold mb-2">Lados do polígono</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={3}
+                  max={24}
+                  value={polygonSidesValue}
+                  onChange={(e) => setPolygonSidesValue(Number.parseInt(e.target.value, 10))}
+                  className="w-full h-8 bg-slate-800 border border-slate-700 rounded px-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
+                  onClick={() => {
+                    const sides = Number.isFinite(polygonSidesValue) ? polygonSidesValue : 6;
+                    commitDefaultPolygonAt(polygonSidesModal.center, sides);
+                    setPolygonSidesModal(null);
+                  }}
+                >
+                  OK
+                </button>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-400">Min 3, max 24. Tamanho inicial 100×100.</div>
+            </div>
+          </div>
+        </>
       ) : null}
     </div>
   );
