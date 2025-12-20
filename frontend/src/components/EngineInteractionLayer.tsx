@@ -467,7 +467,7 @@ const EngineInteractionLayer: React.FC = () => {
       strokeColor: layerConfig.strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled: false,
-      fillColor: 'transparent',
+      fillColor: '#ffffff',
       fillEnabled: false,
       colorMode: getDefaultColorMode(),
       points: [],

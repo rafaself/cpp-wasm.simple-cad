@@ -243,8 +243,8 @@ const OverlayShapesLayer: React.FC = () => {
         const ry = h / 2;
         const rot = shape.rotation ?? 0;
 
-        const fillEnabled = isFillEffectivelyEnabled(shape, layer) && getEffectiveFillColor(shape, layer) !== 'transparent';
-        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+        const fillEnabled = isFillEffectivelyEnabled(shape, layer);
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
 
         out.push({
           kind: 'ellipse',
@@ -275,8 +275,8 @@ const OverlayShapesLayer: React.FC = () => {
         const sx = shape.scaleX ?? 1;
         const sy = shape.scaleY ?? 1;
 
-        const fillEnabled = isFillEffectivelyEnabled(shape, layer) && getEffectiveFillColor(shape, layer) !== 'transparent';
-        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+        const fillEnabled = isFillEffectivelyEnabled(shape, layer);
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
 
         out.push({
           kind: 'polygon',
@@ -303,7 +303,7 @@ const OverlayShapesLayer: React.FC = () => {
         const p0 = shape.points?.[0];
         const p1 = shape.points?.[1];
         if (!p0 || !p1) continue;
-        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+        const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
         if (!strokeEnabled) continue;
         out.push({
           kind: 'arrow',
@@ -532,7 +532,7 @@ const StrokeSegmentsLayer: React.FC = () => {
       const layer = layerById.get(shape.layerId) as Layer | undefined;
       if (layer && !layer.visible) continue;
 
-      const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer) && getEffectiveStrokeColor(shape, layer) !== 'transparent';
+      const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
       if (!strokeEnabled) continue;
 
       const color = getEffectiveStrokeColor(shape, layer);

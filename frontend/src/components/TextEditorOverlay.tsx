@@ -107,7 +107,7 @@ const TextEditorOverlay: React.FC<Props> = ({ textEditState, setTextEditState, v
           strokeColor: settingsStore.toolDefaults.strokeColor,
           strokeWidth: settingsStore.toolDefaults.strokeWidth,
           strokeEnabled: settingsStore.toolDefaults.strokeEnabled,
-          fillColor: 'transparent',
+          fillColor: '#ffffff',
           fillEnabled: false,
           colorMode: getDefaultColorMode(),
           points: [],

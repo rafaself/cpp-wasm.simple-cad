@@ -31,6 +31,7 @@ export interface ToolDefaults {
   strokeWidth: number;
   strokeEnabled: boolean;
   fillColor: string;
+  fillEnabled: boolean;
   polygonSides: number;
   text: {
     fontSize: number;
@@ -71,6 +72,7 @@ interface SettingsState {
   setStrokeWidth: (width: number) => void;
   setStrokeEnabled: (enabled: boolean) => void;
   setFillColor: (color: string) => void;
+  setFillEnabled: (enabled: boolean) => void;
   setPolygonSides: (sides: number) => void;
 
   setTextFontSize: (size: number) => void;
@@ -116,7 +118,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     strokeColor: '#FFFFFF',
     strokeWidth: 1,
     strokeEnabled: true,
-    fillColor: 'transparent',
+    fillColor: '#FFFFFF',
+    fillEnabled: false,
     polygonSides: 3,
     text: {
       fontSize: 16,
@@ -151,6 +154,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setStrokeWidth: (width) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),
   setStrokeEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeEnabled: enabled } })),
   setFillColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillColor: color } })),
+  setFillEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillEnabled: enabled } })),
   setPolygonSides: (sides) => set((state) => ({ toolDefaults: { ...state.toolDefaults, polygonSides: sides } })),
 
   setTextFontSize: (size) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontSize: size } } })),

@@ -16,7 +16,7 @@ type StrokeItem =
 const getStrokePx = (shape: Shape): number => {
   const w = shape.strokeWidth ?? 1;
   if (!Number.isFinite(w)) return 1;
-  return Math.max(1, Math.min(200, Math.round(w)));
+  return Math.max(0, Math.min(200, w));
 };
 
 const getAlpha01 = (shape: Shape): number => {
@@ -59,9 +59,9 @@ export const StrokeOverlay: React.FC = () => {
 
       const alpha = getAlpha01(shape);
       if (alpha <= 0) continue;
-      // Scale thickness with zoom so it doesn't visually "eat" the shape when zoomed out (Figma-like).
-      // strokeWidth is stored in px-like units at scale=1; apply view scale here since we render in screen-space.
-      const width = Math.max(0.5, getStrokePx(shape) * (viewTransform.scale || 1));
+      // Scale thickness with zoom since this overlay renders in screen-space coordinates.
+      // Allow subpixel widths so zooming out doesn't make the inside stroke visually "fill" small shapes.
+      const width = getStrokePx(shape) * (viewTransform.scale || 1);
 
       if (shape.type === 'rect') {
         const corners = getRectCornersWorld(shape)?.corners;

@@ -34,12 +34,10 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   const strokeEffectivelyEnabled = isStrokeEffectivelyEnabled(selectedShape, layer);
   const fillEffectivelyEnabled = isFillEffectivelyEnabled(selectedShape, layer);
   
-  // Display colors: never show 'transparent' - show the stored color so user knows what color will be used when re-enabled
-  // For layer mode: show layer color
-  // For custom mode: show shape's stored color (not transparent)
+  // Display colors: store never uses 'transparent'; disabled fill/stroke is represented via `*Enabled: false`.
   const displayFillColor = fillMode === 'layer' 
     ? (layer?.fillColor || '#ffffff')
-    : (selectedShape.fillColor === 'transparent' ? '#ffffff' : selectedShape.fillColor);
+    : (selectedShape.fillColor || '#ffffff');
   
   const displayStrokeColor = strokeMode === 'layer'
     ? (layer?.strokeColor || '#000000')
@@ -150,14 +148,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
     </div>
   );
 
-  const getSwatchStyle = (color: string) => ({
-    backgroundColor: color === 'transparent' ? 'transparent' : color,
-    backgroundImage:
-      color === 'transparent'
-        ? 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)'
-        : 'none',
-    backgroundSize: '4px 4px'
-  });
+  const getSwatchStyle = (color: string) => ({ backgroundColor: color });
 
   const openSidebarColorPicker = (e: React.MouseEvent, target: 'fill' | 'stroke') => {
     e.stopPropagation();
