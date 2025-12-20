@@ -535,9 +535,8 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const strokeEnabled = layer?.strokeEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
 
     const s: Shape = {
       id,
@@ -550,7 +549,7 @@ const EngineInteractionLayer: React.FC = () => {
       strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled,
-      fillColor: layer?.fillColor ?? '#ffffff',
+      fillColor: toolDefaults.fillColor ?? '#D9D9D9',
       fillEnabled: false,
       colorMode: getDefaultColorMode(),
       floorId: activeFloorId,
@@ -568,11 +567,10 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const fillColor = layer?.fillColor ?? '#ffffff';
-    const strokeEnabled = layer?.strokeEnabled !== false;
-    const fillEnabled = layer?.fillEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
 
     const s: Shape = {
       id,
@@ -609,11 +607,10 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const fillColor = layer?.fillColor ?? '#ffffff';
-    const strokeEnabled = layer?.strokeEnabled !== false;
-    const fillEnabled = layer?.fillEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
 
     const s: Shape = {
       id,
@@ -642,11 +639,10 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const fillColor = layer?.fillColor ?? '#ffffff';
-    const strokeEnabled = layer?.strokeEnabled !== false;
-    const fillEnabled = layer?.fillEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
 
     const s: Shape = {
       id,
@@ -678,11 +674,10 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const fillColor = layer?.fillColor ?? '#ffffff';
-    const strokeEnabled = layer?.strokeEnabled !== false;
-    const fillEnabled = layer?.fillEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
     const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
     const rotation = clampedSides === 3 ? Math.PI : 0;
 
@@ -715,11 +710,10 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const fillColor = layer?.fillColor ?? '#ffffff';
-    const strokeEnabled = layer?.strokeEnabled !== false;
-    const fillEnabled = layer?.fillEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
+    const fillEnabled = toolDefaults.fillEnabled !== false;
     const clampedSides = Math.max(3, Math.min(24, Math.floor(sides)));
     const rotation = clampedSides === 3 ? Math.PI : 0;
 
@@ -754,9 +748,8 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const strokeEnabled = layer?.strokeEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
     const s: Shape = {
       id,
       layerId,
@@ -765,7 +758,7 @@ const EngineInteractionLayer: React.FC = () => {
       strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
       strokeEnabled,
-      fillColor: layer?.fillColor ?? '#ffffff',
+      fillColor: toolDefaults.fillColor ?? '#D9D9D9',
       fillEnabled: false,
       colorMode: getDefaultColorMode(),
       floorId: activeFloorId,
@@ -784,9 +777,8 @@ const EngineInteractionLayer: React.FC = () => {
     const id = generateId();
     const data = useDataStore.getState();
     const layerId = data.activeLayerId;
-    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
-    const strokeColor = layer?.strokeColor ?? '#000000';
-    const strokeEnabled = layer?.strokeEnabled !== false;
+    const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
+    const strokeEnabled = toolDefaults.strokeEnabled !== false;
     const strokeWidth = toolDefaults.strokeWidth ?? 2;
 
     const s: Shape = {
@@ -801,7 +793,7 @@ const EngineInteractionLayer: React.FC = () => {
       strokeColor,
       strokeWidth,
       strokeEnabled,
-      fillColor: layer?.fillColor ?? '#ffffff',
+      fillColor: toolDefaults.fillColor ?? '#D9D9D9',
       fillEnabled: false,
       colorMode: getDefaultColorMode(),
       floorId: activeFloorId,

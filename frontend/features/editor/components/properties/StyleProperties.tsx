@@ -101,30 +101,19 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
 
   /**
    * UNIFIED TOGGLE BEHAVIOR:
-   * - If mode === 'layer': toggle affects layer.strokeEnabled/fillEnabled
+   * - If mode === 'layer': layer state is managed only via Layer Manager (read-only here)
    * - If mode === 'custom': toggle affects shape.strokeEnabled/fillEnabled
-   * This prevents accidental mode changes and keeps behavior consistent.
    */
   const handleToggleFill = () => {
-    if (fillMode === 'layer' && layer) {
-      // Toggle on layer level - affects all elements inheriting from this layer
-      store.updateLayer(layer.id, { fillEnabled: !layer.fillEnabled });
-    } else {
-      // Toggle on element level
-      const currentEnabled = selectedShape.fillEnabled !== false;
-      updateProp('fillEnabled', !currentEnabled);
-    }
+    if (fillMode === 'layer') return;
+    const currentEnabled = selectedShape.fillEnabled !== false;
+    updateProp('fillEnabled', !currentEnabled);
   };
 
   const handleToggleStroke = () => {
-    if (strokeMode === 'layer' && layer) {
-      // Toggle on layer level - affects all elements inheriting from this layer
-      store.updateLayer(layer.id, { strokeEnabled: !layer.strokeEnabled });
-    } else {
-      // Toggle on element level
-      const currentEnabled = selectedShape.strokeEnabled !== false;
-      updateProp('strokeEnabled', !currentEnabled);
-    }
+    if (strokeMode === 'layer') return;
+    const currentEnabled = selectedShape.strokeEnabled !== false;
+    updateProp('strokeEnabled', !currentEnabled);
   };
 
   const renderModeToggle = (target: 'fill' | 'stroke', active: ColorInheritanceMode) => (
@@ -175,6 +164,9 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
   // Determine toggle button appearance based on effective state
   const getToggleButtonClass = (isEnabled: boolean, mode: ColorInheritanceMode) => {
     const baseClass = 'p-1 rounded transition-colors cursor-pointer';
+    if (mode === 'layer') {
+      return `${baseClass} cursor-not-allowed text-slate-300 hover:text-slate-300`;
+    }
     if (isEnabled) {
       return `${baseClass} text-blue-600 hover:text-blue-700`;
     }
@@ -234,9 +226,10 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
             <button
               onClick={handleToggleFill}
               className={getToggleButtonClass(fillEffectivelyEnabled, fillMode)}
+              disabled={fillMode === 'layer'}
               title={
                 fillMode === 'layer'
-                  ? (fillEffectivelyEnabled ? 'Desativar preenchimento na camada' : 'Ativar preenchimento na camada')
+                  ? 'Gerencie o estado da camada no Gerenciador de Camadas'
                   : (fillEffectivelyEnabled ? 'Desativar preenchimento' : 'Ativar preenchimento')
               }
             >
@@ -327,9 +320,10 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
             <button
               onClick={handleToggleStroke}
               className={getToggleButtonClass(strokeEffectivelyEnabled, strokeMode)}
+              disabled={strokeMode === 'layer'}
               title={
                 strokeMode === 'layer'
-                  ? (strokeEffectivelyEnabled ? 'Desativar traço na camada' : 'Ativar traço na camada')
+                  ? 'Gerencie o estado da camada no Gerenciador de Camadas'
                   : (strokeEffectivelyEnabled ? 'Desativar traço' : 'Ativar traço')
               }
             >

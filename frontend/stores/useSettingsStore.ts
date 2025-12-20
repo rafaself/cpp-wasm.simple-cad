@@ -118,8 +118,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     strokeColor: '#FFFFFF',
     strokeWidth: 1,
     strokeEnabled: true,
-    fillColor: '#FFFFFF',
-    fillEnabled: false,
+    fillColor: '#D9D9D9',
+    fillEnabled: true,
     polygonSides: 3,
     text: {
       fontSize: 16,

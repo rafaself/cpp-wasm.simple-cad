@@ -352,7 +352,13 @@ const OverlayShapesLayer: React.FC = () => {
             <group key={it.id}>
               {fillGeom && it.fill ? (
                 <mesh geometry={fillGeom}>
-                  <meshBasicMaterial color={it.fill.color} transparent opacity={it.fill.opacity} depthWrite={false} />
+                  <meshBasicMaterial
+                    color={it.fill.color}
+                    transparent
+                    opacity={it.fill.opacity}
+                    depthWrite={false}
+                    toneMapped={false}
+                  />
                 </mesh>
               ) : null}
             </group>
@@ -390,7 +396,13 @@ const OverlayShapesLayer: React.FC = () => {
             <group key={it.id}>
               {fillGeom && it.fill ? (
                 <mesh geometry={fillGeom}>
-                  <meshBasicMaterial color={it.fill.color} transparent opacity={it.fill.opacity} depthWrite={false} />
+                  <meshBasicMaterial
+                    color={it.fill.color}
+                    transparent
+                    opacity={it.fill.opacity}
+                    depthWrite={false}
+                    toneMapped={false}
+                  />
                 </mesh>
               ) : null}
             </group>
