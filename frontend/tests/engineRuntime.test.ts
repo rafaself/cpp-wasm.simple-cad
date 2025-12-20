@@ -67,7 +67,24 @@ describe('EngineRuntime', () => {
     const runtime = await EngineRuntime.create();
     const commands: EngineCommand[] = [
       { op: CommandOp.ClearAll },
-      { op: CommandOp.UpsertRect, id: 10, rect: { x: 1, y: 2, w: 3, h: 4 } }
+      {
+        op: CommandOp.UpsertRect,
+        id: 10,
+        rect: {
+          x: 1,
+          y: 2,
+          w: 3,
+          h: 4,
+          fillR: 1,
+          fillG: 0,
+          fillB: 0,
+          fillA: 1,
+          strokeR: 0,
+          strokeG: 1,
+          strokeB: 0,
+          strokeEnabled: 1,
+        },
+      }
     ];
 
     runtime.apply(commands);

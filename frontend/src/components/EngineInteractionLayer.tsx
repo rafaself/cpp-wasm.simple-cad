@@ -3,7 +3,7 @@ import type { ElectricalElement } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, getDistance, getShapeBoundingBox, isPointInShape, isShapeInSelection } from '@/utils/geometry';
+import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint } from '@/utils/geometry';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
 import { generateId } from '@/utils/uuid';
@@ -126,6 +126,45 @@ const getCursorForTool = (tool: ReturnType<typeof useUIStore.getState>['activeTo
 type ConduitStart = { nodeId: string; point: { x: number; y: number } };
 type MoveState = { start: { x: number; y: number }; snapshot: Map<string, Shape> };
 
+type ResizeState = {
+  shapeId: string;
+  handleIndex: number; // 0 TL, 1 TR, 2 BR, 3 BL (matches geometry.ts corners order)
+  fixedCornerIndex: number;
+  fixedCornerWorld: { x: number; y: number };
+  startPointerWorld: { x: number; y: number };
+  snapshot: Shape;
+};
+
+type SelectInteraction =
+  | { kind: 'none' }
+  | { kind: 'marquee' }
+  | { kind: 'move'; moved: boolean; state: MoveState }
+  | { kind: 'resize'; moved: boolean; state: ResizeState };
+
+const HANDLE_SIZE_PX = 8;
+const HANDLE_HIT_RADIUS_PX = 10;
+
+const rotateVec = (v: { x: number; y: number }, angle: number): { x: number; y: number } => {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
+};
+
+const getRectCornersWorld = (shape: Shape): { corners: { x: number; y: number }[]; center: { x: number; y: number } } | null => {
+  const bbox = getShapeBoundingBox(shape);
+  if (!isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) return null;
+  const rotation = shape.rotation || 0;
+  const center = getShapeCenter(shape);
+  const corners = [
+    { x: bbox.x, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
+    { x: bbox.x, y: bbox.y + bbox.height },
+  ];
+  const rotated = rotation ? corners.map((c) => rotatePoint(c, center, rotation)) : corners;
+  return { corners: rotated, center };
+};
+
 const EngineInteractionLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
@@ -144,14 +183,20 @@ const EngineInteractionLayer: React.FC = () => {
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
 
+  const shapesById = useDataStore((s) => s.shapes);
+  const layers = useDataStore((s) => s.layers);
+
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const isPanningRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const transformStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
 
   const [draft, setDraft] = useState<Draft>({ kind: 'none' });
+  const draftRef = useRef<Draft>({ kind: 'none' });
   const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
   const moveRef = useRef<MoveState | null>(null);
+  const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
+  const [cursorOverride, setCursorOverride] = useState<string | null>(null);
   const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
@@ -167,10 +212,16 @@ const EngineInteractionLayer: React.FC = () => {
     };
   }, []);
 
-  const cursor = useMemo(() => getCursorForTool(activeTool), [activeTool]);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  const cursor = useMemo(() => (cursorOverride ? cursorOverride : getCursorForTool(activeTool)), [activeTool, cursorOverride]);
 
   useEffect(() => {
     setSelectionBox(null);
+    selectInteractionRef.current = { kind: 'none' };
+    setCursorOverride(null);
   }, [activeTool]);
 
   const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
@@ -264,6 +315,39 @@ const EngineInteractionLayer: React.FC = () => {
     return null;
   };
 
+  const pickResizeHandleAtScreen = (
+    screenPoint: { x: number; y: number },
+    view: ReturnType<typeof useUIStore.getState>['viewTransform'],
+  ): { shapeId: string; handleIndex: number; cursor: string } | null => {
+    const data = useDataStore.getState();
+    const ui = useUIStore.getState();
+
+    let best: { shapeId: string; handleIndex: number; cursor: string; d2: number } | null = null;
+    const hitR2 = HANDLE_HIT_RADIUS_PX * HANDLE_HIT_RADIUS_PX;
+
+    selectedShapeIds.forEach((id) => {
+      const shape = data.shapes[id];
+      if (!shape) return;
+      if (shape.type !== 'rect') return;
+
+      const layer = data.layers.find((l) => l.id === shape.layerId);
+      if (layer && (!layer.visible || layer.locked)) return;
+      if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
+
+      const handles = getShapeHandles(shape).filter((h) => h.type === 'resize');
+      for (const h of handles) {
+        const p = worldToScreen({ x: h.x, y: h.y }, view);
+        const dx = screenPoint.x - p.x;
+        const dy = screenPoint.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > hitR2) continue;
+        if (!best || d2 < best.d2) best = { shapeId: id, handleIndex: h.index, cursor: h.cursor, d2 };
+      }
+    });
+
+    return best ? { shapeId: best.shapeId, handleIndex: best.handleIndex, cursor: best.cursor } : null;
+  };
+
   const commitElectricalSymbolAt = (world: { x: number; y: number }) => {
     if (!activeElectricalSymbolId) return;
     const library = useLibraryStore.getState();
@@ -355,7 +439,11 @@ const EngineInteractionLayer: React.FC = () => {
     if (Math.hypot(dx, dy) < 1e-3) return;
 
     const id = generateId();
-    const layerId = useDataStore.getState().activeLayerId;
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const strokeEnabled = layer?.strokeEnabled !== false;
 
     const s: Shape = {
       id,
@@ -365,17 +453,17 @@ const EngineInteractionLayer: React.FC = () => {
         { x: clampTiny(start.x), y: clampTiny(start.y) },
         { x: clampTiny(end.x), y: clampTiny(end.y) },
       ],
-      strokeColor: toolDefaults.strokeColor,
+      strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
-      strokeEnabled: toolDefaults.strokeEnabled,
-      fillColor: toolDefaults.fillColor,
+      strokeEnabled,
+      fillColor: layer?.fillColor ?? '#ffffff',
       fillEnabled: false,
-      colorMode: toolDefaults.colorMode,
+      colorMode: getDefaultColorMode(),
       floorId: activeFloorId,
       discipline: activeDiscipline,
     };
 
-    useDataStore.getState().addShape(s);
+    data.addShape(s);
     setSelectedShapeIds(new Set([id]));
   };
 
@@ -384,7 +472,13 @@ const EngineInteractionLayer: React.FC = () => {
     if (r.w < 1e-3 || r.h < 1e-3) return;
 
     const id = generateId();
-    const layerId = useDataStore.getState().activeLayerId;
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const fillColor = layer?.fillColor ?? '#ffffff';
+    const strokeEnabled = layer?.strokeEnabled !== false;
+    const fillEnabled = layer?.fillEnabled !== false;
 
     const s: Shape = {
       id,
@@ -395,17 +489,17 @@ const EngineInteractionLayer: React.FC = () => {
       y: clampTiny(r.y),
       width: clampTiny(r.w),
       height: clampTiny(r.h),
-      strokeColor: toolDefaults.strokeColor,
+      strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
-      strokeEnabled: toolDefaults.strokeEnabled,
-      fillColor: toolDefaults.fillColor,
-      fillEnabled: toolDefaults.fillEnabled,
-      colorMode: toolDefaults.colorMode,
+      strokeEnabled,
+      fillColor,
+      fillEnabled,
+      colorMode: getDefaultColorMode(),
       floorId: activeFloorId,
       discipline: activeDiscipline,
     };
 
-    useDataStore.getState().addShape(s);
+    data.addShape(s);
     setSelectedShapeIds(new Set([id]));
   };
 
@@ -413,23 +507,27 @@ const EngineInteractionLayer: React.FC = () => {
     if (points.length < 2) return;
 
     const id = generateId();
-    const layerId = useDataStore.getState().activeLayerId;
+    const data = useDataStore.getState();
+    const layerId = data.activeLayerId;
+    const layer = data.layers.find((l) => l.id === layerId) ?? data.layers[0];
+    const strokeColor = layer?.strokeColor ?? '#000000';
+    const strokeEnabled = layer?.strokeEnabled !== false;
     const s: Shape = {
       id,
       layerId,
       type: 'polyline',
       points: points.map((p) => ({ x: clampTiny(p.x), y: clampTiny(p.y) })),
-      strokeColor: toolDefaults.strokeColor,
+      strokeColor,
       strokeWidth: toolDefaults.strokeWidth,
-      strokeEnabled: toolDefaults.strokeEnabled,
-      fillColor: toolDefaults.fillColor,
+      strokeEnabled,
+      fillColor: layer?.fillColor ?? '#ffffff',
       fillEnabled: false,
-      colorMode: toolDefaults.colorMode,
+      colorMode: getDefaultColorMode(),
       floorId: activeFloorId,
       discipline: activeDiscipline,
     };
 
-    useDataStore.getState().addShape(s);
+    data.addShape(s);
     setSelectedShapeIds(new Set([id]));
   };
 
@@ -512,6 +610,61 @@ const EngineInteractionLayer: React.FC = () => {
       });
       return;
     }
+
+    if (activeTool === 'select') {
+      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+
+      const handleHit = pickResizeHandleAtScreen(screen, viewTransform);
+      if (handleHit) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[handleHit.shapeId];
+        const corners = shape ? getRectCornersWorld(shape) : null;
+        if (shape && corners) {
+          const fixedCornerIndex = (handleHit.handleIndex + 2) % 4;
+          selectInteractionRef.current = {
+            kind: 'resize',
+            moved: false,
+            state: {
+              shapeId: shape.id,
+              handleIndex: handleHit.handleIndex,
+              fixedCornerIndex,
+              fixedCornerWorld: corners.corners[fixedCornerIndex],
+              startPointerWorld: world,
+              snapshot: shape,
+            },
+          };
+          setCursorOverride(handleHit.cursor);
+          return;
+        }
+      }
+
+      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const hitId = pickShapeAt(world, tolerance);
+      if (hitId) {
+        if (!selectedShapeIds.has(hitId) || selectedShapeIds.size !== 1) setSelectedShapeIds(new Set([hitId]));
+
+        const data = useDataStore.getState();
+        const hitShape = data.shapes[hitId];
+        const layer = hitShape ? data.layers.find((l) => l.id === hitShape.layerId) : null;
+        const movable = !!hitShape && !(layer?.locked) && !isConduitShape(hitShape);
+        if (movable) {
+          selectInteractionRef.current = {
+            kind: 'move',
+            moved: false,
+            state: { start: world, snapshot: new Map([[hitId, hitShape]]) },
+          };
+        } else {
+          selectInteractionRef.current = { kind: 'none' };
+        }
+        setCursorOverride('move');
+        return;
+      }
+
+      selectInteractionRef.current = { kind: 'marquee' };
+      setCursorOverride(null);
+      return;
+    }
   };
 
   const handlePointerMove = (evt: React.PointerEvent<HTMLDivElement>) => {
@@ -526,11 +679,100 @@ const EngineInteractionLayer: React.FC = () => {
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
 
     if (activeTool === 'select') {
+      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+
       const down = pointerDownRef.current;
-      if (!down) return;
+      const interaction = selectInteractionRef.current;
+
+      if (!down) {
+        const handleHover = pickResizeHandleAtScreen(screen, viewTransform);
+        if (handleHover) {
+          setCursorOverride(handleHover.cursor);
+          return;
+        }
+
+        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+        const hit = pickShapeAt(world, tolerance);
+        setCursorOverride(hit ? 'move' : null);
+        return;
+      }
+
       const dx = evt.clientX - down.x;
       const dy = evt.clientY - down.y;
-      if (!isDrag(dx, dy)) {
+      const dragged = isDrag(dx, dy);
+
+      if (interaction.kind === 'move') {
+        if (!interaction.moved && !dragged) return;
+        if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
+
+        const moveState = interaction.state;
+        const data = useDataStore.getState();
+        const ddx = snapped.x - moveState.start.x;
+        const ddy = snapped.y - moveState.start.y;
+        moveState.snapshot.forEach((shape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+
+          const diff: Partial<Shape> = {};
+          if (shape.x !== undefined) diff.x = clampTiny(shape.x + ddx);
+          if (shape.y !== undefined) diff.y = clampTiny(shape.y + ddy);
+          if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + ddx), y: clampTiny(p.y + ddy) }));
+
+          if (Object.keys(diff).length) data.updateShape(id, diff, false);
+        });
+        return;
+      }
+
+      if (interaction.kind === 'resize') {
+        if (!interaction.moved && !dragged) return;
+        if (!interaction.moved) selectInteractionRef.current = { ...interaction, moved: true };
+
+        const { state } = interaction;
+        const data = useDataStore.getState();
+        const curr = data.shapes[state.shapeId];
+        if (!curr) return;
+
+        const bbox = getShapeBoundingBox(state.snapshot);
+        const rotation = state.snapshot.rotation || 0;
+        const fixed = state.fixedCornerWorld;
+
+        const vWorld = { x: snapped.x - fixed.x, y: snapped.y - fixed.y };
+        const vLocal = rotateVec(vWorld, -rotation);
+
+        const expectedSignX = state.fixedCornerIndex === 0 || state.fixedCornerIndex === 3 ? 1 : -1;
+        const expectedSignY = state.fixedCornerIndex === 0 || state.fixedCornerIndex === 1 ? 1 : -1;
+        const nextW = Math.max(1e-3, expectedSignX * vLocal.x);
+        const nextH = Math.max(1e-3, expectedSignY * vLocal.y);
+
+        // Keep the fixed rotated corner anchored by solving for the unrotated center.
+        const fixedOffset = {
+          x: (state.fixedCornerIndex === 0 || state.fixedCornerIndex === 3 ? -nextW / 2 : nextW / 2),
+          y: (state.fixedCornerIndex === 0 || state.fixedCornerIndex === 1 ? -nextH / 2 : nextH / 2),
+        };
+        const center = {
+          x: fixed.x - rotateVec(fixedOffset, rotation).x,
+          y: fixed.y - rotateVec(fixedOffset, rotation).y,
+        };
+        const nextX = clampTiny(center.x - nextW / 2);
+        const nextY = clampTiny(center.y - nextH / 2);
+
+        const diff: Partial<Shape> = { x: nextX, y: nextY, width: clampTiny(nextW), height: clampTiny(nextH) };
+        // Preserve optional bbox semantics (rect uses x/y/width/height).
+        // Also preserve style and rotation.
+        if (bbox.width !== diff.width || bbox.height !== diff.height || state.snapshot.x !== diff.x || state.snapshot.y !== diff.y) {
+          data.updateShape(state.shapeId, diff, false);
+        }
+        return;
+      }
+
+      if (interaction.kind !== 'marquee') {
+        if (selectionBox) setSelectionBox(null);
+        return;
+      }
+
+      // Marquee selection box.
+      if (!dragged) {
         if (selectionBox) setSelectionBox(null);
         return;
       }
@@ -608,6 +850,47 @@ const EngineInteractionLayer: React.FC = () => {
       if (!down) return;
       const dx = evt.clientX - down.x;
       const dy = evt.clientY - down.y;
+
+      const interaction = selectInteractionRef.current;
+      selectInteractionRef.current = { kind: 'none' };
+      setCursorOverride(null);
+
+      if (interaction.kind === 'move') {
+        if (!interaction.moved) return;
+        const data = useDataStore.getState();
+        const patches: Patch[] = [];
+        interaction.state.snapshot.forEach((prevShape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+          const diff: Partial<Shape> = {};
+          if (prevShape.x !== curr.x) diff.x = curr.x;
+          if (prevShape.y !== curr.y) diff.y = curr.y;
+          if (prevShape.points || curr.points) diff.points = curr.points;
+          if (Object.keys(diff).length === 0) return;
+          patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
+        });
+        data.saveToHistory(patches);
+        return;
+      }
+
+      if (interaction.kind === 'resize') {
+        if (!interaction.moved) return;
+        const data = useDataStore.getState();
+        const prevShape = interaction.state.snapshot;
+        const curr = data.shapes[interaction.state.shapeId];
+        if (!curr) return;
+        const diff: Partial<Shape> = {};
+        if (prevShape.x !== curr.x) diff.x = curr.x;
+        if (prevShape.y !== curr.y) diff.y = curr.y;
+        if (prevShape.width !== curr.width) diff.width = curr.width;
+        if (prevShape.height !== curr.height) diff.height = curr.height;
+        if (Object.keys(diff).length === 0) return;
+        data.saveToHistory([{ type: 'UPDATE', id: curr.id, diff, prev: prevShape }]);
+        return;
+      }
+
+      if (interaction.kind !== 'marquee') return;
+
       if (isDrag(dx, dy)) {
         const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
         const mode: 'WINDOW' | 'CROSSING' = direction === 'LTR' ? 'WINDOW' : 'CROSSING';
@@ -636,31 +919,25 @@ const EngineInteractionLayer: React.FC = () => {
         return;
       }
 
-      const worldPt = down.world;
+      // Click selection (no marquee, no drag interactions).
       const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-      const hit = pickShapeAt(worldPt, tolerance);
+      const hit = pickShapeAt(down.world, tolerance);
       setSelectionBox(null);
       setSelectedShapeIds(hit ? new Set([hit]) : new Set());
       return;
     }
 
     if (activeTool === 'line') {
-      setDraft((prev) => {
-        if (prev.kind === 'line') {
-          Promise.resolve().then(() => commitLine(prev.start, prev.current));
-        }
-        return { kind: 'none' };
-      });
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'line') commitLine(prev.start, prev.current);
       return;
     }
 
     if (activeTool === 'rect') {
-      setDraft((prev) => {
-        if (prev.kind === 'rect') {
-          Promise.resolve().then(() => commitRect(prev.start, prev.current));
-        }
-        return { kind: 'none' };
-      });
+      const prev = draftRef.current;
+      setDraft({ kind: 'none' });
+      if (prev.kind === 'rect') commitRect(prev.start, prev.current);
       return;
     }
   };
@@ -669,13 +946,9 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool !== 'polyline') return;
     evt.preventDefault();
 
-    setDraft((prev) => {
-      if (prev.kind === 'polyline') {
-        const pts = prev.current ? [...prev.points, prev.current] : prev.points;
-        Promise.resolve().then(() => commitPolyline(pts));
-      }
-      return { kind: 'none' };
-    });
+    const prev = draftRef.current;
+    setDraft({ kind: 'none' });
+    if (prev.kind === 'polyline') commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
   };
 
   const draftSvg = useMemo(() => {
@@ -754,6 +1027,89 @@ const EngineInteractionLayer: React.FC = () => {
     );
   }, [canvasSize.height, canvasSize.width, selectionBox, viewTransform]);
 
+  const selectedOverlaySvg = useMemo(() => {
+    if (selectedShapeIds.size === 0) return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const stroke = '#3b82f6';
+
+    const items: Array<{
+      id: string;
+      outline: { kind: 'poly'; points: { x: number; y: number }[] } | { kind: 'rect'; x: number; y: number; w: number; h: number };
+      handles: { x: number; y: number }[];
+    }> = [];
+
+    selectedShapeIds.forEach((id) => {
+      const shape = shapesById[id];
+      if (!shape) return;
+      const layer = layers.find((l) => l.id === shape.layerId);
+      if (layer && (!layer.visible || layer.locked)) return;
+      if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) return;
+
+      if (shape.type === 'rect') {
+        const r = getRectCornersWorld(shape);
+        if (!r) return;
+        const handles = getShapeHandles(shape)
+          .filter((h) => h.type === 'resize')
+          .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform));
+        items.push({
+          id,
+          outline: { kind: 'poly', points: r.corners.map((p) => worldToScreen(p, viewTransform)) },
+          handles,
+        });
+        return;
+      }
+
+      // Fallback: axis-aligned bbox (screen space) without handles.
+      const bbox = getShapeBoundingBox(shape);
+      const a = worldToScreen({ x: bbox.x, y: bbox.y }, viewTransform);
+      const b = worldToScreen({ x: bbox.x + bbox.width, y: bbox.y + bbox.height }, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return;
+      items.push({ id, outline: { kind: 'rect', x, y, w, h }, handles: [] });
+    });
+
+    if (items.length === 0) return null;
+
+    const hs = HANDLE_SIZE_PX;
+    const hh = hs / 2;
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        {items.map((it) => {
+          if (it.outline.kind === 'poly') {
+            const pts = it.outline.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+            return (
+              <g key={it.id}>
+                <polygon points={pts} fill="transparent" stroke={stroke} strokeWidth={1} />
+                {it.handles.map((p, i) => (
+                  <rect
+                    key={i}
+                    x={p.x - hh}
+                    y={p.y - hh}
+                    width={hs}
+                    height={hs}
+                    fill="#ffffff"
+                    stroke={stroke}
+                    strokeWidth={1}
+                  />
+                ))}
+              </g>
+            );
+          }
+
+          return (
+            <g key={it.id}>
+              <rect x={it.outline.x} y={it.outline.y} width={it.outline.w} height={it.outline.h} fill="transparent" stroke={stroke} strokeWidth={1} />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, layers, selectedShapeIds, shapesById, viewTransform]);
+
   // Important: this is the only interactive layer above the WebGL canvas.
   return (
     <div
@@ -766,6 +1122,7 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
+      {selectedOverlaySvg}
       {selectionSvg}
       {textEditState ? (
         <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />

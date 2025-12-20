@@ -7,7 +7,6 @@ import { MENU_CONFIG, MenuItem } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
-import { buildColorModeUpdate, getEffectiveFillColor, getEffectiveStrokeColor } from '../../../utils/shapeColors';
 import { Shape } from '../../../types';
 import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
@@ -16,7 +15,6 @@ import { getConnectionPoint } from '../snapEngine/detectors';
 import { resolveConnectionNodePosition } from '../../../utils/connections';
 import { FontFamilyControl, FontSizeControl, TextAlignControl, TextStyleControl, TextFormatGroup } from '../ribbon/components/TextControls';
 import LayerControl from '../ribbon/components/LayerControl';
-import ColorControl from '../ribbon/components/ColorControl';
 import GridControl from '../ribbon/components/GridControl';
 import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
@@ -40,7 +38,6 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     ElectricalLibrary: ElectricalRibbonGallery,
     ElectricalShortcuts,
     LayerControl,
-    ColorControl,
     GridControl,
 };
 
@@ -433,68 +430,22 @@ tr:nth-child(even){background:#111827;}
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
   const openColorPicker = (e: React.MouseEvent, target: ColorPickerTarget) => {
+      if (target.type !== 'grid') return;
       e.stopPropagation();
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setColorPickerPos({ top: rect.bottom + 8, left: rect.left - 10 });
       setColorPickerTarget(target);
   };
 
-  // Get all selected shape IDs for color operations
-  const allSelectedIds = useMemo(
-    () => Array.from(selectedShapeIds) as string[],
-    [selectedShapeIds]
-  );
-  const firstSelectedShape = allSelectedIds.length > 0 ? dataStore.shapes[allSelectedIds[0]] : null;
-
   const activeColor = useMemo(() => {
     if (!colorPickerTarget) return '#FFFFFF';
-    if (colorPickerTarget.type === 'grid') {
-      return settingsStore.grid.color;
-    }
-    if (colorPickerTarget.type === 'stroke') {
-      // Show color of first selected shape or layer color
-      return firstSelectedShape 
-        ? getEffectiveStrokeColor(firstSelectedShape, activeLayer)
-        : (activeLayer?.strokeColor || '#000000');
-    }
-    // fill
-    return firstSelectedShape 
-      ? getEffectiveFillColor(firstSelectedShape, activeLayer)
-      : (activeLayer?.fillColor || '#ffffff');
-  }, [colorPickerTarget, firstSelectedShape, activeLayer, settingsStore.grid.color]);
+    return settingsStore.grid.color;
+  }, [colorPickerTarget, settingsStore.grid.color]);
 
   const handleColorChange = (newColor: string) => {
       if (!colorPickerTarget) return;
-
-      // Update settings defaults
-      if (colorPickerTarget.type === 'stroke') {
-        settingsStore.setStrokeColor(newColor);
-      } else {
-        settingsStore.setFillColor(newColor);
-      }
-
-      // Apply to ALL selected shapes (not just text), and set colorMode to 'custom'
-      allSelectedIds.forEach(id => {
-        const shape = dataStore.shapes[id];
-        if (!shape) return;
-        
-        if (colorPickerTarget.type === 'stroke') {
-          dataStore.updateShape(id, {
-            strokeColor: newColor,
-            colorMode: buildColorModeUpdate(shape, { stroke: 'custom' })
-          }, true);
-        } else if (colorPickerTarget.type === 'fill') {
-          dataStore.updateShape(id, {
-            fillColor: newColor,
-            colorMode: buildColorModeUpdate(shape, { fill: 'custom' })
-          }, true);
-        }
-      });
-
-      // Handle grid color separately
-      if (colorPickerTarget.type === 'grid') {
-        settingsStore.setGridColor(newColor);
-      }
+      if (colorPickerTarget.type !== 'grid') return;
+      settingsStore.setGridColor(newColor);
   };
 
   const componentProps = {

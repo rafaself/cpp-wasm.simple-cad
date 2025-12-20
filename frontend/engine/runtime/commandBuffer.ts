@@ -11,9 +11,22 @@ export const enum CommandOp {
   UpsertConduit = 8,
 }
 
-export type RectPayload = { x: number; y: number; w: number; h: number; r: number; g: number; b: number };
-export type LinePayload = { x0: number; y0: number; x1: number; y1: number };
-export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }> };
+export type RectPayload = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fillR: number;
+  fillG: number;
+  fillB: number;
+  fillA: number;
+  strokeR: number;
+  strokeG: number;
+  strokeB: number;
+  strokeEnabled: number; // 0 or 1
+};
+export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; enabled: number };
+export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; enabled: number };
 export type SymbolPayload = {
   symbolKey: number;
   x: number;
@@ -28,7 +41,7 @@ export type SymbolPayload = {
 };
 
 export type NodePayload = { kind: 0 | 1; anchorSymbolId: number; x: number; y: number };
-export type ConduitPayload = { fromNodeId: number; toNodeId: number };
+export type ConduitPayload = { fromNodeId: number; toNodeId: number; r: number; g: number; b: number; enabled: number };
 
 export type EngineCommand =
   | { op: CommandOp.ClearAll }
@@ -56,17 +69,17 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.DeleteEntity:
       return 0;
     case CommandOp.UpsertRect:
-      return 28; // x, y, w, h, r, g, b (7 floats * 4 bytes/float)
+      return 48; // 12 floats * 4 bytes/float
     case CommandOp.UpsertLine:
-      return 16;
+      return 32; // 8 floats * 4 bytes/float
     case CommandOp.UpsertPolyline:
-      return 4 + cmd.polyline.points.length * 8;
+      return 24 + cmd.polyline.points.length * 8; // header (4 floats + u32 count + u32 reserved) + points
     case CommandOp.UpsertSymbol:
       return 40;
     case CommandOp.UpsertNode:
       return 16;
     case CommandOp.UpsertConduit:
-      return 8;
+      return 24; // 2 u32 + 4 floats
   }
 };
 
@@ -103,18 +116,32 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.rect.y);
         o = writeF32(view, o, cmd.rect.w);
         o = writeF32(view, o, cmd.rect.h);
-        o = writeF32(view, o, cmd.rect.r); // NEW
-        o = writeF32(view, o, cmd.rect.g); // NEW
-        o = writeF32(view, o, cmd.rect.b); // NEW
+        o = writeF32(view, o, cmd.rect.fillR);
+        o = writeF32(view, o, cmd.rect.fillG);
+        o = writeF32(view, o, cmd.rect.fillB);
+        o = writeF32(view, o, cmd.rect.fillA);
+        o = writeF32(view, o, cmd.rect.strokeR);
+        o = writeF32(view, o, cmd.rect.strokeG);
+        o = writeF32(view, o, cmd.rect.strokeB);
+        o = writeF32(view, o, cmd.rect.strokeEnabled);
         break;
       case CommandOp.UpsertLine:
         o = writeF32(view, o, cmd.line.x0);
         o = writeF32(view, o, cmd.line.y0);
         o = writeF32(view, o, cmd.line.x1);
         o = writeF32(view, o, cmd.line.y1);
+        o = writeF32(view, o, cmd.line.r);
+        o = writeF32(view, o, cmd.line.g);
+        o = writeF32(view, o, cmd.line.b);
+        o = writeF32(view, o, cmd.line.enabled);
         break;
       case CommandOp.UpsertPolyline:
+        o = writeF32(view, o, cmd.polyline.r);
+        o = writeF32(view, o, cmd.polyline.g);
+        o = writeF32(view, o, cmd.polyline.b);
+        o = writeF32(view, o, cmd.polyline.enabled);
         o = writeU32(view, o, cmd.polyline.points.length);
+        o = writeU32(view, o, 0);
         for (const p of cmd.polyline.points) {
           o = writeF32(view, o, p.x);
           o = writeF32(view, o, p.y);
@@ -141,6 +168,10 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
       case CommandOp.UpsertConduit:
         o = writeU32(view, o, cmd.conduit.fromNodeId);
         o = writeU32(view, o, cmd.conduit.toNodeId);
+        o = writeF32(view, o, cmd.conduit.r);
+        o = writeF32(view, o, cmd.conduit.g);
+        o = writeF32(view, o, cmd.conduit.b);
+        o = writeF32(view, o, cmd.conduit.enabled);
         break;
     }
   }

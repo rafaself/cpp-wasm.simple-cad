@@ -4,7 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld } from '@/utils/geometry';
+import { screenToWorld, getShapeBounds } from '@/utils/geometry';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -147,7 +147,7 @@ const toWorldPoint = (evt: React.PointerEvent<HTMLDivElement>, viewTransform: Re
 };
 
 const SelectionOverlay: React.FC<{ selectedIds: Set<string> }> = ({ selectedIds }) => {
-  const material = useMemo(() => new THREE.LineBasicMaterial({ color: 0xfbbf24 }), []);
+  const material = useMemo(() => new THREE.LineBasicMaterial({ color: 0x18A0FB }), []);
   const shapesById = useDataStore((s) => s.shapes);
 
   const lines = useMemo(() => {
@@ -157,7 +157,9 @@ const SelectionOverlay: React.FC<{ selectedIds: Set<string> }> = ({ selectedIds 
       if (!shape) return;
 
       const buildRectOutline = (s: Shape) => {
-        const b = getShapeBoundingBox(s);
+        const b = getShapeBounds(s);
+        if (!b) return new THREE.BufferGeometry();
+
         const x0 = b.x;
         const y0 = b.y;
         const x1 = b.x + b.width;
@@ -172,7 +174,7 @@ const SelectionOverlay: React.FC<{ selectedIds: Set<string> }> = ({ selectedIds 
         return new THREE.BufferGeometry().setFromPoints(pts);
       };
 
-      if (shape.type === 'rect' || shape.type === 'text') {
+      if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon' || shape.type === 'arc') {
         out.push({ id, obj: new THREE.Line(buildRectOutline(shape), material) });
         return;
       }
@@ -288,7 +290,7 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
     }
 
     if (lineMeta.floatCount > 0) {
-      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 3);
+      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 6);
     } else {
       lineGeometry.setDrawRange(0, 0);
     }
@@ -305,11 +307,11 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
 
   return (
     <>
-      <mesh geometry={meshGeometry}>
+      <mesh geometry={meshGeometry} frustumCulled={false}>
         <meshBasicMaterial vertexColors={true} />
       </mesh>
-      <lineSegments geometry={lineGeometry}>
-        <lineBasicMaterial color="#93c5fd" linewidth={1} />
+      <lineSegments geometry={lineGeometry} frustumCulled={false}>
+        <lineBasicMaterial vertexColors={true} linewidth={1} />
       </lineSegments>
     </>
   );

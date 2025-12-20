@@ -54,17 +54,23 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     // Command 1: UpsertRect
     pushU32(static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertRect)); // Op
     pushU32(10);         // ID
-    pushU32(32);         // Payload Bytes (8 floats * 4 bytes/float) - UPDATED
+    pushU32(48);         // Payload Bytes (12 floats * 4 bytes/float)
     pushU32(0);          // Reserved
 
     pushF32(10.0f); // x
     pushF32(20.0f); // y
     pushF32(50.0f); // w
     pushF32(60.0f); // h
-    pushF32(1.0f);  // r
-    pushF32(0.5f);  // g
-    pushF32(0.0f);  // b
-    pushF32(1.0f);  // a - NEW
+    // Fill RGBA
+    pushF32(1.0f);  // fillR
+    pushF32(0.5f);  // fillG
+    pushF32(0.0f);  // fillB
+    pushF32(1.0f);  // fillA
+    // Stroke RGB + enabled
+    pushF32(0.0f);  // strokeR
+    pushF32(1.0f);  // strokeG
+    pushF32(0.0f);  // strokeB
+    pushF32(1.0f);  // strokeEnabled
 
     // Pass to engine
     uintptr_t ptr = reinterpret_cast<uintptr_t>(buffer.data());
@@ -77,12 +83,15 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     // 2 triangles = 6 vertices, each with 6 floats (pos+color)
     EXPECT_EQ(stats.triangleVertexCount, 6);
     // 4 lines = 8 vertices
-    EXPECT_EQ(stats.lineVertexCount, 8); // This is for outline, still 3 floats per vertex.
+    EXPECT_EQ(stats.lineVertexCount, 8); // Outline only, colored vertices.
 
     // Also check color property
     EXPECT_EQ(engine.rects[0].r, 1.0f);
     EXPECT_EQ(engine.rects[0].g, 0.5f);
     EXPECT_EQ(engine.rects[0].b, 0.0f);
+    EXPECT_EQ(engine.rects[0].sr, 0.0f);
+    EXPECT_EQ(engine.rects[0].sg, 1.0f);
+    EXPECT_EQ(engine.rects[0].sb, 0.0f);
 }
 
 TEST_F(CadEngineTest, SnappingElectrical) {

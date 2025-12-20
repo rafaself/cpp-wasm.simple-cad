@@ -90,13 +90,6 @@ export const MENU_CONFIG: MenuTab[] = [
       },
 
       {
-          title: 'Aparencia',
-          layout: 'row',
-          items: [
-              { id: 'color-control', label: 'Cores', icon: 'Palette', type: 'component', componentName: 'ColorControl' }
-          ]
-      },
-      {
           title: 'Camadas',
           layout: 'column',
           items: [
