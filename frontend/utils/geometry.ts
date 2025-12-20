@@ -229,7 +229,7 @@ const getConduitPathPoints = (shape: Shape): Point[] => {
   return shape.points;
 };
 
-const getPolygonVertices = (shape: Shape): Point[] => {
+export const getPolygonVertices = (shape: Shape): Point[] => {
   const cx = shape.x ?? 0;
   const cy = shape.y ?? 0;
   const sides = Math.max(3, Math.floor(shape.sides ?? 6));
@@ -238,11 +238,18 @@ const getPolygonVertices = (shape: Shape): Point[] => {
   const rx = w / 2;
   const ry = h / 2;
   const rotation = shape.rotation ?? 0;
+  const scaleX = shape.scaleX ?? 1;
+  const scaleY = shape.scaleY ?? 1;
+  const c = rotation ? Math.cos(rotation) : 1;
+  const s = rotation ? Math.sin(rotation) : 0;
   const pts: Point[] = [];
   for (let i = 0; i < sides; i++) {
     const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
-    const local = { x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry };
-    pts.push(rotation ? rotatePoint(local, { x: cx, y: cy }, rotation) : local);
+    const dx0 = Math.cos(t) * rx * scaleX;
+    const dy0 = Math.sin(t) * ry * scaleY;
+    const dx = rotation ? dx0 * c - dy0 * s : dx0;
+    const dy = rotation ? dx0 * s + dy0 * c : dy0;
+    pts.push({ x: cx + dx, y: cy + dy });
   }
   return pts;
 };
@@ -702,4 +709,23 @@ export const getShapeHandles = (shape: Shape): Handle[] => {
         handles.push({ x: rotatedCorners[3].x, y: rotatedCorners[3].y, cursor: getRotatedCursor(3, rotation), index: 3, type: 'resize' });
     }
     return handles;
+};
+
+export const supportsBBoxResize = (shape: Shape): boolean => {
+  return shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon';
+};
+
+export const getRectCornersWorld = (shape: Shape): { corners: { x: number; y: number }[]; center: { x: number; y: number } } | null => {
+  const bbox = getShapeBoundingBox(shape);
+  if (!isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) return null;
+  const rotation = shape.rotation || 0;
+  const center = getShapeCenter(shape);
+  const corners = [
+    { x: bbox.x, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y },
+    { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
+    { x: bbox.x, y: bbox.y + bbox.height },
+  ];
+  const rotated = rotation ? corners.map((c) => rotatePoint(c, center, rotation)) : corners;
+  return { corners: rotated, center };
 };
