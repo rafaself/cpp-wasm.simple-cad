@@ -104,7 +104,7 @@ interface DataState {
   addConduitBetweenNodes: (params: { fromNodeId: string; toNodeId: string; layerId: string; strokeColor: string; floorId?: string; discipline?: 'architecture' | 'electrical' }) => string;
   addElectricalElement: (element: ElectricalElement) => void;
   updateElectricalElement: (id: string, diff: Partial<ElectricalElement>) => void;
-  updateSharedElectricalProperties: (sourceElement: ElectricalElement, diff: Record<string, any>) => void; // Added for shared props
+  updateSharedElectricalProperties: (sourceElement: ElectricalElement, diff: Partial<ElectricalElement>) => void; // Added for shared props
   deleteElectricalElement: (id: string) => void;
 
   // Layer Ops
@@ -711,7 +711,7 @@ export const useDataStore = create<DataState>((set, get) => ({
               const elName = el.metadata?.name ?? el.name;
               // Check if it matches the "nature" (same name) and same category
               if (elName === targetName && el.category === sourceElement.category) {
-                   const mergedMetadata = { ...el.metadata, ...diff };
+                   const mergedMetadata = { ...el.metadata, ...diff } as ElectricalElement['metadata'];
                    updates[el.id] = { ...el, metadata: mergedMetadata };
               }
           });

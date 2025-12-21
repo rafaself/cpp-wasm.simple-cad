@@ -26,6 +26,115 @@ export interface LibrarySymbol {
 const electricalSvgs = import.meta.glob('../../assets/electrical/*.svg', { query: '?raw', import: 'default', eager: true });
 const DEFAULT_VIEWBOX_SIZE = 32;
 
+const ALLOWED_TAGS = new Set([
+  'svg',
+  'g',
+  'path',
+  'rect',
+  'circle',
+  'ellipse',
+  'polygon',
+  'polyline',
+  'line',
+  'defs',
+  'clipPath',
+  'linearGradient',
+  'radialGradient',
+  'stop',
+  'use',
+]);
+
+const ALLOWED_ATTRS = new Set([
+  'id',
+  'class',
+  'x',
+  'y',
+  'cx',
+  'cy',
+  'r',
+  'rx',
+  'ry',
+  'x1',
+  'y1',
+  'x2',
+  'y2',
+  'width',
+  'height',
+  'viewBox',
+  'd',
+  'fill',
+  'stroke',
+  'stroke-width',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'opacity',
+  'fill-opacity',
+  'stroke-opacity',
+  'transform',
+  'points',
+  'style',
+  'clip-path',
+  'mask',
+  'href',
+  'xlink:href',
+]);
+
+const isSafeHref = (value: string | null): boolean => {
+  if (!value) return false;
+  return value.startsWith('#');
+};
+
+function sanitizeSvg(svgContent: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+  const root = doc.documentElement;
+
+  const sanitizeNode = (node: Element) => {
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'foreignobject' || !ALLOWED_TAGS.has(tag)) {
+      node.remove();
+      return;
+    }
+
+    const attrs = Array.from(node.attributes);
+    for (const attr of attrs) {
+      const name = attr.name;
+      const value = attr.value;
+      if (name.startsWith('on')) {
+        node.removeAttribute(name);
+        continue;
+      }
+      if (name === 'href' || name === 'xlink:href') {
+        if (!isSafeHref(value)) {
+          node.removeAttribute(name);
+          continue;
+        }
+      }
+      if (!ALLOWED_ATTRS.has(name)) {
+        node.removeAttribute(name);
+        continue;
+      }
+      if (name === 'style') {
+        const lowered = value.toLowerCase();
+        if (lowered.includes('url(') || lowered.includes('expression') || lowered.includes('javascript:')) {
+          node.removeAttribute(name);
+        }
+      }
+    }
+  };
+
+  const walker = (el: Element) => {
+    sanitizeNode(el);
+    Array.from(el.children).forEach((child) => walker(child));
+  };
+  walker(root);
+
+  return new XMLSerializer().serializeToString(root);
+}
+
 function parseViewBoxValue(value: string | null): NormalizedViewBox | null {
   if (!value) return null;
   const parts = value
@@ -80,7 +189,8 @@ function computeCenteredViewBox(viewBox: NormalizedViewBox): CenteringResult {
 
 function normalizeSvg(svgContent: string): { svg: string; viewBox: NormalizedViewBox } {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+  const sanitized = sanitizeSvg(svgContent);
+  const doc = parser.parseFromString(sanitized, 'image/svg+xml');
   const svgEl = doc.documentElement;
 
   const parsedViewBox = parseViewBoxValue(svgEl.getAttribute('viewBox'));

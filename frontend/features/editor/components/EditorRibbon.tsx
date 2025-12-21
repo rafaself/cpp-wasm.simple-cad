@@ -29,7 +29,23 @@ const ACTIVE_BUTTON_STYLE = BUTTON_STYLES.active;
 
 
 // Component Registry for config-driven ribbon widgets
-const ComponentRegistry: Record<string, React.FC<any>> = {
+type RibbonWidgetProps = {
+  activeLayer?: typeof activeLayer;
+  isLayerDropdownOpen: boolean;
+  setLayerDropdownOpen: (open: boolean) => void;
+  openLayerDropdown: () => void;
+  layerButtonRef: React.RefObject<HTMLButtonElement>;
+  layerDropdownRef: React.RefObject<HTMLDivElement>;
+  dropdownPos: { top: number; left: number };
+  selectedTextIds: string[];
+  applyTextUpdate: (diff: Partial<Shape>, recalcSize: boolean) => void;
+  setColorPickerTarget: (target: ColorPickerTarget | null) => void;
+  openColorPicker: (e: React.MouseEvent, target: ColorPickerTarget) => void;
+  activeColor: string;
+  handleColorChange: (newColor: string) => void;
+};
+
+const ComponentRegistry: Record<string, React.FC<RibbonWidgetProps>> = {
     FontFamilyControl,
     FontSizeControl,
     TextAlignControl,
@@ -383,13 +399,13 @@ tr:nth-child(even){background:#111827;}
     [selectedShapeIds, dataStore.shapes]
   );
 
-  const applyTextUpdate = (diff: Partial<any>, recalcSize: boolean) => {
+  const applyTextUpdate = (diff: Partial<Shape>, recalcSize: boolean) => {
     selectedTextIds.forEach(id => {
       const shape = dataStore.shapes[id];
       if (!shape) return;
       const nextFontSize = (diff.fontSize ?? shape.fontSize ?? settingsStore.toolDefaults.text.fontSize) || 16;
       const content = diff.textContent ?? shape.textContent ?? '';
-      let updates: any = { ...diff };
+      const updates: Partial<Shape> = { ...diff };
 
       if (recalcSize) {
         const baseWidth = shape.width && shape.width > 0 ? shape.width : undefined;

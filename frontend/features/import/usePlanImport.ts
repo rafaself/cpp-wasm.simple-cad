@@ -255,11 +255,12 @@ export const usePlanImport = (): PlanImportHook => {
               text = decoder.decode(buffer);
           }
 
-          const workerData = await new Promise<any>((resolve, reject) => {
+          const workerData = await new Promise<{ shapes: ImportedShape[]; layers: ImportedLayer[] }>((resolve, reject) => {
               const worker = new DxfWorker();
               worker.onmessage = (e) => {
-                  if (e.data.success) resolve(e.data.data);
-                  else reject(new Error(e.data.error || 'Erro no processamento do DXF'));
+                  const payload = e.data as DxfWorkerMessage;
+                  if (payload.success) resolve(payload.data);
+                  else reject(new Error(payload.error || 'Erro no processamento do DXF'));
                   worker.terminate();
               };
               worker.onerror = (err) => {
@@ -281,12 +282,12 @@ export const usePlanImport = (): PlanImportHook => {
                 });
           });
 
-          let shapesToAdd = workerData.shapes;
-          const newLayers = workerData.layers;
+          let shapesToAdd: ImportedShape[] = workerData.shapes;
+          const newLayers: ImportedLayer[] = workerData.layers;
 
           // For any SVG container import, keep proportions linked by default (as requested).
           if (options?.importMode === 'svg') {
-              shapesToAdd = shapesToAdd.map((s: any) => ({
+              shapesToAdd = shapesToAdd.map((s: ImportedShape) => ({
                   ...s,
                   ...(s && s.type === 'rect' && s.svgRaw && !s.electricalElementId ? { proportionsLinked: true } : {})
               }));
@@ -300,12 +301,12 @@ export const usePlanImport = (): PlanImportHook => {
               const existingLayerNames = dataStore.layers.map((l) => l.name);
               const policy: LayerNameConflictPolicy = options?.layerNameConflictPolicy ?? 'merge';
               const { mapping: nameMap } = mapImportedLayerNames({
-                  importedNames: newLayers.map((l: any) => l.name),
+                  importedNames: newLayers.map((l) => l.name),
                   existingNames: existingLayerNames,
                   policy
               });
 
-              newLayers.forEach((l: any) => {
+              newLayers.forEach((l) => {
                   const targetName = nameMap.get(l.name) ?? l.name;
                   const storeId = dataStore.ensureLayer(targetName, {
                       strokeColor: l.strokeColor,
@@ -320,7 +321,7 @@ export const usePlanImport = (): PlanImportHook => {
           }
 
           if (options?.maintainLayers && options?.importMode !== 'svg') {
-              shapesToAdd = shapesToAdd.map((s: any) => ({
+              shapesToAdd = shapesToAdd.map((s: ImportedShape) => ({
                   ...s,
                   layerId: layerMap.get(s.layerId) || dataStore.activeLayerId
               }));
@@ -402,3 +403,19 @@ export const usePlanImport = (): PlanImportHook => {
     handleFileImport,
   };
 };
+type ImportedLayer = {
+  id: string;
+  name: string;
+  strokeColor?: string;
+  strokeEnabled?: boolean;
+  fillColor?: string;
+  fillEnabled?: boolean;
+  visible?: boolean;
+  locked?: boolean;
+};
+
+type ImportedShape = Shape & { id: string; layerId: string };
+
+type DxfWorkerMessage =
+  | { success: true; data: { shapes: ImportedShape[]; layers: ImportedLayer[] } }
+  | { success: false; error?: string };
