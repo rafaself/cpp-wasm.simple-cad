@@ -45,6 +45,7 @@ These are mandatory, non-negotiable guidelines that apply to every AI agent and 
 - MUST NOT rename public symbols or files without explicit approval.
 - MUST NOT invent requirements or silently assume unstated constraints.
 - MUST NOT fix unrelated issues discovered during work unless approved.
+- MUST NOT consider backward compatibility.
 
 ## Definition of Done (for code changes)
 - Build succeeds where applicable.
