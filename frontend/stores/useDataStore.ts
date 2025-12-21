@@ -69,6 +69,11 @@ const normalizeShapeStyle = (shape: Shape): Shape => {
 interface DataState {
   // Document State
   shapes: Record<string, Shape>;
+  /**
+   * Authoritative draw/order list (back-to-front).
+   * `shapeOrder[0]` renders first (background), last renders on top.
+   */
+  shapeOrder: string[];
   electricalElements: Record<string, ElectricalElement>;
   connectionNodes: Record<string, ConnectionNode>;
   diagramNodes: Record<string, DiagramNode>;
@@ -147,6 +152,7 @@ interface DataState {
 
 const buildInitialState = () => ({
   shapes: {} as Record<string, Shape>,
+  shapeOrder: [] as string[],
   electricalElements: {} as Record<string, ElectricalElement>,
   connectionNodes: {} as Record<string, ConnectionNode>,
   diagramNodes: {} as Record<string, DiagramNode>,
@@ -255,13 +261,14 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, future, shapes, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
+    const { past, future, shapes, shapeOrder, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
     if (past.length === 0) return;
 
     const patches = past[past.length - 1];
     const newPast = past.slice(0, -1);
 
     const newShapes = { ...shapes };
+    let newShapeOrder = [...shapeOrder];
     const newElectrical = { ...electricalElements };
     const newDiagramNodes = { ...diagramNodes };
     const newDiagramEdges = { ...diagramEdges };
@@ -285,6 +292,7 @@ export const useDataStore = create<DataState>((set, get) => ({
               spatialIndex.remove(s);
             }
             delete newShapes[patch.id];
+            if (newShapeOrder.includes(patch.id)) newShapeOrder = newShapeOrder.filter((id) => id !== patch.id);
             if (patch.diagramNode) delete newDiagramNodes[patch.diagramNode.id];
             if (patch.diagramEdge) delete newDiagramEdges[patch.diagramEdge.id];
             // Redo must re-apply the original forward patch.
@@ -315,6 +323,11 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
                 newShapes[patch.id] = restoredShape;
                 spatialIndex.insert(restoredShape);
+                if (!newShapeOrder.includes(patch.id)) {
+                  const at = typeof patch.orderIndex === 'number' && Number.isFinite(patch.orderIndex) ? patch.orderIndex : newShapeOrder.length;
+                  const clamped = Math.max(0, Math.min(newShapeOrder.length, Math.floor(at)));
+                  newShapeOrder = [...newShapeOrder.slice(0, clamped), patch.id, ...newShapeOrder.slice(clamped)];
+                }
                 // Redo must re-apply the original forward patch (delete).
                 redoPatches.push(patch);
             }
@@ -323,6 +336,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     set({
       shapes: newShapes,
+      shapeOrder: newShapeOrder.filter((id) => !!newShapes[id]),
       electricalElements: newElectrical,
       diagramNodes: newDiagramNodes,
       diagramEdges: newDiagramEdges,
@@ -334,13 +348,14 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   redo: () => {
-    const { past, future, shapes, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
+    const { past, future, shapes, shapeOrder, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
     if (future.length === 0) return;
 
     const patches = future[0];
     const newFuture = future.slice(1);
 
     const newShapes = { ...shapes };
+    let newShapeOrder = [...shapeOrder];
     const newElectrical = { ...electricalElements };
     const newDiagramNodes = { ...diagramNodes };
     const newDiagramEdges = { ...diagramEdges };
@@ -353,6 +368,11 @@ export const useDataStore = create<DataState>((set, get) => ({
                    ? { ...patch.data, electricalElementId: patch.electricalElement.id }
                    : patch.data;
                  newShapes[patch.id] = shapeToAdd;
+                 if (!newShapeOrder.includes(patch.id)) {
+                   const at = typeof patch.orderIndex === 'number' && Number.isFinite(patch.orderIndex) ? patch.orderIndex : newShapeOrder.length;
+                   const clamped = Math.max(0, Math.min(newShapeOrder.length, Math.floor(at)));
+                   newShapeOrder = [...newShapeOrder.slice(0, clamped), patch.id, ...newShapeOrder.slice(clamped)];
+                 }
                  if (patch.electricalElement) {
                    newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
                  }
@@ -369,6 +389,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                    type: 'ADD',
                    id: patch.id,
                    data: newShapes[patch.id],
+                   orderIndex: patch.orderIndex,
                    electricalElement: patch.electricalElement,
                    diagramNode: patch.diagramNode,
                    diagramEdge: patch.diagramEdge
@@ -397,10 +418,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
                 spatialIndex.remove(s);
                 delete newShapes[patch.id];
+                if (newShapeOrder.includes(patch.id)) newShapeOrder = newShapeOrder.filter((id) => id !== patch.id);
                 undoPatches.push({
                   type: 'DELETE',
                   id: patch.id,
                   prev: s,
+                  orderIndex: patch.orderIndex,
                   electricalElement: patch.electricalElement ?? linkedElement,
                   diagramNode: patch.diagramNode,
                   diagramEdge: patch.diagramEdge
@@ -411,6 +434,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     set({
       shapes: newShapes,
+      shapeOrder: newShapeOrder.filter((id) => !!newShapes[id]),
       electricalElements: newElectrical,
       diagramNodes: newDiagramNodes,
       diagramEdges: newDiagramEdges,
@@ -422,11 +446,12 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   addShape: (shape, electricalElement, diagram) => {
-      const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
+      const { shapes, shapeOrder, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
 
       const linkedShapeRaw = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
       const linkedShape = normalizeShapeStyle(linkedShapeRaw);
       const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
+      const newShapeOrder = shapeOrder.includes(linkedShape.id) ? shapeOrder : [...shapeOrder, linkedShape.id];
       const newElectrical = electricalElement
         ? { ...electricalElements, [electricalElement.id]: { ...electricalElement, shapeId: linkedShape.id } }
         : electricalElements;
@@ -438,12 +463,13 @@ export const useDataStore = create<DataState>((set, get) => ({
         : diagramEdges;
 
       spatialIndex.insert(linkedShape);
-      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+      set({ shapes: newShapes, shapeOrder: newShapeOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
       get().syncConnections();
       saveToHistory([{
         type: 'ADD',
         id: linkedShape.id,
         data: linkedShape,
+        orderIndex: newShapeOrder.indexOf(linkedShape.id),
         electricalElement,
         diagramNode: diagram?.node,
         diagramEdge: diagram?.edge
@@ -452,22 +478,25 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   addShapes: (shapesToAdd) => {
-      const { shapes, saveToHistory, spatialIndex } = get();
+      const { shapes, shapeOrder, saveToHistory, spatialIndex } = get();
       const newShapes = { ...shapes };
+      const newShapeOrder = [...shapeOrder];
       const patches: Patch[] = [];
 
       shapesToAdd.forEach(shape => {
           const normalized = normalizeShapeStyle(shape);
           newShapes[normalized.id] = normalized;
+          if (!newShapeOrder.includes(normalized.id)) newShapeOrder.push(normalized.id);
           spatialIndex.insert(normalized);
           patches.push({
               type: 'ADD',
               id: normalized.id,
-              data: normalized
+              data: normalized,
+              orderIndex: newShapeOrder.indexOf(normalized.id),
           });
       });
       
-      set({ shapes: newShapes });
+      set({ shapes: newShapes, shapeOrder: newShapeOrder });
       get().syncConnections();
       saveToHistory(patches);
   },
@@ -523,11 +552,13 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteShape: (id) => {
-      const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex, connectionNodes } = get();
+      const { shapes, shapeOrder, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex, connectionNodes } = get();
       const targetShape = shapes[id];
       if (!targetShape) return;
 
       const newShapes = { ...shapes };
+      const orderIndex = shapeOrder.indexOf(id);
+      const newShapeOrder = orderIndex >= 0 ? shapeOrder.filter((sid) => sid !== id) : shapeOrder;
       const newElectrical = { ...electricalElements };
       let newConnectionNodes = connectionNodes;
       const newDiagramNodes = { ...diagramNodes };
@@ -556,21 +587,23 @@ export const useDataStore = create<DataState>((set, get) => ({
       edgesToDrop.forEach(edgeId => {
         const edge = diagramEdges[edgeId];
         const edgeShape = edge ? shapes[edge.shapeId] : undefined;
+        const edgeOrderIndex = edgeShape ? shapeOrder.indexOf(edgeShape.id) : -1;
         if (edgeShape) {
           delete newShapes[edgeShape.id];
           spatialIndex.remove(edgeShape);
         }
         if (edge) {
           delete newDiagramEdges[edge.id];
-          patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, diagramEdge: edge });
+          patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, orderIndex: edgeOrderIndex >= 0 ? edgeOrderIndex : undefined, diagramEdge: edge });
         }
       });
 
       delete newShapes[id];
       spatialIndex.remove(targetShape);
-      patches.push({ type: 'DELETE', id, prev: targetShape, electricalElement, diagramNode });
+      patches.push({ type: 'DELETE', id, prev: targetShape, orderIndex: orderIndex >= 0 ? orderIndex : undefined, electricalElement, diagramNode });
 
-      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
+      const finalOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
+      set({ shapes: newShapes, shapeOrder: finalOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
       saveToHistory(patches);
       get().syncConnections();
       get().syncDiagramEdgesGeometry();
@@ -715,13 +748,14 @@ export const useDataStore = create<DataState>((set, get) => ({
   }),
 
   deleteLayer: (id) => {
-    const { layers, shapes, activeLayerId, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
+    const { layers, shapes, shapeOrder, activeLayerId, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
     const layerToDelete = layers.find(l => l.id === id);
     // Cannot delete: only layer, active layer, or native layers
     if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return false;
 
     const newLayers = layers.filter(l => l.id !== id);
     const newShapes = { ...shapes };
+    let newShapeOrder = [...shapeOrder];
     const newElectrical = { ...electricalElements };
     const newDiagramNodes = { ...diagramNodes };
     const newDiagramEdges = { ...diagramEdges };
@@ -730,6 +764,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     Object.values(shapes).forEach((s: Shape) => {
       if (s.layerId === id) {
+        const orderIndex = shapeOrder.indexOf(s.id);
         const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
         if (electricalElement) delete newElectrical[electricalElement.id];
         const diagramNode = Object.values(diagramNodes).find(n => n.shapeId === s.id);
@@ -742,8 +777,9 @@ export const useDataStore = create<DataState>((set, get) => ({
         Object.values(diagramEdges).forEach(edge => {
           if (edge.shapeId === s.id) edgeIdsToDrop.add(edge.id);
         });
-        patches.push({ type: 'DELETE', id: s.id, prev: s, electricalElement, diagramNode });
+        patches.push({ type: 'DELETE', id: s.id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined, electricalElement, diagramNode });
         delete newShapes[s.id];
+        if (newShapeOrder.includes(s.id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== s.id);
         spatialIndex.remove(s);
       }
     });
@@ -751,17 +787,20 @@ export const useDataStore = create<DataState>((set, get) => ({
     edgeIdsToDrop.forEach(edgeId => {
       const edge = diagramEdges[edgeId];
       const edgeShape = edge ? shapes[edge.shapeId] : undefined;
+      const edgeOrderIndex = edgeShape ? shapeOrder.indexOf(edgeShape.id) : -1;
       if (edgeShape) {
         delete newShapes[edgeShape.id];
+        if (newShapeOrder.includes(edgeShape.id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== edgeShape.id);
         spatialIndex.remove(edgeShape);
       }
       if (edge) {
         delete newDiagramEdges[edge.id];
-        patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, diagramEdge: edge });
+        patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, orderIndex: edgeOrderIndex >= 0 ? edgeOrderIndex : undefined, diagramEdge: edge });
       }
     });
 
-    set({ layers: newLayers, shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+    newShapeOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
+    set({ layers: newLayers, shapes: newShapes, shapeOrder: newShapeOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
 
     if (patches.length > 0) {
       saveToHistory(patches);
@@ -839,11 +878,12 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteShapes: (ids) => {
-    const { layers, shapes, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges, connectionNodes } = get();
+    const { layers, shapes, shapeOrder, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges, connectionNodes } = get();
     if (ids.length === 0) return;
 
     const patches: Patch[] = [];
     const newShapes = { ...shapes };
+    let newShapeOrder = [...shapeOrder];
     const newElectrical = { ...electricalElements };
     let newConnectionNodes = connectionNodes;
     const newDiagramNodes = { ...diagramNodes };
@@ -876,25 +916,30 @@ export const useDataStore = create<DataState>((set, get) => ({
         newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
 
         delete newShapes[id];
+        if (newShapeOrder.includes(id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== id);
         spatialIndex.remove(s);
-        patches.push({ type: 'DELETE', id, prev: s, electricalElement, diagramNode });
+        const orderIndex = shapeOrder.indexOf(id);
+        patches.push({ type: 'DELETE', id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined, electricalElement, diagramNode });
     });
 
     edgeIdsToDrop.forEach(edgeId => {
       const edge = diagramEdges[edgeId];
       const edgeShape = edge ? shapes[edge.shapeId] : undefined;
+      const edgeOrderIndex = edgeShape ? shapeOrder.indexOf(edgeShape.id) : -1;
       if (edgeShape) {
         delete newShapes[edgeShape.id];
+        if (newShapeOrder.includes(edgeShape.id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== edgeShape.id);
         spatialIndex.remove(edgeShape);
       }
       if (edge) {
         delete newDiagramEdges[edge.id];
-        patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, diagramEdge: edge });
+        patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, orderIndex: edgeOrderIndex >= 0 ? edgeOrderIndex : undefined, diagramEdge: edge });
       }
     });
 
     if (patches.length > 0) {
-        set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
+        newShapeOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
+        set({ shapes: newShapes, shapeOrder: newShapeOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
         saveToHistory(patches);
         get().syncConnections();
         get().syncDiagramEdgesGeometry();
@@ -938,10 +983,21 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   serializeProject: () => {
-      const { layers, shapes, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges } = get();
+      const { layers, shapes, shapeOrder, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges } = get();
+      const ordered: Shape[] = [];
+      const seen = new Set<string>();
+      for (const id of shapeOrder) {
+        const s = shapes[id];
+        if (!s) continue;
+        ordered.push(s);
+        seen.add(id);
+      }
+      // Back-compat / safety: include any shapes missing from shapeOrder deterministically.
+      const missing = Object.keys(shapes).filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b));
+      for (const id of missing) ordered.push(shapes[id]!);
       return {
           layers: [...layers],
-          shapes: Object.values(shapes),
+          shapes: ordered,
           activeLayerId,
           electricalElements: Object.values(electricalElements),
           connectionNodes: Object.values(connectionNodes),
@@ -957,6 +1013,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   loadSerializedProject: ({ project, worldScale, frame, history }) => {
     const nextShapes = Object.fromEntries(project.shapes.map((s) => [s.id, normalizeShapeStyle(s)]));
+    const nextShapeOrder = project.shapes.map((s) => s.id);
     const nextElectrical = Object.fromEntries(project.electricalElements.map((e) => [e.id, e]));
     const nextNodes = Object.fromEntries(project.connectionNodes.map((n) => [n.id, n]));
     const nextDiagramNodes = Object.fromEntries(project.diagramNodes.map((n) => [n.id, n]));
@@ -968,6 +1025,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({
       layers: project.layers.map(normalizeLayerStyle),
       shapes: nextShapes,
+      shapeOrder: nextShapeOrder,
       electricalElements: nextElectrical,
       connectionNodes: nextNodes,
       diagramNodes: nextDiagramNodes,

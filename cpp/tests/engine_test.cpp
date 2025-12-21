@@ -47,14 +47,14 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     };
 
     pushU32(0x43445745); // Magic EWDC
-    pushU32(1);          // Version
+    pushU32(2);          // Version
     pushU32(1);          // Command Count
     pushU32(0);          // Padding
 
     // Command 1: UpsertRect
     pushU32(static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertRect)); // Op
     pushU32(10);         // ID
-    pushU32(52);         // Payload Bytes (13 floats * 4 bytes/float)
+    pushU32(56);         // Payload Bytes (14 floats * 4 bytes/float)
     pushU32(0);          // Reserved
 
     pushF32(10.0f); // x
@@ -72,6 +72,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     pushF32(0.0f);  // strokeB
     pushF32(1.0f);  // strokeA
     pushF32(1.0f);  // strokeEnabled
+    pushF32(2.0f);  // strokeWidthPx
 
     // Pass to engine
     uintptr_t ptr = reinterpret_cast<uintptr_t>(buffer.data());
@@ -81,10 +82,10 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     EXPECT_EQ(stats.rectCount, 1);
     
     // Verify render buffers were rebuilt
-    // 2 triangles = 6 vertices, each with 7 floats (pos+rgba)
-    EXPECT_EQ(stats.triangleVertexCount, 6);
-    // 4 lines = 8 vertices
-    EXPECT_EQ(stats.lineVertexCount, 8); // Outline only, colored vertices.
+    // 2 fill triangles (6 vertices) + 4 stroke segments as quads (24 vertices) = 30 vertices total.
+    EXPECT_EQ(stats.triangleVertexCount, 30);
+    // Strokes are triangulated, so there is no separate line buffer output.
+    EXPECT_EQ(stats.lineVertexCount, 0);
 
     // Also check color property
     EXPECT_EQ(engine.rects[0].r, 1.0f);
@@ -93,6 +94,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     EXPECT_EQ(engine.rects[0].sr, 0.0f);
     EXPECT_EQ(engine.rects[0].sg, 1.0f);
     EXPECT_EQ(engine.rects[0].sb, 0.0f);
+    EXPECT_EQ(engine.rects[0].strokeWidthPx, 2.0f);
 }
 
 TEST_F(CadEngineTest, SnappingElectrical) {

@@ -82,7 +82,9 @@ describe('EngineRuntime', () => {
           strokeR: 0,
           strokeG: 1,
           strokeB: 0,
+          strokeA: 1,
           strokeEnabled: 1,
+          strokeWidthPx: 1,
         },
       }
     ];

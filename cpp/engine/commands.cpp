@@ -16,7 +16,7 @@ EngineError parseCommandBuffer(const std::uint8_t* src, std::uint32_t byteCount,
         return EngineError::InvalidMagic;
     }
     const std::uint32_t version = readU32(src, 4);
-    if (version != 1) {
+    if (version != 2) {
         return EngineError::UnsupportedVersion;
     }
     const std::uint32_t commandCount = readU32(src, 8);

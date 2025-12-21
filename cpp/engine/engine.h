@@ -105,10 +105,16 @@ public:
     std::vector<LineRec> lines;
     std::vector<PolyRec> polylines;
     std::vector<Point2> points;
+    std::vector<CircleRec> circles;
+    std::vector<PolygonRec> polygons;
+    std::vector<ArrowRec> arrows;
     std::vector<SymbolRec> symbols;
     std::vector<NodeRec> nodes;
     std::vector<ConduitRec> conduits;
     std::unordered_map<std::uint32_t, EntityRef> entities;
+
+    std::vector<std::uint32_t> drawOrderIds;
+    float viewScale{1.0f};
 
     mutable std::vector<float> triangleVertices;
     mutable std::vector<float> lineVertices;
@@ -133,11 +139,11 @@ public:
     void deleteEntity(std::uint32_t id) noexcept;
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
-    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled);
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx);
     void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1);
-    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled);
+    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count);
-    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled);
+    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx);
     void upsertSymbol(
         std::uint32_t id,
         std::uint32_t symbolKey,
@@ -153,7 +159,65 @@ public:
     );
     void upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y);
     void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId);
-    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled);
+    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled, float strokeWidthPx);
+
+    void upsertCircle(
+        std::uint32_t id,
+        float cx,
+        float cy,
+        float rx,
+        float ry,
+        float rot,
+        float sx,
+        float sy,
+        float fillR,
+        float fillG,
+        float fillB,
+        float fillA,
+        float strokeR,
+        float strokeG,
+        float strokeB,
+        float strokeA,
+        float strokeEnabled,
+        float strokeWidthPx
+    );
+
+    void upsertPolygon(
+        std::uint32_t id,
+        float cx,
+        float cy,
+        float rx,
+        float ry,
+        float rot,
+        float sx,
+        float sy,
+        std::uint32_t sides,
+        float fillR,
+        float fillG,
+        float fillB,
+        float fillA,
+        float strokeR,
+        float strokeG,
+        float strokeB,
+        float strokeA,
+        float strokeEnabled,
+        float strokeWidthPx
+    );
+
+    void upsertArrow(
+        std::uint32_t id,
+        float ax,
+        float ay,
+        float bx,
+        float by,
+        float head,
+        float strokeR,
+        float strokeG,
+        float strokeB,
+        float strokeA,
+        float strokeEnabled,
+        float strokeWidthPx
+    );
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);

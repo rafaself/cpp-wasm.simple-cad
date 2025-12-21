@@ -4,6 +4,7 @@
 #include "engine/types.h"
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
 
 namespace engine {
 
@@ -17,8 +18,14 @@ void rebuildRenderBuffers(
     const std::vector<PolyRec>& polylines,
     const std::vector<Point2>& points,
     const std::vector<ConduitRec>& conduits,
+    const std::vector<CircleRec>& circles,
+    const std::vector<PolygonRec>& polygons,
+    const std::vector<ArrowRec>& arrows,
     const std::vector<SymbolRec>& symbols,
     const std::vector<NodeRec>& nodes,
+    const std::unordered_map<std::uint32_t, EntityRef>& entities,
+    const std::vector<std::uint32_t>& drawOrderIds,
+    float viewScale,
     std::vector<float>& triangleVertices,
     std::vector<float>& lineVertices,
     ResolveNodeCallback resolveCb,

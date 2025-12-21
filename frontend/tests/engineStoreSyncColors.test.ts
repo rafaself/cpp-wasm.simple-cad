@@ -166,7 +166,8 @@ describe('layer-driven re-upserts', () => {
       d: lineShape({ id: 'd', colorMode: { stroke: 'layer', fill: 'layer' } }),
     };
 
-    const cmds = computeLayerDrivenReupsertCommands(shapes, nextLayers, changed, ensureId);
+    const visibleShapeIds = new Set(Object.keys(shapes));
+    const cmds = computeLayerDrivenReupsertCommands(shapes, visibleShapeIds, nextLayers, changed, ensureId);
     const ids = cmds.map((c) => ('id' in c ? c.id : 0)).sort((x, y) => x - y);
 
     // We expect 3 commands: a, c, d (b excluded)
