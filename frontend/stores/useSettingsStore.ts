@@ -44,6 +44,8 @@ export interface ToolDefaults {
   };
 }
 
+export type RenderMode = 'legacy' | 'webgl2';
+
 interface SettingsState {
   grid: GridSettings;
   snap: SnapSettings;
@@ -51,6 +53,7 @@ interface SettingsState {
   toolDefaults: ToolDefaults;
   featureFlags: {
     gpuPicking: boolean;
+    renderMode: RenderMode;
   };
 
   setSnapEnabled: (enabled: boolean) => void;
@@ -87,6 +90,7 @@ interface SettingsState {
   setTextStrike: (strike: boolean) => void;
 
   setGpuPicking: (enabled: boolean) => void;
+  setRenderMode: (mode: RenderMode) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -138,6 +142,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
   featureFlags: {
     gpuPicking: false,
+    renderMode: 'legacy',
   },
 
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
@@ -173,4 +178,5 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
   setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
   setGpuPicking: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, gpuPicking: enabled } })),
+  setRenderMode: (renderMode) => set((state) => ({ featureFlags: { ...state.featureFlags, renderMode } })),
 }));

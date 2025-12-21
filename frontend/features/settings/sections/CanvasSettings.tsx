@@ -193,6 +193,20 @@ const CanvasSettings: React.FC = () => {
           />
       </Section>
 
+      {import.meta.env.DEV ? (
+        <Section title="Dev">
+          <SelectField
+            label="Renderer"
+            value={settings.featureFlags.renderMode}
+            options={[
+              { value: "legacy", label: "Legacy (three.js)" },
+              { value: "webgl2", label: "WebGL2 (tessellated WASM)" },
+            ]}
+            onChange={(v) => settings.setRenderMode(v === "webgl2" ? "webgl2" : "legacy")}
+          />
+        </Section>
+      ) : null}
+
       {/* Color Picker Portal */}
       {activeColorPicker && (
         <>

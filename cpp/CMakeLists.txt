@@ -20,6 +20,7 @@ set(ENGINE_SOURCES
   engine/snapshot.cpp
   engine/render.cpp
   engine/electrical.cpp
+  engine/vector_tessellation.cpp
 )
 
 # --- WASM Build Configuration (Emscripten) ---
@@ -83,6 +84,7 @@ if(NOT EMSCRIPTEN)
     tests/snapshot_test.cpp
     tests/render_test.cpp
     tests/electrical_test.cpp
+    tests/vector_tessellation_test.cpp
   )
   
   # Link engine sources and gtest
