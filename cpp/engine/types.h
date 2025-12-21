@@ -42,10 +42,46 @@ struct RectRec {
     float r, g, b, a; // fill RGBA (persisted)
     float sr, sg, sb, sa; // stroke RGBA (runtime-only)
     float strokeEnabled; // 0 or 1 (runtime-only)
+    float strokeWidthPx; // screen-space width (runtime-only)
 };
-struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; };
-struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float r, g, b, a; float enabled; };
+struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; float strokeWidthPx; };
+struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float r, g, b, a; float enabled; float strokeWidthPx; };
 struct Point2 { float x; float y; };
+
+struct CircleRec {
+    std::uint32_t id;
+    float cx, cy;
+    float rx, ry;
+    float rot;
+    float sx, sy;
+    float r, g, b, a; // fill
+    float sr, sg, sb, sa; // stroke
+    float strokeEnabled;
+    float strokeWidthPx;
+};
+
+struct PolygonRec {
+    std::uint32_t id;
+    float cx, cy;
+    float rx, ry;
+    float rot;
+    float sx, sy;
+    std::uint32_t sides;
+    float r, g, b, a; // fill
+    float sr, sg, sb, sa; // stroke
+    float strokeEnabled;
+    float strokeWidthPx;
+};
+
+struct ArrowRec {
+    std::uint32_t id;
+    float ax, ay;
+    float bx, by;
+    float head;
+    float sr, sg, sb, sa;
+    float strokeEnabled;
+    float strokeWidthPx;
+};
 
 struct SymbolRec {
     std::uint32_t id;
@@ -76,9 +112,10 @@ struct ConduitRec {
     std::uint32_t toNodeId;
     float r, g, b, a;
     float enabled;
+    float strokeWidthPx;
 };
 
-enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3, Symbol = 4, Node = 5, Conduit = 6 };
+enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3, Symbol = 4, Node = 5, Conduit = 6, Circle = 7, Polygon = 8, Arrow = 9 };
 struct EntityRef { EntityKind kind; std::uint32_t index; };
 
 enum class CommandOp : std::uint32_t {
@@ -90,6 +127,11 @@ enum class CommandOp : std::uint32_t {
     UpsertSymbol = 6,
     UpsertNode = 7,
     UpsertConduit = 8,
+    SetDrawOrder = 9,
+    SetViewScale = 10,
+    UpsertCircle = 11,
+    UpsertPolygon = 12,
+    UpsertArrow = 13,
 };
 
 enum class EngineError : std::uint32_t {
@@ -103,10 +145,10 @@ enum class EngineError : std::uint32_t {
 };
 
 // Command Payloads (POD)
-struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled; };
-struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled; };
+struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx; };
+struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx; };
 // Polyline payload is variable length, handled manually
-struct PolylinePayloadHeader { float r, g, b, a, enabled; std::uint32_t count; std::uint32_t reserved; };
+struct PolylinePayloadHeader { float r, g, b, a, enabled, strokeWidthPx; std::uint32_t count; std::uint32_t reserved; };
 struct SymbolPayload {
     std::uint32_t symbolKey;
     float x, y, w, h;
@@ -122,7 +164,38 @@ struct NodePayload {
 struct ConduitPayload {
     std::uint32_t fromNodeId;
     std::uint32_t toNodeId;
-    float r, g, b, a, enabled;
+    float r, g, b, a, enabled, strokeWidthPx;
+};
+
+struct DrawOrderPayloadHeader {
+    std::uint32_t count;
+    std::uint32_t reserved;
+};
+
+struct ViewScalePayload { float scale; };
+
+struct CirclePayload {
+    float cx, cy;
+    float rx, ry;
+    float rot;
+    float sx, sy;
+    float fillR, fillG, fillB, fillA;
+    float strokeR, strokeG, strokeB, strokeA;
+    float strokeEnabled;
+    float strokeWidthPx;
+};
+
+struct PolygonPayload : CirclePayload {
+    std::uint32_t sides;
+};
+
+struct ArrowPayload {
+    float ax, ay;
+    float bx, by;
+    float head;
+    float strokeR, strokeG, strokeB, strokeA;
+    float strokeEnabled;
+    float strokeWidthPx;
 };
 
 struct SnapResult {

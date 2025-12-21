@@ -235,6 +235,8 @@ export interface Patch {
   data?: Shape; // For ADD
   diff?: Partial<Shape>; // For UPDATE
   prev?: Partial<Shape> | Shape; // For UNDO
+  /** Optional ordering hint for restoring z-order on undo/redo. */
+  orderIndex?: number;
   electricalElement?: ElectricalElement; // Metadata tied to the shape
   diagramNode?: DiagramNode;
   diagramEdge?: DiagramEdge;

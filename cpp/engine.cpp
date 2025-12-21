@@ -4,6 +4,7 @@
 // Implement CadEngine methods moved out of the header to keep the header small.
 
 #include <cmath>
+#include <algorithm>
 #include <cstring>
 
 // Constructor
@@ -73,6 +74,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         r.sb = r.b;
         r.sa = 1.0f;
         r.strokeEnabled = 1.0f;
+        r.strokeWidthPx = 1.0f;
     }
     for (auto& l : lines) {
         l.r = 0.0f;
@@ -80,6 +82,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         l.b = 0.0f;
         l.a = 1.0f;
         l.enabled = 1.0f;
+        l.strokeWidthPx = 1.0f;
     }
     for (auto& pl : polylines) {
         pl.r = 0.0f;
@@ -87,6 +90,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         pl.b = 0.0f;
         pl.a = 1.0f;
         pl.enabled = 1.0f;
+        pl.strokeWidthPx = 1.0f;
     }
     for (auto& c : conduits) {
         c.r = 0.0f;
@@ -94,7 +98,23 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         c.b = 0.0f;
         c.a = 1.0f;
         c.enabled = 1.0f;
+        c.strokeWidthPx = 1.0f;
     }
+
+    // Rebuild entity index and default draw order (snapshot does not persist these).
+    entities.clear();
+    drawOrderIds.clear();
+    drawOrderIds.reserve(rects.size() + lines.size() + polylines.size() + conduits.size());
+    for (std::uint32_t i = 0; i < rects.size(); i++) entities[rects[i].id] = EntityRef{EntityKind::Rect, i};
+    for (std::uint32_t i = 0; i < lines.size(); i++) entities[lines[i].id] = EntityRef{EntityKind::Line, i};
+    for (std::uint32_t i = 0; i < polylines.size(); i++) entities[polylines[i].id] = EntityRef{EntityKind::Polyline, i};
+    for (std::uint32_t i = 0; i < symbols.size(); i++) entities[symbols[i].id] = EntityRef{EntityKind::Symbol, i};
+    for (std::uint32_t i = 0; i < nodes.size(); i++) entities[nodes[i].id] = EntityRef{EntityKind::Node, i};
+    for (std::uint32_t i = 0; i < conduits.size(); i++) entities[conduits[i].id] = EntityRef{EntityKind::Conduit, i};
+
+    drawOrderIds.reserve(entities.size());
+    for (const auto& kv : entities) drawOrderIds.push_back(kv.first);
+    std::sort(drawOrderIds.begin(), drawOrderIds.end());
 
     const double t1 = emscripten_get_now();
     
@@ -192,10 +212,15 @@ void CadEngine::clearWorld() noexcept {
     lines.clear();
     polylines.clear();
     points.clear();
+    circles.clear();
+    polygons.clear();
+    arrows.clear();
     symbols.clear();
     nodes.clear();
     conduits.clear();
     entities.clear();
+    drawOrderIds.clear();
+    viewScale = 1.0f;
     triangleVertices.clear();
     lineVertices.clear();
     snapshotBytes.clear();
@@ -214,6 +239,14 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
     if (it == entities.end()) return;
     const EntityRef ref = it->second;
     entities.erase(it);
+    if (!drawOrderIds.empty()) {
+        for (std::size_t i = 0; i < drawOrderIds.size(); i++) {
+            if (drawOrderIds[i] == id) {
+                drawOrderIds.erase(drawOrderIds.begin() + static_cast<std::ptrdiff_t>(i));
+                break;
+            }
+        }
+    }
 
     if (ref.kind == EntityKind::Rect) {
         const std::uint32_t idx = ref.index;
@@ -270,6 +303,39 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
         return;
     }
 
+    if (ref.kind == EntityKind::Circle) {
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(circles.size() - 1);
+        if (idx != lastIdx) {
+            circles[idx] = circles[lastIdx];
+            entities[circles[idx].id] = EntityRef{EntityKind::Circle, idx};
+        }
+        circles.pop_back();
+        return;
+    }
+
+    if (ref.kind == EntityKind::Polygon) {
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(polygons.size() - 1);
+        if (idx != lastIdx) {
+            polygons[idx] = polygons[lastIdx];
+            entities[polygons[idx].id] = EntityRef{EntityKind::Polygon, idx};
+        }
+        polygons.pop_back();
+        return;
+    }
+
+    if (ref.kind == EntityKind::Arrow) {
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(arrows.size() - 1);
+        if (idx != lastIdx) {
+            arrows[idx] = arrows[lastIdx];
+            entities[arrows[idx].id] = EntityRef{EntityKind::Arrow, idx};
+        }
+        arrows.pop_back();
+        return;
+    }
+
     const std::uint32_t idx = ref.index;
     const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
     if (idx != lastIdx) {
@@ -281,10 +347,10 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
     // Back-compat overload: treat fill as stroke too.
-    upsertRect(id, x, y, w, h, r, g, b, a, r, g, b, 1.0f, 1.0f);
+    upsertRect(id, x, y, w, h, r, g, b, a, r, g, b, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled) {
+void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
     
@@ -298,20 +364,21 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
         auto& existingRect = rects[it2->second.index];
         existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h;
         existingRect.r = r; existingRect.g = g; existingRect.b = b; existingRect.a = a;
-        existingRect.sr = sr; existingRect.sg = sg; existingRect.sb = sb; existingRect.sa = sa; existingRect.strokeEnabled = strokeEnabled;
+        existingRect.sr = sr; existingRect.sg = sg; existingRect.sb = sb; existingRect.sa = sa; existingRect.strokeEnabled = strokeEnabled; existingRect.strokeWidthPx = strokeWidthPx;
         return;
     }
 
-    rects.push_back(RectRec{id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled});
+    rects.push_back(RectRec{id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
+    drawOrderIds.push_back(id);
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
     // Back-compat overload: default to solid black.
-    upsertLine(id, x0, y0, x1, y1, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    upsertLine(id, x0, y0, x1, y1, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled) {
+void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
 
@@ -324,20 +391,21 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
     if (it2 != entities.end()) {
         auto& l = lines[it2->second.index];
         l.x0 = x0; l.y0 = y0; l.x1 = x1; l.y1 = y1;
-        l.r = r; l.g = g; l.b = b; l.a = a; l.enabled = enabled;
+        l.r = r; l.g = g; l.b = b; l.a = a; l.enabled = enabled; l.strokeWidthPx = strokeWidthPx;
         return;
     }
 
-    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled});
+    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Line, static_cast<std::uint32_t>(lines.size() - 1)};
+    drawOrderIds.push_back(id);
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
     // Back-compat overload: default to solid black.
-    upsertPolyline(id, offset, count, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    upsertPolyline(id, offset, count, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled) {
+void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
 
@@ -351,12 +419,13 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
         auto& pl = polylines[it2->second.index];
         pl.offset = offset;
         pl.count = count;
-        pl.r = r; pl.g = g; pl.b = b; pl.a = a; pl.enabled = enabled;
+        pl.r = r; pl.g = g; pl.b = b; pl.a = a; pl.enabled = enabled; pl.strokeWidthPx = strokeWidthPx;
         return;
     }
 
-    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, enabled});
+    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, enabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
+    drawOrderIds.push_back(id);
 }
 
 void CadEngine::upsertSymbol(
@@ -422,10 +491,10 @@ void CadEngine::upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchor
 
 void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId) {
     // Back-compat overload: default to solid black.
-    upsertConduit(id, fromNodeId, toNodeId, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    upsertConduit(id, fromNodeId, toNodeId, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled) {
+void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
 
@@ -439,12 +508,137 @@ void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::u
         auto& c = conduits[it2->second.index];
         c.fromNodeId = fromNodeId;
         c.toNodeId = toNodeId;
-        c.r = r; c.g = g; c.b = b; c.a = a; c.enabled = enabled;
+        c.r = r; c.g = g; c.b = b; c.a = a; c.enabled = enabled; c.strokeWidthPx = strokeWidthPx;
         return;
     }
 
-    conduits.push_back(ConduitRec{id, fromNodeId, toNodeId, r, g, b, a, enabled});
+    conduits.push_back(ConduitRec{id, fromNodeId, toNodeId, r, g, b, a, enabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Conduit, static_cast<std::uint32_t>(conduits.size() - 1)};
+    drawOrderIds.push_back(id);
+}
+
+void CadEngine::upsertCircle(
+    std::uint32_t id,
+    float cx,
+    float cy,
+    float rx,
+    float ry,
+    float rot,
+    float sx,
+    float sy,
+    float fillR,
+    float fillG,
+    float fillB,
+    float fillA,
+    float strokeR,
+    float strokeG,
+    float strokeB,
+    float strokeA,
+    float strokeEnabled,
+    float strokeWidthPx
+) {
+    renderDirty = true;
+    snapshotDirty = true;
+
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind != EntityKind::Circle) {
+        deleteEntity(id);
+    }
+
+    const auto it2 = entities.find(id);
+    if (it2 != entities.end()) {
+        auto& c = circles[it2->second.index];
+        c.cx = cx; c.cy = cy; c.rx = rx; c.ry = ry; c.rot = rot; c.sx = sx; c.sy = sy;
+        c.r = fillR; c.g = fillG; c.b = fillB; c.a = fillA;
+        c.sr = strokeR; c.sg = strokeG; c.sb = strokeB; c.sa = strokeA;
+        c.strokeEnabled = strokeEnabled; c.strokeWidthPx = strokeWidthPx;
+        return;
+    }
+
+    circles.push_back(CircleRec{id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    entities[id] = EntityRef{EntityKind::Circle, static_cast<std::uint32_t>(circles.size() - 1)};
+    drawOrderIds.push_back(id);
+}
+
+void CadEngine::upsertPolygon(
+    std::uint32_t id,
+    float cx,
+    float cy,
+    float rx,
+    float ry,
+    float rot,
+    float sx,
+    float sy,
+    std::uint32_t sides,
+    float fillR,
+    float fillG,
+    float fillB,
+    float fillA,
+    float strokeR,
+    float strokeG,
+    float strokeB,
+    float strokeA,
+    float strokeEnabled,
+    float strokeWidthPx
+) {
+    renderDirty = true;
+    snapshotDirty = true;
+
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind != EntityKind::Polygon) {
+        deleteEntity(id);
+    }
+
+    const auto it2 = entities.find(id);
+    if (it2 != entities.end()) {
+        auto& p = polygons[it2->second.index];
+        p.cx = cx; p.cy = cy; p.rx = rx; p.ry = ry; p.rot = rot; p.sx = sx; p.sy = sy;
+        p.sides = sides;
+        p.r = fillR; p.g = fillG; p.b = fillB; p.a = fillA;
+        p.sr = strokeR; p.sg = strokeG; p.sb = strokeB; p.sa = strokeA;
+        p.strokeEnabled = strokeEnabled; p.strokeWidthPx = strokeWidthPx;
+        return;
+    }
+
+    polygons.push_back(PolygonRec{id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    entities[id] = EntityRef{EntityKind::Polygon, static_cast<std::uint32_t>(polygons.size() - 1)};
+    drawOrderIds.push_back(id);
+}
+
+void CadEngine::upsertArrow(
+    std::uint32_t id,
+    float ax,
+    float ay,
+    float bx,
+    float by,
+    float head,
+    float strokeR,
+    float strokeG,
+    float strokeB,
+    float strokeA,
+    float strokeEnabled,
+    float strokeWidthPx
+) {
+    renderDirty = true;
+    snapshotDirty = true;
+
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind != EntityKind::Arrow) {
+        deleteEntity(id);
+    }
+
+    const auto it2 = entities.find(id);
+    if (it2 != entities.end()) {
+        auto& a = arrows[it2->second.index];
+        a.ax = ax; a.ay = ay; a.bx = bx; a.by = by; a.head = head;
+        a.sr = strokeR; a.sg = strokeG; a.sb = strokeB; a.sa = strokeA;
+        a.strokeEnabled = strokeEnabled; a.strokeWidthPx = strokeWidthPx;
+        return;
+    }
+
+    arrows.push_back(ArrowRec{id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    entities[id] = EntityRef{EntityKind::Arrow, static_cast<std::uint32_t>(arrows.size() - 1)};
+    drawOrderIds.push_back(id);
 }
 
 // Static member callback implementation
@@ -459,18 +653,46 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->deleteEntity(id);
             break;
         }
+        case static_cast<std::uint32_t>(CommandOp::SetViewScale): {
+            if (payloadByteCount != sizeof(ViewScalePayload)) return EngineError::InvalidPayloadSize;
+            ViewScalePayload p;
+            std::memcpy(&p, payload, sizeof(ViewScalePayload));
+            const float s = (p.scale > 1e-6f && std::isfinite(p.scale)) ? p.scale : 1.0f;
+            self->viewScale = s;
+            self->renderDirty = true;
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetDrawOrder): {
+            if (payloadByteCount < sizeof(DrawOrderPayloadHeader)) return EngineError::InvalidPayloadSize;
+            DrawOrderPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(DrawOrderPayloadHeader));
+            const std::uint32_t count = hdr.count;
+            const std::size_t expected = sizeof(DrawOrderPayloadHeader) + static_cast<std::size_t>(count) * 4;
+            if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
+            self->drawOrderIds.clear();
+            self->drawOrderIds.reserve(count);
+            std::size_t o = sizeof(DrawOrderPayloadHeader);
+            for (std::uint32_t i = 0; i < count; i++) {
+                std::uint32_t sid;
+                std::memcpy(&sid, payload + o, sizeof(std::uint32_t));
+                o += sizeof(std::uint32_t);
+                self->drawOrderIds.push_back(sid);
+            }
+            self->renderDirty = true;
+            break;
+        }
         case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
             if (payloadByteCount != sizeof(RectPayload)) return EngineError::InvalidPayloadSize;
             RectPayload p;
             std::memcpy(&p, payload, sizeof(RectPayload));
-            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled);
+            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
             if (payloadByteCount != sizeof(LinePayload)) return EngineError::InvalidPayloadSize;
             LinePayload p;
             std::memcpy(&p, payload, sizeof(LinePayload));
-            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled);
+            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolyline): {
@@ -495,7 +717,28 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
                 p += sizeof(Point2);
                 self->points.push_back(pt);
             }
-            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled);
+            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled, hdr.strokeWidthPx);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::UpsertCircle): {
+            if (payloadByteCount != sizeof(CirclePayload)) return EngineError::InvalidPayloadSize;
+            CirclePayload p;
+            std::memcpy(&p, payload, sizeof(CirclePayload));
+            self->upsertCircle(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::UpsertPolygon): {
+            if (payloadByteCount != sizeof(PolygonPayload)) return EngineError::InvalidPayloadSize;
+            PolygonPayload p;
+            std::memcpy(&p, payload, sizeof(PolygonPayload));
+            self->upsertPolygon(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.sides, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::UpsertArrow): {
+            if (payloadByteCount != sizeof(ArrowPayload)) return EngineError::InvalidPayloadSize;
+            ArrowPayload p;
+            std::memcpy(&p, payload, sizeof(ArrowPayload));
+            self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertSymbol): {
@@ -517,7 +760,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             if (payloadByteCount != sizeof(ConduitPayload)) return EngineError::InvalidPayloadSize;
             ConduitPayload p;
             std::memcpy(&p, payload, sizeof(ConduitPayload));
-            self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.r, p.g, p.b, p.a, p.enabled);
+            self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
             break;
         }
         default:
@@ -634,8 +877,14 @@ void CadEngine::rebuildRenderBuffers() const {
         polylines,
         points,
         conduits,
+        circles,
+        polygons,
+        arrows,
         symbols,
         nodes,
+        entities,
+        drawOrderIds,
+        viewScale,
         triangleVertices,
         lineVertices,
         /*resolveCb*/ reinterpret_cast<engine::ResolveNodeCallback>(+[](void* ctx, std::uint32_t nodeId, Point2& out){ const CadEngine* self = reinterpret_cast<const CadEngine*>(ctx); return self->resolveNodePosition(nodeId, out); }),

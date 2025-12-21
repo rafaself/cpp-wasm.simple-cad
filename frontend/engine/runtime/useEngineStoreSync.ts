@@ -1,55 +1,56 @@
 import { useEffect } from 'react';
 import type { Layer, Shape } from '@/types';
 import { useDataStore } from '@/stores/useDataStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { CommandOp, type EngineCommand } from './commandBuffer';
 import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 
-type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'eletroduto';
+type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'eletroduto' | 'circle' | 'polygon' | 'arrow';
 
-export const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
+const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
   return (
     (s.type === 'rect' && !s.svgSymbolId && !s.svgRaw) ||
     s.type === 'line' ||
     s.type === 'polyline' ||
-    s.type === 'eletroduto'
+    s.type === 'eletroduto' ||
+    s.type === 'circle' ||
+    s.type === 'polygon' ||
+    s.type === 'arrow'
   );
 };
 
-export type LayerStyle = Pick<Layer, 'strokeColor' | 'strokeEnabled' | 'fillColor' | 'fillEnabled'>;
+const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+const clampStrokeWidthPx = (w: number | undefined): number => {
+  const n = w ?? 1;
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.min(100, Math.round(n)));
+};
 
-export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ensureId: (id: string) => number): EngineCommand | null => {
+const rgb01 = (hex: string): { r: number; g: number; b: number } => {
+  const rgb = hexToRgb(hex) ?? { r: 0, g: 0, b: 0 };
+  return { r: rgb.r / 255.0, g: rgb.g / 255.0, b: rgb.b / 255.0 };
+};
+
+export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, ensureId: (id: string) => number): EngineCommand | null => {
   if (!isSupportedShape(shape)) return null;
   const id = ensureId(shape.id);
 
-  const effectiveStrokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
-  const effectiveStrokeHex = getEffectiveStrokeColor(shape, layer);
-  const strokeRgb = hexToRgb(effectiveStrokeHex) ?? { r: 0, g: 0, b: 0 };
-  const strokeR = strokeRgb.r / 255.0;
-  const strokeG = strokeRgb.g / 255.0;
-  const strokeB = strokeRgb.b / 255.0;
-  const strokeEnabled = effectiveStrokeEnabled ? 1.0 : 0.0;
-  const strokeOpacity = Math.max(0, Math.min(100, shape.strokeOpacity ?? 100)) / 100;
-  const strokeA = strokeOpacity;
+  const strokeEnabledEff = isStrokeEffectivelyEnabled(shape, layer);
+  const strokeHex = getEffectiveStrokeColor(shape, layer);
+  const strokeRgb = rgb01(strokeHex);
+  const strokeOpacity = clamp01((shape.strokeOpacity ?? 100) / 100);
+  const strokeEnabled = strokeEnabledEff ? 1.0 : 0.0;
+  const strokeWidthPx = clampStrokeWidthPx(shape.strokeWidth);
 
   if (shape.type === 'rect') {
     if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
-
-    const effectiveFillEnabled = isFillEffectivelyEnabled(shape, layer);
-    const effectiveFillHex = getEffectiveFillColor(shape, layer);
-    const fillOpacity = Math.max(0, Math.min(100, shape.fillOpacity ?? 100)) / 100;
-
-    let fillR = 0.0, fillG = 0.0, fillB = 0.0, fillA = 0.0;
-    if (effectiveFillEnabled && effectiveFillHex && effectiveFillHex !== 'transparent') {
-      const rgb = hexToRgb(effectiveFillHex);
-      if (rgb) {
-        fillR = rgb.r / 255.0;
-        fillG = rgb.g / 255.0;
-        fillB = rgb.b / 255.0;
-        fillA = fillOpacity;
-      }
-    }
+    const fillEnabledEff = isFillEffectivelyEnabled(shape, layer);
+    const fillHex = getEffectiveFillColor(shape, layer);
+    const fillRgb = rgb01(fillHex);
+    const fillOpacity = clamp01((shape.fillOpacity ?? 100) / 100);
+    const fillA = fillEnabledEff && fillHex !== 'transparent' ? fillOpacity : 0.0;
 
     return {
       op: CommandOp.UpsertRect,
@@ -59,15 +60,16 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
         y: shape.y,
         w: shape.width,
         h: shape.height,
-        fillR,
-        fillG,
-        fillB,
+        fillR: fillRgb.r,
+        fillG: fillRgb.g,
+        fillB: fillRgb.b,
         fillA,
-        strokeR,
-        strokeG,
-        strokeB,
-        strokeA,
+        strokeR: strokeRgb.r,
+        strokeG: strokeRgb.g,
+        strokeB: strokeRgb.b,
+        strokeA: strokeOpacity,
         strokeEnabled,
+        strokeWidthPx,
       },
     };
   }
@@ -76,20 +78,132 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
     const p0 = shape.points?.[0];
     const p1 = shape.points?.[1];
     if (!p0 || !p1) return null;
-    return { op: CommandOp.UpsertLine, id, line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
+    return {
+      op: CommandOp.UpsertLine,
+      id,
+      line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, r: strokeRgb.r, g: strokeRgb.g, b: strokeRgb.b, a: strokeOpacity, enabled: strokeEnabled, strokeWidthPx },
+    };
   }
 
-  // Conduits are rendered in WASM from nodes + endpoints; do not mirror as generic polylines.
   if (shape.type === 'eletroduto') {
     if (!shape.fromNodeId || !shape.toNodeId) return null;
     const fromNodeId = ensureId(shape.fromNodeId);
     const toNodeId = ensureId(shape.toNodeId);
-    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
+    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, r: strokeRgb.r, g: strokeRgb.g, b: strokeRgb.b, a: strokeOpacity, enabled: strokeEnabled, strokeWidthPx } };
   }
 
-  const points = shape.points;
-  if (!points || points.length < 2) return null;
-  return { op: CommandOp.UpsertPolyline, id, polyline: { points, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
+  if (shape.type === 'polyline') {
+    const points = shape.points ?? [];
+    if (points.length < 2) return null;
+    return { op: CommandOp.UpsertPolyline, id, polyline: { points, r: strokeRgb.r, g: strokeRgb.g, b: strokeRgb.b, a: strokeOpacity, enabled: strokeEnabled, strokeWidthPx } };
+  }
+
+  if (shape.type === 'circle') {
+    if (shape.x === undefined || shape.y === undefined) return null;
+    const w = shape.width ?? (shape.radius ?? 50) * 2;
+    const h = shape.height ?? (shape.radius ?? 50) * 2;
+    const rx = w / 2;
+    const ry = h / 2;
+    const rot = shape.rotation ?? 0;
+    const sx = shape.scaleX ?? 1;
+    const sy = shape.scaleY ?? 1;
+
+    const fillEnabledEff = isFillEffectivelyEnabled(shape, layer);
+    const fillHex = getEffectiveFillColor(shape, layer);
+    const fillRgb = rgb01(fillHex);
+    const fillOpacity = clamp01((shape.fillOpacity ?? 100) / 100);
+    const fillA = fillEnabledEff && fillHex !== 'transparent' ? fillOpacity : 0.0;
+
+    return {
+      op: CommandOp.UpsertCircle,
+      id,
+      circle: {
+        cx: shape.x,
+        cy: shape.y,
+        rx,
+        ry,
+        rot,
+        sx,
+        sy,
+        fillR: fillRgb.r,
+        fillG: fillRgb.g,
+        fillB: fillRgb.b,
+        fillA,
+        strokeR: strokeRgb.r,
+        strokeG: strokeRgb.g,
+        strokeB: strokeRgb.b,
+        strokeA: strokeOpacity,
+        strokeEnabled,
+        strokeWidthPx,
+      },
+    };
+  }
+
+  if (shape.type === 'polygon') {
+    if (shape.x === undefined || shape.y === undefined) return null;
+    const w = shape.width ?? (shape.radius ?? 50) * 2;
+    const h = shape.height ?? (shape.radius ?? 50) * 2;
+    const rx = w / 2;
+    const ry = h / 2;
+    const rot = shape.rotation ?? 0;
+    const sx = shape.scaleX ?? 1;
+    const sy = shape.scaleY ?? 1;
+    const sides = Math.max(3, Math.floor(shape.sides ?? 6));
+
+    const fillEnabledEff = isFillEffectivelyEnabled(shape, layer);
+    const fillHex = getEffectiveFillColor(shape, layer);
+    const fillRgb = rgb01(fillHex);
+    const fillOpacity = clamp01((shape.fillOpacity ?? 100) / 100);
+    const fillA = fillEnabledEff && fillHex !== 'transparent' ? fillOpacity : 0.0;
+
+    return {
+      op: CommandOp.UpsertPolygon,
+      id,
+      polygon: {
+        cx: shape.x,
+        cy: shape.y,
+        rx,
+        ry,
+        rot,
+        sx,
+        sy,
+        sides,
+        fillR: fillRgb.r,
+        fillG: fillRgb.g,
+        fillB: fillRgb.b,
+        fillA,
+        strokeR: strokeRgb.r,
+        strokeG: strokeRgb.g,
+        strokeB: strokeRgb.b,
+        strokeA: strokeOpacity,
+        strokeEnabled,
+        strokeWidthPx,
+      },
+    };
+  }
+
+  // Arrow: shaft thickness is screen-space (strokeWidthPx), head is in world units (as authored in shape.arrowHeadSize).
+  const p0 = shape.points?.[0];
+  const p1 = shape.points?.[1];
+  if (!p0 || !p1) return null;
+  const head = Math.max(2, shape.arrowHeadSize ?? 10);
+  return {
+    op: CommandOp.UpsertArrow,
+    id,
+    arrow: {
+      ax: p0.x,
+      ay: p0.y,
+      bx: p1.x,
+      by: p1.y,
+      head,
+      strokeR: strokeRgb.r,
+      strokeG: strokeRgb.g,
+      strokeB: strokeRgb.b,
+      strokeA: strokeOpacity,
+      strokeEnabled,
+      strokeWidthPx,
+    },
+  };
 };
 
 export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers: readonly Layer[]): Set<string> => {
@@ -100,12 +214,7 @@ export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers:
   for (const l of nextLayers) {
     const prevL = prevById.get(l.id);
     if (!prevL) continue;
-    if (
-      l.strokeColor !== prevL.strokeColor ||
-      l.fillColor !== prevL.fillColor ||
-      l.strokeEnabled !== prevL.strokeEnabled ||
-      l.fillEnabled !== prevL.fillEnabled
-    ) {
+    if (l.strokeColor !== prevL.strokeColor || l.fillColor !== prevL.fillColor || l.strokeEnabled !== prevL.strokeEnabled || l.fillEnabled !== prevL.fillEnabled) {
       changedLayerIds.add(l.id);
     }
   }
@@ -114,6 +223,7 @@ export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers:
 
 export const computeLayerDrivenReupsertCommands = (
   shapes: Readonly<Record<string, Shape>>,
+  visibleShapeIds: ReadonlySet<string>,
   layers: readonly Layer[],
   changedLayerIds: ReadonlySet<string>,
   ensureId: (id: string) => number,
@@ -124,13 +234,15 @@ export const computeLayerDrivenReupsertCommands = (
   const out: EngineCommand[] = [];
 
   for (const id of Object.keys(shapes).sort((a, b) => a.localeCompare(b))) {
+    if (!visibleShapeIds.has(id)) continue;
     const s = shapes[id]!;
     if (!changedLayerIds.has(s.layerId)) continue;
     if (!isSupportedShape(s)) continue;
 
     const mode = getShapeColorMode(s);
-    const dependsOnLayer = mode.stroke === 'layer' || (s.type === 'rect' && mode.fill === 'layer');
-    if (!dependsOnLayer) continue;
+    const dependsOnLayerFill = (s.type === 'rect' || s.type === 'circle' || s.type === 'polygon') && mode.fill === 'layer';
+    const dependsOnLayerStroke = mode.stroke === 'layer';
+    if (!dependsOnLayerFill && !dependsOnLayerStroke) continue;
 
     const layer = layersById.get(s.layerId) ?? null;
     const cmd = shapeToEngineCommand(s, layer, ensureId);
@@ -155,24 +267,41 @@ const toUpsertSymbolCommand = (shape: Shape, ensureId: (id: string) => number): 
   return {
     op: CommandOp.UpsertSymbol,
     id,
-    symbol: {
-      symbolKey,
-      x: shape.x,
-      y: shape.y,
-      w: shape.width,
-      h: shape.height,
-      rotation,
-      scaleX,
-      scaleY,
-      connX: shape.connectionPoint.x,
-      connY: shape.connectionPoint.y,
-    },
+    symbol: { symbolKey, x: shape.x, y: shape.y, w: shape.width, h: shape.height, rotation, scaleX, scaleY, connX: shape.connectionPoint.x, connY: shape.connectionPoint.y },
   };
+};
+
+const buildVisibleOrder = (
+  state: ReturnType<typeof useDataStore.getState>,
+  ui: Pick<ReturnType<typeof useUIStore.getState>, 'activeFloorId' | 'activeDiscipline'>,
+): { orderedIds: string[]; idSet: Set<string> } => {
+  const layerById = new Map(state.layers.map((l) => [l.id, l]));
+  const orderedIds: string[] = [];
+  const idSet = new Set<string>();
+
+  const consider = (id: string) => {
+    const s = state.shapes[id];
+    if (!s) return;
+    if (!isSupportedShape(s)) return;
+    if (s.floorId && ui.activeFloorId && s.floorId !== ui.activeFloorId) return;
+    if (s.discipline && ui.activeDiscipline && s.discipline !== ui.activeDiscipline) return;
+    const layer = layerById.get(s.layerId);
+    if (layer && !layer.visible) return;
+    if (idSet.has(id)) return;
+    idSet.add(id);
+    orderedIds.push(id);
+  };
+
+  for (const id of state.shapeOrder ?? []) consider(id);
+  for (const id of Object.keys(state.shapes).sort((a, b) => a.localeCompare(b))) consider(id);
+
+  return { orderedIds, idSet };
 };
 
 export const useEngineStoreSync = (): void => {
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
+    let unsubscribeData: (() => void) | null = null;
+    let unsubscribeUi: (() => void) | null = null;
     let disposed = false;
 
     (async () => {
@@ -181,74 +310,61 @@ export const useEngineStoreSync = (): void => {
 
       const ensureId = runtime.ids.ensureIdForString;
 
-      // Initial full sync (batched) to guarantee deterministic engine state.
-      const initialState = useDataStore.getState();
-      const initialLayersById = new Map(initialState.layers.map((l) => [l.id, l]));
-      const initialShapes = Object.keys(initialState.shapes)
-        .sort((a, b) => a.localeCompare(b))
-        .map((id) => initialState.shapes[id])
-        .filter(Boolean) as Shape[];
-      const initialCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
+      let lastData = useDataStore.getState();
+      let lastUi = useUIStore.getState();
+      let lastVisibleIds = new Set<string>();
+      let lastDrawOrderKey = '';
+      let lastScale = lastUi.viewTransform.scale || 1;
 
-      // Connection nodes first (conduits depend on them).
-      for (const nodeId of Object.keys(initialState.connectionNodes).sort((a, b) => a.localeCompare(b))) {
-        const n = initialState.connectionNodes[nodeId]!;
-        const id = ensureId(n.id);
-        if (n.kind === 'anchored' && n.anchorShapeId) {
-          const anchorSymbolId = ensureId(n.anchorShapeId);
-          initialCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 1, anchorSymbolId, x: 0, y: 0 } });
-        } else {
-          const x = n.position?.x ?? 0;
-          const y = n.position?.y ?? 0;
-          initialCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 0, anchorSymbolId: 0, x, y } });
-        }
-      }
-
-      // Symbols (used by anchored nodes).
-      for (const s of initialShapes) {
-        const cmd = toUpsertSymbolCommand(s, ensureId);
-        if (cmd) initialCommands.push(cmd);
-      }
-
-      for (const s of initialShapes) {
-        const layer = initialLayersById.get(s.layerId) ?? null;
-        const cmd = shapeToEngineCommand(s, layer, ensureId);
-        if (cmd) initialCommands.push(cmd);
-      }
-      runtime.apply(initialCommands);
-
-      unsubscribe = useDataStore.subscribe((state, prev) => {
+      const applySync = (nextData: typeof lastData, nextUi: typeof lastUi, prevData: typeof lastData, prevUi: typeof lastUi) => {
         const commands: EngineCommand[] = [];
 
-        const nextShapes = state.shapes;
-        const prevShapes = prev.shapes;
-        const nextNodes = state.connectionNodes;
-        const prevNodes = prev.connectionNodes;
-        const nextLayers = state.layers;
-        const prevLayers = prev.layers;
-        const layersById = new Map(nextLayers.map((l) => [l.id, l]));
-
-        const changedLayerIds = computeChangedLayerIds(prevLayers, nextLayers);
-
-        // Deletes
-        for (const prevId of Object.keys(prevShapes).sort((a, b) => a.localeCompare(b))) {
-          if (nextShapes[prevId]) continue;
-          const eid = runtime.ids.maps.idStringToHash.get(prevId);
-          if (eid === undefined) continue;
-          commands.push({ op: CommandOp.DeleteEntity, id: eid });
+        const nextScale = nextUi.viewTransform.scale || 1;
+        if (nextScale !== lastScale) {
+          commands.push({ op: CommandOp.SetViewScale, view: { scale: nextScale } });
+          lastScale = nextScale;
         }
 
-        for (const prevNodeId of Object.keys(prevNodes).sort((a, b) => a.localeCompare(b))) {
-          if (nextNodes[prevNodeId]) continue;
+        const { orderedIds: nextOrderedIds, idSet: nextVisibleSet } = buildVisibleOrder(nextData, { activeFloorId: nextUi.activeFloorId, activeDiscipline: nextUi.activeDiscipline });
+
+        // Deletes when shapes disappear or become invisible.
+        for (const id of lastVisibleIds) {
+          if (nextVisibleSet.has(id)) continue;
+          const eid = runtime.ids.maps.idStringToHash.get(id);
+          if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
+        }
+
+        const layersById = new Map(nextData.layers.map((l) => [l.id, l]));
+
+        // Adds + updates for visible shapes.
+        for (const id of nextOrderedIds) {
+          const nextShape = nextData.shapes[id]!;
+          const prevShape = prevData.shapes[id];
+          if (prevShape === nextShape && lastVisibleIds.has(id)) continue;
+
+          const layer = layersById.get(nextShape.layerId) ?? null;
+          const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
+          if (cmd) {
+            commands.push(cmd);
+          } else {
+            const eid = runtime.ids.maps.idStringToHash.get(id);
+            if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
+          }
+        }
+
+        // Layer style changes: re-upsert affected visible shapes even if the shape object did not change.
+        const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
+        commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId));
+
+        // Nodes: deletes then adds/updates (conduits depend on them).
+        for (const prevNodeId of Object.keys(prevData.connectionNodes).sort((a, b) => a.localeCompare(b))) {
+          if (nextData.connectionNodes[prevNodeId]) continue;
           const eid = runtime.ids.maps.idStringToHash.get(prevNodeId);
-          if (eid === undefined) continue;
-          commands.push({ op: CommandOp.DeleteEntity, id: eid });
+          if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
         }
-
-        // Nodes: adds/updates
-        for (const id of Object.keys(nextNodes).sort((a, b) => a.localeCompare(b))) {
-          const nextNode = nextNodes[id]!;
-          const prevNode = prevNodes[id];
+        for (const id of Object.keys(nextData.connectionNodes).sort((a, b) => a.localeCompare(b))) {
+          const nextNode = nextData.connectionNodes[id]!;
+          const prevNode = prevData.connectionNodes[id];
           if (prevNode === nextNode) continue;
           const eid = ensureId(id);
           if (nextNode.kind === 'anchored' && nextNode.anchorShapeId) {
@@ -261,37 +377,82 @@ export const useEngineStoreSync = (): void => {
           }
         }
 
-        // Adds + updates (reference inequality means immutable replacement)
-        for (const id of Object.keys(nextShapes).sort((a, b) => a.localeCompare(b))) {
-          const nextShape = nextShapes[id]!;
-          const prevShape = prevShapes[id];
+        // Symbols (used by anchored nodes).
+        for (const id of Object.keys(nextData.shapes).sort((a, b) => a.localeCompare(b))) {
+          const nextShape = nextData.shapes[id]!;
+          const prevShape = prevData.shapes[id];
           if (prevShape === nextShape) continue;
-
-          // Symbols are not rendered as rects by WASM, but they need to exist for anchored node resolution.
           const symCmd = toUpsertSymbolCommand(nextShape, ensureId);
           if (symCmd) commands.push(symCmd);
-
-          const layer = layersById.get(nextShape.layerId) ?? null;
-          const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
-          if (cmd) {
-            commands.push(cmd);
-          } else {
-            // If the shape became unsupported/invalid, remove it from the engine mirror.
-            const eid = runtime.ids.maps.idStringToHash.get(id);
-            if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
-          }
         }
 
-        // Layer style changes: re-upsert affected shapes even if the shape object did not change.
-        commands.push(...computeLayerDrivenReupsertCommands(nextShapes, nextLayers, changedLayerIds, ensureId));
+        // Draw order (visible shapes only).
+        const drawOrderIds = nextOrderedIds.map((id) => ensureId(id));
+        const drawOrderKey = drawOrderIds.join(',');
+        if (drawOrderKey !== lastDrawOrderKey) {
+          commands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
+          lastDrawOrderKey = drawOrderKey;
+        }
 
         if (commands.length) runtime.apply(commands);
+        lastVisibleIds = nextVisibleSet;
+      };
+
+      // Initial full sync.
+      {
+        const initCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
+        initCommands.push({ op: CommandOp.SetViewScale, view: { scale: lastScale } });
+
+        const { orderedIds } = buildVisibleOrder(lastData, { activeFloorId: lastUi.activeFloorId, activeDiscipline: lastUi.activeDiscipline });
+        const drawOrderIds = orderedIds.map((id) => ensureId(id));
+        initCommands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
+
+        const layersById = new Map(lastData.layers.map((l) => [l.id, l]));
+        for (const nodeId of Object.keys(lastData.connectionNodes).sort((a, b) => a.localeCompare(b))) {
+          const n = lastData.connectionNodes[nodeId]!;
+          const id = ensureId(n.id);
+          if (n.kind === 'anchored' && n.anchorShapeId) {
+            const anchorSymbolId = ensureId(n.anchorShapeId);
+            initCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 1, anchorSymbolId, x: 0, y: 0 } });
+          } else {
+            const x = n.position?.x ?? 0;
+            const y = n.position?.y ?? 0;
+            initCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 0, anchorSymbolId: 0, x, y } });
+          }
+        }
+        for (const s of Object.values(lastData.shapes)) {
+          if (!s) continue;
+          const symCmd = toUpsertSymbolCommand(s, ensureId);
+          if (symCmd) initCommands.push(symCmd);
+        }
+        for (const id of orderedIds) {
+          const s = lastData.shapes[id]!;
+          const layer = layersById.get(s.layerId) ?? null;
+          const cmd = shapeToEngineCommand(s, layer, ensureId);
+          if (cmd) initCommands.push(cmd);
+        }
+
+        runtime.apply(initCommands);
+        lastVisibleIds = new Set(orderedIds);
+        lastDrawOrderKey = drawOrderIds.join(',');
+      }
+
+      unsubscribeData = useDataStore.subscribe((next, prev) => {
+        lastData = next;
+        applySync(next, lastUi, prev, lastUi);
+      });
+
+      unsubscribeUi = useUIStore.subscribe((nextUi) => {
+        const prevUi = lastUi;
+        lastUi = nextUi;
+        applySync(lastData, nextUi, lastData, prevUi);
       });
     })();
 
     return () => {
       disposed = true;
-      unsubscribe?.();
+      unsubscribeData?.();
+      unsubscribeUi?.();
     };
   }, []);
 };

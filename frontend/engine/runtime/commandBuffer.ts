@@ -9,6 +9,11 @@ export const enum CommandOp {
   UpsertSymbol = 6,
   UpsertNode = 7,
   UpsertConduit = 8,
+  SetDrawOrder = 9,
+  SetViewScale = 10,
+  UpsertCircle = 11,
+  UpsertPolygon = 12,
+  UpsertArrow = 13,
 }
 
 export type RectPayload = {
@@ -25,9 +30,10 @@ export type RectPayload = {
   strokeB: number;
   strokeA: number;
   strokeEnabled: number; // 0 or 1
+  strokeWidthPx: number;
 };
-export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; a: number; enabled: number };
-export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number };
+export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
+export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
 export type SymbolPayload = {
   symbolKey: number;
   x: number;
@@ -42,7 +48,42 @@ export type SymbolPayload = {
 };
 
 export type NodePayload = { kind: 0 | 1; anchorSymbolId: number; x: number; y: number };
-export type ConduitPayload = { fromNodeId: number; toNodeId: number; r: number; g: number; b: number; a: number; enabled: number };
+export type ConduitPayload = { fromNodeId: number; toNodeId: number; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
+export type SetViewScalePayload = { scale: number };
+export type SetDrawOrderPayload = { ids: readonly number[] };
+export type CirclePayload = {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rot: number;
+  sx: number;
+  sy: number;
+  fillR: number;
+  fillG: number;
+  fillB: number;
+  fillA: number;
+  strokeR: number;
+  strokeG: number;
+  strokeB: number;
+  strokeA: number;
+  strokeEnabled: number; // 0 or 1
+  strokeWidthPx: number;
+};
+export type PolygonPayload = CirclePayload & { sides: number };
+export type ArrowPayload = {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  head: number;
+  strokeR: number;
+  strokeG: number;
+  strokeB: number;
+  strokeA: number;
+  strokeEnabled: number; // 0 or 1
+  strokeWidthPx: number;
+};
 
 export type EngineCommand =
   | { op: CommandOp.ClearAll }
@@ -52,7 +93,12 @@ export type EngineCommand =
   | { op: CommandOp.UpsertPolyline; id: number; polyline: PolylinePayload }
   | { op: CommandOp.UpsertSymbol; id: number; symbol: SymbolPayload }
   | { op: CommandOp.UpsertNode; id: number; node: NodePayload }
-  | { op: CommandOp.UpsertConduit; id: number; conduit: ConduitPayload };
+  | { op: CommandOp.UpsertConduit; id: number; conduit: ConduitPayload }
+  | { op: CommandOp.SetViewScale; view: SetViewScalePayload }
+  | { op: CommandOp.SetDrawOrder; order: SetDrawOrderPayload }
+  | { op: CommandOp.UpsertCircle; id: number; circle: CirclePayload }
+  | { op: CommandOp.UpsertPolygon; id: number; polygon: PolygonPayload }
+  | { op: CommandOp.UpsertArrow; id: number; arrow: ArrowPayload };
 
 const writeU32 = (view: DataView, offset: number, value: number): number => {
   view.setUint32(offset, value >>> 0, true);
@@ -69,18 +115,28 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.ClearAll:
     case CommandOp.DeleteEntity:
       return 0;
+    case CommandOp.SetViewScale:
+      return 4; // 1 float
+    case CommandOp.SetDrawOrder:
+      return 8 + cmd.order.ids.length * 4; // u32 count + u32 reserved + u32 ids[]
     case CommandOp.UpsertRect:
-      return 52; // 13 floats * 4 bytes/float
+      return 56; // 14 floats * 4 bytes/float
     case CommandOp.UpsertLine:
-      return 36; // 9 floats * 4 bytes/float
+      return 40; // 10 floats * 4 bytes/float (includes strokeWidthPx)
     case CommandOp.UpsertPolyline:
-      return 28 + cmd.polyline.points.length * 8; // header (5 floats + u32 count + u32 reserved) + points
+      return 32 + cmd.polyline.points.length * 8; // header (6 floats + u32 count + u32 reserved) + points
     case CommandOp.UpsertSymbol:
       return 40;
     case CommandOp.UpsertNode:
       return 16;
     case CommandOp.UpsertConduit:
-      return 28; // 2 u32 + 5 floats
+      return 32; // 2 u32 + 6 floats (includes strokeWidthPx)
+    case CommandOp.UpsertCircle:
+      return 68; // 17 floats
+    case CommandOp.UpsertPolygon:
+      return 72; // 17 floats + u32 sides
+    case CommandOp.UpsertArrow:
+      return 44; // 11 floats
   }
 };
 
@@ -97,7 +153,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
   let o = 0;
 
   o = writeU32(view, o, COMMAND_BUFFER_MAGIC);
-  o = writeU32(view, o, 1); // version
+  o = writeU32(view, o, 2); // version
   o = writeU32(view, o, commands.length);
   o = writeU32(view, o, 0);
 
@@ -111,6 +167,14 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
     switch (cmd.op) {
       case CommandOp.ClearAll:
       case CommandOp.DeleteEntity:
+        break;
+      case CommandOp.SetViewScale:
+        o = writeF32(view, o, cmd.view.scale);
+        break;
+      case CommandOp.SetDrawOrder:
+        o = writeU32(view, o, cmd.order.ids.length);
+        o = writeU32(view, o, 0);
+        for (const id of cmd.order.ids) o = writeU32(view, o, id);
         break;
       case CommandOp.UpsertRect:
         o = writeF32(view, o, cmd.rect.x);
@@ -126,6 +190,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.rect.strokeB);
         o = writeF32(view, o, cmd.rect.strokeA);
         o = writeF32(view, o, cmd.rect.strokeEnabled);
+        o = writeF32(view, o, cmd.rect.strokeWidthPx);
         break;
       case CommandOp.UpsertLine:
         o = writeF32(view, o, cmd.line.x0);
@@ -137,6 +202,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.line.b);
         o = writeF32(view, o, cmd.line.a);
         o = writeF32(view, o, cmd.line.enabled);
+        o = writeF32(view, o, cmd.line.strokeWidthPx);
         break;
       case CommandOp.UpsertPolyline:
         o = writeF32(view, o, cmd.polyline.r);
@@ -144,6 +210,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.polyline.b);
         o = writeF32(view, o, cmd.polyline.a);
         o = writeF32(view, o, cmd.polyline.enabled);
+        o = writeF32(view, o, cmd.polyline.strokeWidthPx);
         o = writeU32(view, o, cmd.polyline.points.length);
         o = writeU32(view, o, 0);
         for (const p of cmd.polyline.points) {
@@ -177,6 +244,59 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.conduit.b);
         o = writeF32(view, o, cmd.conduit.a);
         o = writeF32(view, o, cmd.conduit.enabled);
+        o = writeF32(view, o, cmd.conduit.strokeWidthPx);
+        break;
+      case CommandOp.UpsertCircle:
+        o = writeF32(view, o, cmd.circle.cx);
+        o = writeF32(view, o, cmd.circle.cy);
+        o = writeF32(view, o, cmd.circle.rx);
+        o = writeF32(view, o, cmd.circle.ry);
+        o = writeF32(view, o, cmd.circle.rot);
+        o = writeF32(view, o, cmd.circle.sx);
+        o = writeF32(view, o, cmd.circle.sy);
+        o = writeF32(view, o, cmd.circle.fillR);
+        o = writeF32(view, o, cmd.circle.fillG);
+        o = writeF32(view, o, cmd.circle.fillB);
+        o = writeF32(view, o, cmd.circle.fillA);
+        o = writeF32(view, o, cmd.circle.strokeR);
+        o = writeF32(view, o, cmd.circle.strokeG);
+        o = writeF32(view, o, cmd.circle.strokeB);
+        o = writeF32(view, o, cmd.circle.strokeA);
+        o = writeF32(view, o, cmd.circle.strokeEnabled);
+        o = writeF32(view, o, cmd.circle.strokeWidthPx);
+        break;
+      case CommandOp.UpsertPolygon:
+        o = writeF32(view, o, cmd.polygon.cx);
+        o = writeF32(view, o, cmd.polygon.cy);
+        o = writeF32(view, o, cmd.polygon.rx);
+        o = writeF32(view, o, cmd.polygon.ry);
+        o = writeF32(view, o, cmd.polygon.rot);
+        o = writeF32(view, o, cmd.polygon.sx);
+        o = writeF32(view, o, cmd.polygon.sy);
+        o = writeF32(view, o, cmd.polygon.fillR);
+        o = writeF32(view, o, cmd.polygon.fillG);
+        o = writeF32(view, o, cmd.polygon.fillB);
+        o = writeF32(view, o, cmd.polygon.fillA);
+        o = writeF32(view, o, cmd.polygon.strokeR);
+        o = writeF32(view, o, cmd.polygon.strokeG);
+        o = writeF32(view, o, cmd.polygon.strokeB);
+        o = writeF32(view, o, cmd.polygon.strokeA);
+        o = writeF32(view, o, cmd.polygon.strokeEnabled);
+        o = writeF32(view, o, cmd.polygon.strokeWidthPx);
+        o = writeU32(view, o, cmd.polygon.sides >>> 0);
+        break;
+      case CommandOp.UpsertArrow:
+        o = writeF32(view, o, cmd.arrow.ax);
+        o = writeF32(view, o, cmd.arrow.ay);
+        o = writeF32(view, o, cmd.arrow.bx);
+        o = writeF32(view, o, cmd.arrow.by);
+        o = writeF32(view, o, cmd.arrow.head);
+        o = writeF32(view, o, cmd.arrow.strokeR);
+        o = writeF32(view, o, cmd.arrow.strokeG);
+        o = writeF32(view, o, cmd.arrow.strokeB);
+        o = writeF32(view, o, cmd.arrow.strokeA);
+        o = writeF32(view, o, cmd.arrow.strokeEnabled);
+        o = writeF32(view, o, cmd.arrow.strokeWidthPx);
         break;
     }
   }
