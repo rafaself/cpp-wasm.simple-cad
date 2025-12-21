@@ -7,7 +7,10 @@ import * as pdfjs from 'pdfjs-dist';
 import { convertPdfPageToShapes } from './utils/pdfToShapes';
 import { pdfShapesToSvg } from './utils/pdfShapesToSvg';
 import { removePdfBorderShapes } from './utils/pdfBorderFilter';
+import { convertPdfPageToVectorDocumentV1 } from './utils/pdfToVectorDocument';
 import { generateId } from '../../utils/uuid';
+import type { VectorSidecarV1 } from '../../types';
+import { mergeVectorSidecarsV1 } from '../../utils/vectorSidecarMerge';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
 import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
@@ -19,6 +22,7 @@ interface PlanImportResult {
   shapes: Shape[];
   originalWidth: number;
   originalHeight: number;
+  vectorSidecarToMerge?: { sidecar: VectorSidecarV1; prefix: string };
 }
 
 interface ImportOptions {
@@ -104,7 +108,7 @@ export const usePlanImport = (): PlanImportHook => {
                    const filteredShapes = removePdfBorderShapes(vectorShapes, { enabled: params?.options?.pdfRemoveBorder === true });
                     if (importAs === 'svg') {
                      const svg = pdfShapesToSvg(filteredShapes, { paddingPx: 1 });
-                     const newShapeId = generateId('plan');
+                    const newShapeId = generateId('plan');
                      const newShape: Shape = {
                        id: newShapeId,
                        layerId: targetLayerId,
@@ -126,7 +130,36 @@ export const usePlanImport = (): PlanImportHook => {
                        discipline: 'architecture',
                        floorId: uiStore.activeFloorId,
                      };
-                     resolve({ shapes: [newShape], originalWidth: svg.width, originalHeight: svg.height });
+
+                     let vectorSidecarToMerge: PlanImportResult['vectorSidecarToMerge'];
+                     try {
+                       const vectorRes = await convertPdfPageToVectorDocumentV1(page, {
+                         colorScheme: params?.options?.colorScheme,
+                         customColor: params?.options?.customColor,
+                         removeBorder: params?.options?.pdfRemoveBorder === true,
+                       });
+                       if (vectorRes.document.draws.length > 0) {
+                         vectorSidecarToMerge = {
+                           prefix: `pdf:${newShapeId}:`,
+                           sidecar: {
+                             version: 1,
+                             document: vectorRes.document,
+                             bindings: {
+                               [newShapeId]: { drawIds: vectorRes.document.draws.map((d) => d.id) },
+                             },
+                           },
+                         };
+                       }
+                     } catch (err) {
+                       console.warn('[pdf] Failed to build Vector IR sidecar for PDF import', err);
+                     }
+
+                     resolve({
+                       shapes: [newShape],
+                       originalWidth: svg.width,
+                       originalHeight: svg.height,
+                       ...(vectorSidecarToMerge ? { vectorSidecarToMerge } : {}),
+                     });
                      return;
                     }
 
@@ -375,6 +408,12 @@ export const usePlanImport = (): PlanImportHook => {
       if (result && result.shapes.length > 0) {
         console.log(`Importing ${result.shapes.length} shapes.`);
         dataStore.addShapes(result.shapes);
+        if (result.vectorSidecarToMerge) {
+          const current = dataStore.vectorSidecar;
+          const base = current && current.version === 1 ? (current as VectorSidecarV1) : null;
+          const merged = mergeVectorSidecarsV1(base, result.vectorSidecarToMerge.sidecar, result.vectorSidecarToMerge.prefix);
+          dataStore.setVectorSidecar(merged);
+        }
         uiStore.setSelectedShapeIds(new Set(result.shapes.map(s => s.id)));
         uiStore.setTool('select');
         

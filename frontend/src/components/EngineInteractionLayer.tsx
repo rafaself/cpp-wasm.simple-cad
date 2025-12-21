@@ -18,7 +18,7 @@ import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
-import { getSymbolAlphaAtUv } from '@/features/library/symbolAlphaMaskCache';
+import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
 import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
 
 type Draft =
@@ -90,6 +90,11 @@ const pickShapeAtGeometry = (
     if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
     if (shape.svgSymbolId) {
       if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld })) continue;
+      return shape.id;
+    }
+    if (shape.type === 'rect' && shape.svgRaw) {
+      void primeSymbolAlphaMask(shape.id, shape.svgRaw, 256);
+      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld, symbolIdOverride: shape.id })) continue;
       return shape.id;
     }
     if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
@@ -249,6 +254,30 @@ const EngineInteractionLayer: React.FC = () => {
   }, [draft]);
 
   const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
+    {
+      const data = useDataStore.getState();
+      const ui = useUIStore.getState();
+      const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+      const svgCandidates = data.spatialIndex
+        .query(queryRect)
+        .map((c) => data.shapes[c.id])
+        .filter((s): s is Shape => !!s && s.type === 'rect' && !!s.svgRaw && (!s.svgSymbolId || s.svgSymbolId.startsWith('plan:')));
+
+      if (svgCandidates.length) {
+        const orderIndex = new Map<string, number>();
+        for (let i = 0; i < data.shapeOrder.length; i++) orderIndex.set(data.shapeOrder[i]!, i);
+        svgCandidates.sort((a, b) => (orderIndex.get(b.id) ?? -1) - (orderIndex.get(a.id) ?? -1));
+
+        for (const shape of svgCandidates) {
+          const layer = data.layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+          void primeSymbolAlphaMask(shape.id, shape.svgRaw ?? '', 256);
+          if (isSymbolInstanceHitAtWorldPoint(shape, world, getSymbolAlphaAtUv, { toleranceWorld: tolerance, symbolIdOverride: shape.id })) return shape.id;
+        }
+      }
+    }
+
     {
       const data = useDataStore.getState();
       const ui = useUIStore.getState();

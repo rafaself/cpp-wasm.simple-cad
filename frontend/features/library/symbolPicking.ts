@@ -43,9 +43,10 @@ export const isSymbolInstanceHitAtWorldPoint = (
   shape: Shape,
   world: Point,
   sampleAlphaAtUv: SymbolAlphaSampler,
-  opts?: { toleranceWorld?: number; alphaThreshold?: number },
+  opts?: { toleranceWorld?: number; alphaThreshold?: number; symbolIdOverride?: string },
 ): boolean => {
-  if (!shape.svgSymbolId) return false;
+  const symbolId = opts?.symbolIdOverride ?? shape.svgSymbolId;
+  if (!symbolId) return false;
   if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return false;
 
   const width = shape.width;
@@ -89,7 +90,7 @@ export const isSymbolInstanceHitAtWorldPoint = (
   const v = cy / denomY + 0.5;
   if (!(u >= 0 && u <= 1 && v >= 0 && v <= 1)) return false;
 
-  const alpha = sampleAlphaAtUv(shape.svgSymbolId, u, v);
+  const alpha = sampleAlphaAtUv(symbolId, u, v);
   if (alpha === null) return true;
   return alpha >= alphaThreshold;
 };
