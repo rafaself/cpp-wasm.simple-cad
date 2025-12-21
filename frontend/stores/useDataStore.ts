@@ -981,14 +981,13 @@ export const useDataStore = create<DataState>((set, get) => ({
     const nextDiagramEdges = Object.fromEntries(project.diagramEdges.map((e) => [e.id, e]));
 
     const spatialIndex = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
-    const shapesMap = project.shapes.reduce((acc, s) => ({ ...acc, [s.id]: s }), {});
     // Use persisted shapeOrder if available, otherwise fallback to shape array order
     const shapeOrder = project.shapeOrder ?? project.shapes.map(s => s.id);
     Object.values(nextShapes).forEach((shape) => spatialIndex.insert(shape));
 
     set({
       layers: project.layers.map(normalizeLayerStyle),
-      shapes: shapesMap,
+      shapes: nextShapes,
       shapeOrder,
       electricalElements: nextElectrical,
       connectionNodes: nextNodes,
