@@ -1,5 +1,5 @@
-import type { ViewTransform } from '@/types';
 import type { BufferMeta, WasmModule } from '@/engine/runtime/EngineRuntime';
+import type { TessellatedRenderer, TessellatedRenderInput } from '../tessellatedRenderer';
 
 import { computeTriangleBatches, type TriangleBatch } from './triBatching';
 
@@ -22,14 +22,6 @@ type SsaaResources = {
   blitVao: WebGLVertexArrayObject;
   blitVbo: WebGLBuffer;
   uSource: WebGLUniformLocation;
-};
-
-type RenderInput = {
-  module: WasmModule;
-  positionMeta: BufferMeta;
-  viewTransform: ViewTransform;
-  canvasSizeCss: { width: number; height: number };
-  clearColor: { r: number; g: number; b: number; a: number };
 };
 
 const floatsPerVertex = 7;
@@ -184,7 +176,7 @@ const initSsaaResources = (gl: WebGL2RenderingContext): SsaaResources => {
   return { framebuffer, texture, blitProgram, blitVao, blitVbo, uSource };
 };
 
-export class Webgl2TessellatedRenderer {
+export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   private gl: WebGL2RenderingContext;
   private resources: RendererResources;
   private ssaa: SsaaResources;
@@ -221,7 +213,7 @@ export class Webgl2TessellatedRenderer {
     gl.deleteProgram(blitProgram);
   }
 
-  private ensureCanvasSize(input: RenderInput): { width: number; height: number; pixelRatio: number } {
+  private ensureCanvasSize(input: TessellatedRenderInput): { width: number; height: number; pixelRatio: number } {
     const dpr = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
     const width = Math.max(1, Math.floor(input.canvasSizeCss.width * dpr));
     const height = Math.max(1, Math.floor(input.canvasSizeCss.height * dpr));
@@ -255,7 +247,7 @@ export class Webgl2TessellatedRenderer {
     return this.offscreenSize;
   }
 
-  private uploadIfNeeded(input: RenderInput): Float32Array {
+  private uploadIfNeeded(input: TessellatedRenderInput): Float32Array {
     const { module, positionMeta } = input;
     const heapChanged = module.HEAPF32.buffer !== this.lastHeapBuffer;
     const metaChanged =
@@ -283,7 +275,7 @@ export class Webgl2TessellatedRenderer {
     return view;
   }
 
-  public render(input: RenderInput): void {
+  public render(input: TessellatedRenderInput): void {
     const { gl } = this;
     const { width, height, pixelRatio } = this.ensureCanvasSize(input);
     const { width: offW, height: offH } = this.ensureOffscreen(width, height);
@@ -336,4 +328,3 @@ export class Webgl2TessellatedRenderer {
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
 }
-

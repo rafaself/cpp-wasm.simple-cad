@@ -201,8 +201,9 @@ const CanvasSettings: React.FC = () => {
             options={[
               { value: "legacy", label: "Legacy (three.js)" },
               { value: "webgl2", label: "WebGL2 (tessellated WASM)" },
+              { value: "webgpu", label: "WebGPU (auto-fallback → WebGL2)" },
             ]}
-            onChange={(v) => settings.setRenderMode(v === "webgl2" ? "webgl2" : "legacy")}
+            onChange={(v) => settings.setRenderMode(v === "webgpu" ? "webgpu" : v === "webgl2" ? "webgl2" : "legacy")}
           />
         </Section>
       ) : null}

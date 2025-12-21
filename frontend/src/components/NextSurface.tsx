@@ -18,7 +18,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useEngineStoreSync } from '@/engine/runtime/useEngineStoreSync';
 import CadViewer from './CadViewer';
 import EngineInteractionLayer from './EngineInteractionLayer';
-import Webgl2WasmLayer from './Webgl2WasmLayer';
+import TessellatedWasmLayer from './TessellatedWasmLayer';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
@@ -47,7 +47,7 @@ const NextCanvasArea: React.FC = () => {
 
       <div className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none" ref={containerRef}>
         <div className="absolute inset-0 pointer-events-none">
-          {renderMode === 'webgl2' ? <Webgl2WasmLayer /> : <CadViewer embedded />}
+          {renderMode === 'legacy' ? <CadViewer embedded /> : <TessellatedWasmLayer />}
         </div>
         <EngineInteractionLayer />
       </div>

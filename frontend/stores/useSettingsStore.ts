@@ -44,7 +44,7 @@ export interface ToolDefaults {
   };
 }
 
-export type RenderMode = 'legacy' | 'webgl2';
+export type RenderMode = 'legacy' | 'webgl2' | 'webgpu';
 
 interface SettingsState {
   grid: GridSettings;
