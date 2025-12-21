@@ -1,3 +1,5 @@
+# Dev compose for the WASM build helper only.
+# Frontend/backend services are intentionally commented out; run them locally.
 services:
   # frontend:
   #   build:

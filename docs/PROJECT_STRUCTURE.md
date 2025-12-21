@@ -34,6 +34,7 @@ Notes:
 
 - It is not a long-running service.
 - Running `docker compose up` will start the container and it will exit when the build finishes.
+- Frontend/backend containers are not included; run them locally (see README).
 
 Recommended usage:
 - `cd frontend` then `npm run build:wasm`
@@ -61,6 +62,8 @@ frontend/
 |-- tests/                    # Vitest tests
 `-- verification/             # Fixtures and docs for tests
 ```
+
+Package manager: npm with `package-lock.json` (use `npm ci`).
 
 Key scripts:
 - `npm run dev` starts Vite (default: http://localhost:3000)
