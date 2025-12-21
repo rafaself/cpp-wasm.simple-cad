@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Test
-        run: npm test -- --runInBand
+        run: npm test
 
   cpp:
     runs-on: ubuntu-latest

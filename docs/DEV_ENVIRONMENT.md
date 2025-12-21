@@ -20,18 +20,16 @@ If you still hit `spawn EPERM`, check Windows Defender / Controlled Folder Acces
 
 ### Option B (recommended for reproducibility): develop inside Docker
 
-This repository includes a full-stack dev Docker setup:
+This repository does **not** currently ship a dockerized frontend/backend dev environment.
+The included `docker-compose.yml` is a helper for building the WASM artifacts only.
+
+To build the C++ engine to `frontend/public/wasm/` inside Docker:
 
 ```bash
-docker compose up
+cd frontend
+npm ci
+npm run build:wasm
 ```
-
-- Frontend: http://localhost:3000
-- Backend:  http://localhost:8000
-
-Notes:
-- Dependencies are installed inside the containers and persisted via named volumes.
-- File changes are bind-mounted from your host into the containers.
 
 ## WASM build (C++ -> WebAssembly)
 
@@ -56,5 +54,5 @@ Typical causes:
 
 Fixes:
 1) Move repo out of OneDrive (best fix).
-2) Use the Docker dev environment (`docker compose up`).
+2) Build WASM via Docker (`cd frontend && npm run build:wasm`).
 3) Allowlist/disable Controlled Folder Access for your dev toolchain (advanced; company policy may block).

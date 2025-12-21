@@ -7,7 +7,7 @@ import { MENU_CONFIG, MenuItem } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
-import { Shape } from '../../../types';
+import type { Layer, Shape } from '../../../types';
 import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
 import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
@@ -30,7 +30,7 @@ const ACTIVE_BUTTON_STYLE = BUTTON_STYLES.active;
 
 // Component Registry for config-driven ribbon widgets
 type RibbonWidgetProps = {
-  activeLayer?: typeof activeLayer;
+  activeLayer?: Layer;
   isLayerDropdownOpen: boolean;
   setLayerDropdownOpen: (open: boolean) => void;
   openLayerDropdown: () => void;
