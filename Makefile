@@ -1,32 +1,32 @@
 
 FRONTEND_DIR := frontend
-NPM := npm --prefix $(FRONTEND_DIR)
+PNPM := pnpm --dir $(FRONTEND_DIR)
 DC := docker compose
 
 .PHONY: fbuild up install test wasm build dev all
 
 fbuild:
-	$(NPM) ci
-	$(NPM) run build:wasm
-	$(NPM) run build
+	$(PNPM) install --frozen-lockfile
+	$(PNPM) build:wasm
+	$(PNPM) build
 
 up:
 	$(DC) run --rm wasm-builder
 
 install:
-	$(NPM) ci
+	$(PNPM) install --frozen-lockfile
 
 test:
-	$(NPM) run test
+	$(PNPM) test
 
 wasm:
-	$(NPM) run build:wasm
+	$(PNPM) build:wasm
 
 build:
-	$(NPM) run build
+	$(PNPM) build
 
 dev:
-	$(NPM) run dev
+	$(PNPM) dev
 
 all: install wasm build
 

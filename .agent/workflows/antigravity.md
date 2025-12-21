@@ -9,15 +9,15 @@ This workflow keeps development fast and consistent. Source of truth: `AGENTS.md
 ## 1) Health check
 
 1. Install dependencies:
-   - Frontend: `cd frontend` + `npm install`
+   - Frontend: `cd frontend` + `pnpm install`
    - Backend: `cd backend` + `pip install -r requirements.txt`
 
 2. Run quick tests:
-   - Frontend: `cd frontend` + `npm run test`
+   - Frontend: `cd frontend` + `pnpm test`
    - Backend: `cd backend` + `pytest`
 
 3. (Optional) Build WASM (C++ -> WebAssembly):
-   - `cd frontend` + `npm run build:wasm`
+   - `cd frontend` + `pnpm build:wasm`
 
 ## 2) "Zero-G" cycle (recommended order)
 
@@ -40,9 +40,9 @@ Save under `resources/reports/` as described in `AGENTS.md`.
 
 | Action | Command |
 | --- | --- |
-| Frontend dev | `cd frontend` + `npm run dev` |
+| Frontend dev | `cd frontend` + `pnpm dev` |
 | Backend dev | `cd backend` + `uvicorn app.main:app --reload` |
-| Frontend tests | `cd frontend` + `npm run test` |
+| Frontend tests | `cd frontend` + `pnpm test` |
 | Backend tests | `cd backend` + `pytest` |
-| Frontend build | `cd frontend` + `npm run build` |
-| WASM build | `cd frontend` + `npm run build:wasm` |
+| Frontend build | `cd frontend` + `pnpm build` |
+| WASM build | `cd frontend` + `pnpm build:wasm` |

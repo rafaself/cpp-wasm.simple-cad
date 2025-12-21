@@ -12,8 +12,8 @@ This project uses a high-churn toolchain (Vite + esbuild + WASM builds). On Wind
 2) Install dependencies and run:
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 If you still hit `spawn EPERM`, check Windows Defender / Controlled Folder Access allowlists.
@@ -27,8 +27,8 @@ To build the C++ engine to `frontend/public/wasm/` inside Docker:
 
 ```bash
 cd frontend
-npm ci
-npm run build:wasm
+pnpm install --frozen-lockfile
+pnpm build:wasm
 ```
 
 ## WASM build (C++ -> WebAssembly)
@@ -37,7 +37,7 @@ The WASM builder is a build job container (not a server). Run it on demand:
 
 ```bash
 cd frontend
-npm run build:wasm
+pnpm build:wasm
 ```
 
 Expected output:
@@ -54,5 +54,5 @@ Typical causes:
 
 Fixes:
 1) Move repo out of OneDrive (best fix).
-2) Build WASM via Docker (`cd frontend && npm run build:wasm`).
+2) Build WASM via Docker (`cd frontend && pnpm build:wasm`).
 3) Allowlist/disable Controlled Folder Access for your dev toolchain (advanced; company policy may block).

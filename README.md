@@ -33,8 +33,8 @@ This repository is transitioning from a Canvas 2D MVP to a high-performance arch
 
 ```bash
 cd frontend
-npm ci
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
 App: http://localhost:3000
@@ -52,7 +52,7 @@ uvicorn app.main:app --reload
 
 API: http://localhost:8000
 
-Package manager: npm with `package-lock.json` (use `npm ci`; pnpm/yarn are not used).
+Package manager: pnpm with `pnpm-lock.yaml` (use `pnpm install --frozen-lockfile`; pnpm is the only supported manager).
 
 ## WASM build (Phase 1 boilerplate)
 
@@ -62,7 +62,7 @@ Prerequisite: Docker (Docker Desktop on Windows).
 
 ```bash
 cd frontend
-npm run build:wasm
+pnpm build:wasm
 ```
 
 Expected output:
@@ -76,7 +76,7 @@ Expected output:
 
 ```bash
 cd frontend
-npm run test
+pnpm test
 # OR for specific tests:
 npx vitest run tests/engineRuntime.test.ts
 ```
@@ -113,8 +113,8 @@ Prerequisite: Docker (Docker Desktop on Windows).
 
 ```bash
 cd frontend
-npm ci
-npm run build:wasm
+pnpm install --frozen-lockfile
+pnpm build:wasm
 ```
 
 The command triggers the `wasm-builder` service and exits when the build finishes.
@@ -125,7 +125,7 @@ If you see a blank page and Vite fails with `Error: spawn EPERM` (often while lo
 
 Recommended fixes:
 - Move the repository out of OneDrive (e.g. `C:\\dev\\EndeavourCanvas\\`)
-- Or build the WASM artifacts via Docker: `cd frontend && npm run build:wasm`
+- Or build the WASM artifacts via Docker: `cd frontend && pnpm build:wasm`
 
 More details: `docs/DEV_ENVIRONMENT.md`
 
