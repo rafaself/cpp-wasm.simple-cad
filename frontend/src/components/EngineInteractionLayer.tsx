@@ -18,6 +18,8 @@ import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
+import { getSymbolAlphaAtUv } from '@/features/library/symbolAlphaMaskCache';
+import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
 
 type Draft =
   | { kind: 'none' }
@@ -86,6 +88,10 @@ const pickShapeAtGeometry = (
     const layer = data.layers.find((l) => l.id === shape.layerId);
     if (layer && (!layer.visible || layer.locked)) continue;
     if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+    if (shape.svgSymbolId) {
+      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld })) continue;
+      return shape.id;
+    }
     if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
   }
 
@@ -243,6 +249,29 @@ const EngineInteractionLayer: React.FC = () => {
   }, [draft]);
 
   const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
+    {
+      const data = useDataStore.getState();
+      const ui = useUIStore.getState();
+      const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+      const symbolCandidates = data.spatialIndex
+        .query(queryRect)
+        .map((c) => data.shapes[c.id])
+        .filter((s): s is Shape => !!s && !!s.svgSymbolId);
+
+      if (symbolCandidates.length) {
+        const orderIndex = new Map<string, number>();
+        for (let i = 0; i < data.shapeOrder.length; i++) orderIndex.set(data.shapeOrder[i]!, i);
+        symbolCandidates.sort((a, b) => (orderIndex.get(b.id) ?? -1) - (orderIndex.get(a.id) ?? -1));
+
+        for (const shape of symbolCandidates) {
+          const layer = data.layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+          if (isSymbolInstanceHitAtWorldPoint(shape, world, getSymbolAlphaAtUv, { toleranceWorld: tolerance })) return shape.id;
+        }
+      }
+    }
+
     if (gpuPickingEnabled && gpuPickerRef.current) {
       const data = useDataStore.getState();
       const gpuHit = gpuPickerRef.current.pick({

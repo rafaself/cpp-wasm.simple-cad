@@ -1,5 +1,6 @@
 import electricalCatalog from '../../assets/electrical/catalog.json';
-import { ElectricalCategory, NormalizedViewBox } from '../../types';
+import { ElectricalCategory, NormalizedViewBox, type VectorDocumentV1 } from '../../types';
+import { svgToVectorDocumentV1 } from '../import/utils/svg/svgToVectorDocument';
 
 export interface ElectricalCatalogEntry {
   id: string;
@@ -21,6 +22,7 @@ export interface LibrarySymbol {
   viewBox: NormalizedViewBox;
   scale: number;
   defaultConnectionPoint: { x: number; y: number }; // Normalized 0-1
+  vectorDocumentV1?: VectorDocumentV1; // runtime-only cache for vector renderer
 }
 
 const electricalSvgs = import.meta.glob('../../assets/electrical/*.svg', { query: '?raw', import: 'default', eager: true });
@@ -241,6 +243,7 @@ function computeScale(viewBox: NormalizedViewBox, worldScale: number): number {
 
 export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
   const items: LibrarySymbol[] = [];
+  const vectorDocCache = new Map<string, VectorDocumentV1>();
 
   (electricalCatalog as ElectricalCatalogEntry[]).forEach((entry) => {
     const iconPath = `../../assets/electrical/${entry.iconSvg}`;
@@ -262,6 +265,19 @@ export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
     // Process both SVGs
     const { svg: iconSvg } = normalizeSvg(iconContent as string);
     const { svg: canvasSvg, viewBox } = normalizeSvg(canvasContent as string);
+
+    let vectorDocumentV1: VectorDocumentV1 | undefined;
+    const cached = vectorDocCache.get(canvasSvg);
+    if (cached) {
+      vectorDocumentV1 = cached;
+    } else {
+      try {
+        vectorDocumentV1 = svgToVectorDocumentV1(canvasSvg);
+        vectorDocCache.set(canvasSvg, vectorDocumentV1);
+      } catch (err) {
+        console.warn(`Failed to parse SVG → Vector IR for symbol ${entry.id}`, err);
+      }
+    }
     
     // Scale is computed from canvasSvg since that's what's rendered
     const scale = computeScale(viewBox, worldScale);
@@ -275,7 +291,8 @@ export function loadElectricalLibrary(worldScale: number): LibrarySymbol[] {
       canvasSvg,
       viewBox,
       scale,
-      defaultConnectionPoint: entry.defaultConnectionPoint ?? { x: 0.5, y: 0.5 }
+      defaultConnectionPoint: entry.defaultConnectionPoint ?? { x: 0.5, y: 0.5 },
+      vectorDocumentV1,
     });
   });
 

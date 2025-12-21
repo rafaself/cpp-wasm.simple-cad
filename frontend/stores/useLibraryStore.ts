@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { LibrarySymbol, loadElectricalLibrary } from '../features/library/electricalLoader';
+import { primeSymbolAlphaMasks } from '../features/library/symbolAlphaMaskCache';
 
 interface LibraryState {
   electricalSymbols: Record<string, LibrarySymbol>;
@@ -23,6 +24,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     // Simulate a small delay if needed to ensure UI can show loading state,
     // but here we just process synchronously as it's CPU bound
     const symbols = loadElectricalLibrary(worldScale);
+    primeSymbolAlphaMasks(symbols.map((s) => ({ id: s.id, svg: s.canvasSvg })), 256);
 
     const symbolMap = Object.fromEntries(symbols.map((symbol) => [symbol.id, symbol]));
     set({ electricalSymbols: symbolMap, isLoading: false, lastWorldScale: worldScale });
