@@ -243,6 +243,7 @@ export interface Patch {
 export interface SerializedProject {
   layers: Layer[];
   shapes: Shape[];
+  shapeOrder?: string[]; // Optional for backward compatibility
   activeLayerId: string;
   electricalElements: ElectricalElement[];
   connectionNodes: ConnectionNode[];
