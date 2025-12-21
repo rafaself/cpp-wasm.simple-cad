@@ -5,8 +5,8 @@ This document covers frontend-specific testing practices for the React/Vite/Vite
 ## How to run
 
 - `cd frontend`
-- `pnpm test` (recomendado: roda um preflight antes do Vitest)
-- ou `npx vitest run --configLoader native`
+- `pnpm test` (recommended: runs a preflight check before Vitest)
+- or `npx vitest run`
 
 ## Onde ficam os testes
 

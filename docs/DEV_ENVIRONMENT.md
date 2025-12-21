@@ -20,14 +20,17 @@ If you still hit `spawn EPERM`, check Windows Defender / Controlled Folder Acces
 
 ### Option B (recommended for reproducibility): develop inside Docker
 
-This repository does **not** currently ship a dockerized frontend/backend dev environment.
-The included `docker-compose.yml` is a helper for building the WASM artifacts only.
+There is **no** full-stack dockerized environment (database, backend, frontend) currently shipped for local development.
+The included `docker-compose.yml` is strictly a helper for the WASM build process.
 
-To build the C++ engine to `frontend/public/wasm/` inside Docker:
+To build the C++ engine to `frontend/public/wasm/` using Docker:
 
 ```bash
+# Using the Makefile helper:
+make wasm
+
+# Or directly via pnpm:
 cd frontend
-pnpm install --frozen-lockfile
 pnpm build:wasm
 ```
 
