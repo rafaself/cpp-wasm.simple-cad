@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { ElectricalElement } from '@/types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ElectricalElement, Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
@@ -8,17 +8,16 @@ import { calculateZoomTransform } from '@/utils/zoomHelper';
 import SelectionOverlay from './SelectionOverlay';
 import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
 import { generateId } from '@/utils/uuid';
-import type { Shape } from '@/types';
 import { getDefaultColorMode } from '@/utils/shapeColors';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
 import { resolveConnectionNodePosition } from '@/utils/connections';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
-import type { Patch } from '@/types';
 import { isConduitShape } from '@/features/editor/utils/tools';
 import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
+import { GpuPicker } from '@/engine/picking/gpuPicker';
 
 type Draft =
   | { kind: 'none' }
@@ -64,7 +63,7 @@ const pointSegmentDistance = (
   return Math.hypot(p.x - projX, p.y - projY);
 };
 
-const pickShapeAt = (
+const pickShapeAtGeometry = (
   worldPoint: { x: number; y: number },
   toleranceWorld: number,
 ): string | null => {
@@ -197,6 +196,7 @@ const EngineInteractionLayer: React.FC = () => {
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
+  const gpuPickingEnabled = useSettingsStore((s) => s.featureFlags.gpuPicking);
 
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const isPanningRef = useRef(false);
@@ -214,6 +214,7 @@ const EngineInteractionLayer: React.FC = () => {
   const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
+  const gpuPickerRef = useRef<GpuPicker | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -227,8 +228,41 @@ const EngineInteractionLayer: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!gpuPickingEnabled) return;
+    if (!gpuPickerRef.current) gpuPickerRef.current = new GpuPicker();
+  }, [gpuPickingEnabled]);
+
+  useEffect(() => {
+    return () => {
+      gpuPickerRef.current?.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
+    if (gpuPickingEnabled && gpuPickerRef.current) {
+      const data = useDataStore.getState();
+      const gpuHit = gpuPickerRef.current.pick({
+        screen,
+        world,
+        toleranceWorld: tolerance,
+        viewTransform,
+        canvasSize,
+        shapes: data.shapes,
+        shapeOrder: data.shapeOrder,
+        layers: data.layers,
+        spatialIndex: data.spatialIndex,
+        activeFloorId: activeFloorId ?? 'terreo',
+        activeDiscipline,
+      });
+      if (gpuHit) return gpuHit;
+    }
+
+    return pickShapeAtGeometry(world, tolerance);
+  }, [activeDiscipline, activeFloorId, canvasSize, gpuPickingEnabled, viewTransform]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -960,7 +994,7 @@ const EngineInteractionLayer: React.FC = () => {
       }
 
       const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-      const hitId = pickShapeAt(world, tolerance);
+      const hitId = pickShape(world, screen, tolerance);
       if (hitId) {
         if (!selectedShapeIds.has(hitId) || selectedShapeIds.size !== 1) setSelectedShapeIds(new Set([hitId]));
 
@@ -1044,7 +1078,7 @@ const EngineInteractionLayer: React.FC = () => {
         }
 
         const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-        const hit = pickShapeAt(world, tolerance);
+        const hit = pickShape(world, screen, tolerance);
         setCursorOverride(hit ? 'move' : null);
         return;
       }
@@ -1264,6 +1298,8 @@ const EngineInteractionLayer: React.FC = () => {
       if (!down) return;
       const dx = evt.clientX - down.x;
       const dy = evt.clientY - down.y;
+      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
 
       const interaction = selectInteractionRef.current;
       selectInteractionRef.current = { kind: 'none' };
@@ -1350,7 +1386,7 @@ const EngineInteractionLayer: React.FC = () => {
 
       // Click selection (no marquee, no drag interactions).
       const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-      const hit = pickShapeAt(down.world, tolerance);
+      const hit = pickShape(down.world, screen, tolerance);
       setSelectionBox(null);
       setSelectedShapeIds(hit ? new Set([hit]) : new Set());
       return;

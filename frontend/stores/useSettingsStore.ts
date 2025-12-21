@@ -49,6 +49,9 @@ interface SettingsState {
   snap: SnapSettings;
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
+  featureFlags: {
+    gpuPicking: boolean;
+  };
 
   setSnapEnabled: (enabled: boolean) => void;
   setSnapOption: (option: keyof SnapOptions, value: boolean) => void;
@@ -82,6 +85,8 @@ interface SettingsState {
   setTextItalic: (italic: boolean) => void;
   setTextUnderline: (underline: boolean) => void;
   setTextStrike: (strike: boolean) => void;
+
+  setGpuPicking: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -131,6 +136,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       strike: false,
     },
   },
+  featureFlags: {
+    gpuPicking: false,
+  },
 
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
   setSnapOption: (option, value) => set((state) => ({ snap: { ...state.snap, [option]: value } })),
@@ -164,4 +172,5 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
   setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
   setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
+  setGpuPicking: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, gpuPicking: enabled } })),
 }));
