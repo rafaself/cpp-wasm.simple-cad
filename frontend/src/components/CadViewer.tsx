@@ -333,14 +333,7 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
     const meshMeta = engine.getPositionBufferMeta();
     const lineMeta = engine.getLineBufferMeta();
 
-    let meshChange = {
-      generationChanged: false,
-      pointerChanged: false,
-      floatCountChanged: false,
-      vertexCountChanged: false,
-      needsRebind: false,
-      needsAttributeUpdate: false,
-    };
+    let meshChange;
 
     if (meshMeta.floatCount > 0) {
       meshChange = bindInterleavedAttribute(meshGeometry, meshMeta, 7);
