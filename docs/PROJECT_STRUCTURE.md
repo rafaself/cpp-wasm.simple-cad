@@ -34,9 +34,10 @@ Notes:
 
 - It is not a long-running service.
 - Running `docker compose up` will start the container and it will exit when the build finishes.
+- Frontend/backend containers are not included; run them locally (see README).
 
 Recommended usage:
-- `cd frontend` then `npm run build:wasm`
+- `cd frontend` then `pnpm build:wasm`
 
 ## Dev environment (Windows note)
 
@@ -62,10 +63,12 @@ frontend/
 `-- verification/             # Fixtures and docs for tests
 ```
 
+Package manager: pnpm with `pnpm-lock.yaml` (use `pnpm install --frozen-lockfile`).
+
 Key scripts:
-- `npm run dev` starts Vite (default: http://localhost:3000)
-- `npm run test` runs Vitest
-- `npm run build:wasm` builds `cpp/` via Docker into `frontend/public/wasm/`
+- `pnpm dev` starts Vite (default: http://localhost:3000)
+- `pnpm test` runs Vitest
+- `pnpm build:wasm` builds `cpp/` via Docker into `frontend/public/wasm/`
 
 ## backend/ (FastAPI)
 

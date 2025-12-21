@@ -313,14 +313,63 @@ void rebuildRenderBuffers(
     ordered.insert(ordered.end(), missing.begin(), missing.end());
 
     // Budget reserves.
-    triangleVertices.reserve(
-        rects.size() * rectTriangleFloats +
-        circles.size() * rectTriangleFloats +
-        polygons.size() * rectTriangleFloats +
-        lines.size() * rectOutlineFloats +
-        conduits.size() * rectOutlineFloats +
-        polylines.size() * rectOutlineFloats
-    );
+    constexpr std::size_t quadFloats = 6 * 7; // addSegmentQuad emits 6 vertices, each with 7 floats per vertex
+    constexpr std::size_t triFloats = 3 * 7;  // 3 vertices * 7 floats per vertex
+    constexpr std::size_t circleSegments = 72;
+
+    std::size_t triangleBudget = 0;
+
+    for (const auto& r : rects) {
+        triangleBudget += rectTriangleFloats;
+        if (r.strokeEnabled > 0.5f && clamp01(r.sa) > 0.0f) {
+            triangleBudget += 4 * quadFloats; // four sides
+        }
+    }
+
+    for (const auto& l : lines) {
+        if (!(l.enabled > 0.5f) || !(clamp01(l.a) > 0.0f)) continue;
+        triangleBudget += quadFloats;
+    }
+
+    for (const auto& pl : polylines) {
+        if (!(pl.enabled > 0.5f) || !(clamp01(pl.a) > 0.0f) || pl.count < 2) continue;
+        const std::uint32_t segments = (pl.count > 0 ? pl.count - 1 : 0);
+        triangleBudget += static_cast<std::size_t>(segments) * quadFloats;
+    }
+
+    for (const auto& c : conduits) {
+        if (!(c.enabled > 0.5f) || !(clamp01(c.a) > 0.0f)) continue;
+        triangleBudget += quadFloats;
+    }
+
+    for (const auto& c : circles) {
+        if (c.a > 0.0f) {
+            triangleBudget += circleSegments * triFloats; // fill: center + two outer verts per segment
+        }
+        if (c.strokeEnabled > 0.5f && clamp01(c.sa) > 0.0f) {
+            triangleBudget += circleSegments * quadFloats; // stroke ring
+        }
+    }
+
+    for (const auto& p : polygons) {
+        const std::uint32_t sides = std::max<std::uint32_t>(3u, p.sides);
+        if (p.a > 0.0f) {
+            triangleBudget += static_cast<std::size_t>(sides) * triFloats;
+        }
+        if (p.strokeEnabled > 0.5f && clamp01(p.sa) > 0.0f) {
+            triangleBudget += static_cast<std::size_t>(sides) * quadFloats;
+        }
+    }
+
+    for (const auto& a : arrows) {
+        if (!(a.strokeEnabled > 0.5f) || !(clamp01(a.sa) > 0.0f)) continue;
+        triangleBudget += quadFloats; // shaft quad
+        triangleBudget += triFloats;  // head triangle
+    }
+
+    if (triangleBudget > 0) {
+        triangleVertices.reserve(triangleBudget);
+    }
 
     std::vector<Point2> tmpVerts;
 

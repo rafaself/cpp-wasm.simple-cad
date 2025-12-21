@@ -49,9 +49,6 @@ describe('QuadTree Bug Reproduction', () => {
         const eastQuery = qt.query({ x: 40, y: -10, width: 20, height: 20 });
         const eastIds = eastQuery.map(s => s.id);
 
-        console.log('West Found:', westIds);
-        console.log('East Found:', eastIds);
-
         expect(westIds).toContain('long-line');
         expect(eastIds).toContain('long-line');
     });

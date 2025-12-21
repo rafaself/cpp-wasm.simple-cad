@@ -1,10 +1,12 @@
+# Dev compose for the WASM build helper only.
+# Frontend/backend services are intentionally commented out; run them locally.
 services:
   # frontend:
   #   build:
   #     context: .
   #     dockerfile: Dockerfile.frontend
   #   working_dir: /workspace/frontend
-  #   command: bash -lc "npm install && npm run dev -- --host 0.0.0.0 --port 3000"
+  #   command: bash -lc "pnpm install && pnpm dev -- --host 0.0.0.0 --port 3000"
   #   ports:
   #     - "3000:3000"
   #   environment:

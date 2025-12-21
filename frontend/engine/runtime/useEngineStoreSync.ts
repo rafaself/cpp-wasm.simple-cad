@@ -7,6 +7,101 @@ import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 
+export type StableIdCache = {
+  lastRef: Record<string, unknown> | null;
+  lastKeys: string[];
+  lastKeySet: Set<string>;
+};
+
+export const createStableIdCache = (): StableIdCache => ({
+  lastRef: null,
+  lastKeys: [],
+  lastKeySet: new Set<string>(),
+});
+
+export const getCachedSortedKeys = (obj: Record<string, unknown>, cache: StableIdCache): string[] => {
+  if (obj === cache.lastRef) return cache.lastKeys;
+
+  const keys = Object.keys(obj);
+  const sameCardinality = keys.length === cache.lastKeySet.size;
+  const sameKeys = sameCardinality && keys.every((k) => cache.lastKeySet.has(k));
+  if (sameKeys) {
+    cache.lastRef = obj;
+    return cache.lastKeys;
+  }
+
+  const sorted = [...keys].sort((a, b) => a.localeCompare(b));
+  cache.lastRef = obj;
+  cache.lastKeys = sorted;
+  cache.lastKeySet = new Set(sorted);
+  return sorted;
+};
+
+type SyncDebugSample = {
+  timestampMs: number;
+  durationMs: number;
+  commandCount: number;
+  commandOps: Partial<Record<CommandOp, number>>;
+};
+
+type SyncDebugState = {
+  applyCount: number;
+  totalDurationMs: number;
+  totalCommands: number;
+  lastDurationMs: number;
+  lastCommandCount: number;
+  lastCommandOps: Partial<Record<CommandOp, number>>;
+  history: SyncDebugSample[];
+};
+
+const nowMs = (): number => {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+};
+
+const getDebugSyncState = (): SyncDebugState | null => {
+  if (typeof window === 'undefined') return null;
+  const w = window as typeof window & { __debugEngineSync?: SyncDebugState };
+  if (!w.__debugEngineSync) {
+    w.__debugEngineSync = {
+      applyCount: 0,
+      totalDurationMs: 0,
+      totalCommands: 0,
+      lastDurationMs: 0,
+      lastCommandCount: 0,
+      lastCommandOps: {},
+      history: [],
+    };
+  }
+  return w.__debugEngineSync;
+};
+
+const recordSyncMetrics = (commands: readonly EngineCommand[], durationMs: number): void => {
+  const debug = getDebugSyncState();
+  if (!debug) return;
+
+  const ops: Partial<Record<CommandOp, number>> = {};
+  for (const cmd of commands) {
+    ops[cmd.op] = (ops[cmd.op] ?? 0) + 1;
+  }
+
+  debug.applyCount += 1;
+  debug.totalDurationMs += durationMs;
+  debug.totalCommands += commands.length;
+  debug.lastDurationMs = durationMs;
+  debug.lastCommandCount = commands.length;
+  debug.lastCommandOps = ops;
+  debug.history.push({
+    timestampMs: Date.now(),
+    durationMs,
+    commandCount: commands.length,
+    commandOps: ops,
+  });
+  if (debug.history.length > 50) debug.history.shift();
+};
+
 type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'eletroduto' | 'circle' | 'polygon' | 'arrow';
 
 const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
@@ -227,13 +322,15 @@ export const computeLayerDrivenReupsertCommands = (
   layers: readonly Layer[],
   changedLayerIds: ReadonlySet<string>,
   ensureId: (id: string) => number,
+  orderedShapeIds?: readonly string[],
 ): EngineCommand[] => {
   if (changedLayerIds.size === 0) return [];
 
   const layersById = new Map(layers.map((l) => [l.id, l]));
   const out: EngineCommand[] = [];
 
-  for (const id of Object.keys(shapes).sort((a, b) => a.localeCompare(b))) {
+  const ids = orderedShapeIds ?? Object.keys(shapes).sort((a, b) => a.localeCompare(b));
+  for (const id of ids) {
     if (!visibleShapeIds.has(id)) continue;
     const s = shapes[id]!;
     if (!changedLayerIds.has(s.layerId)) continue;
@@ -274,6 +371,7 @@ const toUpsertSymbolCommand = (shape: Shape, ensureId: (id: string) => number): 
 const buildVisibleOrder = (
   state: ReturnType<typeof useDataStore.getState>,
   ui: Pick<ReturnType<typeof useUIStore.getState>, 'activeFloorId' | 'activeDiscipline'>,
+  shapeIdCache: StableIdCache,
 ): { orderedIds: string[]; idSet: Set<string> } => {
   const layerById = new Map(state.layers.map((l) => [l.id, l]));
   const orderedIds: string[] = [];
@@ -293,7 +391,8 @@ const buildVisibleOrder = (
   };
 
   for (const id of state.shapeOrder ?? []) consider(id);
-  for (const id of Object.keys(state.shapes).sort((a, b) => a.localeCompare(b))) consider(id);
+  const sortedShapeIds = getCachedSortedKeys(state.shapes as Record<string, unknown>, shapeIdCache);
+  for (const id of sortedShapeIds) consider(id);
 
   return { orderedIds, idSet };
 };
@@ -315,17 +414,35 @@ export const useEngineStoreSync = (): void => {
       let lastVisibleIds = new Set<string>();
       let lastDrawOrderKey = '';
       let lastScale = lastUi.viewTransform.scale || 1;
+      const shapeIdCache = createStableIdCache();
+      const connectionNodeCache = createStableIdCache();
+      const prevConnectionNodeCache = createStableIdCache();
 
       const applySync = (nextData: typeof lastData, nextUi: typeof lastUi, prevData: typeof lastData, prevUi: typeof lastUi) => {
+        const startedAt = nowMs();
         const commands: EngineCommand[] = [];
 
         const nextScale = nextUi.viewTransform.scale || 1;
-        if (nextScale !== lastScale) {
+        const scaleChanged = nextScale !== lastScale;
+        if (scaleChanged) {
           commands.push({ op: CommandOp.SetViewScale, view: { scale: nextScale } });
           lastScale = nextScale;
         }
 
-        const { orderedIds: nextOrderedIds, idSet: nextVisibleSet } = buildVisibleOrder(nextData, { activeFloorId: nextUi.activeFloorId, activeDiscipline: nextUi.activeDiscipline });
+        const visibilityFilterChanged = nextUi.activeFloorId !== prevUi.activeFloorId || nextUi.activeDiscipline !== prevUi.activeDiscipline;
+        const dataChanged = nextData !== prevData;
+        if (!dataChanged && !visibilityFilterChanged) {
+          if (commands.length) runtime.apply(commands);
+          const durationMs = nowMs() - startedAt;
+          recordSyncMetrics(commands, durationMs);
+          return;
+        }
+
+        const { orderedIds: nextOrderedIds, idSet: nextVisibleSet } = buildVisibleOrder(
+          nextData,
+          { activeFloorId: nextUi.activeFloorId, activeDiscipline: nextUi.activeDiscipline },
+          shapeIdCache,
+        );
 
         // Deletes when shapes disappear or become invisible.
         for (const id of lastVisibleIds) {
@@ -354,15 +471,17 @@ export const useEngineStoreSync = (): void => {
 
         // Layer style changes: re-upsert affected visible shapes even if the shape object did not change.
         const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
-        commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId));
+        commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
 
         // Nodes: deletes then adds/updates (conduits depend on them).
-        for (const prevNodeId of Object.keys(prevData.connectionNodes).sort((a, b) => a.localeCompare(b))) {
+        const prevNodeIds = getCachedSortedKeys(prevData.connectionNodes as Record<string, unknown>, prevConnectionNodeCache);
+        for (const prevNodeId of prevNodeIds) {
           if (nextData.connectionNodes[prevNodeId]) continue;
           const eid = runtime.ids.maps.idStringToHash.get(prevNodeId);
           if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
         }
-        for (const id of Object.keys(nextData.connectionNodes).sort((a, b) => a.localeCompare(b))) {
+        const nextNodeIds = getCachedSortedKeys(nextData.connectionNodes as Record<string, unknown>, connectionNodeCache);
+        for (const id of nextNodeIds) {
           const nextNode = nextData.connectionNodes[id]!;
           const prevNode = prevData.connectionNodes[id];
           if (prevNode === nextNode) continue;
@@ -378,7 +497,8 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Symbols (used by anchored nodes).
-        for (const id of Object.keys(nextData.shapes).sort((a, b) => a.localeCompare(b))) {
+        const sortedShapeIds = getCachedSortedKeys(nextData.shapes as Record<string, unknown>, shapeIdCache);
+        for (const id of sortedShapeIds) {
           const nextShape = nextData.shapes[id]!;
           const prevShape = prevData.shapes[id];
           if (prevShape === nextShape) continue;
@@ -395,15 +515,22 @@ export const useEngineStoreSync = (): void => {
         }
 
         if (commands.length) runtime.apply(commands);
+        const durationMs = nowMs() - startedAt;
+        recordSyncMetrics(commands, durationMs);
         lastVisibleIds = nextVisibleSet;
       };
 
       // Initial full sync.
       {
+        const initStartedAt = nowMs();
         const initCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
         initCommands.push({ op: CommandOp.SetViewScale, view: { scale: lastScale } });
 
-        const { orderedIds } = buildVisibleOrder(lastData, { activeFloorId: lastUi.activeFloorId, activeDiscipline: lastUi.activeDiscipline });
+        const { orderedIds } = buildVisibleOrder(
+          lastData,
+          { activeFloorId: lastUi.activeFloorId, activeDiscipline: lastUi.activeDiscipline },
+          shapeIdCache,
+        );
         const drawOrderIds = orderedIds.map((id) => ensureId(id));
         initCommands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
 
@@ -433,6 +560,7 @@ export const useEngineStoreSync = (): void => {
         }
 
         runtime.apply(initCommands);
+        recordSyncMetrics(initCommands, nowMs() - initStartedAt);
         lastVisibleIds = new Set(orderedIds);
         lastDrawOrderKey = drawOrderIds.join(',');
       }

@@ -7,7 +7,7 @@ import { MENU_CONFIG, MenuItem } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap';
 import ColorPicker from '../../../components/ColorPicker';
 import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
-import { Shape } from '../../../types';
+import type { Layer, Shape } from '../../../types';
 import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
 import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
@@ -29,7 +29,23 @@ const ACTIVE_BUTTON_STYLE = BUTTON_STYLES.active;
 
 
 // Component Registry for config-driven ribbon widgets
-const ComponentRegistry: Record<string, React.FC<any>> = {
+type RibbonWidgetProps = {
+  activeLayer?: Layer;
+  isLayerDropdownOpen: boolean;
+  setLayerDropdownOpen: (open: boolean) => void;
+  openLayerDropdown: () => void;
+  layerButtonRef: React.RefObject<HTMLButtonElement>;
+  layerDropdownRef: React.RefObject<HTMLDivElement>;
+  dropdownPos: { top: number; left: number };
+  selectedTextIds: string[];
+  applyTextUpdate: (diff: Partial<Shape>, recalcSize: boolean) => void;
+  setColorPickerTarget: (target: ColorPickerTarget | null) => void;
+  openColorPicker: (e: React.MouseEvent, target: ColorPickerTarget) => void;
+  activeColor: string;
+  handleColorChange: (newColor: string) => void;
+};
+
+const ComponentRegistry: Record<string, React.FC<RibbonWidgetProps>> = {
     FontFamilyControl,
     FontSizeControl,
     TextAlignControl,
@@ -81,6 +97,19 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
   </div>
 );
 
+/**
+ * Escapes HTML characters to prevent XSS.
+ * Safe for use in HTML body and attributes.
+ */
+const escapeHtml = (value: string) => {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 const EditorRibbon: React.FC = () => {
   const [activeTabId, setActiveTabId] = useState('draw');
   const activeTool = useUIStore((s) => s.activeTool);
@@ -108,9 +137,6 @@ const EditorRibbon: React.FC = () => {
   const worldScale = useDataStore((state) => state.worldScale);
   const frame = useDataStore((state) => state.frame);
 
-  const escapeHtml = (value: string) => {
-      return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  };
 
   const exportProjectData = useCallback(() => {
       const project = serializeProject();
@@ -333,9 +359,9 @@ const EditorRibbon: React.FC = () => {
           const toNode = c.toNodeId ? nodesById[c.toNodeId] : null;
           const fromAnchor = fromNode?.kind === 'anchored' && fromNode.anchorShapeId ? connections.find(n => n.id === fromNode.anchorShapeId) : null;
           const toAnchor = toNode?.kind === 'anchored' && toNode.anchorShapeId ? connections.find(n => n.id === toNode.anchorShapeId) : null;
-          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—';
-          const toLabel = toAnchor?.name || toAnchor?.id || c.toNodeId || '—';
-          return `<tr><td>${c.id}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${c.length}</td></tr>`;
+          const fromLabel = escapeHtml(fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—');
+          const toLabel = escapeHtml(toAnchor?.name || toAnchor?.id || c.toNodeId || '—');
+          return `<tr><td>${escapeHtml(c.id)}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${escapeHtml(String(c.length))}</td></tr>`;
       }).join('');
 
       // TODO: Otimizar essa parte
@@ -383,13 +409,13 @@ tr:nth-child(even){background:#111827;}
     [selectedShapeIds, dataStore.shapes]
   );
 
-  const applyTextUpdate = (diff: Partial<any>, recalcSize: boolean) => {
+  const applyTextUpdate = (diff: Partial<Shape>, recalcSize: boolean) => {
     selectedTextIds.forEach(id => {
       const shape = dataStore.shapes[id];
       if (!shape) return;
       const nextFontSize = (diff.fontSize ?? shape.fontSize ?? settingsStore.toolDefaults.text.fontSize) || 16;
       const content = diff.textContent ?? shape.textContent ?? '';
-      let updates: any = { ...diff };
+      const updates: Partial<Shape> = { ...diff };
 
       if (recalcSize) {
         const baseWidth = shape.width && shape.width > 0 ? shape.width : undefined;

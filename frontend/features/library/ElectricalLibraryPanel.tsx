@@ -135,6 +135,7 @@ const ElectricalLibraryPanel: React.FC<ElectricalLibraryPanelProps> = ({ compact
 
       <div className="text-[10px] text-slate-500 bg-blue-50 border border-blue-100 rounded-md px-2 py-1">
         Clique em um item para iniciar a insercao. Use R para girar, F/V para espelhar e continue clicando para duplicar.
+        SVGs do catalogo sao internos e passam por sanitizacao de tags/atributos antes de renderizar.
       </div>
     </div>
   );
