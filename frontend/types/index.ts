@@ -242,6 +242,86 @@ export interface Patch {
   diagramEdge?: DiagramEdge;
 }
 
+export type VectorFillRule = 'nonzero' | 'evenodd';
+
+export type VectorTransform2D = {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+};
+
+export type VectorSegment =
+  | { kind: 'move'; to: Point }
+  | { kind: 'line'; to: Point }
+  | { kind: 'quad'; c: Point; to: Point }
+  | { kind: 'cubic'; c1: Point; c2: Point; to: Point }
+  | { kind: 'arc'; center: Point; radius: Point; rotation: number; startAngle: number; endAngle: number; ccw?: boolean }
+  | { kind: 'close' };
+
+export type VectorPath = {
+  id: string;
+  segments: VectorSegment[];
+  closed?: boolean;
+};
+
+export type VectorStrokeStyle = {
+  color: string;
+  width: number;
+  join: 'miter' | 'round' | 'bevel';
+  cap: 'butt' | 'round' | 'square';
+  miterLimit?: number;
+  dash?: number[];
+  dashOffset?: number;
+};
+
+export type VectorFillStyle = {
+  color: string;
+};
+
+export type VectorStyle = {
+  fill?: VectorFillStyle;
+  stroke?: VectorStrokeStyle;
+  fillRule?: VectorFillRule;
+  opacity?: number;
+};
+
+export type VectorClipEntry = {
+  pathId: string;
+  fillRule?: VectorFillRule;
+  transform?: VectorTransform2D;
+};
+
+export type VectorDraw = {
+  id: string;
+  pathId: string;
+  style: VectorStyle;
+  transform?: VectorTransform2D;
+  clipStack?: VectorClipEntry[];
+};
+
+export type VectorDocumentV1 = {
+  version: 1;
+  paths: VectorPath[];
+  draws: VectorDraw[];
+};
+
+export type VectorDocument = VectorDocumentV1;
+
+export type VectorSidecarBinding = {
+  drawIds: string[];
+};
+
+export type VectorSidecarV1 = {
+  version: 1;
+  document: VectorDocument;
+  bindings: Record<string, VectorSidecarBinding>;
+};
+
+export type VectorSidecar = VectorSidecarV1;
+
 export interface SerializedProject {
   layers: Layer[];
   shapes: Shape[];
@@ -250,4 +330,5 @@ export interface SerializedProject {
   connectionNodes: ConnectionNode[];
   diagramNodes: DiagramNode[];
   diagramEdges: DiagramEdge[];
+  vectorSidecar?: VectorSidecar;
 }

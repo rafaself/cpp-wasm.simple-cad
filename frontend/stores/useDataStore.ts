@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import { ConnectionNode, DiagramEdge, DiagramNode, ElectricalElement, FrameSettings, Layer, Patch, Point, SerializedProject, Shape } from '../types';
+import { ConnectionNode, DiagramEdge, DiagramNode, ElectricalElement, FrameSettings, Layer, Patch, Point, SerializedProject, Shape, VectorSidecar } from '../types';
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '../utils/geometry';
 import { QuadTree } from '../utils/spatial';
 import { HISTORY } from '../design/tokens';
 import { detachAnchoredNodesForShape, getConduitNodeUsage, normalizeConnectionTopology, resolveConnectionNodePosition } from '../utils/connections';
 import { generateId } from '../utils/uuid';
 import { hexToRgb } from '../utils/color';
+import { migrateVectorSidecar } from '../utils/vectorSidecar';
 
 // Initialize Quadtree outside to avoid reactivity loop, but accessible
 const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
@@ -87,6 +88,9 @@ interface DataState {
   // Layout frame
   frame: FrameSettings;
 
+  // Vector IR sidecar
+  vectorSidecar: VectorSidecar | null;
+
   // Spatial Index
   spatialIndex: QuadTree;
 
@@ -148,6 +152,8 @@ interface DataState {
   syncDiagramEdgesGeometry: () => void;
   syncConnections: () => void;
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => string;
+
+  setVectorSidecar: (sidecar: VectorSidecar | null) => void;
 }
 
 const buildInitialState = () => ({
@@ -168,6 +174,7 @@ const buildInitialState = () => ({
     heightMm: 210,
     marginMm: 10,
   },
+  vectorSidecar: null,
   spatialIndex: new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 }),
   past: [] as Patch[][],
   future: [] as Patch[][],
@@ -983,7 +990,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   serializeProject: () => {
-      const { layers, shapes, shapeOrder, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges } = get();
+      const { layers, shapes, shapeOrder, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges, vectorSidecar } = get();
       const ordered: Shape[] = [];
       const seen = new Set<string>();
       for (const id of shapeOrder) {
@@ -995,7 +1002,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       // Back-compat / safety: include any shapes missing from shapeOrder deterministically.
       const missing = Object.keys(shapes).filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b));
       for (const id of missing) ordered.push(shapes[id]!);
-      return {
+      const base = {
           layers: [...layers],
           shapes: ordered,
           activeLayerId,
@@ -1004,6 +1011,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           diagramNodes: Object.values(diagramNodes),
           diagramEdges: Object.values(diagramEdges)
       };
+      return vectorSidecar ? { ...base, vectorSidecar } : base;
   },
 
   resetDocument: () => {
@@ -1018,6 +1026,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     const nextNodes = Object.fromEntries(project.connectionNodes.map((n) => [n.id, n]));
     const nextDiagramNodes = Object.fromEntries(project.diagramNodes.map((n) => [n.id, n]));
     const nextDiagramEdges = Object.fromEntries(project.diagramEdges.map((e) => [e.id, e]));
+    const vectorSidecar = migrateVectorSidecar(project.vectorSidecar);
 
     const spatialIndex = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
     Object.values(nextShapes).forEach((shape) => spatialIndex.insert(shape));
@@ -1033,6 +1042,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       activeLayerId: project.activeLayerId,
       worldScale,
       frame,
+      vectorSidecar,
       spatialIndex,
       past: history?.past ?? [],
       future: history?.future ?? [],
@@ -1065,6 +1075,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       set(state => ({ layers: [...state.layers, newLayer] }));
       return newId;
   },
+
+  setVectorSidecar: (sidecar) => set({ vectorSidecar: sidecar }),
 }));
 
 // Test helper (intended for unit tests)
