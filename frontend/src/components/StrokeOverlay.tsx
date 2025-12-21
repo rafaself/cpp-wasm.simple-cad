@@ -111,7 +111,9 @@ export const StrokeOverlay: React.FC = () => {
     return out;
   }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, layerById, shapesById, viewTransform]);
 
-  if (items.length === 0) return null;
+  // Disabled to allow WebGL rendering with correct Z-order interleaving.
+  return null;
+  // if (items.length === 0) return null;
 
   return (
     <svg

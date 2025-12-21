@@ -281,10 +281,10 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
     // Back-compat overload: treat fill as stroke too.
-    upsertRect(id, x, y, w, h, r, g, b, a, r, g, b, 1.0f, 1.0f);
+    upsertRect(id, x, y, w, h, 0.0f, r, g, b, a, r, g, b, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled) {
+void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float z, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled) {
     renderDirty = true;
     snapshotDirty = true;
     
@@ -296,22 +296,22 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
     const auto it2 = entities.find(id);
     if (it2 != entities.end()) {
         auto& existingRect = rects[it2->second.index];
-        existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h;
+        existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h; existingRect.z = z;
         existingRect.r = r; existingRect.g = g; existingRect.b = b; existingRect.a = a;
         existingRect.sr = sr; existingRect.sg = sg; existingRect.sb = sb; existingRect.sa = sa; existingRect.strokeEnabled = strokeEnabled;
         return;
     }
 
-    rects.push_back(RectRec{id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled});
+    rects.push_back(RectRec{id, x, y, w, h, z, r, g, b, a, sr, sg, sb, sa, strokeEnabled});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
-    // Back-compat overload: default to solid black.
-    upsertLine(id, x0, y0, x1, y1, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    // Back-compat overload: default to solid black and z=0.
+    upsertLine(id, x0, y0, x1, y1, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled) {
+void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float z, float r, float g, float b, float a, float enabled) {
     renderDirty = true;
     snapshotDirty = true;
 
@@ -323,21 +323,21 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
     const auto it2 = entities.find(id);
     if (it2 != entities.end()) {
         auto& l = lines[it2->second.index];
-        l.x0 = x0; l.y0 = y0; l.x1 = x1; l.y1 = y1;
+        l.x0 = x0; l.y0 = y0; l.x1 = x1; l.y1 = y1; l.z = z;
         l.r = r; l.g = g; l.b = b; l.a = a; l.enabled = enabled;
         return;
     }
 
-    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled});
+    lines.push_back(LineRec{id, x0, y0, x1, y1, z, r, g, b, a, enabled});
     entities[id] = EntityRef{EntityKind::Line, static_cast<std::uint32_t>(lines.size() - 1)};
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
-    // Back-compat overload: default to solid black.
-    upsertPolyline(id, offset, count, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    // Back-compat overload: default to solid black and z=0.
+    upsertPolyline(id, offset, count, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled) {
+void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float z, float r, float g, float b, float a, float enabled) {
     renderDirty = true;
     snapshotDirty = true;
 
@@ -351,11 +351,12 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
         auto& pl = polylines[it2->second.index];
         pl.offset = offset;
         pl.count = count;
+        pl.z = z;
         pl.r = r; pl.g = g; pl.b = b; pl.a = a; pl.enabled = enabled;
         return;
     }
 
-    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, enabled});
+    polylines.push_back(PolyRec{id, offset, count, z, r, g, b, a, enabled});
     entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
 }
 
@@ -421,11 +422,11 @@ void CadEngine::upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchor
 }
 
 void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId) {
-    // Back-compat overload: default to solid black.
-    upsertConduit(id, fromNodeId, toNodeId, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    // Back-compat overload: default to solid black and z=0.
+    upsertConduit(id, fromNodeId, toNodeId, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled) {
+void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float z, float r, float g, float b, float a, float enabled) {
     renderDirty = true;
     snapshotDirty = true;
 
@@ -439,11 +440,12 @@ void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::u
         auto& c = conduits[it2->second.index];
         c.fromNodeId = fromNodeId;
         c.toNodeId = toNodeId;
+        c.z = z;
         c.r = r; c.g = g; c.b = b; c.a = a; c.enabled = enabled;
         return;
     }
 
-    conduits.push_back(ConduitRec{id, fromNodeId, toNodeId, r, g, b, a, enabled});
+    conduits.push_back(ConduitRec{id, fromNodeId, toNodeId, z, r, g, b, a, enabled});
     entities[id] = EntityRef{EntityKind::Conduit, static_cast<std::uint32_t>(conduits.size() - 1)};
 }
 
@@ -463,14 +465,14 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             if (payloadByteCount != sizeof(RectPayload)) return EngineError::InvalidPayloadSize;
             RectPayload p;
             std::memcpy(&p, payload, sizeof(RectPayload));
-            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled);
+            self->upsertRect(id, p.x, p.y, p.w, p.h, p.z, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
             if (payloadByteCount != sizeof(LinePayload)) return EngineError::InvalidPayloadSize;
             LinePayload p;
             std::memcpy(&p, payload, sizeof(LinePayload));
-            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled);
+            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.z, p.r, p.g, p.b, p.a, p.enabled);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolyline): {
@@ -495,7 +497,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
                 p += sizeof(Point2);
                 self->points.push_back(pt);
             }
-            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled);
+            self->upsertPolyline(id, offset, count, hdr.z, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertSymbol): {
@@ -517,7 +519,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             if (payloadByteCount != sizeof(ConduitPayload)) return EngineError::InvalidPayloadSize;
             ConduitPayload p;
             std::memcpy(&p, payload, sizeof(ConduitPayload));
-            self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.r, p.g, p.b, p.a, p.enabled);
+            self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.z, p.r, p.g, p.b, p.a, p.enabled);
             break;
         }
         default:

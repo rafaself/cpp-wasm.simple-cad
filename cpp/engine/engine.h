@@ -133,11 +133,11 @@ public:
     void deleteEntity(std::uint32_t id) noexcept;
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
-    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled);
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float z, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled);
     void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1);
-    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled);
+    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float z, float r, float g, float b, float a, float enabled);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count);
-    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled);
+    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float z, float r, float g, float b, float a, float enabled);
     void upsertSymbol(
         std::uint32_t id,
         std::uint32_t symbolKey,
@@ -153,7 +153,7 @@ public:
     );
     void upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y);
     void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId);
-    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled);
+    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float z, float r, float g, float b, float a, float enabled);
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);

@@ -16,7 +16,7 @@ static void addRectToBuffers(const RectRec& r, std::vector<float>& triangleVerti
     const float y0 = r.y;
     const float x1 = r.x + r.w;
     const float y1 = r.y + r.h;
-    constexpr float z = 0.0f;
+    const float z = r.z;
     
     // Triangles - Only if alpha > 0 (visible fill)
     if (r.a > 0.0f) {
@@ -30,20 +30,20 @@ static void addRectToBuffers(const RectRec& r, std::vector<float>& triangleVerti
 
     // Outline
     if (r.strokeEnabled > 0.5f) {
-        pushVertexColored(x0, y0, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x1, y0, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x1, y0, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x1, y1, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x1, y1, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x0, y1, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x0, y1, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
-        pushVertexColored(x0, y0, z, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        const float oz = z + 0.0001f;
+        pushVertexColored(x0, y0, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x1, y0, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x1, y0, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x1, y1, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x1, y1, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x0, y1, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x0, y1, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
+        pushVertexColored(x0, y0, oz, r.sr, r.sg, r.sb, r.sa, lineVertices);
     }
 }
 
-static void addLineSegmentToBuffers(float x0, float y0, float x1, float y1, float r, float g, float b, float a, bool enabled, std::vector<float>& lineVertices) {
+static void addLineSegmentToBuffers(float x0, float y0, float x1, float y1, float z, float r, float g, float b, float a, bool enabled, std::vector<float>& lineVertices) {
     if (!enabled) return;
-    constexpr float z = 0.0f;
     pushVertexColored(x0, y0, z, r, g, b, a, lineVertices);
     pushVertexColored(x1, y1, z, r, g, b, a, lineVertices);
 }
@@ -81,7 +81,7 @@ void rebuildRenderBuffers(
     }
 
     for (const auto& l : lines) {
-        addLineSegmentToBuffers(l.x0, l.y0, l.x1, l.y1, l.r, l.g, l.b, l.a, l.enabled > 0.5f, lineVertices);
+        addLineSegmentToBuffers(l.x0, l.y0, l.x1, l.y1, l.z, l.r, l.g, l.b, l.a, l.enabled > 0.5f, lineVertices);
     }
 
     for (const auto& pl : polylines) {
@@ -93,7 +93,7 @@ void rebuildRenderBuffers(
         for (std::uint32_t i = start; i + 1 < end; i++) {
             const auto& p0 = points[i];
             const auto& p1 = points[i + 1];
-            addLineSegmentToBuffers(p0.x, p0.y, p1.x, p1.y, pl.r, pl.g, pl.b, pl.a, true, lineVertices);
+            addLineSegmentToBuffers(p0.x, p0.y, p1.x, p1.y, pl.z, pl.r, pl.g, pl.b, pl.a, true, lineVertices);
         }
     }
 
@@ -106,7 +106,7 @@ void rebuildRenderBuffers(
         if (resolveCb) okA = resolveCb(resolveCtx, c.fromNodeId, a);
         if (resolveCb) okB = resolveCb(resolveCtx, c.toNodeId, b);
         if (!okA || !okB) continue;
-        addLineSegmentToBuffers(a.x, a.y, b.x, b.y, c.r, c.g, c.b, c.a, true, lineVertices);
+        addLineSegmentToBuffers(a.x, a.y, b.x, b.y, c.z, c.r, c.g, c.b, c.a, true, lineVertices);
     }
 }
 

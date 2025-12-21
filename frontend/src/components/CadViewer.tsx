@@ -111,12 +111,12 @@ const pickShapeAt = (
   let best: PickingTarget | null = null;
   for (const r of snapshot.rects) {
     const inside = worldPoint.x >= r.x && worldPoint.x <= r.x + r.w && worldPoint.y >= r.y && worldPoint.y <= r.y + r.h;
-      if (inside) {
-        const dist = 0;
-        if (!best || dist < best.distance) {
-          best = { shapeId: idHashToString.get(r.id) ?? String(r.id), distance: dist };
-        }
+    if (inside) {
+      const dist = 0;
+      if (!best || dist < best.distance) {
+        best = { shapeId: idHashToString.get(r.id) ?? String(r.id), distance: dist };
       }
+    }
   }
   for (const l of snapshot.lines) {
     const d = pointSegmentDistance(worldPoint, { x: l.x0, y: l.y0 }, { x: l.x1, y: l.y1 });
@@ -218,15 +218,19 @@ const OverlayShapesLayer: React.FC = () => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
   const layerById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
+  const shapeOrder = useDataStore((s) => s.shapeOrder);
 
   const items = useMemo(() => {
     const out: Array<
-      | { kind: 'ellipse'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
-      | { kind: 'polygon'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; sides: number; sx: number; sy: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
-      | { kind: 'arrow'; id: string; a: { x: number; y: number }; b: { x: number; y: number }; head: number; stroke: { color: string; opacity: number } }
+      | { kind: 'ellipse'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; z: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
+      | { kind: 'polygon'; id: string; cx: number; cy: number; rx: number; ry: number; rot: number; sides: number; sx: number; sy: number; z: number; fill?: { color: string; opacity: number }; stroke?: { color: string; opacity: number } }
+      | { kind: 'arrow'; id: string; a: { x: number; y: number }; b: { x: number; y: number }; head: number; z: number; stroke: { color: string; opacity: number } }
     > = [];
 
-    for (const id of Object.keys(shapesById)) {
+    const shapeIds = shapeOrder.length > 0 ? shapeOrder : Object.keys(shapesById);
+
+    for (let i = 0; i < shapeIds.length; i++) {
+      const id = shapeIds[i];
       const shape = shapesById[id]!;
       if (!shape) continue;
       if (shape.floorId && activeFloorId && shape.floorId !== activeFloorId) continue;
@@ -234,6 +238,8 @@ const OverlayShapesLayer: React.FC = () => {
 
       const layer = layerById.get(shape.layerId) as Layer | undefined;
       if (layer && !layer.visible) continue;
+
+      const z = (i + 1) / (shapeIds.length + 1);
 
       if (shape.type === 'circle') {
         if (shape.x === undefined || shape.y === undefined) continue;
@@ -254,6 +260,7 @@ const OverlayShapesLayer: React.FC = () => {
           rx,
           ry,
           rot,
+          z,
           fill: fillEnabled
             ? { color: getEffectiveFillColor(shape, layer), opacity: (shape.fillOpacity ?? 100) / 100 }
             : undefined,
@@ -289,6 +296,7 @@ const OverlayShapesLayer: React.FC = () => {
           sides,
           sx,
           sy,
+          z,
           fill: fillEnabled
             ? { color: getEffectiveFillColor(shape, layer), opacity: (shape.fillOpacity ?? 100) / 100 }
             : undefined,
@@ -311,13 +319,14 @@ const OverlayShapesLayer: React.FC = () => {
           a: p0,
           b: p1,
           head: Math.max(2, shape.arrowHeadSize ?? 10),
+          z,
           stroke: { color: getEffectiveStrokeColor(shape, layer), opacity: (shape.strokeOpacity ?? 100) / 100 },
         });
       }
     }
 
     return out;
-  }, [activeDiscipline, activeFloorId, layerById, shapesById]);
+  }, [activeDiscipline, activeFloorId, layerById, shapeOrder, shapesById]);
 
   return (
     <>
@@ -328,7 +337,7 @@ const OverlayShapesLayer: React.FC = () => {
             const t = (i / segments) * Math.PI * 2;
             const x = it.cx + Math.cos(t) * it.rx;
             const y = it.cy + Math.sin(t) * it.ry;
-            const rotated = it.rot ? new THREE.Vector3(x, y, 0).sub(new THREE.Vector3(it.cx, it.cy, 0)).applyAxisAngle(new THREE.Vector3(0, 0, 1), it.rot).add(new THREE.Vector3(it.cx, it.cy, 0)) : new THREE.Vector3(x, y, 0);
+            const rotated = it.rot ? new THREE.Vector3(x, y, it.z).sub(new THREE.Vector3(it.cx, it.cy, it.z)).applyAxisAngle(new THREE.Vector3(0, 0, 1), it.rot).add(new THREE.Vector3(it.cx, it.cy, it.z)) : new THREE.Vector3(x, y, it.z);
             return rotated;
           });
 
@@ -336,12 +345,12 @@ const OverlayShapesLayer: React.FC = () => {
 
           const fillGeom = (() => {
             if (!it.fill || it.fill.opacity <= 0) return null;
-            const center = new THREE.Vector3(it.cx, it.cy, 0);
+            const center = new THREE.Vector3(it.cx, it.cy, it.z);
             const positions: number[] = [];
             for (let i = 0; i < segments; i++) {
               const a = pts[i]!;
               const b = pts[i + 1]!;
-              positions.push(center.x, center.y, 0, a.x, a.y, 0, b.x, b.y, 0);
+              positions.push(center.x, center.y, it.z, a.x, a.y, it.z, b.x, b.y, it.z);
             }
             const g = new THREE.BufferGeometry();
             g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -370,22 +379,22 @@ const OverlayShapesLayer: React.FC = () => {
             const t = (i / it.sides) * Math.PI * 2 - Math.PI / 2;
             const dx0 = Math.cos(t) * it.rx * it.sx;
             const dy0 = Math.sin(t) * it.ry * it.sy;
-            if (!it.rot) return new THREE.Vector3(it.cx + dx0, it.cy + dy0, 0);
+            if (!it.rot) return new THREE.Vector3(it.cx + dx0, it.cy + dy0, it.z);
             const c = Math.cos(it.rot);
             const s = Math.sin(it.rot);
-            return new THREE.Vector3(it.cx + dx0 * c - dy0 * s, it.cy + dx0 * s + dy0 * c, 0);
+            return new THREE.Vector3(it.cx + dx0 * c - dy0 * s, it.cy + dx0 * s + dy0 * c, it.z);
           });
 
           const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
 
           const fillGeom = (() => {
             if (!it.fill || it.fill.opacity <= 0) return null;
-            const center = new THREE.Vector3(it.cx, it.cy, 0);
+            const center = new THREE.Vector3(it.cx, it.cy, it.z);
             const positions: number[] = [];
             for (let i = 0; i < it.sides; i++) {
               const a = pts[i]!;
               const b = pts[i + 1]!;
-              positions.push(center.x, center.y, 0, a.x, a.y, 0, b.x, b.y, 0);
+              positions.push(center.x, center.y, it.z, a.x, a.y, it.z, b.x, b.y, it.z);
             }
             const g = new THREE.BufferGeometry();
             g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -432,16 +441,16 @@ const OverlayShapesLayer: React.FC = () => {
         const rightX = baseX - perpX * (headW / 2);
         const rightY = baseY - perpY * (headW / 2);
 
-        const shaftGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ax, ay, 0), new THREE.Vector3(baseX, baseY, 0)]);
+        const shaftGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ax, ay, it.z), new THREE.Vector3(baseX, baseY, it.z)]);
         const headGeom = new THREE.BufferGeometry();
         headGeom.setAttribute(
           'position',
-          new THREE.Float32BufferAttribute([bx, by, 0, leftX, leftY, 0, rightX, rightY, 0], 3),
+          new THREE.Float32BufferAttribute([bx, by, it.z, leftX, leftY, it.z, rightX, rightY, it.z], 3),
         );
 
         return (
           <group key={it.id}>
-            <mesh geometry={headGeom} renderOrder={30}>
+            <mesh geometry={headGeom}>
               <meshBasicMaterial color={it.stroke.color} transparent opacity={it.stroke.opacity} depthWrite={false} />
             </mesh>
           </group>
@@ -466,7 +475,7 @@ const StrokeSegments: React.FC<{ group: StrokeGroup }> = ({ group }) => {
     () =>
       new LineMaterial({
         transparent: true,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
       }),
     [],
@@ -475,7 +484,7 @@ const StrokeSegments: React.FC<{ group: StrokeGroup }> = ({ group }) => {
   const { size } = useThree();
 
   useEffect(() => {
-    line.renderOrder = 25;
+    // Use Z-sorting
     line.frustumCulled = false;
   }, [line]);
 
@@ -510,14 +519,15 @@ const StrokeSegmentsLayer: React.FC = () => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
   const layerById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
+  const shapeOrder = useDataStore((s) => s.shapeOrder);
 
   const groups = useMemo((): StrokeGroup[] => {
     const buckets = new Map<StrokeGroupKey, { color: string; opacity: number; widthPx: number; floats: number[] }>();
 
-    const addSegment = (key: StrokeGroupKey, a: { x: number; y: number }, b: { x: number; y: number }) => {
+    const addSegment = (key: StrokeGroupKey, a: { x: number; y: number }, b: { x: number; y: number }, z: number) => {
       const bucket = buckets.get(key);
       if (!bucket) return;
-      bucket.floats.push(a.x, a.y, 0, b.x, b.y, 0);
+      bucket.floats.push(a.x, a.y, z, b.x, b.y, z);
     };
 
     const ensureBucket = (color: string, opacity: number, widthPx: number) => {
@@ -530,7 +540,10 @@ const StrokeSegmentsLayer: React.FC = () => {
 
     const ellipseSegments = 64;
 
-    for (const id of Object.keys(shapesById)) {
+    const shapeIds = shapeOrder.length > 0 ? shapeOrder : Object.keys(shapesById);
+
+    for (let i = 0; i < shapeIds.length; i++) {
+      const id = shapeIds[i];
       const shape = shapesById[id]!;
       if (!shape) continue;
       if (shape.floorId && activeFloorId && shape.floorId !== activeFloorId) continue;
@@ -538,11 +551,13 @@ const StrokeSegmentsLayer: React.FC = () => {
 
       if (shape.type === 'rect' && (shape.svgSymbolId || shape.svgRaw)) continue;
       if (shape.type === 'text') continue;
-      // Closed-shape strokes are handled by screen-space StrokeOverlay (inside-only).
-      if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') continue;
+      // Closed-shape strokes ARE NOW handled here too to intercalate correctly.
+      // if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') continue;
 
       const layer = layerById.get(shape.layerId) as Layer | undefined;
       if (layer && !layer.visible) continue;
+
+      const z = (i + 1) / (shapeIds.length + 1) + 0.0001; // offset slightly above fill
 
       const strokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
       if (!strokeEnabled) continue;
@@ -556,14 +571,14 @@ const StrokeSegmentsLayer: React.FC = () => {
         const p0 = shape.points?.[0];
         const p1 = shape.points?.[1];
         if (!p0 || !p1) continue;
-        addSegment(key, p0, p1);
+        addSegment(key, p0, p1, z);
         continue;
       }
 
       if (shape.type === 'polyline' || shape.type === 'eletroduto') {
         const pts = shape.points ?? [];
         if (pts.length < 2) continue;
-        for (let i = 0; i + 1 < pts.length; i++) addSegment(key, pts[i]!, pts[i + 1]!);
+        for (let i = 0; i + 1 < pts.length; i++) addSegment(key, pts[i]!, pts[i + 1]!, z);
         continue;
       }
 
@@ -588,8 +603,23 @@ const StrokeSegmentsLayer: React.FC = () => {
           const px = rot ? cx + lx * c - ly * s : cx + lx;
           const py = rot ? cy + lx * s + ly * c : cy + ly;
           const nextP = { x: px, y: py };
-          addSegment(key, prevP, nextP);
+          addSegment(key, prevP, nextP, z);
           prevP = nextP;
+        }
+        continue;
+      }
+
+      if (shape.type === 'rect') {
+        const b = getShapeBounds(shape);
+        if (!b) continue;
+        const pts = [
+          { x: b.x, y: b.y },
+          { x: b.x + b.width, y: b.y },
+          { x: b.x + b.width, y: b.y + b.height },
+          { x: b.x, y: b.y + b.height }
+        ];
+        for (let i = 0; i < 4; i++) {
+          addSegment(key, pts[i], pts[(i + 1) % 4], z);
         }
         continue;
       }
@@ -620,7 +650,7 @@ const StrokeSegmentsLayer: React.FC = () => {
         for (let i = 0; i < pts.length; i++) {
           const a = pts[i]!;
           const b = pts[(i + 1) % pts.length]!;
-          addSegment(key, a, b);
+          addSegment(key, a, b, z);
         }
       }
     }
@@ -638,7 +668,7 @@ const StrokeSegmentsLayer: React.FC = () => {
     }
     out.sort((a, b) => a.key.localeCompare(b.key));
     return out;
-  }, [activeDiscipline, activeFloorId, layerById, shapesById]);
+  }, [activeDiscipline, activeFloorId, layerById, shapeOrder, shapesById]);
 
   return (
     <>
@@ -669,12 +699,13 @@ const CameraParitySync: React.FC<{ viewTransform: ReturnType<typeof useUIStore.g
 
 const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) => {
   const meshGeometry = useMemo(() => new THREE.BufferGeometry(), []);
+  const lineGeometry = useMemo(() => new THREE.BufferGeometry(), []);
 
   const sharedVertexColorMaterial = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
       transparent: true,
-      depthWrite: false,
-      uniforms: {},
+      depthWrite: true,
+      depthTest: true,
       vertexShader: `
         attribute vec4 color;
         varying vec4 vColor;
@@ -722,7 +753,7 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
       (interleavedBuffer as any).__ptr = meta.ptr; // track pointer for cheap equality
 
       geometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 0));
-      
+
       if (floatsPerVertex === 7) {
         geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedBuffer, 4, 3));
       } else if (floatsPerVertex === 6) {
@@ -733,12 +764,12 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
 
       lastHeapRef.current = module.HEAPF32.buffer as ArrayBuffer;
     }
-    
+
     geometry.setDrawRange(0, meta.vertexCount);
 
     const positionAttr = geometry.attributes.position as THREE.InterleavedBufferAttribute;
     if (positionAttr) {
-        positionAttr.data.needsUpdate = true;
+      positionAttr.data.needsUpdate = true;
     }
   };
 
@@ -756,6 +787,12 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
       meshGeometry.setDrawRange(0, 0);
     }
 
+    if (lineMeta.floatCount > 0) {
+      bindInterleavedAttribute(lineGeometry, lineMeta, forceRebind || lineGenChanged, 7);
+    } else {
+      lineGeometry.setDrawRange(0, 0);
+    }
+
     if ((meshGenChanged || lineGenChanged) && (meshMeta.generation !== sentMeshGenRef.current || lineMeta.generation !== sentLineGenRef.current)) {
       onBufferMeta({ triangles: meshMeta, lines: lineMeta });
       sentMeshGenRef.current = meshMeta.generation;
@@ -769,6 +806,7 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
   return (
     <>
       <mesh geometry={meshGeometry} material={sharedVertexColorMaterial} frustumCulled={false} />
+      <lineSegments geometry={lineGeometry} material={sharedVertexColorMaterial} frustumCulled={false} />
     </>
   );
 };

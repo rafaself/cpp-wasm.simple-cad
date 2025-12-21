@@ -19,12 +19,12 @@ export const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeT
 
 export type LayerStyle = Pick<Layer, 'strokeColor' | 'strokeEnabled' | 'fillColor' | 'fillEnabled'>;
 
-export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ensureId: (id: string) => number): EngineCommand | null => {
+export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ensureId: (id: string) => number, z: number): EngineCommand | null => {
   if (!isSupportedShape(shape)) return null;
   const id = ensureId(shape.id);
 
-  const effectiveStrokeEnabled = isStrokeEffectivelyEnabled(shape, layer);
-  const effectiveStrokeHex = getEffectiveStrokeColor(shape, layer);
+  const effectiveStrokeEnabled = isStrokeEffectivelyEnabled(shape, layer as any);
+  const effectiveStrokeHex = getEffectiveStrokeColor(shape, layer as any);
   const strokeRgb = hexToRgb(effectiveStrokeHex) ?? { r: 0, g: 0, b: 0 };
   const strokeR = strokeRgb.r / 255.0;
   const strokeG = strokeRgb.g / 255.0;
@@ -36,8 +36,8 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
   if (shape.type === 'rect') {
     if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
 
-    const effectiveFillEnabled = isFillEffectivelyEnabled(shape, layer);
-    const effectiveFillHex = getEffectiveFillColor(shape, layer);
+    const effectiveFillEnabled = isFillEffectivelyEnabled(shape, layer as any);
+    const effectiveFillHex = getEffectiveFillColor(shape, layer as any);
     const fillOpacity = Math.max(0, Math.min(100, shape.fillOpacity ?? 100)) / 100;
 
     let fillR = 0.0, fillG = 0.0, fillB = 0.0, fillA = 0.0;
@@ -59,6 +59,7 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
         y: shape.y,
         w: shape.width,
         h: shape.height,
+        z,
         fillR,
         fillG,
         fillB,
@@ -76,7 +77,7 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
     const p0 = shape.points?.[0];
     const p1 = shape.points?.[1];
     if (!p0 || !p1) return null;
-    return { op: CommandOp.UpsertLine, id, line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
+    return { op: CommandOp.UpsertLine, id, line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, z, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
   }
 
   // Conduits are rendered in WASM from nodes + endpoints; do not mirror as generic polylines.
@@ -84,12 +85,12 @@ export const shapeToEngineCommand = (shape: Shape, layer: LayerStyle | null, ens
     if (!shape.fromNodeId || !shape.toNodeId) return null;
     const fromNodeId = ensureId(shape.fromNodeId);
     const toNodeId = ensureId(shape.toNodeId);
-    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
+    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, z, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
   }
 
   const points = shape.points;
   if (!points || points.length < 2) return null;
-  return { op: CommandOp.UpsertPolyline, id, polyline: { points, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
+  return { op: CommandOp.UpsertPolyline, id, polyline: { points, z, r: strokeR, g: strokeG, b: strokeB, a: strokeA, enabled: strokeEnabled } };
 };
 
 export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers: readonly Layer[]): Set<string> => {
@@ -123,7 +124,9 @@ export const computeLayerDrivenReupsertCommands = (
   const layersById = new Map(layers.map((l) => [l.id, l]));
   const out: EngineCommand[] = [];
 
-  for (const id of Object.keys(shapes).sort((a, b) => a.localeCompare(b))) {
+  const shapeIds = Object.keys(shapes);
+  for (let i = 0; i < shapeIds.length; i++) {
+    const id = shapeIds[i];
     const s = shapes[id]!;
     if (!changedLayerIds.has(s.layerId)) continue;
     if (!isSupportedShape(s)) continue;
@@ -133,7 +136,8 @@ export const computeLayerDrivenReupsertCommands = (
     if (!dependsOnLayer) continue;
 
     const layer = layersById.get(s.layerId) ?? null;
-    const cmd = shapeToEngineCommand(s, layer, ensureId);
+    const z = (i + 1) / (shapeIds.length + 1);
+    const cmd = shapeToEngineCommand(s, layer, ensureId, z);
     if (cmd) out.push(cmd);
   }
 
@@ -184,8 +188,11 @@ export const useEngineStoreSync = (): void => {
       // Initial full sync (batched) to guarantee deterministic engine state.
       const initialState = useDataStore.getState();
       const initialLayersById = new Map(initialState.layers.map((l) => [l.id, l]));
-      const initialShapes = Object.keys(initialState.shapes)
-        .sort((a, b) => a.localeCompare(b))
+      const initialShapeIds = initialState.shapeOrder.length > 0
+        ? initialState.shapeOrder
+        : Object.keys(initialState.shapes).sort((a, b) => a.localeCompare(b));
+
+      const initialShapes = initialShapeIds
         .map((id) => initialState.shapes[id])
         .filter(Boolean) as Shape[];
       const initialCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
@@ -210,9 +217,11 @@ export const useEngineStoreSync = (): void => {
         if (cmd) initialCommands.push(cmd);
       }
 
-      for (const s of initialShapes) {
+      for (let i = 0; i < initialShapes.length; i++) {
+        const s = initialShapes[i];
         const layer = initialLayersById.get(s.layerId) ?? null;
-        const cmd = shapeToEngineCommand(s, layer, ensureId);
+        const z = (i + 1) / (initialShapes.length + 1);
+        const cmd = shapeToEngineCommand(s, layer, ensureId, z);
         if (cmd) initialCommands.push(cmd);
       }
       runtime.apply(initialCommands);
@@ -262,17 +271,26 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Adds + updates (reference inequality means immutable replacement)
-        for (const id of Object.keys(nextShapes).sort((a, b) => a.localeCompare(b))) {
-          const nextShape = nextShapes[id]!;
+        // We re-sync all shapes if order might have changed, but for now just use the new Z from its position in shapeOrder
+        const nextShapeIds = state.shapeOrder.length > 0 ? state.shapeOrder : Object.keys(nextShapes).sort((a, b) => a.localeCompare(b));
+
+        for (let i = 0; i < nextShapeIds.length; i++) {
+          const id = nextShapeIds[i];
+          const nextShape = nextShapes[id];
+          if (!nextShape) continue;
           const prevShape = prevShapes[id];
-          if (prevShape === nextShape) continue;
+
+          // Re-upsert if shape changed OR if we are doing a full refresh (implied by changedLayerIds)
+          const needsUpsert = nextShape !== prevShape || changedLayerIds.has(nextShape.layerId);
+          if (!needsUpsert) continue;
 
           // Symbols are not rendered as rects by WASM, but they need to exist for anchored node resolution.
           const symCmd = toUpsertSymbolCommand(nextShape, ensureId);
           if (symCmd) commands.push(symCmd);
 
           const layer = layersById.get(nextShape.layerId) ?? null;
-          const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
+          const z = (i + 1) / (nextShapeIds.length + 1);
+          const cmd = shapeToEngineCommand(nextShape, layer, ensureId, z);
           if (cmd) {
             commands.push(cmd);
           } else {

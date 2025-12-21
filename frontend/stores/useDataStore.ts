@@ -69,6 +69,7 @@ const normalizeShapeStyle = (shape: Shape): Shape => {
 interface DataState {
   // Document State
   shapes: Record<string, Shape>;
+  shapeOrder: string[]; // IDs in Z-order back-to-front
   electricalElements: Record<string, ElectricalElement>;
   connectionNodes: Record<string, ConnectionNode>;
   diagramNodes: Record<string, DiagramNode>;
@@ -147,6 +148,7 @@ interface DataState {
 
 const buildInitialState = () => ({
   shapes: {} as Record<string, Shape>,
+  shapeOrder: [] as string[],
   electricalElements: {} as Record<string, ElectricalElement>,
   connectionNodes: {} as Record<string, ConnectionNode>,
   diagramNodes: {} as Record<string, DiagramNode>,
@@ -247,11 +249,11 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   saveToHistory: (patches) => {
-      if (patches.length === 0) return;
-      const { past } = get();
-      const newPast = [...past, patches];
-      if (newPast.length > HISTORY.LIMIT) newPast.shift();
-      set({ past: newPast, future: [] });
+    if (patches.length === 0) return;
+    const { past } = get();
+    const newPast = [...past, patches];
+    if (newPast.length > HISTORY.LIMIT) newPast.shift();
+    set({ past: newPast, future: [] });
   },
 
   undo: () => {
@@ -268,57 +270,57 @@ export const useDataStore = create<DataState>((set, get) => ({
     const redoPatches: Patch[] = [];
 
     patches.forEach(patch => {
-        if (patch.type === 'ADD') {
-            const s = newShapes[patch.id];
-            if (s) {
-              if (s.electricalElementId) {
-                delete newElectrical[s.electricalElementId];
-              }
-              if (s.diagramNodeId) {
-                const linkedNode = Object.values(newDiagramNodes).find(n => n.shapeId === s.id);
-                if (linkedNode) delete newDiagramNodes[linkedNode.id];
-              }
-              if (s.diagramEdgeId) {
-                const linkedEdge = Object.values(newDiagramEdges).find(e => e.shapeId === s.id);
-                if (linkedEdge) delete newDiagramEdges[linkedEdge.id];
-              }
-              spatialIndex.remove(s);
-            }
-            delete newShapes[patch.id];
-            if (patch.diagramNode) delete newDiagramNodes[patch.diagramNode.id];
-            if (patch.diagramEdge) delete newDiagramEdges[patch.diagramEdge.id];
-            // Redo must re-apply the original forward patch.
-            redoPatches.push(patch);
-        } else if (patch.type === 'UPDATE') {
-            const oldS = newShapes[patch.id];
-            if (oldS) {
-                const updated = { ...oldS, ...(patch.prev as Partial<Shape>) };
-                spatialIndex.update(oldS, updated);
-                newShapes[patch.id] = updated;
-                // Redo must re-apply the original forward patch (apply diff).
-                redoPatches.push(patch);
-            }
-        } else if (patch.type === 'DELETE') {
-            if (patch.prev) {
-                const restoredShape = { ...(patch.prev as Shape) };
-                if (patch.electricalElement) {
-                  newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
-                  restoredShape.electricalElementId = patch.electricalElement.id;
-                }
-                if (patch.diagramNode) {
-                  newDiagramNodes[patch.diagramNode.id] = patch.diagramNode;
-                  restoredShape.diagramNodeId = patch.diagramNode.id;
-                }
-                if (patch.diagramEdge) {
-                  newDiagramEdges[patch.diagramEdge.id] = patch.diagramEdge;
-                  restoredShape.diagramEdgeId = patch.diagramEdge.id;
-                }
-                newShapes[patch.id] = restoredShape;
-                spatialIndex.insert(restoredShape);
-                // Redo must re-apply the original forward patch (delete).
-                redoPatches.push(patch);
-            }
+      if (patch.type === 'ADD') {
+        const s = newShapes[patch.id];
+        if (s) {
+          if (s.electricalElementId) {
+            delete newElectrical[s.electricalElementId];
+          }
+          if (s.diagramNodeId) {
+            const linkedNode = Object.values(newDiagramNodes).find(n => n.shapeId === s.id);
+            if (linkedNode) delete newDiagramNodes[linkedNode.id];
+          }
+          if (s.diagramEdgeId) {
+            const linkedEdge = Object.values(newDiagramEdges).find(e => e.shapeId === s.id);
+            if (linkedEdge) delete newDiagramEdges[linkedEdge.id];
+          }
+          spatialIndex.remove(s);
         }
+        delete newShapes[patch.id];
+        if (patch.diagramNode) delete newDiagramNodes[patch.diagramNode.id];
+        if (patch.diagramEdge) delete newDiagramEdges[patch.diagramEdge.id];
+        // Redo must re-apply the original forward patch.
+        redoPatches.push(patch);
+      } else if (patch.type === 'UPDATE') {
+        const oldS = newShapes[patch.id];
+        if (oldS) {
+          const updated = { ...oldS, ...(patch.prev as Partial<Shape>) };
+          spatialIndex.update(oldS, updated);
+          newShapes[patch.id] = updated;
+          // Redo must re-apply the original forward patch (apply diff).
+          redoPatches.push(patch);
+        }
+      } else if (patch.type === 'DELETE') {
+        if (patch.prev) {
+          const restoredShape = { ...(patch.prev as Shape) };
+          if (patch.electricalElement) {
+            newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
+            restoredShape.electricalElementId = patch.electricalElement.id;
+          }
+          if (patch.diagramNode) {
+            newDiagramNodes[patch.diagramNode.id] = patch.diagramNode;
+            restoredShape.diagramNodeId = patch.diagramNode.id;
+          }
+          if (patch.diagramEdge) {
+            newDiagramEdges[patch.diagramEdge.id] = patch.diagramEdge;
+            restoredShape.diagramEdgeId = patch.diagramEdge.id;
+          }
+          newShapes[patch.id] = restoredShape;
+          spatialIndex.insert(restoredShape);
+          // Redo must re-apply the original forward patch (delete).
+          redoPatches.push(patch);
+        }
+      }
     });
 
     set({
@@ -347,66 +349,66 @@ export const useDataStore = create<DataState>((set, get) => ({
     const undoPatches: Patch[] = [];
 
     patches.forEach(patch => {
-        if (patch.type === 'ADD') {
-             if (patch.data) {
-                 const shapeToAdd = patch.electricalElement
-                   ? { ...patch.data, electricalElementId: patch.electricalElement.id }
-                   : patch.data;
-                 newShapes[patch.id] = shapeToAdd;
-                 if (patch.electricalElement) {
-                   newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
-                 }
-                 if (patch.diagramNode) {
-                   newDiagramNodes[patch.diagramNode.id] = patch.diagramNode;
-                   newShapes[patch.id] = { ...shapeToAdd, diagramNodeId: patch.diagramNode.id };
-                 }
-                 if (patch.diagramEdge) {
-                   newDiagramEdges[patch.diagramEdge.id] = patch.diagramEdge;
-                   newShapes[patch.id] = { ...newShapes[patch.id], diagramEdgeId: patch.diagramEdge.id };
-                 }
-                 spatialIndex.insert(shapeToAdd);
-                 undoPatches.push({
-                   type: 'ADD',
-                   id: patch.id,
-                   data: newShapes[patch.id],
-                   electricalElement: patch.electricalElement,
-                   diagramNode: patch.diagramNode,
-                   diagramEdge: patch.diagramEdge
-                 });
-             }
-        } else if (patch.type === 'UPDATE') {
-             const oldS = newShapes[patch.id];
-             if (oldS) {
-                const updated = { ...oldS, ...patch.diff };
-                spatialIndex.update(oldS, updated);
-                newShapes[patch.id] = updated;
-                undoPatches.push(patch);
-             }
-        } else if (patch.type === 'DELETE') {
-             const s = newShapes[patch.id];
-             if (s) {
-                const linkedElement = s.electricalElementId ? newElectrical[s.electricalElementId] : undefined;
-                if (linkedElement) delete newElectrical[linkedElement.id];
-                if (s.diagramNodeId) {
-                  const linkedNode = Object.values(newDiagramNodes).find(n => n.shapeId === s.id);
-                  if (linkedNode) delete newDiagramNodes[linkedNode.id];
-                }
-                if (s.diagramEdgeId) {
-                  const linkedEdge = Object.values(newDiagramEdges).find(e => e.shapeId === s.id);
-                  if (linkedEdge) delete newDiagramEdges[linkedEdge.id];
-                }
-                spatialIndex.remove(s);
-                delete newShapes[patch.id];
-                undoPatches.push({
-                  type: 'DELETE',
-                  id: patch.id,
-                  prev: s,
-                  electricalElement: patch.electricalElement ?? linkedElement,
-                  diagramNode: patch.diagramNode,
-                  diagramEdge: patch.diagramEdge
-                });
-             }
+      if (patch.type === 'ADD') {
+        if (patch.data) {
+          const shapeToAdd = patch.electricalElement
+            ? { ...patch.data, electricalElementId: patch.electricalElement.id }
+            : patch.data;
+          newShapes[patch.id] = shapeToAdd;
+          if (patch.electricalElement) {
+            newElectrical[patch.electricalElement.id] = { ...patch.electricalElement, shapeId: patch.id };
+          }
+          if (patch.diagramNode) {
+            newDiagramNodes[patch.diagramNode.id] = patch.diagramNode;
+            newShapes[patch.id] = { ...shapeToAdd, diagramNodeId: patch.diagramNode.id };
+          }
+          if (patch.diagramEdge) {
+            newDiagramEdges[patch.diagramEdge.id] = patch.diagramEdge;
+            newShapes[patch.id] = { ...newShapes[patch.id], diagramEdgeId: patch.diagramEdge.id };
+          }
+          spatialIndex.insert(shapeToAdd);
+          undoPatches.push({
+            type: 'ADD',
+            id: patch.id,
+            data: newShapes[patch.id],
+            electricalElement: patch.electricalElement,
+            diagramNode: patch.diagramNode,
+            diagramEdge: patch.diagramEdge
+          });
         }
+      } else if (patch.type === 'UPDATE') {
+        const oldS = newShapes[patch.id];
+        if (oldS) {
+          const updated = { ...oldS, ...patch.diff };
+          spatialIndex.update(oldS, updated);
+          newShapes[patch.id] = updated;
+          undoPatches.push(patch);
+        }
+      } else if (patch.type === 'DELETE') {
+        const s = newShapes[patch.id];
+        if (s) {
+          const linkedElement = s.electricalElementId ? newElectrical[s.electricalElementId] : undefined;
+          if (linkedElement) delete newElectrical[linkedElement.id];
+          if (s.diagramNodeId) {
+            const linkedNode = Object.values(newDiagramNodes).find(n => n.shapeId === s.id);
+            if (linkedNode) delete newDiagramNodes[linkedNode.id];
+          }
+          if (s.diagramEdgeId) {
+            const linkedEdge = Object.values(newDiagramEdges).find(e => e.shapeId === s.id);
+            if (linkedEdge) delete newDiagramEdges[linkedEdge.id];
+          }
+          spatialIndex.remove(s);
+          delete newShapes[patch.id];
+          undoPatches.push({
+            type: 'DELETE',
+            id: patch.id,
+            prev: s,
+            electricalElement: patch.electricalElement ?? linkedElement,
+            diagramNode: patch.diagramNode,
+            diagramEdge: patch.diagramEdge
+          });
+        }
+      }
     });
 
     set({
@@ -422,158 +424,173 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   addShape: (shape, electricalElement, diagram) => {
-      const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
+    const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
 
-      const linkedShapeRaw = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
-      const linkedShape = normalizeShapeStyle(linkedShapeRaw);
-      const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
-      const newElectrical = electricalElement
-        ? { ...electricalElements, [electricalElement.id]: { ...electricalElement, shapeId: linkedShape.id } }
-        : electricalElements;
-      const newDiagramNodes = diagram?.node
-        ? { ...diagramNodes, [diagram.node.id]: { ...diagram.node, shapeId: linkedShape.id } }
-        : diagramNodes;
-      const newDiagramEdges = diagram?.edge
-        ? { ...diagramEdges, [diagram.edge.id]: { ...diagram.edge, shapeId: diagram.edge.shapeId ?? linkedShape.id } }
-        : diagramEdges;
+    const linkedShapeRaw = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
+    const linkedShape = normalizeShapeStyle(linkedShapeRaw);
+    const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
+    const newElectrical = electricalElement
+      ? { ...electricalElements, [electricalElement.id]: { ...electricalElement, shapeId: linkedShape.id } }
+      : electricalElements;
+    const newDiagramNodes = diagram?.node
+      ? { ...diagramNodes, [diagram.node.id]: { ...diagram.node, shapeId: linkedShape.id } }
+      : diagramNodes;
+    const newDiagramEdges = diagram?.edge
+      ? { ...diagramEdges, [diagram.edge.id]: { ...diagram.edge, shapeId: diagram.edge.shapeId ?? linkedShape.id } }
+      : diagramEdges;
 
-      spatialIndex.insert(linkedShape);
-      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
-      get().syncConnections();
-      saveToHistory([{
-        type: 'ADD',
-        id: linkedShape.id,
-        data: linkedShape,
-        electricalElement,
-        diagramNode: diagram?.node,
-        diagramEdge: diagram?.edge
-      }]);
-      get().syncDiagramEdgesGeometry();
+    spatialIndex.insert(linkedShape);
+    set({
+      shapes: newShapes,
+      shapeOrder: [...get().shapeOrder, linkedShape.id],
+      electricalElements: newElectrical,
+      diagramNodes: newDiagramNodes,
+      diagramEdges: newDiagramEdges,
+    });
+    get().syncConnections();
+    saveToHistory([{
+      type: 'ADD',
+      id: linkedShape.id,
+      data: linkedShape,
+      electricalElement,
+      diagramNode: diagram?.node,
+      diagramEdge: diagram?.edge
+    }]);
+    get().syncDiagramEdgesGeometry();
   },
 
   addShapes: (shapesToAdd) => {
-      const { shapes, saveToHistory, spatialIndex } = get();
-      const newShapes = { ...shapes };
-      const patches: Patch[] = [];
+    const { shapes, saveToHistory, spatialIndex } = get();
+    const newShapes = { ...shapes };
+    const patches: Patch[] = [];
 
-      shapesToAdd.forEach(shape => {
-          const normalized = normalizeShapeStyle(shape);
-          newShapes[normalized.id] = normalized;
-          spatialIndex.insert(normalized);
-          patches.push({
-              type: 'ADD',
-              id: normalized.id,
-              data: normalized
-          });
+    shapesToAdd.forEach(shape => {
+      const normalized = normalizeShapeStyle(shape);
+      newShapes[normalized.id] = normalized;
+      spatialIndex.insert(normalized);
+      patches.push({
+        type: 'ADD',
+        id: normalized.id,
+        data: normalized
       });
-      
-      set({ shapes: newShapes });
-      get().syncConnections();
-      saveToHistory(patches);
+    });
+
+    const newShapeOrder = [...get().shapeOrder, ...shapesToAdd.map(s => s.id)];
+    set({ shapes: newShapes, shapeOrder: newShapeOrder });
+    get().syncConnections();
+    saveToHistory(patches);
   },
 
   updateShape: (id, diff, recordHistory = true) => {
-      const { shapes, saveToHistory, spatialIndex, connectionNodes } = get();
-      const oldShape = shapes[id];
-      if (!oldShape) return;
+    const { shapes, saveToHistory, spatialIndex, connectionNodes } = get();
+    const oldShape = shapes[id];
+    if (!oldShape) return;
 
-      let newShape: Shape = normalizeShapeStyle({ ...oldShape, ...diff });
+    let newShape: Shape = normalizeShapeStyle({ ...oldShape, ...diff });
 
-      // If editing a conduit endpoint that is anchored or shared, detach to a new free node
-      // to preserve the "edit this conduit only" behavior.
-      const isConduit = newShape.type === 'eletroduto';
-      if (isConduit && diff.points && diff.points.length >= 2) {
-        const usage = getConduitNodeUsage(shapes);
-        let nextNodes = connectionNodes;
+    // If editing a conduit endpoint that is anchored or shared, detach to a new free node
+    // to preserve the "edit this conduit only" behavior.
+    const isConduit = newShape.type === 'eletroduto';
+    if (isConduit && diff.points && diff.points.length >= 2) {
+      const usage = getConduitNodeUsage(shapes);
+      let nextNodes = connectionNodes;
 
-        const detachEndpointIfNeeded = (endpoint: 'from' | 'to', p: Point) => {
-          const nodeId = endpoint === 'from' ? newShape.fromNodeId : newShape.toNodeId;
-          if (!nodeId) return;
-          const node = nextNodes[nodeId];
-          if (!node) return;
-          const shared = (usage[nodeId] ?? 0) > 1;
-          const anchored = node.kind === 'anchored';
-            if (shared || anchored) {
-              const newNodeId = generateId();
-              nextNodes = { ...nextNodes, [newNodeId]: { id: newNodeId, kind: 'free', position: p, pinned: true } };
-              newShape = endpoint === 'from'
-                ? { ...newShape, fromNodeId: newNodeId }
-                : { ...newShape, toNodeId: newNodeId };
-            } else if (node.kind === 'free') {
-              nextNodes = { ...nextNodes, [nodeId]: { ...node, position: p } };
-            }
-        };
+      const detachEndpointIfNeeded = (endpoint: 'from' | 'to', p: Point) => {
+        const nodeId = endpoint === 'from' ? newShape.fromNodeId : newShape.toNodeId;
+        if (!nodeId) return;
+        const node = nextNodes[nodeId];
+        if (!node) return;
+        const shared = (usage[nodeId] ?? 0) > 1;
+        const anchored = node.kind === 'anchored';
+        if (shared || anchored) {
+          const newNodeId = generateId();
+          nextNodes = { ...nextNodes, [newNodeId]: { id: newNodeId, kind: 'free', position: p, pinned: true } };
+          newShape = endpoint === 'from'
+            ? { ...newShape, fromNodeId: newNodeId }
+            : { ...newShape, toNodeId: newNodeId };
+        } else if (node.kind === 'free') {
+          nextNodes = { ...nextNodes, [nodeId]: { ...node, position: p } };
+        }
+      };
 
-        detachEndpointIfNeeded('from', diff.points[0]);
-        detachEndpointIfNeeded('to', diff.points[1]);
+      detachEndpointIfNeeded('from', diff.points[0]);
+      detachEndpointIfNeeded('to', diff.points[1]);
 
-        if (nextNodes !== connectionNodes) set({ connectionNodes: nextNodes });
-      }
+      if (nextNodes !== connectionNodes) set({ connectionNodes: nextNodes });
+    }
 
-      const newShapes = { ...shapes, [id]: newShape };
+    const newShapes = { ...shapes, [id]: newShape };
 
-      spatialIndex.update(oldShape, newShape);
-      set({ shapes: newShapes });
-      get().syncConnections();
-      get().syncDiagramEdgesGeometry();
+    spatialIndex.update(oldShape, newShape);
+    set({ shapes: newShapes });
+    get().syncConnections();
+    get().syncDiagramEdgesGeometry();
 
-      if (recordHistory) {
-          saveToHistory([{ type: 'UPDATE', id, diff, prev: oldShape }]);
-      }
+    if (recordHistory) {
+      saveToHistory([{ type: 'UPDATE', id, diff, prev: oldShape }]);
+    }
   },
 
   deleteShape: (id) => {
-      const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex, connectionNodes } = get();
-      const targetShape = shapes[id];
-      if (!targetShape) return;
+    const { shapes, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex, connectionNodes } = get();
+    const targetShape = shapes[id];
+    if (!targetShape) return;
 
-      const newShapes = { ...shapes };
-      const newElectrical = { ...electricalElements };
-      let newConnectionNodes = connectionNodes;
-      const newDiagramNodes = { ...diagramNodes };
-      const newDiagramEdges = { ...diagramEdges };
-      const patches: Patch[] = [];
+    const newShapes = { ...shapes };
+    const newElectrical = { ...electricalElements };
+    let newConnectionNodes = connectionNodes;
+    const newDiagramNodes = { ...diagramNodes };
+    const newDiagramEdges = { ...diagramEdges };
+    const patches: Patch[] = [];
 
-      // If deleting an anchored shape, detach its nodes to free nodes to preserve conduit geometry.
-      newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
+    // If deleting an anchored shape, detach its nodes to free nodes to preserve conduit geometry.
+    newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
 
-      const electricalElement = targetShape.electricalElementId ? electricalElements[targetShape.electricalElementId] : undefined;
-      if (electricalElement) {
-        delete newElectrical[electricalElement.id];
+    const electricalElement = targetShape.electricalElementId ? electricalElements[targetShape.electricalElementId] : undefined;
+    if (electricalElement) {
+      delete newElectrical[electricalElement.id];
+    }
+
+    const diagramNode = Object.values(diagramNodes).find(n => n.shapeId === id);
+    if (diagramNode) {
+      delete newDiagramNodes[diagramNode.id];
+    }
+
+    const edgesToDrop = new Set<string>();
+    Object.values(diagramEdges).forEach(edge => {
+      if (edge.shapeId === id) edgesToDrop.add(edge.id);
+      if (diagramNode && (edge.fromId === diagramNode.id || edge.toId === diagramNode.id)) edgesToDrop.add(edge.id);
+    });
+
+    edgesToDrop.forEach(edgeId => {
+      const edge = diagramEdges[edgeId];
+      const edgeShape = edge ? shapes[edge.shapeId] : undefined;
+      if (edgeShape) {
+        delete newShapes[edgeShape.id];
+        spatialIndex.remove(edgeShape);
       }
-
-      const diagramNode = Object.values(diagramNodes).find(n => n.shapeId === id);
-      if (diagramNode) {
-        delete newDiagramNodes[diagramNode.id];
+      if (edge) {
+        delete newDiagramEdges[edge.id];
+        patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, diagramEdge: edge });
       }
+    });
 
-      const edgesToDrop = new Set<string>();
-      Object.values(diagramEdges).forEach(edge => {
-        if (edge.shapeId === id) edgesToDrop.add(edge.id);
-        if (diagramNode && (edge.fromId === diagramNode.id || edge.toId === diagramNode.id)) edgesToDrop.add(edge.id);
-      });
+    delete newShapes[id];
+    spatialIndex.remove(targetShape);
+    const newShapeOrder = get().shapeOrder.filter(oid => oid !== id && !edgesToDrop.has(oid));
+    patches.push({ type: 'DELETE', id, prev: targetShape, electricalElement, diagramNode });
 
-      edgesToDrop.forEach(edgeId => {
-        const edge = diagramEdges[edgeId];
-        const edgeShape = edge ? shapes[edge.shapeId] : undefined;
-        if (edgeShape) {
-          delete newShapes[edgeShape.id];
-          spatialIndex.remove(edgeShape);
-        }
-        if (edge) {
-          delete newDiagramEdges[edge.id];
-          patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, diagramEdge: edge });
-        }
-      });
-
-      delete newShapes[id];
-      spatialIndex.remove(targetShape);
-      patches.push({ type: 'DELETE', id, prev: targetShape, electricalElement, diagramNode });
-
-      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
-      saveToHistory(patches);
-      get().syncConnections();
-      get().syncDiagramEdgesGeometry();
+    set({
+      shapes: newShapes,
+      shapeOrder: newShapeOrder,
+      electricalElements: newElectrical,
+      diagramNodes: newDiagramNodes,
+      diagramEdges: newDiagramEdges,
+      connectionNodes: newConnectionNodes
+    });
+    saveToHistory(patches);
+    get().syncConnections();
+    get().syncDiagramEdgesGeometry();
   },
 
   createFreeConnectionNode: (position) => {
@@ -621,96 +638,96 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   addElectricalElement: (element) => {
-      const { shapes } = get();
-      const targetShape = shapes[element.shapeId];
-      if (!targetShape) return;
+    const { shapes } = get();
+    const targetShape = shapes[element.shapeId];
+    if (!targetShape) return;
 
-      set(state => ({
-        electricalElements: { ...state.electricalElements, [element.id]: element },
-        shapes: {
-          ...state.shapes,
-          [element.shapeId]: { ...targetShape, electricalElementId: element.id }
-        }
-      }));
+    set(state => ({
+      electricalElements: { ...state.electricalElements, [element.id]: element },
+      shapes: {
+        ...state.shapes,
+        [element.shapeId]: { ...targetShape, electricalElementId: element.id }
+      }
+    }));
   },
 
   updateElectricalElement: (id, diff) => {
-      set(state => {
-        const existing = state.electricalElements[id];
-        if (!existing) return state;
-        const updated = { ...existing, ...diff } as ElectricalElement;
+    set(state => {
+      const existing = state.electricalElements[id];
+      if (!existing) return state;
+      const updated = { ...existing, ...diff } as ElectricalElement;
 
-        const updatedShapes = { ...state.shapes };
-        if (existing.shapeId !== updated.shapeId) {
-          const oldShape = updatedShapes[existing.shapeId];
-          if (oldShape?.electricalElementId === id) {
-            updatedShapes[existing.shapeId] = { ...oldShape, electricalElementId: undefined };
-          }
-          const newShape = updatedShapes[updated.shapeId];
-          if (newShape) {
-            updatedShapes[updated.shapeId] = { ...newShape, electricalElementId: id };
-          }
+      const updatedShapes = { ...state.shapes };
+      if (existing.shapeId !== updated.shapeId) {
+        const oldShape = updatedShapes[existing.shapeId];
+        if (oldShape?.electricalElementId === id) {
+          updatedShapes[existing.shapeId] = { ...oldShape, electricalElementId: undefined };
         }
+        const newShape = updatedShapes[updated.shapeId];
+        if (newShape) {
+          updatedShapes[updated.shapeId] = { ...newShape, electricalElementId: id };
+        }
+      }
 
-        return {
-          electricalElements: { ...state.electricalElements, [id]: updated },
-          shapes: updatedShapes
-        };
-      });
+      return {
+        electricalElements: { ...state.electricalElements, [id]: updated },
+        shapes: updatedShapes
+      };
+    });
   },
 
   updateSharedElectricalProperties: (sourceElement, diff) => {
-      set(state => {
-          const updates: Record<string, ElectricalElement> = {};
-          // Rule: "Conexões da mesma natureza compartilham o mesmo nome e descrição"
-          // We identify "nature" by the current Name or the Symbol Name.
-          // If we are changing the name, we want to update all elements that currently have the SAME name as the source.
-          // Or if we are changing description, etc.
-          // The requirement says: "Conexões da mesma natureza compartilham o mesmo nome e descrição. Alterar em uma deve refletir em todas do mesmo tipo"
-          // This usually implies grouping by 'name' (e.g. all 'TUG's).
+    set(state => {
+      const updates: Record<string, ElectricalElement> = {};
+      // Rule: "Conexões da mesma natureza compartilham o mesmo nome e descrição"
+      // We identify "nature" by the current Name or the Symbol Name.
+      // If we are changing the name, we want to update all elements that currently have the SAME name as the source.
+      // Or if we are changing description, etc.
+      // The requirement says: "Conexões da mesma natureza compartilham o mesmo nome e descrição. Alterar em uma deve refletir em todas do mesmo tipo"
+      // This usually implies grouping by 'name' (e.g. all 'TUG's).
 
-          // If 'name' is being changed, we find all elements with the OLD name.
-          // If 'description' is being changed, we find all elements with the CURRENT name.
+      // If 'name' is being changed, we find all elements with the OLD name.
+      // If 'description' is being changed, we find all elements with the CURRENT name.
 
-          const targetName = sourceElement.metadata?.name ?? sourceElement.name;
+      const targetName = sourceElement.metadata?.name ?? sourceElement.name;
 
-          Object.values(state.electricalElements).forEach(el => {
-              const elName = el.metadata?.name ?? el.name;
-              // Check if it matches the "nature" (same name) and same category
-              if (elName === targetName && el.category === sourceElement.category) {
-                   const mergedMetadata = { ...el.metadata, ...diff };
-                   updates[el.id] = { ...el, metadata: mergedMetadata };
-              }
-          });
-
-          return {
-              electricalElements: { ...state.electricalElements, ...updates }
-          };
+      Object.values(state.electricalElements).forEach(el => {
+        const elName = el.metadata?.name ?? el.name;
+        // Check if it matches the "nature" (same name) and same category
+        if (elName === targetName && el.category === sourceElement.category) {
+          const mergedMetadata = { ...el.metadata, ...diff };
+          updates[el.id] = { ...el, metadata: mergedMetadata };
+        }
       });
+
+      return {
+        electricalElements: { ...state.electricalElements, ...updates }
+      };
+    });
   },
 
   deleteElectricalElement: (id) => {
-      const { electricalElements, shapes } = get();
-      const element = electricalElements[id];
-      if (!element) return;
+    const { electricalElements, shapes } = get();
+    const element = electricalElements[id];
+    if (!element) return;
 
-      const newElectrical = { ...electricalElements };
-      delete newElectrical[id];
+    const newElectrical = { ...electricalElements };
+    delete newElectrical[id];
 
-      const targetShape = shapes[element.shapeId];
-      const newShapes = { ...shapes };
-      if (targetShape && targetShape.electricalElementId === id) {
-        newShapes[element.shapeId] = { ...targetShape, electricalElementId: undefined };
-      }
+    const targetShape = shapes[element.shapeId];
+    const newShapes = { ...shapes };
+    if (targetShape && targetShape.electricalElementId === id) {
+      newShapes[element.shapeId] = { ...targetShape, electricalElementId: undefined };
+    }
 
-      set({ electricalElements: newElectrical, shapes: newShapes });
+    set({ electricalElements: newElectrical, shapes: newShapes });
   },
 
   setActiveLayerId: (id) => set({ activeLayerId: id }),
 
   addLayer: () => set((state) => {
     const newId = generateLayerId(new Set(state.layers.map(l => l.id)));
-    const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', strokeEnabled: true, fillColor: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'), fillEnabled: true, visible: true, locked: false };
+    const newLayer: Layer = { id: newId, name: `Layer ${state.layers.length}`, strokeColor: '#000000', strokeEnabled: true, fillColor: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'), fillEnabled: true, visible: true, locked: false };
     return { layers: [...state.layers, newLayer], activeLayerId: newId };
   }),
 
@@ -771,19 +788,19 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   setLayerStrokeColor: (id, color) => set(state => ({
-      layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, strokeColor: color }) : l)
+    layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, strokeColor: color }) : l)
   })),
 
   setLayerFillColor: (id, color) => set(state => ({
-      layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, fillColor: color }) : l)
+    layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, fillColor: color }) : l)
   })),
 
   toggleLayerVisibility: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l) })),
 
   toggleLayerLock: (id) => set((state) => ({ layers: state.layers.map(l => l.id === id ? { ...l, locked: !l.locked } : l) })),
-  
+
   updateLayer: (id, updates) => set((state) => ({
-      layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, ...updates }) : l)
+    layers: state.layers.map(l => l.id === id ? normalizeLayerStyle({ ...l, ...updates }) : l)
   })),
 
   setWorldScale: (scale) => set({ worldScale: Math.max(1, scale) }),
@@ -810,29 +827,29 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     const patches: Patch[] = [];
     selectedList.forEach(s => {
-        const bounds = getShapeBounds(s);
-        if (!bounds) return;
-        let dx = 0, dy = 0;
+      const bounds = getShapeBounds(s);
+      if (!bounds) return;
+      let dx = 0, dy = 0;
 
-        switch (alignment) {
-          case 'left': dx = combinedBounds.x - bounds.x; break;
-          case 'center': dx = (combinedBounds.x + combinedBounds.width / 2) - (bounds.x + bounds.width / 2); break;
-          case 'right': dx = (combinedBounds.x + combinedBounds.width) - (bounds.x + bounds.width); break;
-          case 'top': dy = combinedBounds.y - bounds.y; break;
-          case 'middle': dy = (combinedBounds.y + combinedBounds.height / 2) - (bounds.y + bounds.height / 2); break;
-          case 'bottom': dy = (combinedBounds.y + combinedBounds.height) - (bounds.y + bounds.height); break;
-        }
+      switch (alignment) {
+        case 'left': dx = combinedBounds.x - bounds.x; break;
+        case 'center': dx = (combinedBounds.x + combinedBounds.width / 2) - (bounds.x + bounds.width / 2); break;
+        case 'right': dx = (combinedBounds.x + combinedBounds.width) - (bounds.x + bounds.width); break;
+        case 'top': dy = combinedBounds.y - bounds.y; break;
+        case 'middle': dy = (combinedBounds.y + combinedBounds.height / 2) - (bounds.y + bounds.height / 2); break;
+        case 'bottom': dy = (combinedBounds.y + combinedBounds.height) - (bounds.y + bounds.height); break;
+      }
 
-        if (dx === 0 && dy === 0) return;
+      if (dx === 0 && dy === 0) return;
 
-        const diff: Partial<Shape> = {};
-        if (s.x !== undefined) diff.x = s.x + dx;
-        if (s.y !== undefined) diff.y = s.y + dy;
-        if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+      const diff: Partial<Shape> = {};
+      if (s.x !== undefined) diff.x = s.x + dx;
+      if (s.y !== undefined) diff.y = s.y + dy;
+      if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
 
-        const prev: Partial<Shape> = { x: s.x, y: s.y, points: s.points };
-        patches.push({ type: 'UPDATE', id: s.id, diff, prev });
-        updateShape(s.id, diff, false);
+      const prev: Partial<Shape> = { x: s.x, y: s.y, points: s.points };
+      patches.push({ type: 'UPDATE', id: s.id, diff, prev });
+      updateShape(s.id, diff, false);
     });
 
     saveToHistory(patches);
@@ -851,33 +868,33 @@ export const useDataStore = create<DataState>((set, get) => ({
     const edgeIdsToDrop = new Set<string>();
 
     ids.forEach(id => {
-        const s = shapes[id];
-        if (!s) return;
-        const l = layers.find(lay => lay.id === s.layerId);
-        if (l && l.locked) {
-            // Keep selected if locked
-            return;
-        }
-        const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
-        if (electricalElement) delete newElectrical[electricalElement.id];
+      const s = shapes[id];
+      if (!s) return;
+      const l = layers.find(lay => lay.id === s.layerId);
+      if (l && l.locked) {
+        // Keep selected if locked
+        return;
+      }
+      const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
+      if (electricalElement) delete newElectrical[electricalElement.id];
 
-        const diagramNode = Object.values(diagramNodes).find(n => n.shapeId === id);
-        if (diagramNode) {
-          delete newDiagramNodes[diagramNode.id];
-          Object.values(diagramEdges).forEach(edge => {
-            if (edge.fromId === diagramNode.id || edge.toId === diagramNode.id) edgeIdsToDrop.add(edge.id);
-          });
-        }
+      const diagramNode = Object.values(diagramNodes).find(n => n.shapeId === id);
+      if (diagramNode) {
+        delete newDiagramNodes[diagramNode.id];
         Object.values(diagramEdges).forEach(edge => {
-          if (edge.shapeId === id) edgeIdsToDrop.add(edge.id);
+          if (edge.fromId === diagramNode.id || edge.toId === diagramNode.id) edgeIdsToDrop.add(edge.id);
         });
+      }
+      Object.values(diagramEdges).forEach(edge => {
+        if (edge.shapeId === id) edgeIdsToDrop.add(edge.id);
+      });
 
-        // If deleting an anchored shape, detach its nodes to free nodes to preserve conduit geometry.
-        newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
+      // If deleting an anchored shape, detach its nodes to free nodes to preserve conduit geometry.
+      newConnectionNodes = detachAnchoredNodesForShape(newConnectionNodes, shapes, id);
 
-        delete newShapes[id];
-        spatialIndex.remove(s);
-        patches.push({ type: 'DELETE', id, prev: s, electricalElement, diagramNode });
+      delete newShapes[id];
+      spatialIndex.remove(s);
+      patches.push({ type: 'DELETE', id, prev: s, electricalElement, diagramNode });
     });
 
     edgeIdsToDrop.forEach(edgeId => {
@@ -894,60 +911,60 @@ export const useDataStore = create<DataState>((set, get) => ({
     });
 
     if (patches.length > 0) {
-        set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
-        saveToHistory(patches);
-        get().syncConnections();
-        get().syncDiagramEdgesGeometry();
+      set({ shapes: newShapes, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
+      saveToHistory(patches);
+      get().syncConnections();
+      get().syncDiagramEdgesGeometry();
     }
   },
 
   rotateSelected: (ids, pivot, angle) => {
-     const { shapes, saveToHistory, updateShape } = get();
-     if (ids.length === 0) return;
-     const patches: Patch[] = [];
-     ids.forEach(id => {
-         const s = shapes[id];
-         if (!s) return;
-         let diff: Partial<Shape> = {};
-         if (s.points) diff.points = s.points.map(p => rotatePoint(p, pivot, angle));
+    const { shapes, saveToHistory, updateShape } = get();
+    if (ids.length === 0) return;
+    const patches: Patch[] = [];
+    ids.forEach(id => {
+      const s = shapes[id];
+      if (!s) return;
+      let diff: Partial<Shape> = {};
+      if (s.points) diff.points = s.points.map(p => rotatePoint(p, pivot, angle));
 
-         const supportsCenteredRotation = (s.type === 'rect' || s.type === 'text' || s.type === 'circle' || s.type === 'polygon');
-         if (supportsCenteredRotation) {
-             const bounds = getShapeBoundingBox(s);
-             const center = getShapeCenter(s);
-             const newCenter = rotatePoint(center, pivot, angle);
+      const supportsCenteredRotation = (s.type === 'rect' || s.type === 'text' || s.type === 'circle' || s.type === 'polygon');
+      if (supportsCenteredRotation) {
+        const bounds = getShapeBoundingBox(s);
+        const center = getShapeCenter(s);
+        const newCenter = rotatePoint(center, pivot, angle);
 
-             if (s.type === 'circle' || s.type === 'polygon') {
-                 diff.x = newCenter.x;
-                 diff.y = newCenter.y;
-             } else {
-                 diff.x = newCenter.x - bounds.width / 2;
-                 diff.y = newCenter.y - bounds.height / 2;
-             }
-             diff.rotation = (s.rotation || 0) + angle;
-         } else if (s.x !== undefined && s.y !== undefined) {
-             const np = rotatePoint({ x: s.x, y: s.y }, pivot, angle);
-             diff.x = np.x; diff.y = np.y;
-         }
+        if (s.type === 'circle' || s.type === 'polygon') {
+          diff.x = newCenter.x;
+          diff.y = newCenter.y;
+        } else {
+          diff.x = newCenter.x - bounds.width / 2;
+          diff.y = newCenter.y - bounds.height / 2;
+        }
+        diff.rotation = (s.rotation || 0) + angle;
+      } else if (s.x !== undefined && s.y !== undefined) {
+        const np = rotatePoint({ x: s.x, y: s.y }, pivot, angle);
+        diff.x = np.x; diff.y = np.y;
+      }
 
-         const prev: Partial<Shape> = { points: s.points, x: s.x, y: s.y, rotation: s.rotation };
-         patches.push({ type: 'UPDATE', id, diff, prev });
-         updateShape(id, diff, false);
-     });
-     saveToHistory(patches);
+      const prev: Partial<Shape> = { points: s.points, x: s.x, y: s.y, rotation: s.rotation };
+      patches.push({ type: 'UPDATE', id, diff, prev });
+      updateShape(id, diff, false);
+    });
+    saveToHistory(patches);
   },
 
   serializeProject: () => {
-      const { layers, shapes, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges } = get();
-      return {
-          layers: [...layers],
-          shapes: Object.values(shapes),
-          activeLayerId,
-          electricalElements: Object.values(electricalElements),
-          connectionNodes: Object.values(connectionNodes),
-          diagramNodes: Object.values(diagramNodes),
-          diagramEdges: Object.values(diagramEdges)
-      };
+    const { layers, shapes, activeLayerId, electricalElements, connectionNodes, diagramNodes, diagramEdges } = get();
+    return {
+      layers: [...layers],
+      shapes: Object.values(shapes),
+      activeLayerId,
+      electricalElements: Object.values(electricalElements),
+      connectionNodes: Object.values(connectionNodes),
+      diagramNodes: Object.values(diagramNodes),
+      diagramEdges: Object.values(diagramEdges)
+    };
   },
 
   resetDocument: () => {
@@ -963,11 +980,14 @@ export const useDataStore = create<DataState>((set, get) => ({
     const nextDiagramEdges = Object.fromEntries(project.diagramEdges.map((e) => [e.id, e]));
 
     const spatialIndex = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
+    const shapesMap = project.shapes.reduce((acc, s) => ({ ...acc, [s.id]: s }), {});
+    const shapeOrder = project.shapes.map(s => s.id);
     Object.values(nextShapes).forEach((shape) => spatialIndex.insert(shape));
 
     set({
       layers: project.layers.map(normalizeLayerStyle),
-      shapes: nextShapes,
+      shapes: shapesMap,
+      shapeOrder,
       electricalElements: nextElectrical,
       connectionNodes: nextNodes,
       diagramNodes: nextDiagramNodes,
@@ -985,27 +1005,27 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => {
-      const { layers } = get();
-      const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
-      if (existing) return existing.id;
+    const { layers } = get();
+    const existing = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
+    if (existing) return existing.id;
 
-      const existingIds = new Set(layers.map(l => l.id));
-      const newId = generateLayerId(existingIds);
-      const newLayerRaw: Layer = {
-        id: newId,
-        name,
-        strokeColor: defaults?.strokeColor ?? '#000000',
-        strokeEnabled: defaults?.strokeEnabled ?? true,
-        fillColor: defaults?.fillColor ?? '#ffffff',
-        fillEnabled: defaults?.fillEnabled ?? true,
-        visible: defaults?.visible ?? true,
-        locked: defaults?.locked ?? false,
-        isNative: defaults?.isNative,
-      };
+    const existingIds = new Set(layers.map(l => l.id));
+    const newId = generateLayerId(existingIds);
+    const newLayerRaw: Layer = {
+      id: newId,
+      name,
+      strokeColor: defaults?.strokeColor ?? '#000000',
+      strokeEnabled: defaults?.strokeEnabled ?? true,
+      fillColor: defaults?.fillColor ?? '#ffffff',
+      fillEnabled: defaults?.fillEnabled ?? true,
+      visible: defaults?.visible ?? true,
+      locked: defaults?.locked ?? false,
+      isNative: defaults?.isNative,
+    };
 
-      const newLayer = normalizeLayerStyle(newLayerRaw);
-      set(state => ({ layers: [...state.layers, newLayer] }));
-      return newId;
+    const newLayer = normalizeLayerStyle(newLayerRaw);
+    set(state => ({ layers: [...state.layers, newLayer] }));
+    return newId;
   },
 }));
 

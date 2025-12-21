@@ -39,12 +39,13 @@ struct RectRec {
     float y;
     float w;
     float h;
+    float z; // Z-order (higher is in front)
     float r, g, b, a; // fill RGBA (persisted)
     float sr, sg, sb, sa; // stroke RGBA (runtime-only)
     float strokeEnabled; // 0 or 1 (runtime-only)
 };
-struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; };
-struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float r, g, b, a; float enabled; };
+struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float z; float r, g, b, a; float enabled; };
+struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float z; float r, g, b, a; float enabled; };
 struct Point2 { float x; float y; };
 
 struct SymbolRec {
@@ -74,6 +75,7 @@ struct ConduitRec {
     std::uint32_t id;
     std::uint32_t fromNodeId;
     std::uint32_t toNodeId;
+    float z;
     float r, g, b, a;
     float enabled;
 };
@@ -103,10 +105,10 @@ enum class EngineError : std::uint32_t {
 };
 
 // Command Payloads (POD)
-struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled; };
-struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled; };
+struct RectPayload { float x, y, w, h, z, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled; };
+struct LinePayload { float x0, y0, x1, y1, z, r, g, b, a, enabled; };
 // Polyline payload is variable length, handled manually
-struct PolylinePayloadHeader { float r, g, b, a, enabled; std::uint32_t count; std::uint32_t reserved; };
+struct PolylinePayloadHeader { float z, r, g, b, a, enabled; std::uint32_t count; std::uint32_t reserved; };
 struct SymbolPayload {
     std::uint32_t symbolKey;
     float x, y, w, h;
@@ -122,7 +124,7 @@ struct NodePayload {
 struct ConduitPayload {
     std::uint32_t fromNodeId;
     std::uint32_t toNodeId;
-    float r, g, b, a, enabled;
+    float z, r, g, b, a, enabled;
 };
 
 struct SnapResult {
