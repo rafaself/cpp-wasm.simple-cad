@@ -14,6 +14,7 @@ import { mergeVectorSidecarsV1 } from '../../utils/vectorSidecarMerge';
 import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
 import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
+import { buildDxfSvgVectorSidecarV1 } from './utils/dxf/dxfSvgToVectorSidecar';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -362,6 +363,15 @@ export const usePlanImport = (): PlanImportHook => {
 
           console.log(`Imported ${shapesToAdd.length} shapes from DXF (Mode: ${options?.importMode})`);
           dataStore.addShapes(shapesToAdd);
+          if (options?.importMode === 'svg' && shapesToAdd.length === 1) {
+              const shape = shapesToAdd[0];
+              const nextSidecar = buildDxfSvgVectorSidecarV1(shape);
+              if (nextSidecar) {
+                  const current = dataStore.vectorSidecar;
+                  const base = current && current.version === 1 ? (current as VectorSidecarV1) : null;
+                  dataStore.setVectorSidecar(mergeVectorSidecarsV1(base, nextSidecar, `dxf:${shape.id}:`));
+              }
+          }
           uiStore.setSelectedShapeIds(new Set(shapesToAdd.map(s => s.id)));
           uiStore.setTool('select');
           
