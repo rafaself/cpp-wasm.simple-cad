@@ -81,6 +81,19 @@ const RibbonSectionComponent: React.FC<{ title: string; children: React.ReactNod
   </div>
 );
 
+/**
+ * Escapes HTML characters to prevent XSS.
+ * Safe for use in HTML body and attributes.
+ */
+const escapeHtml = (value: string) => {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 const EditorRibbon: React.FC = () => {
   const [activeTabId, setActiveTabId] = useState('draw');
   const activeTool = useUIStore((s) => s.activeTool);
@@ -108,9 +121,6 @@ const EditorRibbon: React.FC = () => {
   const worldScale = useDataStore((state) => state.worldScale);
   const frame = useDataStore((state) => state.frame);
 
-  const escapeHtml = (value: string) => {
-      return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  };
 
   const exportProjectData = useCallback(() => {
       const project = serializeProject();
@@ -333,9 +343,9 @@ const EditorRibbon: React.FC = () => {
           const toNode = c.toNodeId ? nodesById[c.toNodeId] : null;
           const fromAnchor = fromNode?.kind === 'anchored' && fromNode.anchorShapeId ? connections.find(n => n.id === fromNode.anchorShapeId) : null;
           const toAnchor = toNode?.kind === 'anchored' && toNode.anchorShapeId ? connections.find(n => n.id === toNode.anchorShapeId) : null;
-          const fromLabel = fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—';
-          const toLabel = toAnchor?.name || toAnchor?.id || c.toNodeId || '—';
-          return `<tr><td>${c.id}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${c.length}</td></tr>`;
+          const fromLabel = escapeHtml(fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—');
+          const toLabel = escapeHtml(toAnchor?.name || toAnchor?.id || c.toNodeId || '—');
+          return `<tr><td>${escapeHtml(c.id)}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${escapeHtml(String(c.length))}</td></tr>`;
       }).join('');
 
       // TODO: Otimizar essa parte
