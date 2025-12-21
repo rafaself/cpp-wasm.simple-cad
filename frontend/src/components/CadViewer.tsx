@@ -58,11 +58,16 @@ type WasmModule = {
 };
 
 type BufferMetaPair = { triangles: BufferMeta | null; lines: BufferMeta | null };
+type BufferUpdateCounters = { attributeUpdates: number; rebinds: number };
+type BufferUpdateStats = {
+  triangles: BufferUpdateCounters;
+  lines: BufferUpdateCounters;
+};
 
 type MeshProps = {
   module: WasmModule;
   engine: CadEngineInstance;
-  onBufferMeta: (meta: BufferMetaPair) => void;
+  onBufferMeta: (meta: BufferMetaPair, stats: BufferUpdateStats) => void;
 };
 
 type SnapshotCapableEngine = CadEngineInstance & Required<
@@ -256,20 +261,28 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
   // Removed attrRefs as they are no longer the source of truth for updates.
 
   const lastHeapRef = useRef<ArrayBuffer | null>(null);
-  const lastMeshGenRef = useRef<number>(-1);
-  const lastLineGenRef = useRef<number>(-1);
-  const sentMeshGenRef = useRef<number>(-1);
-  const sentLineGenRef = useRef<number>(-1);
+  const lastMeshMetaRef = useRef<BufferMeta | null>(null);
+  const lastLineMetaRef = useRef<BufferMeta | null>(null);
+  const lastSentMetaRef = useRef<BufferMetaPair | null>(null);
+  const updateStatsRef = useRef<BufferUpdateStats>({
+    triangles: { attributeUpdates: 0, rebinds: 0 },
+    lines: { attributeUpdates: 0, rebinds: 0 },
+  });
 
   const bindInterleavedAttribute = (
     geometry: THREE.BufferGeometry,
     meta: BufferMeta,
-    force: boolean,
     floatsPerVertex: number,
   ) => {
+    const previousMeta = lastMeshMetaRef.current;
     const heapChanged = module.HEAPF32.buffer !== lastHeapRef.current;
-    const currentPosition = geometry.attributes.position as THREE.InterleavedBufferAttribute;
-    const needsRebind = force || heapChanged || !currentPosition || meta.ptr !== (currentPosition.data as any)?.__ptr;
+    const generationChanged = meta.generation !== previousMeta?.generation;
+    const pointerChanged = meta.ptr !== previousMeta?.ptr;
+    const floatCountChanged = meta.floatCount !== previousMeta?.floatCount;
+    const vertexCountChanged = meta.vertexCount !== previousMeta?.vertexCount;
+    const needsRebind = heapChanged || pointerChanged || floatCountChanged || !previousMeta;
+    const needsAttributeUpdate = needsRebind || generationChanged;
+    const drawRangeChanged = needsAttributeUpdate || vertexCountChanged;
 
     if (needsRebind) {
       const start = meta.ptr >>> 2;
@@ -281,7 +294,7 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
       (interleavedBuffer as any).__ptr = meta.ptr; // track pointer for cheap equality
 
       geometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleavedBuffer, 3, 0));
-      
+
       if (floatsPerVertex === 7) {
         geometry.setAttribute('color', new THREE.InterleavedBufferAttribute(interleavedBuffer, 4, 3));
       } else if (floatsPerVertex === 6) {
@@ -291,38 +304,105 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
       }
 
       lastHeapRef.current = module.HEAPF32.buffer as ArrayBuffer;
+      updateStatsRef.current.triangles.rebinds += 1;
     }
-    
-    geometry.setDrawRange(0, meta.vertexCount);
+
+    if (drawRangeChanged) {
+      geometry.setDrawRange(0, meta.vertexCount);
+    }
 
     const positionAttr = geometry.attributes.position as THREE.InterleavedBufferAttribute;
-    if (positionAttr) {
-        positionAttr.data.needsUpdate = true;
+    if (needsAttributeUpdate && positionAttr?.data) {
+      positionAttr.data.needsUpdate = true;
+      updateStatsRef.current.triangles.attributeUpdates += 1;
     }
+
+    lastMeshMetaRef.current = { ...meta };
+
+    return {
+      generationChanged,
+      pointerChanged,
+      floatCountChanged,
+      vertexCountChanged,
+      needsRebind,
+      needsAttributeUpdate,
+    };
   };
 
   useFrame(() => {
     const meshMeta = engine.getPositionBufferMeta();
     const lineMeta = engine.getLineBufferMeta();
 
-    const meshGenChanged = meshMeta.generation !== lastMeshGenRef.current;
-    const lineGenChanged = lineMeta.generation !== lastLineGenRef.current;
-    const forceRebind = module.HEAPF32.buffer !== lastHeapRef.current;
+    let meshChange = {
+      generationChanged: false,
+      pointerChanged: false,
+      floatCountChanged: false,
+      vertexCountChanged: false,
+      needsRebind: false,
+      needsAttributeUpdate: false,
+    };
 
     if (meshMeta.floatCount > 0) {
-      bindInterleavedAttribute(meshGeometry, meshMeta, forceRebind || meshGenChanged, 7);
+      meshChange = bindInterleavedAttribute(meshGeometry, meshMeta, 7);
     } else {
       meshGeometry.setDrawRange(0, 0);
+      const previousMeta = lastMeshMetaRef.current;
+      meshChange = {
+        generationChanged: meshMeta.generation !== previousMeta?.generation,
+        pointerChanged: meshMeta.ptr !== previousMeta?.ptr,
+        floatCountChanged: meshMeta.floatCount !== previousMeta?.floatCount,
+        vertexCountChanged: meshMeta.vertexCount !== previousMeta?.vertexCount,
+        needsRebind: false,
+        needsAttributeUpdate: false,
+      };
+      lastMeshMetaRef.current = { ...meshMeta };
     }
 
-    if ((meshGenChanged || lineGenChanged) && (meshMeta.generation !== sentMeshGenRef.current || lineMeta.generation !== sentLineGenRef.current)) {
-      onBufferMeta({ triangles: meshMeta, lines: lineMeta });
-      sentMeshGenRef.current = meshMeta.generation;
-      sentLineGenRef.current = lineMeta.generation;
+    const previousLineMeta = lastLineMetaRef.current;
+    const lineChange = {
+      generationChanged: lineMeta.generation !== previousLineMeta?.generation,
+      pointerChanged: lineMeta.ptr !== previousLineMeta?.ptr,
+      floatCountChanged: lineMeta.floatCount !== previousLineMeta?.floatCount,
+      vertexCountChanged: lineMeta.vertexCount !== previousLineMeta?.vertexCount,
+    };
+    lastLineMetaRef.current = { ...lineMeta };
+
+    if (
+      lineChange.generationChanged ||
+      lineChange.pointerChanged ||
+      lineChange.floatCountChanged ||
+      lineChange.vertexCountChanged
+    ) {
+      updateStatsRef.current.lines.attributeUpdates += 1;
     }
 
-    lastMeshGenRef.current = meshMeta.generation;
-    lastLineGenRef.current = lineMeta.generation;
+    const hasDelta = (current: BufferMeta, previous: BufferMeta | null | undefined) => {
+      if (!previous) return true;
+      return (
+        current.generation !== previous.generation ||
+        current.ptr !== previous.ptr ||
+        current.floatCount !== previous.floatCount ||
+        current.vertexCount !== previous.vertexCount
+      );
+    };
+
+    const lastSent = lastSentMetaRef.current;
+    const metaChangedSinceLastSend =
+      hasDelta(meshMeta, lastSent?.triangles) ||
+      hasDelta(lineMeta, lastSent?.lines) ||
+      meshChange.vertexCountChanged ||
+      lineChange.vertexCountChanged;
+
+    if (meshChange.needsRebind || metaChangedSinceLastSend) {
+      lastSentMetaRef.current = { triangles: meshMeta, lines: lineMeta };
+      onBufferMeta(
+        { triangles: meshMeta, lines: lineMeta },
+        {
+          triangles: { ...updateStatsRef.current.triangles },
+          lines: { ...updateStatsRef.current.lines },
+        },
+      );
+    }
   });
 
   return (
@@ -335,7 +415,8 @@ const SharedGeometry: React.FC<MeshProps> = ({ module, engine, onBufferMeta }) =
 const DebugOverlay: React.FC<{
   engineStats: ReturnType<CadEngineInstance['getStats']> | null;
   buffers: BufferMetaPair;
-}> = ({ engineStats, buffers }) => {
+  bufferUpdates: BufferUpdateStats;
+}> = ({ engineStats, buffers, bufferUpdates }) => {
   return (
     <div
       style={{
@@ -368,6 +449,9 @@ const DebugOverlay: React.FC<{
       {buffers.lines ? (
         <div>lines: vtx {buffers.lines.vertexCount} gen {buffers.lines.generation}</div>
       ) : null}
+      <div>
+        updates: tri upd {bufferUpdates.triangles.attributeUpdates} rb {bufferUpdates.triangles.rebinds} | line upd {bufferUpdates.lines.attributeUpdates} rb {bufferUpdates.lines.rebinds}
+      </div>
     </div>
   );
 };
@@ -386,6 +470,10 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
   const [idStringToHash, setIdStringToHash] = useState<Map<string, number>>(() => new Map());
   const [engineStats, setEngineStats] = useState<ReturnType<CadEngineInstance['getStats']> | null>(null);
   const [bufferStats, setBufferStats] = useState<BufferMetaPair>({ triangles: null, lines: null });
+  const [bufferUpdateStats, setBufferUpdateStats] = useState<BufferUpdateStats>({
+    triangles: { attributeUpdates: 0, rebinds: 0 },
+    lines: { attributeUpdates: 0, rebinds: 0 },
+  });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const transformStart = useRef<{ x: number; y: number; scale: number } | null>(null);
@@ -465,8 +553,9 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
     }
   }, [engine, engineStats, module, supportsSnapshot]);
 
-  const handleBufferMeta = useCallback((meta: BufferMetaPair) => {
+  const handleBufferMeta = useCallback((meta: BufferMetaPair, stats: BufferUpdateStats) => {
     setBufferStats(meta);
+    setBufferUpdateStats(stats);
     if (engine) setEngineStats(engine.getStats());
   }, [engine]);
 
@@ -587,7 +676,7 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
         ) : null}
       </Canvas>
       {!embedded ? (
-        <DebugOverlay engineStats={engineStats} buffers={bufferStats} />
+        <DebugOverlay engineStats={engineStats} buffers={bufferStats} bufferUpdates={bufferUpdateStats} />
       ) : null}
     </div>
   );
