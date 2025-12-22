@@ -145,6 +145,8 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           target.selectionStart ?? 0
         );
 
+        console.log('[DEBUG] TextInputProxy: handleInput', { oldValue, newValue, delta });
+
         if (delta) {
           lastContentRef.current = newValue;
           onInput(delta);

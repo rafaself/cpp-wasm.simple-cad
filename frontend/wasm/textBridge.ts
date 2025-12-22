@@ -258,6 +258,7 @@ export class TextBridge {
     byteIndex: number,
     text: string
   ): void {
+    console.log('[DEBUG] TextBridge: insertContentByteIndex', { textId, byteIndex, text });
     this.runtime.apply([
       {
         op: CommandOp.InsertTextContent,
