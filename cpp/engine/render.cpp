@@ -95,16 +95,43 @@ static void addRectStroke(const RectRec& r, float viewScale, std::vector<float>&
     if (!(r.strokeEnabled > 0.5f)) return;
     const float a = clamp01(r.sa);
     if (!(a > 0.0f)) return;
-    const float widthWorld = strokeWidthWorld(r.strokeWidthPx);
-    const float x0 = r.x;
-    const float y0 = r.y;
-    const float x1 = r.x + r.w;
-    const float y1 = r.y + r.h;
+    const float strokeWorld = strokeWidthWorld(r.strokeWidthPx);
 
-    addSegmentQuad(x0, y0, x1, y0, widthWorld, r.sr, r.sg, r.sb, a, triangleVertices);
-    addSegmentQuad(x1, y0, x1, y1, widthWorld, r.sr, r.sg, r.sb, a, triangleVertices);
-    addSegmentQuad(x1, y1, x0, y1, widthWorld, r.sr, r.sg, r.sb, a, triangleVertices);
-    addSegmentQuad(x0, y1, x0, y0, widthWorld, r.sr, r.sg, r.sb, a, triangleVertices);
+    const float ox0 = r.x;
+    const float oy0 = r.y;
+    const float ox1 = r.x + r.w;
+    const float oy1 = r.y + r.h;
+    const float ix0 = ox0 + strokeWorld;
+    const float iy0 = oy0 + strokeWorld;
+    const float ix1 = ox1 - strokeWorld;
+    const float iy1 = oy1 - strokeWorld;
+
+    const float cix0 = std::min(ix0, (ox0 + ox1) * 0.5f);
+    const float ciy0 = std::min(iy0, (oy0 + oy1) * 0.5f);
+    const float cix1 = std::max(ix1, (ox0 + ox1) * 0.5f);
+    const float ciy1 = std::max(iy1, (oy0 + oy1) * 0.5f);
+
+    constexpr float z = 0.0f;
+
+    auto pushEdge = [&](float oxA, float oyA, float ixA, float iyA, float oxB, float oyB, float ixB, float iyB) {
+        // Triangle 1: outer A, inner A, outer B
+        pushVertexColored(oxA, oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        // Triangle 2: inner A, inner B, outer B
+        pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        pushVertexColored(ixB, iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+    };
+
+    // Top edge
+    pushEdge(ox0, oy0, cix0, ciy0, ox1, oy0, cix1, ciy0);
+    // Right edge
+    pushEdge(ox1, oy0, cix1, ciy0, ox1, oy1, cix1, ciy1);
+    // Bottom edge
+    pushEdge(ox1, oy1, cix1, ciy1, ox0, oy1, cix0, ciy1);
+    // Left edge
+    pushEdge(ox0, oy1, cix0, ciy1, ox0, oy0, cix0, ciy0);
 }
 
 static void addCircleFill(const CircleRec& c, std::vector<float>& triangleVertices) {
@@ -139,12 +166,10 @@ static void addCircleStroke(const CircleRec& c, float viewScale, std::vector<flo
     if (!(a > 0.0f)) return;
     constexpr int segments = 72;
     const float w = strokeWidthWorld(c.strokeWidthPx);
-    const float hw = w * 0.5f;
-
-    const float outerRx = c.rx + hw;
-    const float outerRy = c.ry + hw;
-    const float innerRx = std::max(0.0f, c.rx - hw);
-    const float innerRy = std::max(0.0f, c.ry - hw);
+    const float outerRx = c.rx;
+    const float outerRy = c.ry;
+    const float innerRx = std::max(0.0f, c.rx - w);
+    const float innerRy = std::max(0.0f, c.ry - w);
 
     const float rot = c.rot;
     const float cosR = rot ? std::cos(rot) : 1.0f;
@@ -223,12 +248,200 @@ static void addPolygonStroke(const PolygonRec& p, float viewScale, std::vector<P
     const float a = clamp01(p.sa);
     if (!(a > 0.0f)) return;
     polygonVertices(p, verts);
-    if (verts.size() < 3) return;
+    const std::size_t n = verts.size();
+    if (n < 3) return;
+    const float strokeWorld = strokeWidthWorld(p.strokeWidthPx);
+
+    std::vector<Point2> innerVerts;
+    innerVerts.reserve(n);
+
+    for (std::size_t i = 0; i < n; i++) {
+        const Point2& prev = verts[(i + n - 1) % n];
+        const Point2& curr = verts[i];
+        const Point2& next = verts[(i + 1) % n];
+
+        float d1x = curr.x - prev.x;
+        float d1y = curr.y - prev.y;
+        float d2x = next.x - curr.x;
+        float d2y = next.y - curr.y;
+
+        const float len1 = std::sqrt(d1x * d1x + d1y * d1y);
+        const float len2 = std::sqrt(d2x * d2x + d2y * d2y);
+        if (len1 > 1e-6f) { d1x /= len1; d1y /= len1; }
+        if (len2 > 1e-6f) { d2x /= len2; d2y /= len2; }
+
+        const float n1x = -d1y;
+        const float n1y = d1x;
+        const float n2x = -d2y;
+        const float n2y = d2x;
+
+        float mx = n1x + n2x;
+        float my = n1y + n2y;
+        const float mlen = std::sqrt(mx * mx + my * my);
+        if (mlen > 1e-6f) {
+            mx /= mlen;
+            my /= mlen;
+        } else {
+            mx = n1x;
+            my = n1y;
+        }
+
+        float cosHalf = mx * n1x + my * n1y;
+        if (cosHalf < 0.2f) cosHalf = 0.2f;
+        const float miterLen = strokeWorld / cosHalf;
+
+        const float maxMiter = strokeWorld * 4.0f;
+        const float clampedMiter = std::min(miterLen, maxMiter);
+
+        innerVerts.push_back(Point2{curr.x + mx * clampedMiter, curr.y + my * clampedMiter});
+    }
+
+    constexpr float z = 0.0f;
+    for (std::size_t i = 0; i < n; i++) {
+        const std::size_t j = (i + 1) % n;
+        const Point2& outer0 = verts[i];
+        const Point2& outer1 = verts[j];
+        const Point2& inner0 = innerVerts[i];
+        const Point2& inner1 = innerVerts[j];
+
+        pushVertexColored(outer0.x, outer0.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(inner0.x, inner0.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(outer1.x, outer1.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(inner0.x, inner0.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(inner1.x, inner1.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(outer1.x, outer1.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+    }
+}
+
+static void addPolylineStroke(
+    const PolyRec& p,
+    float viewScale,
+    const std::vector<Point2>& points,
+    std::vector<Point2>& verts,
+    std::vector<float>& triangleVertices
+) {
+    (void)viewScale; // Stroke width is already in world units.
+    if (!(p.strokeEnabled > 0.5f)) return;
+    const float a = clamp01(p.sa);
+    if (!(a > 0.0f)) return;
+    if (p.count < 2) return;
+
+    const std::uint32_t start = p.offset;
+    const std::uint32_t end = p.offset + p.count;
+    if (end > points.size()) return;
+
+    verts.clear();
+    verts.reserve(p.count);
+    for (std::uint32_t i = start; i < end; i++) {
+        verts.push_back(points[i]);
+    }
+
+    const std::size_t n = verts.size();
+    if (n < 2) return;
+
     const float widthWorld = strokeWidthWorld(p.strokeWidthPx);
-    for (std::size_t i = 0; i < verts.size(); i++) {
-        const Point2& a0 = verts[i];
-        const Point2& b0 = verts[(i + 1) % verts.size()];
-        addSegmentQuad(a0.x, a0.y, b0.x, b0.y, widthWorld, p.sr, p.sg, p.sb, a, triangleVertices);
+    const float halfWidth = widthWorld * 0.5f;
+
+    struct SegmentInfo {
+        Point2 normal;
+        bool valid;
+    };
+
+    std::vector<SegmentInfo> segments;
+    segments.reserve(n - 1);
+    for (std::size_t i = 0; i + 1 < n; i++) {
+        const Point2& curr = verts[i];
+        const Point2& next = verts[i + 1];
+        float dx = next.x - curr.x;
+        float dy = next.y - curr.y;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (len <= 1e-6f) {
+            segments.push_back(SegmentInfo{{0.0f, 0.0f}, false});
+            continue;
+        }
+        dx /= len;
+        dy /= len;
+        segments.push_back(SegmentInfo{{-dy, dx}, true});
+    }
+
+    std::vector<int> prevValid(n, -1);
+    int lastValid = -1;
+    for (std::size_t i = 0; i < n; i++) {
+        if (i > 0 && segments[i - 1].valid) {
+            lastValid = static_cast<int>(i - 1);
+        }
+        prevValid[i] = lastValid;
+    }
+
+    std::vector<int> nextValid(n, -1);
+    int nextIdx = -1;
+    for (int i = static_cast<int>(n) - 1; i >= 0; i--) {
+        if (i < static_cast<int>(n) - 1 && segments[i].valid) {
+            nextIdx = i;
+        }
+        nextValid[i] = nextIdx;
+    }
+
+    auto buildMiter = [&](const Point2& n1, const Point2& n2) {
+        Point2 sum{n1.x + n2.x, n1.y + n2.y};
+        const float slen = std::sqrt(sum.x * sum.x + sum.y * sum.y);
+        Point2 dir = (slen > 1e-6f) ? Point2{sum.x / slen, sum.y / slen} : n1;
+        float cosHalf = dir.x * n1.x + dir.y * n1.y;
+        if (cosHalf < 0.2f) cosHalf = 0.2f;
+        const float miterLen = halfWidth / cosHalf;
+        return Point2{dir.x * miterLen, dir.y * miterLen};
+    };
+
+    struct Offset {
+        Point2 left;
+        Point2 right;
+        bool valid;
+    };
+
+    std::vector<Offset> offsets(n);
+    for (std::size_t i = 0; i < n; i++) {
+        const Point2& center = verts[i];
+        const int prevIdx = prevValid[i];
+        const int nextIdxItem = nextValid[i];
+        Point2 left{};
+        Point2 right{};
+        bool valid = false;
+
+        if (prevIdx >= 0 && nextIdxItem >= 0) {
+            const Point2& nPrev = segments[prevIdx].normal;
+            const Point2& nNext = segments[nextIdxItem].normal;
+            const Point2 miterLeft = buildMiter(nPrev, nNext);
+            const Point2 miterRight = buildMiter(Point2{-nPrev.x, -nPrev.y}, Point2{-nNext.x, -nNext.y});
+            left = Point2{center.x + miterLeft.x, center.y + miterLeft.y};
+            right = Point2{center.x + miterRight.x, center.y + miterRight.y};
+            valid = true;
+        } else if (nextIdxItem >= 0) {
+            const Point2& nNext = segments[nextIdxItem].normal;
+            left = Point2{center.x + nNext.x * halfWidth, center.y + nNext.y * halfWidth};
+            right = Point2{center.x - nNext.x * halfWidth, center.y - nNext.y * halfWidth};
+            valid = true;
+        } else if (prevIdx >= 0) {
+            const Point2& nPrev = segments[prevIdx].normal;
+            left = Point2{center.x + nPrev.x * halfWidth, center.y + nPrev.y * halfWidth};
+            right = Point2{center.x - nPrev.x * halfWidth, center.y - nPrev.y * halfWidth};
+            valid = true;
+        }
+
+        offsets[i] = Offset{left, right, valid};
+    }
+
+    constexpr float z = 0.0f;
+    for (std::size_t i = 0; i + 1 < n; i++) {
+        if (!segments[i].valid) continue;
+        const Offset& o0 = offsets[i];
+        const Offset& o1 = offsets[i + 1];
+        if (!o0.valid || !o1.valid) continue;
+        pushVertexColored(o0.left.x, o0.left.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(o1.left.x, o1.left.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(o0.right.x, o0.right.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(o1.left.x, o1.left.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(o1.right.x, o1.right.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
+        pushVertexColored(o0.right.x, o0.right.y, z, p.sr, p.sg, p.sb, a, triangleVertices);
     }
 }
 
@@ -402,17 +615,7 @@ void rebuildRenderBuffers(
             const PolyRec& pl = polylines[ref.index];
             if (pl.count < 2) continue;
             if (!(pl.enabled > 0.5f)) continue;
-            const float a = clamp01(pl.a);
-            if (!(a > 0.0f)) continue;
-            const std::uint32_t start = pl.offset;
-            const std::uint32_t end = pl.offset + pl.count;
-            if (end > points.size()) continue;
-            const float widthWorld = strokeWidthWorld(pl.strokeWidthPx);
-            for (std::uint32_t i = start; i + 1 < end; i++) {
-                const auto& p0 = points[i];
-                const auto& p1 = points[i + 1];
-                addSegmentQuad(p0.x, p0.y, p1.x, p1.y, widthWorld, pl.r, pl.g, pl.b, a, triangleVertices);
-            }
+            addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
             continue;
         }
         if (ref.kind == EntityKind::Conduit) {

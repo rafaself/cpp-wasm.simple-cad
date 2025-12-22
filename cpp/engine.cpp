@@ -89,7 +89,12 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         pl.g = 0.0f;
         pl.b = 0.0f;
         pl.a = 1.0f;
+        pl.sr = 0.0f;
+        pl.sg = 0.0f;
+        pl.sb = 0.0f;
+        pl.sa = 1.0f;
         pl.enabled = 1.0f;
+        pl.strokeEnabled = 1.0f;
         pl.strokeWidthPx = 1.0f;
     }
     for (auto& c : conduits) {
@@ -420,10 +425,12 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
         pl.offset = offset;
         pl.count = count;
         pl.r = r; pl.g = g; pl.b = b; pl.a = a; pl.enabled = enabled; pl.strokeWidthPx = strokeWidthPx;
+        // Default stroke to same as main color for compat
+        pl.sr = r; pl.sg = g; pl.sb = b; pl.sa = a; pl.strokeEnabled = enabled;
         return;
     }
 
-    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, enabled, strokeWidthPx});
+    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, r, g, b, a, enabled, enabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
     drawOrderIds.push_back(id);
 }

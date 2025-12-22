@@ -45,7 +45,16 @@ struct RectRec {
     float strokeWidthPx; // screen-space width (runtime-only)
 };
 struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; float strokeWidthPx; };
-struct PolyRec { std::uint32_t id; std::uint32_t offset; std::uint32_t count; float r, g, b, a; float enabled; float strokeWidthPx; };
+struct PolyRec { 
+    std::uint32_t id; 
+    std::uint32_t offset; 
+    std::uint32_t count; 
+    float r, g, b, a; 
+    float sr, sg, sb, sa; 
+    float enabled; 
+    float strokeEnabled; 
+    float strokeWidthPx; 
+};
 struct Point2 { float x; float y; };
 
 struct CircleRec {
