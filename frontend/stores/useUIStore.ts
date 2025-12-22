@@ -20,6 +20,16 @@ interface UIState {
   editingTextId: string | null;
   isEditingAppearance: boolean;
 
+  // Engine-native text editing state
+  engineTextEditState: {
+    active: boolean;
+    textId: number | null;
+    content: string;
+    caretIndex: number;
+    selectionStart: number;
+    selectionEnd: number;
+    caretPosition: { x: number; y: number; height: number } | null;
+  };
 
   
   openTabs: EditorTab[];
@@ -47,6 +57,13 @@ interface UIState {
   setEditingTextId: (id: string | null) => void;
   setIsEditingAppearance: (isEditing: boolean) => void;
 
+  // Engine text editing setters
+  setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
+  setEngineTextEditContent: (content: string) => void;
+  setEngineTextEditCaret: (caretIndex: number, selectionStart?: number, selectionEnd?: number) => void;
+  setEngineTextEditCaretPosition: (position: { x: number; y: number; height: number } | null) => void;
+  clearEngineTextEdit: () => void;
+
   setActiveFloorId: (id: string) => void;
   setActiveDiscipline: (discipline: 'architecture' | 'electrical') => void;
 
@@ -72,6 +89,16 @@ export const useUIStore = create<UIState>((set) => ({
   isLayerManagerOpen: false,
   editingTextId: null,
   isEditingAppearance: false,
+
+  engineTextEditState: {
+    active: false,
+    textId: null,
+    content: '',
+    caretIndex: 0,
+    selectionStart: 0,
+    selectionEnd: 0,
+    caretPosition: null,
+  },
 
   activeFloorId: 'terreo',
   activeDiscipline: 'electrical',
@@ -150,6 +177,44 @@ export const useUIStore = create<UIState>((set) => ({
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
   setEditingTextId: (id) => set({ editingTextId: id }),
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
+
+  // Engine text editing setters
+  setEngineTextEditActive: (active, textId = null) => set((state) => ({
+    engineTextEditState: {
+      ...state.engineTextEditState,
+      active,
+      textId: active ? (textId ?? state.engineTextEditState.textId) : null,
+      content: active ? state.engineTextEditState.content : '',
+      caretIndex: active ? state.engineTextEditState.caretIndex : 0,
+      selectionStart: active ? state.engineTextEditState.selectionStart : 0,
+      selectionEnd: active ? state.engineTextEditState.selectionEnd : 0,
+    },
+  })),
+  setEngineTextEditContent: (content) => set((state) => ({
+    engineTextEditState: { ...state.engineTextEditState, content },
+  })),
+  setEngineTextEditCaret: (caretIndex, selectionStart, selectionEnd) => set((state) => ({
+    engineTextEditState: {
+      ...state.engineTextEditState,
+      caretIndex,
+      selectionStart: selectionStart ?? caretIndex,
+      selectionEnd: selectionEnd ?? caretIndex,
+    },
+  })),
+  setEngineTextEditCaretPosition: (position) => set((state) => ({
+    engineTextEditState: { ...state.engineTextEditState, caretPosition: position },
+  })),
+  clearEngineTextEdit: () => set({
+    engineTextEditState: {
+      active: false,
+      textId: null,
+      content: '',
+      caretIndex: 0,
+      selectionStart: 0,
+      selectionEnd: 0,
+      caretPosition: null,
+    },
+  }),
 
   setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
   setActiveDiscipline: (discipline) =>
