@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node ./scripts/test-preflight.mjs && vitest run",
-    "build:wasm": "docker compose -f ../docker-compose.yml run --rm wasm-builder"
+    "build:wasm": "docker compose -f ../docker-compose.yml run --rm wasm-builder",
+    "bench:world-snapshot": "node ./verification/benchmark_world_snapshot.mjs 100000",
+    "bench:vector-index": "node ./verification/benchmark_vector_index.mjs 65536",
+    "bench:svg-to-ir": "node ./verification/benchmark_svg_to_vector_document.mjs 10000"
   },
   "dependencies": {
     "@react-three/fiber": "^9.0.0",

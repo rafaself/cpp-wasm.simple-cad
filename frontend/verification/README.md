@@ -54,3 +54,25 @@ Usage:
 
 - `node frontend/verification/benchmark_world_snapshot.mjs 10000`
 - `node frontend/verification/benchmark_world_snapshot.mjs 100000`
+
+### `benchmark_vector_index.mjs`
+
+Purpose:
+
+- Measures the TS-side cost of building and querying vector draw indices (tile index + quadtree) for large `VectorDocumentV1` sizes.
+
+Usage:
+
+- `node frontend/verification/benchmark_vector_index.mjs 4096`
+- `node frontend/verification/benchmark_vector_index.mjs 65536`
+
+### `benchmark_svg_to_vector_document.mjs`
+
+Purpose:
+
+- Measures the TS-side cost of parsing SVG → `VectorDocumentV1` (including `<use>` expansion and dedupe behavior).
+
+Usage:
+
+- `node frontend/verification/benchmark_svg_to_vector_document.mjs 1000`
+- `node frontend/verification/benchmark_svg_to_vector_document.mjs 10000`
