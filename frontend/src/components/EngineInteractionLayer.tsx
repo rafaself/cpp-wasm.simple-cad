@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElectricalElement, Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import robotoWoffUrl from '@fontsource/roboto/files/roboto-latin-400-normal.woff?url';
+// NOTE: The WASM text engine expects raw TTF/OTF bytes (FreeType).
+// We load fonts from `/public/fonts` to avoid dev-server issues with `/node_modules/...` URLs
+// and to keep the font format compatible.
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
 import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint, getRectCornersWorld, supportsBBoxResize, worldToScreen } from '@/utils/geometry';
@@ -25,6 +27,7 @@ import { TextTool, createTextTool, type TextToolState, type TextToolCallbacks } 
 import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
 import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
+import { TextAlign, TextStyleFlags, packColorRGBA } from '@/types/text';
 
 type Draft =
   | { kind: 'none' }
@@ -246,6 +249,9 @@ const EngineInteractionLayer: React.FC = () => {
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Ribbon text defaults (font family/size/style)
+  const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
+
   useEffect(() => {
     let disposed = false;
     (async () => {
@@ -290,31 +296,42 @@ const EngineInteractionLayer: React.FC = () => {
     const tool = createTextTool(callbacks);
     if (tool.initialize(runtime)) {
       textToolRef.current = tool;
-      // Load a default font for engine-native text.
-      // Without a loaded font, shaping/layout will fail and text won't render.
+      // Load the 4 supported fonts into the engine.
+      // IMPORTANT: In the C++ engine, `fontId=0` is reserved as "default".
+      // So we register our fonts as 1..4 and map UI selections accordingly.
+      // Note: Arial/Times are mapped to DejaVu Sans/Serif font files (shipped in /public/fonts).
       void (async () => {
-        try {
-          const fontUrl = new URL(robotoWoffUrl, window.location.href).toString();
-          const res = await fetch(fontUrl);
-          if (!res.ok) {
-            console.warn('TextTool: default font fetch failed', {
-              url: fontUrl,
-              status: res.status,
-              statusText: res.statusText,
-            });
-            return;
+        const loadFromUrl = async (fontId: number, url: string, label: string) => {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) {
+              console.warn('TextTool: font fetch failed', { fontId, label, url, status: res.status, statusText: res.statusText });
+              return;
+            }
+            const buf = await res.arrayBuffer();
+            const ok = tool.loadFont(fontId, new Uint8Array(buf));
+            if (!ok) console.warn('TextTool: engine rejected font data', { fontId, label, url });
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            console.warn('TextTool: font load threw', { fontId, label, url, error: e, message });
           }
-          const buf = await res.arrayBuffer();
-          const ok = tool.loadFont(0, new Uint8Array(buf));
-          if (!ok) {
-            console.warn('TextTool: failed to load default font (fontId=0)');
-          }
-        } catch (e) {
-          console.warn('TextTool: failed to fetch default font', {
-            url: robotoWoffUrl,
-            error: e,
-          });
-        }
+        };
+
+        const baseUrl = import.meta.env.BASE_URL || '/';
+        const publicUrl = (path: string) => `${baseUrl}${path.replace(/^\//, '')}`;
+
+        // fontId mapping used by ribbon -> engine:
+        // 0 = default (Inter), 1 = Arial (DejaVu Sans), 2 = Times (DejaVu Serif), 3 = Roboto
+        // IMPORTANT: `fontId=0` is reserved for "default" in the C++ engine, so we register
+        // Inter as fontId=4 and load it FIRST to become the engine default.
+        // (Inter/Roboto are currently mapped to DejaVu Sans for engine rendering.)
+        const sansTtf = publicUrl('/fonts/DejaVuSans.ttf');
+        const serifTtf = publicUrl('/fonts/DejaVuSerif.ttf');
+
+        await loadFromUrl(4, sansTtf, 'Inter');
+        await loadFromUrl(1, sansTtf, 'Arial');
+        await loadFromUrl(2, serifTtf, 'Times');
+        await loadFromUrl(3, sansTtf, 'Roboto');
       })();
     }
 
@@ -323,6 +340,41 @@ const EngineInteractionLayer: React.FC = () => {
       textToolRef.current = null;
     };
   }, [runtimeReady, setEngineTextEditActive, setEngineTextEditContent, setEngineTextEditCaret, setCaretPosition, setEngineTextEditCaretPosition, clearEngineTextEdit, hideCaret, clearSelection]);
+
+  // Keep TextTool defaults in sync with ribbon settings (font family/size/style/align).
+  useEffect(() => {
+    const tool = textToolRef.current;
+    if (!tool) return;
+
+    const fontIdByFamily: Record<string, number> = {
+      Inter: 0,
+      Arial: 1,
+      Times: 2,
+      Roboto: 3,
+    };
+
+    const flags =
+      (ribbonTextDefaults.bold ? TextStyleFlags.Bold : 0) |
+      (ribbonTextDefaults.italic ? TextStyleFlags.Italic : 0) |
+      (ribbonTextDefaults.underline ? TextStyleFlags.Underline : 0) |
+      (ribbonTextDefaults.strike ? TextStyleFlags.Strike : 0);
+
+    const align =
+      ribbonTextDefaults.align === 'center'
+        ? TextAlign.Center
+        : ribbonTextDefaults.align === 'right'
+          ? TextAlign.Right
+          : TextAlign.Left;
+
+    tool.setStyleDefaults({
+      fontId: fontIdByFamily[ribbonTextDefaults.fontFamily] ?? 0,
+      fontSize: ribbonTextDefaults.fontSize,
+      flags,
+      align,
+      // Default to white for visibility on dark canvas; can be extended later to a ribbon color control.
+      colorRGBA: packColorRGBA(1, 1, 1, 1),
+    });
+  }, [ribbonTextDefaults]);
 
   // Ensure the hidden input is focused whenever we enter engine text edit mode.
   useEffect(() => {

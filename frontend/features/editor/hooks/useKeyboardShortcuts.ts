@@ -14,7 +14,7 @@ export const useKeyboardShortcuts = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // When engine-native text editing is active, do not process global shortcuts.
       // (TextInputProxy should own keyboard input during editing.)
-      if ((uiStore as any).engineTextEditState?.active) return;
+      if (useUIStore.getState().engineTextEditState.active) return;
 
       // Ignore shortcuts if user is typing in an input or textarea
       const target = e.target as HTMLElement;

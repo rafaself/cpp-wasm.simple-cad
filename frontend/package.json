@@ -15,6 +15,7 @@
     "bench:svg-to-ir": "node ./verification/benchmark_svg_to_vector_document.mjs 10000"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.6",
     "@fontsource/roboto": "^5.2.6",
     "@react-three/fiber": "^9.0.0",
     "dxf-parser": "^1.1.2",

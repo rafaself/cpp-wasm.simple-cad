@@ -9,9 +9,8 @@ import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
   { value: 'Arial', label: 'Arial' },
-  { value: 'Times New Roman', label: 'Times New Roman' },
-  { value: 'Courier New', label: 'Courier New' },
-  { value: 'Verdana', label: 'Verdana' },
+  { value: 'Times', label: 'Times' },
+  { value: 'Roboto', label: 'Roboto' },
 ];
 
 const InputWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (

@@ -367,6 +367,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         autoCorrect="off"
         spellCheck={false}
         onInput={handleInput}
+        onChange={handleInput}
         onKeyDown={handleKeyDown}
         onCompositionStart={handleCompositionStart}
         onCompositionUpdate={handleCompositionUpdate}

@@ -86,7 +86,7 @@ export class TextTool {
     this.styleDefaults = {
       fontId: 0,
       fontSize: 16,
-      colorRGBA: packColorRGBA(0, 0, 0, 1), // Black
+      colorRGBA: packColorRGBA(1, 1, 1, 1), // White (default canvas background is dark)
       flags: TextStyleFlags.None,
       align: TextAlign.Left,
     };
