@@ -11,11 +11,19 @@
 
 import React, { useEffect, useState } from 'react';
 import type { ViewTransform } from '@/types';
-import type { TextSelectionRect } from '@/types/text';
+import { TextBoxMode, type TextSelectionRect } from '@/types/text';
 
 // =============================================================================
 // Types
 // =============================================================================
+
+export interface TextBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  mode: TextBoxMode;
+}
 
 export interface CaretPosition {
   /** X position in world coordinates */
@@ -33,6 +41,8 @@ export interface TextCaretOverlayProps {
   caret: CaretPosition;
   /** Selection rectangles (empty if no selection) */
   selectionRects: TextSelectionRect[];
+  /** Text box bounds (optional) */
+  box?: TextBox;
   /** View transform for world-to-screen conversion */
   viewTransform: ViewTransform;
   /** Caret color */
@@ -50,6 +60,7 @@ export interface TextCaretOverlayProps {
 export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   caret,
   selectionRects,
+  box,
   viewTransform,
   caretColor = '#ffffff',
   selectionColor = 'rgba(59, 130, 246, 0.3)', // blue-500 with opacity
@@ -114,6 +125,45 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
     });
   };
 
+  // Render text box and resize handle
+  const renderBox = () => {
+    if (!box) return null;
+    const { x, y, width, height, mode } = box;
+
+    const topLeft = worldToScreen(x, y);
+    const widthScreen = width * viewTransform.scale;
+    const heightScreen = height * viewTransform.scale;
+
+    return (
+      <>
+        {/* Box Border */}
+        <div
+          className="absolute pointer-events-none border border-dashed border-blue-500"
+          style={{
+            left: topLeft.x,
+            top: topLeft.y,
+            width: widthScreen,
+            height: heightScreen,
+          }}
+        />
+        {/* Resize Handle (only for FixedWidth) */}
+        {mode === TextBoxMode.FixedWidth && (
+          <div
+            className="absolute bg-white border border-blue-500 rounded-full"
+            style={{
+              left: topLeft.x + widthScreen - 4,
+              top: topLeft.y + heightScreen / 2 - 4,
+              width: 8,
+              height: 8,
+              cursor: 'ew-resize',
+              pointerEvents: 'auto', // Allow interaction
+            }}
+          />
+        )}
+      </>
+    );
+  };
+
   // Render caret
   const renderCaret = () => {
     if (!caret.visible || !caretVisible) return null;
@@ -134,6 +184,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {renderBox()}
       {renderSelectionRects()}
       {renderCaret()}
     </div>

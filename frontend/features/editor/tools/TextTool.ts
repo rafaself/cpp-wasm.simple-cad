@@ -19,6 +19,7 @@ import {
   TextStyleFlags,
   packColorRGBA,
   charIndexToByteIndex,
+  utf8ByteLength,
   type TextPayload,
   type TextInputDelta,
 } from '@/types/text';
@@ -284,6 +285,24 @@ export class TextTool {
     this.updateCaretPosition();
   }
 
+  /**
+   * Update the constraint width for fixed-width text.
+   * @param width New width in world units
+   */
+  updateConstraintWidth(width: number): void {
+    if (this.state.activeTextId === null || this.state.boxMode !== TextBoxMode.FixedWidth) return;
+
+    this.state = {
+      ...this.state,
+      constraintWidth: width,
+    };
+
+    this.syncToEngine();
+    this.callbacks.onStateChange(this.state);
+    // Caret position might change due to reflow
+    this.updateCaretPosition();
+  }
+
   // ===========================================================================
   // Input Handling
   // ===========================================================================
@@ -303,10 +322,6 @@ export class TextTool {
 
     switch (delta.type) {
       case 'insert': {
-        // Convert character index to byte index for engine
-        const byteIndex = charIndexToByteIndex(this.state.content, delta.at);
-        this.bridge.insertContentByteIndex(textId, byteIndex, delta.text);
-
         // Update local state
         const newContent =
           this.state.content.slice(0, delta.at) +
@@ -325,10 +340,6 @@ export class TextTool {
       }
 
       case 'delete': {
-        const startByte = charIndexToByteIndex(this.state.content, delta.start);
-        const endByte = charIndexToByteIndex(this.state.content, delta.end);
-        this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-
         // Update local state
         const newContent =
           this.state.content.slice(0, delta.start) + this.state.content.slice(delta.end);
@@ -344,13 +355,6 @@ export class TextTool {
       }
 
       case 'replace': {
-        const startByte = charIndexToByteIndex(this.state.content, delta.start);
-        const endByte = charIndexToByteIndex(this.state.content, delta.end);
-
-        // Delete then insert
-        this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-        this.bridge.insertContentByteIndex(textId, startByte, delta.text);
-
         // Update local state
         const newContent =
           this.state.content.slice(0, delta.start) +
@@ -368,6 +372,9 @@ export class TextTool {
         break;
       }
     }
+
+    // Sync full state to engine to ensure runs cover the new content
+    this.syncToEngine();
 
     // Update caret in engine
     const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
@@ -478,6 +485,35 @@ export class TextTool {
   // ===========================================================================
   // Private Helpers
   // ===========================================================================
+
+  private syncToEngine(): void {
+    if (!this.bridge || this.state.activeTextId === null) return;
+
+    // Calculate byte length for the run
+    const byteLength = utf8ByteLength(this.state.content);
+
+    const payload: TextPayload = {
+      x: this.state.anchorX,
+      y: this.state.anchorY,
+      rotation: 0, // Assumption: rotation not currently editable in TextTool
+      boxMode: this.state.boxMode,
+      align: this.styleDefaults.align,
+      constraintWidth: this.state.constraintWidth,
+      runs: [
+        {
+          startIndex: 0,
+          length: byteLength,
+          fontId: this.styleDefaults.fontId,
+          fontSize: this.styleDefaults.fontSize,
+          colorRGBA: this.styleDefaults.colorRGBA,
+          flags: this.styleDefaults.flags,
+        },
+      ],
+      content: this.state.content,
+    };
+
+    this.bridge.upsertText(this.state.activeTextId, payload);
+  }
 
   private allocateTextId(): number {
     return this.nextTextId++;

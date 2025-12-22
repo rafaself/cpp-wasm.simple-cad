@@ -25,9 +25,9 @@ import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPickin
 // Engine-native text tool integration
 import { TextTool, createTextTool, type TextToolState, type TextToolCallbacks } from '@/features/editor/tools/TextTool';
 import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
-import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
+import { TextCaretOverlay, useTextCaret, type TextBox } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
-import { TextAlign, TextStyleFlags, packColorRGBA } from '@/types/text';
+import { TextAlign, TextStyleFlags, packColorRGBA, TextBoxMode } from '@/types/text';
 
 type Draft =
   | { kind: 'none' }
@@ -246,6 +246,9 @@ const EngineInteractionLayer: React.FC = () => {
   const setEngineTextEditCaretPosition = useUIStore((s) => s.setEngineTextEditCaretPosition);
   const clearEngineTextEdit = useUIStore((s) => s.clearEngineTextEdit);
 
+  const [localTextToolState, setLocalTextToolState] = useState<TextToolState | null>(null);
+  const textResizeStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -275,6 +278,7 @@ const EngineInteractionLayer: React.FC = () => {
     // Create TextTool with callbacks
     const callbacks: TextToolCallbacks = {
       onStateChange: (state: TextToolState) => {
+        setLocalTextToolState(state);
         // Sync state to UI store
         setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
         setEngineTextEditContent(state.content);
@@ -288,6 +292,7 @@ const EngineInteractionLayer: React.FC = () => {
         clearEngineTextEdit();
         hideCaret();
         clearSelection();
+        setLocalTextToolState(null);
         // Switch back to select tool
         useUIStore.getState().setTool('select');
       },
@@ -357,7 +362,7 @@ const EngineInteractionLayer: React.FC = () => {
       (ribbonTextDefaults.bold ? TextStyleFlags.Bold : 0) |
       (ribbonTextDefaults.italic ? TextStyleFlags.Italic : 0) |
       (ribbonTextDefaults.underline ? TextStyleFlags.Underline : 0) |
-      (ribbonTextDefaults.strike ? TextStyleFlags.Strike : 0);
+      (ribbonTextDefaults.strike ? TextStyleFlags.Strikethrough : 0);
 
     const align =
       ribbonTextDefaults.align === 'center'
@@ -383,6 +388,31 @@ const EngineInteractionLayer: React.FC = () => {
       textInputProxyRef.current?.focus();
     });
   }, [engineTextEditState.active]);
+
+  const textBox = useMemo<TextBox | undefined>(() => {
+    if (!localTextToolState || localTextToolState.mode === 'idle') return undefined;
+
+    const width = localTextToolState.boxMode === TextBoxMode.FixedWidth
+      ? localTextToolState.constraintWidth
+      : Math.max(50, Math.abs(caret.x - localTextToolState.anchorX));
+
+    // Height heuristic: caret.y is bottom of caret. anchorY is top.
+    // In Y-Up: Top > Bottom.
+    const height = Math.abs(localTextToolState.anchorY - caret.y) + caret.height;
+
+    return {
+      x: localTextToolState.anchorX,
+      y: localTextToolState.anchorY,
+      width,
+      height,
+      mode: localTextToolState.boxMode,
+    };
+  }, [localTextToolState, caret]);
+
+  const proxyPositionHint = useMemo(() => {
+    if (!engineTextEditState.caretPosition) return undefined;
+    return worldToScreen(engineTextEditState.caretPosition, viewTransform);
+  }, [engineTextEditState.caretPosition, viewTransform]);
 
   useEffect(() => {
     if (!gpuPickingEnabled) return;
@@ -1046,6 +1076,22 @@ const EngineInteractionLayer: React.FC = () => {
 
     // If currently editing text, clicks outside should commit and exit
     if (engineTextEditState.active && textToolRef.current) {
+      const world = toWorldPoint(evt, viewTransform);
+
+      // Check for resize handle hit
+      if (textBox && textBox.mode === TextBoxMode.FixedWidth) {
+        const handleWorld = { x: textBox.x + textBox.width, y: textBox.y - textBox.height / 2 };
+        const handleScreen = worldToScreen(handleWorld, viewTransform);
+        const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const mouseScreen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+
+        const dist = Math.hypot(mouseScreen.x - handleScreen.x, mouseScreen.y - handleScreen.y);
+        if (dist <= HANDLE_HIT_RADIUS_PX) {
+          textResizeStartRef.current = { startX: world.x, startWidth: textBox.width };
+          return;
+        }
+      }
+
       // Check if click is outside current text (simplified - just commit on any click)
       textToolRef.current.commitAndExit();
       return;
@@ -1260,10 +1306,18 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
+    const world = toWorldPoint(evt, viewTransform);
+
+    // Handle text resize
+    if (engineTextEditState.active && textResizeStartRef.current && textToolRef.current) {
+      const dx = world.x - textResizeStartRef.current.startX;
+      const newWidth = Math.max(50, textResizeStartRef.current.startWidth + dx);
+      textToolRef.current.updateConstraintWidth(newWidth);
+      return;
+    }
+
     // Skip pointer move handling when editing text
     if (engineTextEditState.active) return;
-
-    const world = toWorldPoint(evt, viewTransform);
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
 
     if (activeTool === 'select') {
@@ -1473,6 +1527,8 @@ const EngineInteractionLayer: React.FC = () => {
       endPan();
       return;
     }
+
+    textResizeStartRef.current = null;
 
     if (evt.button !== 0) return;
 
@@ -1834,7 +1890,7 @@ const EngineInteractionLayer: React.FC = () => {
         caretIndex={engineTextEditState.caretIndex}
         selectionStart={engineTextEditState.selectionStart}
         selectionEnd={engineTextEditState.selectionEnd}
-        positionHint={engineTextEditState.caretPosition ?? undefined}
+        positionHint={proxyPositionHint}
         onInput={(delta: TextInputDelta) => {
           textToolRef.current?.handleInputDelta(delta);
         }}
@@ -1848,6 +1904,7 @@ const EngineInteractionLayer: React.FC = () => {
       <TextCaretOverlay
         caret={caret}
         selectionRects={selectionRects}
+        box={textBox}
         viewTransform={viewTransform}
       />
       {polygonSidesModal ? (
