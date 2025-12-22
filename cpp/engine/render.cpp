@@ -25,6 +25,10 @@ static float clampMin(float v, float minV) {
     return v < minV ? minV : v;
 }
 
+static float strokeWidthWorld(float strokeWidthPx) {
+    return (strokeWidthPx > 0.0f ? strokeWidthPx : 1.0f);
+}
+
 static void addSegmentQuad(
     float x0,
     float y0,
@@ -87,11 +91,11 @@ static void addRectFill(const RectRec& r, std::vector<float>& triangleVertices) 
 }
 
 static void addRectStroke(const RectRec& r, float viewScale, std::vector<float>& triangleVertices) {
+    (void)viewScale; // Stroke width is already in world units.
     if (!(r.strokeEnabled > 0.5f)) return;
     const float a = clamp01(r.sa);
     if (!(a > 0.0f)) return;
-    const float w = (r.strokeWidthPx > 0.0f ? r.strokeWidthPx : 1.0f);
-    const float widthWorld = w / clampMin(viewScale, 1e-6f);
+    const float widthWorld = strokeWidthWorld(r.strokeWidthPx);
     const float x0 = r.x;
     const float y0 = r.y;
     const float x1 = r.x + r.w;
@@ -129,12 +133,13 @@ static void addCircleFill(const CircleRec& c, std::vector<float>& triangleVertic
 }
 
 static void addCircleStroke(const CircleRec& c, float viewScale, std::vector<float>& triangleVertices) {
+    (void)viewScale; // Stroke width is already in world units.
     if (!(c.strokeEnabled > 0.5f)) return;
     const float a = clamp01(c.sa);
     if (!(a > 0.0f)) return;
     constexpr int segments = 72;
-    const float w = (c.strokeWidthPx > 0.0f ? c.strokeWidthPx : 1.0f);
-    const float hw = (w / clampMin(viewScale, 1e-6f)) * 0.5f;
+    const float w = strokeWidthWorld(c.strokeWidthPx);
+    const float hw = w * 0.5f;
 
     const float outerRx = c.rx + hw;
     const float outerRy = c.ry + hw;
@@ -213,13 +218,13 @@ static void addPolygonFill(const PolygonRec& p, std::vector<Point2>& verts, std:
 }
 
 static void addPolygonStroke(const PolygonRec& p, float viewScale, std::vector<Point2>& verts, std::vector<float>& triangleVertices) {
+    (void)viewScale; // Stroke width is already in world units.
     if (!(p.strokeEnabled > 0.5f)) return;
     const float a = clamp01(p.sa);
     if (!(a > 0.0f)) return;
     polygonVertices(p, verts);
     if (verts.size() < 3) return;
-    const float w = (p.strokeWidthPx > 0.0f ? p.strokeWidthPx : 1.0f);
-    const float widthWorld = w / clampMin(viewScale, 1e-6f);
+    const float widthWorld = strokeWidthWorld(p.strokeWidthPx);
     for (std::size_t i = 0; i < verts.size(); i++) {
         const Point2& a0 = verts[i];
         const Point2& b0 = verts[(i + 1) % verts.size()];
@@ -228,6 +233,7 @@ static void addPolygonStroke(const PolygonRec& p, float viewScale, std::vector<P
 }
 
 static void addArrow(const ArrowRec& ar, float viewScale, std::vector<float>& triangleVertices) {
+    (void)viewScale; // Stroke width is already in world units.
     if (!(ar.strokeEnabled > 0.5f)) return;
     const float a = clamp01(ar.sa);
     if (!(a > 0.0f)) return;
@@ -245,8 +251,7 @@ static void addArrow(const ArrowRec& ar, float viewScale, std::vector<float>& tr
     const float perpX = -dirY;
     const float perpY = dirX;
 
-    const float wPx = (ar.strokeWidthPx > 0.0f ? ar.strokeWidthPx : 1.0f);
-    const float widthWorld = wPx / clampMin(viewScale, 1e-6f);
+    const float widthWorld = strokeWidthWorld(ar.strokeWidthPx);
     addSegmentQuad(ar.ax, ar.ay, baseX, baseY, widthWorld, ar.sr, ar.sg, ar.sb, a, triangleVertices);
 
     const float leftX = baseX + perpX * (headW / 2.0f);
@@ -282,7 +287,7 @@ void rebuildRenderBuffers(
     triangleVertices.clear();
     lineVertices.clear();
 
-    viewScale = clampMin(viewScale, 1e-6f);
+    (void)viewScale; // Stroke widths now live in world space, so view scale is unused.
 
     // Build a deterministic, complete draw order: requested order first, then remaining renderables sorted by id.
     std::vector<std::uint32_t> ordered;
@@ -389,7 +394,7 @@ void rebuildRenderBuffers(
             if (!(l.enabled > 0.5f)) continue;
             const float a = clamp01(l.a);
             if (!(a > 0.0f)) continue;
-            const float widthWorld = (l.strokeWidthPx > 0.0f ? l.strokeWidthPx : 1.0f) / viewScale;
+            const float widthWorld = strokeWidthWorld(l.strokeWidthPx);
             addSegmentQuad(l.x0, l.y0, l.x1, l.y1, widthWorld, l.r, l.g, l.b, a, triangleVertices);
             continue;
         }
@@ -402,7 +407,7 @@ void rebuildRenderBuffers(
             const std::uint32_t start = pl.offset;
             const std::uint32_t end = pl.offset + pl.count;
             if (end > points.size()) continue;
-            const float widthWorld = (pl.strokeWidthPx > 0.0f ? pl.strokeWidthPx : 1.0f) / viewScale;
+            const float widthWorld = strokeWidthWorld(pl.strokeWidthPx);
             for (std::uint32_t i = start; i + 1 < end; i++) {
                 const auto& p0 = points[i];
                 const auto& p1 = points[i + 1];
@@ -422,7 +427,7 @@ void rebuildRenderBuffers(
             if (resolveCb) okA = resolveCb(resolveCtx, c.fromNodeId, a0);
             if (resolveCb) okB = resolveCb(resolveCtx, c.toNodeId, b0);
             if (!okA || !okB) continue;
-            const float widthWorld = (c.strokeWidthPx > 0.0f ? c.strokeWidthPx : 1.0f) / viewScale;
+            const float widthWorld = strokeWidthWorld(c.strokeWidthPx);
             addSegmentQuad(a0.x, a0.y, b0.x, b0.y, widthWorld, c.r, c.g, c.b, a, triangleVertices);
             continue;
         }
