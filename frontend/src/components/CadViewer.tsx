@@ -9,7 +9,7 @@ import { HIT_TOLERANCE } from '@/config/constants';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import type { Shape } from '@/types';
-import TextSdfLayer from './TextSdfLayer';
+// TODO(PR8): Legacy TextSdfLayer removed - text now rendered via WebGL2 textRenderPass
 import SymbolAtlasLayer from './SymbolAtlasLayer';
 import { decodeWorldSnapshot, migrateWorldSnapshotToLatest, type WorldSnapshot } from '../next/worldSnapshot';
 import { buildSnapIndex, querySnapIndex } from '../next/snapIndex';
@@ -658,7 +658,7 @@ const CadViewer: React.FC<CadViewerProps> = ({ embedded = false }) => {
         <ambientLight intensity={0.8} />
         <SharedGeometry module={module} engine={engine} onBufferMeta={handleBufferMeta} />
         <SymbolAtlasLayer />
-        <TextSdfLayer />
+        {/* TODO(PR8): Text rendering now handled by WebGL2 textRenderPass in NextSurface */}
         <axesHelper args={[5]} />
         {!isEditingAppearance ? <SelectionOverlay selectedIds={selectedShapeIds} /> : null}
         {!embedded && snapPoint ? (

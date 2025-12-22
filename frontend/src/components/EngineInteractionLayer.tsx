@@ -14,7 +14,7 @@ import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
 import { resolveConnectionNodePosition } from '@/utils/connections';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
 import { isConduitShape } from '@/features/editor/utils/tools';
-import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
+// TODO(PR8): Legacy TextEditorOverlay removed - integrate new TextTool from @/features/editor/tools
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
@@ -222,7 +222,7 @@ const EngineInteractionLayer: React.FC = () => {
   const moveRef = useRef<MoveState | null>(null);
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
-  const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
+  // TODO(PR8): Legacy textEditState removed - integrate new TextTool for engine-native text editing
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
   const gpuPickerRef = useRef<GpuPicker | null>(null);
@@ -898,7 +898,7 @@ const EngineInteractionLayer: React.FC = () => {
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
 
-    if (textEditState) return;
+    // TODO(PR8): Add engine text edit check here when TextTool is integrated
 
     if (evt.button === 2 && activeTool === 'polyline') {
       const prev = draftRef.current;
@@ -924,9 +924,9 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool === 'select') setSelectionBox(null);
 
     if (activeTool === 'text') {
-      // Click establishes the visual top; TextEditorOverlay converts to bottom-left on commit.
-      setTextEditState({ x: snapped.x, y: snapped.y, content: '' });
-      useUIStore.getState().setEditingTextId(null);
+      // TODO(PR8): Integrate new TextTool for engine-native text creation
+      // The new TextTool is available at @/features/editor/tools/TextTool
+      // For now, text tool clicks are no-ops until integration is complete
       return;
     }
 
@@ -1110,7 +1110,7 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    if (textEditState) return;
+    // TODO(PR8): Add engine text edit check here when TextTool is integrated
 
     const world = toWorldPoint(evt, viewTransform);
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
@@ -1325,7 +1325,7 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (evt.button !== 0) return;
 
-    if (textEditState) return;
+    // TODO(PR8): Add engine text edit check here when TextTool is integrated
 
     if (activeTool === 'move') {
       const moveState = moveRef.current;
@@ -1648,9 +1648,7 @@ const EngineInteractionLayer: React.FC = () => {
       {draftSvg}
       <SelectionOverlay />
       {selectionSvg}
-      {textEditState ? (
-        <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />
-      ) : null}
+      {/* TODO(PR8): Add TextInputProxy and TextCaretOverlay here when TextTool is integrated */}
       {polygonSidesModal ? (
         <>
           <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />
