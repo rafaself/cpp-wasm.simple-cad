@@ -332,3 +332,6 @@ export interface SerializedProject {
   diagramEdges: DiagramEdge[];
   vectorSidecar?: VectorSidecar;
 }
+
+// Re-export text types
+export * from './text';

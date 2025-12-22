@@ -14,6 +14,13 @@ export const enum CommandOp {
   UpsertCircle = 11,
   UpsertPolygon = 12,
   UpsertArrow = 13,
+  // Text commands (Engine-Native Text Pipeline)
+  UpsertText = 14,
+  DeleteText = 15,
+  SetTextCaret = 16,
+  SetTextSelection = 17,
+  InsertTextContent = 18,
+  DeleteTextContent = 19,
 }
 
 export type RectPayload = {
@@ -85,6 +92,50 @@ export type ArrowPayload = {
   strokeWidthPx: number;
 };
 
+// Text command payloads
+export type TextRunPayload = {
+  startIndex: number; // UTF-8 byte offset
+  length: number; // UTF-8 byte length
+  fontId: number;
+  fontSize: number;
+  colorRGBA: number; // Packed 0xRRGGBBAA
+  flags: number; // TextStyleFlags bitfield
+};
+
+export type TextPayload = {
+  x: number;
+  y: number;
+  rotation: number;
+  boxMode: number; // 0 = AutoWidth, 1 = FixedWidth
+  align: number; // 0 = Left, 1 = Center, 2 = Right
+  constraintWidth: number;
+  runs: readonly TextRunPayload[];
+  content: string; // UTF-8 text
+};
+
+export type TextCaretPayload = {
+  textId: number;
+  caretIndex: number; // UTF-8 byte position
+};
+
+export type TextSelectionPayload = {
+  textId: number;
+  selectionStart: number;
+  selectionEnd: number;
+};
+
+export type TextInsertPayload = {
+  textId: number;
+  insertIndex: number; // UTF-8 byte position
+  content: string; // UTF-8 text to insert
+};
+
+export type TextDeletePayload = {
+  textId: number;
+  startIndex: number; // UTF-8 byte start (inclusive)
+  endIndex: number; // UTF-8 byte end (exclusive)
+};
+
 export type EngineCommand =
   | { op: CommandOp.ClearAll }
   | { op: CommandOp.DeleteEntity; id: number }
@@ -98,7 +149,17 @@ export type EngineCommand =
   | { op: CommandOp.SetDrawOrder; order: SetDrawOrderPayload }
   | { op: CommandOp.UpsertCircle; id: number; circle: CirclePayload }
   | { op: CommandOp.UpsertPolygon; id: number; polygon: PolygonPayload }
-  | { op: CommandOp.UpsertArrow; id: number; arrow: ArrowPayload };
+  | { op: CommandOp.UpsertArrow; id: number; arrow: ArrowPayload }
+  // Text commands
+  | { op: CommandOp.UpsertText; id: number; text: TextPayload }
+  | { op: CommandOp.DeleteText; id: number }
+  | { op: CommandOp.SetTextCaret; caret: TextCaretPayload }
+  | { op: CommandOp.SetTextSelection; selection: TextSelectionPayload }
+  | { op: CommandOp.InsertTextContent; insert: TextInsertPayload }
+  | { op: CommandOp.DeleteTextContent; del: TextDeletePayload };
+
+// UTF-8 encoder for text content
+const textEncoder = new TextEncoder();
 
 const writeU32 = (view: DataView, offset: number, value: number): number => {
   view.setUint32(offset, value >>> 0, true);
@@ -114,6 +175,7 @@ const payloadByteLength = (cmd: EngineCommand): number => {
   switch (cmd.op) {
     case CommandOp.ClearAll:
     case CommandOp.DeleteEntity:
+    case CommandOp.DeleteText:
       return 0;
     case CommandOp.SetViewScale:
       return 4; // 1 float
@@ -137,6 +199,23 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       return 72; // 17 floats + u32 sides
     case CommandOp.UpsertArrow:
       return 44; // 11 floats
+    // Text commands
+    case CommandOp.UpsertText: {
+      // TextPayloadHeader (28 bytes) + TextRunPayload * runCount (20 bytes each) + UTF-8 content
+      const contentBytes = textEncoder.encode(cmd.text.content).length;
+      return 28 + cmd.text.runs.length * 20 + contentBytes;
+    }
+    case CommandOp.SetTextCaret:
+      return 8; // textId (u32) + caretIndex (u32)
+    case CommandOp.SetTextSelection:
+      return 12; // textId (u32) + selectionStart (u32) + selectionEnd (u32)
+    case CommandOp.InsertTextContent: {
+      // TextInsertPayloadHeader (16 bytes) + UTF-8 content
+      const insertBytes = textEncoder.encode(cmd.insert.content).length;
+      return 16 + insertBytes;
+    }
+    case CommandOp.DeleteTextContent:
+      return 16; // textId (u32) + startIndex (u32) + endIndex (u32) + reserved (u32)
   }
 };
 
@@ -297,6 +376,69 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.arrow.strokeA);
         o = writeF32(view, o, cmd.arrow.strokeEnabled);
         o = writeF32(view, o, cmd.arrow.strokeWidthPx);
+        break;
+      // ========== Text Commands ==========
+      case CommandOp.UpsertText: {
+        const contentBytes = textEncoder.encode(cmd.text.content);
+        // TextPayloadHeader (28 bytes)
+        o = writeF32(view, o, cmd.text.x);
+        o = writeF32(view, o, cmd.text.y);
+        o = writeF32(view, o, cmd.text.rotation);
+        view.setUint8(o, cmd.text.boxMode & 0xff);
+        view.setUint8(o + 1, cmd.text.align & 0xff);
+        view.setUint8(o + 2, 0); // reserved
+        view.setUint8(o + 3, 0); // reserved
+        o += 4;
+        o = writeF32(view, o, cmd.text.constraintWidth);
+        o = writeU32(view, o, cmd.text.runs.length);
+        o = writeU32(view, o, contentBytes.length);
+        // TextRunPayload * runCount (20 bytes each)
+        for (const run of cmd.text.runs) {
+          o = writeU32(view, o, run.startIndex);
+          o = writeU32(view, o, run.length);
+          o = writeU32(view, o, run.fontId);
+          o = writeF32(view, o, run.fontSize);
+          o = writeU32(view, o, run.colorRGBA >>> 0);
+          view.setUint8(o, run.flags & 0xff);
+          view.setUint8(o + 1, 0); // reserved
+          view.setUint8(o + 2, 0); // reserved
+          view.setUint8(o + 3, 0); // reserved
+          o += 4;
+        }
+        // UTF-8 content
+        new Uint8Array(buf, o, contentBytes.length).set(contentBytes);
+        o += contentBytes.length;
+        break;
+      }
+      case CommandOp.DeleteText:
+        // No payload, uses command header id
+        break;
+      case CommandOp.SetTextCaret:
+        o = writeU32(view, o, cmd.caret.textId);
+        o = writeU32(view, o, cmd.caret.caretIndex);
+        break;
+      case CommandOp.SetTextSelection:
+        o = writeU32(view, o, cmd.selection.textId);
+        o = writeU32(view, o, cmd.selection.selectionStart);
+        o = writeU32(view, o, cmd.selection.selectionEnd);
+        break;
+      case CommandOp.InsertTextContent: {
+        const insertBytes = textEncoder.encode(cmd.insert.content);
+        // TextInsertPayloadHeader (16 bytes)
+        o = writeU32(view, o, cmd.insert.textId);
+        o = writeU32(view, o, cmd.insert.insertIndex);
+        o = writeU32(view, o, insertBytes.length);
+        o = writeU32(view, o, 0); // reserved
+        // UTF-8 content
+        new Uint8Array(buf, o, insertBytes.length).set(insertBytes);
+        o += insertBytes.length;
+        break;
+      }
+      case CommandOp.DeleteTextContent:
+        o = writeU32(view, o, cmd.del.textId);
+        o = writeU32(view, o, cmd.del.startIndex);
+        o = writeU32(view, o, cmd.del.endIndex);
+        o = writeU32(view, o, 0); // reserved
         break;
     }
   }

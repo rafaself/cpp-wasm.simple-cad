@@ -770,6 +770,74 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
             break;
         }
+        // =======================================================================
+        // Text Commands
+        // =======================================================================
+        case static_cast<std::uint32_t>(CommandOp::UpsertText): {
+            // Variable-length payload: [TextPayloadHeader][TextRunPayload * runCount][UTF-8 content]
+            if (payloadByteCount < sizeof(TextPayloadHeader)) return EngineError::InvalidPayloadSize;
+            
+            TextPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(TextPayloadHeader));
+            
+            const std::size_t runsSize = static_cast<std::size_t>(hdr.runCount) * sizeof(TextRunPayload);
+            const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength;
+            if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
+            
+            const TextRunPayload* runs = reinterpret_cast<const TextRunPayload*>(payload + sizeof(TextPayloadHeader));
+            const char* content = reinterpret_cast<const char*>(payload + sizeof(TextPayloadHeader) + runsSize);
+            
+            if (!self->upsertText(id, hdr, runs, hdr.runCount, content, hdr.contentLength)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::DeleteText): {
+            // No payload for delete, just use the id
+            if (!self->deleteText(id)) {
+                // Not an error if text doesn't exist - idempotent delete
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetTextCaret): {
+            if (payloadByteCount != sizeof(TextCaretPayload)) return EngineError::InvalidPayloadSize;
+            TextCaretPayload p;
+            std::memcpy(&p, payload, sizeof(TextCaretPayload));
+            self->setTextCaret(p.textId, p.caretIndex);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetTextSelection): {
+            if (payloadByteCount != sizeof(TextSelectionPayload)) return EngineError::InvalidPayloadSize;
+            TextSelectionPayload p;
+            std::memcpy(&p, payload, sizeof(TextSelectionPayload));
+            self->setTextSelection(p.textId, p.selectionStart, p.selectionEnd);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::InsertTextContent): {
+            // Variable-length payload: [TextInsertPayloadHeader][UTF-8 content]
+            if (payloadByteCount < sizeof(TextInsertPayloadHeader)) return EngineError::InvalidPayloadSize;
+            
+            TextInsertPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(TextInsertPayloadHeader));
+            
+            const std::size_t expected = sizeof(TextInsertPayloadHeader) + hdr.byteLength;
+            if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
+            
+            const char* content = reinterpret_cast<const char*>(payload + sizeof(TextInsertPayloadHeader));
+            if (!self->insertTextContent(hdr.textId, hdr.insertIndex, content, hdr.byteLength)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::DeleteTextContent): {
+            if (payloadByteCount != sizeof(TextDeletePayload)) return EngineError::InvalidPayloadSize;
+            TextDeletePayload p;
+            std::memcpy(&p, payload, sizeof(TextDeletePayload));
+            if (!self->deleteTextContent(p.textId, p.startIndex, p.endIndex)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
         default:
             return EngineError::UnknownCommand;
     }
@@ -901,4 +969,315 @@ void CadEngine::rebuildRenderBuffers() const {
     
     const double t1 = emscripten_get_now();
     lastRebuildMs = static_cast<float>(t1 - t0);
+}
+
+// =============================================================================
+// Text System Implementation
+// =============================================================================
+
+bool CadEngine::initializeTextSystem() {
+    if (textInitialized_) return true;
+    
+    // Initialize font manager
+    if (!fontManager_.initialize()) {
+        return false;
+    }
+    
+    // Initialize layout engine with font manager and text store
+    textLayoutEngine_.initialize(&fontManager_, &textStore_);
+    
+    // Initialize glyph atlas with font manager
+    if (!glyphAtlas_.initialize(&fontManager_)) {
+        fontManager_.shutdown();
+        return false;
+    }
+    
+    textInitialized_ = true;
+    return true;
+}
+
+bool CadEngine::loadFont(std::uint32_t fontId, const std::uint8_t* fontData, std::size_t dataSize) {
+    if (!textInitialized_) {
+        if (!initializeTextSystem()) {
+            return false;
+        }
+    }
+    // Use registerFont to associate with specific fontId
+    return fontManager_.registerFont(fontId, fontData, dataSize, "", false, false);
+}
+
+bool CadEngine::upsertText(
+    std::uint32_t id,
+    const TextPayloadHeader& header,
+    const TextRunPayload* runs,
+    std::uint32_t runCount,
+    const char* content,
+    std::uint32_t contentLength
+) {
+    if (!textInitialized_) {
+        if (!initializeTextSystem()) {
+            return false;
+        }
+    }
+    
+    // Store in TextStore
+    if (!textStore_.upsertText(id, header, runs, runCount, content, contentLength)) {
+        return false;
+    }
+    
+    // Register in entity map
+    auto it = entities.find(id);
+    if (it != entities.end()) {
+        // Entity exists - if it's not a Text, we have a conflict (shouldn't happen if JS is correct)
+        if (it->second.kind != EntityKind::Text) {
+            // Delete the old entity first
+            deleteEntity(id);
+        }
+    }
+    
+    // Add/update entity ref
+    entities[id] = EntityRef{EntityKind::Text, id}; // For text, index == id (TextStore uses id as key)
+    
+    // Layout the text
+    textLayoutEngine_.layoutText(id);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+    
+    return true;
+}
+
+bool CadEngine::deleteText(std::uint32_t id) {
+    auto it = entities.find(id);
+    if (it == entities.end() || it->second.kind != EntityKind::Text) {
+        return false;
+    }
+    
+    // Remove from TextStore
+    textStore_.deleteText(id);
+    
+    // Clear layout cache
+    textLayoutEngine_.clearLayout(id);
+    
+    // Remove from entity map
+    entities.erase(it);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+    
+    return true;
+}
+
+void CadEngine::setTextCaret(std::uint32_t textId, std::uint32_t caretIndex) {
+    textStore_.setCaret(textId, caretIndex);
+}
+
+void CadEngine::setTextSelection(std::uint32_t textId, std::uint32_t selectionStart, std::uint32_t selectionEnd) {
+    textStore_.setSelection(textId, selectionStart, selectionEnd);
+}
+
+bool CadEngine::insertTextContent(
+    std::uint32_t textId,
+    std::uint32_t insertIndex,
+    const char* content,
+    std::uint32_t byteLength
+) {
+    if (!textStore_.insertContent(textId, insertIndex, content, byteLength)) {
+        return false;
+    }
+    
+    // Re-layout the text
+    textLayoutEngine_.layoutText(textId);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+    
+    return true;
+}
+
+bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex) {
+    if (!textStore_.deleteContent(textId, startIndex, endIndex)) {
+        return false;
+    }
+    
+    // Re-layout the text
+    textLayoutEngine_.layoutText(textId);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+    
+    return true;
+}
+
+TextHitResult CadEngine::hitTestText(std::uint32_t textId, float localX, float localY) const {
+    if (!textInitialized_) {
+        return TextHitResult{0, 0, true};
+    }
+    return textLayoutEngine_.hitTest(textId, localX, localY);
+}
+
+TextCaretPosition CadEngine::getTextCaretPosition(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) {
+        return TextCaretPosition{0.0f, 0.0f, 0.0f, 0};
+    }
+    return textLayoutEngine_.getCaretPosition(textId, charIndex);
+}
+
+bool CadEngine::getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const {
+    const TextRec* text = textStore_.getText(textId);
+    if (!text) {
+        return false;
+    }
+    outMinX = text->minX;
+    outMinY = text->minY;
+    outMaxX = text->maxX;
+    outMaxY = text->maxY;
+    return true;
+}
+
+void CadEngine::rebuildTextQuadBuffer() {
+    if (!textInitialized_) {
+        textQuadBuffer_.clear();
+        return;
+    }
+    
+    textQuadBuffer_.clear();
+    
+    // Get all text IDs
+    const auto textIds = textStore_.getAllTextIds();
+    
+    // For each text entity, generate quads for its glyphs
+    for (std::uint32_t textId : textIds) {
+        const TextRec* text = textStore_.getText(textId);
+        if (!text) continue;
+        
+        const auto* layout = textLayoutEngine_.getLayout(textId);
+        if (!layout) continue;
+        
+        // Get the runs for color info
+        const auto& runs = textStore_.getRuns(textId);
+        
+        const float baseX = text->x;
+        const float baseY = text->y;
+        constexpr float z = 0.0f; // Text at z=0 for now
+        
+        // Track Y position for lines
+        float lineY = 0.0f;
+        
+        // Process each line
+        for (const auto& line : layout->lines) {
+            lineY += line.ascent; // Move to baseline
+            
+            // Process glyphs in this line using the index range
+            for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
+                if (gi >= layout->glyphs.size()) break;
+                const auto& glyph = layout->glyphs[gi];
+                
+                // Get atlas entry for this glyph
+                // Note: We need to know the fontId for the glyph, which requires looking up the run
+                std::uint32_t fontId = 0;
+                float fontSize = 16.0f;
+                float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+                
+                // Find the run this glyph belongs to for font and color
+                for (const auto& run : runs) {
+                    if (glyph.clusterIndex >= run.startIndex && glyph.clusterIndex < run.startIndex + run.length) {
+                        fontId = run.fontId;
+                        fontSize = run.fontSize;
+                        // Extract color from RGBA packed value
+                        std::uint32_t rgba = run.colorRGBA;
+                        r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
+                        g = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
+                        b = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
+                        a = static_cast<float>(rgba & 0xFF) / 255.0f;
+                        break;
+                    }
+                }
+                
+                const auto* atlasEntry = glyphAtlas_.getGlyph(fontId, glyph.glyphId);
+                if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
+                    continue; // Skip missing glyphs or whitespace
+                }
+                
+                // Calculate glyph position in world space
+                // Scale atlas pixels to text units (fontSize / msdfSize)
+                const float msdfSize = static_cast<float>(glyphAtlas_.getConfig().msdfSize);
+                const float scale = fontSize / msdfSize;
+                
+                const float glyphX = baseX + glyph.xOffset * scale;
+                const float glyphY = baseY + lineY + glyph.yOffset * scale - atlasEntry->bearingY * scale;
+                const float glyphW = atlasEntry->width * scale;
+                const float glyphH = atlasEntry->height * scale;
+                
+                // UV coordinates - use the pre-computed normalized UVs
+                const float u0 = atlasEntry->u0;
+                const float v0 = atlasEntry->v0;
+                const float u1 = atlasEntry->u1;
+                const float v1 = atlasEntry->v1;
+                
+                // Emit 6 vertices (2 triangles) for this glyph quad
+                // Format: x, y, z, u, v, r, g, b, a
+                // Triangle 1: top-left, top-right, bottom-right
+                textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);
+                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                
+                textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);
+                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                
+                textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);
+                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                
+                // Triangle 2: top-left, bottom-right, bottom-left
+                textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);
+                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                
+                textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);
+                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                
+                textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);
+                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+            }
+            
+            lineY += line.descent + line.lineHeight - line.ascent; // Move to next line
+        }
+    }
+}
+
+CadEngine::BufferMeta CadEngine::getTextQuadBufferMeta() const noexcept {
+    constexpr std::size_t floatsPerVertex = 9; // x, y, z, u, v, r, g, b, a
+    return buildMeta(textQuadBuffer_, floatsPerVertex);
+}
+
+CadEngine::TextureBufferMeta CadEngine::getAtlasTextureMeta() const noexcept {
+    if (!textInitialized_) {
+        return TextureBufferMeta{0, 0, 0, 0, 0};
+    }
+    return TextureBufferMeta{
+        glyphAtlas_.getVersion(),
+        glyphAtlas_.getWidth(),
+        glyphAtlas_.getHeight(),
+        static_cast<std::uint32_t>(glyphAtlas_.getTextureDataSize()),
+        reinterpret_cast<std::uintptr_t>(glyphAtlas_.getTextureData())
+    };
+}
+
+bool CadEngine::isAtlasDirty() const noexcept {
+    if (!textInitialized_) return false;
+    return glyphAtlas_.isDirty();
+}
+
+void CadEngine::clearAtlasDirty() {
+    if (textInitialized_) {
+        glyphAtlas_.clearDirty();
+    }
 }

@@ -1,5 +1,6 @@
 import type { ViewTransform } from '@/types';
 import type { BufferMeta, WasmModule } from '@/engine/runtime/EngineRuntime';
+import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 
 export type TessellatedRenderInput = {
   module: WasmModule;
@@ -7,6 +8,10 @@ export type TessellatedRenderInput = {
   viewTransform: ViewTransform;
   canvasSizeCss: { width: number; height: number };
   clearColor: { r: number; g: number; b: number; a: number };
+  /** Optional text quad buffer metadata (for text rendering) */
+  textQuadMeta?: TextQuadBufferMeta;
+  /** Optional atlas texture metadata (for text rendering) */
+  textAtlasMeta?: TextureBufferMeta;
 };
 
 export interface TessellatedRenderer {

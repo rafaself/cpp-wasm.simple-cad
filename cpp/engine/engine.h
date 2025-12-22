@@ -14,6 +14,12 @@
 #include "engine/snapshot.h"
 #include "engine/electrical.h"
 
+// Text subsystem headers
+#include "engine/text/text_store.h"
+#include "engine/text/font_manager.h"
+#include "engine/text/text_layout.h"
+#include "engine/text/glyph_atlas.h"
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -112,6 +118,14 @@ public:
     std::vector<NodeRec> nodes;
     std::vector<ConduitRec> conduits;
     std::unordered_map<std::uint32_t, EntityRef> entities;
+
+    // Text subsystem
+    engine::text::TextStore textStore_;
+    engine::text::FontManager fontManager_;
+    engine::text::TextLayoutEngine textLayoutEngine_;
+    engine::text::GlyphAtlas glyphAtlas_;
+    bool textInitialized_{false};
+    mutable std::vector<float> textQuadBuffer_;  // For text rendering quads
 
     std::vector<std::uint32_t> drawOrderIds;
     float viewScale{1.0f};
@@ -218,6 +232,153 @@ public:
         float strokeEnabled,
         float strokeWidthPx
     );
+
+public:
+    // ==========================================================================
+    // Text Operations (Public API for JS bindings)
+    // ==========================================================================
+    
+    /**
+     * Initialize text subsystem (fonts, layout engine, atlas).
+     * @return True if initialization succeeded
+     */
+    bool initializeTextSystem();
+    
+    /**
+     * Load a font into the font manager.
+     * @param fontId Font identifier
+     * @param fontData Pointer to font file data
+     * @param dataSize Size of font data in bytes
+     * @return True if font loaded successfully
+     */
+    bool loadFont(std::uint32_t fontId, const std::uint8_t* fontData, std::size_t dataSize);
+    
+    /**
+     * Upsert (create or update) a text entity.
+     * @param id Entity ID
+     * @param header Text payload header with properties
+     * @param runs Array of TextRunPayload structs
+     * @param runCount Number of runs
+     * @param content UTF-8 text content
+     * @param contentLength Byte length of content
+     * @return True if successful
+     */
+    bool upsertText(
+        std::uint32_t id,
+        const TextPayloadHeader& header,
+        const TextRunPayload* runs,
+        std::uint32_t runCount,
+        const char* content,
+        std::uint32_t contentLength
+    );
+    
+    /**
+     * Delete a text entity.
+     * @param id Entity ID
+     * @return True if entity existed and was deleted
+     */
+    bool deleteText(std::uint32_t id);
+    
+    /**
+     * Set caret position for a text entity.
+     * @param textId Text entity ID
+     * @param caretIndex UTF-8 byte position
+     */
+    void setTextCaret(std::uint32_t textId, std::uint32_t caretIndex);
+    
+    /**
+     * Set selection range for a text entity.
+     * @param textId Text entity ID
+     * @param selectionStart Selection start (byte offset)
+     * @param selectionEnd Selection end (byte offset)
+     */
+    void setTextSelection(std::uint32_t textId, std::uint32_t selectionStart, std::uint32_t selectionEnd);
+    
+    /**
+     * Insert text content at a position.
+     * @param textId Text entity ID
+     * @param insertIndex UTF-8 byte position to insert at
+     * @param content UTF-8 text to insert
+     * @param byteLength Length of content in bytes
+     * @return True if successful
+     */
+    bool insertTextContent(
+        std::uint32_t textId,
+        std::uint32_t insertIndex,
+        const char* content,
+        std::uint32_t byteLength
+    );
+    
+    /**
+     * Delete text content in a range.
+     * @param textId Text entity ID
+     * @param startIndex Start byte index (inclusive)
+     * @param endIndex End byte index (exclusive)
+     * @return True if successful
+     */
+    bool deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex);
+    
+    /**
+     * Hit test a point against text entities.
+     * @param textId Text entity ID
+     * @param localX X coordinate in text-local space
+     * @param localY Y coordinate in text-local space
+     * @return Hit result with character index
+     */
+    TextHitResult hitTestText(std::uint32_t textId, float localX, float localY) const;
+    
+    /**
+     * Get caret position for rendering.
+     * @param textId Text entity ID
+     * @param charIndex Character index (byte offset)
+     * @return Caret position
+     */
+    TextCaretPosition getTextCaretPosition(std::uint32_t textId, std::uint32_t charIndex) const;
+    
+    /**
+     * Get text entity bounds.
+     * @param textId Text entity ID
+     * @param outMinX Output min X
+     * @param outMinY Output min Y
+     * @param outMaxX Output max X
+     * @param outMaxY Output max Y
+     * @return True if text exists
+     */
+    bool getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const;
+    
+    /**
+     * Rebuild text quad buffer for rendering.
+     * Must be called after text layout changes.
+     */
+    void rebuildTextQuadBuffer();
+    
+    /**
+     * Get text quad buffer metadata for rendering.
+     * Format: [x, y, z, u, v, r, g, b, a] per vertex, 6 vertices per glyph quad
+     */
+    BufferMeta getTextQuadBufferMeta() const noexcept;
+    
+    /**
+     * Get atlas texture metadata for WebGL upload.
+     */
+    struct TextureBufferMeta {
+        std::uint32_t generation;
+        std::uint32_t width;
+        std::uint32_t height;
+        std::uint32_t byteCount;
+        std::uintptr_t ptr;
+    };
+    TextureBufferMeta getAtlasTextureMeta() const noexcept;
+    
+    /**
+     * Check if atlas texture needs re-upload.
+     */
+    bool isAtlasDirty() const noexcept;
+    
+    /**
+     * Clear atlas dirty flag after texture upload.
+     */
+    void clearAtlasDirty();
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);

@@ -190,6 +190,7 @@ if(NOT EMSCRIPTEN)
       tests/text_store_test.cpp
       tests/text_layout_test.cpp
       tests/glyph_atlas_test.cpp
+      tests/text_commands_test.cpp
     )
   endif()
 

@@ -23,7 +23,17 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("snapElectrical", &CadEngine::snapElectrical)
-        .function("getStats", &CadEngine::getStats);
+        .function("getStats", &CadEngine::getStats)
+        // Text system methods
+        .function("initializeTextSystem", &CadEngine::initializeTextSystem)
+        .function("loadFont", &CadEngine::loadFont, emscripten::allow_raw_pointers())
+        .function("hitTestText", &CadEngine::hitTestText)
+        .function("getTextCaretPosition", &CadEngine::getTextCaretPosition)
+        .function("rebuildTextQuadBuffer", &CadEngine::rebuildTextQuadBuffer)
+        .function("getTextQuadBufferMeta", &CadEngine::getTextQuadBufferMeta)
+        .function("getAtlasTextureMeta", &CadEngine::getAtlasTextureMeta)
+        .function("isAtlasDirty", &CadEngine::isAtlasDirty)
+        .function("clearAtlasDirty", &CadEngine::clearAtlasDirty);
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
         .field("generation", &CadEngine::BufferMeta::generation)
@@ -57,5 +67,24 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("id", &CadEngine::SnapResult::id)
         .field("x", &CadEngine::SnapResult::x)
         .field("y", &CadEngine::SnapResult::y);
+
+    // Text-related value objects
+    emscripten::value_object<TextHitResult>("TextHitResult")
+        .field("charIndex", &TextHitResult::charIndex)
+        .field("lineIndex", &TextHitResult::lineIndex)
+        .field("isLeadingEdge", &TextHitResult::isLeadingEdge);
+
+    emscripten::value_object<TextCaretPosition>("TextCaretPosition")
+        .field("x", &TextCaretPosition::x)
+        .field("y", &TextCaretPosition::y)
+        .field("height", &TextCaretPosition::height)
+        .field("lineIndex", &TextCaretPosition::lineIndex);
+
+    emscripten::value_object<CadEngine::TextureBufferMeta>("TextureBufferMeta")
+        .field("generation", &CadEngine::TextureBufferMeta::generation)
+        .field("width", &CadEngine::TextureBufferMeta::width)
+        .field("height", &CadEngine::TextureBufferMeta::height)
+        .field("byteCount", &CadEngine::TextureBufferMeta::byteCount)
+        .field("ptr", &CadEngine::TextureBufferMeta::ptr);
 }
 #endif
