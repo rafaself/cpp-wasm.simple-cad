@@ -173,6 +173,7 @@ export class TextTool {
    * @param worldY World Y coordinate
    */
   handleClick(worldX: number, worldY: number): void {
+    console.log('[DEBUG] TextTool: handleClick', { worldX, worldY });
     if (!this.isReady()) {
       console.warn('TextTool.handleClick: Tool not ready', {
         initialized: this.initialized,
@@ -291,7 +292,12 @@ export class TextTool {
    * Handle text input delta from TextInputProxy.
    */
   handleInputDelta(delta: TextInputDelta): void {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return;
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
+      console.warn('[DEBUG] TextTool: handleInputDelta skipped', { ready: this.isReady(), bridge: !!this.bridge, activeTextId: this.state.activeTextId });
+      return;
+    }
+
+    console.log('[DEBUG] TextTool: handleInputDelta', delta);
 
     const textId = this.state.activeTextId;
 
