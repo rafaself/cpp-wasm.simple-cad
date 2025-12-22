@@ -61,13 +61,24 @@ const Webgl2WasmLayer: React.FC = () => {
 
     const tick = () => {
       if (!runtimeRefOk(runtime)) return;
+
+      // If the WASM build supports engine-native text, rebuild its quad buffer
+      // before pulling buffer metadata for this frame.
+      runtime.engine.rebuildTextQuadBuffer?.();
+
       const meta = runtime.engine.getPositionBufferMeta();
+
+      const textQuadMeta = runtime.engine.getTextQuadBufferMeta?.();
+      const textAtlasMeta = runtime.engine.getAtlasTextureMeta?.();
+
       renderer.render({
         module: runtime.module,
         positionMeta: meta as BufferMeta,
         viewTransform: viewTransformRef.current,
         canvasSizeCss: canvasSizeRef.current,
         clearColor,
+        textQuadMeta: textQuadMeta && textAtlasMeta?.width ? textQuadMeta : undefined,
+        textAtlasMeta: textQuadMeta && textAtlasMeta?.width ? textAtlasMeta : undefined,
       });
       rafRef.current = requestAnimationFrame(tick);
     };

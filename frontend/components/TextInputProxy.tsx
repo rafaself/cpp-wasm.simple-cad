@@ -340,8 +340,10 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
       width: 1,
       height: 20,
       opacity: 0,
-      pointerEvents: active ? 'auto' : 'none',
-      zIndex: -1,
+      // Keep it non-interactive for pointer events, but in a high z-index layer
+      // so focus + IME behavior is consistent across browsers.
+      pointerEvents: 'none',
+      zIndex: 9999,
       // Prevent any visual rendering
       border: 'none',
       outline: 'none',

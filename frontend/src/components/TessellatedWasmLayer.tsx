@@ -102,12 +102,20 @@ const TessellatedWasmLayer: React.FC = () => {
       }
 
       const meta = runtime.engine.getPositionBufferMeta();
+
+      // Engine-native text: rebuild quad buffer (if supported) and feed meta to renderer.
+      runtime.engine.rebuildTextQuadBuffer?.();
+      const textQuadMeta = runtime.engine.getTextQuadBufferMeta?.();
+      const textAtlasMeta = runtime.engine.getAtlasTextureMeta?.();
+
       renderer.render({
         module: runtime.module,
         positionMeta: meta as BufferMeta,
         viewTransform: viewTransformRef.current,
         canvasSizeCss: canvasSizeRef.current,
         clearColor,
+        textQuadMeta: textQuadMeta && textAtlasMeta?.width ? textQuadMeta : undefined,
+        textAtlasMeta: textQuadMeta && textAtlasMeta?.width ? textAtlasMeta : undefined,
       });
       rafRef.current = requestAnimationFrame(tick);
     };

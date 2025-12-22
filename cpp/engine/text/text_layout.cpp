@@ -298,12 +298,14 @@ TextCaretPosition TextLayoutEngine::getCaretPosition(
     pos.lineIndex = lineIndex;
     pos.height = line.lineHeight;
     
-    // Calculate Y position
-    float y = 0.0f;
+    // Calculate Y position.
+    // We return caret.y at the baseline (not the top of line) to match
+    // how the render path places glyphs (baseline = line.ascent from line top).
+    float yTop = 0.0f;
     for (std::uint32_t i = 0; i < lineIndex; ++i) {
-        y += layout->lines[i].lineHeight;
+        yTop += layout->lines[i].lineHeight;
     }
-    pos.y = y;
+    pos.y = yTop + line.ascent;
     
     // Calculate X position by summing advances up to charIndex
     float x = 0.0f;

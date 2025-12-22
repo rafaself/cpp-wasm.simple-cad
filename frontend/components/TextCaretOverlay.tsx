@@ -51,7 +51,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   caret,
   selectionRects,
   viewTransform,
-  caretColor = '#000000',
+  caretColor = '#ffffff',
   selectionColor = 'rgba(59, 130, 246, 0.3)', // blue-500 with opacity
   blinkInterval = 530,
 }) => {

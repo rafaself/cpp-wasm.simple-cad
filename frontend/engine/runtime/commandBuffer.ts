@@ -201,9 +201,9 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       return 44; // 11 floats
     // Text commands
     case CommandOp.UpsertText: {
-      // TextPayloadHeader (28 bytes) + TextRunPayload * runCount (20 bytes each) + UTF-8 content
+      // TextPayloadHeader (28 bytes) + TextRunPayload * runCount (24 bytes each) + UTF-8 content
       const contentBytes = textEncoder.encode(cmd.text.content).length;
-      return 28 + cmd.text.runs.length * 20 + contentBytes;
+      return 28 + cmd.text.runs.length * 24 + contentBytes;
     }
     case CommandOp.SetTextCaret:
       return 8; // textId (u32) + caretIndex (u32)

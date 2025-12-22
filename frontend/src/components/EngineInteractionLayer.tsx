@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElectricalElement, Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import robotoWoffUrl from '@fontsource/roboto/files/roboto-latin-400-normal.woff?url';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
 import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint, getRectCornersWorld, supportsBBoxResize, worldToScreen } from '@/utils/geometry';
@@ -14,12 +15,16 @@ import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
 import { resolveConnectionNodePosition } from '@/utils/connections';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
 import { isConduitShape } from '@/features/editor/utils/tools';
-// TODO(PR8): Legacy TextEditorOverlay removed - integrate new TextTool from @/features/editor/tools
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
 import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
 import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
+// Engine-native text tool integration
+import { TextTool, createTextTool, type TextToolState, type TextToolCallbacks } from '@/features/editor/tools/TextTool';
+import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
+import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
+import type { TextInputDelta } from '@/types/text';
 
 type Draft =
   | { kind: 'none' }
@@ -222,21 +227,110 @@ const EngineInteractionLayer: React.FC = () => {
   const moveRef = useRef<MoveState | null>(null);
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
-  // TODO(PR8): Legacy textEditState removed - integrate new TextTool for engine-native text editing
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
+  const [runtimeReady, setRuntimeReady] = useState(false);
   const gpuPickerRef = useRef<GpuPicker | null>(null);
+
+  // Engine-native text tool state
+  const textToolRef = useRef<TextTool | null>(null);
+  const textInputProxyRef = useRef<TextInputProxyRef>(null);
+  const { caret, selectionRects, setCaret: setCaretPosition, hideCaret, clearSelection } = useTextCaret();
+  const engineTextEditState = useUIStore((s) => s.engineTextEditState);
+  const setEngineTextEditActive = useUIStore((s) => s.setEngineTextEditActive);
+  const setEngineTextEditContent = useUIStore((s) => s.setEngineTextEditContent);
+  const setEngineTextEditCaret = useUIStore((s) => s.setEngineTextEditCaret);
+  const setEngineTextEditCaretPosition = useUIStore((s) => s.setEngineTextEditCaretPosition);
+  const clearEngineTextEdit = useUIStore((s) => s.clearEngineTextEdit);
+
+  // Track if we're dragging for FixedWidth text creation
+  const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     let disposed = false;
     (async () => {
       const runtime = await getEngineRuntime();
-      if (!disposed) runtimeRef.current = runtime;
+      if (!disposed) {
+        runtimeRef.current = runtime;
+        setRuntimeReady(true);
+      }
     })();
     return () => {
       disposed = true;
     };
   }, []);
+
+  // Initialize TextTool when runtime is ready
+  useEffect(() => {
+    if (!runtimeReady) return;
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+
+    // Create TextTool with callbacks
+    const callbacks: TextToolCallbacks = {
+      onStateChange: (state: TextToolState) => {
+        // Sync state to UI store
+        setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
+        setEngineTextEditContent(state.content);
+        setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
+      },
+      onCaretUpdate: (x: number, y: number, height: number) => {
+        setCaretPosition(x, y, height);
+        setEngineTextEditCaretPosition({ x, y, height });
+      },
+      onEditEnd: () => {
+        clearEngineTextEdit();
+        hideCaret();
+        clearSelection();
+        // Switch back to select tool
+        useUIStore.getState().setTool('select');
+      },
+    };
+
+    const tool = createTextTool(callbacks);
+    if (tool.initialize(runtime)) {
+      textToolRef.current = tool;
+      // Load a default font for engine-native text.
+      // Without a loaded font, shaping/layout will fail and text won't render.
+      void (async () => {
+        try {
+          const fontUrl = new URL(robotoWoffUrl, window.location.href).toString();
+          const res = await fetch(fontUrl);
+          if (!res.ok) {
+            console.warn('TextTool: default font fetch failed', {
+              url: fontUrl,
+              status: res.status,
+              statusText: res.statusText,
+            });
+            return;
+          }
+          const buf = await res.arrayBuffer();
+          const ok = tool.loadFont(0, new Uint8Array(buf));
+          if (!ok) {
+            console.warn('TextTool: failed to load default font (fontId=0)');
+          }
+        } catch (e) {
+          console.warn('TextTool: failed to fetch default font', {
+            url: robotoWoffUrl,
+            error: e,
+          });
+        }
+      })();
+    }
+
+    return () => {
+      // Clean up on unmount
+      textToolRef.current = null;
+    };
+  }, [runtimeReady, setEngineTextEditActive, setEngineTextEditContent, setEngineTextEditCaret, setCaretPosition, setEngineTextEditCaretPosition, clearEngineTextEdit, hideCaret, clearSelection]);
+
+  // Ensure the hidden input is focused whenever we enter engine text edit mode.
+  useEffect(() => {
+    if (!engineTextEditState.active) return;
+    requestAnimationFrame(() => {
+      textInputProxyRef.current?.focus();
+    });
+  }, [engineTextEditState.active]);
 
   useEffect(() => {
     if (!gpuPickingEnabled) return;
@@ -898,7 +992,12 @@ const EngineInteractionLayer: React.FC = () => {
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
 
-    // TODO(PR8): Add engine text edit check here when TextTool is integrated
+    // If currently editing text, clicks outside should commit and exit
+    if (engineTextEditState.active && textToolRef.current) {
+      // Check if click is outside current text (simplified - just commit on any click)
+      textToolRef.current.commitAndExit();
+      return;
+    }
 
     if (evt.button === 2 && activeTool === 'polyline') {
       const prev = draftRef.current;
@@ -924,9 +1023,8 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool === 'select') setSelectionBox(null);
 
     if (activeTool === 'text') {
-      // TODO(PR8): Integrate new TextTool for engine-native text creation
-      // The new TextTool is available at @/features/editor/tools/TextTool
-      // For now, text tool clicks are no-ops until integration is complete
+      // Start potential drag for FixedWidth text
+      textDragStartRef.current = snapped;
       return;
     }
 
@@ -1110,7 +1208,8 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    // TODO(PR8): Add engine text edit check here when TextTool is integrated
+    // Skip pointer move handling when editing text
+    if (engineTextEditState.active) return;
 
     const world = toWorldPoint(evt, viewTransform);
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
@@ -1325,7 +1424,34 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (evt.button !== 0) return;
 
-    // TODO(PR8): Add engine text edit check here when TextTool is integrated
+    // Skip if editing text
+    if (engineTextEditState.active) return;
+
+    // Handle text tool creation
+    if (activeTool === 'text' && textDragStartRef.current) {
+      const world = toWorldPoint(evt, viewTransform);
+      const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
+      const start = textDragStartRef.current;
+      textDragStartRef.current = null;
+
+      if (textToolRef.current) {
+        const dx = snapped.x - start.x;
+        const dy = snapped.y - start.y;
+        const dragDistance = Math.hypot(dx, dy);
+
+        if (dragDistance > 10) {
+          // Drag creates FixedWidth text
+          textToolRef.current.handleDrag(start.x, start.y, snapped.x, snapped.y);
+        } else {
+          // Click creates AutoWidth text
+          textToolRef.current.handleClick(start.x, start.y);
+        }
+
+        // Focus the text input proxy
+        requestAnimationFrame(() => textInputProxyRef.current?.focus());
+      }
+      return;
+    }
 
     if (activeTool === 'move') {
       const moveState = moveRef.current;
@@ -1648,7 +1774,30 @@ const EngineInteractionLayer: React.FC = () => {
       {draftSvg}
       <SelectionOverlay />
       {selectionSvg}
-      {/* TODO(PR8): Add TextInputProxy and TextCaretOverlay here when TextTool is integrated */}
+      {/* Engine-native text editing components */}
+      <TextInputProxy
+        ref={textInputProxyRef}
+        active={engineTextEditState.active}
+        content={engineTextEditState.content}
+        caretIndex={engineTextEditState.caretIndex}
+        selectionStart={engineTextEditState.selectionStart}
+        selectionEnd={engineTextEditState.selectionEnd}
+        positionHint={engineTextEditState.caretPosition ?? undefined}
+        onInput={(delta: TextInputDelta) => {
+          textToolRef.current?.handleInputDelta(delta);
+        }}
+        onSelectionChange={(start, end) => {
+          textToolRef.current?.handleSelectionChange(start, end);
+        }}
+        onSpecialKey={(key) => {
+          textToolRef.current?.handleSpecialKey(key);
+        }}
+      />
+      <TextCaretOverlay
+        caret={caret}
+        selectionRects={selectionRects}
+        viewTransform={viewTransform}
+      />
       {polygonSidesModal ? (
         <>
           <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />

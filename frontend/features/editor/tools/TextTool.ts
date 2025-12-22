@@ -173,7 +173,14 @@ export class TextTool {
    * @param worldY World Y coordinate
    */
   handleClick(worldX: number, worldY: number): void {
-    if (!this.isReady()) return;
+    if (!this.isReady()) {
+      console.warn('TextTool.handleClick: Tool not ready', {
+        initialized: this.initialized,
+        bridge: !!this.bridge,
+        bridgeAvailable: this.bridge?.isAvailable(),
+      });
+      return;
+    }
 
     // Create new text entity with AutoWidth mode
     const textId = this.allocateTextId();
@@ -508,7 +515,13 @@ export class TextTool {
     const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
     const caretPos = this.bridge.getCaretPosition(this.state.activeTextId, caretByte);
 
-    this.callbacks.onCaretUpdate(caretPos.x, caretPos.y, caretPos.height);
+    if (caretPos) {
+      // Engine returns caret in text-local coordinates; overlay expects world coords.
+      this.callbacks.onCaretUpdate(this.state.anchorX + caretPos.x, this.state.anchorY + caretPos.y, caretPos.height);
+    } else {
+      // Fallback: use anchor position with default height
+      this.callbacks.onCaretUpdate(this.state.anchorX, this.state.anchorY, 16);
+    }
   }
 }
 

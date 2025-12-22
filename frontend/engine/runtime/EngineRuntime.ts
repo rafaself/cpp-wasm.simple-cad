@@ -1,6 +1,7 @@
 import { initCadEngineModule } from '@/wasm/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { createIdAllocator, type IdMaps } from './idAllocator';
+import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 
 export type BufferMeta = {
   generation: number;
@@ -41,6 +42,19 @@ export type CadEngineInstance = {
     lastRebuildMs: number;
     lastApplyMs?: number;
   };
+
+  // -------------------------------------------------------------------------
+  // Optional text system methods (present when WASM is built with text support)
+  // -------------------------------------------------------------------------
+  initializeTextSystem?: () => boolean;
+  loadFont?: (fontId: number, fontDataPtr: number, dataSize: number) => boolean;
+  hitTestText?: (textId: number, localX: number, localY: number) => TextHitResult;
+  getTextCaretPosition?: (textId: number, charIndex: number) => TextCaretPosition;
+  rebuildTextQuadBuffer?: () => void;
+  getTextQuadBufferMeta?: () => TextQuadBufferMeta;
+  getAtlasTextureMeta?: () => TextureBufferMeta;
+  isAtlasDirty?: () => boolean;
+  clearAtlasDirty?: () => void;
 };
 
 export type WasmModule = {
