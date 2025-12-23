@@ -446,11 +446,16 @@ void GlyphAtlas::copyToTexture(
             std::uint32_t dstY = rect.y + y;
             std::uint8_t* dstPixel = textureData_.get() + (dstY * atlasWidth + dstX) * 4;
             
-            // Convert float [-1, 1] to uint8 [0, 255]
-            // MSDF values are in [-range, range] where range is pixelRange
-            // We normalize to [0, 1] then to [0, 255]
-            auto floatToU8 = [](float f) -> std::uint8_t {
-                float clamped = std::max(0.0f, std::min(1.0f, f * 0.5f + 0.5f));
+            // Convert float distance to uint8 [0, 255]
+            // We normalize the signed distance 'f' (in pixels) to [0, 1] based on the configured range.
+            // Range represents the full delta from min to max distance encoded.
+            // Formula: normalized = (distance / range) + 0.5
+            // e.g. if range=4, distance -2 maps to 0.0, 0 maps to 0.5, +2 maps to 1.0
+            float inverseRange = 1.0f / config_.msdfPixelRange;
+            
+            auto floatToU8 = [&](float f) -> std::uint8_t {
+                float normalized = f * inverseRange + 0.5f;
+                float clamped = std::max(0.0f, std::min(1.0f, normalized));
                 return static_cast<std::uint8_t>(clamped * 255.0f + 0.5f);
             };
             

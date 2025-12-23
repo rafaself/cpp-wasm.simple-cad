@@ -153,4 +153,4 @@ export const TEXT_VERTICES_PER_GLYPH = 6;
  * Default pixel range for MSDF rendering.
  * Should match the range used in GlyphAtlas generation.
  */
-export const DEFAULT_MSDF_PX_RANGE = 4.0;
+export const DEFAULT_MSDF_PX_RANGE = 8.0;
