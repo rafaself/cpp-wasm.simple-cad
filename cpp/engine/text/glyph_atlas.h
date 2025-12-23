@@ -29,11 +29,11 @@ public:
      * Configuration for atlas creation.
      */
     struct Config {
-        std::uint16_t width = 2048;     // Atlas width in pixels (increased for 64px glyphs)
+        std::uint16_t width = 2048;     // Atlas width in pixels
         std::uint16_t height = 2048;    // Atlas height in pixels
         std::uint16_t padding = 2;      // Padding between glyphs
-        float msdfPixelRange = 4.0f;    // MSDF distance range in pixels
-        std::uint32_t msdfSize = 64;    // MSDF bitmap size (square) - Increased for quality
+        float msdfPixelRange = 4.0f;    // MSDF distance range in pixels (tightened for precision)
+        std::uint32_t msdfSize = 96;    // MSDF bitmap size (square) - High quality
     };
     
     GlyphAtlas();

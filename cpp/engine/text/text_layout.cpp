@@ -477,8 +477,13 @@ bool TextLayoutEngine::shapeRun(
     // - Mixed-direction text (bidi)
     hb_buffer_guess_segment_properties(hbBuffer_);
     
-    // Shape
-    hb_shape(font->hbFont, hbBuffer_, nullptr, 0);
+    // Shape with ligatures disabled for CAD precision
+    // We want individual characters to be distinct, avoiding the 'fi' merger
+    hb_feature_t features[2];
+    hb_feature_from_string("-liga", -1, &features[0]); // Disable standard ligatures
+    hb_feature_from_string("-clig", -1, &features[1]); // Disable contextual ligatures
+    
+    hb_shape(font->hbFont, hbBuffer_, features, 2);
     
     // Extract glyph info
     unsigned int glyphCount = 0;
