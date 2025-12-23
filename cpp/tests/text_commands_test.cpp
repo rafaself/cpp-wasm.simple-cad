@@ -10,7 +10,10 @@
 #include "engine/commands.h"
 #include "engine/types.h"
 #include <cstring>
+#include <string>
 #include <vector>
+
+#include "engine/text/text_style_contract.h"
 
 // Helper class to build command buffers
 class CommandBufferBuilder {
@@ -74,6 +77,28 @@ protected:
             &CadEngine::cad_command_callback,
             engine_.get()
         );
+    }
+
+    bool upsertSimpleText(std::uint32_t id, const std::string& content, TextStyleFlags flags = TextStyleFlags::None) {
+        TextPayloadHeader header{};
+        header.x = 0.0f;
+        header.y = 0.0f;
+        header.rotation = 0.0f;
+        header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+        header.align = static_cast<std::uint8_t>(TextAlign::Left);
+        header.constraintWidth = 0.0f;
+        header.runCount = 1;
+        header.contentLength = static_cast<std::uint32_t>(content.size());
+
+        TextRunPayload run{};
+        run.startIndex = 0;
+        run.length = header.contentLength;
+        run.fontId = 0;
+        run.fontSize = 16.0f;
+        run.colorRGBA = 0xFFFFFFFFu;
+        run.flags = static_cast<std::uint8_t>(flags);
+
+        return engine_->textStore_.upsertText(id, header, &run, 1, content.data(), header.contentLength);
     }
     
     std::unique_ptr<CadEngine> engine_;
@@ -563,6 +588,146 @@ TEST_F(TextCommandsTest, DeleteTextRemovesFromEntityMap) {
     // Verify removed from entity map
     auto it = engine_->entities.find(42);
     EXPECT_EQ(it, engine_->entities.end());
+}
+
+// =============================================================================
+// ApplyTextStyle caret-only (collapsed selection) tests
+// =============================================================================
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_MidRunInsertsZeroLengthRun) {
+    ASSERT_TRUE(upsertSimpleText(100, "Hello"));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 100;
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0; // set
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& runs = engine_->textStore_.getRuns(100);
+    ASSERT_EQ(runs.size(), 3u);
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 2u);
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(runs[1].startIndex, 2u);
+    EXPECT_EQ(runs[1].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(runs[2].startIndex, 2u);
+    EXPECT_EQ(runs[2].length, 3u);
+    EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
+    const std::string content = "HelloWorld"; // 10 chars
+
+    TextPayloadHeader header{};
+    header.x = 0.0f;
+    header.y = 0.0f;
+    header.rotation = 0.0f;
+    header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+    header.align = static_cast<std::uint8_t>(TextAlign::Left);
+    header.constraintWidth = 0.0f;
+    header.runCount = 2;
+    header.contentLength = static_cast<std::uint32_t>(content.size());
+
+    TextRunPayload runs[2] = {};
+    runs[0].startIndex = 0;
+    runs[0].length = 5; // Hello
+    runs[0].fontId = 0;
+    runs[0].fontSize = 16.0f;
+    runs[0].colorRGBA = 0xFFFFFFFFu;
+    runs[0].flags = static_cast<std::uint8_t>(TextStyleFlags::None);
+
+    runs[1].startIndex = 5;
+    runs[1].length = 5; // World
+    runs[1].fontId = 0;
+    runs[1].fontSize = 16.0f;
+    runs[1].colorRGBA = 0xFFFFFFFFu;
+    runs[1].flags = static_cast<std::uint8_t>(TextStyleFlags::Italic);
+
+    ASSERT_TRUE(engine_->textStore_.upsertText(101, header, runs, 2, content.data(), header.contentLength));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 101;
+    payload.rangeStartLogical = 5; // boundary between runs
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& storedRuns = engine_->textStore_.getRuns(101);
+    ASSERT_EQ(storedRuns.size(), 3u);
+
+    EXPECT_EQ(storedRuns[0].startIndex, 0u);
+    EXPECT_EQ(storedRuns[0].length, 5u);
+    EXPECT_FALSE(hasFlag(storedRuns[0].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(storedRuns[1].startIndex, 5u);
+    EXPECT_EQ(storedRuns[1].length, 0u);
+    EXPECT_TRUE(hasFlag(storedRuns[1].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(storedRuns[2].startIndex, 5u);
+    EXPECT_EQ(storedRuns[2].length, 5u);
+    EXPECT_TRUE(hasFlag(storedRuns[2].flags, TextStyleFlags::Italic));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtContentEnd) {
+    ASSERT_TRUE(upsertSimpleText(102, "Hello"));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 102;
+    payload.rangeStartLogical = 5; // end of content
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& runs = engine_->textStore_.getRuns(102);
+    ASSERT_EQ(runs.size(), 2u);
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 5u);
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(runs[1].startIndex, 5u);
+    EXPECT_EQ(runs[1].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_OnEmptyContent) {
+    ASSERT_TRUE(upsertSimpleText(103, ""));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 103;
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 0;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& runs = engine_->textStore_.getRuns(103);
+    ASSERT_EQ(runs.size(), 1u);
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[0].flags, TextStyleFlags::Underline));
 }
 
 // =============================================================================

@@ -1208,23 +1208,34 @@ const EngineInteractionLayer: React.FC = () => {
         const data = useDataStore.getState();
         const shape = data.shapes[activeShapeId];
         if (shape) {
-          const bbox = getShapeBoundingBox(shape);
           const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+          const meta = textBoxMetaRef.current.get(activeTextId!);
+
+          const boxWidth = Math.max(
+            0,
+            meta
+              ? meta.boxMode === TextBoxMode.FixedWidth
+                ? meta.constraintWidth
+                : meta.maxAutoWidth ?? (shape.width || 0)
+              : shape.width || 0
+          );
+          const boxHeight = Math.max(0, meta?.fixedHeight ?? (shape.height || 0));
+
+          const anchorX = shape.x || 0;
+          const anchorY = (shape.y || 0) + boxHeight;
+
+          const minX = anchorX - tolerance;
+          const maxX = anchorX + boxWidth + tolerance;
+          const minY = (shape.y || 0) - tolerance; // shape.y is bottom in world (Y-up)
+          const maxY = anchorY + tolerance;
+
+          const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
           
-          const inside = 
-            world.x >= bbox.x - tolerance && 
-            world.x <= bbox.x + bbox.width + tolerance &&
-            world.y >= bbox.y - tolerance &&
-            world.y <= bbox.y + bbox.height + tolerance;
-            
           if (inside) {
-             // Clicked INSIDE active text - move caret
-             const anchorY = (shape.y || 0) + (shape.height || 0);
-             const anchorX = (shape.x || 0);
+             // Clicked INSIDE active text - move caret using latest box metrics
              const localX = world.x - anchorX;
              const localY = anchorY - world.y;
              
-             const meta = textBoxMetaRef.current.get(activeTextId!);
              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
 

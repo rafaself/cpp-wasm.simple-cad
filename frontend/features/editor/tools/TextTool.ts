@@ -710,13 +710,18 @@ export class TextTool {
     if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
 
     const textId = this.state.activeTextId;
+    const contentLength = this.state.content.length;
+
     let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
     let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
 
-    // When no characters are selected, default to styling the whole text entity.
-    if (rangeStart === rangeEnd && this.state.content.length > 0) {
-      rangeStart = 0;
-      rangeEnd = this.state.content.length;
+    // Keep ranges in bounds and prefer caret for collapsed selections to request caret-only styling.
+    rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
+    rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
+    if (rangeStart === rangeEnd) {
+      const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
+      rangeStart = caret;
+      rangeEnd = caret;
     }
 
     const payload: ApplyTextStylePayload = {

@@ -929,8 +929,8 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
     }
     const std::uint32_t byteStart = logicalToByteIndex(content, startLogical);
     const std::uint32_t byteEnd = logicalToByteIndex(content, endLogical);
-    if (byteStart >= byteEnd) {
-        return true; // empty range, no-op
+    if (byteStart > byteEnd) {
+        return true; // malformed range, no-op
     }
 
     const std::uint8_t mask = payload.flagsMask;
