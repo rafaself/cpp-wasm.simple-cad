@@ -6,6 +6,7 @@ import { CommandOp, type EngineCommand } from './commandBuffer';
 import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
+import { deleteTextByShapeId, moveTextByShapeId, getAllTextShapeIds } from './textEngineSync';
 
 export type StableIdCache = {
   lastRef: Record<string, unknown> | null;
@@ -449,6 +450,32 @@ export const useEngineStoreSync = (): void => {
           if (nextVisibleSet.has(id)) continue;
           const eid = runtime.ids.maps.idStringToHash.get(id);
           if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
+        }
+
+        // Sync text entities: delete texts whose shapes were deleted
+        const trackedTextShapeIds = getAllTextShapeIds();
+        for (const shapeId of trackedTextShapeIds) {
+          if (!nextData.shapes[shapeId]) {
+            // Shape was deleted - delete from engine
+            deleteTextByShapeId(shapeId);
+          }
+        }
+
+        // Sync text position changes
+        for (const shapeId of trackedTextShapeIds) {
+          const nextShape = nextData.shapes[shapeId];
+          const prevShape = prevData.shapes[shapeId];
+          if (!nextShape || !prevShape) continue;
+          if (nextShape.type !== 'text') continue;
+          
+          // Check if position changed
+          const posChanged = nextShape.x !== prevShape.x || nextShape.y !== prevShape.y;
+          if (posChanged) {
+            // Calculate anchor position (top-left in Y-Up world)
+            const anchorX = nextShape.x ?? 0;
+            const anchorY = (nextShape.y ?? 0) + (nextShape.height ?? 0);
+            moveTextByShapeId(shapeId, anchorX, anchorY);
+          }
         }
 
         const layersById = new Map(nextData.layers.map((l) => [l.id, l]));

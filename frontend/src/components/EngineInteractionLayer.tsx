@@ -28,6 +28,7 @@ import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputPr
 import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
 import { TextAlign, TextStyleFlags, packColorRGBA } from '@/types/text';
+import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId } from '@/engine/runtime/textEngineSync';
 
 type Draft =
   | { kind: 'none' }
@@ -249,8 +250,7 @@ const EngineInteractionLayer: React.FC = () => {
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Map engine text IDs (numbers) to JS shape IDs (strings) for selection sync
-  const textIdToShapeIdRef = useRef<Map<number, string>>(new Map());
+  // Note: Text ID ↔ Shape ID mapping is now managed centrally via textEngineSync module
 
   // Ribbon text defaults (font family/size/style)
   const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
@@ -301,8 +301,8 @@ const EngineInteractionLayer: React.FC = () => {
         const data = useDataStore.getState();
         const shapeId = generateId();
         
-        // Store mapping from engine text ID to JS shape ID
-        textIdToShapeIdRef.current.set(textId, shapeId);
+        // Store mapping from engine text ID to JS shape ID (centralized)
+        registerTextMapping(textId, shapeId);
         
         const ribbonDefaults = useSettingsStore.getState().toolDefaults.text;
         
@@ -341,7 +341,7 @@ const EngineInteractionLayer: React.FC = () => {
         setSelectedShapeIds(new Set([shapeId]));
       },
       onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }) => {
-        const shapeId = textIdToShapeIdRef.current.get(textId);
+        const shapeId = getShapeIdForText(textId);
         if (!shapeId) return;
         
         const data = useDataStore.getState();
@@ -364,10 +364,10 @@ const EngineInteractionLayer: React.FC = () => {
         data.updateShape(shapeId, updates, false); // false = don't record to history yet
       },
       onTextDeleted: (textId: number) => {
-        const shapeId = textIdToShapeIdRef.current.get(textId);
+        const shapeId = getShapeIdForText(textId);
         if (!shapeId) return;
         
-        textIdToShapeIdRef.current.delete(textId);
+        unregisterTextMappingByShapeId(shapeId);
         
         const data = useDataStore.getState();
         data.deleteShape(shapeId);
@@ -378,6 +378,8 @@ const EngineInteractionLayer: React.FC = () => {
     const tool = createTextTool(callbacks);
     if (tool.initialize(runtime)) {
       textToolRef.current = tool;
+      // Register with centralized sync manager
+      registerTextTool(tool);
       // Load the 4 supported fonts into the engine.
       // IMPORTANT: In the C++ engine, `fontId=0` is reserved as "default".
       // So we register our fonts as 1..4 and map UI selections accordingly.
@@ -423,6 +425,7 @@ const EngineInteractionLayer: React.FC = () => {
 
     return () => {
       // Clean up on unmount
+      registerTextTool(null);
       textToolRef.current = null;
     };
   }, [runtimeReady, setEngineTextEditActive, setEngineTextEditContent, setEngineTextEditCaret, setCaretPosition, setEngineTextEditCaretPosition, clearEngineTextEdit, hideCaret, clearSelection]);
@@ -1138,7 +1141,7 @@ const EngineInteractionLayer: React.FC = () => {
       // Check if click is inside the ACTIVE text being edited
       // We need the shape ID for the active text ID
       const activeTextId = engineTextEditState.textId;
-      const activeShapeId = textIdToShapeIdRef.current.get(activeTextId ?? -1);
+      const activeShapeId = activeTextId !== null ? getShapeIdForText(activeTextId) : null;
       
       if (activeShapeId) {
         const data = useDataStore.getState();
@@ -1388,7 +1391,7 @@ const EngineInteractionLayer: React.FC = () => {
     if (engineTextEditState.active) {
        if (textToolRef.current && engineTextEditState.textId !== null) {
           const activeTextId = engineTextEditState.textId;
-          const activeShapeId = textIdToShapeIdRef.current.get(activeTextId);
+          const activeShapeId = getShapeIdForText(activeTextId);
           if (activeShapeId) {
              const data = useDataStore.getState();
              const shape = data.shapes[activeShapeId];
@@ -1459,14 +1462,7 @@ const EngineInteractionLayer: React.FC = () => {
 
           // Sync text position with engine if this is a text shape
           if (shape.type === 'text' && textToolRef.current) {
-            // Find engine text ID for this shape
-            let textId: number | null = null;
-            for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
-              if (sId === id) {
-                textId = tId;
-                break;
-              }
-            }
+            const textId = getTextIdForShape(id);
             if (textId !== null) {
               // Engine anchor is at top-left of text box in Y-Up world:
               // - shape.x is bottom-left X (same as anchor X)  
@@ -1572,13 +1568,7 @@ const EngineInteractionLayer: React.FC = () => {
         // Text Reflow Logic
         if (curr.type === 'text' && textToolRef.current) {
             // Find Engine Text ID
-            let textId: number | null = null;
-            for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
-               if (sId === curr.id) {
-                  textId = tId;
-                  break;
-               }
-            }
+            const textId = getTextIdForShape(curr.id);
 
             if (textId !== null) {
               const newBounds = textToolRef.current.resizeText(textId, nextW);
@@ -1644,13 +1634,7 @@ const EngineInteractionLayer: React.FC = () => {
 
           // Sync text position with engine if this is a text shape
           if (shape.type === 'text' && textToolRef.current) {
-            let textId: number | null = null;
-            for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
-              if (sId === id) {
-                textId = tId;
-                break;
-              }
-            }
+            const textId = getTextIdForShape(id);
             if (textId !== null) {
               const newAnchorX = diff.x ?? shape.x ?? 0;
               const newShapeY = diff.y ?? shape.y ?? 0;
@@ -1915,13 +1899,7 @@ const EngineInteractionLayer: React.FC = () => {
         if (shape && shape.type === 'text') {
           // Enter edit mode
           const textWrapperId = shape.id;
-          let foundTextId: number | null = null;
-          for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
-            if (sId === textWrapperId) {
-              foundTextId = tId;
-              break;
-            }
-          }
+          const foundTextId = getTextIdForShape(textWrapperId);
           
           if (foundTextId !== null && textToolRef.current) {
             useUIStore.getState().setTool('text');

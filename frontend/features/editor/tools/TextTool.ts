@@ -834,6 +834,26 @@ export class TextTool {
     return this.state.activeTextId;
   }
 
+  /**
+   * Delete a text entity by its engine ID.
+   * Called when a text shape is deleted from the JS store.
+   * @param textId Engine text ID
+   * @return True if successfully deleted
+   */
+  deleteTextById(textId: number): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+    
+    // If we're currently editing this text, cancel first
+    if (this.state.activeTextId === textId) {
+      this.state = this.createInitialState();
+      this.callbacks.onStateChange(this.state);
+      this.callbacks.onEditEnd();
+    }
+    
+    this.bridge.deleteText(textId);
+    return true;
+  }
+
   // ===========================================================================
   // Private Helpers
   // ===========================================================================
