@@ -286,10 +286,12 @@ bool FontManager::setFontSize(std::uint32_t fontId, float fontSize) {
         return false;
     }
     
-    // Set char size (fontSize in 26.6 fixed point, 72 DPI)
+    // Set char size using 72 DPI to ensure 1 point = 1 pixel mapping
+    // We use FT_Set_Char_Size instead of Pixel_Sizes to support fractional sizes (26.6 fixed point)
+    // This provides exact geometric parity with web/Figma logical pixels
     FT_Error error = FT_Set_Char_Size(
         handle->ftFace,
-        0,                                      // char_width in 1/64th of points (0 = same as height)
+        0,                                      // char_width (0 = same as height)
         static_cast<FT_F26Dot6>(fontSize * 64), // char_height in 1/64th of points
         72,                                     // horizontal resolution
         72                                      // vertical resolution
