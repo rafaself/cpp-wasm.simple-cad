@@ -319,6 +319,15 @@ public:
     bool deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex);
     
     /**
+     * Set the constraint width for a text entity.
+     * This forces the text into FixedWidth mode and triggers a re-layout.
+     * @param textId Text entity ID
+     * @param width New constraint width
+     * @return True if text exists
+     */
+    bool setTextConstraintWidth(std::uint32_t textId, float width);
+
+    /**
      * Hit test a point against text entities.
      * @param textId Text entity ID
      * @param localX X coordinate in text-local space

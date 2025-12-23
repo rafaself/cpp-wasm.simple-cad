@@ -238,7 +238,7 @@ const EngineInteractionLayer: React.FC = () => {
   // Engine-native text tool state
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
-  const { caret, selectionRects, setCaret: setCaretPosition, hideCaret, clearSelection, setSelection } = useTextCaret();
+  const { caret, selectionRects, anchor, rotation, setCaret: setCaretPosition, hideCaret, clearSelection, setSelection } = useTextCaret();
   const engineTextEditState = useUIStore((s) => s.engineTextEditState);
   const setEngineTextEditActive = useUIStore((s) => s.setEngineTextEditActive);
   const setEngineTextEditContent = useUIStore((s) => s.setEngineTextEditContent);
@@ -283,8 +283,8 @@ const EngineInteractionLayer: React.FC = () => {
         setEngineTextEditContent(state.content);
         setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
       },
-      onCaretUpdate: (x: number, y: number, height: number) => {
-        setCaretPosition(x, y, height);
+      onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => {
+        setCaretPosition(x, y, height, rotation, anchorX, anchorY);
         setEngineTextEditCaretPosition({ x, y, height });
       },
       onSelectionUpdate: (rects: import('@/types/text').TextSelectionRect[]) => {
@@ -1130,11 +1130,49 @@ const EngineInteractionLayer: React.FC = () => {
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
 
-    // If currently editing text, clicks outside should commit and exit
+    // If currently editing text, manage clicks inside vs outside
     if (engineTextEditState.active && textToolRef.current) {
-      // Check if click is outside current text (simplified - just commit on any click)
+      const world = toWorldPoint(evt, viewTransform);
+      
+
+      // Check if click is inside the ACTIVE text being edited
+      // We need the shape ID for the active text ID
+      const activeTextId = engineTextEditState.textId;
+      const activeShapeId = textIdToShapeIdRef.current.get(activeTextId ?? -1);
+      
+      if (activeShapeId) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[activeShapeId];
+        if (shape) {
+          const bbox = getShapeBoundingBox(shape);
+          const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+          
+          const inside = 
+            world.x >= bbox.x - tolerance && 
+            world.x <= bbox.x + bbox.width + tolerance &&
+            world.y >= bbox.y - tolerance &&
+            world.y <= bbox.y + bbox.height + tolerance;
+            
+          if (inside) {
+             // Clicked INSIDE active text - move caret
+             const anchorY = (shape.y || 0) + (shape.height || 0);
+             const anchorX = (shape.x || 0);
+             const localX = world.x - anchorX;
+             const localY = anchorY - world.y;
+             
+             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0);
+             textInputProxyRef.current?.focus();
+             
+             // Stop propagation to prevent selection tool from taking over
+             evt.stopPropagation();
+             return; 
+          }
+        }
+      }
+
+      // Clicked OUTSIDE - commit and exit
       textToolRef.current.commitAndExit();
-      return;
+      // Allow event to fall through to standard selection logic (so you can select something else immediately)
     }
 
     if (evt.button === 2 && activeTool === 'polyline') {
@@ -1346,8 +1384,26 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    // Skip pointer move handling when editing text
-    if (engineTextEditState.active) return;
+    // Delegate pointer move when editing text
+    if (engineTextEditState.active) {
+       if (textToolRef.current && engineTextEditState.textId !== null) {
+          const activeTextId = engineTextEditState.textId;
+          const activeShapeId = textIdToShapeIdRef.current.get(activeTextId);
+          if (activeShapeId) {
+             const data = useDataStore.getState();
+             const shape = data.shapes[activeShapeId];
+             if (shape) {
+                const world = toWorldPoint(evt, viewTransform);
+                const anchorY = (shape.y || 0) + (shape.height || 0);
+                const anchorX = (shape.x || 0);
+                const localX = world.x - anchorX;
+                const localY = anchorY - world.y;
+                textToolRef.current.handlePointerMove(activeTextId, localX, localY);
+             }
+          }
+       }
+       return;
+    }
 
     const world = toWorldPoint(evt, viewTransform);
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
@@ -1469,16 +1525,13 @@ const EngineInteractionLayer: React.FC = () => {
         }
 
         // Flip-friendly local AABB from (0,0) at fixed corner to signed (rawW, rawH).
-        const localMinX = Math.min(0, rawW);
-        const localMaxX = Math.max(0, rawW);
-        const localMinY = Math.min(0, rawH);
-        const localMaxY = Math.max(0, rawH);
+        let localMinX = Math.min(0, rawW);
+        let localMaxX = Math.max(0, rawW);
+        let localMinY = Math.min(0, rawH);
+        let localMaxY = Math.max(0, rawH);
 
         const nextW = Math.max(eps, localMaxX - localMinX);
-        const nextH = Math.max(eps, localMaxY - localMinY);
-
-        const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
-        const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
+        let nextH = Math.max(eps, localMaxY - localMinY);
 
         const baseScaleX = state.snapshot.scaleX ?? 1;
         const baseScaleY = state.snapshot.scaleY ?? 1;
@@ -1491,8 +1544,43 @@ const EngineInteractionLayer: React.FC = () => {
         const flippedX = nextSignX !== expectedSignX;
         const flippedY = nextSignY !== expectedSignY;
 
-        const nextScaleX = (flippedX ? -1 : 1) * baseScaleX;
-        const nextScaleY = (flippedY ? -1 : 1) * baseScaleY;
+        let nextScaleX = (flippedX ? -1 : 1) * baseScaleX;
+        let nextScaleY = (flippedY ? -1 : 1) * baseScaleY;
+
+        // Text Reflow Logic
+        if (curr.type === 'text' && textToolRef.current) {
+            // Find Engine Text ID
+            let textId: number | null = null;
+            for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
+               if (sId === curr.id) {
+                  textId = tId;
+                  break;
+               }
+            }
+
+            if (textId !== null) {
+              const newBounds = textToolRef.current.resizeText(textId, nextW);
+              if (newBounds) {
+                 nextH = newBounds.height;
+                 
+                 // Update rawH to match the ACTUAL height so that center calculation is correct
+                 // relative to the fixed corner.
+                 const sY = Math.sign(rawH) || expectedSignY || 1;
+                 rawH = sY * nextH;
+                 
+                 // Text should not scale, just reflow.
+                 nextScaleX = 1; 
+                 nextScaleY = 1;
+
+                 // Recalculate local bounds with updated rawH
+                 localMinY = Math.min(0, rawH);
+                 localMaxY = Math.max(0, rawH);
+              }
+            }
+        }
+
+        const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
+        const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
 
         const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
         data.updateShape(state.shapeId, diff, false);
@@ -1562,8 +1650,11 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (evt.button !== 0) return;
 
-    // Skip if editing text
-    if (engineTextEditState.active) return;
+    // Delegate pointer up when editing text
+    if (engineTextEditState.active) {
+       textToolRef.current?.handlePointerUp();
+       return;
+    }
 
     // Handle text tool creation
     if (activeTool === 'text' && textDragStartRef.current) {
@@ -1765,12 +1856,60 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handleDoubleClick = (evt: React.MouseEvent<HTMLDivElement>) => {
-    if (activeTool !== 'polyline') return;
-    evt.preventDefault();
+    // Determine context for double click
+    
+    // 1. Text editing
+    if (activeTool === 'select') {
+      const world = toWorldPoint({
+        currentTarget: evt.currentTarget,
+        clientX: evt.clientX,
+        clientY: evt.clientY
+      } as React.PointerEvent<HTMLDivElement>, viewTransform); // Reuse util
 
-    const prev = draftRef.current;
-    setDraft({ kind: 'none' });
-    if (prev.kind === 'polyline') commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const hitId = pickShape(world, { x: evt.clientX, y: evt.clientY } as Point, tolerance); // Reuse pickShape
+        
+      if (hitId) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[hitId];
+        if (shape && shape.type === 'text') {
+          // Enter edit mode
+          const textWrapperId = shape.id;
+          let foundTextId: number | null = null;
+          for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
+            if (sId === textWrapperId) {
+              foundTextId = tId;
+              break;
+            }
+          }
+          
+          if (foundTextId !== null && textToolRef.current) {
+            useUIStore.getState().setTool('text');
+            
+            // Coordinate transform: 
+            // Engine Anchor (Top-Left) = shape.y + shape.height
+            const anchorY = (shape.y || 0) + (shape.height || 0);
+            const anchorX = (shape.x || 0);
+            const localX = world.x - anchorX;
+            const localY = anchorY - world.y; // World Y up vs Local Y down
+            
+            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0);
+            
+            requestAnimationFrame(() => textInputProxyRef.current?.focus());
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Polyline finish
+    if (activeTool === 'polyline') {
+        evt.preventDefault();
+        const prev = draftRef.current;
+        setDraft({ kind: 'none' });
+        if (prev.kind === 'polyline') commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+        return;
+    }
   };
 
   const draftSvg = useMemo(() => {
@@ -1931,10 +2070,13 @@ const EngineInteractionLayer: React.FC = () => {
           textToolRef.current?.handleSpecialKey(key);
         }}
       />
+
       <TextCaretOverlay
         caret={caret}
         selectionRects={selectionRects}
         viewTransform={viewTransform}
+        anchor={anchor}
+        rotation={rotation}
       />
       {polygonSidesModal ? (
         <>

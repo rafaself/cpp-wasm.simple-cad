@@ -256,6 +256,16 @@ bool TextStore::updateRun(std::uint32_t textId, std::uint32_t runIndex, const Te
     return true;
 }
 
+bool TextStore::setConstraintWidth(std::uint32_t textId, float width) {
+    TextRec* rec = getTextMutable(textId);
+    if (!rec) return false;
+
+    rec->boxMode = TextBoxMode::FixedWidth;
+    rec->constraintWidth = width;
+    markDirty(textId);
+    return true;
+}
+
 // =============================================================================
 // Caret & Selection
 // =============================================================================

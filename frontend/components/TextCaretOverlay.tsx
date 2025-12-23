@@ -35,6 +35,10 @@ export interface TextCaretOverlayProps {
   selectionRects: TextSelectionRect[];
   /** View transform for world-to-screen conversion */
   viewTransform: ViewTransform;
+  /** Text anchor position (World) */
+  anchor: { x: number; y: number };
+  /** Text rotation (radians) */
+  rotation: number;
   /** Caret color */
   caretColor?: string;
   /** Selection highlight color */
@@ -51,6 +55,8 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   caret,
   selectionRects,
   viewTransform,
+  anchor,
+  rotation,
   caretColor = '#ffffff',
   selectionColor = 'rgba(59, 130, 246, 0.3)', // blue-500 with opacity
   blinkInterval = 530,
@@ -74,39 +80,56 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
     return () => clearInterval(interval);
   }, [caret.x, caret.y, caret.visible, blinkInterval]);
 
-  // Transform world coordinates to screen coordinates
-  const worldToScreen = (worldX: number, worldY: number) => {
-    return {
-      x: worldX * viewTransform.scale + viewTransform.x,
-      y: -worldY * viewTransform.scale + viewTransform.y, // Y is flipped
-    };
-  };
-
   // Don't render if not active
   if (!caret.visible && selectionRects.length === 0) {
     return null;
   }
 
-  // Calculate caret screen position
-  const caretScreen = worldToScreen(caret.x, caret.y);
-  const caretHeightScreen = caret.height * viewTransform.scale;
+  // Transform Logic:
+  // 1. Position container at Anchor (Screen Coords)
+  // 2. Rotate container by -rotation (matches view Y-flip logic usually, or just World Rotation)
+  //    World Y is Up. Screen Y is Down.
+  //    World Rotation positive = CCW.
+  //    Screen Rotation positive = CW (visual).
+  //    If we map World Rect to Screen Rect, we flip Y.
+  //    ScreenY = -WorldY.
+  //    Ideally we want CSS transform: translate(Sx, Sy) rotate(-R rad) scale(S).
+  
+  const screenAnchor = {
+    x: anchor.x * viewTransform.scale + viewTransform.x,
+    y: -anchor.y * viewTransform.scale + viewTransform.y
+  };
 
-  // Render selection rectangles
+  // Convert rotation to degrees for CSS (CSS is CW for +deg)
+  // World Rotation (radians CCW).
+  // We need to verify direction.
+  // If Text is 90 deg CCW (Vertical Up).
+  // On Screen (Y Down), Up is -Y.
+  // So visual rotation is -90 deg.
+  // CSS rotate(-90deg) puts +X axis pointing Up (-Y). Correct.
+  const rotationDeg = -(rotation * 180) / Math.PI;
+
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    left: screenAnchor.x,
+    top: screenAnchor.y,
+    transform: `rotate(${rotationDeg}deg) scale(${viewTransform.scale})`,
+    transformOrigin: '0 0', // Anchor is 0,0 locally
+    pointerEvents: 'none',
+  };
+
+  // Render selection rectangles (Local Coords)
   const renderSelectionRects = () => {
     return selectionRects.map((rect, index) => {
-      const topLeft = worldToScreen(rect.x, rect.y);
-      const widthScreen = rect.width * viewTransform.scale;
-      const heightScreen = rect.height * viewTransform.scale;
-
       return (
         <div
           key={`selection-${index}`}
-          className="absolute pointer-events-none"
+          className="absolute"
           style={{
-            left: topLeft.x,
-            top: topLeft.y,
-            width: widthScreen,
-            height: heightScreen,
+            left: rect.x,
+            top: rect.y, // Local Y is Down, matches CSS
+            width: rect.width,
+            height: rect.height,
             backgroundColor: selectionColor,
           }}
         />
@@ -114,26 +137,35 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
     });
   };
 
-  // Render caret
+  // Render caret (Local Coords)
   const renderCaret = () => {
     if (!caret.visible || !caretVisible) return null;
 
     return (
       <div
-        className="absolute pointer-events-none"
+        className="absolute"
         style={{
-          left: caretScreen.x,
-          top: caretScreen.y,
-          width: 2,
-          height: caretHeightScreen,
+          left: caret.x,
+          top: caret.y,
+          width: 2 / viewTransform.scale, // Keep caret thin? Or scale it? 
+          // If we scale container, caret width scales too. 
+          // Figma caret is constant screen width usually (1px - 2px).
+          // If we want constant screen width, we should divide by scale:
+          // width: 2 / viewTransform.scale
+          // But height should scale.
+          // Wait, 'height' in local coords is World Units. Container scales it up.
+          height: caret.height,
           backgroundColor: caretColor,
+          // Counter-scale width to keep it crisp?
+          transform: `scaleX(${1 / viewTransform.scale})`, 
+          transformOrigin: '0 0'
         }}
       />
     );
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div style={style}>
       {renderSelectionRects()}
       {renderCaret()}
     </div>
@@ -154,7 +186,9 @@ export interface UseTextCaretOptions {
 export interface UseTextCaretResult {
   caret: CaretPosition;
   selectionRects: TextSelectionRect[];
-  setCaret: (x: number, y: number, height: number) => void;
+  anchor: { x: number; y: number };
+  rotation: number;
+  setCaret: (x: number, y: number, height: number, rotation?: number, anchorX?: number, anchorY?: number) => void;
   setSelection: (rects: TextSelectionRect[]) => void;
   showCaret: () => void;
   hideCaret: () => void;
@@ -171,10 +205,13 @@ export function useTextCaret(options?: UseTextCaretOptions): UseTextCaretResult 
     height: 16,
     visible: false,
   });
+  
+  const [anchor, setAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState<number>(0);
 
   const [selectionRects, setSelectionRects] = useState<TextSelectionRect[]>([]);
 
-  const updateCaret = React.useCallback((x: number, y: number, height: number) => {
+  const updateCaret = React.useCallback((x: number, y: number, height: number, rot?: number, ancX?: number, ancY?: number) => {
     setCaret((prev) => ({
       ...prev,
       x,
@@ -182,6 +219,8 @@ export function useTextCaret(options?: UseTextCaretOptions): UseTextCaretResult 
       height,
       visible: true,
     }));
+    if (rot !== undefined) setRotation(rot);
+    if (ancX !== undefined && ancY !== undefined) setAnchor({ x: ancX, y: ancY });
   }, []);
 
   const showCaret = React.useCallback(() => {
@@ -199,6 +238,8 @@ export function useTextCaret(options?: UseTextCaretOptions): UseTextCaretResult 
   return {
     caret,
     selectionRects,
+    anchor,
+    rotation,
     setCaret: updateCaret,
     setSelection: setSelectionRects,
     showCaret,

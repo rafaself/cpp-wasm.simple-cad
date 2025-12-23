@@ -47,6 +47,7 @@ export interface TextToolState {
   /** Position where text was created */
   anchorX: number;
   anchorY: number;
+  rotation: number;
   /** Current text content (for TextInputProxy sync) */
   content: string;
 }
@@ -63,7 +64,7 @@ export interface TextToolCallbacks {
   /** Called when tool state changes */
   onStateChange: (state: TextToolState) => void;
   /** Called when caret position updates (for overlay rendering) */
-  onCaretUpdate: (x: number, y: number, height: number) => void;
+  onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => void;
   /** Called when selection rects update */
   onSelectionUpdate?: (rects: import('@/types/text').TextSelectionRect[]) => void;
   /** Called when editing ends */
@@ -112,6 +113,7 @@ export class TextTool {
       selectionEnd: 0,
       anchorX: 0,
       anchorY: 0,
+      rotation: 0,
       content: '',
     };
   }
@@ -205,6 +207,7 @@ export class TextTool {
       selectionEnd: 0,
       anchorX: worldX,
       anchorY: worldY,
+      rotation: 0,
       content: '',
     };
 
@@ -254,6 +257,7 @@ export class TextTool {
       selectionEnd: 0,
       anchorX: x,
       anchorY: y,
+      rotation: 0,
       content: '',
     };
 
@@ -277,47 +281,180 @@ export class TextTool {
    * @param localX Local X coordinate (within text bounds)
    * @param localY Local Y coordinate (within text bounds)
    */
-  handleEditClick(textId: number, localX: number, localY: number): void {
+  private selectionDragAnchor: number | null = null;
+  private isDragging = false;
+
+  /**
+   * Handle pointer down on text.
+   * @param textId Target text entity ID
+   * @param localX Click X in text-local space
+   * @param localY Click Y in text-local space
+   * @param shiftKey Whether shift is held (selection extension)
+   * @param anchorX World X of text anchor (top-left)
+   * @param anchorY World Y of text anchor (top-left)
+   */
+  handlePointerDown(
+    textId: number,
+    localX: number,
+    localY: number,
+    shiftKey: boolean,
+    anchorX: number,
+    anchorY: number,
+    rotation: number
+  ): void {
     if (!this.isReady() || !this.bridge) return;
 
-    // Hit test to find caret position (returns byte index)
+    // 1. Hit test
     const hitResult = this.bridge.hitTest(textId, localX, localY);
+    let charIndex = 0;
     
-    // Get existing text content from engine (source of truth)
-    const content = this.bridge.getTextContent(textId);
-    if (content === null) {
-      // Text entity doesn't exist
-      console.warn('TextTool.handleEditClick: Text entity not found', { textId });
-      return;
+    // Get content
+    let content = '';
+    if (this.state.activeTextId === textId && this.state.content) {
+      content = this.state.content;
+    } else {
+      content = this.bridge.getTextContent(textId) || '';
     }
 
-    // Determine caret position - use hitResult if available, otherwise start of text
-    let byteIndex = 0;
     if (hitResult) {
-      byteIndex = hitResult.byteIndex;
+      charIndex = byteIndexToCharIndex(content, hitResult.byteIndex);
     }
-    
-    // Convert byte index to character index for local state
-    const charIndex = byteIndexToCharIndex(content, byteIndex);
 
-    this.state = {
-      mode: 'editing',
-      activeTextId: textId,
-      boxMode: TextBoxMode.AutoWidth, // TODO: Query engine for actual mode
-      constraintWidth: 0,
-      caretIndex: charIndex,
-      selectionStart: charIndex,
-      selectionEnd: charIndex,
-      anchorX: 0, // TODO: Query engine for position
-      anchorY: 0,
-      content,
-    };
+    if (this.state.activeTextId !== textId) {
+      // Start editing new text
+      this.state = {
+        mode: 'editing',
+        activeTextId: textId,
+        boxMode: TextBoxMode.AutoWidth,
+        constraintWidth: 0,
+        caretIndex: charIndex,
+        selectionStart: charIndex,
+        selectionEnd: charIndex,
+        anchorX,
+        anchorY,
+        rotation,
+        content,
+      };
+    } else {
+      // Already editing
+      
+      // Update anchor/rotation in case they changed (e.g. alignment shift, though unlikely for same ID)
+      this.state = {
+         ...this.state,
+         anchorX,
+         anchorY,
+         rotation
+      };
 
-    // Set caret in engine using byte index
-    this.bridge.setCaretByteIndex(textId, byteIndex);
+      // If selection is collapsed, the anchor should be the current caret (handles case where typing moved caret)
+      if (this.state.selectionStart === this.state.selectionEnd) {
+         this.selectionDragAnchor = this.state.caretIndex;
+      }
+
+      if (shiftKey && this.selectionDragAnchor !== null) {
+        // Shift-click extend
+        const start = Math.min(this.selectionDragAnchor, charIndex);
+        const end = Math.max(this.selectionDragAnchor, charIndex);
+        this.state = {
+          ...this.state,
+          caretIndex: charIndex,
+          selectionStart: start,
+          selectionEnd: end,
+        };
+      } else {
+        // Reset selection
+        this.state = {
+          ...this.state,
+          caretIndex: charIndex,
+          selectionStart: charIndex,
+          selectionEnd: charIndex,
+        };
+        this.selectionDragAnchor = charIndex;
+      }
+    }
+
+    this.isDragging = true;
+    if (!shiftKey) {
+        this.selectionDragAnchor = charIndex;
+    }
+
+    // Update engine
+    this.bridge.setCaretByteIndex(textId, charIndexToByteIndex(content, charIndex));
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
+  }
+
+  handlePointerMove(textId: number, localX: number, localY: number): void {
+    if (!this.isDragging || !this.bridge || this.state.activeTextId !== textId) return;
+
+    const hitResult = this.bridge.hitTest(textId, localX, localY);
+    // If no hit, we might be dragging outside. 
+    // Ideally calculate nearest char. Engine hitTest usually returns nearest?
+    // If hitResult is null, ignore? Or clamp?
+    if (!hitResult) return;
+
+    const charIndex = byteIndexToCharIndex(this.state.content, hitResult.byteIndex);
+    const anchor = this.selectionDragAnchor ?? charIndex;
+
+    const start = Math.min(anchor, charIndex);
+    const end = Math.max(anchor, charIndex);
+
+    this.state = {
+      ...this.state,
+      caretIndex: charIndex,
+      selectionStart: start,
+      selectionEnd: end,
+    };
+
+    // We do NOT update engine selection continuously here to avoid perf spam, 
+    // only caret for consistency? 
+    // Actually selection is visualized via onSelectionUpdate in updateCaretPosition.
+    
+    this.callbacks.onStateChange(this.state);
+    this.updateCaretPosition();
+  }
+
+  handlePointerUp(): void {
+    this.isDragging = false;
+  }
+
+  /**
+   * Resize text entity (updates constraint width).
+   * @param textId Text Entity ID
+   * @param width New width constraint
+   * @return New bounds { width, height } or null if failed
+   */
+  resizeText(textId: number, width: number): { width: number; height: number } | null {
+    if (!this.isReady() || !this.bridge) return null;
+
+    if (!this.bridge.setTextConstraintWidth(textId, width)) return null;
+
+    const bounds = this.bridge.getTextBounds(textId);
+    if (!bounds.valid) return null;
+
+    // Update local state if we are currently editing this text
+    if (this.state.activeTextId === textId) {
+        this.state = {
+            ...this.state,
+            constraintWidth: width,
+            boxMode: TextBoxMode.FixedWidth,
+        };
+        // Trigger generic update?
+    }
+
+    // Engine bounds are relative to text origin (0,0 typically minX/minY?)
+    // Actually getTextBounds returns World Bounds relative to Anchor?
+    // Let's check engine.cpp/getTextBounds. 
+    // It usually returns minX, minY, maxX, maxY relative to text anchor (0,0).
+    // So width = maxX - minX, height = maxY - minY.
+    // If text is top-left aligned, minX=0, minY=0 (or ascent?).
+    // We assume the shape bounding box matches these text bounds.
+
+    return {
+      width: bounds.maxX - bounds.minX,
+      height: bounds.maxY - bounds.minY
+    };
   }
 
   // ===========================================================================
@@ -579,13 +716,11 @@ export class TextTool {
     const caretPos = this.bridge.getCaretPosition(this.state.activeTextId, caretByte);
 
     if (caretPos) {
-      // Engine returns caret in text-local Y-down coordinates; overlay expects world Y-up.
-      // Anchor is Top-Left. Local Y increases down. World Y decreases down.
-      // So WorldY = AnchorY - LocalY.
-      this.callbacks.onCaretUpdate(this.state.anchorX + caretPos.x, this.state.anchorY - caretPos.y, caretPos.height);
+      // Pass local coordinates. Overlay handles Transform.
+      this.callbacks.onCaretUpdate(caretPos.x, caretPos.y, caretPos.height, this.state.rotation, this.state.anchorX, this.state.anchorY);
     } else {
-      // Fallback: use anchor position with default height
-      this.callbacks.onCaretUpdate(this.state.anchorX, this.state.anchorY, 16);
+      // Fallback
+      this.callbacks.onCaretUpdate(0, 0, 16, this.state.rotation, this.state.anchorX, this.state.anchorY);
     }
 
     // Update selection rects if there is a selection
@@ -600,13 +735,8 @@ export class TextTool {
         this.state.content
       );
 
-      const worldRects = localRects.map(r => ({
-        ...r,
-        x: this.state.anchorX + r.x,
-        y: this.state.anchorY - r.y, // Transform to World Top
-      }));
-      
-      this.callbacks.onSelectionUpdate?.(worldRects);
+      // Pass local rects directly
+      this.callbacks.onSelectionUpdate?.(localRects);
     } else {
       this.callbacks.onSelectionUpdate?.([]);
     }

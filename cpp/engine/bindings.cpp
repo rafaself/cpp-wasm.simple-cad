@@ -41,6 +41,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("clearAtlasDirty", &CadEngine::clearAtlasDirty)
         .function("getTextContentMeta", &CadEngine::getTextContentMeta)
         .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
+        .function("setTextConstraintWidth", &CadEngine::setTextConstraintWidth)
         .function("getTextBounds", emscripten::optional_override([](CadEngine& self, std::uint32_t textId) {
             float x1=0, y1=0, x2=0, y2=0;
             if (self.getTextBounds(textId, x1, y1, x2, y2)) {

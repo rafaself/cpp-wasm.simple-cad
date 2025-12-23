@@ -143,6 +143,14 @@ public:
      */
     bool updateRun(std::uint32_t textId, std::uint32_t runIndex, const TextRun& run);
 
+    /**
+     * Update constraint width and set box mode to FixedWidth.
+     * @param textId Text entity ID
+     * @param width Constraint width in World Units
+     * @return True if successful
+     */
+    bool setConstraintWidth(std::uint32_t textId, float width);
+
     // ==========================================================================
     // Caret & Selection
     // ==========================================================================

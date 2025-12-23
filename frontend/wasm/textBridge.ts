@@ -51,6 +51,7 @@ export interface TextEnabledCadEngine {
   getTextContentMeta: (textId: number) => TextContentMeta;
   getTextBounds: (textId: number) => TextBoundsResult;
   getTextSelectionRects: (textId: number, start: number, end: number) => { size: () => number, get: (i: number) => TextSelectionRect, delete: () => void };
+  setTextConstraintWidth: (textId: number, width: number) => boolean;
 }
 
 /**
@@ -400,6 +401,17 @@ export class TextBridge {
     vector.delete(); // Important: free the C++ vector wrapper
     
     return result;
+  }
+
+  /**
+   * Set fixed width constraint for text resizing.
+   * @param textId Text Entity ID
+   * @param width New constraint width
+   * @return Success
+   */
+  setTextConstraintWidth(textId: number, width: number): boolean {
+    if (!this.isAvailable()) return false;
+    return this.textEngine.setTextConstraintWidth(textId, width);
   }
 
   /**

@@ -1119,6 +1119,24 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     generation++;
     
     return true;
+    return true;
+}
+
+bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
+    if (!textInitialized_) return false;
+
+    if (!textStore_.setConstraintWidth(textId, width)) {
+        return false;
+    }
+
+    // Re-layout immediately to ensure up-to-date bounds
+    textLayoutEngine_.layoutText(textId);
+
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+
+    return true;
 }
 
 TextHitResult CadEngine::hitTestText(std::uint32_t textId, float localX, float localY) const {
