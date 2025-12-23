@@ -20,7 +20,9 @@ namespace engine::text {
 
 namespace {
 
-#define F26DOT6_TO_DOUBLE(x) (1.0/64.0 * double(x))
+// When using FT_LOAD_NO_SCALE, coordinates are in font units, NOT 26.6 format.
+// So we do NOT divide by 64.0.
+#define F26DOT6_TO_DOUBLE(x) (double(x))
 
 struct FtContext {
     msdfgen::Point2 position;

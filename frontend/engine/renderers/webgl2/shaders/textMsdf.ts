@@ -84,34 +84,12 @@ float median(float r, float g, float b) {
 }
 
 void main() {
-  // DEBUG: Output UV coordinates as color to verify geometry is correct
-  // Red = U coordinate, Green = V coordinate, Blue = texture sample to keep uniform
-  float texSample = texture(u_atlas, v_texcoord).r * 0.001;
-  float pxMod = u_pxRange * 0.0001;  // Keep uniform referenced
-  outColor = vec4(v_texcoord.x + texSample + pxMod, v_texcoord.y, 0.5, 1.0);
-  // If we see colored squares, geometry is correct. Colors should be:
-  // - Top-left corner: dark (u=0, v=0)
-  // - varying red (u increases right)
-  // - varying green (v increases down)
-  return;
-
   // Sample the MSDF texture
   vec3 msd = texture(u_atlas, v_texcoord).rgb;
-
-  // Compute signed distance from the median
+  
+  // Calculate signed distance
   float sd = median(msd.r, msd.g, msd.b);
-
-  // Compute screen-space distance for proper antialiasing
-  // This uses the derivative of the texture coordinates to determine
-  // how much the distance field changes per screen pixel
-  vec2 unitRange = vec2(u_pxRange) / vec2(textureSize(u_atlas, 0));
-  vec2 screenTexSize = vec2(1.0) / fwidth(v_texcoord);
-  float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
-
-  // Convert signed distance to opacity
-  // sd = 0.5 is the edge of the glyph
-  // screenPxRange controls the sharpness of antialiasing
-  float screenPxDistance = screenPxRange * (sd - 0.5);
+  float screenPxDistance = u_pxRange * (sd - 0.5);
   float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
 
   // Output final color with computed opacity

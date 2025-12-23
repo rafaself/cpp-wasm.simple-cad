@@ -233,15 +233,8 @@ export class TextRenderPass {
 
     // Read quad data from WASM memory
     const start = meta.ptr >>> 2;
-    const end = start + meta.floatCount;
-    // Create a copy of the data to avoid any sharing/alignment issues
-    const view = module.HEAPF32.slice(start, end);
+    const view = module.HEAPF32.subarray(start, start + meta.floatCount);
     
-    // DEBUG: Print first quad vertex positions
-    if (meta.vertexCount > 0) {
-      console.log(`[DEBUG] First quad v0: x=${view[0].toFixed(1)} y=${view[1].toFixed(1)} z=${view[2]} u=${view[3].toFixed(3)} v=${view[4].toFixed(3)} r=${view[5]} g=${view[6]} b=${view[7]} a=${view[8]}`);
-    }
-
     // Upload to GPU
     gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, view, gl.DYNAMIC_DRAW);
@@ -341,21 +334,15 @@ export class TextRenderPass {
     gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
     gl.uniform1i(uAtlas, 0);
 
-    // Draw text quads
+    // Draw text quads (as POINTS for debugging)
     gl.bindVertexArray(vao);
     
-    // DEBUG: Check WebGL errors and state before draw
-    const err1 = gl.getError();
-    const viewport = gl.getParameter(gl.VIEWPORT);
-    if (Math.random() < 0.02) {
-      console.log(`[DEBUG] TextRender pre-draw: err=${err1} viewport=${viewport}`);
-    }
-    
+    // Draw text quads
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
     
     // DEBUG: Check for errors after draw
     const err2 = gl.getError();
-    if (err2 !== 0) {
+    if (err2 !== 0 && Math.random() < 0.01) {
       console.error(`[DEBUG] TextRender drawArrays error: ${err2}`);
     }
     
