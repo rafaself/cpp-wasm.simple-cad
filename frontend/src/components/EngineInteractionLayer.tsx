@@ -264,6 +264,14 @@ const EngineInteractionLayer: React.FC = () => {
   // Ribbon text defaults (font family/size/style)
   const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
 
+  // Reset transient drawing state when switching tools to avoid stale outlines
+  useEffect(() => {
+    setDraft({ kind: 'none' });
+    draftRef.current = { kind: 'none' };
+    textDragStartRef.current = null;
+    setSelectionBox(null);
+  }, [activeTool]);
+
   useEffect(() => {
     let disposed = false;
     (async () => {
@@ -1211,7 +1219,7 @@ const EngineInteractionLayer: React.FC = () => {
              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
 
-             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
+             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
              // Keep focus stable for subsequent clicks inside the text box
              textInputProxyRef.current?.focus();
              evt.preventDefault();

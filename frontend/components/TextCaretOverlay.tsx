@@ -113,6 +113,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
     position: 'absolute',
     left: screenAnchor.x,
     top: screenAnchor.y,
+    // Text engine already gives screen-facing Y; keep scale positive to avoid inverting caret motion.
     transform: `rotate(${rotationDeg}deg) scale(${viewTransform.scale})`,
     transformOrigin: '0 0', // Anchor is 0,0 locally
     pointerEvents: 'none',
@@ -120,21 +121,19 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
 
   // Render selection rectangles (Local Coords)
   const renderSelectionRects = () => {
-    return selectionRects.map((rect, index) => {
-      return (
-        <div
-          key={`selection-${index}`}
-          className="absolute"
-          style={{
-            left: rect.x,
-            top: rect.y, // Local Y is Down, matches CSS
-            width: rect.width,
-            height: rect.height,
-            backgroundColor: selectionColor,
-          }}
-        />
-      );
-    });
+    return selectionRects.map((rect, index) => (
+      <div
+        key={`selection-${index}`}
+        className="absolute"
+        style={{
+          left: rect.x,
+          top: rect.y,
+          width: rect.width,
+          height: rect.height,
+          backgroundColor: selectionColor,
+        }}
+      />
+    ));
   };
 
   // Render caret (Local Coords)
@@ -147,17 +146,10 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
         style={{
           left: caret.x,
           top: caret.y,
-          width: 2 / viewTransform.scale, // Keep caret thin? Or scale it? 
-          // If we scale container, caret width scales too. 
-          // Figma caret is constant screen width usually (1px - 2px).
-          // If we want constant screen width, we should divide by scale:
-          // width: 2 / viewTransform.scale
-          // But height should scale.
-          // Wait, 'height' in local coords is World Units. Container scales it up.
+          width: 2 / viewTransform.scale, // keep screen-thin caret
           height: caret.height,
           backgroundColor: caretColor,
-          // Counter-scale width to keep it crisp?
-          transform: `scaleX(${1 / viewTransform.scale})`, 
+          transform: `scaleX(${1 / viewTransform.scale})`,
           transformOrigin: '0 0'
         }}
       />
