@@ -23,6 +23,7 @@ import type {
   TextContentMeta,
   TextLayoutResult,
   TextBoundsResult,
+  TextSelectionRect,
 } from '@/types/text';
 import { utf8ByteLength } from '@/types/text';
 
@@ -49,6 +50,7 @@ export interface TextEnabledCadEngine {
   clearAtlasDirty: () => void;
   getTextContentMeta: (textId: number) => TextContentMeta;
   getTextBounds: (textId: number) => TextBoundsResult;
+  getTextSelectionRects: (textId: number, start: number, end: number) => { size: () => number, get: (i: number) => TextSelectionRect, delete: () => void };
 }
 
 /**
@@ -367,6 +369,37 @@ export class TextBridge {
   getTextBounds(textId: number): TextBoundsResult | null {
     if (!this.isAvailable()) return null;
     return this.textEngine.getTextBounds(textId);
+  }
+
+  /**
+   * Get selection rectangles from engine.
+   * @param textId Text entity ID
+   * @param startChar Start character index
+   * @param endChar End character index
+   * @param content Current content (for conversion)
+   */
+  getSelectionRects(
+    textId: number,
+    startChar: number,
+    endChar: number,
+    content: string
+  ): TextSelectionRect[] {
+    if (!this.isAvailable()) return [];
+
+    const startByte = this.charToByteIndex(content, startChar);
+    const endByte = this.charToByteIndex(content, endChar);
+    
+    // Engine returns a C++ vector wrapper
+    const vector = this.textEngine.getTextSelectionRects(textId, startByte, endByte);
+    
+    const result: TextSelectionRect[] = [];
+    const size = vector.size();
+    for (let i = 0; i < size; i++) {
+      result.push(vector.get(i));
+    }
+    vector.delete(); // Important: free the C++ vector wrapper
+    
+    return result;
   }
 
   /**

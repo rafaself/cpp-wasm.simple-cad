@@ -40,6 +40,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("isAtlasDirty", &CadEngine::isAtlasDirty)
         .function("clearAtlasDirty", &CadEngine::clearAtlasDirty)
         .function("getTextContentMeta", &CadEngine::getTextContentMeta)
+        .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
         .function("getTextBounds", emscripten::optional_override([](CadEngine& self, std::uint32_t textId) {
             float x1=0, y1=0, x2=0, y2=0;
             if (self.getTextBounds(textId, x1, y1, x2, y2)) {
@@ -113,5 +114,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("maxX", &TextBoundsResult::maxX)
         .field("maxY", &TextBoundsResult::maxY)
         .field("valid", &TextBoundsResult::valid);
+
+    emscripten::value_object<CadEngine::TextSelectionRect>("TextSelectionRect")
+        .field("x", &CadEngine::TextSelectionRect::x)
+        .field("y", &CadEngine::TextSelectionRect::y)
+        .field("width", &CadEngine::TextSelectionRect::width)
+        .field("height", &CadEngine::TextSelectionRect::height)
+        .field("lineIndex", &CadEngine::TextSelectionRect::lineIndex);
+
+    emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");
 }
 #endif

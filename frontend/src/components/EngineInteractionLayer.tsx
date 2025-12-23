@@ -238,7 +238,7 @@ const EngineInteractionLayer: React.FC = () => {
   // Engine-native text tool state
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
-  const { caret, selectionRects, setCaret: setCaretPosition, hideCaret, clearSelection } = useTextCaret();
+  const { caret, selectionRects, setCaret: setCaretPosition, hideCaret, clearSelection, setSelection } = useTextCaret();
   const engineTextEditState = useUIStore((s) => s.engineTextEditState);
   const setEngineTextEditActive = useUIStore((s) => s.setEngineTextEditActive);
   const setEngineTextEditContent = useUIStore((s) => s.setEngineTextEditContent);
@@ -286,6 +286,9 @@ const EngineInteractionLayer: React.FC = () => {
       onCaretUpdate: (x: number, y: number, height: number) => {
         setCaretPosition(x, y, height);
         setEngineTextEditCaretPosition({ x, y, height });
+      },
+      onSelectionUpdate: (rects: import('@/types/text').TextSelectionRect[]) => {
+        setSelection(rects);
       },
       onEditEnd: () => {
         clearEngineTextEdit();

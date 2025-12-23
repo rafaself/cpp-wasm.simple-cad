@@ -64,6 +64,8 @@ export interface TextToolCallbacks {
   onStateChange: (state: TextToolState) => void;
   /** Called when caret position updates (for overlay rendering) */
   onCaretUpdate: (x: number, y: number, height: number) => void;
+  /** Called when selection rects update */
+  onSelectionUpdate?: (rects: import('@/types/text').TextSelectionRect[]) => void;
   /** Called when editing ends */
   onEditEnd: () => void;
   /** Called when a new text entity is created (for syncing to JS store) */
@@ -584,6 +586,29 @@ export class TextTool {
     } else {
       // Fallback: use anchor position with default height
       this.callbacks.onCaretUpdate(this.state.anchorX, this.state.anchorY, 16);
+    }
+
+    // Update selection rects if there is a selection
+    if (this.state.selectionStart !== this.state.selectionEnd) {
+      const start = Math.min(this.state.selectionStart, this.state.selectionEnd);
+      const end = Math.max(this.state.selectionStart, this.state.selectionEnd);
+      
+      const localRects = this.bridge.getSelectionRects(
+        this.state.activeTextId,
+        start,
+        end,
+        this.state.content
+      );
+
+      const worldRects = localRects.map(r => ({
+        ...r,
+        x: this.state.anchorX + r.x,
+        y: this.state.anchorY - r.y, // Transform to World Top
+      }));
+      
+      this.callbacks.onSelectionUpdate?.(worldRects);
+    } else {
+      this.callbacks.onSelectionUpdate?.([]);
     }
   }
 }

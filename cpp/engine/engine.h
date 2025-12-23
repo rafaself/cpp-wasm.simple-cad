@@ -345,6 +345,16 @@ public:
      * @return True if text exists
      */
     bool getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const;
+
+    /**
+     * Get selection rectangles for a text range.
+     * @param textId Text entity ID
+     * @param start Selection start (byte offset)
+     * @param end Selection end (byte offset)
+     * @return List of selection rectangles
+     */
+    using TextSelectionRect = engine::text::TextLayoutEngine::SelectionRect;
+    std::vector<TextSelectionRect> getTextSelectionRects(std::uint32_t textId, std::uint32_t start, std::uint32_t end) const;
     
     /**
      * Rebuild text quad buffer for rendering.

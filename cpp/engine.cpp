@@ -1347,3 +1347,10 @@ CadEngine::TextContentMeta CadEngine::getTextContentMeta(std::uint32_t textId) c
         true
     };
 }
+
+std::vector<CadEngine::TextSelectionRect> CadEngine::getTextSelectionRects(std::uint32_t textId, std::uint32_t start, std::uint32_t end) const {
+    if (!textInitialized_) {
+        return {};
+    }
+    return textLayoutEngine_.getSelectionRects(textId, start, end);
+}
