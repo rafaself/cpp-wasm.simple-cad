@@ -301,13 +301,10 @@ bool FontManager::setFontSize(std::uint32_t fontId, float fontSize) {
         return false;
     }
     
-    // Update HarfBuzz font scale
+    // Notify HarfBuzz that the underlying FT_Face has changed (e.g. metrics/size)
+    // This is better than manually setting scale because it updates all FT-derived metrics
     if (handle->hbFont) {
-        hb_font_set_scale(
-            handle->hbFont,
-            static_cast<int>(fontSize * 64),
-            static_cast<int>(fontSize * 64)
-        );
+        hb_ft_font_changed(handle->hbFont);
     }
     
     return true;
