@@ -715,10 +715,14 @@ export class TextTool {
     let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
     let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
 
-    // Keep ranges in bounds and prefer caret for collapsed selections to request caret-only styling.
+    // Keep ranges in bounds
     rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
     rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
+
+    // Handle collapsed selection: use caret for both start and end to signal 
+    // engine to apply typing attributes (via zero-length run).
     if (rangeStart === rangeEnd) {
+      // Ensure we use the exact caret position
       const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
       rangeStart = caret;
       rangeEnd = caret;
@@ -736,6 +740,28 @@ export class TextTool {
     };
 
     this.bridge.applyTextStyle(textId, payload);
+
+    // Update tool defaults to reflect the new state, so subsequent new text 
+    // or typing elsewhere uses the updated style.
+    // We update defaults based on the resulting engine snapshot.
+    const snapshot = this.bridge.getTextStyleSnapshot(textId);
+    if (snapshot) {
+      // Snapshot format: 2 bits per attr in styleTriStateFlags
+      // Bit 0-1: Bold, Bit 2-3: Italic, Bit 4-5: Underline, Bit 6-7: Strikethrough
+      const updateDefault = (mask: TextStyleFlags, shift: number) => {
+        const val = (snapshot.styleTriStateFlags >> shift) & 0b11;
+        if (val === 1) { // On
+          this.styleDefaults.flags |= mask;
+        } else if (val === 0) { // Off
+          this.styleDefaults.flags &= ~mask;
+        }
+      };
+
+      updateDefault(TextStyleFlags.Bold, 0);
+      updateDefault(TextStyleFlags.Italic, 2);
+      updateDefault(TextStyleFlags.Underline, 4);
+      updateDefault(TextStyleFlags.Strikethrough, 6);
+    }
 
     const bounds = this.bridge.getTextBounds(textId);
     if (bounds && bounds.valid) {
