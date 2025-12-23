@@ -1526,6 +1526,10 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.type === 'text' && textToolRef.current) {
             const textId = getTextIdForShape(id);
             if (textId !== null) {
+              const meta = textBoxMetaRef.current.get(textId);
+              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
               // Engine anchor is at top-left of text box in Y-Up world:
               // - shape.x is bottom-left X (same as anchor X)  
               // - anchor Y = shape.y + shape.height (top of box in Y-Up)
@@ -1533,7 +1537,7 @@ const EngineInteractionLayer: React.FC = () => {
               const newShapeY = diff.y ?? shape.y ?? 0;
               const height = shape.height ?? 0;
               const newAnchorY = newShapeY + height;
-              textToolRef.current.moveText(textId, newAnchorX, newAnchorY);
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY, boxMode, constraintWidth);
             }
           }
         });
@@ -1710,11 +1714,15 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.type === 'text' && textToolRef.current) {
             const textId = getTextIdForShape(id);
             if (textId !== null) {
+              const meta = textBoxMetaRef.current.get(textId);
+              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
               const newAnchorX = diff.x ?? shape.x ?? 0;
               const newShapeY = diff.y ?? shape.y ?? 0;
               const height = shape.height ?? 0;
               const newAnchorY = newShapeY + height;
-              textToolRef.current.moveText(textId, newAnchorX, newAnchorY);
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY, boxMode, constraintWidth);
             }
           }
         });
