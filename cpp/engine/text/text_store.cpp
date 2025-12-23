@@ -400,6 +400,15 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
 
     bool zeroLengthConsumed = false;
     
+    // Check if there is a zero-length run at the insertion point (typing attribute)
+    bool hasZeroLengthRun = false;
+    for (const auto& r : it->second) {
+        if (r.startIndex == byteIndex && r.length == 0) {
+            hasZeroLengthRun = true;
+            break;
+        }
+    }
+
     for (TextRun& run : it->second) {
         // Special case: run with length=0 at insertion point should be expanded
         // This handles the case where text is created with an empty run and content is inserted
@@ -417,7 +426,10 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
             run.length += insertLength;
         } else if (run.startIndex + run.length == byteIndex) {
             // Run ends exactly at insertion point: extend length (for contiguous insertion)
-            run.length += insertLength;
+            // BUT: if there is a zero-length run at this position, do NOT extend this one.
+            if (!hasZeroLengthRun) {
+                run.length += insertLength;
+            }
         }
         // Runs ending before insertion point are unchanged
     }

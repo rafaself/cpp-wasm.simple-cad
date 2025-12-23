@@ -756,3 +756,65 @@ TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
     EXPECT_GT(engine_->generation, genBefore);
 }
+
+// =============================================================================
+// PR1 Verification Tests
+// =============================================================================
+
+TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
+    // Recipe:
+    // - Create text "hello"
+    // - Move caret between "e|l"
+    // - Toggle Bold
+    // - Insert "X"
+    // - Result should be "heXllo" where only "X" is bold
+    
+    ASSERT_TRUE(upsertSimpleText(200, "hello"));
+    
+    // 1. Toggle Bold at index 2
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 200;
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 2; // Toggle
+    payload.styleParamsLen = 0;
+    
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+    
+    // Verify intermediate state: 0-length run at 2
+    auto runs = engine_->textStore_.getRuns(200);
+    ASSERT_EQ(runs.size(), 3u);
+    EXPECT_EQ(runs[1].startIndex, 2u);
+    EXPECT_EQ(runs[1].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+    
+    // 2. Insert "X" at index 2
+    // Use engine command or direct method. CadEngine::insertTextContent calls TextStore::insertContent
+    EXPECT_TRUE(engine_->insertTextContent(200, 2, "X", 1));
+    
+    // 3. Verify final state
+    // Content should be "heXllo"
+    std::string_view content = engine_->textStore_.getContent(200);
+    EXPECT_EQ(content, "heXllo");
+    
+    // Runs should be: "he" (regular), "X" (Bold), "llo" (regular)
+    runs = engine_->textStore_.getRuns(200);
+    ASSERT_EQ(runs.size(), 3u);
+    
+    // "he"
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 2u); 
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+    
+    // "X" - should have inherited the 0-length run properties
+    EXPECT_EQ(runs[1].startIndex, 2u);
+    EXPECT_EQ(runs[1].length, 1u); 
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+    
+    // "llo"
+    EXPECT_EQ(runs[2].startIndex, 3u);
+    EXPECT_EQ(runs[2].length, 3u); 
+    EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
+}

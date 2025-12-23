@@ -404,9 +404,9 @@ TEST_F(TextLayoutTest, PrevCharIndex) {
     createText(1, "Hello");
     layoutEngine.layoutText(1);
     
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 0), 0u);  // At start
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 1), 0u);  // 'e' -> 'H'
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 5), 4u);  // End -> 'o'
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 0), 0u);  // At start
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 1), 0u);  // 'e' -> 'H'
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 5), 4u);  // End -> 'o'
 }
 
 TEST_F(TextLayoutTest, NextCharIndex) {
@@ -417,9 +417,9 @@ TEST_F(TextLayoutTest, NextCharIndex) {
     createText(1, "Hello");
     layoutEngine.layoutText(1);
     
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 0), 1u);  // 'H' -> 'e'
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 4), 5u);  // 'o' -> end
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 5), 5u);  // At end
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 0), 1u);  // 'H' -> 'e'
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 4), 5u);  // 'o' -> end
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 5), 5u);  // At end
 }
 
 TEST_F(TextLayoutTest, LineStartEndIndex) {
@@ -453,10 +453,10 @@ TEST_F(TextLayoutTest, Utf8Navigation) {
     layoutEngine.layoutText(1);
     
     // From position 2 (start of á), next should be 4 (end)
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 2), 4u);
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 2), 4u);
     
     // From position 4 (end), prev should be 2 (start of á)
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 4), 2u);
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 4), 2u);
 }
 
 TEST_F(TextLayoutTest, Utf8Shaping) {
