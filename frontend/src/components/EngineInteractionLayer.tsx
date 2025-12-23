@@ -294,7 +294,7 @@ const EngineInteractionLayer: React.FC = () => {
         // Switch back to select tool
         useUIStore.getState().setTool('select');
       },
-      onTextCreated: (textId: number, x: number, y: number, boxMode: number, constraintWidth: number) => {
+      onTextCreated: (textId: number, x: number, y: number, boxMode: number, constraintWidth: number, initialWidth: number, initialHeight: number) => {
         const data = useDataStore.getState();
         const shapeId = generateId();
         
@@ -302,7 +302,6 @@ const EngineInteractionLayer: React.FC = () => {
         textIdToShapeIdRef.current.set(textId, shapeId);
         
         const ribbonDefaults = useSettingsStore.getState().toolDefaults.text;
-        const initialHeight = ribbonDefaults.fontSize * 1.2;
         
         // In Y-Up world coordinates:
         // - Text engine anchor (x, y) is at the TOP-LEFT of the text box
@@ -315,7 +314,7 @@ const EngineInteractionLayer: React.FC = () => {
           points: [],
           x: clampTiny(x),
           y: clampTiny(y - initialHeight), // Bottom of text box in Y-Up
-          width: boxMode === 1 ? constraintWidth : 50, // FixedWidth uses constraint, AutoWidth starts small
+          width: initialWidth,
           height: initialHeight,
           strokeColor: '#FFFFFF',
           strokeEnabled: false,

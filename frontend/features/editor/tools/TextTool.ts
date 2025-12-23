@@ -67,7 +67,7 @@ export interface TextToolCallbacks {
   /** Called when editing ends */
   onEditEnd: () => void;
   /** Called when a new text entity is created (for syncing to JS store) */
-  onTextCreated?: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number) => void;
+  onTextCreated?: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => void;
   /** Called when text content/bounds are updated */
   onTextUpdated?: (textId: number, content: string, bounds: { width: number; height: number }) => void;
   /** Called when text is deleted (for syncing to JS store) */
@@ -209,8 +209,13 @@ export class TextTool {
     // Create empty text entity in engine
     this.createTextEntity(textId, worldX, worldY, TextBoxMode.AutoWidth, 0);
 
-    // Notify for JS shape creation
-    this.callbacks.onTextCreated?.(textId, worldX, worldY, TextBoxMode.AutoWidth, 0);
+    // Notify for JS shape creation with real bounds
+    const bounds = this.bridge?.getTextBounds(textId);
+    // Initial empty text has 0 width but non-zero height (line height)
+    const w = bounds && bounds.valid ? bounds.maxX - bounds.minX : 0;
+    const h = bounds && bounds.valid ? bounds.maxY - bounds.minY : this.styleDefaults.fontSize * 1.2;
+
+    this.callbacks.onTextCreated?.(textId, worldX, worldY, TextBoxMode.AutoWidth, 0, w, h);
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
@@ -253,8 +258,12 @@ export class TextTool {
     // Create empty text entity in engine
     this.createTextEntity(textId, x, y, TextBoxMode.FixedWidth, constraintWidth);
 
-    // Notify for JS shape creation
-    this.callbacks.onTextCreated?.(textId, x, y, TextBoxMode.FixedWidth, constraintWidth);
+    // Notify for JS shape creation with real bounds
+    const bounds = this.bridge?.getTextBounds(textId);
+    const w = bounds && bounds.valid ? bounds.maxX - bounds.minX : constraintWidth;
+    const h = bounds && bounds.valid ? bounds.maxY - bounds.minY : this.styleDefaults.fontSize * 1.2;
+
+    this.callbacks.onTextCreated?.(textId, x, y, TextBoxMode.FixedWidth, constraintWidth, w, h);
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
@@ -407,10 +416,10 @@ export class TextTool {
       estimatedWidth = bounds.maxX - bounds.minX;
       estimatedHeight = bounds.maxY - bounds.minY;
     } else {
-       estimatedWidth = this.state.boxMode === TextBoxMode.FixedWidth 
-        ? this.state.constraintWidth 
-        : Math.max(50, this.state.content.length * (this.styleDefaults.fontSize * 0.6));
-       estimatedHeight = this.styleDefaults.fontSize * 1.2;
+       // Should not happen if engine is healthy, but soft fallback to preserve crash-safety
+       // without complex estimation logic.
+       estimatedWidth = this.state.boxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 50;
+       estimatedHeight = this.styleDefaults.fontSize;
     }
 
     this.callbacks.onTextUpdated?.(textId, this.state.content, { width: estimatedWidth, height: estimatedHeight });
