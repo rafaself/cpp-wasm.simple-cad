@@ -457,6 +457,33 @@ export class TextTool {
     };
   }
 
+  /**
+   * Move text entity to a new position (anchor point).
+   * Called when a text shape is moved via the selection tool.
+   * @param textId Text Entity ID
+   * @param anchorX New X coordinate (top-left anchor in Y-Up world)
+   * @param anchorY New Y coordinate (top-left anchor in Y-Up world)
+   * @return True if successful
+   */
+  moveText(textId: number, anchorX: number, anchorY: number): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const success = this.bridge.updateTextPosition(textId, anchorX, anchorY);
+    
+    // Update local state if we are currently editing this text
+    if (success && this.state.activeTextId === textId) {
+      this.state = {
+        ...this.state,
+        anchorX,
+        anchorY,
+      };
+      // Update caret position to reflect new anchor
+      this.updateCaretPosition();
+    }
+    
+    return success;
+  }
+
   // ===========================================================================
   // Input Handling
   // ===========================================================================

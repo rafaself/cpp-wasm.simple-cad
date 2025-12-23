@@ -1456,6 +1456,28 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + ddx), y: clampTiny(p.y + ddy) }));
 
           if (Object.keys(diff).length) data.updateShape(id, diff, false);
+
+          // Sync text position with engine if this is a text shape
+          if (shape.type === 'text' && textToolRef.current) {
+            // Find engine text ID for this shape
+            let textId: number | null = null;
+            for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
+              if (sId === id) {
+                textId = tId;
+                break;
+              }
+            }
+            if (textId !== null) {
+              // Engine anchor is at top-left of text box in Y-Up world:
+              // - shape.x is bottom-left X (same as anchor X)  
+              // - anchor Y = shape.y + shape.height (top of box in Y-Up)
+              const newAnchorX = diff.x ?? shape.x ?? 0;
+              const newShapeY = diff.y ?? shape.y ?? 0;
+              const height = shape.height ?? 0;
+              const newAnchorY = newShapeY + height;
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY);
+            }
+          }
         });
         return;
       }
@@ -1619,6 +1641,24 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
 
           if (Object.keys(diff).length) data.updateShape(id, diff, false);
+
+          // Sync text position with engine if this is a text shape
+          if (shape.type === 'text' && textToolRef.current) {
+            let textId: number | null = null;
+            for (const [tId, sId] of textIdToShapeIdRef.current.entries()) {
+              if (sId === id) {
+                textId = tId;
+                break;
+              }
+            }
+            if (textId !== null) {
+              const newAnchorX = diff.x ?? shape.x ?? 0;
+              const newShapeY = diff.y ?? shape.y ?? 0;
+              const height = shape.height ?? 0;
+              const newAnchorY = newShapeY + height;
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY);
+            }
+          }
         });
       }
       return;

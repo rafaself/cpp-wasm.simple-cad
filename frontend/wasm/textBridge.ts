@@ -423,6 +423,51 @@ export class TextBridge {
   }
 
   /**
+   * Update text position without modifying content.
+   * Re-upserts the text entity with current content but new coordinates.
+   * @param textId Text entity ID
+   * @param x New X coordinate (anchor, top-left in Y-Up)
+   * @param y New Y coordinate (anchor, top-left in Y-Up)
+   * @return True if successful
+   */
+  updateTextPosition(textId: number, x: number, y: number): boolean {
+    if (!this.isAvailable()) return false;
+
+    // Get current content from engine
+    const content = this.getTextContent(textId);
+    if (content === null) return false; // Text doesn't exist
+
+    // Get current bounds to preserve box mode
+    const bounds = this.textEngine.getTextBounds(textId);
+    const constraintWidth = bounds?.valid ? bounds.maxX - bounds.minX : 0;
+
+    // Re-upsert with same content but new position
+    // We use a minimal run to preserve the text (actual styling is managed per-entity)
+    const payload: TextPayload = {
+      x,
+      y,
+      rotation: 0, // TODO: preserve rotation from TextRec if needed
+      boxMode: constraintWidth > 0 ? 1 : 0, // FixedWidth if has constraint
+      align: 0, // Left (default, actual alignment stored in TextRec)
+      constraintWidth,
+      runs: [
+        {
+          startIndex: 0,
+          length: utf8ByteLength(content),
+          fontId: 0, // Will use existing run styling from TextStore
+          fontSize: 16,
+          colorRGBA: 0xFFFFFFFF,
+          flags: 0,
+        },
+      ],
+      content,
+    };
+
+    this.upsertText(textId, payload);
+    return true;
+  }
+
+  /**
    * Rebuild text quad buffer for rendering.
    * Call this after text layout changes before rendering.
    */
