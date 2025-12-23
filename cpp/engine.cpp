@@ -1247,29 +1247,47 @@ void CadEngine::rebuildTextQuadBuffer() {
                 // Emit 6 vertices (2 triangles) for this glyph quad
                 // Format: x, y, z, u, v, r, g, b, a
                 // Triangle 1: top-left, top-right, bottom-right
+                // NOTE: World Y is UP. Texture V is DOWN (0 at top).
+                // So we map v1 (bottom of texture) to glyphY (bottom of quad)
+                // And v0 (top of texture) to glyphY + glyphH (top of quad)
+                
+                // Vertex 0: Bottom-Left (but using top-left logic structure?)
+                // Let's explicitly define corners according to TRIANGLE STRIP or TRIANGLES topology logic
+                // The previous code was:
+                // (X, Y) -> v0   (Bottom-Left -> Top Tex) INVERTED
+                // (X+W, Y) -> v0 (Bottom-Right -> Top Tex) INVERTED
+                // (X+W, Y+H) -> v1 (Top-Right -> Bottom Tex) INVERTED
+                
+                // Correct mapping:
+                // Bottom-Left (X, Y) -> v1 (Bottom of texture)
+                // Bottom-Right (X+W, Y) -> v1 (Bottom of texture)
+                // Top-Right (X+W, Y+H) -> v0 (Top of texture)
+                // Top-Left (X, Y+H) -> v0 (Top of texture)
+                
+                // Triangle 1: (X, Y), (X+W, Y), (X+W, Y+H) -> BL, BR, TR
                 textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);
+                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
                 
                 textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);
+                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);              // BR -> Bottom UV
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
                 
                 textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);
+                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
                 
-                // Triangle 2: top-left, bottom-right, bottom-left
+                // Triangle 2: (X, Y), (X+W, Y+H), (X, Y+H) -> BL, TR, TL
                 textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);
+                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
                 
                 textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);
+                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
-                
+
                 textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);
+                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);              // TL -> Top UV
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
                 
                 // Advance pen position by glyph advance
