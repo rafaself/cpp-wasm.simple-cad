@@ -19,6 +19,7 @@ import {
   TextStyleFlags,
   packColorRGBA,
   charIndexToByteIndex,
+  byteIndexToCharIndex,
   type TextPayload,
   type TextInputDelta,
 } from '@/types/text';
@@ -256,29 +257,41 @@ export class TextTool {
   handleEditClick(textId: number, localX: number, localY: number): void {
     if (!this.isReady() || !this.bridge) return;
 
-    // Hit test to find caret position
+    // Hit test to find caret position (returns byte index)
     const hitResult = this.bridge.hitTest(textId, localX, localY);
+    
+    // Get existing text content from engine (source of truth)
+    const content = this.bridge.getTextContent(textId);
+    if (content === null) {
+      // Text entity doesn't exist
+      console.warn('TextTool.handleEditClick: Text entity not found', { textId });
+      return;
+    }
 
-    // Get existing text content from engine
-    // For now, we'll need to track content separately or add a method to retrieve it
-    // This is a simplification - in practice we'd query the engine
+    // Determine caret position - use hitResult if available, otherwise start of text
+    let byteIndex = 0;
+    if (hitResult) {
+      byteIndex = hitResult.byteIndex;
+    }
+    
+    // Convert byte index to character index for local state
+    const charIndex = byteIndexToCharIndex(content, byteIndex);
 
     this.state = {
       mode: 'editing',
       activeTextId: textId,
-      boxMode: TextBoxMode.AutoWidth, // Would need to query engine for actual mode
+      boxMode: TextBoxMode.AutoWidth, // TODO: Query engine for actual mode
       constraintWidth: 0,
-      caretIndex: hitResult.charIndex,
-      selectionStart: hitResult.charIndex,
-      selectionEnd: hitResult.charIndex,
-      anchorX: 0, // Would need to query engine
+      caretIndex: charIndex,
+      selectionStart: charIndex,
+      selectionEnd: charIndex,
+      anchorX: 0, // TODO: Query engine for position
       anchorY: 0,
-      content: '', // Would need to query engine
+      content,
     };
 
-    // Set caret in engine (using byte index 0 for hit result since content is unknown)
-    // In practice, we'd need to query the engine for the content
-    this.bridge.setCaretByteIndex(textId, hitResult.charIndex);
+    // Set caret in engine using byte index
+    this.bridge.setCaretByteIndex(textId, byteIndex);
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();

@@ -1165,12 +1165,16 @@ void CadEngine::rebuildTextQuadBuffer() {
         const float baseY = text->y;
         constexpr float z = 0.0f; // Text at z=0 for now
         
-        // Track Y position for lines
-        float lineY = 0.0f;
+        // Track Y position for lines using yTop (top of line)
+        float yTop = 0.0f;
         
         // Process each line
         for (const auto& line : layout->lines) {
-            lineY += line.ascent; // Move to baseline
+            // Baseline is at yTop + line.ascent
+            const float baseline = yTop + line.ascent;
+            
+            // Accumulated pen position for glyph X (horizontal advance)
+            float penX = 0.0f;
             
             // Process glyphs in this line using the index range
             for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
@@ -1200,18 +1204,22 @@ void CadEngine::rebuildTextQuadBuffer() {
                 
                 const auto* atlasEntry = glyphAtlas_.getGlyph(fontId, glyph.glyphId);
                 if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
-                    continue; // Skip missing glyphs or whitespace
+                    // Still advance penX for whitespace/missing glyphs
+                    penX += glyph.xAdvance;
+                    continue;
                 }
                 
                 // Calculate glyph position in world space
-                // Scale atlas pixels to text units (fontSize / msdfSize)
-                const float msdfSize = static_cast<float>(glyphAtlas_.getConfig().msdfSize);
-                const float scale = fontSize / msdfSize;
+                // Scale factor: fontSize / atlasEntry->fontSize (which is msdfSize)
+                const float scale = fontSize / atlasEntry->fontSize;
                 
-                const float glyphX = baseX + glyph.xOffset * scale;
-                const float glyphY = baseY + lineY + glyph.yOffset * scale - atlasEntry->bearingY * scale;
-                const float glyphW = atlasEntry->width * scale;
-                const float glyphH = atlasEntry->height * scale;
+                // Glyph X position: baseX + penX + xOffset (HarfBuzz offset is relative to pen)
+                // Glyph Y position: baseY + baseline + yOffset - bearingY (top of glyph)
+                // Note: bearingY is the distance from baseline to top of glyph (positive up)
+                const float glyphX = baseX + (penX + glyph.xOffset) * scale + atlasEntry->bearingX * fontSize;
+                const float glyphY = baseY + baseline + glyph.yOffset - atlasEntry->bearingY * fontSize;
+                const float glyphW = atlasEntry->width * fontSize;
+                const float glyphH = atlasEntry->height * fontSize;
                 
                 // UV coordinates - use the pre-computed normalized UVs
                 const float u0 = atlasEntry->u0;
@@ -1246,9 +1254,13 @@ void CadEngine::rebuildTextQuadBuffer() {
                 textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
                 textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);
                 textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                
+                // Advance pen position by glyph advance
+                penX += glyph.xAdvance;
             }
             
-            lineY += line.descent + line.lineHeight - line.ascent; // Move to next line
+            // Move yTop to next line
+            yTop += line.lineHeight;
         }
     }
 }
@@ -1280,4 +1292,21 @@ void CadEngine::clearAtlasDirty() {
     if (textInitialized_) {
         glyphAtlas_.clearDirty();
     }
+}
+
+CadEngine::TextContentMeta CadEngine::getTextContentMeta(std::uint32_t textId) const noexcept {
+    if (!textInitialized_) {
+        return TextContentMeta{0, 0, false};
+    }
+    
+    std::string_view content = textStore_.getContent(textId);
+    if (content.data() == nullptr) {
+        return TextContentMeta{0, 0, false};
+    }
+    
+    return TextContentMeta{
+        static_cast<std::uint32_t>(content.size()),
+        reinterpret_cast<std::uintptr_t>(content.data()),
+        true
+    };
 }

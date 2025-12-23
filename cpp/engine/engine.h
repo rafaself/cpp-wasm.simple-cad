@@ -379,6 +379,23 @@ public:
      * Clear atlas dirty flag after texture upload.
      */
     void clearAtlasDirty();
+    
+    /**
+     * Metadata for text content buffer (for JS to read content from engine).
+     */
+    struct TextContentMeta {
+        std::uint32_t byteCount;  // Length of UTF-8 content in bytes
+        std::uintptr_t ptr;       // Pointer to UTF-8 data in WASM memory
+        bool exists;              // Whether the text entity exists
+    };
+    
+    /**
+     * Get text content buffer metadata for a text entity.
+     * Important: The returned pointer is only valid until the next text modification.
+     * @param textId Text entity ID
+     * @return Metadata with pointer and size, exists=false if text not found
+     */
+    TextContentMeta getTextContentMeta(std::uint32_t textId) const noexcept;
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);

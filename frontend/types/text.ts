@@ -128,10 +128,11 @@ export interface TextCaretState {
 
 /**
  * Result of hit-testing a point against text.
+ * Note: All indices are UTF-8 byte offsets, NOT character indices.
  */
 export interface TextHitResult {
-  /** UTF-8 byte index of hit character */
-  charIndex: number;
+  /** UTF-8 byte index of hit character (NOT character index) */
+  byteIndex: number;
   /** Line number (0-based) */
   lineIndex: number;
   /** True if hit is on leading edge of glyph */
@@ -188,6 +189,19 @@ export interface TextureBufferMeta {
   height: number;
   byteCount: number;
   ptr: number;
+}
+
+/**
+ * Metadata for text content buffer (from engine).
+ * Used to read text content directly from WASM memory as source of truth.
+ */
+export interface TextContentMeta {
+  /** Length of UTF-8 content in bytes */
+  byteCount: number;
+  /** Pointer to UTF-8 data in WASM memory */
+  ptr: number;
+  /** Whether the text entity exists */
+  exists: boolean;
 }
 
 // =============================================================================

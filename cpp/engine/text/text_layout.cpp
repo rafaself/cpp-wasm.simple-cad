@@ -466,12 +466,16 @@ bool TextLayoutEngine::shapeRun(
     
     // Reset HarfBuzz buffer
     hb_buffer_reset(hbBuffer_);
-    hb_buffer_set_direction(hbBuffer_, HB_DIRECTION_LTR);
-    hb_buffer_set_script(hbBuffer_, HB_SCRIPT_LATIN);
-    hb_buffer_set_language(hbBuffer_, hb_language_from_string("en", -1));
     
-    // Add text to buffer
+    // Add text to buffer first (guess_segment_properties needs content)
     hb_buffer_add_utf8(hbBuffer_, content.data(), static_cast<int>(content.size()), 0, -1);
+    
+    // Let HarfBuzz automatically detect direction, script, and language
+    // from the actual text content. This enables proper handling of:
+    // - RTL scripts (Hebrew, Arabic, etc.)
+    // - Non-Latin scripts (CJK, Cyrillic, Greek, etc.)
+    // - Mixed-direction text (bidi)
+    hb_buffer_guess_segment_properties(hbBuffer_);
     
     // Shape
     hb_shape(font->hbFont, hbBuffer_, nullptr, 0);

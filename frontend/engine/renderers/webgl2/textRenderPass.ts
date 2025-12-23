@@ -268,16 +268,16 @@ export class TextRenderPass {
     // Read atlas data from WASM memory
     const view = new Uint8Array(module.HEAPU8.buffer, meta.ptr, meta.byteCount);
 
-    // Upload to GPU as RGB texture (MSDF has 3 channels)
+    // Upload to GPU as RGBA texture (MSDF has 3 channels + alpha)
     gl.bindTexture(gl.TEXTURE_2D, this.resources.atlasTexture);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGB8,
+      gl.RGBA8,
       meta.width,
       meta.height,
       0,
-      gl.RGB,
+      gl.RGBA,
       gl.UNSIGNED_BYTE,
       view
     );

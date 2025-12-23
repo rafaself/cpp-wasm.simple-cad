@@ -20,6 +20,7 @@ import type {
   TextCaretPosition,
   TextQuadBufferMeta,
   TextureBufferMeta,
+  TextContentMeta,
   TextLayoutResult,
 } from '@/types/text';
 import { utf8ByteLength } from '@/types/text';
@@ -45,6 +46,7 @@ export interface TextEnabledCadEngine {
   getAtlasTextureMeta: () => TextureBufferMeta;
   isAtlasDirty: () => boolean;
   clearAtlasDirty: () => void;
+  getTextContentMeta: (textId: number) => TextContentMeta;
 }
 
 /**
@@ -331,6 +333,26 @@ export class TextBridge {
   getCaretPosition(textId: number, byteIndex: number): TextCaretPosition | null {
     if (!this.isAvailable()) return null;
     return this.textEngine.getTextCaretPosition(textId, byteIndex);
+  }
+
+  /**
+   * Get text content from engine (source of truth).
+   * Use this to sync local state when editing existing text.
+   * @param textId Text entity ID
+   * @returns UTF-8 text content, or null if text doesn't exist
+   */
+  getTextContent(textId: number): string | null {
+    if (!this.isAvailable()) return null;
+    
+    const meta = this.textEngine.getTextContentMeta(textId);
+    if (!meta.exists || meta.byteCount === 0) {
+      return meta.exists ? '' : null;
+    }
+    
+    // Read UTF-8 bytes from WASM memory
+    const bytes = this.runtime.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
+    const decoder = new TextDecoder('utf-8');
+    return decoder.decode(bytes);
   }
 
   /**

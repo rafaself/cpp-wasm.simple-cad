@@ -33,7 +33,8 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getTextQuadBufferMeta", &CadEngine::getTextQuadBufferMeta)
         .function("getAtlasTextureMeta", &CadEngine::getAtlasTextureMeta)
         .function("isAtlasDirty", &CadEngine::isAtlasDirty)
-        .function("clearAtlasDirty", &CadEngine::clearAtlasDirty);
+        .function("clearAtlasDirty", &CadEngine::clearAtlasDirty)
+        .function("getTextContentMeta", &CadEngine::getTextContentMeta);
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
         .field("generation", &CadEngine::BufferMeta::generation)
@@ -70,7 +71,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
 
     // Text-related value objects
     emscripten::value_object<TextHitResult>("TextHitResult")
-        .field("charIndex", &TextHitResult::charIndex)
+        .field("byteIndex", &TextHitResult::charIndex)  // Renamed from charIndex to byteIndex for clarity
         .field("lineIndex", &TextHitResult::lineIndex)
         .field("isLeadingEdge", &TextHitResult::isLeadingEdge);
 
@@ -86,5 +87,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("height", &CadEngine::TextureBufferMeta::height)
         .field("byteCount", &CadEngine::TextureBufferMeta::byteCount)
         .field("ptr", &CadEngine::TextureBufferMeta::ptr);
+
+    emscripten::value_object<CadEngine::TextContentMeta>("TextContentMeta")
+        .field("byteCount", &CadEngine::TextContentMeta::byteCount)
+        .field("ptr", &CadEngine::TextContentMeta::ptr)
+        .field("exists", &CadEngine::TextContentMeta::exists);
 }
 #endif
