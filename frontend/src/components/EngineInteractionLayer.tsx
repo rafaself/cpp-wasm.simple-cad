@@ -249,6 +249,9 @@ const EngineInteractionLayer: React.FC = () => {
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Map engine text IDs (numbers) to JS shape IDs (strings) for selection sync
+  const textIdToShapeIdRef = useRef<Map<number, string>>(new Map());
+
   // Ribbon text defaults (font family/size/style)
   const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
 
@@ -290,6 +293,83 @@ const EngineInteractionLayer: React.FC = () => {
         clearSelection();
         // Switch back to select tool
         useUIStore.getState().setTool('select');
+      },
+      onTextCreated: (textId: number, x: number, y: number, boxMode: number, constraintWidth: number) => {
+        const data = useDataStore.getState();
+        const shapeId = generateId();
+        
+        // Store mapping from engine text ID to JS shape ID
+        textIdToShapeIdRef.current.set(textId, shapeId);
+        
+        const ribbonDefaults = useSettingsStore.getState().toolDefaults.text;
+        const initialHeight = ribbonDefaults.fontSize * 1.2;
+        
+        // In Y-Up world coordinates:
+        // - Text engine anchor (x, y) is at the TOP-LEFT of the text box
+        // - Shape.y should be the BOTTOM of the box for correct bounding box math
+        // - So shape.y = anchor.y - height (moving down in world = decreasing Y)
+        const s: Shape = {
+          id: shapeId,
+          layerId: data.activeLayerId,
+          type: 'text',
+          points: [],
+          x: clampTiny(x),
+          y: clampTiny(y - initialHeight), // Bottom of text box in Y-Up
+          width: boxMode === 1 ? constraintWidth : 50, // FixedWidth uses constraint, AutoWidth starts small
+          height: initialHeight,
+          strokeColor: '#FFFFFF',
+          strokeEnabled: false,
+          fillColor: 'transparent',
+          fillEnabled: false,
+          colorMode: getDefaultColorMode(),
+          floorId: activeFloorId,
+          discipline: activeDiscipline,
+          // Text-specific properties
+          textContent: '',
+          fontSize: ribbonDefaults.fontSize,
+          fontFamily: ribbonDefaults.fontFamily,
+          align: ribbonDefaults.align ?? 'left',
+          bold: ribbonDefaults.bold,
+          italic: ribbonDefaults.italic,
+          underline: ribbonDefaults.underline,
+          strike: ribbonDefaults.strike,
+        };
+        
+        data.addShape(s);
+        setSelectedShapeIds(new Set([shapeId]));
+      },
+      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }) => {
+        const shapeId = textIdToShapeIdRef.current.get(textId);
+        if (!shapeId) return;
+        
+        const data = useDataStore.getState();
+        const shape = data.shapes[shapeId];
+        if (!shape) return;
+        
+        // When height changes, we need to adjust Y to keep the top (anchor) position fixed
+        // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
+        // After update: new shape.y = anchor.y - new height
+        const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
+        const newY = oldAnchorY - bounds.height;
+        
+        const updates: Partial<Shape> = {
+          textContent: content,
+          width: bounds.width,
+          height: bounds.height,
+          y: clampTiny(newY), // Adjust Y to maintain anchor position
+        };
+        
+        data.updateShape(shapeId, updates, false); // false = don't record to history yet
+      },
+      onTextDeleted: (textId: number) => {
+        const shapeId = textIdToShapeIdRef.current.get(textId);
+        if (!shapeId) return;
+        
+        textIdToShapeIdRef.current.delete(textId);
+        
+        const data = useDataStore.getState();
+        data.deleteShape(shapeId);
+        setSelectedShapeIds(new Set());
       },
     };
 
@@ -361,7 +441,7 @@ const EngineInteractionLayer: React.FC = () => {
       (ribbonTextDefaults.bold ? TextStyleFlags.Bold : 0) |
       (ribbonTextDefaults.italic ? TextStyleFlags.Italic : 0) |
       (ribbonTextDefaults.underline ? TextStyleFlags.Underline : 0) |
-      (ribbonTextDefaults.strike ? TextStyleFlags.Strike : 0);
+      (ribbonTextDefaults.strike ? TextStyleFlags.Strikethrough : 0);
 
     const align =
       ribbonTextDefaults.align === 'center'

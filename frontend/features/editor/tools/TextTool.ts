@@ -66,6 +66,12 @@ export interface TextToolCallbacks {
   onCaretUpdate: (x: number, y: number, height: number) => void;
   /** Called when editing ends */
   onEditEnd: () => void;
+  /** Called when a new text entity is created (for syncing to JS store) */
+  onTextCreated?: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number) => void;
+  /** Called when text content/bounds are updated */
+  onTextUpdated?: (textId: number, content: string, bounds: { width: number; height: number }) => void;
+  /** Called when text is deleted (for syncing to JS store) */
+  onTextDeleted?: (textId: number) => void;
 }
 
 // =============================================================================
@@ -203,6 +209,9 @@ export class TextTool {
     // Create empty text entity in engine
     this.createTextEntity(textId, worldX, worldY, TextBoxMode.AutoWidth, 0);
 
+    // Notify for JS shape creation
+    this.callbacks.onTextCreated?.(textId, worldX, worldY, TextBoxMode.AutoWidth, 0);
+
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
   }
@@ -243,6 +252,9 @@ export class TextTool {
 
     // Create empty text entity in engine
     this.createTextEntity(textId, x, y, TextBoxMode.FixedWidth, constraintWidth);
+
+    // Notify for JS shape creation
+    this.callbacks.onTextCreated?.(textId, x, y, TextBoxMode.FixedWidth, constraintWidth);
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
@@ -386,6 +398,14 @@ export class TextTool {
     const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
+    // Notify JS side of text update (for bounds sync)
+    // TODO: Get layout bounds from engine for accurate sizing
+    const estimatedWidth = this.state.boxMode === TextBoxMode.FixedWidth 
+      ? this.state.constraintWidth 
+      : Math.max(50, this.state.content.length * (this.styleDefaults.fontSize * 0.6));
+    const estimatedHeight = this.styleDefaults.fontSize * 1.2;
+    this.callbacks.onTextUpdated?.(textId, this.state.content, { width: estimatedWidth, height: estimatedHeight });
+
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
   }
@@ -439,9 +459,11 @@ export class TextTool {
    * Commit current text and exit editing mode.
    */
   commitAndExit(): void {
-    if (this.state.activeTextId !== null && this.state.content.trim() === '') {
+    const textId = this.state.activeTextId;
+    if (textId !== null && this.state.content.trim() === '') {
       // Delete empty text
-      this.bridge?.deleteText(this.state.activeTextId);
+      this.bridge?.deleteText(textId);
+      this.callbacks.onTextDeleted?.(textId);
     }
 
     this.state = this.createInitialState();
@@ -453,9 +475,11 @@ export class TextTool {
    * Cancel editing without committing.
    */
   cancel(): void {
-    if (this.state.mode === 'creating' && this.state.activeTextId !== null) {
+    const textId = this.state.activeTextId;
+    if (this.state.mode === 'creating' && textId !== null) {
       // Delete the text we were creating
-      this.bridge?.deleteText(this.state.activeTextId);
+      this.bridge?.deleteText(textId);
+      this.callbacks.onTextDeleted?.(textId);
     }
 
     this.state = this.createInitialState();

@@ -5,7 +5,7 @@
 - O usuário pode criar texto de 2 formas:
   1. Clicar na ferramenta texto → Clicar na área de desenho → Digitar o texto. Nesse caso, a caixa de seleção do texto vai crescendo na horizontal ao decorrer que o usuário vai digitando, mas cresce na vertical caso ele de enter para quebrar linha. Comportamento idêntico ao do Figma!
   2. Clicar na ferramenta texto → Criar puxando com o mouse a área do texto → Digitar o texto. Nesse caso, a área do texto já foi definida. Então, o texto não ultrapassa horizontalmente a área do texto, mas ele pode ultrapassar (overflow) verticalmente, apesar da caixa ficar fixa. Similar ao FIGMA!
-  Notar que a diferença básicas é que na primeira a caixa é redimensionada ao decorrer que o usuário digita e na segunda o tamanho da caixa é fixa.
+     Notar que a diferença básica é que na primeira a caixa é redimensionada ao decorrer que o usuário digita e na segunda o tamanho da caixa é fixa.
 - Ao apertar ENTER há a quebra de linha.
 - CTRL + ENTER, Clicar fora ou ESC confirma o texto.
 - É possível fazer as personalizações de texto que já estão disponíveis no RIBBON que são negrito, itálico, sublinhado, riscado, centralizado, just. esquerda, just. direita, tamanho da fonte e fonte (pode ser bem poucas, apenas as 5 mais básicas disponíveis).
