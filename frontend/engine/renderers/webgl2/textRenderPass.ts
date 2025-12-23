@@ -295,9 +295,6 @@ export class TextRenderPass {
    * Call after updateQuadBuffer and updateAtlasTexture.
    */
   public render(input: TextRenderInput, vertexCount: number): void {
-    // DEBUG: Log that render was called
-    console.log(`[DEBUG] TextRender called: vertexCount=${vertexCount} resources=${!!this.resources}`);
-    
     if (!this.resources || vertexCount === 0) return;
 
     const { gl } = this;
@@ -324,25 +321,20 @@ export class TextRenderPass {
     gl.uniform1f(uPixelRatio, input.pixelRatio);
     gl.uniform1f(uPxRange, DEFAULT_MSDF_PX_RANGE);
     
-    // DEBUG: Log render uniforms once per 60 calls
-    if (Math.random() < 0.02) {
-      console.log(`[DEBUG] TextRender: scale=${input.viewTransform.scale} translate=(${input.viewTransform.x.toFixed(0)},${input.viewTransform.y.toFixed(0)}) canvas=(${input.canvasSizeDevice.width},${input.canvasSizeDevice.height}) vertexCount=${vertexCount}`);
-    }
-
     // Bind atlas texture
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
     gl.uniform1i(uAtlas, 0);
 
-    // Draw text quads (as POINTS for debugging)
+    // Draw text quads
     gl.bindVertexArray(vao);
     
     // Draw text quads
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
     
-    // DEBUG: Check for errors after draw
+    // Check for errors after draw
     const err2 = gl.getError();
-    if (err2 !== 0 && Math.random() < 0.01) {
+    if (err2 !== 0) {
       console.error(`[DEBUG] TextRender drawArrays error: ${err2}`);
     }
     

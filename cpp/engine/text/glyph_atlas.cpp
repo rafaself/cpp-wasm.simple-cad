@@ -389,11 +389,20 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(std::uint32_t fontId, std::uint
     entry.u1 = static_cast<float>(packResult->x + bitmapWidth) / static_cast<float>(config_.width);
     entry.v1 = static_cast<float>(packResult->y + bitmapHeight) / static_cast<float>(config_.height);
     
-    // Glyph metrics (normalized to em units)
-    entry.width = static_cast<float>(glyphWidth / unitsPerEM);
-    entry.height = static_cast<float>(glyphHeight / unitsPerEM);
-    entry.bearingX = static_cast<float>(bounds.l / unitsPerEM);
-    entry.bearingY = static_cast<float>(bounds.t / unitsPerEM);
+    // Glyph metrics for rendering (normalized relative to msdfSize)
+    // calculations based on the generated bitmap dimensions and margins
+    double normScale = 1.0 / static_cast<double>(config_.msdfSize);
+    float marginNorm = static_cast<float>(config_.msdfPixelRange * normScale);
+    
+    // Width/Height are now the full quad dimensions (including margins)
+    entry.width = static_cast<float>(bitmapWidth * normScale);
+    entry.height = static_cast<float>(bitmapHeight * normScale);
+    
+    // BearingX: Start of bitmap relative to pen position (original bearing - margin)
+    entry.bearingX = static_cast<float>(bounds.l / unitsPerEM) - marginNorm;
+    
+    // BearingY: Top of bitmap relative to baseline (original top bearing + margin)
+    entry.bearingY = static_cast<float>(bounds.t / unitsPerEM) + marginNorm;
     
     // Advance
     FT_Load_Glyph(face, glyphId, FT_LOAD_NO_SCALE);

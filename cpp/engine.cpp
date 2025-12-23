@@ -1231,10 +1231,12 @@ void CadEngine::rebuildTextQuadBuffer() {
                 const float scale = fontSize / atlasEntry->fontSize;
                 
                 // Glyph X position: baseX + penX + xOffset (HarfBuzz offset is relative to pen)
-                // Glyph Y position: baseY + baseline + yOffset - bearingY (top of glyph)
-                // Note: bearingY is the distance from baseline to top of glyph (positive up)
-                const float glyphX = baseX + (penX + glyph.xOffset) * scale + atlasEntry->bearingX * fontSize;
-                const float glyphY = baseY + baseline + glyph.yOffset - atlasEntry->bearingY * fontSize;
+                // Glyph Y position: baseY + baseline + yOffset + (bearingY - height) * fontSize
+                // Note: bearingY is now the Top of the bitmap relative to baseline (positive up)
+                // Layout coordinates (penX, xOffset, yOffset) are already in pixels from TextLayoutEngine
+                // So we do NOT multiply them by 'scale' (which is for MSDF bitmap sizing only)
+                const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * fontSize;
+                const float glyphY = baseY + baseline + glyph.yOffset + (atlasEntry->bearingY - atlasEntry->height) * fontSize;
                 const float glyphW = atlasEntry->width * fontSize;
                 const float glyphH = atlasEntry->height * fontSize;
                 
