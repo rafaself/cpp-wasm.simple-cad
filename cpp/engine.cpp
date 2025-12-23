@@ -1154,6 +1154,10 @@ TextCaretPosition CadEngine::getTextCaretPosition(std::uint32_t textId, std::uin
 }
 
 bool CadEngine::getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const {
+    // Ensure layout is up-to-date before returning bounds
+    // Note: This is safe even if text wasn't dirty (no-op in that case)
+    const_cast<CadEngine*>(this)->textLayoutEngine_.layoutDirtyTexts();
+    
     const TextRec* text = textStore_.getText(textId);
     if (!text) {
         return false;
@@ -1170,6 +1174,9 @@ void CadEngine::rebuildTextQuadBuffer() {
         textQuadBuffer_.clear();
         return;
     }
+    
+    // Ensure all dirty text layouts are updated before rebuilding quads
+    textLayoutEngine_.layoutDirtyTexts();
     
     textQuadBuffer_.clear();
     

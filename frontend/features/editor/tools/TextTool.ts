@@ -72,7 +72,13 @@ export interface TextToolCallbacks {
   /** Called when a new text entity is created (for syncing to JS store) */
   onTextCreated?: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => void;
   /** Called when text content/bounds are updated */
-  onTextUpdated?: (textId: number, content: string, bounds: { width: number; height: number }) => void;
+  onTextUpdated?: (
+    textId: number,
+    content: string,
+    bounds: { width: number; height: number },
+    boxMode: TextBoxMode,
+    constraintWidth: number
+  ) => void;
   /** Called when text is deleted (for syncing to JS store) */
   onTextDeleted?: (textId: number) => void;
 }
@@ -240,6 +246,7 @@ export class TextTool {
     const x = Math.min(startX, endX);
     const y = Math.max(startY, endY); // Y-Up: Top is Max Y
     const width = Math.abs(endX - startX);
+    const height = Math.max(Math.abs(endY - startY), this.styleDefaults.fontSize * 1.2);
 
     // Minimum width for fixed-width text
     const constraintWidth = Math.max(width, 50);
@@ -264,10 +271,10 @@ export class TextTool {
     // Create empty text entity in engine
     this.createTextEntity(textId, x, y, TextBoxMode.FixedWidth, constraintWidth);
 
-    // Notify for JS shape creation with real bounds
-    const bounds = this.bridge?.getTextBounds(textId);
-    const w = bounds && bounds.valid ? bounds.maxX - bounds.minX : constraintWidth;
-    const h = bounds && bounds.valid ? bounds.maxY - bounds.minY : this.styleDefaults.fontSize * 1.2;
+    // Notify for JS shape creation with the user-drawn box dimensions.
+    const w = constraintWidth;
+    // Preserve the user-drawn height so the box remains fixed like Figma area text.
+    const h = height;
 
     this.callbacks.onTextCreated?.(textId, x, y, TextBoxMode.FixedWidth, constraintWidth, w, h);
 
@@ -300,9 +307,14 @@ export class TextTool {
     shiftKey: boolean,
     anchorX: number,
     anchorY: number,
-    rotation: number
+    rotation: number,
+    boxMode?: TextBoxMode,
+    constraintWidth?: number
   ): void {
     if (!this.isReady() || !this.bridge) return;
+
+    const resolvedBoxMode = boxMode ?? this.state.boxMode ?? TextBoxMode.AutoWidth;
+    const resolvedConstraint = constraintWidth ?? (resolvedBoxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 0);
 
     // 1. Hit test
     const hitResult = this.bridge.hitTest(textId, localX, localY);
@@ -325,8 +337,8 @@ export class TextTool {
       this.state = {
         mode: 'editing',
         activeTextId: textId,
-        boxMode: TextBoxMode.AutoWidth,
-        constraintWidth: 0,
+        boxMode: resolvedBoxMode,
+        constraintWidth: resolvedConstraint,
         caretIndex: charIndex,
         selectionStart: charIndex,
         selectionEnd: charIndex,
@@ -340,10 +352,12 @@ export class TextTool {
       
       // Update anchor/rotation in case they changed (e.g. alignment shift, though unlikely for same ID)
       this.state = {
-         ...this.state,
-         anchorX,
-         anchorY,
-         rotation
+        ...this.state,
+        anchorX,
+        anchorY,
+        rotation,
+        boxMode: resolvedBoxMode,
+        constraintWidth: resolvedConstraint,
       };
 
       // If selection is collapsed, the anchor should be the current caret (handles case where typing moved caret)
@@ -588,7 +602,13 @@ export class TextTool {
        estimatedHeight = this.styleDefaults.fontSize;
     }
 
-    this.callbacks.onTextUpdated?.(textId, this.state.content, { width: estimatedWidth, height: estimatedHeight });
+    this.callbacks.onTextUpdated?.(
+      textId,
+      this.state.content,
+      { width: estimatedWidth, height: estimatedHeight },
+      this.state.boxMode,
+      this.state.constraintWidth
+    );
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();

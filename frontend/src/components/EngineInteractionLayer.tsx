@@ -27,7 +27,7 @@ import { TextTool, createTextTool, type TextToolState, type TextToolCallbacks } 
 import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
 import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
-import { TextAlign, TextStyleFlags, packColorRGBA } from '@/types/text';
+import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/text';
 import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId } from '@/engine/runtime/textEngineSync';
 
 type Draft =
@@ -38,7 +38,15 @@ type Draft =
   | { kind: 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
   | { kind: 'arrow'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } };
+  | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'text'; start: { x: number; y: number }; current: { x: number; y: number } };
+
+type TextBoxMeta = {
+  boxMode: TextBoxMode;
+  constraintWidth: number;
+  fixedHeight?: number;
+  maxAutoWidth: number;
+};
 
 type SelectionBox = {
   start: { x: number; y: number };
@@ -249,6 +257,7 @@ const EngineInteractionLayer: React.FC = () => {
 
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const textBoxMetaRef = useRef<Map<number, TextBoxMeta>>(new Map());
 
   // Note: Text ID ↔ Shape ID mapping is now managed centrally via textEngineSync module
 
@@ -297,12 +306,19 @@ const EngineInteractionLayer: React.FC = () => {
         // Switch back to select tool
         useUIStore.getState().setTool('select');
       },
-      onTextCreated: (textId: number, x: number, y: number, boxMode: number, constraintWidth: number, initialWidth: number, initialHeight: number) => {
+      onTextCreated: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
         const data = useDataStore.getState();
         const shapeId = generateId();
         
         // Store mapping from engine text ID to JS shape ID (centralized)
         registerTextMapping(textId, shapeId);
+
+        textBoxMetaRef.current.set(textId, {
+          boxMode,
+          constraintWidth,
+          fixedHeight: boxMode === TextBoxMode.FixedWidth ? initialHeight : undefined,
+          maxAutoWidth: Math.max(initialWidth, constraintWidth, 0),
+        });
         
         const ribbonDefaults = useSettingsStore.getState().toolDefaults.text;
         
@@ -340,7 +356,7 @@ const EngineInteractionLayer: React.FC = () => {
         data.addShape(s);
         setSelectedShapeIds(new Set([shapeId]));
       },
-      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }) => {
+      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
         const shapeId = getShapeIdForText(textId);
         if (!shapeId) return;
         
@@ -348,16 +364,43 @@ const EngineInteractionLayer: React.FC = () => {
         const shape = data.shapes[shapeId];
         if (!shape) return;
         
+        const existingMeta = textBoxMetaRef.current.get(textId);
+        const meta: TextBoxMeta = existingMeta ?? {
+          boxMode,
+          constraintWidth,
+          fixedHeight: boxMode === TextBoxMode.FixedWidth ? (shape.height ?? bounds.height) : undefined,
+          maxAutoWidth: bounds.width,
+        };
+
+        // Keep metadata in sync with latest mode/constraint coming from the tool.
+        meta.boxMode = boxMode;
+        meta.constraintWidth = constraintWidth;
+
+        let nextWidth = bounds.width;
+        let nextHeight = bounds.height;
+
+        if (meta.boxMode === TextBoxMode.FixedWidth) {
+          nextWidth = Math.max(meta.constraintWidth, 0);
+          const fixedHeight = meta.fixedHeight ?? shape.height ?? bounds.height;
+          meta.fixedHeight = fixedHeight;
+          nextHeight = fixedHeight;
+        } else {
+          const previousWidth = shape.width ?? bounds.width;
+          nextWidth = Math.max(bounds.width, previousWidth);
+          meta.maxAutoWidth = nextWidth;
+        }
+
+        textBoxMetaRef.current.set(textId, meta);
+        
         // When height changes, we need to adjust Y to keep the top (anchor) position fixed
         // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
         // After update: new shape.y = anchor.y - new height
         const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
-        const newY = oldAnchorY - bounds.height;
-        
+        const newY = oldAnchorY - nextHeight;
         const updates: Partial<Shape> = {
           textContent: content,
-          width: bounds.width,
-          height: bounds.height,
+          width: nextWidth,
+          height: nextHeight,
           y: clampTiny(newY), // Adjust Y to maintain anchor position
         };
         
@@ -366,6 +409,7 @@ const EngineInteractionLayer: React.FC = () => {
       onTextDeleted: (textId: number) => {
         const shapeId = getShapeIdForText(textId);
         if (!shapeId) return;
+        textBoxMetaRef.current.delete(textId);
         
         unregisterTextMappingByShapeId(shapeId);
         
@@ -1163,7 +1207,11 @@ const EngineInteractionLayer: React.FC = () => {
              const localX = world.x - anchorX;
              const localY = anchorY - world.y;
              
-             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0);
+             const meta = textBoxMetaRef.current.get(activeTextId!);
+             const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+             const constraintWidth = meta?.constraintWidth ?? 0;
+
+             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
              textInputProxyRef.current?.focus();
              
              // Stop propagation to prevent selection tool from taking over
@@ -1204,6 +1252,7 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool === 'text') {
       // Start potential drag for FixedWidth text
       textDragStartRef.current = snapped;
+      setDraft({ kind: 'text', start: snapped, current: snapped });
       return;
     }
 
@@ -1411,6 +1460,13 @@ const EngineInteractionLayer: React.FC = () => {
     const world = toWorldPoint(evt, viewTransform);
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
 
+    if (activeTool === 'text') {
+      if (textDragStartRef.current) {
+        setDraft({ kind: 'text', start: textDragStartRef.current, current: snapped });
+      }
+      return;
+    }
+
     if (activeTool === 'select') {
       const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
       const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
@@ -1596,6 +1652,18 @@ const EngineInteractionLayer: React.FC = () => {
 
         const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
         data.updateShape(state.shapeId, diff, false);
+
+        if (curr.type === 'text') {
+          const textId = getTextIdForShape(curr.id);
+          if (textId !== null) {
+            textBoxMetaRef.current.set(textId, {
+              boxMode: TextBoxMode.FixedWidth,
+              constraintWidth: nextW,
+              fixedHeight: nextH,
+              maxAutoWidth: nextW,
+            });
+          }
+        }
         return;
       }
 
@@ -1703,6 +1771,7 @@ const EngineInteractionLayer: React.FC = () => {
         // Focus the text input proxy
         requestAnimationFrame(() => textInputProxyRef.current?.focus());
       }
+      setDraft({ kind: 'none' });
       return;
     }
 
@@ -1911,7 +1980,11 @@ const EngineInteractionLayer: React.FC = () => {
             const localX = world.x - anchorX;
             const localY = anchorY - world.y; // World Y up vs Local Y down
             
-            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0);
+            const meta = textBoxMetaRef.current.get(foundTextId);
+            const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+            const constraintWidth = meta?.constraintWidth ?? 0;
+
+            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
             
             requestAnimationFrame(() => textInputProxyRef.current?.focus());
             return;
@@ -1968,6 +2041,20 @@ const EngineInteractionLayer: React.FC = () => {
       return (
         <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'text') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={0.9} />
         </svg>
       );
     }
