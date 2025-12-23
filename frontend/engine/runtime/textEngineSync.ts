@@ -19,6 +19,7 @@ import type { TextTool } from '@/features/editor/tools/TextTool';
 // Singleton state for text ID mapping
 let textIdToShapeId = new Map<number, string>();
 let shapeIdToTextId = new Map<string, number>();
+let textMeta = new Map<number, { boxMode: number; constraintWidth: number }>();
 let textToolInstance: TextTool | null = null;
 
 /**
@@ -43,6 +44,14 @@ export function registerTextMapping(textId: number, shapeId: string): void {
   shapeIdToTextId.set(shapeId, textId);
 }
 
+export function setTextMeta(textId: number, boxMode: number, constraintWidth: number): void {
+  textMeta.set(textId, { boxMode, constraintWidth });
+}
+
+export function getTextMeta(textId: number): { boxMode: number; constraintWidth: number } | null {
+  return textMeta.get(textId) ?? null;
+}
+
 /**
  * Unregister a text mapping by shape ID.
  * Returns the text ID if found, null otherwise.
@@ -53,6 +62,7 @@ export function unregisterTextMappingByShapeId(shapeId: string): number | null {
   
   shapeIdToTextId.delete(shapeId);
   textIdToShapeId.delete(textId);
+  textMeta.delete(textId);
   return textId;
 }
 
@@ -113,11 +123,14 @@ export function deleteTextByShapeId(shapeId: string): boolean {
 export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: number): boolean {
   const textId = shapeIdToTextId.get(shapeId);
   if (textId === undefined) return false;
-  
+  const meta = textMeta.get(textId);
+  const boxMode = meta?.boxMode ?? 0;
+  const constraintWidth = meta?.constraintWidth ?? 0;
+
   if (textToolInstance) {
-    return textToolInstance.moveText(textId, anchorX, anchorY);
+    return textToolInstance.moveText(textId, anchorX, anchorY, boxMode, constraintWidth);
   }
-  
+
   return false;
 }
 
@@ -127,4 +140,5 @@ export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: num
 export function clearTextMappings(): void {
   textIdToShapeId.clear();
   shapeIdToTextId.clear();
+  textMeta.clear();
 }

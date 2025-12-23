@@ -479,10 +479,16 @@ export class TextTool {
    * @param anchorY New Y coordinate (top-left anchor in Y-Up world)
    * @return True if successful
    */
-  moveText(textId: number, anchorX: number, anchorY: number): boolean {
+  moveText(
+    textId: number,
+    anchorX: number,
+    anchorY: number,
+    boxMode: TextBoxMode = TextBoxMode.AutoWidth,
+    constraintWidth = 0
+  ): boolean {
     if (!this.isReady() || !this.bridge) return false;
 
-    const success = this.bridge.updateTextPosition(textId, anchorX, anchorY);
+    const success = this.bridge.updateTextPosition(textId, anchorX, anchorY, boxMode, constraintWidth);
     
     // Update local state if we are currently editing this text
     if (success && this.state.activeTextId === textId) {

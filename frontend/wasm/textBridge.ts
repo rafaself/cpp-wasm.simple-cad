@@ -15,7 +15,7 @@ import {
   type TextInsertPayload,
   type TextDeletePayload,
 } from '@/engine/runtime/commandBuffer';
-import type {
+import {
   TextHitResult,
   TextCaretPosition,
   TextQuadBufferMeta,
@@ -24,6 +24,7 @@ import type {
   TextLayoutResult,
   TextBoundsResult,
   TextSelectionRect,
+  TextBoxMode,
 } from '@/types/text';
 import { utf8ByteLength } from '@/types/text';
 
@@ -430,16 +431,18 @@ export class TextBridge {
    * @param y New Y coordinate (anchor, top-left in Y-Up)
    * @return True if successful
    */
-  updateTextPosition(textId: number, x: number, y: number): boolean {
+  updateTextPosition(
+    textId: number,
+    x: number,
+    y: number,
+    boxMode: TextBoxMode = TextBoxMode.AutoWidth,
+    constraintWidth = 0
+  ): boolean {
     if (!this.isAvailable()) return false;
 
     // Get current content from engine
     const content = this.getTextContent(textId);
     if (content === null) return false; // Text doesn't exist
-
-    // Get current bounds to preserve box mode
-    const bounds = this.textEngine.getTextBounds(textId);
-    const constraintWidth = bounds?.valid ? bounds.maxX - bounds.minX : 0;
 
     // Re-upsert with same content but new position
     // We use a minimal run to preserve the text (actual styling is managed per-entity)
@@ -447,7 +450,7 @@ export class TextBridge {
       x,
       y,
       rotation: 0, // TODO: preserve rotation from TextRec if needed
-      boxMode: constraintWidth > 0 ? 1 : 0, // FixedWidth if has constraint
+      boxMode,
       align: 0, // Left (default, actual alignment stored in TextRec)
       constraintWidth,
       runs: [
