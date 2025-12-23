@@ -1443,6 +1443,15 @@ const EngineInteractionLayer: React.FC = () => {
              const shape = data.shapes[activeShapeId];
              if (shape) {
                 const world = toWorldPoint(evt, viewTransform);
+             const bbox = getShapeBoundingBox(shape);
+             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+             const inside =
+              world.x >= bbox.x - tolerance &&
+              world.x <= bbox.x + bbox.width + tolerance &&
+              world.y >= bbox.y - tolerance &&
+              world.y <= bbox.y + bbox.height + tolerance;
+             setCursorOverride(inside ? 'text' : null);
+
                 const anchorY = (shape.y || 0) + (shape.height || 0);
                 const anchorX = (shape.x || 0);
                 const localX = world.x - anchorX;
@@ -1981,7 +1990,7 @@ const EngineInteractionLayer: React.FC = () => {
             const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
             const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
 
-            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
+            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
             
             requestAnimationFrame(() => textInputProxyRef.current?.focus());
             return;

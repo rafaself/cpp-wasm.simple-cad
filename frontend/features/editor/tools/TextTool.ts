@@ -309,7 +309,8 @@ export class TextTool {
     anchorY: number,
     rotation: number,
     boxMode?: TextBoxMode,
-    constraintWidth?: number
+    constraintWidth?: number,
+    startDrag = true
   ): void {
     if (!this.isReady() || !this.bridge) return;
 
@@ -387,10 +388,10 @@ export class TextTool {
       }
     }
 
-    this.isDragging = true;
-    if (!shiftKey) {
+      this.isDragging = startDrag;
+      if (!shiftKey) {
         this.selectionDragAnchor = charIndex;
-    }
+      }
 
     // Update engine
     this.bridge.setCaretByteIndex(textId, charIndexToByteIndex(content, charIndex));
