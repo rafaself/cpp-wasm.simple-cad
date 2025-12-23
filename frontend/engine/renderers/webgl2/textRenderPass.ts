@@ -319,6 +319,7 @@ export class TextRenderPass {
     gl.uniform2f(uViewTranslate, input.viewTransform.x, input.viewTransform.y);
     gl.uniform2f(uCanvasSize, input.canvasSizeDevice.width, input.canvasSizeDevice.height);
     gl.uniform1f(uPixelRatio, input.pixelRatio);
+    // MSDF pixel range (should match generation config)
     gl.uniform1f(uPxRange, DEFAULT_MSDF_PX_RANGE);
     
     // Bind atlas texture

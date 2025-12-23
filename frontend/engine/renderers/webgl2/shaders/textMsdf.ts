@@ -87,16 +87,50 @@ void main() {
   // Sample the MSDF texture
   vec3 msd = texture(u_atlas, v_texcoord).rgb;
   
-  // Calculate signed distance
+  // Calculate signed distance (monotonic median)
   float sd = median(msd.r, msd.g, msd.b);
-  float screenPxDistance = u_pxRange * (sd - 0.5);
-  float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
-
-  // Output final color with computed opacity
+  
+  // Compute screen-space distance for proper antialiasing at any zoom level
+  // Get the range in texture units
+  vec2 texSize = vec2(textureSize(u_atlas, 0));
+  float unitRange = u_pxRange; // Range in texels
+  
+  // Convert distance to texture units
+  // sd goes 0..1. Center at 0.5. Map to -0.5..0.5
+  float distTexels = (sd - 0.5) * unitRange;
+  
+  // Convert texture units to screen pixels using derivatives
+  // fwidth(v_texcoord) gives the change in UV per screen pixel
+  // 1.0 / fwidth gives "screen pixels per UV unit"? No.
+  // We want: How many texture units per screen pixel?
+  // fwidth(v_texcoord * texSize) gives change in Texels per Screen Pixel.
+  
+  // Length of derivative vector for isotropic scaling (approx)
+  // Or use fwidth on the distTexels directly?
+  // Ideally, we want the gradient of the distance field in screen space.
+  
+  // Simplified approach widely used:
+  // Convert distance field to screen pixels
+  float screenPxDist = distTexels / fwidth(distTexels); 
+  // Wait, fwidth(distTexels) is 0 inside the plateau. This is dangerous.
+  
+  // Correct standard approach:
+  // Gradients of texture coordinates
+  vec2 dTex = fwidth(v_texcoord) * texSize; 
+  // Length of gradient vector = texels per screen pixel
+  float texelsPerPixel = length(dTex); // Approximate
+  
+  // Distance in screen pixels
+  float distScreen = distTexels / texelsPerPixel;
+  
+  // Compute opacity (anti-aliased edge)
+  float opacity = clamp(distScreen + 0.5, 0.0, 1.0);
+  
+  // Output final color
   outColor = vec4(v_color.rgb, v_color.a * opacity);
-
-  // Discard fully transparent pixels for better blending
-  if (outColor.a < 0.004) discard;
+  
+  // Discard only fully transparent to save fillrate/blending work if needed
+  if (opacity < 0.01) discard;
 }
 `;
 
