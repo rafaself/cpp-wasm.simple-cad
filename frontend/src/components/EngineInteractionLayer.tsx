@@ -1208,9 +1208,10 @@ const EngineInteractionLayer: React.FC = () => {
              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
 
-             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
+             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
+             // Keep focus stable for subsequent clicks inside the text box
              textInputProxyRef.current?.focus();
-             
+             evt.preventDefault();
              // Stop propagation to prevent selection tool from taking over
              evt.stopPropagation();
              return; 
@@ -2168,7 +2169,7 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
-      <SelectionOverlay />
+      <SelectionOverlay hideAnchors={engineTextEditState.active} />
       {selectionSvg}
       {/* Engine-native text editing components */}
       <TextInputProxy

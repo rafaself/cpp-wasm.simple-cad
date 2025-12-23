@@ -82,7 +82,7 @@ const offsetPolyline = (points: readonly { x: number; y: number }[], delta: numb
   return out;
 };
 
-const SelectionOverlay: React.FC = () => {
+const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = false }) => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
@@ -137,7 +137,7 @@ const SelectionOverlay: React.FC = () => {
         items.push({
           id,
           outline: { kind: 'segment', a: aa, b: bb },
-          handles: [aa, bb],
+          handles: hideAnchors ? [] : [aa, bb],
         });
         return;
       }
@@ -148,7 +148,7 @@ const SelectionOverlay: React.FC = () => {
         items.push({
           id,
           outline: { kind: 'polyline', points: offsetPolyline(pts, OUTLINE_OFFSET_PX) },
-          handles: pts,
+          handles: hideAnchors ? [] : pts,
         });
         return;
       }
@@ -163,7 +163,7 @@ const SelectionOverlay: React.FC = () => {
         items.push({
           id,
           outline: { kind: 'poly', points: outline },
-          handles,
+          handles: hideAnchors ? [] : handles,
         });
         return;
       }
@@ -234,7 +234,7 @@ const SelectionOverlay: React.FC = () => {
         })}
       </svg>
     );
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
+  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
 
   return selectedOverlaySvg;
 };
