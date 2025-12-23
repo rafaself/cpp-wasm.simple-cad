@@ -138,6 +138,8 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
 
   // Render caret (Local Coords)
   const renderCaret = () => {
+    // Hide caret when there is an active selection
+    if (selectionRects.length > 0) return null;
     if (!caret.visible || !caretVisible) return null;
 
     return (

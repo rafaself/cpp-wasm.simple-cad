@@ -290,6 +290,13 @@ export class TextTool {
    */
   private selectionDragAnchor: number | null = null;
   private isDragging = false;
+  private lastClickInfo: { textId: number | null; time: number; x: number; y: number; count: number } = {
+    textId: null,
+    time: 0,
+    x: 0,
+    y: 0,
+    count: 0,
+  };
 
   /**
    * Handle pointer down on text.
@@ -332,6 +339,22 @@ export class TextTool {
     if (hitResult) {
       charIndex = byteIndexToCharIndex(content, hitResult.byteIndex);
     }
+
+    // Multi-click detection (word / all selection)
+    const now = performance.now();
+    const CLICK_THRESHOLD_MS = 500;
+    const CLICK_DIST_THRESH = 4; // local space
+    let clickCount = 1;
+
+    if (
+      this.lastClickInfo.textId === textId &&
+      now - this.lastClickInfo.time <= CLICK_THRESHOLD_MS &&
+      Math.hypot(localX - this.lastClickInfo.x, localY - this.lastClickInfo.y) <= CLICK_DIST_THRESH
+    ) {
+      clickCount = Math.min(3, this.lastClickInfo.count + 1);
+    }
+
+    this.lastClickInfo = { textId, time: now, x: localX, y: localY, count: clickCount };
 
     if (this.state.activeTextId !== textId) {
       // Start editing new text
@@ -390,11 +413,35 @@ export class TextTool {
 
       this.isDragging = startDrag;
       if (!shiftKey) {
-        this.selectionDragAnchor = charIndex;
+          this.selectionDragAnchor = charIndex;
+      }
+
+      // Apply word / all selection for multi-clicks (Figma-like)
+      if (clickCount === 2 && this.bridge) {
+        const wordStart = this.bridge.getWordLeft(textId, charIndex, content);
+        const wordEnd = this.bridge.getWordRight(textId, charIndex, content);
+        this.state = {
+          ...this.state,
+          caretIndex: wordEnd,
+          selectionStart: Math.min(wordStart, wordEnd),
+          selectionEnd: Math.max(wordStart, wordEnd),
+        };
+        this.selectionDragAnchor = wordStart;
+        this.isDragging = false;
+      } else if (clickCount >= 3) {
+        const endIdx = content.length;
+        this.state = {
+          ...this.state,
+          caretIndex: endIdx,
+          selectionStart: 0,
+          selectionEnd: endIdx,
+        };
+        this.selectionDragAnchor = 0;
+        this.isDragging = false;
       }
 
     // Update engine
-    this.bridge.setCaretByteIndex(textId, charIndexToByteIndex(content, charIndex));
+    this.bridge.setCaretByteIndex(textId, charIndexToByteIndex(content, this.state.caretIndex));
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
