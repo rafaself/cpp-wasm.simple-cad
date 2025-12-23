@@ -19,6 +19,7 @@
 #include "engine/text/font_manager.h"
 #include "engine/text/text_layout.h"
 #include "engine/text/glyph_atlas.h"
+#include "engine/text/text_style_contract.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -293,6 +294,7 @@ public:
      * @param selectionEnd Selection end (byte offset)
      */
     void setTextSelection(std::uint32_t textId, std::uint32_t selectionStart, std::uint32_t selectionEnd);
+    bool applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen);
     
     /**
      * Insert text content at a position.
@@ -328,6 +330,17 @@ public:
     bool setTextConstraintWidth(std::uint32_t textId, float width);
 
     /**
+     * Move a text entity without altering content or styling.
+     * @param textId Text entity ID
+     * @param x New anchor X (top-left, Y-Up)
+     * @param y New anchor Y (top-left, Y-Up)
+     * @param boxMode Text box mode to retain
+     * @param constraintWidth Constraint width when in FixedWidth mode
+     * @return True if text exists
+     */
+    bool setTextPosition(std::uint32_t textId, float x, float y, TextBoxMode boxMode, float constraintWidth);
+
+    /**
      * Hit test a point against text entities.
      * @param textId Text entity ID
      * @param localX X coordinate in text-local space
@@ -343,6 +356,9 @@ public:
      * @return Caret position
      */
     TextCaretPosition getTextCaretPosition(std::uint32_t textId, std::uint32_t charIndex) const;
+
+    // Style snapshot for ribbon/state (engine-authoritative)
+    engine::text::TextStyleSnapshot getTextStyleSnapshot(std::uint32_t textId) const;
     
     /**
      * Get text entity bounds.

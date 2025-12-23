@@ -14,6 +14,10 @@ struct TextBoundsResult {
 };
 
 EMSCRIPTEN_BINDINGS(cad_engine_module) {
+    emscripten::enum_<TextBoxMode>("TextBoxMode")
+        .value("AutoWidth", TextBoxMode::AutoWidth)
+        .value("FixedWidth", TextBoxMode::FixedWidth);
+
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
         .function("clear", &CadEngine::clear)
@@ -41,7 +45,9 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("clearAtlasDirty", &CadEngine::clearAtlasDirty)
         .function("getTextContentMeta", &CadEngine::getTextContentMeta)
         .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
+        .function("getTextStyleSnapshot", &CadEngine::getTextStyleSnapshot)
         .function("setTextConstraintWidth", &CadEngine::setTextConstraintWidth)
+        .function("setTextPosition", &CadEngine::setTextPosition)
         .function("getVisualPrevCharIndex", &CadEngine::getVisualPrevCharIndex)
         .function("getVisualNextCharIndex", &CadEngine::getVisualNextCharIndex)
         .function("getWordLeftIndex", &CadEngine::getWordLeftIndex)
@@ -116,6 +122,21 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("byteCount", &CadEngine::TextContentMeta::byteCount)
         .field("ptr", &CadEngine::TextContentMeta::ptr)
         .field("exists", &CadEngine::TextContentMeta::exists);
+
+    emscripten::value_object<engine::text::TextStyleSnapshot>("TextStyleSnapshot")
+        .field("selectionStartLogical", &engine::text::TextStyleSnapshot::selectionStartLogical)
+        .field("selectionEndLogical", &engine::text::TextStyleSnapshot::selectionEndLogical)
+        .field("selectionStartByte", &engine::text::TextStyleSnapshot::selectionStartByte)
+        .field("selectionEndByte", &engine::text::TextStyleSnapshot::selectionEndByte)
+        .field("caretLogical", &engine::text::TextStyleSnapshot::caretLogical)
+        .field("caretByte", &engine::text::TextStyleSnapshot::caretByte)
+        .field("lineIndex", &engine::text::TextStyleSnapshot::lineIndex)
+        .field("x", &engine::text::TextStyleSnapshot::x)
+        .field("y", &engine::text::TextStyleSnapshot::y)
+        .field("lineHeight", &engine::text::TextStyleSnapshot::lineHeight)
+        .field("styleTriStateFlags", &engine::text::TextStyleSnapshot::styleTriStateFlags)
+        .field("textGeneration", &engine::text::TextStyleSnapshot::textGeneration)
+        .field("styleTriStateParamsLen", &engine::text::TextStyleSnapshot::styleTriStateParamsLen);
 
     emscripten::value_object<TextBoundsResult>("TextBoundsResult")
         .field("minX", &TextBoundsResult::minX)

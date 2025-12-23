@@ -12,6 +12,7 @@
  */
 
 import type { EngineRuntime } from '@/engine/runtime/EngineRuntime';
+import type { ApplyTextStylePayload } from '@/engine/runtime/commandBuffer';
 import { TextBridge } from '@/wasm/textBridge';
 import {
   TextBoxMode,
@@ -22,6 +23,7 @@ import {
   byteIndexToCharIndex,
   type TextPayload,
   type TextInputDelta,
+  type TextStyleSnapshot,
 } from '@/types/text';
 
 // =============================================================================
@@ -67,6 +69,8 @@ export interface TextToolCallbacks {
   onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => void;
   /** Called when selection rects update */
   onSelectionUpdate?: (rects: import('@/types/text').TextSelectionRect[]) => void;
+  /** Called when engine style snapshot updates (tri-state flags, caret/selection). */
+  onStyleSnapshot?: (textId: number, snapshot: TextStyleSnapshot) => void;
   /** Called when editing ends */
   onEditEnd: () => void;
   /** Called when a new text entity is created (for syncing to JS store) */
@@ -698,6 +702,51 @@ export class TextTool {
     this.updateCaretPosition();
   }
 
+  // ==========================================================================
+  // Style Commands
+  // ==========================================================================
+
+  applyStyle(flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
+
+    const textId = this.state.activeTextId;
+    let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
+    let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
+
+    // When no characters are selected, default to styling the whole text entity.
+    if (rangeStart === rangeEnd && this.state.content.length > 0) {
+      rangeStart = 0;
+      rangeEnd = this.state.content.length;
+    }
+
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: rangeStart,
+      rangeEndLogical: rangeEnd,
+      flagsMask,
+      flagsValue: intent === 'set' ? flagsMask : 0,
+      mode: intent === 'toggle' ? 2 : intent === 'set' ? 0 : 1,
+      styleParamsVersion: 0,
+      styleParams: new Uint8Array(),
+    };
+
+    this.bridge.applyTextStyle(textId, payload);
+
+    const bounds = this.bridge.getTextBounds(textId);
+    if (bounds && bounds.valid) {
+      this.callbacks.onTextUpdated?.(
+        textId,
+        this.state.content,
+        { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
+        this.state.boxMode,
+        this.state.constraintWidth
+      );
+    }
+
+    this.updateCaretPosition();
+    return true;
+  }
+
   /**
    * Handle special key press (Enter, Escape, Tab).
    */
@@ -998,6 +1047,11 @@ export class TextTool {
       this.callbacks.onSelectionUpdate?.(localRects);
     } else {
       this.callbacks.onSelectionUpdate?.([]);
+    }
+
+    if (this.callbacks.onStyleSnapshot && this.bridge && this.state.activeTextId !== null) {
+      const snapshot = this.bridge.getTextStyleSnapshot(this.state.activeTextId);
+      this.callbacks.onStyleSnapshot(this.state.activeTextId, snapshot);
     }
   }
 }

@@ -144,6 +144,14 @@ public:
     bool updateRun(std::uint32_t textId, std::uint32_t runIndex, const TextRun& run);
 
     /**
+     * Replace all runs for a text entity.
+     * @param textId Text entity ID
+     * @param newRuns New runs vector (will overwrite existing)
+     * @return True if successful
+     */
+    bool setRuns(std::uint32_t textId, std::vector<TextRun>&& newRuns);
+
+    /**
      * Update constraint width and set box mode to FixedWidth.
      * @param textId Text entity ID
      * @param width Constraint width in World Units

@@ -28,6 +28,43 @@ These are mandatory, non-negotiable guidelines that apply to every AI agent and 
 - MUST use types (TypeScript/Python/C++) appropriately; avoid `any` or equivalent unless justified and documented.
 - MUST surface uncertainties with: "I need clarification on X before proceeding." and create a TODO or issue when necessary.
 
+## Engine-First Architecture (Mandatory)
+
+This project follows a strict **engine-first architecture**.
+
+The **C++ / WebAssembly engine** is the single source of truth for:
+- Text layout, shaping, and rendering
+- Selection and caret state
+- Typographic styles and spans/runs
+- Geometry, transforms, and hit-testing
+- Any logic that affects visual or semantic correctness
+
+The **React / TypeScript frontend** exists only to:
+- Capture user input (pointer, keyboard, IME)
+- Display UI controls (ribbon, panels, overlays)
+- Send **semantic commands** to the engine
+- Render UI based on **engine-provided snapshots or queries**
+
+### Mandatory Rules
+
+- Agents **MUST NOT** implement layout, styling, selection, or rendering logic in React.
+- Agents **MUST NOT** duplicate engine state in frontend stores (e.g. Zustand, Redux).
+- Agents **MUST** treat the engine as the authoritative model.
+- Agents **MUST** express changes as commands (e.g. `APPLY_TEXT_STYLE`, `SET_SELECTION`).
+- Agents **MUST** read visual and semantic state from engine snapshots or queries.
+
+### Decision Principle
+
+If a behavior affects:
+- visual output,
+- layout metrics,
+- selection semantics,
+- or text geometry,
+
+it **belongs in the engine**, not in the frontend.
+
+When in doubt, **default to engine-first** and document any exception explicitly.
+
 ## Agent Operating Model (mandatory flow)
 
 1. Investigate: gather minimal necessary files, tests, and failing evidence.

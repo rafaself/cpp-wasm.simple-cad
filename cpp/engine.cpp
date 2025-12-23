@@ -7,6 +7,40 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>  // For printf debugging
+#include <string_view>
+
+namespace {
+// Map logical index (grapheme/codepoint approximation) to UTF-8 byte offset.
+// This treats any non-continuation byte as a logical step; true grapheme
+// clustering is TODO but this keeps logical indices decoupled from bytes.
+std::uint32_t logicalToByteIndex(std::string_view content, std::uint32_t logicalIndex) {
+    std::uint32_t bytePos = 0;
+    std::uint32_t logicalCount = 0;
+    const std::size_t n = content.size();
+    while (bytePos < n && logicalCount < logicalIndex) {
+        const unsigned char c = static_cast<unsigned char>(content[bytePos]);
+        // Continuation bytes have top bits 10xxxxxx
+        if ((c & 0xC0) != 0x80) {
+            logicalCount++;
+        }
+        bytePos++;
+    }
+    return static_cast<std::uint32_t>(bytePos);
+}
+
+std::uint32_t byteToLogicalIndex(std::string_view content, std::uint32_t byteIndex) {
+    std::uint32_t logicalCount = 0;
+    const std::size_t n = content.size();
+    const std::size_t limit = std::min<std::size_t>(n, byteIndex);
+    for (std::size_t i = 0; i < limit; ++i) {
+        const unsigned char c = static_cast<unsigned char>(content[i]);
+        if ((c & 0xC0) != 0x80) {
+            logicalCount++;
+        }
+    }
+    return logicalCount;
+}
+}
 
 // Constructor
 CadEngine::CadEngine() {
@@ -845,10 +879,303 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             }
             break;
         }
+        case static_cast<std::uint32_t>(CommandOp::ApplyTextStyle): {
+            using engine::text::ApplyTextStylePayload;
+            if (payloadByteCount < engine::text::applyTextStyleHeaderBytes) {
+                return EngineError::InvalidPayloadSize;
+            }
+            ApplyTextStylePayload p;
+            std::memcpy(&p, payload, engine::text::applyTextStyleHeaderBytes);
+            const std::size_t expected = engine::text::applyTextStyleHeaderBytes + p.styleParamsLen;
+            if (payloadByteCount != expected) {
+                return EngineError::InvalidPayloadSize;
+            }
+            if (id != 0 && id != p.textId) {
+                return EngineError::InvalidPayloadSize;
+            }
+            const std::uint8_t* params = payload + engine::text::applyTextStyleHeaderBytes;
+            if (!self->applyTextStyle(p, params, p.styleParamsLen)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
         default:
             return EngineError::UnknownCommand;
     }
     return EngineError::Ok;
+}
+
+bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen) {
+    (void)params;
+    (void)paramsLen;
+
+    // Validate text existence
+    if (!textStore_.hasText(payload.textId)) {
+        return false;
+    }
+
+    // Fetch content and runs
+    const std::string_view content = textStore_.getContent(payload.textId);
+    const auto& runs = textStore_.getRuns(payload.textId);
+    if (runs.empty()) {
+        return true; // nothing to change
+    }
+
+    // Map logical indices to UTF-8 byte offsets (codepoint approximation; TODO: grapheme clustering)
+    std::uint32_t startLogical = payload.rangeStartLogical;
+    std::uint32_t endLogical = payload.rangeEndLogical;
+    if (startLogical > endLogical) {
+        std::swap(startLogical, endLogical);
+    }
+    const std::uint32_t byteStart = logicalToByteIndex(content, startLogical);
+    const std::uint32_t byteEnd = logicalToByteIndex(content, endLogical);
+    if (byteStart >= byteEnd) {
+        return true; // empty range, no-op
+    }
+
+    const std::uint8_t mask = payload.flagsMask;
+    const std::uint8_t value = static_cast<std::uint8_t>(payload.flagsValue & mask);
+
+    const auto applyFlagDelta = [&](TextStyleFlags current) -> TextStyleFlags {
+        std::uint8_t f = static_cast<std::uint8_t>(current);
+        switch (payload.mode) {
+            case 0: // set
+                f = static_cast<std::uint8_t>((f & ~mask) | value);
+                break;
+            case 1: // clear
+                f = static_cast<std::uint8_t>(f & ~mask);
+                break;
+            case 2: // toggle
+                f = static_cast<std::uint8_t>(f ^ mask);
+                break;
+            default:
+                break;
+        }
+        return static_cast<TextStyleFlags>(f);
+    };
+
+    // Caret-only toggle should still affect future typing: create a zero-length run at caret.
+    if (byteStart == byteEnd) {
+        std::vector<TextRun> out;
+        out.reserve(runs.size() + 1);
+        bool inserted = false;
+
+        for (const TextRun& run : runs) {
+            const std::uint32_t runStart = run.startIndex;
+            const std::uint32_t runEnd = run.startIndex + run.length;
+
+            if (!inserted && byteStart >= runStart && byteStart <= runEnd) {
+                if (runStart < byteStart) {
+                    TextRun prefix = run;
+                    prefix.length = byteStart - runStart;
+                    out.push_back(prefix);
+                }
+
+                TextRun mid = run;
+                mid.startIndex = byteStart;
+                mid.length = 0;
+                mid.flags = applyFlagDelta(run.flags);
+                out.push_back(mid);
+                inserted = true;
+
+                if (runEnd > byteStart) {
+                    TextRun suffix = run;
+                    suffix.startIndex = byteStart;
+                    suffix.length = runEnd - byteStart;
+                    out.push_back(suffix);
+                }
+            } else {
+                out.push_back(run);
+            }
+        }
+
+        if (!inserted) {
+            TextRun mid = runs.back();
+            mid.startIndex = byteStart;
+            mid.length = 0;
+            mid.flags = applyFlagDelta(mid.flags);
+            out.push_back(mid);
+        }
+
+        std::vector<TextRun> merged;
+        merged.reserve(out.size());
+        for (const auto& r : out) {
+            if (!merged.empty()) {
+                TextRun& back = merged.back();
+                const bool sameStyle = back.fontId == r.fontId &&
+                                       back.fontSize == r.fontSize &&
+                                       back.colorRGBA == r.colorRGBA &&
+                                       back.flags == r.flags;
+                const bool contiguous = (back.startIndex + back.length) == r.startIndex;
+                if (sameStyle && contiguous) {
+                    back.length += r.length;
+                    continue;
+                }
+            }
+            merged.push_back(r);
+        }
+
+        if (!textStore_.setRuns(payload.textId, std::move(merged))) {
+            return false;
+        }
+
+        // Even caret-only style changes should refresh snapshots and glyph buffers.
+        renderDirty = true;
+        snapshotDirty = true;
+        generation++;
+        return true;
+    }
+
+    std::vector<TextRun> out;
+    out.reserve(runs.size() + 2);
+
+    for (const TextRun& run : runs) {
+        const std::uint32_t runStart = run.startIndex;
+        const std::uint32_t runEnd = run.startIndex + run.length;
+
+        const std::uint32_t overlapStart = std::max(runStart, byteStart);
+        const std::uint32_t overlapEnd = std::min(runEnd, byteEnd);
+
+        if (overlapStart >= overlapEnd) {
+            out.push_back(run);
+            continue;
+        }
+
+        // Prefix (unaffected)
+        if (runStart < overlapStart) {
+            TextRun prefix = run;
+            prefix.length = overlapStart - runStart;
+            out.push_back(prefix);
+        }
+
+        // Overlap (apply style change)
+        {
+            TextRun mid = run;
+            mid.startIndex = overlapStart;
+            mid.length = overlapEnd - overlapStart;
+            mid.flags = applyFlagDelta(mid.flags);
+            out.push_back(mid);
+        }
+
+        // Suffix (unaffected)
+        if (overlapEnd < runEnd) {
+            TextRun suffix = run;
+            suffix.startIndex = overlapEnd;
+            suffix.length = runEnd - overlapEnd;
+            out.push_back(suffix);
+        }
+    }
+
+    // Merge adjacent runs with identical styling
+    std::vector<TextRun> merged;
+    merged.reserve(out.size());
+    for (const auto& r : out) {
+        if (!merged.empty()) {
+            TextRun& back = merged.back();
+            const bool sameStyle = back.fontId == r.fontId &&
+                                   back.fontSize == r.fontSize &&
+                                   back.colorRGBA == r.colorRGBA &&
+                                   back.flags == r.flags;
+            const bool contiguous = (back.startIndex + back.length) == r.startIndex;
+            if (sameStyle && contiguous) {
+                back.length += r.length;
+                continue;
+            }
+        }
+        merged.push_back(r);
+    }
+
+    if (!textStore_.setRuns(payload.textId, std::move(merged))) {
+        return false;
+    }
+
+    // Mark render/snapshot dirty so styled glyphs get regenerated and uploaded.
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+
+    // Layout dirtiness is already tracked by TextStore::setRuns; style params currently ignored (future TLV handling).
+    return true;
+}
+
+engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t textId) const {
+    engine::text::TextStyleSnapshot out{};
+    if (!textInitialized_) {
+        return out;
+    }
+
+    // Ensure layout is current
+    const_cast<CadEngine*>(this)->textLayoutEngine_.layoutDirtyTexts();
+
+    const std::string_view content = textStore_.getContent(textId);
+    const auto runs = textStore_.getRuns(textId);
+    const auto caretOpt = textStore_.getCaretState(textId);
+    if (!caretOpt) {
+        return out;
+    }
+    auto cs = *caretOpt;
+    std::uint32_t selStart = cs.selectionStart;
+    std::uint32_t selEnd = cs.selectionEnd;
+    if (selStart > selEnd) std::swap(selStart, selEnd);
+
+    // Logical indices
+    out.selectionStartLogical = byteToLogicalIndex(content, selStart);
+    out.selectionEndLogical = byteToLogicalIndex(content, selEnd);
+    out.selectionStartByte = selStart;
+    out.selectionEndByte = selEnd;
+    out.caretByte = cs.caretIndex;
+    out.caretLogical = byteToLogicalIndex(content, cs.caretIndex);
+
+    // Caret position (line info)
+    const TextCaretPosition cp = getTextCaretPosition(textId, cs.caretIndex);
+    out.x = cp.x;
+    out.y = cp.y;
+    out.lineHeight = cp.height;
+    out.lineIndex = static_cast<std::uint16_t>(cp.lineIndex);
+
+    // Tri-state computation over selection range (byte-based)
+    auto triStateAttr = [&](TextStyleFlags flag) {
+        int state = -1; // -1 unset, 0 off, 1 on, 2 mixed
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            if (oStart >= oEnd) continue;
+            const bool on = hasFlag(r.flags, flag);
+            const int v = on ? 1 : 0;
+            if (state == -1) state = v; else if (state != v) state = 2;
+            if (state == 2) break;
+        }
+        if (state == -1) state = 0; // default off if no overlap
+        return state;
+    };
+
+    const int boldState = triStateAttr(TextStyleFlags::Bold);
+    const int italicState = triStateAttr(TextStyleFlags::Italic);
+    const int underlineState = triStateAttr(TextStyleFlags::Underline);
+    const int strikeState = triStateAttr(TextStyleFlags::Strike);
+
+    auto pack2bits = [](int s) -> std::uint8_t {
+        switch (s) {
+            case 0: return 0; // off
+            case 1: return 1; // on
+            case 2: return 2; // mixed
+            default: return 0;
+        }
+    };
+
+    out.styleTriStateFlags =
+        static_cast<std::uint8_t>(
+            (pack2bits(boldState) & 0x3) |
+            ((pack2bits(italicState) & 0x3) << 2) |
+            ((pack2bits(underlineState) & 0x3) << 4) |
+            ((pack2bits(strikeState) & 0x3) << 6)
+        );
+
+    out.textGeneration = generation;
+    out.styleTriStateParamsLen = 0;
+    return out;
 }
 
 const SymbolRec* CadEngine::findSymbol(std::uint32_t id) const noexcept {
@@ -1139,6 +1466,31 @@ bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
     return true;
 }
 
+bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxMode boxMode, float constraintWidth) {
+    if (!textInitialized_) return false;
+
+    TextRec* rec = textStore_.getTextMutable(textId);
+    if (!rec) {
+        return false;
+    }
+
+    rec->x = x;
+    rec->y = y;
+    rec->boxMode = boxMode;
+    if (boxMode == TextBoxMode::FixedWidth) {
+        rec->constraintWidth = constraintWidth;
+    }
+
+    // Mark dirty so layout refreshes bounds (min/max) and quads rebuild at new origin.
+    textStore_.markDirty(textId);
+
+    renderDirty = true;
+    snapshotDirty = true;
+    generation++;
+
+    return true;
+}
+
 TextHitResult CadEngine::hitTestText(std::uint32_t textId, float localX, float localY) const {
     if (!textInitialized_) {
         return TextHitResult{0, 0, true};
@@ -1228,12 +1580,14 @@ void CadEngine::rebuildTextQuadBuffer() {
                 std::uint32_t fontId = 0;
                 float fontSize = 16.0f;
                 float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+                TextStyleFlags styleFlags = TextStyleFlags::None;
                 
                 // Find the run this glyph belongs to for font and color
                 for (const auto& run : runs) {
                     if (glyph.clusterIndex >= run.startIndex && glyph.clusterIndex < run.startIndex + run.length) {
                         fontId = run.fontId;
                         fontSize = run.fontSize;
+                        styleFlags = run.flags;
                         // Extract color from RGBA packed value
                         std::uint32_t rgba = run.colorRGBA;
                         r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
@@ -1244,7 +1598,7 @@ void CadEngine::rebuildTextQuadBuffer() {
                     }
                 }
                 
-                const auto* atlasEntry = glyphAtlas_.getGlyph(fontId, glyph.glyphId);
+                const auto* atlasEntry = glyphAtlas_.getGlyph(fontId, glyph.glyphId, styleFlags);
                 if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
                     // Still advance penX for whitespace/missing glyphs
                     penX += glyph.xAdvance;

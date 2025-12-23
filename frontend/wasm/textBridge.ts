@@ -8,6 +8,7 @@
 import type { EngineRuntime } from '@/engine/runtime/EngineRuntime';
 import {
   CommandOp,
+  type ApplyTextStylePayload,
   type TextPayload,
   type TextRunPayload,
   type TextCaretPayload,
@@ -25,6 +26,7 @@ import {
   TextBoundsResult,
   TextSelectionRect,
   TextBoxMode,
+  TextStyleSnapshot,
 } from '@/types/text';
 import { utf8ByteLength } from '@/types/text';
 
@@ -53,6 +55,8 @@ export interface TextEnabledCadEngine {
   getTextBounds: (textId: number) => TextBoundsResult;
   getTextSelectionRects: (textId: number, start: number, end: number) => { size: () => number, get: (i: number) => TextSelectionRect, delete: () => void };
   setTextConstraintWidth: (textId: number, width: number) => boolean;
+  setTextPosition: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number) => boolean;
+  getTextStyleSnapshot: (textId: number) => TextStyleSnapshot;
   getVisualPrevCharIndex: (textId: number, charIndex: number) => number;
   getVisualNextCharIndex: (textId: number, charIndex: number) => number;
   getWordLeftIndex: (textId: number, charIndex: number) => number;
@@ -71,6 +75,13 @@ export class TextBridge {
   private textEngine: TextEnabledCadEngine;
   private initialized = false;
 
+
+  /**
+   * Get engine-authoritative style snapshot (selection, caret, tri-state flags).
+   */
+  getTextStyleSnapshot(textId: number): TextStyleSnapshot {
+    return this.textEngine.getTextStyleSnapshot(textId);
+  }
   constructor(runtime: EngineRuntime) {
     this.runtime = runtime;
     // Cast to text-enabled engine (methods may not exist until WASM is built with text)
@@ -238,6 +249,19 @@ export class TextBridge {
           selectionStart: startByte,
           selectionEnd: endByte,
         } as TextSelectionPayload,
+      },
+    ]);
+  }
+
+  /**
+   * Apply text style to a logical range.
+   */
+  applyTextStyle(textId: number, style: ApplyTextStylePayload): void {
+    this.runtime.apply([
+      {
+        op: CommandOp.ApplyTextStyle,
+        id: textId,
+        style,
       },
     ]);
   }
@@ -438,36 +462,8 @@ export class TextBridge {
     boxMode: TextBoxMode = TextBoxMode.AutoWidth,
     constraintWidth = 0
   ): boolean {
-    if (!this.isAvailable()) return false;
-
-    // Get current content from engine
-    const content = this.getTextContent(textId);
-    if (content === null) return false; // Text doesn't exist
-
-    // Re-upsert with same content but new position
-    // We use a minimal run to preserve the text (actual styling is managed per-entity)
-    const payload: TextPayload = {
-      x,
-      y,
-      rotation: 0, // TODO: preserve rotation from TextRec if needed
-      boxMode,
-      align: 0, // Left (default, actual alignment stored in TextRec)
-      constraintWidth,
-      runs: [
-        {
-          startIndex: 0,
-          length: utf8ByteLength(content),
-          fontId: 0, // Will use existing run styling from TextStore
-          fontSize: 16,
-          colorRGBA: 0xFFFFFFFF,
-          flags: 0,
-        },
-      ],
-      content,
-    };
-
-    this.upsertText(textId, payload);
-    return true;
+    if (!this.isAvailable() || typeof this.textEngine.setTextPosition !== 'function') return false;
+    return this.textEngine.setTextPosition(textId, x, y, boxMode, constraintWidth);
   }
 
   /**

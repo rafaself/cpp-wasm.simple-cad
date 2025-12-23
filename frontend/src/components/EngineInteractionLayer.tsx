@@ -254,6 +254,8 @@ const EngineInteractionLayer: React.FC = () => {
   const setEngineTextEditCaret = useUIStore((s) => s.setEngineTextEditCaret);
   const setEngineTextEditCaretPosition = useUIStore((s) => s.setEngineTextEditCaretPosition);
   const clearEngineTextEdit = useUIStore((s) => s.clearEngineTextEdit);
+  const setEngineTextStyleSnapshot = useUIStore((s) => s.setEngineTextStyleSnapshot);
+  const clearEngineTextStyleSnapshot = useUIStore((s) => s.clearEngineTextStyleSnapshot);
 
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -299,6 +301,9 @@ const EngineInteractionLayer: React.FC = () => {
         setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
         setEngineTextEditContent(state.content);
         setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
+        if (state.mode === 'idle') {
+          clearEngineTextStyleSnapshot();
+        }
       },
       onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => {
         setCaretPosition(x, y, height, rotation, anchorX, anchorY);
@@ -307,8 +312,12 @@ const EngineInteractionLayer: React.FC = () => {
       onSelectionUpdate: (rects: import('@/types/text').TextSelectionRect[]) => {
         setSelection(rects);
       },
+      onStyleSnapshot: (textId, snapshot) => {
+        setEngineTextStyleSnapshot(textId, snapshot);
+      },
       onEditEnd: () => {
         clearEngineTextEdit();
+        clearEngineTextStyleSnapshot();
         hideCaret();
         clearSelection();
         // Switch back to select tool

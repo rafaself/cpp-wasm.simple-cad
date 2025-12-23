@@ -72,7 +72,7 @@ int ftCubicTo(const FT_Vector* control1, const FT_Vector* control2, const FT_Vec
     return 0;
 }
 
-bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId) {
+bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId, TextStyleFlags style) {
     FT_Error error = FT_Load_Glyph(face, glyphId, FT_LOAD_NO_SCALE);
     if (error) {
         return false;
@@ -80,6 +80,23 @@ bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId)
     
     if (face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
         return false;  // Not an outline glyph (e.g., bitmap glyph)
+    }
+
+    // Apply synthetic italic/bold if requested and variants are not provided separately.
+    // This keeps layout unchanged while giving a visual cue in the MSDF output.
+    if (hasFlag(style, TextStyleFlags::Italic)) {
+        constexpr double italicShear = 0.2; // ~11 degrees
+        const FT_Fixed one = 1 << 16;
+        FT_Matrix shear = {one, static_cast<FT_Fixed>(italicShear * static_cast<double>(one)), 0, one};
+        FT_Outline_Transform(&face->glyph->outline, &shear);
+        face->glyph->advance.x += static_cast<FT_Pos>(face->glyph->advance.y * italicShear);
+    }
+
+    if (hasFlag(style, TextStyleFlags::Bold)) {
+        // Strength proportional to EM size; slightly heavier to make bold visually clear in MSDF output.
+        const FT_Pos strength = std::max<FT_Pos>(1, static_cast<FT_Pos>(face->units_per_EM / 32));
+        FT_Outline_Embolden(&face->glyph->outline, strength);
+        face->glyph->advance.x += strength;
     }
     
     output.contours.clear();
@@ -160,8 +177,13 @@ void GlyphAtlas::shutdown() {
     version_ = 0;
 }
 
-const GlyphAtlasEntry* GlyphAtlas::getGlyph(std::uint32_t fontId, std::uint32_t glyphId) {
-    GlyphKey key = makeKey(fontId, glyphId);
+const GlyphAtlasEntry* GlyphAtlas::getGlyph(std::uint32_t fontId, std::uint32_t glyphId, TextStyleFlags style) {
+    const std::uint8_t masked = static_cast<std::uint8_t>(style) & (
+        static_cast<std::uint8_t>(TextStyleFlags::Bold) |
+        static_cast<std::uint8_t>(TextStyleFlags::Italic)
+    );
+    const TextStyleFlags normalizedStyle = static_cast<TextStyleFlags>(masked);
+    GlyphKey key = makeKey(fontId, glyphId, normalizedStyle);
     
     auto it = glyphCache_.find(key);
     if (it != glyphCache_.end()) {
@@ -169,11 +191,16 @@ const GlyphAtlasEntry* GlyphAtlas::getGlyph(std::uint32_t fontId, std::uint32_t 
     }
     
     // Generate the glyph
-    return generateGlyph(fontId, glyphId);
+    return generateGlyph(fontId, glyphId, normalizedStyle);
 }
 
-bool GlyphAtlas::hasGlyph(std::uint32_t fontId, std::uint32_t glyphId) const {
-    return glyphCache_.find(makeKey(fontId, glyphId)) != glyphCache_.end();
+bool GlyphAtlas::hasGlyph(std::uint32_t fontId, std::uint32_t glyphId, TextStyleFlags style) const {
+    const std::uint8_t masked = static_cast<std::uint8_t>(style) & (
+        static_cast<std::uint8_t>(TextStyleFlags::Bold) |
+        static_cast<std::uint8_t>(TextStyleFlags::Italic)
+    );
+    const TextStyleFlags normalizedStyle = static_cast<TextStyleFlags>(masked);
+    return glyphCache_.find(makeKey(fontId, glyphId, normalizedStyle)) != glyphCache_.end();
 }
 
 std::size_t GlyphAtlas::preloadAscii(std::uint32_t fontId) {
@@ -193,7 +220,7 @@ std::size_t GlyphAtlas::preloadAscii(std::uint32_t fontId) {
     for (std::uint32_t codepoint = 32; codepoint <= 126; ++codepoint) {
         FT_UInt glyphIndex = FT_Get_Char_Index(face, codepoint);
         if (glyphIndex != 0) {
-            if (getGlyph(fontId, glyphIndex) != nullptr) {
+            if (getGlyph(fontId, glyphIndex, TextStyleFlags::None) != nullptr) {
                 ++count;
             }
         }
@@ -258,7 +285,7 @@ std::size_t GlyphAtlas::preloadString(std::uint32_t fontId, const char* text, st
         if (codepoint > 0) {
             FT_UInt glyphIndex = FT_Get_Char_Index(face, codepoint);
             if (glyphIndex != 0) {
-                if (getGlyph(fontId, glyphIndex) != nullptr) {
+                if (getGlyph(fontId, glyphIndex, TextStyleFlags::None) != nullptr) {
                     ++count;
                 }
             }
@@ -276,7 +303,11 @@ float GlyphAtlas::getUsageRatio() const {
     return packer_ ? packer_->getUsageRatio() : 0.0f;
 }
 
-const GlyphAtlasEntry* GlyphAtlas::generateGlyph(std::uint32_t fontId, std::uint32_t glyphId) {
+const GlyphAtlasEntry* GlyphAtlas::generateGlyph(
+    std::uint32_t fontId,
+    std::uint32_t glyphId,
+    TextStyleFlags style
+) {
     if (!isInitialized()) {
         return nullptr;
     }
@@ -290,10 +321,10 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(std::uint32_t fontId, std::uint
     
     // Load glyph shape from FreeType
     msdfgen::Shape shape;
-    if (!loadGlyphShape(shape, face, glyphId)) {
+    if (!loadGlyphShape(shape, face, glyphId, style)) {
         // Glyph has no outline (e.g., space character)
         // Create a valid but empty entry
-        GlyphKey key = makeKey(fontId, glyphId);
+        GlyphKey key = makeKey(fontId, glyphId, style);
         GlyphAtlasEntry entry = {};
         entry.glyphId = glyphId;
         entry.fontId = fontId;
@@ -316,7 +347,7 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(std::uint32_t fontId, std::uint
     // Check if shape has contours
     if (shape.contours.empty()) {
         // Empty shape (like space)
-        GlyphKey key = makeKey(fontId, glyphId);
+        GlyphKey key = makeKey(fontId, glyphId, style);
         GlyphAtlasEntry entry = {};
         entry.glyphId = glyphId;
         entry.fontId = fontId;
@@ -377,7 +408,7 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(std::uint32_t fontId, std::uint
     copyToTexture(*packResult, msdf(0, 0), bitmapWidth, bitmapHeight);
     
     // Create atlas entry
-    GlyphKey key = makeKey(fontId, glyphId);
+    GlyphKey key = makeKey(fontId, glyphId, style);
     GlyphAtlasEntry entry;
     entry.glyphId = glyphId;
     entry.fontId = fontId;

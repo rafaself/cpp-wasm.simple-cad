@@ -268,6 +268,33 @@ TEST_F(GlyphAtlasTest, GetGlyphCached) {
     EXPECT_EQ(entry1, entry2);
 }
 
+TEST_F(GlyphAtlasTest, StyleVariantsAreDistinct) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+
+    GlyphAtlas::Config config;
+    ASSERT_TRUE(atlas.initialize(&fontManager, config));
+
+    const FontHandle* font = fontManager.getFont(testFontId);
+    FT_UInt glyphIndex = FT_Get_Char_Index(font->ftFace, 'E');
+
+    const GlyphAtlasEntry* normal = atlas.getGlyph(testFontId, glyphIndex, TextStyleFlags::None);
+    const GlyphAtlasEntry* bold = atlas.getGlyph(testFontId, glyphIndex, TextStyleFlags::Bold);
+    const GlyphAtlasEntry* italic = atlas.getGlyph(testFontId, glyphIndex, TextStyleFlags::Italic);
+
+    ASSERT_NE(normal, nullptr);
+    ASSERT_NE(bold, nullptr);
+    ASSERT_NE(italic, nullptr);
+
+    EXPECT_NE(normal, bold);
+    EXPECT_NE(normal, italic);
+    EXPECT_NE(bold, italic);
+
+    EXPECT_TRUE(atlas.hasGlyph(testFontId, glyphIndex, TextStyleFlags::Bold));
+    EXPECT_TRUE(atlas.hasGlyph(testFontId, glyphIndex, TextStyleFlags::Italic));
+}
+
 TEST_F(GlyphAtlasTest, HasGlyph) {
     if (!fontLoaded) {
         GTEST_SKIP() << "No system font available for testing";

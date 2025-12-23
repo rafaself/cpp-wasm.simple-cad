@@ -250,6 +250,7 @@ enum class CommandOp : std::uint32_t {
     SetTextSelection = 17,
     InsertTextContent = 18,   // Insert text at caret position
     DeleteTextContent = 19,   // Delete text range
+    ApplyTextStyle = 42,      // TEXT_APPLY_STYLE (0x2A)
 };
 
 enum class EngineError : std::uint32_t {

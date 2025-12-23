@@ -256,6 +256,20 @@ bool TextStore::updateRun(std::uint32_t textId, std::uint32_t runIndex, const Te
     return true;
 }
 
+bool TextStore::setRuns(std::uint32_t textId, std::vector<TextRun>&& newRuns) {
+    auto it = runs_.find(textId);
+    if (it == runs_.end()) {
+        return false;
+    }
+    it->second = std::move(newRuns);
+    auto textIt = texts_.find(textId);
+    if (textIt != texts_.end()) {
+        textIt->second.runsCount = static_cast<std::uint32_t>(it->second.size());
+    }
+    markDirty(textId);
+    return true;
+}
+
 bool TextStore::setConstraintWidth(std::uint32_t textId, float width) {
     TextRec* rec = getTextMutable(textId);
     if (!rec) return false;
@@ -383,12 +397,18 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
     if (it == runs_.end()) {
         return;
     }
+
+    bool zeroLengthConsumed = false;
     
     for (TextRun& run : it->second) {
         // Special case: run with length=0 at insertion point should be expanded
         // This handles the case where text is created with an empty run and content is inserted
         if (run.startIndex == byteIndex && run.length == 0) {
             run.length = insertLength;
+            zeroLengthConsumed = true;
+        } else if (run.startIndex == byteIndex && run.length > 0 && zeroLengthConsumed) {
+            // When a zero-length run exists at the caret, treat following runs as suffixes and shift them
+            run.startIndex += insertLength;
         } else if (run.startIndex > byteIndex) {
             // Run starts strictly after insertion point: shift start
             run.startIndex += insertLength;
