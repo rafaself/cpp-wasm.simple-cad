@@ -44,6 +44,7 @@ void main() {
   screen *= u_pixelRatio;
 
   // Convert to clip space
+  // We use u_canvasSize (device pixels), same as screen coord system
   vec2 clip = vec2(
     (screen.x / u_canvasSize.x) * 2.0 - 1.0,
     1.0 - (screen.y / u_canvasSize.y) * 2.0
@@ -83,6 +84,17 @@ float median(float r, float g, float b) {
 }
 
 void main() {
+  // DEBUG: Output UV coordinates as color to verify geometry is correct
+  // Red = U coordinate, Green = V coordinate, Blue = texture sample to keep uniform
+  float texSample = texture(u_atlas, v_texcoord).r * 0.001;
+  float pxMod = u_pxRange * 0.0001;  // Keep uniform referenced
+  outColor = vec4(v_texcoord.x + texSample + pxMod, v_texcoord.y, 0.5, 1.0);
+  // If we see colored squares, geometry is correct. Colors should be:
+  // - Top-left corner: dark (u=0, v=0)
+  // - varying red (u increases right)
+  // - varying green (v increases down)
+  return;
+
   // Sample the MSDF texture
   vec3 msd = texture(u_atlas, v_texcoord).rgb;
 

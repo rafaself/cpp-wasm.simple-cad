@@ -174,7 +174,7 @@ export function useTextCaret(options?: UseTextCaretOptions): UseTextCaretResult 
 
   const [selectionRects, setSelectionRects] = useState<TextSelectionRect[]>([]);
 
-  const updateCaret = (x: number, y: number, height: number) => {
+  const updateCaret = React.useCallback((x: number, y: number, height: number) => {
     setCaret((prev) => ({
       ...prev,
       x,
@@ -182,19 +182,19 @@ export function useTextCaret(options?: UseTextCaretOptions): UseTextCaretResult 
       height,
       visible: true,
     }));
-  };
+  }, []);
 
-  const showCaret = () => {
+  const showCaret = React.useCallback(() => {
     setCaret((prev) => ({ ...prev, visible: true }));
-  };
+  }, []);
 
-  const hideCaret = () => {
+  const hideCaret = React.useCallback(() => {
     setCaret((prev) => ({ ...prev, visible: false }));
-  };
+  }, []);
 
-  const clearSelection = () => {
+  const clearSelection = React.useCallback(() => {
     setSelectionRects([]);
-  };
+  }, []);
 
   return {
     caret,

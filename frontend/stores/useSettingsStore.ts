@@ -142,7 +142,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
   featureFlags: {
     gpuPicking: false,
-    renderMode: 'legacy',
+    renderMode: 'webgl2',  // Use TessellatedWasmLayer which supports text rendering
   },
 
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),

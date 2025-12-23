@@ -108,14 +108,7 @@ const TessellatedWasmLayer: React.FC = () => {
       const textQuadMeta = runtime.engine.getTextQuadBufferMeta?.();
       const textAtlasMeta = runtime.engine.getAtlasTextureMeta?.();
 
-      // @ts-ignore
-      if (window.__dbgText) {
-         console.log('[DEBUG] RenderLoop meta:', {
-            hasRebuild: !!runtime.engine.rebuildTextQuadBuffer,
-            quadCount: textQuadMeta?.vertexCount,
-            atlasWidth: textAtlasMeta?.width
-         });
-      }
+      // Text metadata is available - quads will be rendered by TessellatedRenderer
 
       renderer.render({
         module: runtime.module,

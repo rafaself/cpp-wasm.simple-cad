@@ -6,6 +6,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <cstdio>  // For printf debugging
 
 // Constructor
 CadEngine::CadEngine() {
@@ -774,11 +775,16 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
         // Text Commands
         // =======================================================================
         case static_cast<std::uint32_t>(CommandOp::UpsertText): {
+            printf("[DEBUG] UpsertText command received: id=%u payloadBytes=%u\n", id, payloadByteCount);
+            
             // Variable-length payload: [TextPayloadHeader][TextRunPayload * runCount][UTF-8 content]
             if (payloadByteCount < sizeof(TextPayloadHeader)) return EngineError::InvalidPayloadSize;
             
             TextPayloadHeader hdr;
             std::memcpy(&hdr, payload, sizeof(TextPayloadHeader));
+            
+            printf("[DEBUG] UpsertText header: x=%.2f y=%.2f runCount=%u contentLen=%u\n", 
+                hdr.x, hdr.y, hdr.runCount, hdr.contentLength);
             
             const std::size_t runsSize = static_cast<std::size_t>(hdr.runCount) * sizeof(TextRunPayload);
             const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength;
@@ -790,6 +796,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             if (!self->upsertText(id, hdr, runs, hdr.runCount, content, hdr.contentLength)) {
                 return EngineError::InvalidOperation;
             }
+            printf("[DEBUG] UpsertText: successfully stored text id=%u\n", id);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::DeleteText): {
@@ -996,7 +1003,8 @@ bool CadEngine::initializeTextSystem() {
     return true;
 }
 
-bool CadEngine::loadFont(std::uint32_t fontId, const std::uint8_t* fontData, std::size_t dataSize) {
+bool CadEngine::loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize) {
+    const std::uint8_t* fontData = reinterpret_cast<const std::uint8_t*>(fontDataPtr);
     if (!textInitialized_) {
         if (!initializeTextSystem()) {
             return false;
@@ -1151,27 +1159,36 @@ void CadEngine::rebuildTextQuadBuffer() {
     const auto textIds = textStore_.getAllTextIds();
     
     // For each text entity, generate quads for its glyphs
+    
+    // For each text entity, generate quads for its glyphs
     for (std::uint32_t textId : textIds) {
         const TextRec* text = textStore_.getText(textId);
         if (!text) continue;
         
         const auto* layout = textLayoutEngine_.getLayout(textId);
-        if (!layout) continue;
+        if (!layout) {
+            printf("[DEBUG] rebuildTextQuadBuffer: textId=%u has no layout\n", textId);
+            continue;
+        }
         
         // Get the runs for color info
         const auto& runs = textStore_.getRuns(textId);
+        
+
         
         const float baseX = text->x;
         const float baseY = text->y;
         constexpr float z = 0.0f; // Text at z=0 for now
         
-        // Track Y position for lines using yTop (top of line)
-        float yTop = 0.0f;
+        // Track Y offset for lines (Y grows upward in this coordinate system)
+        // First line starts at baseY, subsequent lines go DOWN (decreasing Y)
+        float yOffset = 0.0f;
         
         // Process each line
         for (const auto& line : layout->lines) {
-            // Baseline is at yTop + line.ascent
-            const float baseline = yTop + line.ascent;
+            // Baseline is at yOffset - line.ascent (ascent goes UP from baseline)
+            // For Y-up: baseline is below the top of the line
+            const float baseline = yOffset - line.ascent;
             
             // Accumulated pen position for glyph X (horizontal advance)
             float penX = 0.0f;
@@ -1259,8 +1276,8 @@ void CadEngine::rebuildTextQuadBuffer() {
                 penX += glyph.xAdvance;
             }
             
-            // Move yTop to next line
-            yTop += line.lineHeight;
+            // Move yOffset to next line (decreasing Y for Y-up system)
+            yOffset -= line.lineHeight;
         }
     }
 }

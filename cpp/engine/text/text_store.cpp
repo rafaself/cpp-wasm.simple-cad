@@ -71,7 +71,7 @@ bool TextStore::upsertText(
         TextRun defaultRun;
         defaultRun.startIndex = 0;
         defaultRun.length = contentLength;
-        defaultRun.fontId = 0;
+        defaultRun.fontId = 4;  // Use fontId=4 (Inter/DejaVu Sans) as default
         defaultRun.fontSize = 16.0f;
         defaultRun.colorRGBA = 0xFFFFFFFF;  // White
         defaultRun.flags = TextStyleFlags::None;
@@ -168,8 +168,26 @@ bool TextStore::insertContent(
     // Update TextRec content length
     textIt->second.contentLength = static_cast<std::uint32_t>(content.size());
     
-    // Adjust runs
-    adjustRunsAfterInsert(id, byteIndex, byteLength);
+    // Ensure at least one run exists for the content
+    auto& runsVec = runs_[id];
+    if (runsVec.empty() && !content.empty()) {
+        // Create a default run covering all content
+        // Use fontId=4 (Inter/DejaVu Sans) as default since fontId=0 has no font loaded
+        TextRun defaultRun;
+        defaultRun.startIndex = 0;
+        defaultRun.length = static_cast<std::uint32_t>(content.size());
+        defaultRun.fontId = 4;  // Default to Inter (fontId=4)
+        defaultRun.fontSize = 16.0f;
+        defaultRun.colorRGBA = 0xFFFFFFFF;  // White
+        defaultRun.flags = TextStyleFlags::None;
+        runsVec.push_back(defaultRun);
+        
+        // Update TextRec runs count
+        textIt->second.runsCount = 1;
+    } else {
+        // Adjust existing runs
+        adjustRunsAfterInsert(id, byteIndex, byteLength);
+    }
     
     // Mark dirty
     markDirty(id);
@@ -357,11 +375,18 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
     }
     
     for (TextRun& run : it->second) {
-        if (run.startIndex >= byteIndex) {
-            // Run starts at or after insertion point: shift start
+        // Special case: run with length=0 at insertion point should be expanded
+        // This handles the case where text is created with an empty run and content is inserted
+        if (run.startIndex == byteIndex && run.length == 0) {
+            run.length = insertLength;
+        } else if (run.startIndex > byteIndex) {
+            // Run starts strictly after insertion point: shift start
             run.startIndex += insertLength;
         } else if (run.startIndex + run.length > byteIndex) {
             // Run spans insertion point: extend length
+            run.length += insertLength;
+        } else if (run.startIndex + run.length == byteIndex) {
+            // Run ends exactly at insertion point: extend length (for contiguous insertion)
             run.length += insertLength;
         }
         // Runs ending before insertion point are unchanged

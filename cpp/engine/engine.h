@@ -251,7 +251,7 @@ public:
      * @param dataSize Size of font data in bytes
      * @return True if font loaded successfully
      */
-    bool loadFont(std::uint32_t fontId, const std::uint8_t* fontData, std::size_t dataSize);
+    bool loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize);
     
     /**
      * Upsert (create or update) a text entity.

@@ -115,6 +115,8 @@ export class TextBridge {
    * @param payload Text payload with properties, runs, and content
    */
   upsertText(id: number, payload: TextPayload): void {
+    console.log('[DEBUG] TextBridge: upsertText', { id, x: payload.x, y: payload.y, runCount: payload.runs.length });
+    
     // Convert to command buffer format
     const runs: TextRunPayload[] = payload.runs.map((run) => ({
       startIndex: run.startIndex,

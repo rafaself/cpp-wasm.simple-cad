@@ -310,7 +310,11 @@ const EngineInteractionLayer: React.FC = () => {
             }
             const buf = await res.arrayBuffer();
             const ok = tool.loadFont(fontId, new Uint8Array(buf));
-            if (!ok) console.warn('TextTool: engine rejected font data', { fontId, label, url });
+            if (ok) {
+              console.log('[DEBUG] TextTool: font loaded successfully', { fontId, label, url, byteSize: buf.byteLength });
+            } else {
+              console.warn('TextTool: engine rejected font data', { fontId, label, url });
+            }
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
             console.warn('TextTool: font load threw', { fontId, label, url, error: e, message });

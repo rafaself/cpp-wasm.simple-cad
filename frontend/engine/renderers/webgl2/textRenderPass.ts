@@ -234,7 +234,13 @@ export class TextRenderPass {
     // Read quad data from WASM memory
     const start = meta.ptr >>> 2;
     const end = start + meta.floatCount;
-    const view = module.HEAPF32.subarray(start, end);
+    // Create a copy of the data to avoid any sharing/alignment issues
+    const view = module.HEAPF32.slice(start, end);
+    
+    // DEBUG: Print first quad vertex positions
+    if (meta.vertexCount > 0) {
+      console.log(`[DEBUG] First quad v0: x=${view[0].toFixed(1)} y=${view[1].toFixed(1)} z=${view[2]} u=${view[3].toFixed(3)} v=${view[4].toFixed(3)} r=${view[5]} g=${view[6]} b=${view[7]} a=${view[8]}`);
+    }
 
     // Upload to GPU
     gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.vbo);
@@ -267,6 +273,8 @@ export class TextRenderPass {
 
     // Read atlas data from WASM memory
     const view = new Uint8Array(module.HEAPU8.buffer, meta.ptr, meta.byteCount);
+    
+    // Atlas has valid MSDF data - upload to GPU
 
     // Upload to GPU as RGBA texture (MSDF has 3 channels + alpha)
     gl.bindTexture(gl.TEXTURE_2D, this.resources.atlasTexture);
@@ -294,6 +302,9 @@ export class TextRenderPass {
    * Call after updateQuadBuffer and updateAtlasTexture.
    */
   public render(input: TextRenderInput, vertexCount: number): void {
+    // DEBUG: Log that render was called
+    console.log(`[DEBUG] TextRender called: vertexCount=${vertexCount} resources=${!!this.resources}`);
+    
     if (!this.resources || vertexCount === 0) return;
 
     const { gl } = this;
@@ -303,6 +314,12 @@ export class TextRenderPass {
     // Enable blending for text (we have alpha from the MSDF shader)
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    
+    // Disable depth test so text always renders on top
+    gl.disable(gl.DEPTH_TEST);
+    
+    // Disable face culling to ensure quads are visible regardless of winding order
+    gl.disable(gl.CULL_FACE);
 
     // Use text shader program
     gl.useProgram(program);
@@ -313,6 +330,11 @@ export class TextRenderPass {
     gl.uniform2f(uCanvasSize, input.canvasSizeDevice.width, input.canvasSizeDevice.height);
     gl.uniform1f(uPixelRatio, input.pixelRatio);
     gl.uniform1f(uPxRange, DEFAULT_MSDF_PX_RANGE);
+    
+    // DEBUG: Log render uniforms once per 60 calls
+    if (Math.random() < 0.02) {
+      console.log(`[DEBUG] TextRender: scale=${input.viewTransform.scale} translate=(${input.viewTransform.x.toFixed(0)},${input.viewTransform.y.toFixed(0)}) canvas=(${input.canvasSizeDevice.width},${input.canvasSizeDevice.height}) vertexCount=${vertexCount}`);
+    }
 
     // Bind atlas texture
     gl.activeTexture(gl.TEXTURE0);
@@ -321,7 +343,22 @@ export class TextRenderPass {
 
     // Draw text quads
     gl.bindVertexArray(vao);
+    
+    // DEBUG: Check WebGL errors and state before draw
+    const err1 = gl.getError();
+    const viewport = gl.getParameter(gl.VIEWPORT);
+    if (Math.random() < 0.02) {
+      console.log(`[DEBUG] TextRender pre-draw: err=${err1} viewport=${viewport}`);
+    }
+    
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+    
+    // DEBUG: Check for errors after draw
+    const err2 = gl.getError();
+    if (err2 !== 0) {
+      console.error(`[DEBUG] TextRender drawArrays error: ${err2}`);
+    }
+    
     gl.bindVertexArray(null);
 
     // Clean up

@@ -26,7 +26,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getStats", &CadEngine::getStats)
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
-        .function("loadFont", &CadEngine::loadFont, emscripten::allow_raw_pointers())
+        .function("loadFont", &CadEngine::loadFont)
         .function("hitTestText", &CadEngine::hitTestText)
         .function("getTextCaretPosition", &CadEngine::getTextCaretPosition)
         .function("rebuildTextQuadBuffer", &CadEngine::rebuildTextQuadBuffer)

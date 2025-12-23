@@ -85,7 +85,7 @@ export class TextTool {
     this.callbacks = callbacks;
     this.state = this.createInitialState();
     this.styleDefaults = {
-      fontId: 0,
+      fontId: 4, // Use fontId=4 (Inter/DejaVu Sans) as default - fontId=0 is reserved but has no font loaded
       fontSize: 16,
       colorRGBA: packColorRGBA(1, 1, 1, 1), // White (default canvas background is dark)
       flags: TextStyleFlags.None,
