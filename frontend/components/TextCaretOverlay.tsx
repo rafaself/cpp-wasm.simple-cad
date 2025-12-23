@@ -94,7 +94,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   // Render selection rectangles
   const renderSelectionRects = () => {
     return selectionRects.map((rect, index) => {
-      const topLeft = worldToScreen(rect.x, rect.y + rect.height);
+      const topLeft = worldToScreen(rect.x, rect.y);
       const widthScreen = rect.width * viewTransform.scale;
       const heightScreen = rect.height * viewTransform.scale;
 
@@ -123,7 +123,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
         className="absolute pointer-events-none"
         style={{
           left: caretScreen.x,
-          top: caretScreen.y - caretHeightScreen,
+          top: caretScreen.y,
           width: 2,
           height: caretHeightScreen,
           backgroundColor: caretColor,

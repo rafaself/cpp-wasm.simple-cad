@@ -228,7 +228,7 @@ export class TextTool {
 
     // Calculate box dimensions
     const x = Math.min(startX, endX);
-    const y = Math.min(startY, endY);
+    const y = Math.max(startY, endY); // Y-Up: Top is Max Y
     const width = Math.abs(endX - startX);
 
     // Minimum width for fixed-width text
@@ -399,11 +399,20 @@ export class TextTool {
     this.bridge.setCaretByteIndex(textId, caretByte);
 
     // Notify JS side of text update (for bounds sync)
-    // TODO: Get layout bounds from engine for accurate sizing
-    const estimatedWidth = this.state.boxMode === TextBoxMode.FixedWidth 
-      ? this.state.constraintWidth 
-      : Math.max(50, this.state.content.length * (this.styleDefaults.fontSize * 0.6));
-    const estimatedHeight = this.styleDefaults.fontSize * 1.2;
+    const bounds = this.bridge.getTextBounds(textId);
+    let estimatedWidth = 100;
+    let estimatedHeight = 16;
+    
+    if (bounds && bounds.valid) {
+      estimatedWidth = bounds.maxX - bounds.minX;
+      estimatedHeight = bounds.maxY - bounds.minY;
+    } else {
+       estimatedWidth = this.state.boxMode === TextBoxMode.FixedWidth 
+        ? this.state.constraintWidth 
+        : Math.max(50, this.state.content.length * (this.styleDefaults.fontSize * 0.6));
+       estimatedHeight = this.styleDefaults.fontSize * 1.2;
+    }
+
     this.callbacks.onTextUpdated?.(textId, this.state.content, { width: estimatedWidth, height: estimatedHeight });
 
     this.callbacks.onStateChange(this.state);
@@ -559,8 +568,10 @@ export class TextTool {
     const caretPos = this.bridge.getCaretPosition(this.state.activeTextId, caretByte);
 
     if (caretPos) {
-      // Engine returns caret in text-local coordinates; overlay expects world coords.
-      this.callbacks.onCaretUpdate(this.state.anchorX + caretPos.x, this.state.anchorY + caretPos.y, caretPos.height);
+      // Engine returns caret in text-local Y-down coordinates; overlay expects world Y-up.
+      // Anchor is Top-Left. Local Y increases down. World Y decreases down.
+      // So WorldY = AnchorY - LocalY.
+      this.callbacks.onCaretUpdate(this.state.anchorX + caretPos.x, this.state.anchorY - caretPos.y, caretPos.height);
     } else {
       // Fallback: use anchor position with default height
       this.callbacks.onCaretUpdate(this.state.anchorX, this.state.anchorY, 16);

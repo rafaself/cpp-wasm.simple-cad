@@ -22,6 +22,7 @@ import type {
   TextureBufferMeta,
   TextContentMeta,
   TextLayoutResult,
+  TextBoundsResult,
 } from '@/types/text';
 import { utf8ByteLength } from '@/types/text';
 
@@ -47,6 +48,7 @@ export interface TextEnabledCadEngine {
   isAtlasDirty: () => boolean;
   clearAtlasDirty: () => void;
   getTextContentMeta: (textId: number) => TextContentMeta;
+  getTextBounds: (textId: number) => TextBoundsResult;
 }
 
 /**
@@ -355,6 +357,16 @@ export class TextBridge {
     const bytes = this.runtime.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
     const decoder = new TextDecoder('utf-8');
     return decoder.decode(bytes);
+  }
+
+  /**
+   * Get text layout bounds from engine.
+   * @param textId Text entity ID
+   * @returns Computed bounds or null
+   */
+  getTextBounds(textId: number): TextBoundsResult | null {
+    if (!this.isAvailable()) return null;
+    return this.textEngine.getTextBounds(textId);
   }
 
   /**

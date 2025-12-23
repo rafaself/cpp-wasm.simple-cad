@@ -8,6 +8,11 @@
 #include "engine/engine.h"
 
 #ifdef EMSCRIPTEN
+struct TextBoundsResult {
+    float minX, minY, maxX, maxY;
+    bool valid;
+};
+
 EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
@@ -34,7 +39,16 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getAtlasTextureMeta", &CadEngine::getAtlasTextureMeta)
         .function("isAtlasDirty", &CadEngine::isAtlasDirty)
         .function("clearAtlasDirty", &CadEngine::clearAtlasDirty)
-        .function("getTextContentMeta", &CadEngine::getTextContentMeta);
+        .function("getTextContentMeta", &CadEngine::getTextContentMeta)
+        .function("getTextBounds", emscripten::optional_override([](CadEngine& self, std::uint32_t textId) {
+            float x1=0, y1=0, x2=0, y2=0;
+            if (self.getTextBounds(textId, x1, y1, x2, y2)) {
+                return TextBoundsResult{x1, y1, x2, y2, true};
+            }
+            return TextBoundsResult{0,0,0,0, false};
+        }));
+    
+    // ... values ...
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
         .field("generation", &CadEngine::BufferMeta::generation)
@@ -92,5 +106,12 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("byteCount", &CadEngine::TextContentMeta::byteCount)
         .field("ptr", &CadEngine::TextContentMeta::ptr)
         .field("exists", &CadEngine::TextContentMeta::exists);
+
+    emscripten::value_object<TextBoundsResult>("TextBoundsResult")
+        .field("minX", &TextBoundsResult::minX)
+        .field("minY", &TextBoundsResult::minY)
+        .field("maxX", &TextBoundsResult::maxX)
+        .field("maxY", &TextBoundsResult::maxY)
+        .field("valid", &TextBoundsResult::valid);
 }
 #endif

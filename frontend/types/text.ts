@@ -113,6 +113,18 @@ export interface TextLayoutResult {
 }
 
 /**
+ * Result of querying text layout bounds from engine.
+ * Used for sync with JS shape bounds.
+ */
+export interface TextBoundsResult {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  valid: boolean;
+}
+
+/**
  * Caret/selection state for text editing.
  */
 export interface TextCaretState {

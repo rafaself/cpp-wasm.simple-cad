@@ -298,23 +298,14 @@ TextCaretPosition TextLayoutEngine::getCaretPosition(
     pos.lineIndex = lineIndex;
     pos.height = line.lineHeight;
     
-    // Calculate Y position.
-    // We return caret.y at the baseline (not the top of line) to match
-    // how the render path places glyphs (baseline = line.ascent from line top).
+    // Calculate Y position (Top of line) in Text Local Space (Y-down).
+    // Origin (0,0) is top-left. +Y is down.
     float yTop = 0.0f;
     for (std::uint32_t i = 0; i < lineIndex; ++i) {
-        yTop -= layout->lines[i].lineHeight; // Move DOWN for subsequent lines
+        yTop += layout->lines[i].lineHeight; // Move DOWN
     }
     
-    // Compromise to center the caret visually:
-    // Place the bottom of the caret halfway between the baseline (-ascent) 
-    // and the logical bottom (-lineHeight).
-    // This distributes the line gap and ensures it doesn't look too high or too low.
-    float baseline = yTop - line.ascent;
-    float logicalBottom = yTop - line.lineHeight;
-    
-    pos.height = line.lineHeight;
-    pos.y = (baseline + logicalBottom) * 0.5f;
+    pos.y = yTop;
     
     // Calculate X position by summing advances up to charIndex
     float x = 0.0f;
