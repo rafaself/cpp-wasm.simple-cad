@@ -643,3 +643,95 @@ TEST_F(TextLayoutTest, FixedWidthLayoutResults) {
     // In FixedWidth mode, layoutWidth should be the constraint
     EXPECT_FLOAT_EQ(rec->layoutWidth, constraintWidth);
 }
+
+// =============================================================================
+// Implementation & Fix Verification Tests (Added by AntiGravity)
+// =============================================================================
+
+TEST_F(TextLayoutTest, VerifyCaretYDirection) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+
+    createText(1, "First\nSecond");
+    layoutEngine.layoutText(1);
+    
+    // Get caret on first line
+    TextCaretPosition caret1 = layoutEngine.getCaretPosition(1, 0); // Start of "First"
+    
+    // Get caret on second line
+    // "First\n" is 6 bytes. Position 6 puts it at start of "Second"
+    TextCaretPosition caret2 = layoutEngine.getCaretPosition(1, 6);
+    
+    // In our Y-Up coordinate system, where lines go downwards:
+    // Line 1 Y should be LESS than Line 0 Y.
+    EXPECT_LT(caret2.y, caret1.y) << "Caret Y should decrease for subsequent lines (Y-Up system)";
+    
+    // Verify line index
+    EXPECT_EQ(caret1.lineIndex, 0u);
+    EXPECT_EQ(caret2.lineIndex, 1u);
+}
+
+TEST_F(TextLayoutTest, VerifyCaretAlignment) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+
+    createText(1, "Test");
+    layoutEngine.layoutText(1);
+    
+    // Metrics for the font size 16.0f
+    FontMetrics metrics = fontManager.getScaledMetrics(testFontId, 16.0f);
+    
+    // Get caret
+    TextCaretPosition caret = layoutEngine.getCaretPosition(1, 0);
+    
+    // Verify height matches logic (should be equal to lineHeight)
+    const TextLayout* layout = layoutEngine.getLayout(1);
+    ASSERT_NE(layout, nullptr);
+    ASSERT_GE(layout->lines.size(), 1u);
+    
+    EXPECT_FLOAT_EQ(caret.height, layout->lines[0].lineHeight) 
+        << "Caret height should match line height";
+        
+    // Verify Y position centering logic
+    // pos.y = (baseline + logicalBottom) * 0.5f
+    // baseline = 0 - ascent
+    // logicalBottom = 0 - lineHeight
+    
+    float ascent = layout->lines[0].ascent;
+    float lineHeight = layout->lines[0].lineHeight;
+    float expectedY = (-ascent + -lineHeight) * 0.5f;
+    
+    EXPECT_NEAR(caret.y, expectedY, 0.001f) 
+        << "Caret Y should be centered between baseline and logical bottom";
+}
+
+TEST_F(TextLayoutTest, VerifyFontSizeEffects) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+
+    // Layout with size 16
+    createText(1, "WWWW"); // Wide characters
+    layoutEngine.layoutText(1);
+    float width16 = layoutEngine.getLayout(1)->totalWidth;
+    
+    // Manually create text with size 32
+    TextPayloadHeader header{};
+    header.runCount = 1;
+    header.contentLength = 4;
+    TextRunPayload run{};
+    run.length = 4;
+    run.fontId = testFontId;
+    run.fontSize = 32.0f; // Double size
+    
+    store.upsertText(2, header, &run, 1, "WWWW", 4);
+    layoutEngine.layoutText(2);
+    float width32 = layoutEngine.getLayout(2)->totalWidth;
+    
+    // Width 32 should be approx double Width 16
+    // If HarfBuzz wasn't fully updated, metrics might lag
+    EXPECT_GT(width32, width16 * 1.8f);
+    EXPECT_LT(width32, width16 * 2.2f);
+}
