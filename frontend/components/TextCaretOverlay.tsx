@@ -158,8 +158,30 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
     );
   };
 
+  // Debug visualization
+  const debugRender = () => {
+    // Check for dev flag (can be set in console: window.DEBUG_TEXT_OVERLAY = true)
+    if (typeof window !== 'undefined' && !(window as any).DEBUG_TEXT_OVERLAY) return null;
+
+    return (
+      <div className="absolute top-0 left-0 pointer-events-none" style={{ zIndex: 9999 }}>
+        {/* Origin Dot */}
+        <div className="absolute w-2 h-2 rounded-full bg-red-500 -translate-x-1 -translate-y-1" />
+        {/* Local X Axis (Text Flow Direction) */}
+        <div className="absolute h-[1px] w-20 bg-red-500 origin-left" />
+        {/* Local Y Axis (Line Stack Direction) */}
+        <div className="absolute w-[1px] h-20 bg-blue-500 origin-top" />
+        {/* Debug Label */}
+        <div className="absolute top-2 left-2 text-[10px] bg-black/80 text-white px-1 whitespace-nowrap">
+          Rot: {Math.round(rotationDeg)}°
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={style}>
+      {debugRender()}
       {renderSelectionRects()}
       {renderCaret()}
     </div>
