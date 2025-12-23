@@ -633,7 +633,10 @@ const EngineInteractionLayer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTool, polygonSidesModal]);
 
-  const cursor = useMemo(() => (cursorOverride ? cursorOverride : getCursorForTool(activeTool)), [activeTool, cursorOverride]);
+  const cursor = useMemo(() => {
+    if (engineTextEditState.active) return 'text';
+    return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
+  }, [activeTool, cursorOverride, engineTextEditState.active]);
 
   useEffect(() => {
     setSelectionBox(null);
