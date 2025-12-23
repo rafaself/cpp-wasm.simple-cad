@@ -600,11 +600,149 @@ export class TextTool {
   /**
    * Handle special key press (Enter, Escape, Tab).
    */
-  handleSpecialKey(key: string): void {
+  /**
+   * Handle special key press (Enter, Escape, Tab, Arrows).
+   */
+  handleSpecialKey(key: string, event?: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; preventDefault: () => void }): void {
     if (key === 'Escape') {
       this.commitAndExit();
+      event?.preventDefault();
+      return;
     } else if (key === 'Enter') {
-      // Insert newline - handled as regular input
+      // Insert newline - let fall through to TextInputProxy?
+      // Usually Enter inserts newline char.
+      return;
+    }
+
+    // Navigation
+    if (this.isEditing() && this.bridge && this.state.activeTextId !== null && event) {
+        const textId = this.state.activeTextId;
+        const currentCaret = this.state.caretIndex;
+        const currentContent = this.state.content;
+        let newCaret = currentCaret;
+        let handled = false;
+
+        const isWordMod = event.ctrlKey || event.altKey;
+
+        if (key === 'ArrowLeft') {
+            if (isWordMod) {
+                newCaret = this.bridge.getWordLeft(textId, currentCaret, currentContent);
+            } else {
+                newCaret = this.bridge.getVisualPrev(textId, currentCaret, currentContent);
+            }
+            handled = true;
+        } else if (key === 'ArrowRight') {
+            if (isWordMod) {
+                newCaret = this.bridge.getWordRight(textId, currentCaret, currentContent);
+            } else {
+                newCaret = this.bridge.getVisualNext(textId, currentCaret, currentContent);
+            }
+            handled = true;
+        } else if (key === 'Home') {
+            newCaret = this.bridge.getLineStart(textId, currentCaret, currentContent);
+            handled = true;
+        } else if (key === 'End') {
+            newCaret = this.bridge.getLineEnd(textId, currentCaret, currentContent);
+            handled = true;
+        }
+        else if (key === 'ArrowUp') {
+            newCaret = this.bridge.getLineUp(textId, currentCaret, currentContent);
+            handled = true;
+        } else if (key === 'ArrowDown') {
+            newCaret = this.bridge.getLineDown(textId, currentCaret, currentContent);
+            handled = true;
+        }
+
+        if (handled) {
+            event.preventDefault(); // Stop browser caret movement
+
+            // Update state
+            let newStart = this.state.selectionStart;
+            let newEnd = this.state.selectionEnd;
+
+            if (event.shiftKey) {
+                // Expanding selection
+                // If we don't have a pivot, current selection start/end logic implies:
+                // Caret is usually at 'end' if we moved 'end'.
+                // Ideally track 'anchor' and 'focus' of selection.
+                // TextToolState has selectionStart/End (min/max usually?).
+                // Let's assume selectionEnd follows caret if shift was held?
+                
+                // We need to know which end is the "active" end (caret).
+                // `caretIndex` tracks the active end.
+                // `selectionStart` usually tracks the anchor?
+                // Actually TextToolState defines start/end as standard range.
+                // But caretIndex is the "cursor".
+                
+                if (this.state.selectionStart === this.state.selectionEnd) {
+                    // Start selecting
+                    // Anchor is old caret.
+                    // New caret is focus.
+                    newEnd = newCaret;
+                    // Sort start/end? No, state.selectionStart/End usually implies indices.
+                    // But for rendering we might normalize.
+                    // Let's keep start/end as anchor/focus or min/max?
+                    // TextCaretOverlay expects start/end probably ordered?
+                    // Engine API expects start/end ordered?
+                    // Byte conversion doesn't care. selection rects uses min/max usually.
+                    // Let's update `caretIndex` to new location.
+                    // And update selection range to cover [anchor, newCaret].
+                    
+                    // We need to persist the anchor. 
+                    // Use `selectionStart` as anchor if we were collapsed?
+                    // Or standard logic: 
+                    // If collapsed, Anchor = OldCaret.
+                    // If expanded, Anchor is the end *opposite* to caret.
+                }
+                
+                // Determine Anchor
+                let anchor = this.state.selectionStart;
+                if (anchor === this.state.caretIndex) anchor = this.state.selectionEnd;
+                // If start==end==caret, anchor is caret.
+                
+                // Wait, if start != end.
+                // if caret == start, anchor is end.
+                // if caret == end, anchor is start.
+                
+                // Update selection range
+                // We don't normalize start/end in state?
+                // TextInputProxy expects normalized? `inputRef.current.setSelectionRange` expects start, end, direction.
+                // TextToolState comments say "Selection start... Selection end".
+                // Usually means min/max.
+                // But `caretIndex` tracks the visual caret.
+                // So we can compute min/max for the State.
+                
+                this.state = {
+                    ...this.state,
+                    caretIndex: newCaret,
+                    selectionStart: Math.min(anchor, newCaret),
+                    selectionEnd: Math.max(anchor, newCaret),
+                };
+            } else {
+                // Determine new selection (collapsed)
+                this.state = {
+                    ...this.state,
+                    caretIndex: newCaret,
+                    selectionStart: newCaret,
+                    selectionEnd: newCaret,
+                };
+            }
+
+            // Sync to Engine (and TextInputProxy via state update loop -> TextInteractionLayer -> Props)
+            const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+            
+            // Sync selection if needed
+            if (this.state.selectionStart !== this.state.selectionEnd) {
+                const sByte = charIndexToByteIndex(this.state.content, this.state.selectionStart);
+                const eByte = charIndexToByteIndex(this.state.content, this.state.selectionEnd);
+                this.bridge.setSelectionByteIndex(textId, sByte, eByte);
+            } else {
+                this.bridge.setCaretByteIndex(textId, caretByte);
+            }
+
+            this.callbacks.onStateChange(this.state);
+            this.updateCaretPosition();
+        }
     }
   }
 

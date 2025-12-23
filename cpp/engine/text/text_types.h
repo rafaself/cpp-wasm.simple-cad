@@ -20,6 +20,7 @@ struct ShapedGlyph {
     float yAdvance;             // Vertical advance (usually 0 for LTR)
     float xOffset;              // Horizontal offset from baseline
     float yOffset;              // Vertical offset from baseline
+    std::uint32_t flags;        // Bitfield: 1 = RTL
 };
 
 // A laid-out line of text

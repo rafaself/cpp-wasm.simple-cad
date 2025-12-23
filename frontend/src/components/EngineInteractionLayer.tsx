@@ -2066,8 +2066,8 @@ const EngineInteractionLayer: React.FC = () => {
         onSelectionChange={(start, end) => {
           textToolRef.current?.handleSelectionChange(start, end);
         }}
-        onSpecialKey={(key) => {
-          textToolRef.current?.handleSpecialKey(key);
+        onSpecialKey={(key, e) => {
+          textToolRef.current?.handleSpecialKey(key, e);
         }}
       />
 

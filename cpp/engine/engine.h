@@ -365,6 +365,16 @@ public:
     using TextSelectionRect = engine::text::TextLayoutEngine::SelectionRect;
     std::vector<TextSelectionRect> getTextSelectionRects(std::uint32_t textId, std::uint32_t start, std::uint32_t end) const;
     
+    // Navigation helpers
+    std::uint32_t getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getVisualNextCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getWordLeftIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getWordRightIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineStartIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineEndIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    
     /**
      * Rebuild text quad buffer for rendering.
      * Must be called after text layout changes.

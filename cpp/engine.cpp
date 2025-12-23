@@ -1372,3 +1372,44 @@ std::vector<CadEngine::TextSelectionRect> CadEngine::getTextSelectionRects(std::
     }
     return textLayoutEngine_.getSelectionRects(textId, start, end);
 }
+
+std::uint32_t CadEngine::getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return 0;
+    return textLayoutEngine_.getVisualPrevCharIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getVisualNextCharIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getVisualNextCharIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getWordLeftIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return 0;
+    return textLayoutEngine_.getWordLeftIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getWordRightIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getWordRightIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getLineStartIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return 0;
+    return textLayoutEngine_.getLineStartIndex(textId, charIndex);
+}
+
+
+std::uint32_t CadEngine::getLineEndIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getLineEndIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getLineUpIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getLineDownIndex(textId, charIndex);
+}

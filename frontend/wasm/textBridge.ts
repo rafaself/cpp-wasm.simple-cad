@@ -52,6 +52,14 @@ export interface TextEnabledCadEngine {
   getTextBounds: (textId: number) => TextBoundsResult;
   getTextSelectionRects: (textId: number, start: number, end: number) => { size: () => number, get: (i: number) => TextSelectionRect, delete: () => void };
   setTextConstraintWidth: (textId: number, width: number) => boolean;
+  getVisualPrevCharIndex: (textId: number, charIndex: number) => number;
+  getVisualNextCharIndex: (textId: number, charIndex: number) => number;
+  getWordLeftIndex: (textId: number, charIndex: number) => number;
+  getWordRightIndex: (textId: number, charIndex: number) => number;
+  getLineStartIndex: (textId: number, charIndex: number) => number;
+  getLineEndIndex: (textId: number, charIndex: number) => number;
+  getLineUpIndex: (textId: number, charIndex: number) => number;
+  getLineDownIndex: (textId: number, charIndex: number) => number;
 }
 
 /**
@@ -489,6 +497,86 @@ export class TextBridge {
     );
   }
 
+  /**
+   * Get visual previous caret position.
+   */
+  getVisualPrev(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return charIndex;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const prevByte = this.textEngine.getVisualPrevCharIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, prevByte);
+  }
+
+  /**
+   * Get visual next caret position.
+   */
+  getVisualNext(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return charIndex;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const nextByte = this.textEngine.getVisualNextCharIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, nextByte);
+  }
+
+  /**
+   * Get word left boundary.
+   */
+  getWordLeft(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return 0;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const prevByte = this.textEngine.getWordLeftIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, prevByte);
+  }
+
+  /**
+   * Get word right boundary.
+   */
+  getWordRight(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return charIndex;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const nextByte = this.textEngine.getWordRightIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, nextByte);
+  }
+
+  /**
+   * Get line start boundary.
+   */
+  getLineStart(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return 0;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const prevByte = this.textEngine.getLineStartIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, prevByte);
+  }
+
+  /**
+   * Get line end boundary.
+   */
+  getLineEnd(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return charIndex;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const nextByte = this.textEngine.getLineEndIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, nextByte);
+  }
+
+  /**
+   * Get line up boundary.
+   */
+  getLineUp(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return charIndex;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const resultByte = this.textEngine.getLineUpIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, resultByte);
+  }
+
+  /**
+   * Get line down boundary.
+   */
+  getLineDown(textId: number, charIndex: number, content: string): number {
+    if (!this.isAvailable()) return charIndex;
+    const byteIndex = this.charToByteIndex(content, charIndex);
+    const resultByte = this.textEngine.getLineDownIndex(textId, byteIndex);
+    return this.byteToCharIndex(content, resultByte);
+  }
+
   // =========================================================================
   // Private Helpers
   // =========================================================================
@@ -499,6 +587,36 @@ export class TextBridge {
   private charToByteIndex(content: string, charIndex: number): number {
     const prefix = content.slice(0, charIndex);
     return utf8ByteLength(prefix);
+  }
+
+  /**
+   * Convert UTF-8 byte index to character index.
+   */
+  private byteToCharIndex(content: string, byteIndex: number): number {
+    // Fast path for ASCII
+    if (byteIndex < content.length && /^[\x00-\x7F]*$/.test(content)) {
+        return byteIndex;
+    }
+
+    let currentByte = 0;
+    const len = content.length;
+    for (let i = 0; i < len; i++) {
+        if (currentByte >= byteIndex) return i;
+        const code = content.charCodeAt(i);
+        // High surrogate
+        if (code >= 0xD800 && code <= 0xDBFF) {
+             // 4 bytes in UTF-8
+             currentByte += 4;
+             i++; // Skip low surrogate
+        } else if (code >= 0x80) {
+             // 2 or 3 bytes
+             if (code < 0x800) currentByte += 2;
+             else currentByte += 3;
+        } else {
+             currentByte += 1;
+        }
+    }
+    return len;
   }
 }
 

@@ -157,15 +157,31 @@ public:
      * @param charIndex Current character index
      * @return Previous character index, or same if at start
      */
-    std::uint32_t getPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
-    
     /**
-     * Get the character index for the next character.
+     * Get the previous character index visually (left).
      * @param textId Text entity ID
      * @param charIndex Current character index
-     * @return Next character index, or same if at end
+     * @return New character index aligned to cluster boundary
      */
-    std::uint32_t getNextCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    
+    /**
+     * Get the next character index visually (right).
+     * @param textId Text entity ID
+     * @param charIndex Current character index
+     * @return New character index aligned to cluster boundary
+     */
+    std::uint32_t getVisualNextCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+
+    /**
+     * Get the word boundary to the left.
+     */
+    std::uint32_t getWordLeftIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+
+    /**
+     * Get the word boundary to the right.
+     */
+    std::uint32_t getWordRightIndex(std::uint32_t textId, std::uint32_t charIndex) const;
     
     /**
      * Get the character index at the start of the line containing charIndex.
@@ -176,6 +192,16 @@ public:
      * Get the character index at the end of the line containing charIndex.
      */
     std::uint32_t getLineEndIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+
+    /**
+     * Get the character index one line up from the current visual position.
+     */
+    std::uint32_t getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+
+    /**
+     * Get the character index one line down from the current visual position.
+     */
+    std::uint32_t getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const;
     
 private:
     FontManager* fontManager_ = nullptr;

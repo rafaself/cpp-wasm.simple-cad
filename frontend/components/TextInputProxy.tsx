@@ -160,12 +160,23 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         // Handle special keys before default behavior
         const { key } = e;
 
-        // Navigation keys that might change selection
-        if (
-          ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(
-            key
-          )
-        ) {
+        // Handle special keys including navigation
+        if (e.nativeEvent.isComposing) return;
+
+        const isNavigation = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key);
+        const isControl = ['Enter', 'Escape', 'Tab', 'Backspace', 'Delete'].includes(key);
+
+        if (isNavigation || isControl) {
+          if (onSpecialKey) {
+             onSpecialKey(key, e);
+             if (e.defaultPrevented) {
+               return;
+             }
+          }
+        }
+
+        // Navigation keys that might change selection (if not prevented)
+        if (isNavigation) {
           // Let the browser handle it, then report the new selection
           requestAnimationFrame(() => {
             if (inputRef.current && onSelectionChange) {
@@ -178,17 +189,17 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           return;
         }
 
-        // Special keys
+        // Special keys default behaviors
+        if (key === 'Escape') {
+            e.preventDefault();
+        }
+        if (key === 'Tab') {
+            e.preventDefault();
+        }
+        // Enter falls through to input usually? Or separate handler. 
+        // Original code returned for Enter/Escape/Tab.
         if (['Enter', 'Escape', 'Tab'].includes(key)) {
-          onSpecialKey?.(key, e);
-          if (key === 'Escape') {
-            e.preventDefault();
-          }
-          if (key === 'Tab') {
-            e.preventDefault();
-          }
-          // Enter: let default insert newline (unless prevented by parent)
-          return;
+           return;
         }
 
         // Handle backspace/delete for better delta detection
