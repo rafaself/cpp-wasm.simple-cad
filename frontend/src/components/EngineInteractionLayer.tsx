@@ -374,7 +374,7 @@ const EngineInteractionLayer: React.FC = () => {
         data.addShape(s);
         setSelectedShapeIds(new Set([shapeId]));
       },
-      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
+      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number, x?: number, y?: number) => {
         const shapeId = getShapeIdForText(textId);
         if (!shapeId) return;
         
@@ -406,16 +406,29 @@ const EngineInteractionLayer: React.FC = () => {
 
         textBoxMetaRef.current.set(textId, freshMeta);
         
-        // When height changes, we need to adjust Y to keep the top (anchor) position fixed
-        // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
-        // After update: new shape.y = anchor.y - new height
-        const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
-        const newY = oldAnchorY - nextHeight;
+        // Calculate Y position
+        // If Engine provided exact coordinates (via sync), use them (this preserves Baseline).
+        // Otherwise, fallback to keeping the top anchor fixed (legacy behavior for simple resizing).
+        let nextY = 0;
+        let nextX = shape.x ?? 0;
+
+        if (y !== undefined && x !== undefined) {
+           nextY = y;
+           nextX = x;
+        } else {
+           // Fallback: Adjust Y to maintain top-anchor position
+           // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
+           // After update: new shape.y = anchor.y - new height
+           const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
+           nextY = oldAnchorY - nextHeight;
+        }
+
         const updates: Partial<Shape> = {
           textContent: content,
           width: nextWidth,
           height: nextHeight,
-          y: clampTiny(newY), // Adjust Y to maintain anchor position
+          x: clampTiny(nextX),
+          y: clampTiny(nextY), 
         };
         
         data.updateShape(shapeId, updates, false); // false = don't record to history yet

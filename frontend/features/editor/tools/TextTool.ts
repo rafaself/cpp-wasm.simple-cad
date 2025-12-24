@@ -82,7 +82,9 @@ export interface TextToolCallbacks {
     content: string,
     bounds: { width: number; height: number },
     boxMode: TextBoxMode,
-    constraintWidth: number
+    constraintWidth: number,
+    x?: number,
+    y?: number
   ) => void;
   /** Called when text is deleted (for syncing to JS store) */
   onTextDeleted?: (textId: number) => void;

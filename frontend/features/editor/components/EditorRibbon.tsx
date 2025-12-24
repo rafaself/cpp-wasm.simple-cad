@@ -418,6 +418,7 @@ tr:nth-child(even){background:#111827;}
       const shape = dataStore.shapes[id];
       if (!shape) return;
       
+      let handledByEngine = false;
       // Update Engine first (if available) to get correct metrics
       if (textTool && textTool.isReady()) {
          const textId = getTextIdForShape(id);
@@ -437,6 +438,7 @@ tr:nth-child(even){background:#111827;}
                   const fid = fontIdByFamily[diff.fontFamily] ?? 0;
                   textTool.applyFontIdToText(textId, fid);
              }
+             handledByEngine = true;
          }
       }
 
@@ -444,7 +446,7 @@ tr:nth-child(even){background:#111827;}
       const content = diff.textContent ?? shape.textContent ?? '';
       const updates: Partial<Shape> = { ...diff };
 
-      if (recalcSize) {
+      if (recalcSize && !handledByEngine) {
         const baseWidth = shape.width && shape.width > 0 ? shape.width : undefined;
         // TextTool sync might have updated bounds via callback, but we keep this as fallback/preview
         const availableWidth = baseWidth ? Math.max(baseWidth - TEXT_PADDING * 2, 1) : undefined;
