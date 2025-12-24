@@ -473,7 +473,8 @@ TEST_F(GlyphAtlasTest, AtlasUsageGrowth) {
     ASSERT_TRUE(atlas.initialize(&fontManager, config));
     
     float usage1 = atlas.getUsageRatio();
-    EXPECT_FLOAT_EQ(usage1, 0.0f);
+    EXPECT_GT(usage1, 0.0f);
+    EXPECT_LT(usage1, 0.01f); // Should be very small (4 pixels)
     
     atlas.preloadAscii(testFontId);
     

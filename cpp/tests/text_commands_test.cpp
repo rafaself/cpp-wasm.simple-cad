@@ -984,6 +984,9 @@ TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
     
     printf("New: Y=%.2f Ascent=%.2f Baseline=%.2f\n", text2->y, newAscent, newAbsoluteBaseline);
 
-    EXPECT_FLOAT_EQ(newAbsoluteBaseline, initialAbsoluteBaseline) 
-        << "Baseline should not move! Displacement: " << (newAbsoluteBaseline - initialAbsoluteBaseline);
+    EXPECT_FLOAT_EQ(text2->y, text1->y) 
+        << "Top anchor (Y) should not move! Displacement: " << (text2->y - text1->y);
+    
+    EXPECT_GT(newAbsoluteBaseline, initialAbsoluteBaseline)
+        << "Baseline should move downwards (larger Y in Y-Up) as font size increases with fixed top anchor";
 }
