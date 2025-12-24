@@ -929,14 +929,21 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
     }
     const std::uint32_t byteStart = logicalToByteIndex(content, startLogical);
     const std::uint32_t byteEnd = logicalToByteIndex(content, endLogical);
+
     if (byteStart > byteEnd) {
-        // Strict greater-than check allows byteStart == byteEnd (caret/collapsed selection)
-        // to proceed to the caret-only handling block below.
         return true; // malformed range, no-op
     }
 
     const std::uint8_t mask = payload.flagsMask;
     const std::uint8_t value = static_cast<std::uint8_t>(payload.flagsValue & mask);
+
+    // DEBUG: Trace input using JS console directly
+    {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "console.log('[C++ DEBUG] applyTextStyle textId=%u range=[%u, %u) mask=%02x val=%02x mode=%u')",
+                 payload.textId, byteStart, byteEnd, mask, value, payload.mode);
+        emscripten_run_script(buf);
+    }
 
     const auto applyFlagDelta = [&](TextStyleFlags current) -> TextStyleFlags {
         std::uint8_t f = static_cast<std::uint8_t>(current);
@@ -956,8 +963,10 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         return static_cast<TextStyleFlags>(f);
     };
 
-    // Caret-only toggle should still affect future typing: create a zero-length run at caret.
+    // Caret-only logic
     if (byteStart == byteEnd) {
+        printf("[DEBUG] applyTextStyle: Caret-only path\n");
+        // ... (existing caret logic) ...
         std::vector<TextRun> out;
         out.reserve(runs.size() + 1);
         bool inserted = false;
@@ -992,13 +1001,22 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         }
 
         if (!inserted) {
-            TextRun mid = runs.back();
+            // Case: empty text or caret at very end outside existing runs
+            // Fallback to default styling if runs empty, or last run's style
+            TextRun mid;
+            if (!runs.empty()) {
+                mid = runs.back();
+            } else {
+                // Should not happen as upsertText creates default run, but safe fallback
+                mid.fontId = 4; mid.fontSize = 16.0f; mid.colorRGBA = 0xFFFFFFFF; mid.flags = TextStyleFlags::None;
+            }
             mid.startIndex = byteStart;
             mid.length = 0;
             mid.flags = applyFlagDelta(mid.flags);
             out.push_back(mid);
         }
 
+        // Merge logic...
         std::vector<TextRun> merged;
         merged.reserve(out.size());
         for (const auto& r : out) {
@@ -1021,13 +1039,14 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             return false;
         }
 
-        // Even caret-only style changes should refresh snapshots and glyph buffers.
         renderDirty = true;
         snapshotDirty = true;
         generation++;
         return true;
     }
 
+    // Range logic
+    printf("[DEBUG] applyTextStyle: Range path. Runs count=%zu\n", runs.size());
     std::vector<TextRun> out;
     out.reserve(runs.size() + 2);
 
@@ -1043,23 +1062,28 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             continue;
         }
 
-        // Prefix (unaffected)
+        // Prefix
         if (runStart < overlapStart) {
             TextRun prefix = run;
             prefix.length = overlapStart - runStart;
             out.push_back(prefix);
         }
 
-        // Overlap (apply style change)
+        // Overlap
         {
             TextRun mid = run;
             mid.startIndex = overlapStart;
             mid.length = overlapEnd - overlapStart;
             mid.flags = applyFlagDelta(mid.flags);
+            printf("[DEBUG] Modifying run [%u, %u) flags %02x -> %02x\n", 
+                mid.startIndex, 
+                mid.startIndex + mid.length, 
+                static_cast<std::uint8_t>(run.flags), 
+                static_cast<std::uint8_t>(mid.flags));
             out.push_back(mid);
         }
 
-        // Suffix (unaffected)
+        // Suffix
         if (overlapEnd < runEnd) {
             TextRun suffix = run;
             suffix.startIndex = overlapEnd;
@@ -1068,7 +1092,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         }
     }
 
-    // Merge adjacent runs with identical styling
+    // Merge logic
     std::vector<TextRun> merged;
     merged.reserve(out.size());
     for (const auto& r : out) {
@@ -1086,17 +1110,16 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         }
         merged.push_back(r);
     }
+    printf("[DEBUG] applyTextStyle: Merged runs count=%zu\n", merged.size());
 
     if (!textStore_.setRuns(payload.textId, std::move(merged))) {
+        printf("[DEBUG] applyTextStyle: setRuns failed\n");
         return false;
     }
 
-    // Mark render/snapshot dirty so styled glyphs get regenerated and uploaded.
     renderDirty = true;
     snapshotDirty = true;
     generation++;
-
-    // Layout dirtiness is already tracked by TextStore::setRuns; style params currently ignored (future TLV handling).
     return true;
 }
 

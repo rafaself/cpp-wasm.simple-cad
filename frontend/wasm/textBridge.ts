@@ -257,6 +257,7 @@ export class TextBridge {
    * Apply text style to a logical range.
    */
   applyTextStyle(textId: number, style: ApplyTextStylePayload): void {
+    console.log('[DEBUG] TextBridge.applyTextStyle sending command', { textId, style });
     this.runtime.apply([
       {
         op: CommandOp.ApplyTextStyle,

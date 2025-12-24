@@ -136,10 +136,14 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
     const nextIntent: 'set' | 'clear' = option.state === 'on' ? 'clear' : 'set';
     option.setter(nextIntent === 'set');
 
+    console.log('[TextControls] handleClick', { key: option.key, nextIntent, applyViaEngine, textId: engineEditState.textId });
+
     if (applyViaEngine) {
       const tool = getTextTool();
       if (tool) {
         tool.applyStyle(option.mask, nextIntent);
+      } else {
+        console.warn('[TextControls] Tool not found!');
       }
       return;
     }

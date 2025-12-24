@@ -459,6 +459,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeU32(view, o, 0); // reserved
         break;
       case CommandOp.ApplyTextStyle: {
+        o = writeU32(view, o, cmd.style.textId);
         o = writeU32(view, o, cmd.style.rangeStartLogical);
         o = writeU32(view, o, cmd.style.rangeEndLogical);
         view.setUint8(o++, cmd.style.flagsMask & 0xff);

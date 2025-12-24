@@ -707,7 +707,10 @@ export class TextTool {
   // ==========================================================================
 
   applyStyle(flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
+      console.warn('[TextTool] applyStyle: Not ready or no active text', { ready: this.isReady(), active: this.state.activeTextId });
+      return false;
+    }
 
     const textId = this.state.activeTextId;
     const contentLength = this.state.content.length;
@@ -727,6 +730,8 @@ export class TextTool {
       rangeStart = caret;
       rangeEnd = caret;
     }
+    
+    console.log('[TextTool] applyStyle', { textId, rangeStart, rangeEnd, flagsMask, intent });
 
     const payload: ApplyTextStylePayload = {
       textId,
@@ -741,9 +746,7 @@ export class TextTool {
 
     this.bridge.applyTextStyle(textId, payload);
 
-    // Update tool defaults to reflect the new state, so subsequent new text 
-    // or typing elsewhere uses the updated style.
-    // We update defaults based on the resulting engine snapshot.
+    // Update tool defaults to reflect the new state...
     const snapshot = this.bridge.getTextStyleSnapshot(textId);
     if (snapshot) {
       // Snapshot format: 2 bits per attr in styleTriStateFlags
