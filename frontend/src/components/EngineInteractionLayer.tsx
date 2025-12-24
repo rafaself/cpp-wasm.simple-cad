@@ -1684,7 +1684,8 @@ const EngineInteractionLayer: React.FC = () => {
             if (textId !== null) {
               const newBounds = textToolRef.current.resizeText(textId, nextW);
               if (newBounds) {
-                 nextH = newBounds.height;
+                 // Allow box to be taller than text (vertical resize), but at least as tall as content
+                 nextH = Math.max(newBounds.height, nextH);
                  
                  // Update rawH to match the ACTUAL height so that center calculation is correct
                  // relative to the fixed corner.
