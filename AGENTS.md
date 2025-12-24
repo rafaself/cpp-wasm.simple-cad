@@ -32,6 +32,7 @@ These are mandatory, non-negotiable guidelines that apply to every AI agent and 
 ## Engine-First Architecture (Mandatory)
 
 This project follows a strict **engine-first architecture**.
+The WASM build is made with emscripten with the command: docker compose up.
 
 The **C++ / WebAssembly engine** is the single source of truth for:
 

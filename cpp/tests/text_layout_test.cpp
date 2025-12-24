@@ -216,6 +216,48 @@ TEST_F(TextLayoutTest, MultipleNewlines) {
     EXPECT_EQ(layout->lines.size(), 3u);
 }
 
+TEST_F(TextLayoutTest, TrailingNewline) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+    
+    // Content ending with newline should create a trailing empty line
+    createText(1, "Hello\n");
+    layoutEngine.layoutText(1);
+    
+    const TextLayout* layout = layoutEngine.getLayout(1);
+    ASSERT_NE(layout, nullptr);
+    EXPECT_EQ(layout->lines.size(), 2u) << "Trailing newline should create 2 lines";
+    
+    // First line has "Hello"
+    EXPECT_EQ(layout->lines[0].byteCount, 5u);  // "Hello"
+    
+    // Second line is empty (for caret positioning)
+    EXPECT_EQ(layout->lines[1].byteCount, 0u);
+    EXPECT_EQ(layout->lines[1].startByte, 6u);  // After "Hello\n"
+    
+    // Caret at position 6 (after newline) should be on line 1
+    TextCaretPosition caret = layoutEngine.getCaretPosition(1, 6);
+    EXPECT_EQ(caret.lineIndex, 1u) << "Caret after trailing newline should be on line 1";
+    EXPECT_LT(caret.y, 0.0f) << "Caret Y should be below first line";
+}
+
+TEST_F(TextLayoutTest, MultipleTrailingNewlines) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+    
+    // Content with multiple trailing newlines
+    createText(1, "Test\n\n");
+    layoutEngine.layoutText(1);
+    
+    const TextLayout* layout = layoutEngine.getLayout(1);
+    ASSERT_NE(layout, nullptr);
+    // "Test\n" creates line 0, first "\n" creates line 1, second "\n" creates line 2
+    EXPECT_EQ(layout->lines.size(), 3u) << "Two trailing newlines should create 3 lines";
+}
+
+
 TEST_F(TextLayoutTest, AutoWidthNoWrap) {
     if (!fontLoaded) {
         GTEST_SKIP() << "No system font available for testing";

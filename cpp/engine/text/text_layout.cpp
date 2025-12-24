@@ -1109,7 +1109,30 @@ void TextLayoutEngine::breakLines(
         currentLine.width = currentWidth;
         outLines.push_back(currentLine);
     }
+    
+    // Handle trailing newline: add empty line for caret positioning
+    // This ensures that when content ends with '\n', the caret can be placed on the new line
+    if (!content.empty() && content.back() == '\n') {
+        LayoutLine trailingLine{};
+        trailingLine.startGlyph = static_cast<std::uint32_t>(glyphs.size());
+        trailingLine.glyphCount = 0;
+        trailingLine.startByte = static_cast<std::uint32_t>(content.size());
+        trailingLine.byteCount = 0;
+        trailingLine.width = 0.0f;
+        
+        // Get metrics from last run for consistent line height
+        if (!runs.empty()) {
+            const auto& lastRun = runs.back();
+            FontMetrics m = fontManager_->getScaledMetrics(lastRun.fontId, lastRun.fontSize);
+            trailingLine.ascent = m.ascender;
+            trailingLine.descent = -m.descender;
+            trailingLine.lineHeight = m.ascender - m.descender + m.lineGap;
+        }
+        
+        outLines.push_back(trailingLine);
+    }
 }
+
 
 void TextLayoutEngine::positionLines(
     const TextRec& text,
