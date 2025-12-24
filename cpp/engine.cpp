@@ -993,6 +993,46 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         if (hasFontId) run.fontId = newFontId;
     };
 
+    auto applyWithBaselinePreservation = [&](std::vector<TextRun>&& newRuns) -> bool {
+        float oldAscent = 0.0f;
+        float oldY = 0.0f;
+        bool hadLayout = false;
+        
+        if (const auto* l = textLayoutEngine_.getLayout(payload.textId)) {
+            if (!l->lines.empty()) {
+                oldAscent = l->lines[0].ascent;
+                hadLayout = true;
+            }
+        }
+        if (const auto* t = textStore_.getText(payload.textId)) {
+            oldY = t->y;
+        }
+        float oldBase = oldY + oldAscent;
+
+        if (!textStore_.setRuns(payload.textId, std::move(newRuns))) return false;
+        textLayoutEngine_.layoutText(payload.textId); // Force re-layout to update bounds
+
+        if (hadLayout) {
+             float newAscent = 0.0f;
+             if (const auto* l = textLayoutEngine_.getLayout(payload.textId)) {
+                 if (!l->lines.empty()) newAscent = l->lines[0].ascent;
+            }
+            
+            // If ascent changed, compensate Y to keep baseline fixed
+            if (std::abs(newAscent - oldAscent) > 0.001f) {
+                 float newY = oldBase - newAscent;
+                 if (auto* t = textStore_.getTextMutable(payload.textId)) {
+                     t->y = newY;
+                     // Mark dirty to ensure render picks up new position
+                     textStore_.markDirty(payload.textId);
+                 }
+            }
+        }
+        
+        renderDirty = true; snapshotDirty = true; generation++;
+        return true;
+    };
+
     // Caret-only logic (Collapsed selection)
     if (byteStart == byteEnd) {
         // Pre-scan: Check if there's already a zero-length run at this position
@@ -1010,10 +1050,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             std::vector<TextRun> out = runs; // Copy all runs
             applyStyle(out[existingZeroLengthIdx]);
             
-            if (!textStore_.setRuns(payload.textId, std::move(out))) return false;
-            textLayoutEngine_.layoutText(payload.textId);
-            renderDirty = true; snapshotDirty = true; generation++;
-            return true;
+            return applyWithBaselinePreservation(std::move(out));
         }
 
         // No existing zero-length run - create new one by splitting
@@ -1065,8 +1102,6 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             out.push_back(mid);
         }
 
-
-
         // Merge logic
         std::vector<TextRun> merged;
         merged.reserve(out.size());
@@ -1086,10 +1121,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             merged.push_back(r);
         }
 
-        if (!textStore_.setRuns(payload.textId, std::move(merged))) return false;
-        textLayoutEngine_.layoutText(payload.textId); // Force re-layout to update bounds
-        renderDirty = true; snapshotDirty = true; generation++;
-        return true;
+        return applyWithBaselinePreservation(std::move(merged));
     }
 
     // Range logic
@@ -1149,10 +1181,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         merged.push_back(r);
     }
     
-    if (!textStore_.setRuns(payload.textId, std::move(merged))) return false;
-    textLayoutEngine_.layoutText(payload.textId); // Force re-layout to update bounds
-    renderDirty = true; snapshotDirty = true; generation++;
-    return true;
+    return applyWithBaselinePreservation(std::move(merged));
 }
 
 engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t textId) const {

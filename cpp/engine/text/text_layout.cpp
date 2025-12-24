@@ -891,14 +891,18 @@ bool TextLayoutEngine::shapeRun(
         return true;
     }
     
-    // Get font
-    FontHandle* font = fontManager_->getFontMutable(run.fontId);
-    if (!font || !font->hbFont) {
-        return false;
-    }
+    // Select font variant based on run flags (Bold/Italic)
+    bool isBold = hasFlag(run.flags, TextStyleFlags::Bold);
+    bool isItalic = hasFlag(run.flags, TextStyleFlags::Italic);
+    std::uint32_t fontId = fontManager_->getFontVariant(run.fontId, isBold, isItalic);
+
+    // Get shape plan from cache or create new one
+    const FontHandle* fontHandle = fontManager_->getFont(fontId);
+    if (!fontHandle || !fontHandle->hbFont) return false;
+    hb_font_t* hbFont = fontHandle->hbFont;
     
-    // Set font size
-    fontManager_->setFontSize(run.fontId, run.fontSize);
+    // Configure font size
+    fontManager_->setFontSize(fontId, run.fontSize);
     
     // Reset HarfBuzz buffer
     hb_buffer_reset(hbBuffer_);
@@ -919,7 +923,7 @@ bool TextLayoutEngine::shapeRun(
     hb_feature_from_string("-liga", -1, &features[0]); // Disable standard ligatures
     hb_feature_from_string("-clig", -1, &features[1]); // Disable contextual ligatures
     
-    hb_shape(font->hbFont, hbBuffer_, features, 2);
+    hb_shape(hbFont, hbBuffer_, features, 2);
     
     // Extract glyph info
     unsigned int glyphCount = 0;

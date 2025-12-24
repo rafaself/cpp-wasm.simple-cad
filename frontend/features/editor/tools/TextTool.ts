@@ -25,6 +25,7 @@ import {
   type TextInputDelta,
   type TextStyleSnapshot,
 } from '@/types/text';
+import { getTextMeta } from '@/engine/runtime/textEngineSync';
 
 // =============================================================================
 // Types
@@ -835,6 +836,114 @@ export class TextTool {
     this.bridge.setCaretByteIndex(textId, caretByte);
 
     return true;
+  }
+
+  // ===========================================================================
+  // Manual Style Application (Object Selection Support)
+  // ===========================================================================
+
+  /**
+   * Apply style flags to an arbitrary text entity (e.g. object selection).
+   * Updates the engine and triggers a sync back to the JS store.
+   */
+  applyStyleToText(textId: number, flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const content = this.bridge.getTextContent(textId);
+    if (content === null) return false;
+
+    // Apply to entire text
+    const rangeStart = 0;
+    const rangeEnd = content.length;
+
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: rangeStart,
+      rangeEndLogical: rangeEnd,
+      flagsMask,
+      flagsValue: intent === 'set' ? flagsMask : 0,
+      mode: intent === 'toggle' ? 2 : intent === 'set' ? 0 : 1,
+      styleParamsVersion: 0,
+      styleParams: new Uint8Array(),
+    };
+
+    console.log('[TextTool] applyStyleToText', { textId, flagsMask, intent });
+    this.bridge.applyTextStyle(textId, payload);
+
+    // Sync bounds back to JS store
+    this.syncTextToBounds(textId, content);
+    return true;
+  }
+
+  /**
+   * Apply font size to an arbitrary text entity.
+   */
+  applyFontSizeToText(textId: number, fontSize: number): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+    
+    // Validate font size (clamp 4-512)
+    const size = Math.max(4, Math.min(512, fontSize));
+
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x03); // textStyleTagFontSize
+    view.setFloat32(1, size, true);
+
+    return this.applyStyleParamsToText(textId, buf);
+  }
+
+  /**
+   * Apply font ID to an arbitrary text entity.
+   */
+  applyFontIdToText(textId: number, fontId: number): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x04); // textStyleTagFontId
+    view.setUint32(1, fontId, true);
+
+    return this.applyStyleParamsToText(textId, buf);
+  }
+
+  private applyStyleParamsToText(textId: number, params: Uint8Array): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const content = this.bridge.getTextContent(textId);
+    if (content === null) return false;
+    
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: 0,
+      rangeEndLogical: content.length,
+      flagsMask: 0,
+      flagsValue: 0,
+      mode: 0, 
+      styleParamsVersion: 1,
+      styleParams: params,
+    };
+    
+    this.bridge.applyTextStyle(textId, payload);
+    this.syncTextToBounds(textId, content);
+    return true;
+  }
+
+  private syncTextToBounds(textId: number, content: string): void {
+     if (!this.bridge) return;
+     const bounds = this.bridge.getTextBounds(textId);
+     if (bounds && bounds.valid) {
+       const meta = getTextMeta(textId);
+       const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+       const constraint = meta?.constraintWidth ?? 0;
+       
+       this.callbacks.onTextUpdated?.(
+         textId,
+         content,
+         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
+         boxMode,
+         constraint
+       );
+     }
   }
 
   /**

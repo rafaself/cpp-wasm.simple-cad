@@ -12,6 +12,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include "engine/text/text_style_contract.h"
 
@@ -889,4 +890,100 @@ TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
     EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
     EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Italic));
     EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Underline));
+}
+
+// =============================================================================
+// Vertical Displacement Reproduction Test
+// =============================================================================
+
+TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
+    // Load font
+    std::string fontPath = "_deps/harfbuzz-src/test/api/fonts/OpenSans-Regular.ttf";
+    std::ifstream f(fontPath, std::ios::binary | std::ios::ate);
+    ASSERT_TRUE(f.is_open()) << "Failed to open font file: " << fontPath;
+    std::streamsize size = f.tellg();
+    f.seekg(0, std::ios::beg);
+    std::vector<char> fontData(size);
+    if (f.read(fontData.data(), size)) {
+        // Font ID 1
+        ASSERT_TRUE(engine_->loadFont(1, reinterpret_cast<std::uintptr_t>(fontData.data()), size));
+    }
+
+    // 1. Create text with Font Size 16
+    const float kInitialX = 100.0f;
+    const float kInitialY = 200.0f; // Top anchor
+    const char* content = "BaselineCheck";
+    
+    // Create text manually to ensure we control everything
+    TextPayloadHeader header{};
+    header.x = kInitialX;
+    header.y = kInitialY;
+    header.rotation = 0.0f;
+    header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+    header.align = static_cast<std::uint8_t>(TextAlign::Left);
+    header.constraintWidth = 0.0f;
+    header.runCount = 1;
+    header.contentLength = static_cast<std::uint32_t>(strlen(content));
+    
+    TextRunPayload run{};
+    run.startIndex = 0;
+    run.length = header.contentLength;
+    run.fontId = 1; // Use loaded font
+    run.fontSize = 16.0f;
+    run.colorRGBA = 0xFFFFFFFFu;
+    run.flags = 0;
+    
+    // Use engine->upsertText to ensure entity registration and layout
+    engine_->upsertText(300, header, &run, 1, content, header.contentLength);
+    
+    // Force layout to get metrics
+    engine_->textLayoutEngine_.layoutText(300);
+    
+    const TextRec* text1 = engine_->textStore_.getText(300);
+    const engine::text::TextLayout* layout1 = engine_->textLayoutEngine_.getLayout(300);
+    ASSERT_NE(text1, nullptr);
+    ASSERT_NE(layout1, nullptr);
+    ASSERT_FALSE(layout1->lines.empty());
+    
+    float initialAscent = layout1->lines[0].ascent;
+    float initialAbsoluteBaseline = text1->y + initialAscent;
+    
+    printf("Initial: Y=%.2f Ascent=%.2f Baseline=%.2f\n", text1->y, initialAscent, initialAbsoluteBaseline);
+    
+    // 2. Apply Font Size 32
+    // Using ApplyTextStyle command
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 300;
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 100; // Select all
+    payload.flagsMask = 0;
+    payload.flagsValue = 0;
+    payload.mode = 0;
+    
+    const float kNewSize = 32.0f;
+    // Build params: [tag:1][float:32.0]
+    std::vector<std::uint8_t> params;
+    params.push_back(engine::text::textStyleTagFontSize);
+    float sizeVal = kNewSize;
+    const std::uint8_t* valPtr = reinterpret_cast<const std::uint8_t*>(&sizeVal);
+    params.insert(params.end(), valPtr, valPtr + sizeof(float));
+    
+    payload.styleParamsLen = static_cast<std::uint32_t>(params.size());
+    
+    EXPECT_TRUE(engine_->applyTextStyle(payload, params.data(), params.size()));
+    
+    // Force layout again (applyTextStyle does it, but just to be sure)
+    
+    const TextRec* text2 = engine_->textStore_.getText(300);
+    const engine::text::TextLayout* layout2 = engine_->textLayoutEngine_.getLayout(300);
+    ASSERT_NE(text2, nullptr);
+    ASSERT_NE(layout2, nullptr);
+    
+    float newAscent = layout2->lines[0].ascent;
+    float newAbsoluteBaseline = text2->y + newAscent;
+    
+    printf("New: Y=%.2f Ascent=%.2f Baseline=%.2f\n", text2->y, newAscent, newAbsoluteBaseline);
+
+    EXPECT_FLOAT_EQ(newAbsoluteBaseline, initialAbsoluteBaseline) 
+        << "Baseline should not move! Displacement: " << (newAbsoluteBaseline - initialAbsoluteBaseline);
 }
