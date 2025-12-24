@@ -224,7 +224,7 @@ const EngineInteractionLayer: React.FC = () => {
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
-  const gpuPickingEnabled = useSettingsStore((s) => s.featureFlags.gpuPicking || s.featureFlags.renderMode !== 'legacy');
+  const gpuPickingEnabled = useSettingsStore((s) => s.featureFlags.gpuPicking);
 
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const isPanningRef = useRef(false);
