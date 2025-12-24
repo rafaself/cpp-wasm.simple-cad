@@ -90,6 +90,7 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
           <button
             key={align}
             onClick={() => handleClick(align)}
+            onMouseDown={(e) => e.preventDefault()}
             className={`w-8 h-full ${BUTTON_STYLES.centered} ${textAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
             title={align}
           >
@@ -183,6 +184,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
           <button
             key={option.key}
             onClick={() => handleClick(option)}
+            onMouseDown={(e) => e.preventDefault()}
             className={`w-8 h-full ${BUTTON_STYLES.centered} ${stateClass}`}
             title={option.key}
           >

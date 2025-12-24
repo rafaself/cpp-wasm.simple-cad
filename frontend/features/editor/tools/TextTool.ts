@@ -745,6 +745,11 @@ export class TextTool {
     };
 
     this.bridge.applyTextStyle(textId, payload);
+
+    // Sync caret to engine to ensure typing style run is found on next insert
+    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+    this.bridge.setCaretByteIndex(textId, caretByte);
+
     // Update tool defaults to reflect the new state...
     const snapshot = this.bridge.getTextStyleSnapshot(textId);
     if (snapshot) {
@@ -824,6 +829,11 @@ export class TextTool {
     };
     
     this.bridge.applyTextStyle(textId, payload);
+
+    // Sync caret to engine to ensure typing style run is found on next insert
+    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+    this.bridge.setCaretByteIndex(textId, caretByte);
+
     return true;
   }
 
