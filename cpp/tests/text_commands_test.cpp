@@ -818,3 +818,75 @@ TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
     EXPECT_EQ(runs[2].length, 3u); 
     EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
 }
+
+TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
+    // Regression test for text duplication bug:
+    // When toggling multiple styles (Bold, Italic, Underline) at caret,
+    // should create ONE zero-length run with combined styles, not multiple.
+    
+    ASSERT_TRUE(upsertSimpleText(300, "hello"));
+    
+    // Set caret at position 5 (end of "hello")
+    engine_->textStore_.setCaret(300, 5);
+    
+    // Toggle Bold at caret position 5
+    engine::text::ApplyTextStylePayload p1{};
+    p1.textId = 300;
+    p1.rangeStartLogical = 5;
+    p1.rangeEndLogical = 5;
+    p1.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    p1.flagsValue = p1.flagsMask;
+    p1.mode = 0; // set
+    p1.styleParamsVersion = 0;
+    p1.styleParamsLen = 0;
+    EXPECT_TRUE(engine_->applyTextStyle(p1, nullptr, 0));
+    
+    // Toggle Italic at same caret position
+    engine::text::ApplyTextStylePayload p2 = p1;
+    p2.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Italic);
+    p2.flagsValue = p2.flagsMask;
+    EXPECT_TRUE(engine_->applyTextStyle(p2, nullptr, 0));
+    
+    // Toggle Underline at same caret position
+    engine::text::ApplyTextStylePayload p3 = p1;
+    p3.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    p3.flagsValue = p3.flagsMask;
+    EXPECT_TRUE(engine_->applyTextStyle(p3, nullptr, 0));
+    
+    // Should have exactly ONE zero-length run at position 5, with Bold+Italic+Underline
+    const auto& runsBeforeInsert = engine_->textStore_.getRuns(300);
+    int zeroLengthCount = 0;
+    for (const auto& r : runsBeforeInsert) {
+        if (r.length == 0 && r.startIndex == 5) {
+            zeroLengthCount++;
+            // The single zero-length run should have all three styles
+            EXPECT_TRUE(hasFlag(r.flags, TextStyleFlags::Bold));
+            EXPECT_TRUE(hasFlag(r.flags, TextStyleFlags::Italic));
+            EXPECT_TRUE(hasFlag(r.flags, TextStyleFlags::Underline));
+        }
+    }
+    EXPECT_EQ(zeroLengthCount, 1) << "Should have exactly 1 zero-length run, not multiple";
+    
+    // Insert text "X"
+    EXPECT_TRUE(engine_->insertTextContent(300, 5, "X", 1));
+    
+    // Content should be "helloX", NOT "helloXXX" (no duplication)
+    std::string_view content = engine_->textStore_.getContent(300);
+    EXPECT_EQ(content, "helloX");
+    
+    // Verify runs: "hello" (no style), "X" (Bold+Italic+Underline)
+    const auto& runs = engine_->textStore_.getRuns(300);
+    ASSERT_EQ(runs.size(), 2u);
+    
+    // "hello"
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 5u);
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+    
+    // "X" with all three styles
+    EXPECT_EQ(runs[1].startIndex, 5u);
+    EXPECT_EQ(runs[1].length, 1u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Italic));
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Underline));
+}

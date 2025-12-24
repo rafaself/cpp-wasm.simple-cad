@@ -995,6 +995,28 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
 
     // Caret-only logic (Collapsed selection)
     if (byteStart == byteEnd) {
+        // Pre-scan: Check if there's already a zero-length run at this position
+        // This allows subsequent style toggles to update-in-place rather than create duplicates
+        int existingZeroLengthIdx = -1;
+        for (std::size_t i = 0; i < runs.size(); ++i) {
+            if (runs[i].startIndex == byteStart && runs[i].length == 0) {
+                existingZeroLengthIdx = static_cast<int>(i);
+                break;
+            }
+        }
+
+        if (existingZeroLengthIdx >= 0) {
+            // Update the existing zero-length run in place
+            std::vector<TextRun> out = runs; // Copy all runs
+            applyStyle(out[existingZeroLengthIdx]);
+            
+            if (!textStore_.setRuns(payload.textId, std::move(out))) return false;
+            textLayoutEngine_.layoutText(payload.textId);
+            renderDirty = true; snapshotDirty = true; generation++;
+            return true;
+        }
+
+        // No existing zero-length run - create new one by splitting
         std::vector<TextRun> out;
         out.reserve(runs.size() + 1);
         bool inserted = false;
@@ -1042,6 +1064,8 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             applyStyle(mid);
             out.push_back(mid);
         }
+
+
 
         // Merge logic
         std::vector<TextRun> merged;
