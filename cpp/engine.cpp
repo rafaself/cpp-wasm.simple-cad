@@ -1158,27 +1158,53 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
     out.lineHeight = cp.height;
     out.lineIndex = static_cast<std::uint16_t>(cp.lineIndex);
 
-    // Tri-state computation over selection range (byte-based)
-    auto triStateAttr = [&](TextStyleFlags flag) {
+    // Tri-state computation
+    auto triStateAttr = [&](TextStyleFlags flag) -> int {
+        // Special case for caret (collapsed selection)
+        if (selStart == selEnd) {
+            // 1. Check for explicit zero-length run at caret (typing style)
+            for (const auto& r : runs) {
+                if (r.length == 0 && r.startIndex == selStart) {
+                    return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+            }
+            // 2. Check for run containing caret
+            for (const auto& r : runs) {
+                if (selStart > r.startIndex && selStart < (r.startIndex + r.length)) {
+                     return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+                // Sticky behavior: if at end of run, usually inherit from it
+                if (selStart > 0 && selStart == (r.startIndex + r.length)) {
+                     return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+            }
+            return 0; // Default off
+        }
+
+        // Range selection
         int state = -1; // -1 unset, 0 off, 1 on, 2 mixed
         for (const auto& r : runs) {
             const std::uint32_t rStart = r.startIndex;
             const std::uint32_t rEnd = r.startIndex + r.length;
             const std::uint32_t oStart = std::max(rStart, selStart);
             const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            
             if (oStart >= oEnd) continue;
+            
             const bool on = hasFlag(r.flags, flag);
             const int v = on ? 1 : 0;
             if (state == -1) state = v; else if (state != v) state = 2;
             if (state == 2) break;
         }
-        if (state == -1) state = 0; // default off if no overlap
+        if (state == -1) state = 0;
         return state;
     };
 
     const int boldState = triStateAttr(TextStyleFlags::Bold);
     const int italicState = triStateAttr(TextStyleFlags::Italic);
     const int underlineState = triStateAttr(TextStyleFlags::Underline);
+    // Note: Engine uses 'Strike' internally but frontend maps to 'Strikethrough'. Assuming enum match or mapped correctly.
+    // Check text_types.h for exact enum name. Using local usage from previous lines.
     const int strikeState = triStateAttr(TextStyleFlags::Strike);
 
     auto pack2bits = [](int s) -> std::uint8_t {
