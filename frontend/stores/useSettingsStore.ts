@@ -44,8 +44,6 @@ export interface ToolDefaults {
   };
 }
 
-export type RenderMode = 'legacy' | 'webgl2' | 'webgpu';
-
 interface SettingsState {
   grid: GridSettings;
   snap: SnapSettings;
@@ -53,7 +51,6 @@ interface SettingsState {
   toolDefaults: ToolDefaults;
   featureFlags: {
     gpuPicking: boolean;
-    renderMode: RenderMode;
     enableTextResize: boolean;
   };
 
@@ -91,7 +88,6 @@ interface SettingsState {
   setTextStrike: (strike: boolean) => void;
 
   setGpuPicking: (enabled: boolean) => void;
-  setRenderMode: (mode: RenderMode) => void;
   setTextResizeEnabled: (enabled: boolean) => void;
 }
 
@@ -144,7 +140,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
   featureFlags: {
     gpuPicking: false,
-    renderMode: 'webgl2',  // Use TessellatedWasmLayer which supports text rendering
     enableTextResize: false,
   },
 
@@ -181,6 +176,5 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
   setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
   setGpuPicking: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, gpuPicking: enabled } })),
-  setRenderMode: (renderMode) => set((state) => ({ featureFlags: { ...state.featureFlags, renderMode } })),
   setTextResizeEnabled: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, enableTextResize: enabled } })),
 }));
