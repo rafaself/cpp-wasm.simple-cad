@@ -27,12 +27,14 @@ These are mandatory, non-negotiable guidelines that apply to every AI agent and 
 - MUST NOT introduce breaking API or serialization changes without an explicit migration plan.
 - MUST use types (TypeScript/Python/C++) appropriately; avoid `any` or equivalent unless justified and documented.
 - MUST surface uncertainties with: "I need clarification on X before proceeding." and create a TODO or issue when necessary.
+- MUST create docstrings for any function or class that is not self-explanatory.
 
 ## Engine-First Architecture (Mandatory)
 
 This project follows a strict **engine-first architecture**.
 
 The **C++ / WebAssembly engine** is the single source of truth for:
+
 - Text layout, shaping, and rendering
 - Selection and caret state
 - Typographic styles and spans/runs
@@ -40,6 +42,7 @@ The **C++ / WebAssembly engine** is the single source of truth for:
 - Any logic that affects visual or semantic correctness
 
 The **React / TypeScript frontend** exists only to:
+
 - Capture user input (pointer, keyboard, IME)
 - Display UI controls (ribbon, panels, overlays)
 - Send **semantic commands** to the engine
@@ -56,6 +59,7 @@ The **React / TypeScript frontend** exists only to:
 ### Decision Principle
 
 If a behavior affects:
+
 - visual output,
 - layout metrics,
 - selection semantics,

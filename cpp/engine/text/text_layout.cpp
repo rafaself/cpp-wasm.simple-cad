@@ -146,9 +146,9 @@ bool TextLayoutEngine::layoutText(std::uint32_t textId) {
         finalWidth,
         layout.totalHeight,
         textRec->x,
-        textRec->y,
+        textRec->y - layout.totalHeight, // minY is below anchor
         textRec->x + finalWidth,
-        textRec->y + layout.totalHeight
+        textRec->y                      // maxY is anchor (top)
     );
     
     return true;
@@ -330,11 +330,11 @@ TextCaretPosition TextLayoutEngine::getCaretPosition(
     pos.lineIndex = lineIndex;
     pos.height = line.lineHeight;
     
-    // Calculate Y position (Top of line) in Text Local Space (Y-down).
-    // Origin (0,0) is top-left. +Y is down.
+    // Calculate Y position (Top of line) in Text Local Space (Y-Up).
+    // Origin (0,0) is top-left. -Y is down.
     float yTop = 0.0f;
     for (std::uint32_t i = 0; i < lineIndex; ++i) {
-        yTop += layout->lines[i].lineHeight; // Move DOWN
+        yTop -= layout->lines[i].lineHeight; // Move DOWN (negative Y)
     }
     
     pos.y = yTop;
@@ -382,6 +382,9 @@ std::vector<TextLayoutEngine::SelectionRect> TextLayoutEngine::getSelectionRects
         std::uint32_t lineStart = line.startByte;
         std::uint32_t lineEnd = line.startByte + line.byteCount;
         
+        // Next line Y (Top of next line, Bottom of current)
+        float nextY = y - line.lineHeight;
+
         // Check if this line overlaps with selection
         if (lineEnd > startIndex && lineStart < endIndex) {
             // Calculate selection bounds on this line
@@ -393,7 +396,9 @@ std::vector<TextLayoutEngine::SelectionRect> TextLayoutEngine::getSelectionRects
             
             SelectionRect rect;
             rect.x = startPos.x;
-            rect.y = y;
+            rect.y = nextY; // Rect Y is the BOTTOM of the rectangle in Y-Up (standard for our rects?)
+            // Wait, usually rect[x, y, w, h] means minX, minY, w, h.
+            // If minY is nextY, and maxY is y.
             rect.width = endPos.x - startPos.x;
             rect.height = line.lineHeight;
             rect.lineIndex = lineIdx;
@@ -403,7 +408,7 @@ std::vector<TextLayoutEngine::SelectionRect> TextLayoutEngine::getSelectionRects
             }
         }
         
-        y += line.lineHeight;
+        y = nextY;
     }
     
     return rects;
@@ -958,15 +963,6 @@ void TextLayoutEngine::breakLines(
         return;
     }
     
-    // Get font metrics for line height calculation
-    float fontSize = runs.empty() ? 16.0f : runs[0].fontSize;
-    std::uint32_t fontId = runs.empty() ? 0 : runs[0].fontId;
-    FontMetrics metrics = fontManager_->getScaledMetrics(fontId, fontSize);
-    
-    float lineHeight = metrics.ascender - metrics.descender + metrics.lineGap;
-    float ascent = metrics.ascender;
-    float descent = -metrics.descender;
-    
     // Determine constraint width
     float maxWidth = (text.boxMode == TextBoxMode::FixedWidth && text.constraintWidth > 0)
         ? text.constraintWidth
@@ -978,20 +974,35 @@ void TextLayoutEngine::breakLines(
     currentLine.startByte = 0;
     currentLine.byteCount = 0;
     currentLine.width = 0.0f;
-    currentLine.ascent = ascent;
-    currentLine.descent = descent;
-    currentLine.lineHeight = lineHeight;
+    currentLine.ascent = 0.0f;
+    currentLine.descent = 0.0f;
+    currentLine.lineHeight = 0.0f;
     
     float currentWidth = 0.0f;
     std::uint32_t lastBreakGlyph = 0;
     std::uint32_t lastBreakByte = 0;
     float widthAtLastBreak = 0.0f;
     std::uint32_t glyphsInCurrentLine = 0;
-    
+    std::uint32_t currentRunIdx = 0;
+
+    auto updateMetrics = [&](std::uint32_t clusterIndex) {
+        // Find the run this cluster belongs to (runs are assumes sorted)
+        while (currentRunIdx + 1 < runs.size() && runs[currentRunIdx + 1].startIndex <= clusterIndex) {
+            currentRunIdx++;
+        }
+        const auto& run = runs[currentRunIdx];
+        FontMetrics m = fontManager_->getScaledMetrics(run.fontId, run.fontSize);
+        currentLine.ascent = std::max(currentLine.ascent, m.ascender);
+        currentLine.descent = std::max(currentLine.descent, -m.descender);
+        currentLine.lineHeight = std::max(currentLine.lineHeight, m.ascender - m.descender + m.lineGap);
+    };
+
     for (std::uint32_t i = 0; i < glyphs.size(); ++i) {
         const ShapedGlyph& glyph = glyphs[i];
         float glyphWidth = glyph.xAdvance;
         
+        updateMetrics(glyph.clusterIndex);
+
         // Check for explicit newline
         if (glyph.clusterIndex < content.size()) {
             char ch = content[glyph.clusterIndex];
@@ -1007,6 +1018,10 @@ void TextLayoutEngine::breakLines(
                 currentLine.startByte = glyph.clusterIndex + 1;
                 currentLine.glyphCount = 0;
                 currentLine.byteCount = 0;
+                currentLine.width = 0.0f;
+                currentLine.ascent = 0.0f;
+                currentLine.descent = 0.0f;
+                currentLine.lineHeight = 0.0f;
                 currentWidth = 0.0f;
                 lastBreakGlyph = i + 1;
                 lastBreakByte = glyph.clusterIndex + 1;
@@ -1015,7 +1030,7 @@ void TextLayoutEngine::breakLines(
                 continue;
             }
             
-            // Track word break opportunities (space, hyphen)
+            // Track word break opportunities
             if (ch == ' ' || ch == '-' || ch == '\t') {
                 lastBreakGlyph = i + 1;
                 lastBreakByte = glyph.clusterIndex + 1;
@@ -1028,34 +1043,57 @@ void TextLayoutEngine::breakLines(
             if (currentWidth + glyphWidth > maxWidth && glyphsInCurrentLine > 0) {
                 // Need to wrap
                 if (lastBreakGlyph > currentLine.startGlyph) {
-                    // Wrap at last break point
                     currentLine.glyphCount = lastBreakGlyph - currentLine.startGlyph;
                     currentLine.byteCount = lastBreakByte - currentLine.startByte;
                     currentLine.width = widthAtLastBreak;
+                    
+                    // We need to re-calculate metrics for this truncated line!
+                    // Reset and scan only glyphs within this line.
+                    currentLine.ascent = 0; currentLine.descent = 0; currentLine.lineHeight = 0;
+                    std::uint32_t rIdx = 0;
+                    for (std::uint32_t k = currentLine.startGlyph; k < lastBreakGlyph; ++k) {
+                        while (rIdx + 1 < runs.size() && runs[rIdx + 1].startIndex <= glyphs[k].clusterIndex) rIdx++;
+                        FontMetrics m = fontManager_->getScaledMetrics(runs[rIdx].fontId, runs[rIdx].fontSize);
+                        currentLine.ascent = std::max(currentLine.ascent, m.ascender);
+                        currentLine.descent = std::max(currentLine.descent, -m.descender);
+                        currentLine.lineHeight = std::max(currentLine.lineHeight, m.ascender - m.descender + m.lineGap);
+                    }
                     outLines.push_back(currentLine);
                     
                     // Start new line after break
                     currentLine.startGlyph = lastBreakGlyph;
                     currentLine.startByte = lastBreakByte;
+                    currentLine.ascent = 0; currentLine.descent = 0; currentLine.lineHeight = 0;
                     currentWidth = currentWidth - widthAtLastBreak + glyphWidth;
                 } else {
-                    // Force break mid-word
                     currentLine.glyphCount = i - currentLine.startGlyph;
                     currentLine.byteCount = glyph.clusterIndex - currentLine.startByte;
                     currentLine.width = currentWidth;
+                    
+                    currentLine.ascent = 0; currentLine.descent = 0; currentLine.lineHeight = 0;
+                    std::uint32_t rIdx = 0;
+                    for (std::uint32_t k = currentLine.startGlyph; k < i; ++k) {
+                        while (rIdx + 1 < runs.size() && runs[rIdx + 1].startIndex <= glyphs[k].clusterIndex) rIdx++;
+                        FontMetrics m = fontManager_->getScaledMetrics(runs[rIdx].fontId, runs[rIdx].fontSize);
+                        currentLine.ascent = std::max(currentLine.ascent, m.ascender);
+                        currentLine.descent = std::max(currentLine.descent, -m.descender);
+                        currentLine.lineHeight = std::max(currentLine.lineHeight, m.ascender - m.descender + m.lineGap);
+                    }
                     outLines.push_back(currentLine);
                     
                     currentLine.startGlyph = i;
                     currentLine.startByte = glyph.clusterIndex;
+                    currentLine.ascent = 0; currentLine.descent = 0; currentLine.lineHeight = 0;
                     currentWidth = glyphWidth;
                 }
                 
-                currentLine.glyphCount = 0;
-                currentLine.byteCount = 0;
                 lastBreakGlyph = currentLine.startGlyph;
                 lastBreakByte = currentLine.startByte;
                 widthAtLastBreak = 0.0f;
-                glyphsInCurrentLine = 1;  // Current glyph starts the new line
+                glyphsInCurrentLine = 1;
+
+                // Update metrics for the first glyph of the new line
+                updateMetrics(glyphs[currentLine.startGlyph].clusterIndex);
                 continue;
             }
         }
@@ -1065,7 +1103,7 @@ void TextLayoutEngine::breakLines(
     }
     
     // Add final line
-    if (currentLine.startGlyph <= glyphs.size()) {
+    if (currentLine.startGlyph < glyphs.size()) {
         currentLine.glyphCount = static_cast<std::uint32_t>(glyphs.size()) - currentLine.startGlyph;
         currentLine.byteCount = static_cast<std::uint32_t>(content.size()) - currentLine.startByte;
         currentLine.width = currentWidth;

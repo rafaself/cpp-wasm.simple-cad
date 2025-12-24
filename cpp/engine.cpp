@@ -1063,6 +1063,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         }
 
         if (!textStore_.setRuns(payload.textId, std::move(merged))) return false;
+        textLayoutEngine_.layoutText(payload.textId); // Force re-layout to update bounds
         renderDirty = true; snapshotDirty = true; generation++;
         return true;
     }
@@ -1125,6 +1126,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
     }
     
     if (!textStore_.setRuns(payload.textId, std::move(merged))) return false;
+    textLayoutEngine_.layoutText(payload.textId); // Force re-layout to update bounds
     renderDirty = true; snapshotDirty = true; generation++;
     return true;
 }
@@ -1678,12 +1680,6 @@ void CadEngine::rebuildTextQuadBuffer() {
                 }
                 
                 if (atlasEntry && atlasEntry->width > 0.0f && atlasEntry->height > 0.0f) {
-                    
-                    if (glyph.clusterIndex == 0) { // Debug first glyph
-                       printf("[DEBUG] Rendering Glyph %u: Run FontSize=%.2f, AtlasFontSize=%.2f, AtlasW=%.3f, FinalW=%.2f\n",
-                              glyph.glyphId, fontSize, atlasEntry->fontSize, atlasEntry->width, atlasEntry->width * fontSize);
-                    }
-
                     // Use actual scale for glyph bitmap sizing
                     const float scale = fontSize / atlasEntry->fontSize;
                     
@@ -1836,6 +1832,8 @@ std::vector<CadEngine::TextSelectionRect> CadEngine::getTextSelectionRects(std::
     if (!textInitialized_) {
         return {};
     }
+    // Ensure layout is up to date since this might be called right after input/styling
+    const_cast<CadEngine*>(this)->textLayoutEngine_.layoutDirtyTexts();
     return textLayoutEngine_.getSelectionRects(textId, start, end);
 }
 
