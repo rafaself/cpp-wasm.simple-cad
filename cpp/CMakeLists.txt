@@ -191,6 +191,7 @@ if(NOT EMSCRIPTEN)
       tests/text_layout_test.cpp
       tests/glyph_atlas_test.cpp
       tests/text_commands_test.cpp
+      tests/text_coordinate_system_test.cpp
     )
   endif()
 

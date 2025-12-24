@@ -1234,7 +1234,7 @@ const EngineInteractionLayer: React.FC = () => {
           if (inside) {
              // Clicked INSIDE active text - move caret using latest box metrics
              const localX = world.x - anchorX;
-             const localY = anchorY - world.y;
+             const localY = world.y - anchorY;
              
              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
@@ -1487,7 +1487,7 @@ const EngineInteractionLayer: React.FC = () => {
                 const anchorY = (shape.y || 0) + (shape.height || 0);
                 const anchorX = (shape.x || 0);
                 const localX = world.x - anchorX;
-                const localY = anchorY - world.y;
+                const localY = world.y - anchorY;
                 textToolRef.current.handlePointerMove(activeTextId, localX, localY);
              }
           }

@@ -127,7 +127,10 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
         className="absolute"
         style={{
           left: rect.x,
-          top: rect.y,
+          // Engine is Y-Up (bottom is y, top is y + height). 
+          // CSS is Y-Down (top is value). 
+          // To get CSS Top from World Y-Up: Top_CSS = -(World_Y + Height).
+          top: -(rect.y + rect.height),
           width: rect.width,
           height: rect.height,
           backgroundColor: selectionColor,
@@ -147,7 +150,9 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
         className="absolute"
         style={{
           left: caret.x,
-          top: caret.y,
+          // Engine Y is Y-Up world coords. pos.y is the top of the line.
+          // CSS is Y-Down. So we negate it.
+          top: -caret.y,
           width: 2 / viewTransform.scale, // keep screen-thin caret
           height: caret.height,
           backgroundColor: caretColor,

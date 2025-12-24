@@ -1134,11 +1134,13 @@ std::uint32_t TextLayoutEngine::findLineAtY(const TextLayout& layout, float y) c
     
     float currentY = 0.0f;
     for (std::size_t i = 0; i < layout.lines.size(); ++i) {
-        float lineBottom = currentY + layout.lines[i].lineHeight;
-        if (y < lineBottom || i == layout.lines.size() - 1) {
+        float nextY = currentY - layout.lines[i].lineHeight; // Move DOWN (negative Y)
+        // In Y-Up, the line spans [nextY, currentY].
+        // If y is greater than nextY, it's inside this line (or above it).
+        if (y > nextY || i == layout.lines.size() - 1) {
             return static_cast<std::uint32_t>(i);
         }
-        currentY = lineBottom;
+        currentY = nextY;
     }
     
     return static_cast<std::uint32_t>(layout.lines.size() - 1);

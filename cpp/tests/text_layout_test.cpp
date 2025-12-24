@@ -341,7 +341,7 @@ TEST_F(TextLayoutTest, HitTestMultiLine) {
     EXPECT_EQ(result1.lineIndex, 0u);
     
     // Hit in second line
-    float secondLineY = layout->lines[0].lineHeight + 5.0f;
+    float secondLineY = -(layout->lines[0].lineHeight + 5.0f);
     TextHitResult result2 = layoutEngine.hitTest(1, 5.0f, secondLineY);
     EXPECT_EQ(result2.lineIndex, 1u);
 }
@@ -389,7 +389,7 @@ TEST_F(TextLayoutTest, CaretPositionSecondLine) {
     // Caret at start of second line (after \n)
     TextCaretPosition pos = layoutEngine.getCaretPosition(1, 6);  // "Hello\n" is 6 bytes
     EXPECT_EQ(pos.lineIndex, 1u);
-    EXPECT_GT(pos.y, 0.0f);  // Should be on second line
+    EXPECT_LT(pos.y, 0.0f);  // Should be on second line (below first line)
 }
 
 // =============================================================================
@@ -694,17 +694,9 @@ TEST_F(TextLayoutTest, VerifyCaretAlignment) {
     EXPECT_FLOAT_EQ(caret.height, layout->lines[0].lineHeight) 
         << "Caret height should match line height";
         
-    // Verify Y position centering logic
-    // pos.y = (baseline + logicalBottom) * 0.5f
-    // baseline = 0 - ascent
-    // logicalBottom = 0 - lineHeight
-    
-    float ascent = layout->lines[0].ascent;
-    float lineHeight = layout->lines[0].lineHeight;
-    float expectedY = (-ascent + -lineHeight) * 0.5f;
-    
-    EXPECT_NEAR(caret.y, expectedY, 0.001f) 
-        << "Caret Y should be centered between baseline and logical bottom";
+    // Verify Y position is the top edge of the line
+    EXPECT_NEAR(caret.y, 0.0f, 0.001f) 
+        << "Caret Y should be at the top edge of the line (0.0 for first line)";
 }
 
 TEST_F(TextLayoutTest, VerifyFontSizeEffects) {
