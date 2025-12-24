@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { isShapeInteractable } from '@/utils/visibility';
 import {
@@ -156,9 +157,20 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
       if (supportsBBoxResize(shape)) {
         const r = getRectCornersWorld(shape);
         if (!r) return;
-        const handles = getShapeHandles(shape)
-          .filter((h) => h.type === 'resize')
-          .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform));
+        
+        // Check feature flag for text resize handles
+        let showHandles = true;
+        if (shape.type === 'text') {
+           const allowTextResize = useSettingsStore.getState().featureFlags.enableTextResize;
+           if (!allowTextResize) showHandles = false;
+        }
+
+        const handles = showHandles 
+          ? getShapeHandles(shape)
+              .filter((h) => h.type === 'resize')
+              .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform))
+          : [];
+
         const outline = inflateConvexPolygon(r.corners.map((p) => worldToScreen(p, viewTransform)), OUTLINE_OFFSET_PX);
         items.push({
           id,

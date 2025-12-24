@@ -193,20 +193,23 @@ const CanvasSettings: React.FC = () => {
           />
       </Section>
 
-      {import.meta.env.DEV ? (
-        <Section title="Dev">
-          <SelectField
-            label="Renderer"
-            value={settings.featureFlags.renderMode}
-            options={[
-              { value: "legacy", label: "Legacy (three.js)" },
-              { value: "webgl2", label: "WebGL2 (tessellated WASM)" },
-              { value: "webgpu", label: "WebGPU (auto-fallback → WebGL2)" },
-            ]}
-            onChange={(v) => settings.setRenderMode(v === "webgpu" ? "webgpu" : v === "webgl2" ? "webgl2" : "legacy")}
-          />
-        </Section>
-      ) : null}
+      <Section title="Dev">
+        <SelectField
+          label="Renderer"
+          value={settings.featureFlags.renderMode}
+          options={[
+            { value: "legacy", label: "Legacy (three.js)" },
+            { value: "webgl2", label: "WebGL2 (tessellated WASM)" },
+            { value: "webgpu", label: "WebGPU (auto-fallback → WebGL2)" },
+          ]}
+          onChange={(v) => settings.setRenderMode(v === "webgpu" ? "webgpu" : v === "webgl2" ? "webgl2" : "legacy")}
+        />
+        <Toggle
+          label="Enable Text Resize (Dev)"
+          checked={settings.featureFlags.enableTextResize}
+          onChange={settings.setTextResizeEnabled}
+        />
+      </Section>
 
       {/* Color Picker Portal */}
       {activeColorPicker && (

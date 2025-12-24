@@ -786,6 +786,11 @@ const EngineInteractionLayer: React.FC = () => {
       if (layer && (!layer.visible || layer.locked)) return;
       if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
 
+      if (shape.type === 'text') {
+        const allowTextResize = useSettingsStore.getState().featureFlags.enableTextResize;
+        if (!allowTextResize) return;
+      }
+
       const handles = getShapeHandles(shape).filter((h) => h.type === 'resize');
       for (const h of handles) {
         const p = worldToScreen({ x: h.x, y: h.y }, view);
