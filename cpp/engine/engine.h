@@ -134,12 +134,15 @@ public:
     mutable std::vector<float> triangleVertices;
     mutable std::vector<float> lineVertices;
     mutable std::vector<std::uint8_t> snapshotBytes;
+    mutable bool textQuadsDirty_{true};
     mutable bool renderDirty{false};
     mutable bool snapshotDirty{false};
     std::uint32_t generation{0};
     mutable float lastLoadMs{0.0f};
     mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
+
+    void markTextQuadsDirty() const { textQuadsDirty_ = true; }
 
     // Error handling
     mutable EngineError lastError{EngineError::Ok};

@@ -376,13 +376,21 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
         return;
     }
 
-    const std::uint32_t idx = ref.index;
-    const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
-    if (idx != lastIdx) {
-        conduits[idx] = conduits[lastIdx];
-        entities[conduits[idx].id] = EntityRef{EntityKind::Conduit, idx};
+    if (ref.kind == EntityKind::Text) {
+        deleteText(id);
+        return;
     }
-    conduits.pop_back();
+
+    if (ref.kind == EntityKind::Conduit) {
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
+        if (idx != lastIdx) {
+            conduits[idx] = conduits[lastIdx];
+            entities[conduits[idx].id] = EntityRef{EntityKind::Conduit, idx};
+        }
+        conduits.pop_back();
+        return;
+    }
 }
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
@@ -999,11 +1007,13 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         // Force re-layout to update bounds
         textLayoutEngine_.layoutText(payload.textId);
         
-        // NOTE: Baseline compensation removed per user request to keep Box Top fixed.
-        // This means text will grow down (baseline drops) when font size increases.
-        
         renderDirty = true;
         snapshotDirty = true;
+        markTextQuadsDirty();
+
+        // NOTE: Baseline compensation removed per user request to keep Box Top fixed.
+        // This means text will grow down (baseline drops) when font size increases.
+
         generation++;
         return true;
     };
@@ -1414,6 +1424,7 @@ bool CadEngine::initializeTextSystem() {
     }
     
     textInitialized_ = true;
+    markTextQuadsDirty();
     return true;
 }
 
@@ -1425,7 +1436,9 @@ bool CadEngine::loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::
         }
     }
     // Use registerFont to associate with specific fontId
-    return fontManager_.registerFont(fontId, fontData, dataSize, "", false, false);
+    bool ok = fontManager_.registerFont(fontId, fontData, dataSize, "", false, false);
+    if (ok) markTextQuadsDirty();
+    return ok;
 }
 
 bool CadEngine::upsertText(
@@ -1465,6 +1478,7 @@ bool CadEngine::upsertText(
     
     renderDirty = true;
     snapshotDirty = true;
+    markTextQuadsDirty();
     generation++;
     
     return true;
@@ -1487,6 +1501,7 @@ bool CadEngine::deleteText(std::uint32_t id) {
     
     renderDirty = true;
     snapshotDirty = true;
+    markTextQuadsDirty();
     generation++;
     
     return true;
@@ -1515,6 +1530,7 @@ bool CadEngine::insertTextContent(
     
     renderDirty = true;
     snapshotDirty = true;
+    markTextQuadsDirty();
     generation++;
     
     return true;
@@ -1530,6 +1546,7 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     
     renderDirty = true;
     snapshotDirty = true;
+    markTextQuadsDirty();
     generation++;
     
     return true;
@@ -1548,6 +1565,7 @@ bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
 
     renderDirty = true;
     snapshotDirty = true;
+    markTextQuadsDirty();
     generation++;
 
     return true;
@@ -1573,6 +1591,7 @@ bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxM
 
     renderDirty = true;
     snapshotDirty = true;
+    markTextQuadsDirty();
     generation++;
 
     return true;
@@ -1610,14 +1629,20 @@ bool CadEngine::getTextBounds(std::uint32_t textId, float& outMinX, float& outMi
 
 void CadEngine::rebuildTextQuadBuffer() {
     if (!textInitialized_) {
-        textQuadBuffer_.clear();
+        if (!textQuadBuffer_.empty()) textQuadBuffer_.clear();
         return;
     }
     
     // Ensure all dirty text layouts are updated before rebuilding quads
-    textLayoutEngine_.layoutDirtyTexts();
+    std::size_t laidOutCount = textLayoutEngine_.layoutDirtyTexts();
     
+    // If nothing changed in layout, atlas, or explicit dirty flag, skip rebuilding
+    if (laidOutCount == 0 && !glyphAtlas_.isDirty() && !textQuadsDirty_) {
+        return;
+    }
+
     textQuadBuffer_.clear();
+    textQuadsDirty_ = false;
     
     // Get all text IDs
     const auto textIds = textStore_.getAllTextIds();
@@ -1630,10 +1655,7 @@ void CadEngine::rebuildTextQuadBuffer() {
         if (!text) continue;
         
         const auto* layout = textLayoutEngine_.getLayout(textId);
-        if (!layout) {
-            printf("[DEBUG] rebuildTextQuadBuffer: textId=%u has no layout\n", textId);
-            continue;
-        }
+        if (!layout) continue;
         
         // Get the runs for color info
         const auto& runs = textStore_.getRuns(textId);
@@ -1658,17 +1680,10 @@ void CadEngine::rebuildTextQuadBuffer() {
             float penX = 0.0f;
             
             // Process glyphs in this line using the index range
-            printf("[DEBUG] Line starting at yOffset=%.2f, startGlyph=%u, count=%u\n", yOffset, line.startGlyph, line.glyphCount);
-            
             for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
                 if (gi >= layout->glyphs.size()) break;
                 const auto& glyph = layout->glyphs[gi];
                 
-                // Debug large advances or suspicious glyphs
-                if (glyph.xAdvance > 100.0f) {
-                     printf("[DEBUG] Suspicious Huge Advance: glyphId=%u clusters=%u advance=%.2f\n", 
-                            glyph.glyphId, glyph.clusterIndex, glyph.xAdvance);
-                }
                 
                 // Get atlas entry for this glyph
                 // Note: We need to know the fontId for the glyph, which requires looking up the run

@@ -44,7 +44,6 @@ export default defineConfig(({ mode }) => {
           output: {
             manualChunks: {
               'vendor-react': ['react', 'react-dom', 'zustand'],
-              'vendor-three': ['three', '@react-three/fiber'],
               'vendor-pdf': ['pdfjs-dist'],
               'vendor-utils': ['dxf-parser', 'lucide-react'],
             }
