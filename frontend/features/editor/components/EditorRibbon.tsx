@@ -438,6 +438,14 @@ tr:nth-child(even){background:#111827;}
                   const fid = fontIdByFamily[diff.fontFamily] ?? 0;
                   textTool.applyFontIdToText(textId, fid);
              }
+             if (diff.align !== undefined) {
+                 const alignMap: Record<string, number> = {
+                     left: 0,
+                     center: 1,
+                     right: 2,
+                 };
+                 textTool.applyTextAlignToText(textId, alignMap[diff.align]);
+             }
              handledByEngine = true;
          }
       }

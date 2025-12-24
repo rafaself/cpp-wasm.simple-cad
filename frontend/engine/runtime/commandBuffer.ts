@@ -22,6 +22,7 @@ export const enum CommandOp {
   InsertTextContent = 18,
   DeleteTextContent = 19,
   ApplyTextStyle = 42, // 0x2A
+  SetTextAlign = 43, // 0x2B
 }
 
 export type RectPayload = {
@@ -137,6 +138,11 @@ export type TextDeletePayload = {
   endIndex: number; // UTF-8 byte end (exclusive)
 };
 
+export type TextAlignmentPayload = {
+  textId: number;
+  align: number; // TextAlign enum
+};
+
 // Text style apply payload (logical indices; engine maps to UTF-8 internally)
 export type ApplyTextStylePayload = {
   textId: number;
@@ -170,7 +176,8 @@ export type EngineCommand =
   | { op: CommandOp.SetTextSelection; selection: TextSelectionPayload }
   | { op: CommandOp.InsertTextContent; insert: TextInsertPayload }
   | { op: CommandOp.DeleteTextContent; del: TextDeletePayload }
-  | { op: CommandOp.ApplyTextStyle; id: number; style: ApplyTextStylePayload };
+  | { op: CommandOp.ApplyTextStyle; id: number; style: ApplyTextStylePayload }
+  | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload };
 
 // UTF-8 encoder for text content
 const textEncoder = new TextEncoder();
@@ -234,6 +241,8 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       const paramsLen = cmd.style.styleParams.byteLength;
       return 18 + paramsLen; // header (18 bytes) + TLV params
     }
+    case CommandOp.SetTextAlign:
+      return 8; // textId (u32) + align (u8) + reserved (3 bytes)
   }
 };
 
@@ -471,6 +480,13 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o += cmd.style.styleParams.byteLength;
         break;
       }
+      case CommandOp.SetTextAlign:
+        o = writeU32(view, o, cmd.align.textId);
+        view.setUint8(o++, cmd.align.align & 0xff);
+        view.setUint8(o++, 0); // reserved
+        view.setUint8(o++, 0); // reserved
+        view.setUint8(o++, 0); // reserved
+        break;
     }
   }
 

@@ -324,6 +324,14 @@ public:
     bool deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex);
     
     /**
+     * Set the alignment for a text entity.
+     * @param textId Text entity ID
+     * @param align New alignment
+     * @return True if text exists
+     */
+    bool setTextAlign(std::uint32_t textId, TextAlign align);
+    
+    /**
      * Set the constraint width for a text entity.
      * This forces the text into FixedWidth mode and triggers a re-layout.
      * @param textId Text entity ID

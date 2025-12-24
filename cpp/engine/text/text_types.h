@@ -33,6 +33,7 @@ struct LayoutLine {
     float ascent;               // Max ascent (above baseline)
     float descent;              // Max descent (below baseline)
     float lineHeight;           // Total line height
+    float xOffset;              // Horizontal offset for alignment
 };
 
 // Complete layout result for a text entity

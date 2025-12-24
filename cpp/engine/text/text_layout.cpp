@@ -240,7 +240,7 @@ std::uint32_t TextLayoutEngine::getCharIndexAtX(
     }
     
     // Find glyph at X
-    float x = 0.0f;
+    float x = line.xOffset;
     for (std::uint32_t i = 0; i < line.glyphCount; ++i) {
         std::uint32_t glyphIdx = line.startGlyph + i;
         if (glyphIdx >= layout->glyphs.size()) {
@@ -340,7 +340,8 @@ TextCaretPosition TextLayoutEngine::getCaretPosition(
     pos.y = yTop;
     
     // Calculate X position by summing advances up to charIndex
-    float x = 0.0f;
+    float x = line.xOffset;
+
     for (std::uint32_t i = 0; i < line.glyphCount; ++i) {
         std::uint32_t glyphIdx = line.startGlyph + i;
         if (glyphIdx >= layout->glyphs.size()) {
@@ -1143,15 +1144,27 @@ void TextLayoutEngine::positionLines(
     std::vector<LayoutLine>& lines,
     float totalWidth
 ) {
-    // For now, alignment affects line X offset calculation in rendering
-    // The actual offset will be computed based on line.width vs totalWidth
-    
-    // This function could store per-line X offsets if needed
-    // For now, alignment is handled during rendering based on text.align
-    
-    (void)text;
-    (void)lines;
-    (void)totalWidth;
+    // For FixedWidth mode, we align relative to the constraint width.
+    // For AutoWidth mode, we align relative to the widest line (totalWidth),
+    // which effectively makes alignment have no visual impact unless we 
+    // are in a context where the container is larger than the text.
+    float containerWidth = totalWidth;
+    if (text.boxMode == TextBoxMode::FixedWidth && text.constraintWidth > 0) {
+        containerWidth = text.constraintWidth;
+    }
+
+    for (auto& line : lines) {
+        if (text.align == TextAlign::Center) {
+            line.xOffset = (containerWidth - line.width) * 0.5f;
+        } else if (text.align == TextAlign::Right) {
+            line.xOffset = (containerWidth - line.width);
+        } else {
+            line.xOffset = 0.0f;
+        }
+        
+        // Clamp to positive to prevent text going outside the box to the left
+        if (line.xOffset < 0.0f) line.xOffset = 0.0f;
+    }
 }
 
 std::uint32_t TextLayoutEngine::findLineAtY(const TextLayout& layout, float y) const {
@@ -1178,7 +1191,7 @@ std::uint32_t TextLayoutEngine::findGlyphAtX(
     const LayoutLine& line,
     float x
 ) const {
-    float currentX = 0.0f;
+    float currentX = line.xOffset;
     
     for (std::uint32_t i = 0; i < line.glyphCount; ++i) {
         std::uint32_t glyphIdx = line.startGlyph + i;

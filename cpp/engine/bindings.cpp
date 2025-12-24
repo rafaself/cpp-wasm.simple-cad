@@ -135,6 +135,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("y", &engine::text::TextStyleSnapshot::y)
         .field("lineHeight", &engine::text::TextStyleSnapshot::lineHeight)
         .field("styleTriStateFlags", &engine::text::TextStyleSnapshot::styleTriStateFlags)
+        .field("align", &engine::text::TextStyleSnapshot::align)
         .field("textGeneration", &engine::text::TextStyleSnapshot::textGeneration)
         .field("styleTriStateParamsLen", &engine::text::TextStyleSnapshot::styleTriStateParamsLen);
 

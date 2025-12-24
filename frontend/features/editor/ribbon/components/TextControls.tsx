@@ -78,9 +78,29 @@ const alignOptions = [
 
 export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
   const textAlign = useSettingsStore((s) => s.toolDefaults.text.align);
-  const setTextAlign = useSettingsStore((s) => s.setTextAlign);
+  const setTextAlignShortcut = useSettingsStore((s) => s.setTextAlign);
+  const engineEditState = useUIStore((s) => s.engineTextEditState);
+  const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
+
+  const engineAlign: 'left' | 'center' | 'right' | null =
+    engineEditState.active && engineStyleSnapshot && engineEditState.textId === engineStyleSnapshot.textId
+      ? (['left', 'center', 'right'] as const)[engineStyleSnapshot.snapshot.align]
+      : null;
+
+  const activeAlign = engineAlign ?? textAlign;
+
   const handleClick = (align: 'left' | 'center' | 'right') => {
-    setTextAlign(align);
+    setTextAlignShortcut(align);
+
+    if (engineEditState.active && engineEditState.textId !== null) {
+      const tool = getTextTool();
+      if (tool) {
+        const alignMap: Record<string, number> = { left: 0, center: 1, right: 2 };
+        tool.applyTextAlign(alignMap[align]);
+      }
+      return;
+    }
+
     if (selectedTextIds.length > 0) applyTextUpdate({ align }, false);
   };
   return (
@@ -91,7 +111,7 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
             key={align}
             onClick={() => handleClick(align)}
             onMouseDown={(e) => e.preventDefault()}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${textAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
+            className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
             title={align}
           >
             {icon}

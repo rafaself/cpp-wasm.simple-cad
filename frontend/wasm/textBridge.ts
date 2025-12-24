@@ -268,6 +268,19 @@ export class TextBridge {
   }
 
   /**
+   * Set alignment for a text entity.
+   */
+  setTextAlign(textId: number, align: number): boolean {
+    this.runtime.apply([
+      {
+        op: CommandOp.SetTextAlign,
+        align: { textId, align }
+      }
+    ]);
+    return true;
+  }
+
+  /**
    * Insert text content at a position.
    * @param textId Text entity ID
    * @param charIndex Character index to insert at

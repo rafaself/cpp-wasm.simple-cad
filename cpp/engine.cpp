@@ -907,6 +907,15 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             }
             break;
         }
+        case static_cast<std::uint32_t>(CommandOp::SetTextAlign): {
+            if (payloadByteCount != sizeof(TextAlignmentPayload)) return EngineError::InvalidPayloadSize;
+            TextAlignmentPayload p;
+            std::memcpy(&p, payload, sizeof(TextAlignmentPayload));
+            if (!self->setTextAlign(p.textId, static_cast<TextAlign>(p.align))) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
         default:
             return EngineError::UnknownCommand;
     }
@@ -1184,6 +1193,12 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
     if (!caretOpt) {
         return out;
     }
+
+    const TextRec* rec = textStore_.getText(textId);
+    if (rec) {
+        out.align = static_cast<std::uint8_t>(rec->align);
+    }
+
     auto cs = *caretOpt;
     std::uint32_t selStart = cs.selectionStart;
     std::uint32_t selEnd = cs.selectionEnd;
@@ -1553,6 +1568,32 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     return true;
 }
 
+bool CadEngine::setTextAlign(std::uint32_t textId, TextAlign align) {
+    if (!textInitialized_) return false;
+
+    TextRec* rec = textStore_.getTextMutable(textId);
+    if (!rec) {
+        return false;
+    }
+
+    if (rec->align == align) return true;
+
+    rec->align = align;
+    
+    // Aligment change doesn't change relative glyph positions or metrics,
+    // but it DOES change the X offset of lines, so we must rebuild quads.
+    // Re-layout is also good practice to ensure bounds are absolutely correct,
+    // though in AutoWidth case alignment doesn't change bounds since layoutWidth=maxWidth.
+    textLayoutEngine_.layoutText(textId);
+
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+
+    return true;
+}
+
 bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
     if (!textInitialized_) return false;
 
@@ -1677,7 +1718,7 @@ void CadEngine::rebuildTextQuadBuffer() {
             const float baseline = yOffset - line.ascent;
             
             // Accumulated pen position for glyph X (horizontal advance)
-            float penX = 0.0f;
+            float penX = line.xOffset;
             
             // Process glyphs in this line using the index range
             for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {

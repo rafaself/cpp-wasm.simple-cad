@@ -181,6 +181,7 @@ export interface TextStyleSnapshot {
   lineHeight: number;
   /** 2 bits per attr: bold bits0-1, italic bits2-3, underline bits4-5, strike bits6-7 */
   styleTriStateFlags: number;
+  align: number;
   textGeneration: number;
   styleTriStateParamsLen: number;
 }

@@ -796,6 +796,22 @@ export class TextTool {
     return this.applyStyleWithParams(buf);
   }
 
+  applyTextAlign(align: TextAlign): boolean {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
+    const textId = this.state.activeTextId;
+    const success = this.bridge.setTextAlign(textId, align);
+    if (success) {
+      this.styleDefaults.align = align;
+      this.updateCaretPosition();
+    }
+    return success;
+  }
+
+  applyTextAlignToText(textId: number, align: TextAlign): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+    return this.bridge.setTextAlign(textId, align);
+  }
+
   applyFontId(fontId: number): boolean {
     const buf = new Uint8Array(5);
     const view = new DataView(buf.buffer);
