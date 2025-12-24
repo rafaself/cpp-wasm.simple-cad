@@ -162,6 +162,26 @@ bool GlyphAtlas::initialize(FontManager* fontManager, const Config& config) {
     // Initialize to transparent black
     std::memset(textureData_.get(), 0, bufferSize);
     
+    // Reserve a 2x2 white region for solid rendering
+    auto whiteRectOpt = packer_->pack(2, 2);
+    if (whiteRectOpt) {
+        whitePixelRect_ = *whiteRectOpt;
+        // Fill with white (solid)
+        for (int y = 0; y < 2; ++y) {
+            for (int x = 0; x < 2; ++x) {
+                std::uint32_t px = (whitePixelRect_.y + y) * config_.width + (whitePixelRect_.x + x);
+                // 4 bytes per pixel (RGBA)
+                std::uint32_t offset = px * 4;
+                if (offset + 3 < bufferSize) {
+                    textureData_[offset + 0] = 255; // R
+                    textureData_[offset + 1] = 255; // G
+                    textureData_[offset + 2] = 255; // B
+                    textureData_[offset + 3] = 255; // A
+                }
+            }
+        }
+    }
+
     dirty_ = true;
     version_ = 1;
     

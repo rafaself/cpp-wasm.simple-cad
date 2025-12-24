@@ -33,6 +33,8 @@ enum class TextStyleTriState : std::uint8_t { Off = 0, On = 1, Mixed = 2, Reserv
 // -----------------------------------------------------------------------------
 static constexpr std::uint8_t textStyleTagFontWeightNum   = 0x01; // u16, 100-900
 static constexpr std::uint8_t textStyleTagLetterSpacing   = 0x02; // f32
+static constexpr std::uint8_t textStyleTagFontSize        = 0x03; // f32
+static constexpr std::uint8_t textStyleTagFontId          = 0x04; // u32
 static constexpr std::uint8_t textStyleTagAxisBase        = 0x10; // axisId in 0x10..0x3F, f32
 static constexpr std::uint8_t textStyleTagUnderlineColor  = 0x40; // u32 RGBA (reserved)
 static constexpr std::uint8_t textStyleTagUnderlineThick  = 0x41; // f32 (reserved)

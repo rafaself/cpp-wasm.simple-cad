@@ -906,46 +906,72 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
 }
 
 bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen) {
-    (void)params;
-    (void)paramsLen;
-
     // Validate text existence
     if (!textStore_.hasText(payload.textId)) {
         return false;
+    }
+
+    // Parse style parameters (TLV)
+    float newFontSize = 0.0f;
+    std::uint32_t newFontId = 0;
+    bool hasFontSize = false;
+    bool hasFontId = false;
+
+    if (params && paramsLen > 0) {
+        const std::uint8_t* ptr = params;
+        const std::uint8_t* end = params + paramsLen;
+        while (ptr < end) {
+            std::uint8_t tag = *ptr++;
+            switch (tag) {
+                case engine::text::textStyleTagFontSize:
+                    if (ptr + sizeof(float) <= end) {
+                        float val;
+                        std::memcpy(&val, ptr, sizeof(float));
+                        if (val > 4.0f && val < 1000.0f) {
+                            newFontSize = val;
+                            hasFontSize = true;
+                        }
+                        ptr += sizeof(float);
+                    }
+                    break;
+                case engine::text::textStyleTagFontId:
+                     if (ptr + sizeof(std::uint32_t) <= end) {
+                        std::uint32_t val;
+                        std::memcpy(&val, ptr, sizeof(std::uint32_t));
+                        newFontId = val;
+                        hasFontId = true;
+                        ptr += sizeof(std::uint32_t);
+                     }
+                     break;
+                default:
+                    // Stop on unknown tag to avoid desync
+                    ptr = end; 
+                    break;
+            }
+        }
     }
 
     // Fetch content and runs
     const std::string_view content = textStore_.getContent(payload.textId);
     const auto& runs = textStore_.getRuns(payload.textId);
     if (runs.empty()) {
-        return true; // nothing to change
+        return true; 
     }
 
-    // Map logical indices to UTF-8 byte offsets (codepoint approximation; TODO: grapheme clustering)
+    // Map logical indices
     std::uint32_t startLogical = payload.rangeStartLogical;
     std::uint32_t endLogical = payload.rangeEndLogical;
-    if (startLogical > endLogical) {
-        std::swap(startLogical, endLogical);
-    }
+    if (startLogical > endLogical) std::swap(startLogical, endLogical);
+    
     const std::uint32_t byteStart = logicalToByteIndex(content, startLogical);
     const std::uint32_t byteEnd = logicalToByteIndex(content, endLogical);
 
-    if (byteStart > byteEnd) {
-        return true; // malformed range, no-op
-    }
+    if (byteStart > byteEnd) return true;
 
     const std::uint8_t mask = payload.flagsMask;
     const std::uint8_t value = static_cast<std::uint8_t>(payload.flagsValue & mask);
 
-    // DEBUG: Trace input using JS console directly
-    {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "console.log('[C++ DEBUG] applyTextStyle textId=%u range=[%u, %u) mask=%02x val=%02x mode=%u')",
-                 payload.textId, byteStart, byteEnd, mask, value, payload.mode);
-        emscripten_run_script(buf);
-    }
-
-    const auto applyFlagDelta = [&](TextStyleFlags current) -> TextStyleFlags {
+    auto applyFlagDelta = [&](TextStyleFlags current) -> TextStyleFlags {
         std::uint8_t f = static_cast<std::uint8_t>(current);
         switch (payload.mode) {
             case 0: // set
@@ -957,16 +983,18 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             case 2: // toggle
                 f = static_cast<std::uint8_t>(f ^ mask);
                 break;
-            default:
-                break;
         }
         return static_cast<TextStyleFlags>(f);
     };
 
-    // Caret-only logic
+    auto applyStyle = [&](TextRun& run) {
+        run.flags = applyFlagDelta(run.flags);
+        if (hasFontSize) run.fontSize = newFontSize;
+        if (hasFontId) run.fontId = newFontId;
+    };
+
+    // Caret-only logic (Collapsed selection)
     if (byteStart == byteEnd) {
-        printf("[DEBUG] applyTextStyle: Caret-only path\n");
-        // ... (existing caret logic) ...
         std::vector<TextRun> out;
         out.reserve(runs.size() + 1);
         bool inserted = false;
@@ -976,16 +1004,18 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             const std::uint32_t runEnd = run.startIndex + run.length;
 
             if (!inserted && byteStart >= runStart && byteStart <= runEnd) {
+                // Before insertion points?
                 if (runStart < byteStart) {
                     TextRun prefix = run;
                     prefix.length = byteStart - runStart;
                     out.push_back(prefix);
                 }
 
+                // The zero-length "style marker" run
                 TextRun mid = run;
                 mid.startIndex = byteStart;
                 mid.length = 0;
-                mid.flags = applyFlagDelta(run.flags);
+                applyStyle(mid);
                 out.push_back(mid);
                 inserted = true;
 
@@ -1001,22 +1031,19 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         }
 
         if (!inserted) {
-            // Case: empty text or caret at very end outside existing runs
-            // Fallback to default styling if runs empty, or last run's style
             TextRun mid;
             if (!runs.empty()) {
                 mid = runs.back();
             } else {
-                // Should not happen as upsertText creates default run, but safe fallback
                 mid.fontId = 4; mid.fontSize = 16.0f; mid.colorRGBA = 0xFFFFFFFF; mid.flags = TextStyleFlags::None;
             }
             mid.startIndex = byteStart;
             mid.length = 0;
-            mid.flags = applyFlagDelta(mid.flags);
+            applyStyle(mid);
             out.push_back(mid);
         }
 
-        // Merge logic...
+        // Merge logic
         std::vector<TextRun> merged;
         merged.reserve(out.size());
         for (const auto& r : out) {
@@ -1035,18 +1062,12 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             merged.push_back(r);
         }
 
-        if (!textStore_.setRuns(payload.textId, std::move(merged))) {
-            return false;
-        }
-
-        renderDirty = true;
-        snapshotDirty = true;
-        generation++;
+        if (!textStore_.setRuns(payload.textId, std::move(merged))) return false;
+        renderDirty = true; snapshotDirty = true; generation++;
         return true;
     }
 
     // Range logic
-    printf("[DEBUG] applyTextStyle: Range path. Runs count=%zu\n", runs.size());
     std::vector<TextRun> out;
     out.reserve(runs.size() + 2);
 
@@ -1062,28 +1083,20 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
             continue;
         }
 
-        // Prefix
         if (runStart < overlapStart) {
             TextRun prefix = run;
             prefix.length = overlapStart - runStart;
             out.push_back(prefix);
         }
 
-        // Overlap
         {
             TextRun mid = run;
             mid.startIndex = overlapStart;
             mid.length = overlapEnd - overlapStart;
-            mid.flags = applyFlagDelta(mid.flags);
-            printf("[DEBUG] Modifying run [%u, %u) flags %02x -> %02x\n", 
-                mid.startIndex, 
-                mid.startIndex + mid.length, 
-                static_cast<std::uint8_t>(run.flags), 
-                static_cast<std::uint8_t>(mid.flags));
+            applyStyle(mid);
             out.push_back(mid);
         }
 
-        // Suffix
         if (overlapEnd < runEnd) {
             TextRun suffix = run;
             suffix.startIndex = overlapEnd;
@@ -1110,16 +1123,9 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         }
         merged.push_back(r);
     }
-    printf("[DEBUG] applyTextStyle: Merged runs count=%zu\n", merged.size());
-
-    if (!textStore_.setRuns(payload.textId, std::move(merged))) {
-        printf("[DEBUG] applyTextStyle: setRuns failed\n");
-        return false;
-    }
-
-    renderDirty = true;
-    snapshotDirty = true;
-    generation++;
+    
+    if (!textStore_.setRuns(payload.textId, std::move(merged))) return false;
+    renderDirty = true; snapshotDirty = true; generation++;
     return true;
 }
 
@@ -1622,9 +1628,17 @@ void CadEngine::rebuildTextQuadBuffer() {
             float penX = 0.0f;
             
             // Process glyphs in this line using the index range
+            printf("[DEBUG] Line starting at yOffset=%.2f, startGlyph=%u, count=%u\n", yOffset, line.startGlyph, line.glyphCount);
+            
             for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
                 if (gi >= layout->glyphs.size()) break;
                 const auto& glyph = layout->glyphs[gi];
+                
+                // Debug large advances or suspicious glyphs
+                if (glyph.xAdvance > 100.0f) {
+                     printf("[DEBUG] Suspicious Huge Advance: glyphId=%u clusters=%u advance=%.2f\n", 
+                            glyph.glyphId, glyph.clusterIndex, glyph.xAdvance);
+                }
                 
                 // Get atlas entry for this glyph
                 // Note: We need to know the fontId for the glyph, which requires looking up the run
@@ -1652,75 +1666,115 @@ void CadEngine::rebuildTextQuadBuffer() {
                 const auto* atlasEntry = glyphAtlas_.getGlyph(fontId, glyph.glyphId, styleFlags);
                 if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
                     // Still advance penX for whitespace/missing glyphs
-                    penX += glyph.xAdvance;
-                    continue;
+                    // We might still need to render decorations (underline/strike) for spaces!
+                    if (hasFlag(styleFlags, TextStyleFlags::Underline) || hasFlag(styleFlags, TextStyleFlags::Strike)) {
+                        // ... render decorations logic duplicated or shared?
+                        // Let's refactor:
+                        // Move decoration rendering to AFTER this check, inside a shared block or separate function.
+                        // But wait, if I just remove 'continue' and let it fall through, 
+                        // I must ensure I don't draw invalid glyph quads.
+                    }
+                    // For now, let's just NOT continue here, but guard the glyph quad drawing lower down.
                 }
                 
-                // Calculate glyph position in world space
-                // Scale factor: fontSize / atlasEntry->fontSize (which is msdfSize)
-                const float scale = fontSize / atlasEntry->fontSize;
-                
-                // Glyph X position: baseX + penX + xOffset (HarfBuzz offset is relative to pen)
-                // Glyph Y position: baseY + baseline + yOffset + (bearingY - height) * fontSize
-                // Note: bearingY is now the Top of the bitmap relative to baseline (positive up)
-                // Layout coordinates (penX, xOffset, yOffset) are already in pixels from TextLayoutEngine
-                // So we do NOT multiply them by 'scale' (which is for MSDF bitmap sizing only)
-                const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * fontSize;
-                const float glyphY = baseY + baseline + glyph.yOffset + (atlasEntry->bearingY - atlasEntry->height) * fontSize;
-                const float glyphW = atlasEntry->width * fontSize;
-                const float glyphH = atlasEntry->height * fontSize;
-                
-                // UV coordinates - use the pre-computed normalized UVs
-                const float u0 = atlasEntry->u0;
-                const float v0 = atlasEntry->v0;
-                const float u1 = atlasEntry->u1;
-                const float v1 = atlasEntry->v1;
-                
-                // Emit 6 vertices (2 triangles) for this glyph quad
-                // Format: x, y, z, u, v, r, g, b, a
-                // Triangle 1: top-left, top-right, bottom-right
-                // NOTE: World Y is UP. Texture V is DOWN (0 at top).
-                // So we map v1 (bottom of texture) to glyphY (bottom of quad)
-                // And v0 (top of texture) to glyphY + glyphH (top of quad)
-                
-                // Vertex 0: Bottom-Left (but using top-left logic structure?)
-                // Let's explicitly define corners according to TRIANGLE STRIP or TRIANGLES topology logic
-                // The previous code was:
-                // (X, Y) -> v0   (Bottom-Left -> Top Tex) INVERTED
-                // (X+W, Y) -> v0 (Bottom-Right -> Top Tex) INVERTED
-                // (X+W, Y+H) -> v1 (Top-Right -> Bottom Tex) INVERTED
-                
-                // Correct mapping:
-                // Bottom-Left (X, Y) -> v1 (Bottom of texture)
-                // Bottom-Right (X+W, Y) -> v1 (Bottom of texture)
-                // Top-Right (X+W, Y+H) -> v0 (Top of texture)
-                // Top-Left (X, Y+H) -> v0 (Top of texture)
-                
-                // Triangle 1: (X, Y), (X+W, Y), (X+W, Y+H) -> BL, BR, TR
-                textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
-                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
-                
-                textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);              // BR -> Bottom UV
-                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
-                
-                textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
-                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
-                
-                // Triangle 2: (X, Y), (X+W, Y+H), (X, Y+H) -> BL, TR, TL
-                textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
-                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
-                
-                textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
-                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                if (atlasEntry && atlasEntry->width > 0.0f && atlasEntry->height > 0.0f) {
+                    
+                    if (glyph.clusterIndex == 0) { // Debug first glyph
+                       printf("[DEBUG] Rendering Glyph %u: Run FontSize=%.2f, AtlasFontSize=%.2f, AtlasW=%.3f, FinalW=%.2f\n",
+                              glyph.glyphId, fontSize, atlasEntry->fontSize, atlasEntry->width, atlasEntry->width * fontSize);
+                    }
 
-                textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
-                textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);              // TL -> Top UV
-                textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    // Use actual scale for glyph bitmap sizing
+                    const float scale = fontSize / atlasEntry->fontSize;
+                    
+                    const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * fontSize;
+                    const float glyphY = baseY + baseline + glyph.yOffset + (atlasEntry->bearingY - atlasEntry->height) * fontSize;
+                    const float glyphW = atlasEntry->width * fontSize;
+                    const float glyphH = atlasEntry->height * fontSize;
+                    
+                    const float u0 = atlasEntry->u0;
+                    const float v0 = atlasEntry->v0;
+                    const float u1 = atlasEntry->u1;
+                    const float v1 = atlasEntry->v1;
+
+                    // Triangle 1: (X, Y), (X+W, Y), (X+W, Y+H) -> BL, BR, TR
+                    textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);              // BR -> Bottom UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    // Triangle 2: (X, Y), (X+W, Y+H), (X, Y+H) -> BL, TR, TL
+                    textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+
+                    textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);              // TL -> Top UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                }
+                
+                // --- DECORATION RENDERING (Underline / Strikethrough) ---
+                if (hasFlag(styleFlags, TextStyleFlags::Underline) || hasFlag(styleFlags, TextStyleFlags::Strike)) {
+                    const auto& whiteRect = glyphAtlas_.getWhitePixelRect();
+                    const float whiteU = (whiteRect.x + 0.5f) / static_cast<float>(glyphAtlas_.getWidth());
+                    const float whiteV = (whiteRect.y + 0.5f) / static_cast<float>(glyphAtlas_.getHeight());
+                    
+                    const float decStartX = baseX + penX;
+                    // Extend slightly (0.5px) to ensure overlap and continuous line, avoiding subpixel gaps
+                    const float decWidth = glyph.xAdvance + 0.5f; 
+                    
+                    auto drawLine = [&](float localY, float thickness) {
+                        const float x0 = decStartX;
+                        const float x1 = decStartX + decWidth;
+                        // Correction: baseline already includes yOffset. Do NOT add yOffset again!
+                        const float y0 = baseY + baseline + localY;
+                        const float y1 = y0 + thickness;
+                        
+                        // BL
+                        textQuadBuffer_.push_back(x0); textQuadBuffer_.push_back(y0); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // BR
+                        textQuadBuffer_.push_back(x1); textQuadBuffer_.push_back(y0); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // TR
+                        textQuadBuffer_.push_back(x1); textQuadBuffer_.push_back(y1); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        
+                        // BL
+                        textQuadBuffer_.push_back(x0); textQuadBuffer_.push_back(y0); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // TR
+                        textQuadBuffer_.push_back(x1); textQuadBuffer_.push_back(y1); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // TL
+                        textQuadBuffer_.push_back(x0); textQuadBuffer_.push_back(y1); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                    };
+                    
+                    if (hasFlag(styleFlags, TextStyleFlags::Underline)) {
+                        drawLine(-fontSize * 0.15f, fontSize * 0.06f);
+                    }
+                    if (hasFlag(styleFlags, TextStyleFlags::Strike)) {
+                        drawLine(fontSize * 0.3f, fontSize * 0.06f);
+                    }
+                }
                 
                 // Advance pen position by glyph advance
                 penX += glyph.xAdvance;

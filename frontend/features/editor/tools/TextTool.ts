@@ -745,7 +745,6 @@ export class TextTool {
     };
 
     this.bridge.applyTextStyle(textId, payload);
-
     // Update tool defaults to reflect the new state...
     const snapshot = this.bridge.getTextStyleSnapshot(textId);
     if (snapshot) {
@@ -778,6 +777,53 @@ export class TextTool {
     }
 
     this.updateCaretPosition();
+    return true;
+  }
+
+  applyFontSize(fontSize: number): boolean {
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x03); // textStyleTagFontSize
+    view.setFloat32(1, fontSize, true);
+    return this.applyStyleWithParams(buf);
+  }
+
+  applyFontId(fontId: number): boolean {
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x04); // textStyleTagFontId
+    view.setUint32(1, fontId, true);
+    return this.applyStyleWithParams(buf);
+  }
+
+  private applyStyleWithParams(params: Uint8Array): boolean {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
+    const textId = this.state.activeTextId;
+    const contentLength = this.state.content.length;
+    let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
+    let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
+    rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
+    rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
+    
+    // Handle collapsed selection
+    if (rangeStart === rangeEnd) {
+      const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
+      rangeStart = caret;
+      rangeEnd = caret;
+    }
+
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: rangeStart,
+      rangeEndLogical: rangeEnd,
+      flagsMask: 0,
+      flagsValue: 0,
+      mode: 0, 
+      styleParamsVersion: 1,
+      styleParams: params,
+    };
+    
+    this.bridge.applyTextStyle(textId, payload);
     return true;
   }
 

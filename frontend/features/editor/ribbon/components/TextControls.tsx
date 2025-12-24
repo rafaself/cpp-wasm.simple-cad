@@ -46,8 +46,21 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds,
 export const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
   const textFontSize = useSettingsStore((s) => s.toolDefaults.text.fontSize);
   const setTextFontSize = useSettingsStore((s) => s.setTextFontSize);
+  const engineEditState = useUIStore((s) => s.engineTextEditState);
+  const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
+
   const handleChange = (val: number) => {
     setTextFontSize(val);
+
+    if (applyViaEngine) {
+      const tool = getTextTool();
+      if (tool && tool.isReady()) {
+         tool.applyFontSize(val);
+         // Don't return, allow applying to selection too if needed?
+         return; 
+      }
+    }
+    
     if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
   };
   return (

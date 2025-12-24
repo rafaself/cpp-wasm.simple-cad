@@ -161,6 +161,12 @@ public:
      */
     const Config& getConfig() const { return config_; }
 
+    /**
+     * Get the UV rectangle for a solid white pixel (1,1,1,1).
+     * Used for drawing geometric primitives (underline, strike, cursor).
+     */
+    const AtlasPacker::Rect& getWhitePixelRect() const { return whitePixelRect_; }
+
 private:
     // Key for glyph cache: (fontId << 32) | glyphId
     using GlyphKey = std::uint64_t;
@@ -205,6 +211,7 @@ private:
     
     bool dirty_;
     std::uint32_t version_;
+    AtlasPacker::Rect whitePixelRect_{};
 };
 
 } // namespace engine::text
