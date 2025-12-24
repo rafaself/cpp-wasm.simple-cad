@@ -3,8 +3,11 @@ import { AlignCenterHorizontal, AlignLeft, AlignRight, Bold, Italic, Underline, 
 import CustomSelect from '../../../../components/CustomSelect';
 import NumberSpinner from '../../../../components/NumberSpinner';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
-import { BUTTON_STYLES, INPUT_STYLES, TEXT_STYLES } from '../../../../design/tokens';
+import { BUTTON_STYLES, INPUT_STYLES } from '../../../../design/tokens';
 import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
+import { useUIStore } from '../../../../stores/useUIStore';
+import { getTextTool } from '../../../../engine/runtime/textEngineSync';
+import { TextStyleFlags } from '../../../../types/text';
 
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
@@ -16,6 +19,15 @@ const FONT_OPTIONS = [
 const InputWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
   <div className={`flex flex-col justify-center w-full ${className || ''}`}>{children}</div>
 );
+
+type StyleState = 'off' | 'on' | 'mixed';
+
+const triStateFor = (flags: number, shift: number): StyleState => {
+  const v = (flags >> shift) & 0b11;
+  if (v === 1) return 'on';
+  if (v === 2) return 'mixed';
+  return 'off';
+};
 
 export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
   const textFontFamily = useSettingsStore((s) => s.toolDefaults.text.fontFamily);
@@ -34,8 +46,21 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds,
 export const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
   const textFontSize = useSettingsStore((s) => s.toolDefaults.text.fontSize);
   const setTextFontSize = useSettingsStore((s) => s.setTextFontSize);
+  const engineEditState = useUIStore((s) => s.engineTextEditState);
+  const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
+
   const handleChange = (val: number) => {
     setTextFontSize(val);
+
+    if (applyViaEngine) {
+      const tool = getTextTool();
+      if (tool && tool.isReady()) {
+         tool.applyFontSize(val);
+         // Don't return, allow applying to selection too if needed?
+         return; 
+      }
+    }
+    
     if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
   };
   return (
@@ -53,9 +78,29 @@ const alignOptions = [
 
 export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
   const textAlign = useSettingsStore((s) => s.toolDefaults.text.align);
-  const setTextAlign = useSettingsStore((s) => s.setTextAlign);
+  const setTextAlignShortcut = useSettingsStore((s) => s.setTextAlign);
+  const engineEditState = useUIStore((s) => s.engineTextEditState);
+  const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
+
+  const engineAlign: 'left' | 'center' | 'right' | null =
+    engineEditState.active && engineStyleSnapshot && engineEditState.textId === engineStyleSnapshot.textId
+      ? (['left', 'center', 'right'] as const)[engineStyleSnapshot.snapshot.align]
+      : null;
+
+  const activeAlign = engineAlign ?? textAlign;
+
   const handleClick = (align: 'left' | 'center' | 'right') => {
-    setTextAlign(align);
+    setTextAlignShortcut(align);
+
+    if (engineEditState.active && engineEditState.textId !== null) {
+      const tool = getTextTool();
+      if (tool) {
+        const alignMap: Record<string, number> = { left: 0, center: 1, right: 2 };
+        tool.applyTextAlign(alignMap[align]);
+      }
+      return;
+    }
+
     if (selectedTextIds.length > 0) applyTextUpdate({ align }, false);
   };
   return (
@@ -65,7 +110,8 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
           <button
             key={align}
             onClick={() => handleClick(align)}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${textAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
+            onMouseDown={(e) => e.preventDefault()}
+            className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
             title={align}
           >
             {icon}
@@ -90,18 +136,54 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   const setUnderline = useSettingsStore((s) => s.setTextUnderline);
   const setStrike = useSettingsStore((s) => s.setTextStrike);
 
-  const options: Array<{ key: StyleKey; icon: React.ReactNode; active: boolean; setter: (v: boolean) => void; recalc: boolean }> = [
-    { key: 'bold', icon: <Bold size={16} />, active: textBold, setter: setBold, recalc: true },
-    { key: 'italic', icon: <Italic size={16} />, active: textItalic, setter: setItalic, recalc: true },
-    { key: 'underline', icon: <Underline size={16} />, active: textUnderline, setter: setUnderline, recalc: false },
-    { key: 'strike', icon: <Strikethrough size={16} />, active: textStrike, setter: setStrike, recalc: false },
+  const engineEditState = useUIStore((s) => s.engineTextEditState);
+  const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
+
+  const engineStyles: Record<StyleKey, StyleState> | null =
+    engineEditState.active && engineStyleSnapshot && engineEditState.textId === engineStyleSnapshot.textId
+      ? {
+          bold: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 0),
+          italic: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 2),
+          underline: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 4),
+          strike: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 6),
+        }
+      : null;
+
+  const fallbackStyles: Record<StyleKey, StyleState> = {
+    bold: textBold ? 'on' : 'off',
+    italic: textItalic ? 'on' : 'off',
+    underline: textUnderline ? 'on' : 'off',
+    strike: textStrike ? 'on' : 'off',
+  };
+
+  const styleStates = engineStyles ?? fallbackStyles;
+  const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
+
+  const options: Array<{ key: StyleKey; icon: React.ReactNode; state: StyleState; setter: (v: boolean) => void; recalc: boolean; mask: TextStyleFlags }> = [
+    { key: 'bold', icon: <Bold size={16} />, state: styleStates.bold, setter: setBold, recalc: true, mask: TextStyleFlags.Bold },
+    { key: 'italic', icon: <Italic size={16} />, state: styleStates.italic, setter: setItalic, recalc: true, mask: TextStyleFlags.Italic },
+    { key: 'underline', icon: <Underline size={16} />, state: styleStates.underline, setter: setUnderline, recalc: false, mask: TextStyleFlags.Underline },
+    { key: 'strike', icon: <Strikethrough size={16} />, state: styleStates.strike, setter: setStrike, recalc: false, mask: TextStyleFlags.Strikethrough },
   ];
 
   const handleClick = (option: typeof options[number]) => {
-    const next = !option.active;
-    option.setter(next);
+    const nextIntent: 'set' | 'clear' = option.state === 'on' ? 'clear' : 'set';
+    option.setter(nextIntent === 'set');
+
+    console.log('[TextControls] handleClick', { key: option.key, nextIntent, applyViaEngine, textId: engineEditState.textId });
+
+    if (applyViaEngine) {
+      const tool = getTextTool();
+      if (tool) {
+        tool.applyStyle(option.mask, nextIntent);
+      } else {
+        console.warn('[TextControls] Tool not found!');
+      }
+      return;
+    }
+
     if (selectedTextIds.length > 0) {
-      const diff: TextUpdateDiff = { [option.key]: next };
+      const diff: TextUpdateDiff = { [option.key]: nextIntent === 'set' };
       applyTextUpdate(diff, option.recalc);
     }
   };
@@ -109,16 +191,27 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   return (
     <InputWrapper className="items-center">
       <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
-        {options.map((option) => (
+        {options.map((option) => {
+          const isOn = option.state === 'on';
+          const isMixed = option.state === 'mixed';
+          const stateClass = isOn
+            ? 'bg-blue-600/30 text-blue-400'
+            : isMixed
+              ? 'bg-blue-600/15 text-blue-200 border border-blue-500/40'
+              : '';
+
+          return (
           <button
             key={option.key}
             onClick={() => handleClick(option)}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${option.active ? 'bg-blue-600/30 text-blue-400' : ''}`}
+            onMouseDown={(e) => e.preventDefault()}
+            className={`w-8 h-full ${BUTTON_STYLES.centered} ${stateClass}`}
             title={option.key}
           >
             {option.icon}
           </button>
-        ))}
+          );
+        })}
       </div>
     </InputWrapper>
   );

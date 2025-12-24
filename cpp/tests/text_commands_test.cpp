@@ -10,7 +10,11 @@
 #include "engine/commands.h"
 #include "engine/types.h"
 #include <cstring>
+#include <string>
 #include <vector>
+#include <fstream>
+
+#include "engine/text/text_style_contract.h"
 
 // Helper class to build command buffers
 class CommandBufferBuilder {
@@ -74,6 +78,28 @@ protected:
             &CadEngine::cad_command_callback,
             engine_.get()
         );
+    }
+
+    bool upsertSimpleText(std::uint32_t id, const std::string& content, TextStyleFlags flags = TextStyleFlags::None) {
+        TextPayloadHeader header{};
+        header.x = 0.0f;
+        header.y = 0.0f;
+        header.rotation = 0.0f;
+        header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+        header.align = static_cast<std::uint8_t>(TextAlign::Left);
+        header.constraintWidth = 0.0f;
+        header.runCount = 1;
+        header.contentLength = static_cast<std::uint32_t>(content.size());
+
+        TextRunPayload run{};
+        run.startIndex = 0;
+        run.length = header.contentLength;
+        run.fontId = 0;
+        run.fontSize = 16.0f;
+        run.colorRGBA = 0xFFFFFFFFu;
+        run.flags = static_cast<std::uint8_t>(flags);
+
+        return engine_->textStore_.upsertText(id, header, &run, 1, content.data(), header.contentLength);
     }
     
     std::unique_ptr<CadEngine> engine_;
@@ -566,6 +592,146 @@ TEST_F(TextCommandsTest, DeleteTextRemovesFromEntityMap) {
 }
 
 // =============================================================================
+// ApplyTextStyle caret-only (collapsed selection) tests
+// =============================================================================
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_MidRunInsertsZeroLengthRun) {
+    ASSERT_TRUE(upsertSimpleText(100, "Hello"));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 100;
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0; // set
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& runs = engine_->textStore_.getRuns(100);
+    ASSERT_EQ(runs.size(), 3u);
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 2u);
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(runs[1].startIndex, 2u);
+    EXPECT_EQ(runs[1].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(runs[2].startIndex, 2u);
+    EXPECT_EQ(runs[2].length, 3u);
+    EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
+    const std::string content = "HelloWorld"; // 10 chars
+
+    TextPayloadHeader header{};
+    header.x = 0.0f;
+    header.y = 0.0f;
+    header.rotation = 0.0f;
+    header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+    header.align = static_cast<std::uint8_t>(TextAlign::Left);
+    header.constraintWidth = 0.0f;
+    header.runCount = 2;
+    header.contentLength = static_cast<std::uint32_t>(content.size());
+
+    TextRunPayload runs[2] = {};
+    runs[0].startIndex = 0;
+    runs[0].length = 5; // Hello
+    runs[0].fontId = 0;
+    runs[0].fontSize = 16.0f;
+    runs[0].colorRGBA = 0xFFFFFFFFu;
+    runs[0].flags = static_cast<std::uint8_t>(TextStyleFlags::None);
+
+    runs[1].startIndex = 5;
+    runs[1].length = 5; // World
+    runs[1].fontId = 0;
+    runs[1].fontSize = 16.0f;
+    runs[1].colorRGBA = 0xFFFFFFFFu;
+    runs[1].flags = static_cast<std::uint8_t>(TextStyleFlags::Italic);
+
+    ASSERT_TRUE(engine_->textStore_.upsertText(101, header, runs, 2, content.data(), header.contentLength));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 101;
+    payload.rangeStartLogical = 5; // boundary between runs
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& storedRuns = engine_->textStore_.getRuns(101);
+    ASSERT_EQ(storedRuns.size(), 3u);
+
+    EXPECT_EQ(storedRuns[0].startIndex, 0u);
+    EXPECT_EQ(storedRuns[0].length, 5u);
+    EXPECT_FALSE(hasFlag(storedRuns[0].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(storedRuns[1].startIndex, 5u);
+    EXPECT_EQ(storedRuns[1].length, 0u);
+    EXPECT_TRUE(hasFlag(storedRuns[1].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(storedRuns[2].startIndex, 5u);
+    EXPECT_EQ(storedRuns[2].length, 5u);
+    EXPECT_TRUE(hasFlag(storedRuns[2].flags, TextStyleFlags::Italic));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtContentEnd) {
+    ASSERT_TRUE(upsertSimpleText(102, "Hello"));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 102;
+    payload.rangeStartLogical = 5; // end of content
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& runs = engine_->textStore_.getRuns(102);
+    ASSERT_EQ(runs.size(), 2u);
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 5u);
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+
+    EXPECT_EQ(runs[1].startIndex, 5u);
+    EXPECT_EQ(runs[1].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_OnEmptyContent) {
+    ASSERT_TRUE(upsertSimpleText(103, ""));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 103;
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 0;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
+
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+
+    const auto& runs = engine_->textStore_.getRuns(103);
+    ASSERT_EQ(runs.size(), 1u);
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[0].flags, TextStyleFlags::Underline));
+}
+
+// =============================================================================
 // Generation/Dirty Tracking Tests
 // =============================================================================
 
@@ -590,4 +756,237 @@ TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
     
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
     EXPECT_GT(engine_->generation, genBefore);
+}
+
+// =============================================================================
+// PR1 Verification Tests
+// =============================================================================
+
+TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
+    // Recipe:
+    // - Create text "hello"
+    // - Move caret between "e|l"
+    // - Toggle Bold
+    // - Insert "X"
+    // - Result should be "heXllo" where only "X" is bold
+    
+    ASSERT_TRUE(upsertSimpleText(200, "hello"));
+    
+    // 1. Toggle Bold at index 2
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 200;
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 2; // Toggle
+    payload.styleParamsLen = 0;
+    
+    EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
+    
+    // Verify intermediate state: 0-length run at 2
+    auto runs = engine_->textStore_.getRuns(200);
+    ASSERT_EQ(runs.size(), 3u);
+    EXPECT_EQ(runs[1].startIndex, 2u);
+    EXPECT_EQ(runs[1].length, 0u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+    
+    // 2. Insert "X" at index 2
+    // Use engine command or direct method. CadEngine::insertTextContent calls TextStore::insertContent
+    EXPECT_TRUE(engine_->insertTextContent(200, 2, "X", 1));
+    
+    // 3. Verify final state
+    // Content should be "heXllo"
+    std::string_view content = engine_->textStore_.getContent(200);
+    EXPECT_EQ(content, "heXllo");
+    
+    // Runs should be: "he" (regular), "X" (Bold), "llo" (regular)
+    runs = engine_->textStore_.getRuns(200);
+    ASSERT_EQ(runs.size(), 3u);
+    
+    // "he"
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 2u); 
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+    
+    // "X" - should have inherited the 0-length run properties
+    EXPECT_EQ(runs[1].startIndex, 2u);
+    EXPECT_EQ(runs[1].length, 1u); 
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+    
+    // "llo"
+    EXPECT_EQ(runs[2].startIndex, 3u);
+    EXPECT_EQ(runs[2].length, 3u); 
+    EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
+}
+
+TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
+    // Regression test for text duplication bug:
+    // When toggling multiple styles (Bold, Italic, Underline) at caret,
+    // should create ONE zero-length run with combined styles, not multiple.
+    
+    ASSERT_TRUE(upsertSimpleText(300, "hello"));
+    
+    // Set caret at position 5 (end of "hello")
+    engine_->textStore_.setCaret(300, 5);
+    
+    // Toggle Bold at caret position 5
+    engine::text::ApplyTextStylePayload p1{};
+    p1.textId = 300;
+    p1.rangeStartLogical = 5;
+    p1.rangeEndLogical = 5;
+    p1.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    p1.flagsValue = p1.flagsMask;
+    p1.mode = 0; // set
+    p1.styleParamsVersion = 0;
+    p1.styleParamsLen = 0;
+    EXPECT_TRUE(engine_->applyTextStyle(p1, nullptr, 0));
+    
+    // Toggle Italic at same caret position
+    engine::text::ApplyTextStylePayload p2 = p1;
+    p2.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Italic);
+    p2.flagsValue = p2.flagsMask;
+    EXPECT_TRUE(engine_->applyTextStyle(p2, nullptr, 0));
+    
+    // Toggle Underline at same caret position
+    engine::text::ApplyTextStylePayload p3 = p1;
+    p3.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    p3.flagsValue = p3.flagsMask;
+    EXPECT_TRUE(engine_->applyTextStyle(p3, nullptr, 0));
+    
+    // Should have exactly ONE zero-length run at position 5, with Bold+Italic+Underline
+    const auto& runsBeforeInsert = engine_->textStore_.getRuns(300);
+    int zeroLengthCount = 0;
+    for (const auto& r : runsBeforeInsert) {
+        if (r.length == 0 && r.startIndex == 5) {
+            zeroLengthCount++;
+            // The single zero-length run should have all three styles
+            EXPECT_TRUE(hasFlag(r.flags, TextStyleFlags::Bold));
+            EXPECT_TRUE(hasFlag(r.flags, TextStyleFlags::Italic));
+            EXPECT_TRUE(hasFlag(r.flags, TextStyleFlags::Underline));
+        }
+    }
+    EXPECT_EQ(zeroLengthCount, 1) << "Should have exactly 1 zero-length run, not multiple";
+    
+    // Insert text "X"
+    EXPECT_TRUE(engine_->insertTextContent(300, 5, "X", 1));
+    
+    // Content should be "helloX", NOT "helloXXX" (no duplication)
+    std::string_view content = engine_->textStore_.getContent(300);
+    EXPECT_EQ(content, "helloX");
+    
+    // Verify runs: "hello" (no style), "X" (Bold+Italic+Underline)
+    const auto& runs = engine_->textStore_.getRuns(300);
+    ASSERT_EQ(runs.size(), 2u);
+    
+    // "hello"
+    EXPECT_EQ(runs[0].startIndex, 0u);
+    EXPECT_EQ(runs[0].length, 5u);
+    EXPECT_FALSE(hasFlag(runs[0].flags, TextStyleFlags::Bold));
+    
+    // "X" with all three styles
+    EXPECT_EQ(runs[1].startIndex, 5u);
+    EXPECT_EQ(runs[1].length, 1u);
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Italic));
+    EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Underline));
+}
+
+// =============================================================================
+// Vertical Displacement Reproduction Test
+// =============================================================================
+
+TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
+    // Load font
+    std::string fontPath = "_deps/harfbuzz-src/test/api/fonts/OpenSans-Regular.ttf";
+    std::ifstream f(fontPath, std::ios::binary | std::ios::ate);
+    ASSERT_TRUE(f.is_open()) << "Failed to open font file: " << fontPath;
+    std::streamsize size = f.tellg();
+    f.seekg(0, std::ios::beg);
+    std::vector<char> fontData(size);
+    if (f.read(fontData.data(), size)) {
+        // Font ID 1
+        ASSERT_TRUE(engine_->loadFont(1, reinterpret_cast<std::uintptr_t>(fontData.data()), size));
+    }
+
+    // 1. Create text with Font Size 16
+    const float kInitialX = 100.0f;
+    const float kInitialY = 200.0f; // Top anchor
+    const char* content = "BaselineCheck";
+    
+    // Create text manually to ensure we control everything
+    TextPayloadHeader header{};
+    header.x = kInitialX;
+    header.y = kInitialY;
+    header.rotation = 0.0f;
+    header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+    header.align = static_cast<std::uint8_t>(TextAlign::Left);
+    header.constraintWidth = 0.0f;
+    header.runCount = 1;
+    header.contentLength = static_cast<std::uint32_t>(strlen(content));
+    
+    TextRunPayload run{};
+    run.startIndex = 0;
+    run.length = header.contentLength;
+    run.fontId = 1; // Use loaded font
+    run.fontSize = 16.0f;
+    run.colorRGBA = 0xFFFFFFFFu;
+    run.flags = 0;
+    
+    // Use engine->upsertText to ensure entity registration and layout
+    engine_->upsertText(300, header, &run, 1, content, header.contentLength);
+    
+    // Force layout to get metrics
+    engine_->textLayoutEngine_.layoutText(300);
+    
+    const TextRec* text1 = engine_->textStore_.getText(300);
+    const engine::text::TextLayout* layout1 = engine_->textLayoutEngine_.getLayout(300);
+    ASSERT_NE(text1, nullptr);
+    ASSERT_NE(layout1, nullptr);
+    ASSERT_FALSE(layout1->lines.empty());
+    
+    float initialAscent = layout1->lines[0].ascent;
+    float initialAbsoluteBaseline = text1->y + initialAscent;
+    
+    printf("Initial: Y=%.2f Ascent=%.2f Baseline=%.2f\n", text1->y, initialAscent, initialAbsoluteBaseline);
+    
+    // 2. Apply Font Size 32
+    // Using ApplyTextStyle command
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 300;
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 100; // Select all
+    payload.flagsMask = 0;
+    payload.flagsValue = 0;
+    payload.mode = 0;
+    
+    const float kNewSize = 32.0f;
+    // Build params: [tag:1][float:32.0]
+    std::vector<std::uint8_t> params;
+    params.push_back(engine::text::textStyleTagFontSize);
+    float sizeVal = kNewSize;
+    const std::uint8_t* valPtr = reinterpret_cast<const std::uint8_t*>(&sizeVal);
+    params.insert(params.end(), valPtr, valPtr + sizeof(float));
+    
+    payload.styleParamsLen = static_cast<std::uint32_t>(params.size());
+    
+    EXPECT_TRUE(engine_->applyTextStyle(payload, params.data(), params.size()));
+    
+    // Force layout again (applyTextStyle does it, but just to be sure)
+    
+    const TextRec* text2 = engine_->textStore_.getText(300);
+    const engine::text::TextLayout* layout2 = engine_->textLayoutEngine_.getLayout(300);
+    ASSERT_NE(text2, nullptr);
+    ASSERT_NE(layout2, nullptr);
+    
+    float newAscent = layout2->lines[0].ascent;
+    float newAbsoluteBaseline = text2->y + newAscent;
+    
+    printf("New: Y=%.2f Ascent=%.2f Baseline=%.2f\n", text2->y, newAscent, newAbsoluteBaseline);
+
+    EXPECT_FLOAT_EQ(text2->y, text1->y) 
+        << "Top anchor (Y) should not move! Displacement: " << (text2->y - text1->y);
+    
+    EXPECT_GT(newAbsoluteBaseline, initialAbsoluteBaseline)
+        << "Baseline should move downwards (larger Y in Y-Up) as font size increases with fixed top anchor";
 }

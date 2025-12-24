@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { TextStyleSnapshot } from '../types/text';
 import { Point, ToolType, ViewTransform } from '../types';
 
 export interface EditorTab {
@@ -30,6 +31,7 @@ interface UIState {
     selectionEnd: number;
     caretPosition: { x: number; y: number; height: number } | null;
   };
+  engineTextStyleSnapshot: { textId: number; snapshot: TextStyleSnapshot } | null;
 
   
   openTabs: EditorTab[];
@@ -63,6 +65,8 @@ interface UIState {
   setEngineTextEditCaret: (caretIndex: number, selectionStart?: number, selectionEnd?: number) => void;
   setEngineTextEditCaretPosition: (position: { x: number; y: number; height: number } | null) => void;
   clearEngineTextEdit: () => void;
+  setEngineTextStyleSnapshot: (textId: number, snapshot: TextStyleSnapshot) => void;
+  clearEngineTextStyleSnapshot: () => void;
 
   setActiveFloorId: (id: string) => void;
   setActiveDiscipline: (discipline: 'architecture' | 'electrical') => void;
@@ -99,6 +103,7 @@ export const useUIStore = create<UIState>((set) => ({
     selectionEnd: 0,
     caretPosition: null,
   },
+  engineTextStyleSnapshot: null,
 
   activeFloorId: 'terreo',
   activeDiscipline: 'electrical',
@@ -214,7 +219,10 @@ export const useUIStore = create<UIState>((set) => ({
       selectionEnd: 0,
       caretPosition: null,
     },
+    engineTextStyleSnapshot: null,
   }),
+  setEngineTextStyleSnapshot: (textId, snapshot) => set({ engineTextStyleSnapshot: { textId, snapshot } }),
+  clearEngineTextStyleSnapshot: () => set({ engineTextStyleSnapshot: null }),
 
   setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
   setActiveDiscipline: (discipline) =>

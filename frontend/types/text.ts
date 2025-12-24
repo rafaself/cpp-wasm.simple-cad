@@ -166,6 +166,27 @@ export interface TextCaretPosition {
 }
 
 /**
+ * Engine-authoritative text style snapshot (preferred over queries).
+ */
+export interface TextStyleSnapshot {
+  selectionStartLogical: number;
+  selectionEndLogical: number;
+  selectionStartByte: number;
+  selectionEndByte: number;
+  caretLogical: number;
+  caretByte: number;
+  lineIndex: number;
+  x: number;
+  y: number;
+  lineHeight: number;
+  /** 2 bits per attr: bold bits0-1, italic bits2-3, underline bits4-5, strike bits6-7 */
+  styleTriStateFlags: number;
+  align: number;
+  textGeneration: number;
+  styleTriStateParamsLen: number;
+}
+
+/**
  * Selection rectangle for rendering.
  */
 export interface TextSelectionRect {

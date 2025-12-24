@@ -216,6 +216,48 @@ TEST_F(TextLayoutTest, MultipleNewlines) {
     EXPECT_EQ(layout->lines.size(), 3u);
 }
 
+TEST_F(TextLayoutTest, TrailingNewline) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+    
+    // Content ending with newline should create a trailing empty line
+    createText(1, "Hello\n");
+    layoutEngine.layoutText(1);
+    
+    const TextLayout* layout = layoutEngine.getLayout(1);
+    ASSERT_NE(layout, nullptr);
+    EXPECT_EQ(layout->lines.size(), 2u) << "Trailing newline should create 2 lines";
+    
+    // First line has "Hello"
+    EXPECT_EQ(layout->lines[0].byteCount, 5u);  // "Hello"
+    
+    // Second line is empty (for caret positioning)
+    EXPECT_EQ(layout->lines[1].byteCount, 0u);
+    EXPECT_EQ(layout->lines[1].startByte, 6u);  // After "Hello\n"
+    
+    // Caret at position 6 (after newline) should be on line 1
+    TextCaretPosition caret = layoutEngine.getCaretPosition(1, 6);
+    EXPECT_EQ(caret.lineIndex, 1u) << "Caret after trailing newline should be on line 1";
+    EXPECT_LT(caret.y, 0.0f) << "Caret Y should be below first line";
+}
+
+TEST_F(TextLayoutTest, MultipleTrailingNewlines) {
+    if (!fontLoaded) {
+        GTEST_SKIP() << "No system font available for testing";
+    }
+    
+    // Content with multiple trailing newlines
+    createText(1, "Test\n\n");
+    layoutEngine.layoutText(1);
+    
+    const TextLayout* layout = layoutEngine.getLayout(1);
+    ASSERT_NE(layout, nullptr);
+    // "Test\n" creates line 0, first "\n" creates line 1, second "\n" creates line 2
+    EXPECT_EQ(layout->lines.size(), 3u) << "Two trailing newlines should create 3 lines";
+}
+
+
 TEST_F(TextLayoutTest, AutoWidthNoWrap) {
     if (!fontLoaded) {
         GTEST_SKIP() << "No system font available for testing";
@@ -341,7 +383,7 @@ TEST_F(TextLayoutTest, HitTestMultiLine) {
     EXPECT_EQ(result1.lineIndex, 0u);
     
     // Hit in second line
-    float secondLineY = layout->lines[0].lineHeight + 5.0f;
+    float secondLineY = -(layout->lines[0].lineHeight + 5.0f);
     TextHitResult result2 = layoutEngine.hitTest(1, 5.0f, secondLineY);
     EXPECT_EQ(result2.lineIndex, 1u);
 }
@@ -389,7 +431,7 @@ TEST_F(TextLayoutTest, CaretPositionSecondLine) {
     // Caret at start of second line (after \n)
     TextCaretPosition pos = layoutEngine.getCaretPosition(1, 6);  // "Hello\n" is 6 bytes
     EXPECT_EQ(pos.lineIndex, 1u);
-    EXPECT_GT(pos.y, 0.0f);  // Should be on second line
+    EXPECT_LT(pos.y, 0.0f);  // Should be on second line (below first line)
 }
 
 // =============================================================================
@@ -404,9 +446,9 @@ TEST_F(TextLayoutTest, PrevCharIndex) {
     createText(1, "Hello");
     layoutEngine.layoutText(1);
     
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 0), 0u);  // At start
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 1), 0u);  // 'e' -> 'H'
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 5), 4u);  // End -> 'o'
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 0), 0u);  // At start
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 1), 0u);  // 'e' -> 'H'
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 5), 4u);  // End -> 'o'
 }
 
 TEST_F(TextLayoutTest, NextCharIndex) {
@@ -417,9 +459,9 @@ TEST_F(TextLayoutTest, NextCharIndex) {
     createText(1, "Hello");
     layoutEngine.layoutText(1);
     
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 0), 1u);  // 'H' -> 'e'
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 4), 5u);  // 'o' -> end
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 5), 5u);  // At end
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 0), 1u);  // 'H' -> 'e'
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 4), 5u);  // 'o' -> end
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 5), 5u);  // At end
 }
 
 TEST_F(TextLayoutTest, LineStartEndIndex) {
@@ -453,10 +495,10 @@ TEST_F(TextLayoutTest, Utf8Navigation) {
     layoutEngine.layoutText(1);
     
     // From position 2 (start of á), next should be 4 (end)
-    EXPECT_EQ(layoutEngine.getNextCharIndex(1, 2), 4u);
+    EXPECT_EQ(layoutEngine.getVisualNextCharIndex(1, 2), 4u);
     
     // From position 4 (end), prev should be 2 (start of á)
-    EXPECT_EQ(layoutEngine.getPrevCharIndex(1, 4), 2u);
+    EXPECT_EQ(layoutEngine.getVisualPrevCharIndex(1, 4), 2u);
 }
 
 TEST_F(TextLayoutTest, Utf8Shaping) {
@@ -694,17 +736,9 @@ TEST_F(TextLayoutTest, VerifyCaretAlignment) {
     EXPECT_FLOAT_EQ(caret.height, layout->lines[0].lineHeight) 
         << "Caret height should match line height";
         
-    // Verify Y position centering logic
-    // pos.y = (baseline + logicalBottom) * 0.5f
-    // baseline = 0 - ascent
-    // logicalBottom = 0 - lineHeight
-    
-    float ascent = layout->lines[0].ascent;
-    float lineHeight = layout->lines[0].lineHeight;
-    float expectedY = (-ascent + -lineHeight) * 0.5f;
-    
-    EXPECT_NEAR(caret.y, expectedY, 0.001f) 
-        << "Caret Y should be centered between baseline and logical bottom";
+    // Verify Y position is the top edge of the line
+    EXPECT_NEAR(caret.y, 0.0f, 0.001f) 
+        << "Caret Y should be at the top edge of the line (0.0 for first line)";
 }
 
 TEST_F(TextLayoutTest, VerifyFontSizeEffects) {

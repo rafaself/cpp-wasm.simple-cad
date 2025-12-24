@@ -21,6 +21,8 @@ export const enum CommandOp {
   SetTextSelection = 17,
   InsertTextContent = 18,
   DeleteTextContent = 19,
+  ApplyTextStyle = 42, // 0x2A
+  SetTextAlign = 43, // 0x2B
 }
 
 export type RectPayload = {
@@ -136,6 +138,23 @@ export type TextDeletePayload = {
   endIndex: number; // UTF-8 byte end (exclusive)
 };
 
+export type TextAlignmentPayload = {
+  textId: number;
+  align: number; // TextAlign enum
+};
+
+// Text style apply payload (logical indices; engine maps to UTF-8 internally)
+export type ApplyTextStylePayload = {
+  textId: number;
+  rangeStartLogical: number;
+  rangeEndLogical: number;
+  flagsMask: number; // bits: bold/italic/underline/strike
+  flagsValue: number; // applied where mask=1; ignored if mode=toggle
+  mode: 0 | 1 | 2; // 0=set, 1=clear, 2=toggle
+  styleParamsVersion: number; // 0 = none
+  styleParams: Uint8Array; // TLV block; may be empty when version=0
+};
+
 export type EngineCommand =
   | { op: CommandOp.ClearAll }
   | { op: CommandOp.DeleteEntity; id: number }
@@ -156,7 +175,9 @@ export type EngineCommand =
   | { op: CommandOp.SetTextCaret; caret: TextCaretPayload }
   | { op: CommandOp.SetTextSelection; selection: TextSelectionPayload }
   | { op: CommandOp.InsertTextContent; insert: TextInsertPayload }
-  | { op: CommandOp.DeleteTextContent; del: TextDeletePayload };
+  | { op: CommandOp.DeleteTextContent; del: TextDeletePayload }
+  | { op: CommandOp.ApplyTextStyle; id: number; style: ApplyTextStylePayload }
+  | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload };
 
 // UTF-8 encoder for text content
 const textEncoder = new TextEncoder();
@@ -216,6 +237,12 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     }
     case CommandOp.DeleteTextContent:
       return 16; // textId (u32) + startIndex (u32) + endIndex (u32) + reserved (u32)
+    case CommandOp.ApplyTextStyle: {
+      const paramsLen = cmd.style.styleParams.byteLength;
+      return 18 + paramsLen; // header (18 bytes) + TLV params
+    }
+    case CommandOp.SetTextAlign:
+      return 8; // textId (u32) + align (u8) + reserved (3 bytes)
   }
 };
 
@@ -439,6 +466,26 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeU32(view, o, cmd.del.startIndex);
         o = writeU32(view, o, cmd.del.endIndex);
         o = writeU32(view, o, 0); // reserved
+        break;
+      case CommandOp.ApplyTextStyle: {
+        o = writeU32(view, o, cmd.style.textId);
+        o = writeU32(view, o, cmd.style.rangeStartLogical);
+        o = writeU32(view, o, cmd.style.rangeEndLogical);
+        view.setUint8(o++, cmd.style.flagsMask & 0xff);
+        view.setUint8(o++, cmd.style.flagsValue & 0xff);
+        view.setUint8(o++, cmd.style.mode & 0xff);
+        view.setUint8(o++, cmd.style.styleParamsVersion & 0xff);
+        view.setUint16(o, cmd.style.styleParams.byteLength, true); o += 2;
+        new Uint8Array(buf, o, cmd.style.styleParams.byteLength).set(cmd.style.styleParams);
+        o += cmd.style.styleParams.byteLength;
+        break;
+      }
+      case CommandOp.SetTextAlign:
+        o = writeU32(view, o, cmd.align.textId);
+        view.setUint8(o++, cmd.align.align & 0xff);
+        view.setUint8(o++, 0); // reserved
+        view.setUint8(o++, 0); // reserved
+        view.setUint8(o++, 0); // reserved
         break;
     }
   }

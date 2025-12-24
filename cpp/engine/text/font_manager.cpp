@@ -107,6 +107,11 @@ std::uint32_t FontManager::loadFontFromMemory(
     
     fonts_[fontId] = std::move(handle);
     
+    // Register in family map
+    if (!familyName.empty()) {
+        familyMap_[familyName].push_back(fontId);
+    }
+    
     // Set as default if first font loaded
     if (defaultFontId_ == 0) {
         defaultFontId_ = fontId;
@@ -251,6 +256,36 @@ std::vector<std::uint32_t> FontManager::getLoadedFontIds() const {
         ids.push_back(id);
     }
     return ids;
+}
+
+
+std::uint32_t FontManager::getFontVariant(std::uint32_t baseFontId, bool bold, bool italic) const {
+    // 1. Get base family
+    const FontHandle* base = getFont(baseFontId);
+    if (!base) return baseFontId;
+
+    const std::string& family = base->familyName;
+    if (family.empty()) return baseFontId;
+
+    // 2. Look up family variants
+    auto it = familyMap_.find(family);
+    if (it == familyMap_.end()) return baseFontId;
+
+    // 3. Find best match
+    // Priority: Exact match > Partial match (e.g. Bold requested, but found BoldItalic? No, usually strict on traits)
+    // We want the font that matches the expected traits.
+    
+    for (std::uint32_t id : it->second) {
+        const FontHandle* h = getFont(id);
+        if (h && h->bold == bold && h->italic == italic) {
+            return id;
+        }
+    }
+    
+    // Fallback: If we can't find exact match, return base.
+    // (Could potentially look for "closest", e.g. if BoldItalic requested but only Bold exists, might return Bold?)
+    // For now, strict match or fallback to base.
+    return baseFontId;
 }
 
 FontMetrics FontManager::getScaledMetrics(std::uint32_t fontId, float fontSize) const {

@@ -76,12 +76,20 @@ public:
      * @param glyphId Glyph index from HarfBuzz/FreeType
      * @return Pointer to atlas entry, or nullptr if generation failed
      */
-    const GlyphAtlasEntry* getGlyph(std::uint32_t fontId, std::uint32_t glyphId);
+    const GlyphAtlasEntry* getGlyph(
+        std::uint32_t fontId,
+        std::uint32_t glyphId,
+        TextStyleFlags style = TextStyleFlags::None
+    );
     
     /**
      * Check if a glyph is already in the atlas.
      */
-    bool hasGlyph(std::uint32_t fontId, std::uint32_t glyphId) const;
+    bool hasGlyph(
+        std::uint32_t fontId,
+        std::uint32_t glyphId,
+        TextStyleFlags style = TextStyleFlags::None
+    ) const;
     
     /**
      * Pre-generate glyphs for common ASCII range (32-126).
@@ -153,18 +161,34 @@ public:
      */
     const Config& getConfig() const { return config_; }
 
+    /**
+     * Get the UV rectangle for a solid white pixel (1,1,1,1).
+     * Used for drawing geometric primitives (underline, strike, cursor).
+     */
+    const AtlasPacker::Rect& getWhitePixelRect() const { return whitePixelRect_; }
+
 private:
     // Key for glyph cache: (fontId << 32) | glyphId
     using GlyphKey = std::uint64_t;
     
-    static GlyphKey makeKey(std::uint32_t fontId, std::uint32_t glyphId) {
-        return (static_cast<std::uint64_t>(fontId) << 32) | glyphId;
+    static GlyphKey makeKey(std::uint32_t fontId, std::uint32_t glyphId, TextStyleFlags style) {
+        constexpr std::uint8_t faceAffectingMask =
+            static_cast<std::uint8_t>(TextStyleFlags::Bold) |
+            static_cast<std::uint8_t>(TextStyleFlags::Italic);
+        const std::uint64_t styleBits = static_cast<std::uint64_t>(static_cast<std::uint8_t>(style) & faceAffectingMask);
+        return (static_cast<std::uint64_t>(fontId) << 32) |
+               (static_cast<std::uint64_t>(glyphId) << 8) |
+               styleBits;
     }
     
     /**
      * Generate MSDF bitmap for a glyph and pack it into the atlas.
      */
-    const GlyphAtlasEntry* generateGlyph(std::uint32_t fontId, std::uint32_t glyphId);
+    const GlyphAtlasEntry* generateGlyph(
+        std::uint32_t fontId,
+        std::uint32_t glyphId,
+        TextStyleFlags style
+    );
     
     /**
      * Copy MSDF bitmap data to atlas texture.
@@ -187,6 +211,7 @@ private:
     
     bool dirty_;
     std::uint32_t version_;
+    AtlasPacker::Rect whitePixelRect_{};
 };
 
 } // namespace engine::text

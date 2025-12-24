@@ -43,3 +43,10 @@ Recommended fixes:
 - Move the repo out of OneDrive-controlled directories (preferred).
 - Or allowlist `node.exe` and the local `esbuild.exe` used by the toolchain.
 
+## Text caret/selection overlay spot-checks
+
+- Create a short text and toggle bold at a collapsed caret; caret should keep blinking and no other text should change.
+- Rotate the text to 90° and 180°; caret should track ArrowRight/ArrowLeft in the visually expected direction.
+- Drag to select across multiple lines; blue selection rects should hug glyph boxes without vertical inversion.
+- Click outside the text; editing should commit and overlay should disappear.
+

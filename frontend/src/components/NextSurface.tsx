@@ -14,17 +14,13 @@ import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcu
 import { useDataStore } from '@/stores/useDataStore';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useEngineStoreSync } from '@/engine/runtime/useEngineStoreSync';
-import CadViewer from './CadViewer';
 import EngineInteractionLayer from './EngineInteractionLayer';
 import TessellatedWasmLayer from './TessellatedWasmLayer';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
-  const { width, height } = useUIStore((s) => s.canvasSize);
   const containerRef = useRef<HTMLDivElement>(null);
-  const renderMode = useSettingsStore((s) => s.featureFlags.renderMode);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -47,7 +43,7 @@ const NextCanvasArea: React.FC = () => {
 
       <div className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none" ref={containerRef}>
         <div className="absolute inset-0 pointer-events-none">
-          {renderMode === 'legacy' ? <CadViewer embedded /> : <TessellatedWasmLayer />}
+          <TessellatedWasmLayer />
         </div>
         <EngineInteractionLayer />
       </div>

@@ -254,6 +254,8 @@ const EngineInteractionLayer: React.FC = () => {
   const setEngineTextEditCaret = useUIStore((s) => s.setEngineTextEditCaret);
   const setEngineTextEditCaretPosition = useUIStore((s) => s.setEngineTextEditCaretPosition);
   const clearEngineTextEdit = useUIStore((s) => s.clearEngineTextEdit);
+  const setEngineTextStyleSnapshot = useUIStore((s) => s.setEngineTextStyleSnapshot);
+  const clearEngineTextStyleSnapshot = useUIStore((s) => s.clearEngineTextStyleSnapshot);
 
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -299,6 +301,9 @@ const EngineInteractionLayer: React.FC = () => {
         setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
         setEngineTextEditContent(state.content);
         setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
+        if (state.mode === 'idle') {
+          clearEngineTextStyleSnapshot();
+        }
       },
       onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => {
         setCaretPosition(x, y, height, rotation, anchorX, anchorY);
@@ -307,8 +312,12 @@ const EngineInteractionLayer: React.FC = () => {
       onSelectionUpdate: (rects: import('@/types/text').TextSelectionRect[]) => {
         setSelection(rects);
       },
+      onStyleSnapshot: (textId, snapshot) => {
+        setEngineTextStyleSnapshot(textId, snapshot);
+      },
       onEditEnd: () => {
         clearEngineTextEdit();
+        clearEngineTextStyleSnapshot();
         hideCaret();
         clearSelection();
         // Switch back to select tool
@@ -365,7 +374,7 @@ const EngineInteractionLayer: React.FC = () => {
         data.addShape(s);
         setSelectedShapeIds(new Set([shapeId]));
       },
-      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
+      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number, x?: number, y?: number) => {
         const shapeId = getShapeIdForText(textId);
         if (!shapeId) return;
         
@@ -397,16 +406,29 @@ const EngineInteractionLayer: React.FC = () => {
 
         textBoxMetaRef.current.set(textId, freshMeta);
         
-        // When height changes, we need to adjust Y to keep the top (anchor) position fixed
-        // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
-        // After update: new shape.y = anchor.y - new height
-        const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
-        const newY = oldAnchorY - nextHeight;
+        // Calculate Y position
+        // If Engine provided exact coordinates (via sync), use them (this preserves Baseline).
+        // Otherwise, fallback to keeping the top anchor fixed (legacy behavior for simple resizing).
+        let nextY = 0;
+        let nextX = shape.x ?? 0;
+
+        if (y !== undefined && x !== undefined) {
+           nextY = y;
+           nextX = x;
+        } else {
+           // Fallback: Adjust Y to maintain top-anchor position
+           // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
+           // After update: new shape.y = anchor.y - new height
+           const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
+           nextY = oldAnchorY - nextHeight;
+        }
+
         const updates: Partial<Shape> = {
           textContent: content,
           width: nextWidth,
           height: nextHeight,
-          y: clampTiny(newY), // Adjust Y to maintain anchor position
+          x: clampTiny(nextX),
+          y: clampTiny(nextY), 
         };
         
         data.updateShape(shapeId, updates, false); // false = don't record to history yet
@@ -763,6 +785,11 @@ const EngineInteractionLayer: React.FC = () => {
       const layer = data.layers.find((l) => l.id === shape.layerId);
       if (layer && (!layer.visible || layer.locked)) return;
       if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
+
+      if (shape.type === 'text') {
+        const allowTextResize = useSettingsStore.getState().featureFlags.enableTextResize;
+        if (!allowTextResize) return;
+      }
 
       const handles = getShapeHandles(shape).filter((h) => h.type === 'resize');
       for (const h of handles) {
@@ -1199,23 +1226,34 @@ const EngineInteractionLayer: React.FC = () => {
         const data = useDataStore.getState();
         const shape = data.shapes[activeShapeId];
         if (shape) {
-          const bbox = getShapeBoundingBox(shape);
           const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+          const meta = textBoxMetaRef.current.get(activeTextId!);
+
+          const boxWidth = Math.max(
+            0,
+            meta
+              ? meta.boxMode === TextBoxMode.FixedWidth
+                ? meta.constraintWidth
+                : meta.maxAutoWidth ?? (shape.width || 0)
+              : shape.width || 0
+          );
+          const boxHeight = Math.max(0, meta?.fixedHeight ?? (shape.height || 0));
+
+          const anchorX = shape.x || 0;
+          const anchorY = (shape.y || 0) + boxHeight;
+
+          const minX = anchorX - tolerance;
+          const maxX = anchorX + boxWidth + tolerance;
+          const minY = (shape.y || 0) - tolerance; // shape.y is bottom in world (Y-up)
+          const maxY = anchorY + tolerance;
+
+          const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
           
-          const inside = 
-            world.x >= bbox.x - tolerance && 
-            world.x <= bbox.x + bbox.width + tolerance &&
-            world.y >= bbox.y - tolerance &&
-            world.y <= bbox.y + bbox.height + tolerance;
-            
           if (inside) {
-             // Clicked INSIDE active text - move caret
-             const anchorY = (shape.y || 0) + (shape.height || 0);
-             const anchorX = (shape.x || 0);
+             // Clicked INSIDE active text - move caret using latest box metrics
              const localX = world.x - anchorX;
-             const localY = anchorY - world.y;
+             const localY = world.y - anchorY;
              
-             const meta = textBoxMetaRef.current.get(activeTextId!);
              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
 
@@ -1467,7 +1505,7 @@ const EngineInteractionLayer: React.FC = () => {
                 const anchorY = (shape.y || 0) + (shape.height || 0);
                 const anchorX = (shape.x || 0);
                 const localX = world.x - anchorX;
-                const localY = anchorY - world.y;
+                const localY = world.y - anchorY;
                 textToolRef.current.handlePointerMove(activeTextId, localX, localY);
              }
           }
@@ -1651,7 +1689,8 @@ const EngineInteractionLayer: React.FC = () => {
             if (textId !== null) {
               const newBounds = textToolRef.current.resizeText(textId, nextW);
               if (newBounds) {
-                 nextH = newBounds.height;
+                 // Allow box to be taller than text (vertical resize), but at least as tall as content
+                 nextH = Math.max(newBounds.height, nextH);
                  
                  // Update rawH to match the ACTUAL height so that center calculation is correct
                  // relative to the fixed corner.

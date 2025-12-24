@@ -250,6 +250,8 @@ enum class CommandOp : std::uint32_t {
     SetTextSelection = 17,
     InsertTextContent = 18,   // Insert text at caret position
     DeleteTextContent = 19,   // Delete text range
+    ApplyTextStyle = 42,      // TEXT_APPLY_STYLE (0x2A)
+    SetTextAlign = 43,        // TEXT_SET_ALIGN (0x2B)
 };
 
 enum class EngineError : std::uint32_t {
@@ -372,6 +374,13 @@ struct TextDeletePayload {
     std::uint32_t startIndex;   // UTF-8 byte start (inclusive)
     std::uint32_t endIndex;     // UTF-8 byte end (exclusive)
     std::uint32_t reserved;
+};
+
+// SetTextAlign payload
+struct TextAlignmentPayload {
+    std::uint32_t textId;
+    std::uint8_t align;         // TextAlign enum
+    std::uint8_t reserved[3];
 };
 
 struct SnapResult {

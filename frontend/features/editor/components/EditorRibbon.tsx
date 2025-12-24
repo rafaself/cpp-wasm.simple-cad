@@ -19,6 +19,8 @@ import GridControl from '../ribbon/components/GridControl';
 import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
+import { getTextTool, getTextIdForShape } from '@/engine/runtime/textEngineSync';
+import { TextStyleFlags } from '@/types/text';
 
 // Shared styles - using design tokens
 const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
@@ -410,15 +412,51 @@ tr:nth-child(even){background:#111827;}
   );
 
   const applyTextUpdate = (diff: Partial<Shape>, recalcSize: boolean) => {
+    const textTool = getTextTool();
+
     selectedTextIds.forEach(id => {
       const shape = dataStore.shapes[id];
       if (!shape) return;
+      
+      let handledByEngine = false;
+      // Update Engine first (if available) to get correct metrics
+      if (textTool && textTool.isReady()) {
+         const textId = getTextIdForShape(id);
+         if (textId !== null) {
+             if (diff.bold !== undefined) textTool.applyStyleToText(textId, TextStyleFlags.Bold, diff.bold ? 'set' : 'clear');
+             if (diff.italic !== undefined) textTool.applyStyleToText(textId, TextStyleFlags.Italic, diff.italic ? 'set' : 'clear');
+             if (diff.underline !== undefined) textTool.applyStyleToText(textId, TextStyleFlags.Underline, diff.underline ? 'set' : 'clear');
+             if (diff.strike !== undefined) textTool.applyStyleToText(textId, TextStyleFlags.Strikethrough, diff.strike ? 'set' : 'clear');
+             if (diff.fontSize !== undefined) textTool.applyFontSizeToText(textId, diff.fontSize);
+             if (diff.fontFamily !== undefined) {
+                 const fontIdByFamily: Record<string, number> = {
+                      Inter: 0,
+                      Arial: 1,
+                      Times: 2,
+                      Roboto: 3,
+                  };
+                  const fid = fontIdByFamily[diff.fontFamily] ?? 0;
+                  textTool.applyFontIdToText(textId, fid);
+             }
+             if (diff.align !== undefined) {
+                 const alignMap: Record<string, number> = {
+                     left: 0,
+                     center: 1,
+                     right: 2,
+                 };
+                 textTool.applyTextAlignToText(textId, alignMap[diff.align]);
+             }
+             handledByEngine = true;
+         }
+      }
+
       const nextFontSize = (diff.fontSize ?? shape.fontSize ?? settingsStore.toolDefaults.text.fontSize) || 16;
       const content = diff.textContent ?? shape.textContent ?? '';
       const updates: Partial<Shape> = { ...diff };
 
-      if (recalcSize) {
+      if (recalcSize && !handledByEngine) {
         const baseWidth = shape.width && shape.width > 0 ? shape.width : undefined;
+        // TextTool sync might have updated bounds via callback, but we keep this as fallback/preview
         const availableWidth = baseWidth ? Math.max(baseWidth - TEXT_PADDING * 2, 1) : undefined;
         const lines = availableWidth ? getWrappedLines(content, availableWidth, nextFontSize) : content.split('\n');
         const contentWidth = availableWidth ?? Math.max(nextFontSize * 0.6, ...lines.map(line => (line.length || 1) * nextFontSize * 0.6));

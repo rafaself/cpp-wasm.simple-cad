@@ -163,6 +163,16 @@ public:
      */
     std::vector<std::uint32_t> getLoadedFontIds() const;
     
+
+    /**
+     * Get a specific variant of a font (Bold/Italic) within the same family.
+     * @param baseFontId The font ID to start logic from (fallback)
+     * @param bold Requested bold state
+     * @param italic Requested italic state
+     * @return FontID of the variant, or baseFontId if not found
+     */
+    std::uint32_t getFontVariant(std::uint32_t baseFontId, bool bold, bool italic) const;    
+    
     // =========================================================================
     // Font Metrics
     // =========================================================================
@@ -202,6 +212,9 @@ private:
     FT_Library ftLibrary_ = nullptr;
     
     std::unordered_map<std::uint32_t, std::unique_ptr<FontHandle>> fonts_;
+    // Map family name -> List of Font IDs
+    std::unordered_map<std::string, std::vector<std::uint32_t>> familyMap_;
+    
     std::uint32_t nextFontId_ = 1;
     std::uint32_t defaultFontId_ = 0;
     

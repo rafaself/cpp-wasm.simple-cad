@@ -256,6 +256,20 @@ bool TextStore::updateRun(std::uint32_t textId, std::uint32_t runIndex, const Te
     return true;
 }
 
+bool TextStore::setRuns(std::uint32_t textId, std::vector<TextRun>&& newRuns) {
+    auto it = runs_.find(textId);
+    if (it == runs_.end()) {
+        return false;
+    }
+    it->second = std::move(newRuns);
+    auto textIt = texts_.find(textId);
+    if (textIt != texts_.end()) {
+        textIt->second.runsCount = static_cast<std::uint32_t>(it->second.size());
+    }
+    markDirty(textId);
+    return true;
+}
+
 bool TextStore::setConstraintWidth(std::uint32_t textId, float width) {
     TextRec* rec = getTextMutable(textId);
     if (!rec) return false;
@@ -383,12 +397,44 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
     if (it == runs_.end()) {
         return;
     }
+
+    bool zeroLengthExpanded = false;
     
+    // Check if there is a zero-length run at the insertion point (typing attribute)
+    bool hasZeroLengthRun = false;
+    // Also check if there's any run starting at the insertion point
+    bool hasRunStartingAtIndex = false;
+    for (const auto& r : it->second) {
+        if (r.startIndex == byteIndex && r.length == 0) {
+            hasZeroLengthRun = true;
+        }
+        if (r.startIndex == byteIndex) {
+            hasRunStartingAtIndex = true;
+        }
+    }
+
     for (TextRun& run : it->second) {
         // Special case: run with length=0 at insertion point should be expanded
         // This handles the case where text is created with an empty run and content is inserted
+        // IMPORTANT: Only expand the FIRST zero-length run to avoid duplication
         if (run.startIndex == byteIndex && run.length == 0) {
-            run.length = insertLength;
+            if (!zeroLengthExpanded) {
+                run.length = insertLength;
+                zeroLengthExpanded = true;
+            }
+            // Skip further processing for this run (will be cleaned up if not expanded)
+            continue;
+        } else if (run.startIndex == byteIndex && run.length > 0) {
+            // Run starts exactly at insertion point (non-zero length)
+            // If a zero-length run was expanded, we shift this.
+            // If there are multiple runs, and another run ends here, we also shift.
+            // This handles "Hello|World" insertion where " World" should shift.
+            if (zeroLengthExpanded || hasRunStartingAtIndex) {
+                run.startIndex += insertLength;
+            } else {
+                // Single run starting at byteIndex - extend it
+                run.length += insertLength;
+            }
         } else if (run.startIndex > byteIndex) {
             // Run starts strictly after insertion point: shift start
             run.startIndex += insertLength;
@@ -397,9 +443,27 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
             run.length += insertLength;
         } else if (run.startIndex + run.length == byteIndex) {
             // Run ends exactly at insertion point: extend length (for contiguous insertion)
-            run.length += insertLength;
+            // BUT: do NOT extend if there's another run at this position (zero-length or otherwise)
+            // This prevents extending "Hello" when " World" starts at the same boundary.
+            if (!hasRunStartingAtIndex) {
+                run.length += insertLength;
+            }
         }
         // Runs ending before insertion point are unchanged
+    }
+
+
+
+    // Clean up any remaining zero-length runs at the insertion point
+    // These are duplicate typing attribute runs that should not exist
+    if (zeroLengthExpanded) {
+        auto& runsVec = it->second;
+        runsVec.erase(
+            std::remove_if(runsVec.begin(), runsVec.end(), [byteIndex](const TextRun& r) {
+                return r.startIndex == byteIndex && r.length == 0;
+            }),
+            runsVec.end()
+        );
     }
 }
 

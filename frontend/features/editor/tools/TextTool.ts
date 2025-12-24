@@ -12,6 +12,7 @@
  */
 
 import type { EngineRuntime } from '@/engine/runtime/EngineRuntime';
+import type { ApplyTextStylePayload } from '@/engine/runtime/commandBuffer';
 import { TextBridge } from '@/wasm/textBridge';
 import {
   TextBoxMode,
@@ -22,7 +23,9 @@ import {
   byteIndexToCharIndex,
   type TextPayload,
   type TextInputDelta,
+  type TextStyleSnapshot,
 } from '@/types/text';
+import { getTextMeta } from '@/engine/runtime/textEngineSync';
 
 // =============================================================================
 // Types
@@ -67,6 +70,8 @@ export interface TextToolCallbacks {
   onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => void;
   /** Called when selection rects update */
   onSelectionUpdate?: (rects: import('@/types/text').TextSelectionRect[]) => void;
+  /** Called when engine style snapshot updates (tri-state flags, caret/selection). */
+  onStyleSnapshot?: (textId: number, snapshot: TextStyleSnapshot) => void;
   /** Called when editing ends */
   onEditEnd: () => void;
   /** Called when a new text entity is created (for syncing to JS store) */
@@ -77,7 +82,9 @@ export interface TextToolCallbacks {
     content: string,
     bounds: { width: number; height: number },
     boxMode: TextBoxMode,
-    constraintWidth: number
+    constraintWidth: number,
+    x?: number,
+    y?: number
   ) => void;
   /** Called when text is deleted (for syncing to JS store) */
   onTextDeleted?: (textId: number) => void;
@@ -698,6 +705,265 @@ export class TextTool {
     this.updateCaretPosition();
   }
 
+  // ==========================================================================
+  // Style Commands
+  // ==========================================================================
+
+  applyStyle(flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
+      console.warn('[TextTool] applyStyle: Not ready or no active text', { ready: this.isReady(), active: this.state.activeTextId });
+      return false;
+    }
+
+    const textId = this.state.activeTextId;
+    const contentLength = this.state.content.length;
+
+    let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
+    let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
+
+    // Keep ranges in bounds
+    rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
+    rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
+
+    // Handle collapsed selection: use caret for both start and end to signal 
+    // engine to apply typing attributes (via zero-length run).
+    if (rangeStart === rangeEnd) {
+      // Ensure we use the exact caret position
+      const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
+      rangeStart = caret;
+      rangeEnd = caret;
+    }
+    
+    console.log('[TextTool] applyStyle', { textId, rangeStart, rangeEnd, flagsMask, intent });
+
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: rangeStart,
+      rangeEndLogical: rangeEnd,
+      flagsMask,
+      flagsValue: intent === 'set' ? flagsMask : 0,
+      mode: intent === 'toggle' ? 2 : intent === 'set' ? 0 : 1,
+      styleParamsVersion: 0,
+      styleParams: new Uint8Array(),
+    };
+
+    this.bridge.applyTextStyle(textId, payload);
+
+    // Sync caret to engine to ensure typing style run is found on next insert
+    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+    this.bridge.setCaretByteIndex(textId, caretByte);
+
+    // Update tool defaults to reflect the new state...
+    const snapshot = this.bridge.getTextStyleSnapshot(textId);
+    if (snapshot) {
+      // Snapshot format: 2 bits per attr in styleTriStateFlags
+      // Bit 0-1: Bold, Bit 2-3: Italic, Bit 4-5: Underline, Bit 6-7: Strikethrough
+      const updateDefault = (mask: TextStyleFlags, shift: number) => {
+        const val = (snapshot.styleTriStateFlags >> shift) & 0b11;
+        if (val === 1) { // On
+          this.styleDefaults.flags |= mask;
+        } else if (val === 0) { // Off
+          this.styleDefaults.flags &= ~mask;
+        }
+      };
+
+      updateDefault(TextStyleFlags.Bold, 0);
+      updateDefault(TextStyleFlags.Italic, 2);
+      updateDefault(TextStyleFlags.Underline, 4);
+      updateDefault(TextStyleFlags.Strikethrough, 6);
+    }
+
+    const bounds = this.bridge.getTextBounds(textId);
+    if (bounds && bounds.valid) {
+      this.callbacks.onTextUpdated?.(
+        textId,
+        this.state.content,
+        { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
+        this.state.boxMode,
+        this.state.constraintWidth
+      );
+    }
+
+    this.updateCaretPosition();
+    return true;
+  }
+
+  applyFontSize(fontSize: number): boolean {
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x03); // textStyleTagFontSize
+    view.setFloat32(1, fontSize, true);
+    return this.applyStyleWithParams(buf);
+  }
+
+  applyTextAlign(align: TextAlign): boolean {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
+    const textId = this.state.activeTextId;
+    const success = this.bridge.setTextAlign(textId, align);
+    if (success) {
+      this.styleDefaults.align = align;
+      this.updateCaretPosition();
+    }
+    return success;
+  }
+
+  applyTextAlignToText(textId: number, align: TextAlign): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+    return this.bridge.setTextAlign(textId, align);
+  }
+
+  applyFontId(fontId: number): boolean {
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x04); // textStyleTagFontId
+    view.setUint32(1, fontId, true);
+    return this.applyStyleWithParams(buf);
+  }
+
+  private applyStyleWithParams(params: Uint8Array): boolean {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
+    const textId = this.state.activeTextId;
+    const contentLength = this.state.content.length;
+    let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
+    let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
+    rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
+    rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
+    
+    // Handle collapsed selection
+    if (rangeStart === rangeEnd) {
+      const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
+      rangeStart = caret;
+      rangeEnd = caret;
+    }
+
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: rangeStart,
+      rangeEndLogical: rangeEnd,
+      flagsMask: 0,
+      flagsValue: 0,
+      mode: 0, 
+      styleParamsVersion: 1,
+      styleParams: params,
+    };
+    
+    this.bridge.applyTextStyle(textId, payload);
+
+    // Sync caret to engine to ensure typing style run is found on next insert
+    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+    this.bridge.setCaretByteIndex(textId, caretByte);
+
+    return true;
+  }
+
+  // ===========================================================================
+  // Manual Style Application (Object Selection Support)
+  // ===========================================================================
+
+  /**
+   * Apply style flags to an arbitrary text entity (e.g. object selection).
+   * Updates the engine and triggers a sync back to the JS store.
+   */
+  applyStyleToText(textId: number, flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const content = this.bridge.getTextContent(textId);
+    if (content === null) return false;
+
+    // Apply to entire text
+    const rangeStart = 0;
+    const rangeEnd = content.length;
+
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: rangeStart,
+      rangeEndLogical: rangeEnd,
+      flagsMask,
+      flagsValue: intent === 'set' ? flagsMask : 0,
+      mode: intent === 'toggle' ? 2 : intent === 'set' ? 0 : 1,
+      styleParamsVersion: 0,
+      styleParams: new Uint8Array(),
+    };
+
+    console.log('[TextTool] applyStyleToText', { textId, flagsMask, intent });
+    this.bridge.applyTextStyle(textId, payload);
+
+    // Sync bounds back to JS store
+    this.syncTextToBounds(textId, content);
+    return true;
+  }
+
+  /**
+   * Apply font size to an arbitrary text entity.
+   */
+  applyFontSizeToText(textId: number, fontSize: number): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+    
+    // Validate font size (clamp 4-512)
+    const size = Math.max(4, Math.min(512, fontSize));
+
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x03); // textStyleTagFontSize
+    view.setFloat32(1, size, true);
+
+    return this.applyStyleParamsToText(textId, buf);
+  }
+
+  /**
+   * Apply font ID to an arbitrary text entity.
+   */
+  applyFontIdToText(textId: number, fontId: number): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const buf = new Uint8Array(5);
+    const view = new DataView(buf.buffer);
+    view.setUint8(0, 0x04); // textStyleTagFontId
+    view.setUint32(1, fontId, true);
+
+    return this.applyStyleParamsToText(textId, buf);
+  }
+
+  private applyStyleParamsToText(textId: number, params: Uint8Array): boolean {
+    if (!this.isReady() || !this.bridge) return false;
+
+    const content = this.bridge.getTextContent(textId);
+    if (content === null) return false;
+    
+    const payload: ApplyTextStylePayload = {
+      textId,
+      rangeStartLogical: 0,
+      rangeEndLogical: content.length,
+      flagsMask: 0,
+      flagsValue: 0,
+      mode: 0, 
+      styleParamsVersion: 1,
+      styleParams: params,
+    };
+    
+    this.bridge.applyTextStyle(textId, payload);
+    this.syncTextToBounds(textId, content);
+    return true;
+  }
+
+  private syncTextToBounds(textId: number, content: string): void {
+     if (!this.bridge) return;
+     const bounds = this.bridge.getTextBounds(textId);
+     if (bounds && bounds.valid) {
+       const meta = getTextMeta(textId);
+       const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+       const constraint = meta?.constraintWidth ?? 0;
+       
+       this.callbacks.onTextUpdated?.(
+         textId,
+         content,
+         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
+         boxMode,
+         constraint
+       );
+     }
+  }
+
   /**
    * Handle special key press (Enter, Escape, Tab).
    */
@@ -998,6 +1264,11 @@ export class TextTool {
       this.callbacks.onSelectionUpdate?.(localRects);
     } else {
       this.callbacks.onSelectionUpdate?.([]);
+    }
+
+    if (this.callbacks.onStyleSnapshot && this.bridge && this.state.activeTextId !== null) {
+      const snapshot = this.bridge.getTextStyleSnapshot(this.state.activeTextId);
+      this.callbacks.onStyleSnapshot(this.state.activeTextId, snapshot);
     }
   }
 }

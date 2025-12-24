@@ -1,17 +1,12 @@
 import type { TessellatedRenderer } from './tessellatedRenderer';
-import type { TessellatedBackend } from './tessellatedBackend';
 
 import { Webgl2TessellatedRenderer } from './webgl2/webgl2TessellatedRenderer';
-import { WebgpuTessellatedRenderer } from './webgpu/webgpuTessellatedRenderer';
 
 export const createTessellatedRenderer = async (
   canvas: HTMLCanvasElement,
-  backend: TessellatedBackend,
   opts?: { aaScale?: number },
 ): Promise<TessellatedRenderer> => {
-  if (backend === 'webgpu') {
-    return WebgpuTessellatedRenderer.create(canvas, opts);
-  }
+  // Always return WebGL2 renderer.
+  // The 'backend' parameter is removed as WebGL2 is now the single source of truth.
   return new Webgl2TessellatedRenderer(canvas, opts);
 };
-
