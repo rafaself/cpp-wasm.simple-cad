@@ -6,6 +6,41 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <cstdio>  // For printf debugging
+#include <string_view>
+
+namespace {
+// Map logical index (grapheme/codepoint approximation) to UTF-8 byte offset.
+// This treats any non-continuation byte as a logical step; true grapheme
+// clustering is TODO but this keeps logical indices decoupled from bytes.
+std::uint32_t logicalToByteIndex(std::string_view content, std::uint32_t logicalIndex) {
+    std::uint32_t bytePos = 0;
+    std::uint32_t logicalCount = 0;
+    const std::size_t n = content.size();
+    while (bytePos < n && logicalCount < logicalIndex) {
+        const unsigned char c = static_cast<unsigned char>(content[bytePos]);
+        // Continuation bytes have top bits 10xxxxxx
+        if ((c & 0xC0) != 0x80) {
+            logicalCount++;
+        }
+        bytePos++;
+    }
+    return static_cast<std::uint32_t>(bytePos);
+}
+
+std::uint32_t byteToLogicalIndex(std::string_view content, std::uint32_t byteIndex) {
+    std::uint32_t logicalCount = 0;
+    const std::size_t n = content.size();
+    const std::size_t limit = std::min<std::size_t>(n, byteIndex);
+    for (std::size_t i = 0; i < limit; ++i) {
+        const unsigned char c = static_cast<unsigned char>(content[i]);
+        if ((c & 0xC0) != 0x80) {
+            logicalCount++;
+        }
+    }
+    return logicalCount;
+}
+}
 
 // Constructor
 CadEngine::CadEngine() {
@@ -341,13 +376,21 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
         return;
     }
 
-    const std::uint32_t idx = ref.index;
-    const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
-    if (idx != lastIdx) {
-        conduits[idx] = conduits[lastIdx];
-        entities[conduits[idx].id] = EntityRef{EntityKind::Conduit, idx};
+    if (ref.kind == EntityKind::Text) {
+        deleteText(id);
+        return;
     }
-    conduits.pop_back();
+
+    if (ref.kind == EntityKind::Conduit) {
+        const std::uint32_t idx = ref.index;
+        const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
+        if (idx != lastIdx) {
+            conduits[idx] = conduits[lastIdx];
+            entities[conduits[idx].id] = EntityRef{EntityKind::Conduit, idx};
+        }
+        conduits.pop_back();
+        return;
+    }
 }
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
@@ -770,10 +813,481 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
             break;
         }
+        // =======================================================================
+        // Text Commands
+        // =======================================================================
+        case static_cast<std::uint32_t>(CommandOp::UpsertText): {
+            printf("[DEBUG] UpsertText command received: id=%u payloadBytes=%u\n", id, payloadByteCount);
+            
+            // Variable-length payload: [TextPayloadHeader][TextRunPayload * runCount][UTF-8 content]
+            if (payloadByteCount < sizeof(TextPayloadHeader)) return EngineError::InvalidPayloadSize;
+            
+            TextPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(TextPayloadHeader));
+            
+            printf("[DEBUG] UpsertText header: x=%.2f y=%.2f runCount=%u contentLen=%u\n", 
+                hdr.x, hdr.y, hdr.runCount, hdr.contentLength);
+            
+            const std::size_t runsSize = static_cast<std::size_t>(hdr.runCount) * sizeof(TextRunPayload);
+            const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength;
+            if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
+            
+            const TextRunPayload* runs = reinterpret_cast<const TextRunPayload*>(payload + sizeof(TextPayloadHeader));
+            const char* content = reinterpret_cast<const char*>(payload + sizeof(TextPayloadHeader) + runsSize);
+            
+            if (!self->upsertText(id, hdr, runs, hdr.runCount, content, hdr.contentLength)) {
+                return EngineError::InvalidOperation;
+            }
+            printf("[DEBUG] UpsertText: successfully stored text id=%u\n", id);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::DeleteText): {
+            // No payload for delete, just use the id
+            if (!self->deleteText(id)) {
+                // Not an error if text doesn't exist - idempotent delete
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetTextCaret): {
+            if (payloadByteCount != sizeof(TextCaretPayload)) return EngineError::InvalidPayloadSize;
+            TextCaretPayload p;
+            std::memcpy(&p, payload, sizeof(TextCaretPayload));
+            self->setTextCaret(p.textId, p.caretIndex);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetTextSelection): {
+            if (payloadByteCount != sizeof(TextSelectionPayload)) return EngineError::InvalidPayloadSize;
+            TextSelectionPayload p;
+            std::memcpy(&p, payload, sizeof(TextSelectionPayload));
+            self->setTextSelection(p.textId, p.selectionStart, p.selectionEnd);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::InsertTextContent): {
+            // Variable-length payload: [TextInsertPayloadHeader][UTF-8 content]
+            if (payloadByteCount < sizeof(TextInsertPayloadHeader)) return EngineError::InvalidPayloadSize;
+            
+            TextInsertPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(TextInsertPayloadHeader));
+            
+            const std::size_t expected = sizeof(TextInsertPayloadHeader) + hdr.byteLength;
+            if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
+            
+            const char* content = reinterpret_cast<const char*>(payload + sizeof(TextInsertPayloadHeader));
+            if (!self->insertTextContent(hdr.textId, hdr.insertIndex, content, hdr.byteLength)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::DeleteTextContent): {
+            if (payloadByteCount != sizeof(TextDeletePayload)) return EngineError::InvalidPayloadSize;
+            TextDeletePayload p;
+            std::memcpy(&p, payload, sizeof(TextDeletePayload));
+            if (!self->deleteTextContent(p.textId, p.startIndex, p.endIndex)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::ApplyTextStyle): {
+            using engine::text::ApplyTextStylePayload;
+            if (payloadByteCount < engine::text::applyTextStyleHeaderBytes) {
+                return EngineError::InvalidPayloadSize;
+            }
+            ApplyTextStylePayload p;
+            std::memcpy(&p, payload, engine::text::applyTextStyleHeaderBytes);
+            const std::size_t expected = engine::text::applyTextStyleHeaderBytes + p.styleParamsLen;
+            if (payloadByteCount != expected) {
+                return EngineError::InvalidPayloadSize;
+            }
+            if (id != 0 && id != p.textId) {
+                return EngineError::InvalidPayloadSize;
+            }
+            const std::uint8_t* params = payload + engine::text::applyTextStyleHeaderBytes;
+            if (!self->applyTextStyle(p, params, p.styleParamsLen)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetTextAlign): {
+            if (payloadByteCount != sizeof(TextAlignmentPayload)) return EngineError::InvalidPayloadSize;
+            TextAlignmentPayload p;
+            std::memcpy(&p, payload, sizeof(TextAlignmentPayload));
+            if (!self->setTextAlign(p.textId, static_cast<TextAlign>(p.align))) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
         default:
             return EngineError::UnknownCommand;
     }
     return EngineError::Ok;
+}
+
+bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen) {
+    // Validate text existence
+    if (!textStore_.hasText(payload.textId)) {
+        return false;
+    }
+
+    // Parse style parameters (TLV)
+    float newFontSize = 0.0f;
+    std::uint32_t newFontId = 0;
+    bool hasFontSize = false;
+    bool hasFontId = false;
+
+    if (params && paramsLen > 0) {
+        const std::uint8_t* ptr = params;
+        const std::uint8_t* end = params + paramsLen;
+        while (ptr < end) {
+            std::uint8_t tag = *ptr++;
+            switch (tag) {
+                case engine::text::textStyleTagFontSize:
+                    if (ptr + sizeof(float) <= end) {
+                        float val;
+                        std::memcpy(&val, ptr, sizeof(float));
+                        if (val > 4.0f && val < 1000.0f) {
+                            newFontSize = val;
+                            hasFontSize = true;
+                        }
+                        ptr += sizeof(float);
+                    }
+                    break;
+                case engine::text::textStyleTagFontId:
+                     if (ptr + sizeof(std::uint32_t) <= end) {
+                        std::uint32_t val;
+                        std::memcpy(&val, ptr, sizeof(std::uint32_t));
+                        newFontId = val;
+                        hasFontId = true;
+                        ptr += sizeof(std::uint32_t);
+                     }
+                     break;
+                default:
+                    // Stop on unknown tag to avoid desync
+                    ptr = end; 
+                    break;
+            }
+        }
+    }
+
+    // Fetch content and runs
+    const std::string_view content = textStore_.getContent(payload.textId);
+    const auto& runs = textStore_.getRuns(payload.textId);
+    if (runs.empty()) {
+        return true; 
+    }
+
+    // Map logical indices
+    std::uint32_t startLogical = payload.rangeStartLogical;
+    std::uint32_t endLogical = payload.rangeEndLogical;
+    if (startLogical > endLogical) std::swap(startLogical, endLogical);
+    
+    const std::uint32_t byteStart = logicalToByteIndex(content, startLogical);
+    const std::uint32_t byteEnd = logicalToByteIndex(content, endLogical);
+
+    if (byteStart > byteEnd) return true;
+
+    const std::uint8_t mask = payload.flagsMask;
+    const std::uint8_t value = static_cast<std::uint8_t>(payload.flagsValue & mask);
+
+    auto applyFlagDelta = [&](TextStyleFlags current) -> TextStyleFlags {
+        std::uint8_t f = static_cast<std::uint8_t>(current);
+        switch (payload.mode) {
+            case 0: // set
+                f = static_cast<std::uint8_t>((f & ~mask) | value);
+                break;
+            case 1: // clear
+                f = static_cast<std::uint8_t>(f & ~mask);
+                break;
+            case 2: // toggle
+                f = static_cast<std::uint8_t>(f ^ mask);
+                break;
+        }
+        return static_cast<TextStyleFlags>(f);
+    };
+
+    auto applyStyle = [&](TextRun& run) {
+        run.flags = applyFlagDelta(run.flags);
+        if (hasFontSize) run.fontSize = newFontSize;
+        if (hasFontId) run.fontId = newFontId;
+    };
+
+    auto applyAndSave = [&](std::vector<TextRun>&& newRuns) -> bool {
+        if (!textStore_.setRuns(payload.textId, std::move(newRuns))) return false;
+        
+        // Force re-layout to update bounds
+        textLayoutEngine_.layoutText(payload.textId);
+        
+        renderDirty = true;
+        snapshotDirty = true;
+        markTextQuadsDirty();
+
+        // NOTE: Baseline compensation removed per user request to keep Box Top fixed.
+        // This means text will grow down (baseline drops) when font size increases.
+
+        generation++;
+        return true;
+    };
+
+    // Caret-only logic (Collapsed selection)
+    if (byteStart == byteEnd) {
+        // Pre-scan: Check if there's already a zero-length run at this position
+        // This allows subsequent style toggles to update-in-place rather than create duplicates
+        int existingZeroLengthIdx = -1;
+        for (std::size_t i = 0; i < runs.size(); ++i) {
+            if (runs[i].startIndex == byteStart && runs[i].length == 0) {
+                existingZeroLengthIdx = static_cast<int>(i);
+                break;
+            }
+        }
+
+        if (existingZeroLengthIdx >= 0) {
+            // Update the existing zero-length run in place
+            std::vector<TextRun> out = runs; // Copy all runs
+            applyStyle(out[existingZeroLengthIdx]);
+            
+            return applyAndSave(std::move(out));
+        }
+
+        // No existing zero-length run - create new one by splitting
+        std::vector<TextRun> out;
+        out.reserve(runs.size() + 1);
+        bool inserted = false;
+
+        for (const TextRun& run : runs) {
+            const std::uint32_t runStart = run.startIndex;
+            const std::uint32_t runEnd = run.startIndex + run.length;
+
+            if (!inserted && byteStart >= runStart && byteStart <= runEnd) {
+                // Before insertion points?
+                if (runStart < byteStart) {
+                    TextRun prefix = run;
+                    prefix.length = byteStart - runStart;
+                    out.push_back(prefix);
+                }
+
+                // The zero-length "style marker" run
+                TextRun mid = run;
+                mid.startIndex = byteStart;
+                mid.length = 0;
+                applyStyle(mid);
+                out.push_back(mid);
+                inserted = true;
+
+                if (runEnd > byteStart) {
+                    TextRun suffix = run;
+                    suffix.startIndex = byteStart;
+                    suffix.length = runEnd - byteStart;
+                    out.push_back(suffix);
+                }
+            } else {
+                out.push_back(run);
+            }
+        }
+
+        if (!inserted) {
+            TextRun mid;
+            if (!runs.empty()) {
+                mid = runs.back();
+            } else {
+                mid.fontId = 4; mid.fontSize = 16.0f; mid.colorRGBA = 0xFFFFFFFF; mid.flags = TextStyleFlags::None;
+            }
+            mid.startIndex = byteStart;
+            mid.length = 0;
+            applyStyle(mid);
+            out.push_back(mid);
+        }
+
+        // Merge logic
+        std::vector<TextRun> merged;
+        merged.reserve(out.size());
+        for (const auto& r : out) {
+            if (!merged.empty()) {
+                TextRun& back = merged.back();
+                const bool sameStyle = back.fontId == r.fontId &&
+                                       back.fontSize == r.fontSize &&
+                                       back.colorRGBA == r.colorRGBA &&
+                                       back.flags == r.flags;
+                const bool contiguous = (back.startIndex + back.length) == r.startIndex;
+                if (sameStyle && contiguous) {
+                    back.length += r.length;
+                    continue;
+                }
+            }
+            merged.push_back(r);
+        }
+
+        return applyAndSave(std::move(merged));
+    }
+
+    // Range logic
+    std::vector<TextRun> out;
+    out.reserve(runs.size() + 2);
+
+    for (const TextRun& run : runs) {
+        const std::uint32_t runStart = run.startIndex;
+        const std::uint32_t runEnd = run.startIndex + run.length;
+
+        const std::uint32_t overlapStart = std::max(runStart, byteStart);
+        const std::uint32_t overlapEnd = std::min(runEnd, byteEnd);
+
+        if (overlapStart >= overlapEnd) {
+            out.push_back(run);
+            continue;
+        }
+
+        if (runStart < overlapStart) {
+            TextRun prefix = run;
+            prefix.length = overlapStart - runStart;
+            out.push_back(prefix);
+        }
+
+        {
+            TextRun mid = run;
+            mid.startIndex = overlapStart;
+            mid.length = overlapEnd - overlapStart;
+            applyStyle(mid);
+            out.push_back(mid);
+        }
+
+        if (overlapEnd < runEnd) {
+            TextRun suffix = run;
+            suffix.startIndex = overlapEnd;
+            suffix.length = runEnd - overlapEnd;
+            out.push_back(suffix);
+        }
+    }
+
+    // Merge logic
+    std::vector<TextRun> merged;
+    merged.reserve(out.size());
+    for (const auto& r : out) {
+        if (!merged.empty()) {
+            TextRun& back = merged.back();
+            const bool sameStyle = back.fontId == r.fontId &&
+                                   back.fontSize == r.fontSize &&
+                                   back.colorRGBA == r.colorRGBA &&
+                                   back.flags == r.flags;
+            const bool contiguous = (back.startIndex + back.length) == r.startIndex;
+            if (sameStyle && contiguous) {
+                back.length += r.length;
+                continue;
+            }
+        }
+        merged.push_back(r);
+    }
+    
+    return applyAndSave(std::move(merged));
+}
+
+engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t textId) const {
+    engine::text::TextStyleSnapshot out{};
+    if (!textInitialized_) {
+        return out;
+    }
+
+    // Ensure layout is current
+    const_cast<CadEngine*>(this)->textLayoutEngine_.layoutDirtyTexts();
+
+    const std::string_view content = textStore_.getContent(textId);
+    const auto runs = textStore_.getRuns(textId);
+    const auto caretOpt = textStore_.getCaretState(textId);
+    if (!caretOpt) {
+        return out;
+    }
+
+    const TextRec* rec = textStore_.getText(textId);
+    if (rec) {
+        out.align = static_cast<std::uint8_t>(rec->align);
+    }
+
+    auto cs = *caretOpt;
+    std::uint32_t selStart = cs.selectionStart;
+    std::uint32_t selEnd = cs.selectionEnd;
+    if (selStart > selEnd) std::swap(selStart, selEnd);
+
+    // Logical indices
+    out.selectionStartLogical = byteToLogicalIndex(content, selStart);
+    out.selectionEndLogical = byteToLogicalIndex(content, selEnd);
+    out.selectionStartByte = selStart;
+    out.selectionEndByte = selEnd;
+    out.caretByte = cs.caretIndex;
+    out.caretLogical = byteToLogicalIndex(content, cs.caretIndex);
+
+    // Caret position (line info)
+    const TextCaretPosition cp = getTextCaretPosition(textId, cs.caretIndex);
+    out.x = cp.x;
+    out.y = cp.y;
+    out.lineHeight = cp.height;
+    out.lineIndex = static_cast<std::uint16_t>(cp.lineIndex);
+
+    // Tri-state computation
+    auto triStateAttr = [&](TextStyleFlags flag) -> int {
+        // Special case for caret (collapsed selection)
+        if (selStart == selEnd) {
+            // 1. Check for explicit zero-length run at caret (typing style)
+            for (const auto& r : runs) {
+                if (r.length == 0 && r.startIndex == selStart) {
+                    return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+            }
+            // 2. Check for run containing caret
+            for (const auto& r : runs) {
+                if (selStart > r.startIndex && selStart < (r.startIndex + r.length)) {
+                     return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+                // Sticky behavior: if at end of run, usually inherit from it
+                if (selStart > 0 && selStart == (r.startIndex + r.length)) {
+                     return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+            }
+            return 0; // Default off
+        }
+
+        // Range selection
+        int state = -1; // -1 unset, 0 off, 1 on, 2 mixed
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            
+            if (oStart >= oEnd) continue;
+            
+            const bool on = hasFlag(r.flags, flag);
+            const int v = on ? 1 : 0;
+            if (state == -1) state = v; else if (state != v) state = 2;
+            if (state == 2) break;
+        }
+        if (state == -1) state = 0;
+        return state;
+    };
+
+    const int boldState = triStateAttr(TextStyleFlags::Bold);
+    const int italicState = triStateAttr(TextStyleFlags::Italic);
+    const int underlineState = triStateAttr(TextStyleFlags::Underline);
+    // Note: Engine uses 'Strike' internally but frontend maps to 'Strikethrough'. Assuming enum match or mapped correctly.
+    // Check text_types.h for exact enum name. Using local usage from previous lines.
+    const int strikeState = triStateAttr(TextStyleFlags::Strike);
+
+    auto pack2bits = [](int s) -> std::uint8_t {
+        switch (s) {
+            case 0: return 0; // off
+            case 1: return 1; // on
+            case 2: return 2; // mixed
+            default: return 0;
+        }
+    };
+
+    out.styleTriStateFlags =
+        static_cast<std::uint8_t>(
+            (pack2bits(boldState) & 0x3) |
+            ((pack2bits(italicState) & 0x3) << 2) |
+            ((pack2bits(underlineState) & 0x3) << 4) |
+            ((pack2bits(strikeState) & 0x3) << 6)
+        );
+
+    out.textGeneration = generation;
+    out.styleTriStateParamsLen = 0;
+    return out;
 }
 
 const SymbolRec* CadEngine::findSymbol(std::uint32_t id) const noexcept {
@@ -901,4 +1415,549 @@ void CadEngine::rebuildRenderBuffers() const {
     
     const double t1 = emscripten_get_now();
     lastRebuildMs = static_cast<float>(t1 - t0);
+}
+
+// =============================================================================
+// Text System Implementation
+// =============================================================================
+
+bool CadEngine::initializeTextSystem() {
+    if (textInitialized_) return true;
+    
+    // Initialize font manager
+    if (!fontManager_.initialize()) {
+        return false;
+    }
+    
+    // Initialize layout engine with font manager and text store
+    textLayoutEngine_.initialize(&fontManager_, &textStore_);
+    
+    // Initialize glyph atlas with font manager
+    if (!glyphAtlas_.initialize(&fontManager_)) {
+        fontManager_.shutdown();
+        return false;
+    }
+    
+    textInitialized_ = true;
+    markTextQuadsDirty();
+    return true;
+}
+
+bool CadEngine::loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize) {
+    const std::uint8_t* fontData = reinterpret_cast<const std::uint8_t*>(fontDataPtr);
+    if (!textInitialized_) {
+        if (!initializeTextSystem()) {
+            return false;
+        }
+    }
+    // Use registerFont to associate with specific fontId
+    bool ok = fontManager_.registerFont(fontId, fontData, dataSize, "", false, false);
+    if (ok) markTextQuadsDirty();
+    return ok;
+}
+
+bool CadEngine::upsertText(
+    std::uint32_t id,
+    const TextPayloadHeader& header,
+    const TextRunPayload* runs,
+    std::uint32_t runCount,
+    const char* content,
+    std::uint32_t contentLength
+) {
+    if (!textInitialized_) {
+        if (!initializeTextSystem()) {
+            return false;
+        }
+    }
+    
+    // Store in TextStore
+    if (!textStore_.upsertText(id, header, runs, runCount, content, contentLength)) {
+        return false;
+    }
+    
+    // Register in entity map
+    auto it = entities.find(id);
+    if (it != entities.end()) {
+        // Entity exists - if it's not a Text, we have a conflict (shouldn't happen if JS is correct)
+        if (it->second.kind != EntityKind::Text) {
+            // Delete the old entity first
+            deleteEntity(id);
+        }
+    }
+    
+    // Add/update entity ref
+    entities[id] = EntityRef{EntityKind::Text, id}; // For text, index == id (TextStore uses id as key)
+    
+    // Layout the text
+    textLayoutEngine_.layoutText(id);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+    
+    return true;
+}
+
+bool CadEngine::deleteText(std::uint32_t id) {
+    auto it = entities.find(id);
+    if (it == entities.end() || it->second.kind != EntityKind::Text) {
+        return false;
+    }
+    
+    // Remove from TextStore
+    textStore_.deleteText(id);
+    
+    // Clear layout cache
+    textLayoutEngine_.clearLayout(id);
+    
+    // Remove from entity map
+    entities.erase(it);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+    
+    return true;
+}
+
+void CadEngine::setTextCaret(std::uint32_t textId, std::uint32_t caretIndex) {
+    textStore_.setCaret(textId, caretIndex);
+}
+
+void CadEngine::setTextSelection(std::uint32_t textId, std::uint32_t selectionStart, std::uint32_t selectionEnd) {
+    textStore_.setSelection(textId, selectionStart, selectionEnd);
+}
+
+bool CadEngine::insertTextContent(
+    std::uint32_t textId,
+    std::uint32_t insertIndex,
+    const char* content,
+    std::uint32_t byteLength
+) {
+    if (!textStore_.insertContent(textId, insertIndex, content, byteLength)) {
+        return false;
+    }
+    
+    // Re-layout the text
+    textLayoutEngine_.layoutText(textId);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+    
+    return true;
+}
+
+bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex) {
+    if (!textStore_.deleteContent(textId, startIndex, endIndex)) {
+        return false;
+    }
+    
+    // Re-layout the text
+    textLayoutEngine_.layoutText(textId);
+    
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+    
+    return true;
+    return true;
+}
+
+bool CadEngine::setTextAlign(std::uint32_t textId, TextAlign align) {
+    if (!textInitialized_) return false;
+
+    TextRec* rec = textStore_.getTextMutable(textId);
+    if (!rec) {
+        return false;
+    }
+
+    if (rec->align == align) return true;
+
+    rec->align = align;
+    
+    // Aligment change doesn't change relative glyph positions or metrics,
+    // but it DOES change the X offset of lines, so we must rebuild quads.
+    // Re-layout is also good practice to ensure bounds are absolutely correct,
+    // though in AutoWidth case alignment doesn't change bounds since layoutWidth=maxWidth.
+    textLayoutEngine_.layoutText(textId);
+
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+
+    return true;
+}
+
+bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
+    if (!textInitialized_) return false;
+
+    if (!textStore_.setConstraintWidth(textId, width)) {
+        return false;
+    }
+
+    // Re-layout immediately to ensure up-to-date bounds
+    textLayoutEngine_.layoutText(textId);
+
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+
+    return true;
+}
+
+bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxMode boxMode, float constraintWidth) {
+    if (!textInitialized_) return false;
+
+    TextRec* rec = textStore_.getTextMutable(textId);
+    if (!rec) {
+        return false;
+    }
+
+    rec->x = x;
+    rec->y = y;
+    rec->boxMode = boxMode;
+    if (boxMode == TextBoxMode::FixedWidth) {
+        rec->constraintWidth = constraintWidth;
+    }
+
+    // Mark dirty so layout refreshes bounds (min/max) and quads rebuild at new origin.
+    textStore_.markDirty(textId);
+
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+
+    return true;
+}
+
+TextHitResult CadEngine::hitTestText(std::uint32_t textId, float localX, float localY) const {
+    if (!textInitialized_) {
+        return TextHitResult{0, 0, true};
+    }
+    return textLayoutEngine_.hitTest(textId, localX, localY);
+}
+
+TextCaretPosition CadEngine::getTextCaretPosition(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) {
+        return TextCaretPosition{0.0f, 0.0f, 0.0f, 0};
+    }
+    return textLayoutEngine_.getCaretPosition(textId, charIndex);
+}
+
+bool CadEngine::getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const {
+    // Ensure layout is up-to-date before returning bounds
+    // Note: This is safe even if text wasn't dirty (no-op in that case)
+    const_cast<CadEngine*>(this)->textLayoutEngine_.layoutDirtyTexts();
+    
+    const TextRec* text = textStore_.getText(textId);
+    if (!text) {
+        return false;
+    }
+    outMinX = text->minX;
+    outMinY = text->minY;
+    outMaxX = text->maxX;
+    outMaxY = text->maxY;
+    return true;
+}
+
+void CadEngine::rebuildTextQuadBuffer() {
+    if (!textInitialized_) {
+        if (!textQuadBuffer_.empty()) textQuadBuffer_.clear();
+        return;
+    }
+    
+    // Ensure all dirty text layouts are updated before rebuilding quads
+    std::size_t laidOutCount = textLayoutEngine_.layoutDirtyTexts();
+    
+    // If nothing changed in layout, atlas, or explicit dirty flag, skip rebuilding
+    if (laidOutCount == 0 && !glyphAtlas_.isDirty() && !textQuadsDirty_) {
+        return;
+    }
+
+    textQuadBuffer_.clear();
+    textQuadsDirty_ = false;
+    
+    // Get all text IDs
+    const auto textIds = textStore_.getAllTextIds();
+    
+    // For each text entity, generate quads for its glyphs
+    
+    // For each text entity, generate quads for its glyphs
+    for (std::uint32_t textId : textIds) {
+        const TextRec* text = textStore_.getText(textId);
+        if (!text) continue;
+        
+        const auto* layout = textLayoutEngine_.getLayout(textId);
+        if (!layout) continue;
+        
+        // Get the runs for color info
+        const auto& runs = textStore_.getRuns(textId);
+        
+
+        
+        const float baseX = text->x;
+        const float baseY = text->y;
+        constexpr float z = 0.0f; // Text at z=0 for now
+        
+        // Track Y offset for lines (Y grows upward in this coordinate system)
+        // First line starts at baseY, subsequent lines go DOWN (decreasing Y)
+        float yOffset = 0.0f;
+        
+        // Process each line
+        for (const auto& line : layout->lines) {
+            // Baseline is at yOffset - line.ascent (ascent goes UP from baseline)
+            // For Y-up: baseline is below the top of the line
+            const float baseline = yOffset - line.ascent;
+            
+            // Accumulated pen position for glyph X (horizontal advance)
+            float penX = line.xOffset;
+            
+            // Process glyphs in this line using the index range
+            for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
+                if (gi >= layout->glyphs.size()) break;
+                const auto& glyph = layout->glyphs[gi];
+                
+                
+                // Get atlas entry for this glyph
+                // Note: We need to know the fontId for the glyph, which requires looking up the run
+                std::uint32_t fontId = 0;
+                float fontSize = 16.0f;
+                float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+                TextStyleFlags styleFlags = TextStyleFlags::None;
+                
+                // Find the run this glyph belongs to for font and color
+                for (const auto& run : runs) {
+                    if (glyph.clusterIndex >= run.startIndex && glyph.clusterIndex < run.startIndex + run.length) {
+                        fontId = run.fontId;
+                        fontSize = run.fontSize;
+                        styleFlags = run.flags;
+                        // Extract color from RGBA packed value
+                        std::uint32_t rgba = run.colorRGBA;
+                        r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
+                        g = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
+                        b = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
+                        a = static_cast<float>(rgba & 0xFF) / 255.0f;
+                        break;
+                    }
+                }
+                
+                const auto* atlasEntry = glyphAtlas_.getGlyph(fontId, glyph.glyphId, styleFlags);
+                if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
+                    // Still advance penX for whitespace/missing glyphs
+                    // We might still need to render decorations (underline/strike) for spaces!
+                    if (hasFlag(styleFlags, TextStyleFlags::Underline) || hasFlag(styleFlags, TextStyleFlags::Strike)) {
+                        // ... render decorations logic duplicated or shared?
+                        // Let's refactor:
+                        // Move decoration rendering to AFTER this check, inside a shared block or separate function.
+                        // But wait, if I just remove 'continue' and let it fall through, 
+                        // I must ensure I don't draw invalid glyph quads.
+                    }
+                    // For now, let's just NOT continue here, but guard the glyph quad drawing lower down.
+                }
+                
+                if (atlasEntry && atlasEntry->width > 0.0f && atlasEntry->height > 0.0f) {
+                    // Use actual scale for glyph bitmap sizing
+                    const float scale = fontSize / atlasEntry->fontSize;
+                    
+                    const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * fontSize;
+                    const float glyphY = baseY + baseline + glyph.yOffset + (atlasEntry->bearingY - atlasEntry->height) * fontSize;
+                    const float glyphW = atlasEntry->width * fontSize;
+                    const float glyphH = atlasEntry->height * fontSize;
+                    
+                    const float u0 = atlasEntry->u0;
+                    const float v0 = atlasEntry->v0;
+                    const float u1 = atlasEntry->u1;
+                    const float v1 = atlasEntry->v1;
+
+                    // Triangle 1: (X, Y), (X+W, Y), (X+W, Y+H) -> BL, BR, TR
+                    textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v1);              // BR -> Bottom UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    // Triangle 2: (X, Y), (X+W, Y+H), (X, Y+H) -> BL, TR, TL
+                    textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY);          textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v1);              // BL -> Bottom UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                    
+                    textQuadBuffer_.push_back(glyphX + glyphW); textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u1);              textQuadBuffer_.push_back(v0);              // TR -> Top UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+
+                    textQuadBuffer_.push_back(glyphX);          textQuadBuffer_.push_back(glyphY + glyphH); textQuadBuffer_.push_back(z);
+                    textQuadBuffer_.push_back(u0);              textQuadBuffer_.push_back(v0);              // TL -> Top UV
+                    textQuadBuffer_.push_back(r);               textQuadBuffer_.push_back(g);               textQuadBuffer_.push_back(b);               textQuadBuffer_.push_back(a);
+                }
+                
+                // --- DECORATION RENDERING (Underline / Strikethrough) ---
+                if (hasFlag(styleFlags, TextStyleFlags::Underline) || hasFlag(styleFlags, TextStyleFlags::Strike)) {
+                    const auto& whiteRect = glyphAtlas_.getWhitePixelRect();
+                    const float whiteU = (whiteRect.x + 0.5f) / static_cast<float>(glyphAtlas_.getWidth());
+                    const float whiteV = (whiteRect.y + 0.5f) / static_cast<float>(glyphAtlas_.getHeight());
+                    
+                    const float decStartX = baseX + penX;
+                    // Extend slightly (0.5px) to ensure overlap and continuous line, avoiding subpixel gaps
+                    const float decWidth = glyph.xAdvance + 0.5f; 
+                    
+                    auto drawLine = [&](float localY, float thickness) {
+                        const float x0 = decStartX;
+                        const float x1 = decStartX + decWidth;
+                        // Correction: baseline already includes yOffset. Do NOT add yOffset again!
+                        const float y0 = baseY + baseline + localY;
+                        const float y1 = y0 + thickness;
+                        
+                        // BL
+                        textQuadBuffer_.push_back(x0); textQuadBuffer_.push_back(y0); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // BR
+                        textQuadBuffer_.push_back(x1); textQuadBuffer_.push_back(y0); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // TR
+                        textQuadBuffer_.push_back(x1); textQuadBuffer_.push_back(y1); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        
+                        // BL
+                        textQuadBuffer_.push_back(x0); textQuadBuffer_.push_back(y0); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // TR
+                        textQuadBuffer_.push_back(x1); textQuadBuffer_.push_back(y1); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                        // TL
+                        textQuadBuffer_.push_back(x0); textQuadBuffer_.push_back(y1); textQuadBuffer_.push_back(z);
+                        textQuadBuffer_.push_back(whiteU); textQuadBuffer_.push_back(whiteV);
+                        textQuadBuffer_.push_back(r); textQuadBuffer_.push_back(g); textQuadBuffer_.push_back(b); textQuadBuffer_.push_back(a);
+                    };
+                    
+                    if (hasFlag(styleFlags, TextStyleFlags::Underline)) {
+                        drawLine(-fontSize * 0.15f, fontSize * 0.06f);
+                    }
+                    if (hasFlag(styleFlags, TextStyleFlags::Strike)) {
+                        drawLine(fontSize * 0.3f, fontSize * 0.06f);
+                    }
+                }
+                
+                // Advance pen position by glyph advance
+                penX += glyph.xAdvance;
+            }
+            
+            // Move yOffset to next line (decreasing Y for Y-up system)
+            yOffset -= line.lineHeight;
+        }
+    }
+}
+
+CadEngine::BufferMeta CadEngine::getTextQuadBufferMeta() const noexcept {
+    constexpr std::size_t floatsPerVertex = 9; // x, y, z, u, v, r, g, b, a
+    return buildMeta(textQuadBuffer_, floatsPerVertex);
+}
+
+CadEngine::TextureBufferMeta CadEngine::getAtlasTextureMeta() const noexcept {
+    if (!textInitialized_) {
+        return TextureBufferMeta{0, 0, 0, 0, 0};
+    }
+    return TextureBufferMeta{
+        glyphAtlas_.getVersion(),
+        glyphAtlas_.getWidth(),
+        glyphAtlas_.getHeight(),
+        static_cast<std::uint32_t>(glyphAtlas_.getTextureDataSize()),
+        reinterpret_cast<std::uintptr_t>(glyphAtlas_.getTextureData())
+    };
+}
+
+bool CadEngine::isAtlasDirty() const noexcept {
+    if (!textInitialized_) return false;
+    return glyphAtlas_.isDirty();
+}
+
+void CadEngine::clearAtlasDirty() {
+    if (textInitialized_) {
+        glyphAtlas_.clearDirty();
+    }
+}
+
+CadEngine::TextContentMeta CadEngine::getTextContentMeta(std::uint32_t textId) const noexcept {
+    if (!textInitialized_) {
+        return TextContentMeta{0, 0, false};
+    }
+    
+    std::string_view content = textStore_.getContent(textId);
+    if (content.data() == nullptr) {
+        return TextContentMeta{0, 0, false};
+    }
+    
+    return TextContentMeta{
+        static_cast<std::uint32_t>(content.size()),
+        reinterpret_cast<std::uintptr_t>(content.data()),
+        true
+    };
+}
+
+std::vector<CadEngine::TextSelectionRect> CadEngine::getTextSelectionRects(std::uint32_t textId, std::uint32_t start, std::uint32_t end) const {
+    if (!textInitialized_) {
+        return {};
+    }
+    // Ensure layout is up to date since this might be called right after input/styling
+    const_cast<CadEngine*>(this)->textLayoutEngine_.layoutDirtyTexts();
+    return textLayoutEngine_.getSelectionRects(textId, start, end);
+}
+
+std::uint32_t CadEngine::getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return 0;
+    return textLayoutEngine_.getVisualPrevCharIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getVisualNextCharIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getVisualNextCharIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getWordLeftIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return 0;
+    return textLayoutEngine_.getWordLeftIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getWordRightIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getWordRightIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getLineStartIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return 0;
+    return textLayoutEngine_.getLineStartIndex(textId, charIndex);
+}
+
+
+std::uint32_t CadEngine::getLineEndIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getLineEndIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getLineUpIndex(textId, charIndex);
+}
+
+std::uint32_t CadEngine::getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+    if (!textInitialized_) return charIndex;
+    return textLayoutEngine_.getLineDownIndex(textId, charIndex);
 }

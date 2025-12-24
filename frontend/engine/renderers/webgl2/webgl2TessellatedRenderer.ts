@@ -2,6 +2,7 @@ import type { BufferMeta, WasmModule } from '@/engine/runtime/EngineRuntime';
 import type { TessellatedRenderer, TessellatedRenderInput } from '../tessellatedRenderer';
 
 import { computeTriangleBatches, type TriangleBatch } from './triBatching';
+import { TextRenderPass } from './textRenderPass';
 
 type RendererResources = {
   program: WebGLProgram;
@@ -180,6 +181,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   private gl: WebGL2RenderingContext;
   private resources: RendererResources;
   private ssaa: SsaaResources;
+  private textPass: TextRenderPass;
 
   private lastHeapBuffer: ArrayBuffer | null = null;
   private lastPositionMeta: BufferMeta | null = null;
@@ -195,6 +197,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     this.gl = gl;
     this.resources = initMainResources(gl);
     this.ssaa = initSsaaResources(gl);
+    this.textPass = new TextRenderPass(gl);
     this.aaScale = Math.max(1, Math.floor(opts?.aaScale ?? 2));
   }
 
@@ -211,6 +214,9 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     gl.deleteBuffer(blitVbo);
     gl.deleteVertexArray(blitVao);
     gl.deleteProgram(blitProgram);
+
+    // Dispose text render pass
+    this.textPass.dispose();
   }
 
   private ensureCanvasSize(input: TessellatedRenderInput): { width: number; height: number; pixelRatio: number } {
@@ -312,6 +318,13 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
 
     gl.bindVertexArray(null);
 
+    // -------------------------------------------------------------------------
+    // Text Rendering (if text metadata is provided)
+    // -------------------------------------------------------------------------
+    if (input.textQuadMeta && input.textAtlasMeta) {
+      this.renderText(input, offW, offH, pixelRatio);
+    }
+
     if (this.aaScale <= 1) return;
 
     // Blit SSAA texture to screen.
@@ -326,5 +339,44 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.bindVertexArray(null);
     gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  /**
+   * Render text using the TextRenderPass.
+   * Called from render() when text metadata is provided.
+   */
+  private renderText(
+    input: TessellatedRenderInput,
+    canvasWidth: number,
+    canvasHeight: number,
+    pixelRatio: number
+  ): void {
+    if (!input.textQuadMeta || !input.textAtlasMeta) return;
+
+    // Initialize text pass on first use
+    if (!this.textPass.isInitialized()) {
+      this.textPass.initialize();
+    }
+
+    // Update buffers from WASM memory
+    const vertexCount = this.textPass.updateQuadBuffer(input.module, input.textQuadMeta);
+    this.textPass.updateAtlasTexture(input.module, input.textAtlasMeta);
+
+    // Render text
+    const effectivePixelRatio = pixelRatio * (this.aaScale > 1 ? this.aaScale : 1);
+    this.textPass.render(
+      {
+        module: input.module,
+        viewTransform: {
+          scale: input.viewTransform.scale || 1,
+          x: input.viewTransform.x || 0,
+          y: input.viewTransform.y || 0,
+        },
+        canvasSizeCss: input.canvasSizeCss,
+        pixelRatio: effectivePixelRatio,
+        canvasSizeDevice: { width: canvasWidth, height: canvasHeight },
+      },
+      vertexCount
+    );
   }
 }

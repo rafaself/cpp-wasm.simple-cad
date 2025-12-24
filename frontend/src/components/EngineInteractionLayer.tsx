@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ElectricalElement, Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+// NOTE: The WASM text engine expects raw TTF/OTF bytes (FreeType).
+// We load fonts from `/public/fonts` to avoid dev-server issues with `/node_modules/...` URLs
+// and to keep the font format compatible.
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
 import { screenToWorld, getDistance, getShapeBoundingBox, getShapeCenter, getShapeHandles, isPointInShape, isShapeInSelection, rotatePoint, getRectCornersWorld, supportsBBoxResize, worldToScreen } from '@/utils/geometry';
@@ -14,12 +17,18 @@ import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
 import { resolveConnectionNodePosition } from '@/utils/connections';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
 import { isConduitShape } from '@/features/editor/utils/tools';
-import TextEditorOverlay, { type TextEditState } from './TextEditorOverlay';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/runtime/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
 import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
 import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
+// Engine-native text tool integration
+import { TextTool, createTextTool, type TextToolState, type TextToolCallbacks } from '@/features/editor/tools/TextTool';
+import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
+import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
+import type { TextInputDelta } from '@/types/text';
+import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/text';
+import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId, setTextMeta, getTextMeta } from '@/engine/runtime/textEngineSync';
 
 type Draft =
   | { kind: 'none' }
@@ -29,7 +38,15 @@ type Draft =
   | { kind: 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
   | { kind: 'arrow'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } };
+  | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'text'; start: { x: number; y: number }; current: { x: number; y: number } };
+
+type TextBoxMeta = {
+  boxMode: TextBoxMode;
+  constraintWidth: number;
+  fixedHeight?: number;
+  maxAutoWidth: number;
+};
 
 type SelectionBox = {
   start: { x: number; y: number };
@@ -207,7 +224,7 @@ const EngineInteractionLayer: React.FC = () => {
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
-  const gpuPickingEnabled = useSettingsStore((s) => s.featureFlags.gpuPicking || s.featureFlags.renderMode !== 'legacy');
+  const gpuPickingEnabled = useSettingsStore((s) => s.featureFlags.gpuPicking);
 
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const isPanningRef = useRef(false);
@@ -222,21 +239,310 @@ const EngineInteractionLayer: React.FC = () => {
   const moveRef = useRef<MoveState | null>(null);
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
-  const [textEditState, setTextEditState] = useState<TextEditState | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
+  const [runtimeReady, setRuntimeReady] = useState(false);
   const gpuPickerRef = useRef<GpuPicker | null>(null);
+
+  // Engine-native text tool state
+  const textToolRef = useRef<TextTool | null>(null);
+  const textInputProxyRef = useRef<TextInputProxyRef>(null);
+  const { caret, selectionRects, anchor, rotation, setCaret: setCaretPosition, hideCaret, clearSelection, setSelection } = useTextCaret();
+  const engineTextEditState = useUIStore((s) => s.engineTextEditState);
+  const setEngineTextEditActive = useUIStore((s) => s.setEngineTextEditActive);
+  const setEngineTextEditContent = useUIStore((s) => s.setEngineTextEditContent);
+  const setEngineTextEditCaret = useUIStore((s) => s.setEngineTextEditCaret);
+  const setEngineTextEditCaretPosition = useUIStore((s) => s.setEngineTextEditCaretPosition);
+  const clearEngineTextEdit = useUIStore((s) => s.clearEngineTextEdit);
+  const setEngineTextStyleSnapshot = useUIStore((s) => s.setEngineTextStyleSnapshot);
+  const clearEngineTextStyleSnapshot = useUIStore((s) => s.clearEngineTextStyleSnapshot);
+
+  // Track if we're dragging for FixedWidth text creation
+  const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const textBoxMetaRef = useRef<Map<number, TextBoxMeta>>(new Map());
+
+  // Note: Text ID ↔ Shape ID mapping is now managed centrally via textEngineSync module
+
+  // Ribbon text defaults (font family/size/style)
+  const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
+
+  // Reset transient drawing state when switching tools to avoid stale outlines
+  useEffect(() => {
+    setDraft({ kind: 'none' });
+    draftRef.current = { kind: 'none' };
+    textDragStartRef.current = null;
+    setSelectionBox(null);
+  }, [activeTool]);
 
   useEffect(() => {
     let disposed = false;
     (async () => {
       const runtime = await getEngineRuntime();
-      if (!disposed) runtimeRef.current = runtime;
+      if (!disposed) {
+        runtimeRef.current = runtime;
+        setRuntimeReady(true);
+      }
     })();
     return () => {
       disposed = true;
     };
   }, []);
+
+  // Initialize TextTool when runtime is ready
+  useEffect(() => {
+    if (!runtimeReady) return;
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+
+    // Create TextTool with callbacks
+    const callbacks: TextToolCallbacks = {
+      onStateChange: (state: TextToolState) => {
+        // Sync state to UI store
+        setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
+        setEngineTextEditContent(state.content);
+        setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
+        if (state.mode === 'idle') {
+          clearEngineTextStyleSnapshot();
+        }
+      },
+      onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => {
+        setCaretPosition(x, y, height, rotation, anchorX, anchorY);
+        setEngineTextEditCaretPosition({ x, y, height });
+      },
+      onSelectionUpdate: (rects: import('@/types/text').TextSelectionRect[]) => {
+        setSelection(rects);
+      },
+      onStyleSnapshot: (textId, snapshot) => {
+        setEngineTextStyleSnapshot(textId, snapshot);
+      },
+      onEditEnd: () => {
+        clearEngineTextEdit();
+        clearEngineTextStyleSnapshot();
+        hideCaret();
+        clearSelection();
+        // Switch back to select tool
+        useUIStore.getState().setTool('select');
+      },
+        onTextCreated: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
+          const data = useDataStore.getState();
+          const shapeId = generateId();
+  
+          // Store mapping from engine text ID to JS shape ID (centralized)
+          registerTextMapping(textId, shapeId);
+          setTextMeta(textId, boxMode, constraintWidth);
+  
+          textBoxMetaRef.current.set(textId, {
+            boxMode,
+            constraintWidth: boxMode === TextBoxMode.FixedWidth ? constraintWidth : 0,
+            fixedHeight: boxMode === TextBoxMode.FixedWidth ? initialHeight : undefined,
+            maxAutoWidth: Math.max(initialWidth, constraintWidth, 0),
+          });
+        
+        const ribbonDefaults = useSettingsStore.getState().toolDefaults.text;
+        
+        // In Y-Up world coordinates:
+        // - Text engine anchor (x, y) is at the TOP-LEFT of the text box
+        // - Shape.y should be the BOTTOM of the box for correct bounding box math
+        // - So shape.y = anchor.y - height (moving down in world = decreasing Y)
+        const s: Shape = {
+          id: shapeId,
+          layerId: data.activeLayerId,
+          type: 'text',
+          points: [],
+          x: clampTiny(x),
+          y: clampTiny(y - initialHeight), // Bottom of text box in Y-Up
+          width: initialWidth,
+          height: initialHeight,
+          strokeColor: '#FFFFFF',
+          strokeEnabled: false,
+          fillColor: 'transparent',
+          fillEnabled: false,
+          colorMode: getDefaultColorMode(),
+          floorId: activeFloorId,
+          discipline: activeDiscipline,
+          // Text-specific properties
+          textContent: '',
+          fontSize: ribbonDefaults.fontSize,
+          fontFamily: ribbonDefaults.fontFamily,
+          align: ribbonDefaults.align ?? 'left',
+          bold: ribbonDefaults.bold,
+          italic: ribbonDefaults.italic,
+          underline: ribbonDefaults.underline,
+          strike: ribbonDefaults.strike,
+        };
+        
+        data.addShape(s);
+        setSelectedShapeIds(new Set([shapeId]));
+      },
+      onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number, x?: number, y?: number) => {
+        const shapeId = getShapeIdForText(textId);
+        if (!shapeId) return;
+        
+        const data = useDataStore.getState();
+        const shape = data.shapes[shapeId];
+        if (!shape) return;
+        
+        // Always reset metadata for auto-width to avoid stale constraints leaking in.
+        const freshMeta: TextBoxMeta = {
+          boxMode,
+          constraintWidth: boxMode === TextBoxMode.FixedWidth ? constraintWidth : 0,
+          fixedHeight: boxMode === TextBoxMode.FixedWidth ? (shape.height ?? bounds.height) : undefined,
+          maxAutoWidth: bounds.width,
+        };
+
+        let nextWidth = bounds.width;
+        let nextHeight = bounds.height;
+
+        if (freshMeta.boxMode === TextBoxMode.FixedWidth) {
+          nextWidth = Math.max(freshMeta.constraintWidth, 0);
+          const fixedHeight = freshMeta.fixedHeight ?? shape.height ?? bounds.height;
+          freshMeta.fixedHeight = fixedHeight;
+          nextHeight = fixedHeight;
+        } else {
+          nextWidth = bounds.width;
+          freshMeta.fixedHeight = undefined;
+          freshMeta.maxAutoWidth = nextWidth;
+        }
+
+        textBoxMetaRef.current.set(textId, freshMeta);
+        
+        // Calculate Y position
+        // If Engine provided exact coordinates (via sync), use them (this preserves Baseline).
+        // Otherwise, fallback to keeping the top anchor fixed (legacy behavior for simple resizing).
+        let nextY = 0;
+        let nextX = shape.x ?? 0;
+
+        if (y !== undefined && x !== undefined) {
+           nextY = y;
+           nextX = x;
+        } else {
+           // Fallback: Adjust Y to maintain top-anchor position
+           // The anchor (top in engine) is at shape.y + shape.height (in Y-Up)
+           // After update: new shape.y = anchor.y - new height
+           const oldAnchorY = (shape.y ?? 0) + (shape.height ?? 0);
+           nextY = oldAnchorY - nextHeight;
+        }
+
+        const updates: Partial<Shape> = {
+          textContent: content,
+          width: nextWidth,
+          height: nextHeight,
+          x: clampTiny(nextX),
+          y: clampTiny(nextY), 
+        };
+        
+        data.updateShape(shapeId, updates, false); // false = don't record to history yet
+      },
+      onTextDeleted: (textId: number) => {
+        const shapeId = getShapeIdForText(textId);
+        if (!shapeId) return;
+        textBoxMetaRef.current.delete(textId);
+        
+        unregisterTextMappingByShapeId(shapeId);
+        
+        const data = useDataStore.getState();
+        data.deleteShape(shapeId);
+        setSelectedShapeIds(new Set());
+      },
+    };
+
+    const tool = createTextTool(callbacks);
+    if (tool.initialize(runtime)) {
+      textToolRef.current = tool;
+      // Register with centralized sync manager
+      registerTextTool(tool);
+      // Load the 4 supported fonts into the engine.
+      // IMPORTANT: In the C++ engine, `fontId=0` is reserved as "default".
+      // So we register our fonts as 1..4 and map UI selections accordingly.
+      // Note: Arial/Times are mapped to DejaVu Sans/Serif font files (shipped in /public/fonts).
+      void (async () => {
+        const loadFromUrl = async (fontId: number, url: string, label: string) => {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) {
+              console.warn('TextTool: font fetch failed', { fontId, label, url, status: res.status, statusText: res.statusText });
+              return;
+            }
+            const buf = await res.arrayBuffer();
+            const ok = tool.loadFont(fontId, new Uint8Array(buf));
+            if (ok) {
+              console.log('[DEBUG] TextTool: font loaded successfully', { fontId, label, url, byteSize: buf.byteLength });
+            } else {
+              console.warn('TextTool: engine rejected font data', { fontId, label, url });
+            }
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            console.warn('TextTool: font load threw', { fontId, label, url, error: e, message });
+          }
+        };
+
+        const baseUrl = import.meta.env.BASE_URL || '/';
+        const publicUrl = (path: string) => `${baseUrl}${path.replace(/^\//, '')}`;
+
+        // fontId mapping used by ribbon -> engine:
+        // 0 = default (Inter), 1 = Arial (DejaVu Sans), 2 = Times (DejaVu Serif), 3 = Roboto
+        // IMPORTANT: `fontId=0` is reserved for "default" in the C++ engine, so we register
+        // Inter as fontId=4 and load it FIRST to become the engine default.
+        // (Inter/Roboto are currently mapped to DejaVu Sans for engine rendering.)
+        const sansTtf = publicUrl('/fonts/DejaVuSans.ttf');
+        const serifTtf = publicUrl('/fonts/DejaVuSerif.ttf');
+
+        await loadFromUrl(4, sansTtf, 'Inter');
+        await loadFromUrl(1, sansTtf, 'Arial');
+        await loadFromUrl(2, serifTtf, 'Times');
+        await loadFromUrl(3, sansTtf, 'Roboto');
+      })();
+    }
+
+    return () => {
+      // Clean up on unmount
+      registerTextTool(null);
+      textToolRef.current = null;
+    };
+  }, [runtimeReady, setEngineTextEditActive, setEngineTextEditContent, setEngineTextEditCaret, setCaretPosition, setEngineTextEditCaretPosition, clearEngineTextEdit, hideCaret, clearSelection]);
+
+  // Keep TextTool defaults in sync with ribbon settings (font family/size/style/align).
+  useEffect(() => {
+    const tool = textToolRef.current;
+    if (!tool) return;
+
+    const fontIdByFamily: Record<string, number> = {
+      Inter: 0,
+      Arial: 1,
+      Times: 2,
+      Roboto: 3,
+    };
+
+    const flags =
+      (ribbonTextDefaults.bold ? TextStyleFlags.Bold : 0) |
+      (ribbonTextDefaults.italic ? TextStyleFlags.Italic : 0) |
+      (ribbonTextDefaults.underline ? TextStyleFlags.Underline : 0) |
+      (ribbonTextDefaults.strike ? TextStyleFlags.Strikethrough : 0);
+
+    const align =
+      ribbonTextDefaults.align === 'center'
+        ? TextAlign.Center
+        : ribbonTextDefaults.align === 'right'
+          ? TextAlign.Right
+          : TextAlign.Left;
+
+    tool.setStyleDefaults({
+      fontId: fontIdByFamily[ribbonTextDefaults.fontFamily] ?? 0,
+      fontSize: ribbonTextDefaults.fontSize,
+      flags,
+      align,
+      // Default to white for visibility on dark canvas; can be extended later to a ribbon color control.
+      colorRGBA: packColorRGBA(1, 1, 1, 1),
+    });
+  }, [ribbonTextDefaults]);
+
+  // Ensure the hidden input is focused whenever we enter engine text edit mode.
+  useEffect(() => {
+    if (!engineTextEditState.active) return;
+    requestAnimationFrame(() => {
+      textInputProxyRef.current?.focus();
+    });
+  }, [engineTextEditState.active]);
 
   useEffect(() => {
     if (!gpuPickingEnabled) return;
@@ -357,7 +663,10 @@ const EngineInteractionLayer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTool, polygonSidesModal]);
 
-  const cursor = useMemo(() => (cursorOverride ? cursorOverride : getCursorForTool(activeTool)), [activeTool, cursorOverride]);
+  const cursor = useMemo(() => {
+    if (engineTextEditState.active) return 'text';
+    return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
+  }, [activeTool, cursorOverride, engineTextEditState.active]);
 
   useEffect(() => {
     setSelectionBox(null);
@@ -476,6 +785,11 @@ const EngineInteractionLayer: React.FC = () => {
       const layer = data.layers.find((l) => l.id === shape.layerId);
       if (layer && (!layer.visible || layer.locked)) return;
       if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) return;
+
+      if (shape.type === 'text') {
+        const allowTextResize = useSettingsStore.getState().featureFlags.enableTextResize;
+        if (!allowTextResize) return;
+      }
 
       const handles = getShapeHandles(shape).filter((h) => h.type === 'resize');
       for (const h of handles) {
@@ -898,7 +1212,66 @@ const EngineInteractionLayer: React.FC = () => {
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
 
-    if (textEditState) return;
+    // If currently editing text, manage clicks inside vs outside
+    if (engineTextEditState.active && textToolRef.current) {
+      const world = toWorldPoint(evt, viewTransform);
+      
+
+      // Check if click is inside the ACTIVE text being edited
+      // We need the shape ID for the active text ID
+      const activeTextId = engineTextEditState.textId;
+      const activeShapeId = activeTextId !== null ? getShapeIdForText(activeTextId) : null;
+      
+      if (activeShapeId) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[activeShapeId];
+        if (shape) {
+          const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+          const meta = textBoxMetaRef.current.get(activeTextId!);
+
+          const boxWidth = Math.max(
+            0,
+            meta
+              ? meta.boxMode === TextBoxMode.FixedWidth
+                ? meta.constraintWidth
+                : meta.maxAutoWidth ?? (shape.width || 0)
+              : shape.width || 0
+          );
+          const boxHeight = Math.max(0, meta?.fixedHeight ?? (shape.height || 0));
+
+          const anchorX = shape.x || 0;
+          const anchorY = (shape.y || 0) + boxHeight;
+
+          const minX = anchorX - tolerance;
+          const maxX = anchorX + boxWidth + tolerance;
+          const minY = (shape.y || 0) - tolerance; // shape.y is bottom in world (Y-up)
+          const maxY = anchorY + tolerance;
+
+          const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
+          
+          if (inside) {
+             // Clicked INSIDE active text - move caret using latest box metrics
+             const localX = world.x - anchorX;
+             const localY = world.y - anchorY;
+             
+             const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+             const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
+             // Keep focus stable for subsequent clicks inside the text box
+             textInputProxyRef.current?.focus();
+             evt.preventDefault();
+             // Stop propagation to prevent selection tool from taking over
+             evt.stopPropagation();
+             return; 
+          }
+        }
+      }
+
+      // Clicked OUTSIDE - commit and exit
+      textToolRef.current.commitAndExit();
+      // Allow event to fall through to standard selection logic (so you can select something else immediately)
+    }
 
     if (evt.button === 2 && activeTool === 'polyline') {
       const prev = draftRef.current;
@@ -924,9 +1297,9 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool === 'select') setSelectionBox(null);
 
     if (activeTool === 'text') {
-      // Click establishes the visual top; TextEditorOverlay converts to bottom-left on commit.
-      setTextEditState({ x: snapped.x, y: snapped.y, content: '' });
-      useUIStore.getState().setEditingTextId(null);
+      // Start potential drag for FixedWidth text
+      textDragStartRef.current = snapped;
+      setDraft({ kind: 'text', start: snapped, current: snapped });
       return;
     }
 
@@ -1110,10 +1483,45 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    if (textEditState) return;
+    // Delegate pointer move when editing text
+    if (engineTextEditState.active) {
+       if (textToolRef.current && engineTextEditState.textId !== null) {
+          const activeTextId = engineTextEditState.textId;
+          const activeShapeId = getShapeIdForText(activeTextId);
+          if (activeShapeId) {
+             const data = useDataStore.getState();
+             const shape = data.shapes[activeShapeId];
+             if (shape) {
+                const world = toWorldPoint(evt, viewTransform);
+             const bbox = getShapeBoundingBox(shape);
+             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+             const inside =
+              world.x >= bbox.x - tolerance &&
+              world.x <= bbox.x + bbox.width + tolerance &&
+              world.y >= bbox.y - tolerance &&
+              world.y <= bbox.y + bbox.height + tolerance;
+             setCursorOverride(inside ? 'text' : null);
+
+                const anchorY = (shape.y || 0) + (shape.height || 0);
+                const anchorX = (shape.x || 0);
+                const localX = world.x - anchorX;
+                const localY = world.y - anchorY;
+                textToolRef.current.handlePointerMove(activeTextId, localX, localY);
+             }
+          }
+       }
+       return;
+    }
 
     const world = toWorldPoint(evt, viewTransform);
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+
+    if (activeTool === 'text') {
+      if (textDragStartRef.current) {
+        setDraft({ kind: 'text', start: textDragStartRef.current, current: snapped });
+      }
+      return;
+    }
 
     if (activeTool === 'select') {
       const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
@@ -1163,6 +1571,25 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + ddx), y: clampTiny(p.y + ddy) }));
 
           if (Object.keys(diff).length) data.updateShape(id, diff, false);
+
+          // Sync text position with engine if this is a text shape
+          if (shape.type === 'text' && textToolRef.current) {
+            const textId = getTextIdForShape(id);
+            if (textId !== null) {
+              const meta = textBoxMetaRef.current.get(textId);
+              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+              // Engine anchor is at top-left of text box in Y-Up world:
+              // - shape.x is bottom-left X (same as anchor X)  
+              // - anchor Y = shape.y + shape.height (top of box in Y-Up)
+              const newAnchorX = diff.x ?? shape.x ?? 0;
+              const newShapeY = diff.y ?? shape.y ?? 0;
+              const height = shape.height ?? 0;
+              const newAnchorY = newShapeY + height;
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY, boxMode, constraintWidth);
+            }
+          }
         });
         return;
       }
@@ -1232,16 +1659,13 @@ const EngineInteractionLayer: React.FC = () => {
         }
 
         // Flip-friendly local AABB from (0,0) at fixed corner to signed (rawW, rawH).
-        const localMinX = Math.min(0, rawW);
-        const localMaxX = Math.max(0, rawW);
-        const localMinY = Math.min(0, rawH);
-        const localMaxY = Math.max(0, rawH);
+        let localMinX = Math.min(0, rawW);
+        let localMaxX = Math.max(0, rawW);
+        let localMinY = Math.min(0, rawH);
+        let localMaxY = Math.max(0, rawH);
 
         const nextW = Math.max(eps, localMaxX - localMinX);
-        const nextH = Math.max(eps, localMaxY - localMinY);
-
-        const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
-        const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
+        let nextH = Math.max(eps, localMaxY - localMinY);
 
         const baseScaleX = state.snapshot.scaleX ?? 1;
         const baseScaleY = state.snapshot.scaleY ?? 1;
@@ -1254,11 +1678,53 @@ const EngineInteractionLayer: React.FC = () => {
         const flippedX = nextSignX !== expectedSignX;
         const flippedY = nextSignY !== expectedSignY;
 
-        const nextScaleX = (flippedX ? -1 : 1) * baseScaleX;
-        const nextScaleY = (flippedY ? -1 : 1) * baseScaleY;
+        let nextScaleX = (flippedX ? -1 : 1) * baseScaleX;
+        let nextScaleY = (flippedY ? -1 : 1) * baseScaleY;
+
+        // Text Reflow Logic
+        if (curr.type === 'text' && textToolRef.current) {
+            // Find Engine Text ID
+            const textId = getTextIdForShape(curr.id);
+
+            if (textId !== null) {
+              const newBounds = textToolRef.current.resizeText(textId, nextW);
+              if (newBounds) {
+                 // Allow box to be taller than text (vertical resize), but at least as tall as content
+                 nextH = Math.max(newBounds.height, nextH);
+                 
+                 // Update rawH to match the ACTUAL height so that center calculation is correct
+                 // relative to the fixed corner.
+                 const sY = Math.sign(rawH) || expectedSignY || 1;
+                 rawH = sY * nextH;
+                 
+                 // Text should not scale, just reflow.
+                 nextScaleX = 1; 
+                 nextScaleY = 1;
+
+                 // Recalculate local bounds with updated rawH
+                 localMinY = Math.min(0, rawH);
+                 localMaxY = Math.max(0, rawH);
+              }
+            }
+        }
+
+        const localCenter = { x: (localMinX + localMaxX) / 2, y: (localMinY + localMaxY) / 2 };
+        const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
 
         const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
         data.updateShape(state.shapeId, diff, false);
+
+        if (curr.type === 'text') {
+          const textId = getTextIdForShape(curr.id);
+          if (textId !== null) {
+            textBoxMetaRef.current.set(textId, {
+              boxMode: TextBoxMode.FixedWidth,
+              constraintWidth: nextW,
+              fixedHeight: nextH,
+              maxAutoWidth: nextW,
+            });
+          }
+        }
         return;
       }
 
@@ -1294,6 +1760,22 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
 
           if (Object.keys(diff).length) data.updateShape(id, diff, false);
+
+          // Sync text position with engine if this is a text shape
+          if (shape.type === 'text' && textToolRef.current) {
+            const textId = getTextIdForShape(id);
+            if (textId !== null) {
+              const meta = textBoxMetaRef.current.get(textId);
+              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+              const newAnchorX = diff.x ?? shape.x ?? 0;
+              const newShapeY = diff.y ?? shape.y ?? 0;
+              const height = shape.height ?? 0;
+              const newAnchorY = newShapeY + height;
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY, boxMode, constraintWidth);
+            }
+          }
         });
       }
       return;
@@ -1325,7 +1807,38 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (evt.button !== 0) return;
 
-    if (textEditState) return;
+    // Delegate pointer up when editing text
+    if (engineTextEditState.active) {
+       textToolRef.current?.handlePointerUp();
+       return;
+    }
+
+    // Handle text tool creation
+    if (activeTool === 'text' && textDragStartRef.current) {
+      const world = toWorldPoint(evt, viewTransform);
+      const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
+      const start = textDragStartRef.current;
+      textDragStartRef.current = null;
+
+      if (textToolRef.current) {
+        const dx = snapped.x - start.x;
+        const dy = snapped.y - start.y;
+        const dragDistance = Math.hypot(dx, dy);
+
+        if (dragDistance > 10) {
+          // Drag creates FixedWidth text
+          textToolRef.current.handleDrag(start.x, start.y, snapped.x, snapped.y);
+        } else {
+          // Click creates AutoWidth text
+          textToolRef.current.handleClick(start.x, start.y);
+        }
+
+        // Focus the text input proxy
+        requestAnimationFrame(() => textInputProxyRef.current?.focus());
+      }
+      setDraft({ kind: 'none' });
+      return;
+    }
 
     if (activeTool === 'move') {
       const moveState = moveRef.current;
@@ -1501,12 +2014,58 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handleDoubleClick = (evt: React.MouseEvent<HTMLDivElement>) => {
-    if (activeTool !== 'polyline') return;
-    evt.preventDefault();
+    // Determine context for double click
+    
+    // 1. Text editing
+    if (activeTool === 'select') {
+      const world = toWorldPoint({
+        currentTarget: evt.currentTarget,
+        clientX: evt.clientX,
+        clientY: evt.clientY
+      } as React.PointerEvent<HTMLDivElement>, viewTransform); // Reuse util
 
-    const prev = draftRef.current;
-    setDraft({ kind: 'none' });
-    if (prev.kind === 'polyline') commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const hitId = pickShape(world, { x: evt.clientX, y: evt.clientY } as Point, tolerance); // Reuse pickShape
+        
+      if (hitId) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[hitId];
+        if (shape && shape.type === 'text') {
+          // Enter edit mode
+          const textWrapperId = shape.id;
+          const foundTextId = getTextIdForShape(textWrapperId);
+          
+          if (foundTextId !== null && textToolRef.current) {
+            useUIStore.getState().setTool('text');
+            
+            // Coordinate transform: 
+            // Engine Anchor (Top-Left) = shape.y + shape.height
+            const anchorY = (shape.y || 0) + (shape.height || 0);
+            const anchorX = (shape.x || 0);
+            const localX = world.x - anchorX;
+            const localY = anchorY - world.y; // World Y up vs Local Y down
+            
+            const meta = textBoxMetaRef.current.get(foundTextId);
+            const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+            const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
+            
+            requestAnimationFrame(() => textInputProxyRef.current?.focus());
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Polyline finish
+    if (activeTool === 'polyline') {
+        evt.preventDefault();
+        const prev = draftRef.current;
+        setDraft({ kind: 'none' });
+        if (prev.kind === 'polyline') commitPolyline(prev.current ? [...prev.points, prev.current] : prev.points);
+        return;
+    }
   };
 
   const draftSvg = useMemo(() => {
@@ -1547,6 +2106,20 @@ const EngineInteractionLayer: React.FC = () => {
       return (
         <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'text') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={0.9} />
         </svg>
       );
     }
@@ -1646,11 +2219,35 @@ const EngineInteractionLayer: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
     >
       {draftSvg}
-      <SelectionOverlay />
+      <SelectionOverlay hideAnchors={engineTextEditState.active} />
       {selectionSvg}
-      {textEditState ? (
-        <TextEditorOverlay textEditState={textEditState} setTextEditState={setTextEditState} viewTransform={viewTransform} />
-      ) : null}
+      {/* Engine-native text editing components */}
+      <TextInputProxy
+        ref={textInputProxyRef}
+        active={engineTextEditState.active}
+        content={engineTextEditState.content}
+        caretIndex={engineTextEditState.caretIndex}
+        selectionStart={engineTextEditState.selectionStart}
+        selectionEnd={engineTextEditState.selectionEnd}
+        positionHint={engineTextEditState.caretPosition ?? undefined}
+        onInput={(delta: TextInputDelta) => {
+          textToolRef.current?.handleInputDelta(delta);
+        }}
+        onSelectionChange={(start, end) => {
+          textToolRef.current?.handleSelectionChange(start, end);
+        }}
+        onSpecialKey={(key, e) => {
+          textToolRef.current?.handleSpecialKey(key, e);
+        }}
+      />
+
+      <TextCaretOverlay
+        caret={caret}
+        selectionRects={selectionRects}
+        viewTransform={viewTransform}
+        anchor={anchor}
+        rotation={rotation}
+      />
       {polygonSidesModal ? (
         <>
           <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { isShapeInteractable } from '@/utils/visibility';
 import {
@@ -82,7 +83,7 @@ const offsetPolyline = (points: readonly { x: number; y: number }[], delta: numb
   return out;
 };
 
-const SelectionOverlay: React.FC = () => {
+const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = false }) => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
@@ -137,7 +138,7 @@ const SelectionOverlay: React.FC = () => {
         items.push({
           id,
           outline: { kind: 'segment', a: aa, b: bb },
-          handles: [aa, bb],
+          handles: hideAnchors ? [] : [aa, bb],
         });
         return;
       }
@@ -148,7 +149,7 @@ const SelectionOverlay: React.FC = () => {
         items.push({
           id,
           outline: { kind: 'polyline', points: offsetPolyline(pts, OUTLINE_OFFSET_PX) },
-          handles: pts,
+          handles: hideAnchors ? [] : pts,
         });
         return;
       }
@@ -156,14 +157,25 @@ const SelectionOverlay: React.FC = () => {
       if (supportsBBoxResize(shape)) {
         const r = getRectCornersWorld(shape);
         if (!r) return;
-        const handles = getShapeHandles(shape)
-          .filter((h) => h.type === 'resize')
-          .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform));
+        
+        // Check feature flag for text resize handles
+        let showHandles = true;
+        if (shape.type === 'text') {
+           const allowTextResize = useSettingsStore.getState().featureFlags.enableTextResize;
+           if (!allowTextResize) showHandles = false;
+        }
+
+        const handles = showHandles 
+          ? getShapeHandles(shape)
+              .filter((h) => h.type === 'resize')
+              .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform))
+          : [];
+
         const outline = inflateConvexPolygon(r.corners.map((p) => worldToScreen(p, viewTransform)), OUTLINE_OFFSET_PX);
         items.push({
           id,
           outline: { kind: 'poly', points: outline },
-          handles,
+          handles: hideAnchors ? [] : handles,
         });
         return;
       }
@@ -234,7 +246,7 @@ const SelectionOverlay: React.FC = () => {
         })}
       </svg>
     );
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
+  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
 
   return selectedOverlaySvg;
 };
