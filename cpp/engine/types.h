@@ -30,6 +30,24 @@ static constexpr std::size_t rectTriangleFloats = 6 * 7; // 6 vertices * (x,y,z,
 static constexpr std::size_t rectOutlineFloats = 8 * 7; // 4 segments, 2 vertices each (x,y,z,r,g,b,a)
 static constexpr std::size_t lineSegmentFloats = 2 * 7;
 
+// Entity Flags for Picking/Interactions
+enum class EntityFlags : std::uint8_t {
+    None         = 0,
+    Visible      = 1 << 0,
+    Locked       = 1 << 1,
+    Interactable = 1 << 2, // Reserved for future use
+};
+
+inline EntityFlags operator|(EntityFlags a, EntityFlags b) {
+    return static_cast<EntityFlags>(static_cast<std::uint8_t>(a) | static_cast<std::uint8_t>(b));
+}
+inline EntityFlags operator&(EntityFlags a, EntityFlags b) {
+    return static_cast<EntityFlags>(static_cast<std::uint8_t>(a) & static_cast<std::uint8_t>(b));
+}
+inline bool hasFlag(EntityFlags flags, EntityFlags flag) {
+    return (static_cast<std::uint8_t>(flags) & static_cast<std::uint8_t>(flag)) != 0;
+}
+
 // Snapshot (EWC1) persists only the "base" fields for these records.
 // Styling fields appended below are runtime-only and defaulted when loading a snapshot.
 struct RectRec {
@@ -212,6 +230,10 @@ enum class CommandOp : std::uint32_t {
     SetTextSelection = 17,
     InsertTextContent = 18,   // Insert text at caret position
     DeleteTextContent = 19,   // Delete text range
+    // Flag commands
+    SetEntityFlags = 20,
+    SetEntityFlagsBatch = 21,
+
     ApplyTextStyle = 42,      // TEXT_APPLY_STYLE (0x2A)
     SetTextAlign = 43,        // TEXT_SET_ALIGN (0x2B)
 };
@@ -261,6 +283,22 @@ struct ArrowPayload {
     float strokeR, strokeG, strokeB, strokeA;
     float strokeEnabled;
     float strokeWidthPx;
+};
+
+// Single flag update
+struct SetEntityFlagsPayload {
+    std::uint32_t id;
+    std::uint8_t flags; // EntityFlags
+    std::uint8_t reserved[3];
+};
+
+// Batch flag update header (variable length: count * 5 bytes or parallel arrays? Parallel arrays better for alignment)
+// Let's use: Header { count, reserved } + ids[] + flags[] (padded to 4 bytes? or just byte array?)
+// Alignment matters. Let's do:
+// [Header] [ID * count] [Flags * count] (flags aligned? bytes are fine)
+struct SetEntityFlagsBatchHeader {
+    std::uint32_t count;
+    std::uint32_t reserved;
 };
 
 // ============================================================================

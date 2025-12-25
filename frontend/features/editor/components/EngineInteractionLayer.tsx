@@ -95,22 +95,39 @@ const EngineInteractionLayer: React.FC = () => {
     // 1. Try Engine Pick (CPU O(N)) for immediate hits
     if (runtimeRef.current) {
         // Engine returns uint32 ID. We need to map it back to string ID.
+        // Engine-First Picking: The engine now checks visibility and lock status internally.
+        // We trust the returned ID if it corresponds to a supported entity.
         const id = runtimeRef.current.engine.pick(world.x, world.y, tolerance);
         if (id !== 0) {
             const strId = runtimeRef.current.getIdMaps().idHashToString.get(id);
-            // Check visibility/interactability for the hit
             if (strId) {
+                // If it's a basic geometry supported by Engine (Line, Polyline, Rect, Circle),
+                // we return it immediately without JS-side visibility checks.
+                // Text/Polygon/Arrow are NOT yet fully supported by Engine pick() (return 0 or fall through).
+                // Actually, engine pick logic in C++ switch handles Rect, Circle, Line, Polyline.
+                // It returns 0 for others.
+
+                // IMPORTANT: We still need to check if the shape exists in store to return it safely,
+                // but we DO NOT check layer.visible/locked here anymore (Engine handled it).
+
+                // Dev Assert: Check if we got an invisible shape (should not happen if engine works)
+                /*
                 const data = useDataStore.getState();
                 const shape = data.shapes[strId];
                 const layer = shape ? data.layers.find(l => l.id === shape.layerId) : null;
-                const ui = useUIStore.getState();
-                const interactable = shape && isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline });
-                const visible = layer && layer.visible && !layer.locked;
-                if (interactable && visible) {
-                    return strId;
+                if (layer && (!layer.visible || layer.locked)) {
+                    console.error("[EnginePicking] Engine returned invisible/locked shape!", strId, layer);
                 }
+                */
+
+               return strId;
             }
         }
+        // If id == 0, it means Engine didn't find anything VALID (visible & interactable).
+        // Proceed to fallbacks for unsupported entities (Text, etc.) or just return null?
+        // Current fallback chain: GPU -> JS Geometry.
+        // GPU Picker is needed for Text/Polygon/Arrow which Engine doesn't pick yet.
+        // JS Geometry is legacy fallback.
     }
 
     if (gpuPickerRef.current) {

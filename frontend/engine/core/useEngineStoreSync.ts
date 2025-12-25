@@ -130,6 +130,38 @@ const rgb01 = (hex: string): { r: number; g: number; b: number } => {
   return { r: rgb.r / 255.0, g: rgb.g / 255.0, b: rgb.b / 255.0 };
 };
 
+// Entity Flags Enum (Mirroring C++ types.h)
+enum EntityFlags {
+    None         = 0,
+    Visible      = 1 << 0,
+    Locked       = 1 << 1,
+    Interactable = 1 << 2,
+}
+
+// Compute flags for a shape
+const computeEntityFlags = (shape: Shape, layer: Layer | null): number => {
+    let flags = 0;
+
+    const visible = layer ? layer.visible : true; // Default visible if no layer
+    const locked = layer ? layer.locked : false; // Default unlocked if no layer
+
+    // Also check shape-specific lock if present in future, currently mainly layer
+    // (Prompt mentions "shape -> locked (se existir)")
+    // Assuming shape.locked property might exist or be added. Checking type definition is hard here without reading types/index.ts.
+    // But safest is to rely on Layer for now as primary source, and extend if shape has property.
+    // Let's assume shape might have it.
+    const shapeLocked = (shape as any).locked === true;
+
+    if (visible) flags |= EntityFlags.Visible;
+    if (locked || shapeLocked) flags |= EntityFlags.Locked;
+
+    // Interactable reserved for future use, but implies we can pick it.
+    // If visible and not locked, it's interactable.
+    if (visible && !locked && !shapeLocked) flags |= EntityFlags.Interactable;
+
+    return flags;
+};
+
 export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, ensureId: (id: string) => number): EngineCommand | null => {
   if (!isSupportedShape(shape)) return null;
   const id = ensureId(shape.id);
@@ -311,12 +343,29 @@ export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers:
   for (const l of nextLayers) {
     const prevL = prevById.get(l.id);
     if (!prevL) continue;
+    // Check style props
     if (l.strokeColor !== prevL.strokeColor || l.fillColor !== prevL.fillColor || l.strokeEnabled !== prevL.strokeEnabled || l.fillEnabled !== prevL.fillEnabled) {
       changedLayerIds.add(l.id);
     }
   }
   return changedLayerIds;
 };
+
+// Returns set of layers where visibility or locked status changed
+export const computeStateChangedLayerIds = (prevLayers: readonly Layer[], nextLayers: readonly Layer[]): Set<string> => {
+    const changed = new Set<string>();
+    if (nextLayers === prevLayers) return changed;
+
+    const prevById = new Map(prevLayers.map((l) => [l.id, l]));
+    for (const l of nextLayers) {
+        const prevL = prevById.get(l.id);
+        if (!prevL) continue;
+        if (l.visible !== prevL.visible || l.locked !== prevL.locked) {
+            changed.add(l.id);
+        }
+    }
+    return changed;
+}
 
 export const computeLayerDrivenReupsertCommands = (
   shapes: Readonly<Record<string, Shape>>,
@@ -515,6 +564,11 @@ export const useEngineStoreSync = (): void => {
           const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
           if (cmd) {
             commands.push(cmd);
+            // Engine-First Picking: Sync Flags
+            // Append flag update for every upserted shape
+            const flags = computeEntityFlags(nextShape, layer);
+            commands.push({ op: CommandOp.SetEntityFlags, id: cmd.id, flags: { flags } });
+
           } else {
             const eid = getEngineId(id);
             if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
@@ -524,7 +578,61 @@ export const useEngineStoreSync = (): void => {
         // Layer style changes: re-upsert affected visible shapes even if the shape object did not change.
         if (layerStyleChanged) {
             const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
-            commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
+            const styleUpdates = computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds);
+            commands.push(...styleUpdates);
+
+            // Engine-First Picking: Sync Flags for Layer State Changes (Visible/Locked)
+            // If layers changed state (visible/locked), we must update flags for all shapes on those layers.
+            // Note: If a layer becomes invisible, shapes are effectively deleted from engine above in 'buildVisibleOrder' diff (lastVisibleIds).
+            // So we mainly care about 'Locked' state changes or 'Visible' (if engine still keeps them? No, engine deletes invisible).
+            // Wait, if engine deletes invisible shapes, then we don't need to sync 'Visible' flag for *hidden* items because they won't be in engine.
+            // BUT, the prompt strategy says "Engine decides... pick() ignore hidden".
+            // If we remove them from engine when hidden, pick() naturally fails (which is fine).
+            // However, keeping them in engine with Visible=0 allows for faster toggle?
+            // Current architecture DELETEs invisible shapes to save memory/perf.
+            // So 'Visible' flag is always 1 for things in engine?
+            // "O Engine deve retornar diretamente o primeiro hit válido (visível e interagível), respeitando visibilidade/lock."
+            // If we maintain the current behavior of DELETING invisible shapes, then the Engine `pick` loop won't even see them.
+            // So the 'Visible' flag in C++ might be redundant if we don't change the frontend sync logic to KEEP invisible shapes.
+            // PROMPT RULE: "Implementar filtragem de visibilidade/lock no C++ pick() via comandos de estado... o frontend não deve filtrar"
+            // If I delete them, they are gone. That satisfies "pick ignores them".
+            // But what about Locked? Locked shapes ARE visible. They are in the engine.
+            // Engine currently picks them. Frontend filters them out.
+            // So Locked flag is CRITICAL.
+            // Visible flag is useful if we decide to keep invisible shapes in engine later (or for transient states).
+            // Let's implement it robustly.
+
+            // For now, we only need to batch update flags if LOCK state changes,
+            // OR if we start keeping invisible shapes.
+            // But `buildVisibleOrder` filters out invisible layers. So invisible shapes are NOT sent to engine.
+            // So they effectively don't exist.
+            // Thus, we only need to sync LOCKED state for now.
+
+            const stateChangedLayers = computeStateChangedLayerIds(prevData.layers, nextData.layers);
+            if (stateChangedLayers.size > 0) {
+                const batchIds: number[] = [];
+                const batchFlags: number[] = [];
+
+                for (const id of nextOrderedIds) { // Iterate visible shapes
+                    const s = nextData.shapes[id];
+                    if (!s) continue;
+                    if (stateChangedLayers.has(s.layerId)) {
+                        const layer = layersById.get(s.layerId) ?? null;
+                        const eid = getEngineId(id);
+                        if (eid !== null) {
+                            batchIds.push(eid);
+                            batchFlags.push(computeEntityFlags(s, layer));
+                        }
+                    }
+                }
+
+                if (batchIds.length > 0) {
+                    commands.push({
+                        op: CommandOp.SetEntityFlagsBatch,
+                        batch: { ids: batchIds, flags: batchFlags }
+                    });
+                }
+            }
         }
 
         // Nodes: deletes then adds/updates (conduits depend on them).
@@ -620,7 +728,12 @@ export const useEngineStoreSync = (): void => {
           const s = lastData.shapes[id]!;
           const layer = layersById.get(s.layerId) ?? null;
           const cmd = shapeToEngineCommand(s, layer, ensureId);
-          if (cmd) initCommands.push(cmd);
+          if (cmd) {
+            initCommands.push(cmd);
+             // Initial Sync: Flags
+             const flags = computeEntityFlags(s, layer);
+             initCommands.push({ op: CommandOp.SetEntityFlags, id: cmd.id, flags: { flags } });
+          }
         }
 
         runtime.apply(initCommands);

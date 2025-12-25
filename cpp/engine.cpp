@@ -154,6 +154,9 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     for (const auto& kv : entityManager_.entities) entityManager_.drawOrderIds.push_back(kv.first);
     std::sort(entityManager_.drawOrderIds.begin(), entityManager_.drawOrderIds.end());
 
+    // Clear flags on snapshot load (default state is Visible | Interactable implicitly if missing)
+    entityFlags_.clear();
+
     const double t1 = emscripten_get_now();
     
     // Lazy rebuild
@@ -244,6 +247,20 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
 
     for (auto it = entityManager_.drawOrderIds.rbegin(); it != entityManager_.drawOrderIds.rend(); ++it) {
         std::uint32_t id = *it;
+
+        // --- Flag Check (State Awareness) ---
+        // Default is Visible | Interactable (implied if not in map)
+        EntityFlags flags = EntityFlags::Visible | EntityFlags::Interactable;
+        auto flagIt = entityFlags_.find(id);
+        if (flagIt != entityFlags_.end()) {
+            flags = static_cast<EntityFlags>(flagIt->second);
+        }
+
+        // Must be visible and not locked
+        if (!hasFlag(flags, EntityFlags::Visible) || hasFlag(flags, EntityFlags::Locked)) {
+            continue;
+        }
+
         auto refIt = entityManager_.entities.find(id);
         if (refIt == entityManager_.entities.end()) continue;
 
@@ -333,6 +350,7 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
 
 void CadEngine::clearWorld() noexcept {
     entityManager_.clear();
+    entityFlags_.clear(); // Clear all state
     viewScale = 1.0f;
     triangleVertices.clear();
     lineVertices.clear();
@@ -348,6 +366,9 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
     renderDirty = true;
     snapshotDirty = true;
     
+    // Clear flags
+    entityFlags_.erase(id);
+
     // Check if it's text first, as text is managed by CadEngine/TextStore logic
     auto it = entityManager_.entities.find(id);
     if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Text) {
@@ -560,10 +581,53 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             break;
         }
         // =======================================================================
+        // Flag Commands (New for Engine-First Picking)
+        // =======================================================================
+        case static_cast<std::uint32_t>(CommandOp::SetEntityFlags): {
+            if (payloadByteCount != sizeof(SetEntityFlagsPayload)) return EngineError::InvalidPayloadSize;
+            SetEntityFlagsPayload p;
+            std::memcpy(&p, payload, sizeof(SetEntityFlagsPayload));
+            self->entityFlags_[p.id] = p.flags;
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetEntityFlagsBatch): {
+            if (payloadByteCount < sizeof(SetEntityFlagsBatchHeader)) return EngineError::InvalidPayloadSize;
+            SetEntityFlagsBatchHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(SetEntityFlagsBatchHeader));
+
+            // Expected size: header + count * 4 (IDs) + count * 1 (Flags)
+            // But alignment? Let's check the buffer layout assumptions.
+            // TS sends [Header] [IDs u32 array] [Flags u8 array]
+
+            std::size_t expected = sizeof(SetEntityFlagsBatchHeader) + static_cast<std::size_t>(hdr.count) * 4 + static_cast<std::size_t>(hdr.count);
+            // Wait, we need to respect alignment or TS needs to send padding?
+            // Usually TS data view writes are packed. But if we read U32 we need alignment if strictly casting, but memcpy is safe.
+            // However, JS Side: writeU32 takes 4 bytes. writeU8 takes 1 byte.
+            // If we follow packed structure:
+
+            if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
+
+            const std::uint8_t* ptr = payload + sizeof(SetEntityFlagsBatchHeader);
+
+            // Read IDs
+            // Use memcpy to avoid alignment issues if payload ptr is not aligned
+            std::vector<std::uint32_t> ids(hdr.count);
+            std::memcpy(ids.data(), ptr, hdr.count * 4);
+            ptr += hdr.count * 4;
+
+            // Read Flags
+            const std::uint8_t* flagsPtr = ptr;
+
+            for (std::uint32_t i = 0; i < hdr.count; i++) {
+                self->entityFlags_[ids[i]] = flagsPtr[i];
+            }
+            break;
+        }
+        // =======================================================================
         // Text Commands
         // =======================================================================
         case static_cast<std::uint32_t>(CommandOp::UpsertText): {
-            printf("[DEBUG] UpsertText command received: id=%u payloadBytes=%u\n", id, payloadByteCount);
+            // printf("[DEBUG] UpsertText command received: id=%u payloadBytes=%u\n", id, payloadByteCount);
             
             // Variable-length payload: [TextPayloadHeader][TextRunPayload * runCount][UTF-8 content]
             if (payloadByteCount < sizeof(TextPayloadHeader)) return EngineError::InvalidPayloadSize;
@@ -571,8 +635,8 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             TextPayloadHeader hdr;
             std::memcpy(&hdr, payload, sizeof(TextPayloadHeader));
             
-            printf("[DEBUG] UpsertText header: x=%.2f y=%.2f runCount=%u contentLen=%u\n", 
-                hdr.x, hdr.y, hdr.runCount, hdr.contentLength);
+            // printf("[DEBUG] UpsertText header: x=%.2f y=%.2f runCount=%u contentLen=%u\n",
+            //    hdr.x, hdr.y, hdr.runCount, hdr.contentLength);
             
             const std::size_t runsSize = static_cast<std::size_t>(hdr.runCount) * sizeof(TextRunPayload);
             const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength;
@@ -584,7 +648,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             if (!self->upsertText(id, hdr, runs, hdr.runCount, content, hdr.contentLength)) {
                 return EngineError::InvalidOperation;
             }
-            printf("[DEBUG] UpsertText: successfully stored text id=%u\n", id);
+            // printf("[DEBUG] UpsertText: successfully stored text id=%u\n", id);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::DeleteText): {

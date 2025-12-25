@@ -1,5 +1,5 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
-import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
+import { encodeCommandBuffer, type EngineCommand, CommandOp } from './commandBuffer';
 import { createIdAllocator, type IdMaps } from './idAllocator';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 
@@ -107,5 +107,16 @@ export class EngineRuntime {
     } finally {
       this.engine.freeBytes(ptr);
     }
+  }
+
+  // Helper for setting entity flags via command buffer
+  public setEntityFlags(id: number, flags: number): void {
+    this.apply([{ op: CommandOp.SetEntityFlags, id, flags: { flags } }]);
+  }
+
+  // Helper for batch setting entity flags
+  public setEntityFlagsBatch(ids: readonly number[], flags: readonly number[]): void {
+    if (ids.length !== flags.length || ids.length === 0) return;
+    this.apply([{ op: CommandOp.SetEntityFlagsBatch, batch: { ids, flags } }]);
   }
 }

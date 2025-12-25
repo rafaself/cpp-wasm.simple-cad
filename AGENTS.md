@@ -24,9 +24,9 @@ Atualmente, o projeto opera sob uma arquitetura **React-First**.
 *   **Engine C++:** Atua como:
     *   **Slave Renderer:** Desenha o que o React manda.
     *   **Calculation Library:** Realiza cálculos de layout de texto e métricas.
-    *   **Pick Helper:** Auxilia em queries espaciais (seleção por clique).
+    *   **Authoritative Picking (Spatial):** O Engine é a autoridade única para queries de seleção espacial (clique) em entidades suportadas (`Rect`, `Circle`, `Line`, `Polyline`).
     *   **NÃO** retém estado persistente. Um refresh da página ou `resetDocument` recria o Engine do zero a partir do estado React.
-*   **Sincronização:** O hook `useEngineStoreSync` observa mudanças no Store React e envia comandos (`UpsertRect`, `UpsertLine`, etc.) para o Engine.
+*   **Sincronização:** O hook `useEngineStoreSync` observa mudanças no Store React e envia comandos (`UpsertRect`, `SetEntityFlags`, etc.) para o Engine.
 
 **Implicações para Agentes:**
 *   Se você precisa alterar um shape, **altere o Zustand Store**.
@@ -62,7 +62,10 @@ Devido a limitações de ambiente (Docker permission error), mudanças no C++ po
 2.  **Nunca mova estado para o C++ sem um checkpoint explícito.** Migrar o source of truth é uma operação atômica e complexa.
 3.  **Preserve o MVP Genérico.** Não introduza lógica de domínio (elétrica, hidráulica, etc.) no Core.
 4.  **Texto é Híbrido.** O `TextTool.ts` orquestra, o Engine calcula layout, o React armazena o conteúdo final. Respeite essa fronteira.
-5.  **Use `engine.pick` se disponível.** Para seleção por clique, prefira a API do Engine.
+5.  **Picking Authority:**
+    *   **Engine is Authoritative:** O Engine deve filtrar visibilidade e lock internamente durante o `pick()`.
+    *   **No Frontend Post-Filtering:** O Frontend NÃO deve validar `visible` ou `locked` se o ID vier do Engine (confie na decisão do Engine).
+    *   **Fallbacks:** Use JS/GPU fallbacks *apenas* se o Engine retornar 0 (miss) ou para entidades não suportadas (Text, Polygon).
 
 ---
 

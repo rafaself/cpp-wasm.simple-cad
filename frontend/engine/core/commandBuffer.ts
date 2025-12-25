@@ -18,6 +18,8 @@ export const enum CommandOp {
   SetTextSelection = 17,
   InsertTextContent = 18,
   DeleteTextContent = 19,
+  SetEntityFlags = 20,
+  SetEntityFlagsBatch = 21,
   ApplyTextStyle = 42, // 0x2A
   SetTextAlign = 43, // 0x2B
 }
@@ -75,6 +77,15 @@ export type ArrowPayload = {
   strokeA: number;
   strokeEnabled: number; // 0 or 1
   strokeWidthPx: number;
+};
+
+export type SetEntityFlagsPayload = {
+  flags: number; // uint8
+};
+
+export type SetEntityFlagsBatchPayload = {
+  ids: readonly number[];
+  flags: readonly number[]; // uint8 array, same length as ids
 };
 
 // Text command payloads
@@ -149,6 +160,8 @@ export type EngineCommand =
   | { op: CommandOp.UpsertCircle; id: number; circle: CirclePayload }
   | { op: CommandOp.UpsertPolygon; id: number; polygon: PolygonPayload }
   | { op: CommandOp.UpsertArrow; id: number; arrow: ArrowPayload }
+  | { op: CommandOp.SetEntityFlags; id: number; flags: SetEntityFlagsPayload }
+  | { op: CommandOp.SetEntityFlagsBatch; batch: SetEntityFlagsBatchPayload }
   // Text commands
   | { op: CommandOp.UpsertText; id: number; text: TextPayload }
   | { op: CommandOp.DeleteText; id: number }
@@ -194,6 +207,16 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       return 72; // 17 floats + u32 sides
     case CommandOp.UpsertArrow:
       return 44; // 11 floats
+    case CommandOp.SetEntityFlags:
+      return 8; // id (u32 in header) + flags (u8) + reserved (3 bytes) = 4 bytes payload struct. But wait, id is in header.
+                // In C++ struct SetEntityFlagsPayload: id (u32), flags (u8), reserved(3). Size = 8.
+                // The C++ side reads id from payload struct, OR uses header ID?
+                // Looking at C++: `SetEntityFlagsPayload p; std::memcpy(&p, payload, sizeof(SetEntityFlagsPayload)); self->entityFlags_[p.id] = p.flags;`
+                // So the payload contains the ID again.
+      return 8;
+    case CommandOp.SetEntityFlagsBatch:
+      // Header (8 bytes) + ids (count * 4) + flags (count * 1)
+      return 8 + cmd.batch.ids.length * 4 + cmd.batch.flags.length;
     // Text commands
     case CommandOp.UpsertText: {
       // TextPayloadHeader (28 bytes) + TextRunPayload * runCount (24 bytes each) + UTF-8 content
@@ -349,6 +372,24 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.arrow.strokeA);
         o = writeF32(view, o, cmd.arrow.strokeEnabled);
         o = writeF32(view, o, cmd.arrow.strokeWidthPx);
+        break;
+      case CommandOp.SetEntityFlags:
+        o = writeU32(view, o, cmd.id); // SetEntityFlagsPayload starts with id
+        view.setUint8(o++, cmd.flags.flags & 0xff);
+        view.setUint8(o++, 0); // reserved
+        view.setUint8(o++, 0); // reserved
+        view.setUint8(o++, 0); // reserved
+        break;
+      case CommandOp.SetEntityFlagsBatch:
+        o = writeU32(view, o, cmd.batch.ids.length);
+        o = writeU32(view, o, 0); // reserved
+        // ids
+        for (const id of cmd.batch.ids) {
+            o = writeU32(view, o, id);
+        }
+        // flags
+        new Uint8Array(buf, o, cmd.batch.flags.length).set(cmd.batch.flags);
+        o += cmd.batch.flags.length;
         break;
       // ========== Text Commands ==========
       case CommandOp.UpsertText: {
