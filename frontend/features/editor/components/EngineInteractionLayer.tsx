@@ -27,78 +27,16 @@ import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSy
 import { useSelectInteraction, type SelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
 import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
 import { useTextEditHandler, type TextBoxMeta } from '@/features/editor/hooks/useTextEditHandler';
+import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
+import { useSymbolPlacement } from '@/features/editor/hooks/interaction/useSymbolPlacement';
+import { toWorldPoint, pickShapeAtGeometry, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
 
-const toWorldPoint = (
-  evt: React.PointerEvent<HTMLDivElement>,
-  viewTransform: ReturnType<typeof useUIStore.getState>['viewTransform'],
-): { x: number; y: number } => {
-  const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
-  const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-  return screenToWorld(screen, viewTransform);
-};
-
-const pickShapeAtGeometry = (
-  worldPoint: { x: number; y: number },
-  toleranceWorld: number,
-): string | null => {
-  const data = useDataStore.getState();
-  const ui = useUIStore.getState();
-
-  const queryRect = {
-    x: worldPoint.x - toleranceWorld,
-    y: worldPoint.y - toleranceWorld,
-    width: toleranceWorld * 2,
-    height: toleranceWorld * 2,
-  };
-
-  const candidates = data.spatialIndex
-    .query(queryRect)
-    .map((c) => data.shapes[c.id])
-    .filter(Boolean) as Shape[];
-
-  for (const shape of candidates) {
-    const layer = data.layers.find((l) => l.id === shape.layerId);
-    if (layer && (!layer.visible || layer.locked)) continue;
-    if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
-    if (shape.svgSymbolId) {
-      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld })) continue;
-      return shape.id;
-    }
-    if (shape.type === 'rect' && shape.svgRaw) {
-      void primeSymbolAlphaMask(shape.id, shape.svgRaw, 256);
-      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld, symbolIdOverride: shape.id })) continue;
-      return shape.id;
-    }
-    if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
-  }
-
-  return null;
-};
-
-const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
-
-const snapToGrid = (p: { x: number; y: number }, gridSize: number): { x: number; y: number } => {
-  if (!gridSize || gridSize <= 0) return p;
-  return { x: Math.round(p.x / gridSize) * gridSize, y: Math.round(p.y / gridSize) * gridSize };
-};
-
-const isDrag = (dx: number, dy: number): boolean => Math.hypot(dx, dy) > 2;
-
-const getCursorForTool = (tool: ReturnType<typeof useUIStore.getState>['activeTool']): string => {
-  if (tool === 'pan') return 'grab';
-  if (tool === 'select') return 'default';
-  if (tool === 'move' || tool === 'rotate') return 'default';
-  return 'crosshair';
-};
+// Utility functions moved to @/features/editor/utils/interactionHelpers.ts
 
 const EngineInteractionLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
   const activeTool = useUIStore((s) => s.activeTool);
-  const activeElectricalSymbolId = useUIStore((s) => s.activeElectricalSymbolId);
-  const electricalRotation = useUIStore((s) => s.electricalRotation);
-  const electricalFlipX = useUIStore((s) => s.electricalFlipX);
-  const electricalFlipY = useUIStore((s) => s.electricalFlipY);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
@@ -110,9 +48,9 @@ const EngineInteractionLayer: React.FC = () => {
   const gridSize = useSettingsStore((s) => s.grid.size);
 
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
-  const isPanningRef = useRef(false);
-  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const transformStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
+  
+  // Pan/Zoom hook
+  const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
 
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(false);
@@ -333,95 +271,8 @@ const EngineInteractionLayer: React.FC = () => {
     return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
   }, [activeTool, cursorOverride, engineTextEditState.active]);
 
-  const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
-    evt.preventDefault();
-    const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const mouse = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    setViewTransform((prev) => calculateZoomTransform(prev, mouse, evt.deltaY, screenToWorld));
-  };
-
-  const beginPan = (evt: React.PointerEvent<HTMLDivElement>) => {
-    isPanningRef.current = true;
-    panStartRef.current = { x: evt.clientX, y: evt.clientY };
-    transformStartRef.current = { ...viewTransform };
-  };
-
-  const updatePan = (evt: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPanningRef.current || !transformStartRef.current) return;
-    const dx = evt.clientX - panStartRef.current.x;
-    const dy = evt.clientY - panStartRef.current.y;
-    setViewTransform({
-      x: transformStartRef.current.x + dx,
-      y: transformStartRef.current.y + dy,
-      scale: transformStartRef.current.scale,
-    });
-  };
-
-  const endPan = () => {
-    isPanningRef.current = false;
-    transformStartRef.current = null;
-  };
-
-  const commitElectricalSymbolAt = (world: { x: number; y: number }) => {
-    if (!activeElectricalSymbolId) return;
-    const library = useLibraryStore.getState();
-    const data = useDataStore.getState();
-
-    const symbol = library.electricalSymbols[activeElectricalSymbolId];
-    if (!symbol) return;
-
-    const layerConfig = getElectricalLayerConfig(symbol.id, symbol.category);
-    const targetLayerId = data.ensureLayer(layerConfig.name, {
-      strokeColor: layerConfig.strokeColor,
-      fillColor: layerConfig.fillColor ?? '#ffffff',
-      fillEnabled: layerConfig.fillEnabled ?? false,
-      strokeEnabled: true,
-      isNative: true,
-    });
-
-    const width = symbol.viewBox.width * symbol.scale;
-    const height = symbol.viewBox.height * symbol.scale;
-    const shapeId = generateId();
-
-    const shape: Shape = {
-      id: shapeId,
-      layerId: targetLayerId,
-      type: 'rect',
-      x: clampTiny(world.x - width / 2),
-      y: clampTiny(world.y - height / 2),
-      width: clampTiny(width),
-      height: clampTiny(height),
-      strokeColor: layerConfig.strokeColor,
-      strokeWidth: toolDefaults.strokeWidth,
-      strokeEnabled: false,
-      fillColor: '#ffffff',
-      fillEnabled: false,
-      colorMode: getDefaultColorMode(),
-      points: [],
-      rotation: electricalRotation,
-      scaleX: electricalFlipX,
-      scaleY: electricalFlipY,
-      svgSymbolId: symbol.id,
-      svgRaw: symbol.canvasSvg,
-      svgViewBox: symbol.viewBox,
-      symbolScale: symbol.scale,
-      connectionPoint: symbol.defaultConnectionPoint,
-      floorId: activeFloorId,
-      discipline: activeDiscipline,
-    };
-
-    const metadata = getDefaultMetadataForSymbol(symbol.id);
-    const electricalElement: ElectricalElement = {
-      id: `el-${shapeId}`,
-      shapeId,
-      category: symbol.category,
-      name: symbol.id,
-      metadata,
-    };
-
-    data.addShape(shape, electricalElement);
-    setSelectedShapeIds(new Set([shapeId]));
-  };
+  // Electrical symbol placement - now provided by useSymbolPlacement hook
+  const { commitElectricalSymbolAt } = useSymbolPlacement();
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
@@ -514,7 +365,7 @@ const EngineInteractionLayer: React.FC = () => {
       const movable = selected.filter((s) => {
         const layer = data.layers.find((l) => l.id === s.layerId);
         if (layer?.locked) return false;
-        if (s.type === 'conduit') return false;
+        if (s.type === 'eletroduto') return false;
         return true;
       });
 

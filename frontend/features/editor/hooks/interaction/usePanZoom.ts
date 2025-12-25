@@ -4,6 +4,10 @@ import { calculateZoomTransform } from '@/utils/zoomHelper';
 import { screenToWorld } from '@/utils/geometry';
 import type { ViewTransform } from '@/types';
 
+/**
+ * Hook for handling pan and zoom interactions.
+ * Extracts pan/zoom logic from EngineInteractionLayer for better modularity.
+ */
 export function usePanZoom() {
   const isPanningRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -38,9 +42,6 @@ export function usePanZoom() {
     evt.preventDefault();
     const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
     const mouse = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    // Use setState callback to ensure fresh state if needed, but calculateZoomTransform takes prev.
-    // Here we use the store setter which might accept a callback or value.
-    // The original code used: setViewTransform((prev) => ...);
     setViewTransform((prev: ViewTransform) => calculateZoomTransform(prev, mouse, evt.deltaY, screenToWorld));
   }, [setViewTransform]);
 

@@ -44,7 +44,7 @@ export function useDraftHandler(params: {
     onAddShape: (shape: Shape) => void;
     onFinalizeDraw: (id: string) => void;
     activeFloorId: string | null;
-    activeDiscipline: string;
+    activeDiscipline: 'architecture' | 'electrical';
     runtime: any;
 }) {
     const { activeTool, viewTransform, snapSettings, onAddShape, onFinalizeDraw, activeFloorId, activeDiscipline, runtime } = params;

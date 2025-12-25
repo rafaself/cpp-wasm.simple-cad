@@ -1,13 +1,18 @@
+/**
+ * Hook for electrical symbol placement.
+ * Extracted from EngineInteractionLayer for better modularity.
+ */
+
 import { useCallback } from 'react';
+import type { Shape, ElectricalElement, Point } from '@/types';
 import { useUIStore } from '@/stores/useUIStore';
-import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useDataStore } from '@/stores/useDataStore';
+import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { generateId } from '@/utils/uuid';
 import { getDefaultColorMode } from '@/utils/shapeColors';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
-import type { Shape, ElectricalElement } from '@/types';
-import { clampTiny } from '../../utils/interactionHelpers';
+import { clampTiny } from '@/features/editor/utils/interactionHelpers';
 
 export function useSymbolPlacement() {
   const activeElectricalSymbolId = useUIStore((s) => s.activeElectricalSymbolId);
@@ -19,8 +24,9 @@ export function useSymbolPlacement() {
   const setSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
 
-  const commitElectricalSymbolAt = useCallback((world: { x: number; y: number }) => {
+  const commitElectricalSymbolAt = useCallback((world: Point) => {
     if (!activeElectricalSymbolId) return;
+    
     const library = useLibraryStore.getState();
     const data = useDataStore.getState();
 
@@ -63,7 +69,7 @@ export function useSymbolPlacement() {
       svgViewBox: symbol.viewBox,
       symbolScale: symbol.scale,
       connectionPoint: symbol.defaultConnectionPoint,
-      floorId: activeFloorId,
+      floorId: activeFloorId ?? undefined,
       discipline: activeDiscipline,
     };
 
@@ -85,11 +91,12 @@ export function useSymbolPlacement() {
     electricalFlipY,
     activeFloorId,
     activeDiscipline,
-    toolDefaults,
+    toolDefaults.strokeWidth,
     setSelectedShapeIds
   ]);
 
   return {
-    commitElectricalSymbolAt
+    commitElectricalSymbolAt,
+    activeElectricalSymbolId
   };
 }

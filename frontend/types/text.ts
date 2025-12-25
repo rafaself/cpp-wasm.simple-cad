@@ -13,7 +13,7 @@
  * Text style flags (bitfield)
  * Matches C++ TextStyleFlags enum
  */
-export const enum TextStyleFlags {
+export enum TextStyleFlags {
   None = 0,
   Bold = 1 << 0,
   Italic = 1 << 1,
@@ -25,7 +25,7 @@ export const enum TextStyleFlags {
  * Text alignment mode
  * Matches C++ TextAlign enum
  */
-export const enum TextAlign {
+export enum TextAlign {
   Left = 0,
   Center = 1,
   Right = 2,
@@ -35,7 +35,7 @@ export const enum TextAlign {
  * Text box sizing mode
  * Matches C++ TextBoxMode enum
  */
-export const enum TextBoxMode {
+export enum TextBoxMode {
   /** Grows horizontally, no auto-wrap (only explicit \n) */
   AutoWidth = 0,
   /** Wraps at constraintWidth */
