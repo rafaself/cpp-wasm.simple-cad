@@ -88,13 +88,13 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     EXPECT_EQ(stats.lineVertexCount, 0);
 
     // Also check color property
-    EXPECT_EQ(engine.rects[0].r, 1.0f);
-    EXPECT_EQ(engine.rects[0].g, 0.5f);
-    EXPECT_EQ(engine.rects[0].b, 0.0f);
-    EXPECT_EQ(engine.rects[0].sr, 0.0f);
-    EXPECT_EQ(engine.rects[0].sg, 1.0f);
-    EXPECT_EQ(engine.rects[0].sb, 0.0f);
-    EXPECT_EQ(engine.rects[0].strokeWidthPx, 2.0f);
+    EXPECT_EQ(engine.entityManager_.rects[0].r, 1.0f);
+    EXPECT_EQ(engine.entityManager_.rects[0].g, 0.5f);
+    EXPECT_EQ(engine.entityManager_.rects[0].b, 0.0f);
+    EXPECT_EQ(engine.entityManager_.rects[0].sr, 0.0f);
+    EXPECT_EQ(engine.entityManager_.rects[0].sg, 1.0f);
+    EXPECT_EQ(engine.entityManager_.rects[0].sb, 0.0f);
+    EXPECT_EQ(engine.entityManager_.rects[0].strokeWidthPx, 2.0f);
 }
 
 TEST_F(CadEngineTest, SnappingElectrical) {
@@ -151,9 +151,9 @@ TEST_F(CadEngineTest, SnapshotRoundTrip) {
     EXPECT_EQ(stats2.lineVertexCount, stats1.lineVertexCount);
 
     // Verify color
-    EXPECT_EQ(engine2.rects[0].r, 0.0f);
-    EXPECT_EQ(engine2.rects[0].g, 0.0f);
-    EXPECT_EQ(engine2.rects[0].b, 1.0f);
+    EXPECT_EQ(engine2.entityManager_.rects[0].r, 0.0f);
+    EXPECT_EQ(engine2.entityManager_.rects[0].g, 0.0f);
+    EXPECT_EQ(engine2.entityManager_.rects[0].b, 1.0f);
 }
 
 TEST_F(CadEngineTest, CommandBufferError) {

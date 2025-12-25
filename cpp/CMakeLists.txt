@@ -96,6 +96,7 @@ set(ENGINE_SOURCES
   engine/render.cpp
   engine/electrical.cpp
   engine/vector_tessellation.cpp
+  engine/entity_manager.cpp
 )
 
 # Text module sources (conditional)
@@ -106,6 +107,7 @@ if(ENGINE_ENABLE_TEXT)
     engine/text/text_layout.cpp
     engine/text/atlas_packer.cpp
     engine/text/glyph_atlas.cpp
+    engine/text_system.cpp
   )
 endif()
 

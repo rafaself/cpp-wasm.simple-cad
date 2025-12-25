@@ -14,13 +14,8 @@
 #include "engine/snapshot.h"
 #include "engine/electrical.h"
 
-// Text subsystem headers
-#include "engine/text/text_store.h"
-#include "engine/text/font_manager.h"
-#include "engine/text/text_layout.h"
-#include "engine/text/glyph_atlas.h"
-#include "engine/text/text_style_contract.h"
-
+#include "engine/entity_manager.h"
+#include "engine/text_system.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -108,27 +103,12 @@ private:
 public:
 #endif
 
-    std::vector<RectRec> rects;
-    std::vector<LineRec> lines;
-    std::vector<PolyRec> polylines;
-    std::vector<Point2> points;
-    std::vector<CircleRec> circles;
-    std::vector<PolygonRec> polygons;
-    std::vector<ArrowRec> arrows;
-    std::vector<SymbolRec> symbols;
-    std::vector<NodeRec> nodes;
-    std::vector<ConduitRec> conduits;
-    std::unordered_map<std::uint32_t, EntityRef> entities;
+    // Core Entity Manager
+    EntityManager entityManager_;
 
     // Text subsystem
-    engine::text::TextStore textStore_;
-    engine::text::FontManager fontManager_;
-    engine::text::TextLayoutEngine textLayoutEngine_;
-    engine::text::GlyphAtlas glyphAtlas_;
-    bool textInitialized_{false};
-    mutable std::vector<float> textQuadBuffer_;  // For text rendering quads
+    TextSystem textSystem_;
 
-    std::vector<std::uint32_t> drawOrderIds;
     float viewScale{1.0f};
 
     mutable std::vector<float> triangleVertices;
