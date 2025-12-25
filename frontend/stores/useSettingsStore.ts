@@ -50,7 +50,6 @@ interface SettingsState {
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
   featureFlags: {
-    gpuPicking: boolean;
     enableTextResize: boolean;
   };
 
@@ -87,7 +86,6 @@ interface SettingsState {
   setTextUnderline: (underline: boolean) => void;
   setTextStrike: (strike: boolean) => void;
 
-  setGpuPicking: (enabled: boolean) => void;
   setTextResizeEnabled: (enabled: boolean) => void;
 }
 
@@ -139,7 +137,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
   },
   featureFlags: {
-    gpuPicking: false,
     enableTextResize: false,
   },
 
@@ -175,6 +172,5 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
   setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
   setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
-  setGpuPicking: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, gpuPicking: enabled } })),
   setTextResizeEnabled: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, enableTextResize: enabled } })),
 }));

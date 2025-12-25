@@ -224,7 +224,6 @@ const EngineInteractionLayer: React.FC = () => {
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
-  const gpuPickingEnabled = useSettingsStore((s) => s.featureFlags.gpuPicking);
 
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const isPanningRef = useRef(false);
@@ -545,11 +544,12 @@ const EngineInteractionLayer: React.FC = () => {
   }, [engineTextEditState.active]);
 
   useEffect(() => {
-    if (!gpuPickingEnabled) return;
-    if (!gpuPickerRef.current) gpuPickerRef.current = new GpuPicker();
-  }, [gpuPickingEnabled]);
-
-  useEffect(() => {
+    // Always instantiate GpuPicker (modern WebGL2 path).
+    // The picker handles context loss/restoration internally if needed,
+    // but here we just ensure the instance exists.
+    if (!gpuPickerRef.current) {
+      gpuPickerRef.current = new GpuPicker();
+    }
     return () => {
       gpuPickerRef.current?.dispose();
     };
@@ -607,7 +607,7 @@ const EngineInteractionLayer: React.FC = () => {
       }
     }
 
-    if (gpuPickingEnabled && gpuPickerRef.current) {
+    if (gpuPickerRef.current) {
       const data = useDataStore.getState();
       const gpuHit = gpuPickerRef.current.pick({
         screen,
@@ -626,7 +626,7 @@ const EngineInteractionLayer: React.FC = () => {
     }
 
     return pickShapeAtGeometry(world, tolerance);
-  }, [activeDiscipline, activeFloorId, canvasSize, gpuPickingEnabled, viewTransform]);
+  }, [activeDiscipline, activeFloorId, canvasSize, viewTransform]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

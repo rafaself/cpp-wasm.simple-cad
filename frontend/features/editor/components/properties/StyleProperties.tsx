@@ -116,7 +116,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
     updateProp('strokeEnabled', !currentEnabled);
   };
 
-  const renderModeToggle = (target: 'fill' | 'stroke', active: ColorInheritanceMode) => (
+  const colorModeToggle = (target: 'fill' | 'stroke', active: ColorInheritanceMode) => (
     <div className="flex items-center justify-between text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2 select-none">
       <span className="cursor-default">Fonte</span>
       <div className="flex gap-1.5">
@@ -238,7 +238,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
           </div>
         </div>
 
-        {renderModeToggle('fill', fillMode)}
+        {colorModeToggle('fill', fillMode)}
 
         {fillEffectivelyEnabled && (
           <div className="flex flex-col gap-1.5">
@@ -332,7 +332,7 @@ export const StyleProperties: React.FC<StylePropertiesProps> = ({ selectedShape 
           </div>
         </div>
 
-        {renderModeToggle('stroke', strokeMode)}
+        {colorModeToggle('stroke', strokeMode)}
 
         {strokeEffectivelyEnabled && (
           <div className="flex flex-col gap-2">
