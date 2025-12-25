@@ -14,7 +14,7 @@
  * - When shapes are deleted/moved, this manager syncs with engine
  */
 
-import type { TextTool } from '@/features/editor/tools/TextTool';
+import type { TextTool } from '@/engine/tools/TextTool';
 
 // Singleton state for text ID mapping
 let textIdToShapeId = new Map<number, string>();

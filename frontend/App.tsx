@@ -1,5 +1,5 @@
 import React from 'react';
-import NextSurface from './src/components/NextSurface';
+import NextSurface from './features/editor/components/NextSurface';
 
 const App: React.FC = () => {
   return <NextSurface />;

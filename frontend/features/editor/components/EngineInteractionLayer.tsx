@@ -1,0 +1,961 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ElectricalElement, Patch, Point, Shape } from '@/types';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { useDataStore } from '@/stores/useDataStore';
+import { screenToWorld, isPointInShape, worldToScreen, getRectCornersWorld, getShapeBoundingBox } from '@/utils/geometry';
+import { calculateZoomTransform } from '@/utils/zoomHelper';
+import SelectionOverlay from './SelectionOverlay';
+import { HIT_TOLERANCE } from '@/config/constants';
+import { generateId } from '@/utils/uuid';
+import { getDefaultColorMode } from '@/utils/shapeColors';
+import { useLibraryStore } from '@/stores/useLibraryStore';
+import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
+import { isShapeInteractable } from '@/utils/visibility';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { GpuPicker } from '@/engine/picking/gpuPicker';
+import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
+import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
+import { TextTool } from '@/engine/tools/TextTool';
+import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
+import { TextCaretOverlay } from '@/components/TextCaretOverlay';
+import type { TextInputDelta } from '@/types/text';
+import { TextBoxMode } from '@/types/text';
+import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSync';
+
+// New hooks
+import { useSelectInteraction, type SelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
+import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
+import { useTextEditHandler, type TextBoxMeta } from '@/features/editor/hooks/useTextEditHandler';
+
+const toWorldPoint = (
+  evt: React.PointerEvent<HTMLDivElement>,
+  viewTransform: ReturnType<typeof useUIStore.getState>['viewTransform'],
+): { x: number; y: number } => {
+  const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+  const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  return screenToWorld(screen, viewTransform);
+};
+
+const pickShapeAtGeometry = (
+  worldPoint: { x: number; y: number },
+  toleranceWorld: number,
+): string | null => {
+  const data = useDataStore.getState();
+  const ui = useUIStore.getState();
+
+  const queryRect = {
+    x: worldPoint.x - toleranceWorld,
+    y: worldPoint.y - toleranceWorld,
+    width: toleranceWorld * 2,
+    height: toleranceWorld * 2,
+  };
+
+  const candidates = data.spatialIndex
+    .query(queryRect)
+    .map((c) => data.shapes[c.id])
+    .filter(Boolean) as Shape[];
+
+  for (const shape of candidates) {
+    const layer = data.layers.find((l) => l.id === shape.layerId);
+    if (layer && (!layer.visible || layer.locked)) continue;
+    if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+    if (shape.svgSymbolId) {
+      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld })) continue;
+      return shape.id;
+    }
+    if (shape.type === 'rect' && shape.svgRaw) {
+      void primeSymbolAlphaMask(shape.id, shape.svgRaw, 256);
+      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld, symbolIdOverride: shape.id })) continue;
+      return shape.id;
+    }
+    if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
+  }
+
+  return null;
+};
+
+const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
+
+const snapToGrid = (p: { x: number; y: number }, gridSize: number): { x: number; y: number } => {
+  if (!gridSize || gridSize <= 0) return p;
+  return { x: Math.round(p.x / gridSize) * gridSize, y: Math.round(p.y / gridSize) * gridSize };
+};
+
+const isDrag = (dx: number, dy: number): boolean => Math.hypot(dx, dy) > 2;
+
+const getCursorForTool = (tool: ReturnType<typeof useUIStore.getState>['activeTool']): string => {
+  if (tool === 'pan') return 'grab';
+  if (tool === 'select') return 'default';
+  if (tool === 'move' || tool === 'rotate') return 'default';
+  return 'crosshair';
+};
+
+const EngineInteractionLayer: React.FC = () => {
+  const viewTransform = useUIStore((s) => s.viewTransform);
+  const setViewTransform = useUIStore((s) => s.setViewTransform);
+  const activeTool = useUIStore((s) => s.activeTool);
+  const activeElectricalSymbolId = useUIStore((s) => s.activeElectricalSymbolId);
+  const electricalRotation = useUIStore((s) => s.electricalRotation);
+  const electricalFlipX = useUIStore((s) => s.electricalFlipX);
+  const electricalFlipY = useUIStore((s) => s.electricalFlipY);
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const setSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
+  const canvasSize = useUIStore((s) => s.canvasSize);
+
+  const toolDefaults = useSettingsStore((s) => s.toolDefaults);
+  const snapOptions = useSettingsStore((s) => s.snap);
+  const gridSize = useSettingsStore((s) => s.grid.size);
+
+  const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const transformStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
+
+  const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
+  const [runtimeReady, setRuntimeReady] = useState(false);
+  const gpuPickerRef = useRef<GpuPicker | null>(null);
+
+  const textToolRef = useRef<TextTool | null>(null);
+  const textInputProxyRef = useRef<TextInputProxyRef>(null);
+  const textBoxMetaRef = useRef<Map<number, TextBoxMeta>>(new Map());
+
+  // Track if we're dragging for FixedWidth text creation
+  const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      const runtime = await getEngineRuntime();
+      if (!disposed) {
+        runtimeRef.current = runtime;
+        setRuntimeReady(true);
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  const {
+      caret,
+      selectionRects,
+      anchor,
+      rotation,
+      engineTextEditState
+  } = useTextEditHandler({
+      viewTransform,
+      runtime: runtimeReady ? runtimeRef.current : null,
+      textInputProxyRef,
+      textBoxMetaRef,
+      textToolRef
+  });
+
+  useEffect(() => {
+    // Always instantiate GpuPicker (modern WebGL2 path).
+    if (!gpuPickerRef.current) {
+      gpuPickerRef.current = new GpuPicker();
+    }
+    return () => {
+      gpuPickerRef.current?.dispose();
+    };
+  }, []);
+
+  const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
+    {
+      const data = useDataStore.getState();
+      const ui = useUIStore.getState();
+      const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+      const svgCandidates = data.spatialIndex
+        .query(queryRect)
+        .map((c) => data.shapes[c.id])
+        .filter((s): s is Shape => !!s && s.type === 'rect' && !!s.svgRaw && (!s.svgSymbolId || s.svgSymbolId.startsWith('plan:')));
+
+      if (svgCandidates.length) {
+        const orderIndex = new Map<string, number>();
+        for (let i = 0; i < data.shapeOrder.length; i++) orderIndex.set(data.shapeOrder[i]!, i);
+        svgCandidates.sort((a, b) => (orderIndex.get(b.id) ?? -1) - (orderIndex.get(a.id) ?? -1));
+
+        for (const shape of svgCandidates) {
+          const layer = data.layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+          void primeSymbolAlphaMask(shape.id, shape.svgRaw ?? '', 256);
+          if (isSymbolInstanceHitAtWorldPoint(shape, world, getSymbolAlphaAtUv, { toleranceWorld: tolerance, symbolIdOverride: shape.id })) return shape.id;
+        }
+      }
+    }
+
+    {
+      const data = useDataStore.getState();
+      const ui = useUIStore.getState();
+      const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
+      const symbolCandidates = data.spatialIndex
+        .query(queryRect)
+        .map((c) => data.shapes[c.id])
+        .filter((s): s is Shape => !!s && !!s.svgSymbolId);
+
+      if (symbolCandidates.length) {
+        const orderIndex = new Map<string, number>();
+        for (let i = 0; i < data.shapeOrder.length; i++) orderIndex.set(data.shapeOrder[i]!, i);
+        symbolCandidates.sort((a, b) => (orderIndex.get(b.id) ?? -1) - (orderIndex.get(a.id) ?? -1));
+
+        for (const shape of symbolCandidates) {
+          const layer = data.layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
+          if (isSymbolInstanceHitAtWorldPoint(shape, world, getSymbolAlphaAtUv, { toleranceWorld: tolerance })) return shape.id;
+        }
+      }
+    }
+
+    if (gpuPickerRef.current) {
+      const data = useDataStore.getState();
+      const gpuHit = gpuPickerRef.current.pick({
+        screen,
+        world,
+        toleranceWorld: tolerance,
+        viewTransform,
+        canvasSize,
+        shapes: data.shapes,
+        shapeOrder: data.shapeOrder,
+        layers: data.layers,
+        spatialIndex: data.spatialIndex,
+        activeFloorId: activeFloorId ?? 'terreo',
+        activeDiscipline,
+      });
+      if (gpuHit) return gpuHit;
+    }
+
+    return pickShapeAtGeometry(world, tolerance);
+  }, [activeDiscipline, activeFloorId, canvasSize, viewTransform]);
+
+  const {
+      selectInteractionRef,
+      selectionBox,
+      setSelectionBox,
+      cursorOverride,
+      setCursorOverride,
+      handlePointerDown: selectHandlePointerDown,
+      handlePointerMove: selectHandlePointerMove,
+      handlePointerUp: selectHandlePointerUp
+  } = useSelectInteraction({
+      viewTransform,
+      selectedShapeIds,
+      shapes: useDataStore((s) => s.shapes),
+      layers: useDataStore((s) => s.layers),
+      spatialIndex: useDataStore((s) => s.spatialIndex),
+      onUpdateShape: useDataStore((s) => s.updateShape),
+      onSetSelectedShapeIds: setSelectedShapeIds,
+      onSaveToHistory: useDataStore((s) => s.saveToHistory),
+      pickShape,
+      textTool: textToolRef.current,
+      getTextIdForShape,
+      textBoxMetaRef,
+      TextBoxMode
+  });
+
+  const moveRef = useRef<MoveState | null>(null);
+
+  const {
+      draft,
+      setDraft,
+      handlePointerDown: draftHandlePointerDown,
+      handlePointerMove: draftHandlePointerMove,
+      handlePointerUp: draftHandlePointerUp,
+      commitPolyline,
+      commitDefaultPolygonAt,
+      polygonSidesModal,
+      setPolygonSidesModal,
+      polygonSidesValue,
+      setPolygonSidesValue
+  } = useDraftHandler({
+      activeTool,
+      viewTransform,
+      snapSettings: snapOptions,
+      onAddShape: useDataStore.getState().addShape,
+      onFinalizeDraw: (id: string) => {
+        setSelectedShapeIds(new Set([id]));
+        const ui = useUIStore.getState();
+        ui.setSidebarTab('desenho');
+        ui.setTool('select');
+      },
+      activeFloorId,
+      activeDiscipline,
+      runtime: runtimeRef.current
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+
+      if (polygonSidesModal && e.key === 'Escape') {
+        e.preventDefault();
+        setPolygonSidesModal(null);
+        return;
+      }
+
+      if (activeTool !== 'polyline') return;
+
+      // Access draft state from hook? It's passed down.
+      // Since draft is state in the hook, we can't easily access 'current' value here without exposing ref from hook.
+      // But useDraftHandler handles pointer events.
+      // We need to implement keydown handling inside useDraftHandler or pass it here.
+      // For now, let's keep keydown logic here but we need 'draft' value.
+      // The hook exposes 'draft'.
+
+      if (e.key === 'Escape') {
+        if (draft.kind === 'polyline') {
+          e.preventDefault();
+          setDraft({ kind: 'none' });
+        }
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        if (draft.kind === 'polyline') {
+          e.preventDefault();
+          commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
+          setDraft({ kind: 'none' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTool, polygonSidesModal, draft, commitPolyline, setDraft]);
+
+  const cursor = useMemo(() => {
+    if (engineTextEditState.active) return 'text';
+    return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
+  }, [activeTool, cursorOverride, engineTextEditState.active]);
+
+  const handleWheel = (evt: React.WheelEvent<HTMLDivElement>) => {
+    evt.preventDefault();
+    const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const mouse = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    setViewTransform((prev) => calculateZoomTransform(prev, mouse, evt.deltaY, screenToWorld));
+  };
+
+  const beginPan = (evt: React.PointerEvent<HTMLDivElement>) => {
+    isPanningRef.current = true;
+    panStartRef.current = { x: evt.clientX, y: evt.clientY };
+    transformStartRef.current = { ...viewTransform };
+  };
+
+  const updatePan = (evt: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanningRef.current || !transformStartRef.current) return;
+    const dx = evt.clientX - panStartRef.current.x;
+    const dy = evt.clientY - panStartRef.current.y;
+    setViewTransform({
+      x: transformStartRef.current.x + dx,
+      y: transformStartRef.current.y + dy,
+      scale: transformStartRef.current.scale,
+    });
+  };
+
+  const endPan = () => {
+    isPanningRef.current = false;
+    transformStartRef.current = null;
+  };
+
+  const commitElectricalSymbolAt = (world: { x: number; y: number }) => {
+    if (!activeElectricalSymbolId) return;
+    const library = useLibraryStore.getState();
+    const data = useDataStore.getState();
+
+    const symbol = library.electricalSymbols[activeElectricalSymbolId];
+    if (!symbol) return;
+
+    const layerConfig = getElectricalLayerConfig(symbol.id, symbol.category);
+    const targetLayerId = data.ensureLayer(layerConfig.name, {
+      strokeColor: layerConfig.strokeColor,
+      fillColor: layerConfig.fillColor ?? '#ffffff',
+      fillEnabled: layerConfig.fillEnabled ?? false,
+      strokeEnabled: true,
+      isNative: true,
+    });
+
+    const width = symbol.viewBox.width * symbol.scale;
+    const height = symbol.viewBox.height * symbol.scale;
+    const shapeId = generateId();
+
+    const shape: Shape = {
+      id: shapeId,
+      layerId: targetLayerId,
+      type: 'rect',
+      x: clampTiny(world.x - width / 2),
+      y: clampTiny(world.y - height / 2),
+      width: clampTiny(width),
+      height: clampTiny(height),
+      strokeColor: layerConfig.strokeColor,
+      strokeWidth: toolDefaults.strokeWidth,
+      strokeEnabled: false,
+      fillColor: '#ffffff',
+      fillEnabled: false,
+      colorMode: getDefaultColorMode(),
+      points: [],
+      rotation: electricalRotation,
+      scaleX: electricalFlipX,
+      scaleY: electricalFlipY,
+      svgSymbolId: symbol.id,
+      svgRaw: symbol.canvasSvg,
+      svgViewBox: symbol.viewBox,
+      symbolScale: symbol.scale,
+      connectionPoint: symbol.defaultConnectionPoint,
+      floorId: activeFloorId,
+      discipline: activeDiscipline,
+    };
+
+    const metadata = getDefaultMetadataForSymbol(symbol.id);
+    const electricalElement: ElectricalElement = {
+      id: `el-${shapeId}`,
+      shapeId,
+      category: symbol.category,
+      name: symbol.id,
+      metadata,
+    };
+
+    data.addShape(shape, electricalElement);
+    setSelectedShapeIds(new Set([shapeId]));
+  };
+
+  const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
+    (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
+
+    if (engineTextEditState.active && textToolRef.current) {
+      const world = toWorldPoint(evt, viewTransform);
+      const activeTextId = engineTextEditState.textId;
+      const activeShapeId = activeTextId !== null ? getShapeIdForText(activeTextId) : null;
+
+      if (activeShapeId) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[activeShapeId];
+        if (shape) {
+          const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+          const meta = textBoxMetaRef.current.get(activeTextId!);
+
+          const boxWidth = Math.max(
+            0,
+            meta
+              ? meta.boxMode === TextBoxMode.FixedWidth
+                ? meta.constraintWidth
+                : meta.maxAutoWidth ?? (shape.width || 0)
+              : shape.width || 0
+          );
+          const boxHeight = Math.max(0, meta?.fixedHeight ?? (shape.height || 0));
+
+          const anchorX = shape.x || 0;
+          const anchorY = (shape.y || 0) + boxHeight;
+
+          const minX = anchorX - tolerance;
+          const maxX = anchorX + boxWidth + tolerance;
+          const minY = (shape.y || 0) - tolerance;
+          const maxY = anchorY + tolerance;
+
+          const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
+
+          if (inside) {
+             const localX = world.x - anchorX;
+             const localY = world.y - anchorY;
+
+             const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+             const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+             textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
+             textInputProxyRef.current?.focus();
+             evt.preventDefault();
+             evt.stopPropagation();
+             return;
+          }
+        }
+      }
+
+      textToolRef.current.commitAndExit();
+    }
+
+    if (evt.button === 2 && activeTool === 'polyline') {
+      if (draft.kind === 'polyline') {
+        evt.preventDefault();
+        commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
+        setDraft({ kind: 'none' });
+        return;
+      }
+    }
+
+    if (evt.button === 1 || evt.button === 2 || evt.altKey || activeTool === 'pan') {
+      beginPan(evt);
+      return;
+    }
+
+    if (evt.button !== 0) return;
+
+    const world = toWorldPoint(evt, viewTransform);
+    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+
+    pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
+    if (activeTool === 'select') setSelectionBox(null);
+
+    if (activeTool === 'text') {
+      textDragStartRef.current = snapped;
+      setDraft({ kind: 'text', start: snapped, current: snapped });
+      return;
+    }
+
+    if (activeTool === 'move') {
+      const data = useDataStore.getState();
+      const selected = Array.from(selectedShapeIds)
+        .map((id) => data.shapes[id])
+        .filter(Boolean) as Shape[];
+
+      const movable = selected.filter((s) => {
+        const layer = data.layers.find((l) => l.id === s.layerId);
+        if (layer?.locked) return false;
+        if (s.type === 'conduit') return false;
+        return true;
+      });
+
+      if (movable.length === 0) return;
+      moveRef.current = { start: snapped, snapshot: new Map(movable.map((s) => [s.id, s])) };
+      return;
+    }
+
+    if (activeTool === 'electrical-symbol') {
+      commitElectricalSymbolAt(snapped);
+      return;
+    }
+
+    if (activeTool === 'select') {
+        selectHandlePointerDown(evt, world);
+        return;
+    }
+
+    // Delegate to draft handler
+    draftHandlePointerDown(snapped, evt.button, evt.altKey);
+  };
+
+  const handlePointerMove = (evt: React.PointerEvent<HTMLDivElement>) => {
+    if (isPanningRef.current) {
+      updatePan(evt);
+      return;
+    }
+
+    if (engineTextEditState.active) {
+       if (textToolRef.current && engineTextEditState.textId !== null) {
+          const activeTextId = engineTextEditState.textId;
+          const activeShapeId = getShapeIdForText(activeTextId);
+          if (activeShapeId) {
+             const data = useDataStore.getState();
+             const shape = data.shapes[activeShapeId];
+             if (shape) {
+                const world = toWorldPoint(evt, viewTransform);
+             const bbox = getShapeBoundingBox(shape);
+             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+             const inside =
+              world.x >= bbox.x - tolerance &&
+              world.x <= bbox.x + bbox.width + tolerance &&
+              world.y >= bbox.y - tolerance &&
+              world.y <= bbox.y + bbox.height + tolerance;
+             setCursorOverride(inside ? 'text' : null);
+
+                const anchorY = (shape.y || 0) + (shape.height || 0);
+                const anchorX = (shape.x || 0);
+                const localX = world.x - anchorX;
+                const localY = world.y - anchorY;
+                textToolRef.current.handlePointerMove(activeTextId, localX, localY);
+             }
+          }
+       }
+       return;
+    }
+
+    const world = toWorldPoint(evt, viewTransform);
+    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+
+    if (activeTool === 'text') {
+      if (textDragStartRef.current) {
+        setDraft({ kind: 'text', start: textDragStartRef.current, current: snapped });
+      }
+      return;
+    }
+
+    if (activeTool === 'select') {
+      selectHandlePointerMove(evt, pointerDownRef.current, snapped);
+      return;
+    }
+
+    if (activeTool === 'move') {
+      const moveState = moveRef.current;
+      if (moveState) {
+        const data = useDataStore.getState();
+        const dx = snapped.x - moveState.start.x;
+        const dy = snapped.y - moveState.start.y;
+        moveState.snapshot.forEach((shape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+
+          const diff: Partial<Shape> = {};
+          if (shape.x !== undefined) diff.x = clampTiny(shape.x + dx);
+          if (shape.y !== undefined) diff.y = clampTiny(shape.y + dy);
+          if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
+
+          if (Object.keys(diff).length) data.updateShape(id, diff, false);
+
+          if (shape.type === 'text' && textToolRef.current) {
+            const textId = getTextIdForShape(id);
+            if (textId !== null) {
+              const meta = textBoxMetaRef.current.get(textId);
+              const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+              const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+              const newAnchorX = diff.x ?? shape.x ?? 0;
+              const newShapeY = diff.y ?? shape.y ?? 0;
+              const height = shape.height ?? 0;
+              const newAnchorY = newShapeY + height;
+              textToolRef.current.moveText(textId, newAnchorX, newAnchorY, boxMode, constraintWidth);
+            }
+          }
+        });
+      }
+      return;
+    }
+
+    draftHandlePointerMove(snapped, evt.shiftKey);
+  };
+
+  const handlePointerUp = (evt: React.PointerEvent<HTMLDivElement>) => {
+    if (isPanningRef.current) {
+      endPan();
+      return;
+    }
+
+    if (evt.button !== 0) return;
+
+    if (engineTextEditState.active) {
+       textToolRef.current?.handlePointerUp();
+       return;
+    }
+
+    if (activeTool === 'text' && textDragStartRef.current) {
+      const world = toWorldPoint(evt, viewTransform);
+      const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world;
+      const start = textDragStartRef.current;
+      textDragStartRef.current = null;
+
+      if (textToolRef.current) {
+        const dx = snapped.x - start.x;
+        const dy = snapped.y - start.y;
+        const dragDistance = Math.hypot(dx, dy);
+
+        if (dragDistance > 10) {
+          textToolRef.current.handleDrag(start.x, start.y, snapped.x, snapped.y);
+        } else {
+          textToolRef.current.handleClick(start.x, start.y);
+        }
+
+        requestAnimationFrame(() => textInputProxyRef.current?.focus());
+      }
+      setDraft({ kind: 'none' });
+      return;
+    }
+
+    if (activeTool === 'move') {
+      const moveState = moveRef.current;
+      moveRef.current = null;
+      if (moveState) {
+        const data = useDataStore.getState();
+        const patches: Patch[] = [];
+        moveState.snapshot.forEach((prevShape, id) => {
+          const curr = data.shapes[id];
+          if (!curr) return;
+          const diff: Partial<Shape> = {};
+          if (prevShape.x !== curr.x) diff.x = curr.x;
+          if (prevShape.y !== curr.y) diff.y = curr.y;
+          if (prevShape.points || curr.points) diff.points = curr.points;
+          if (Object.keys(diff).length === 0) return;
+          patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
+        });
+        data.saveToHistory(patches);
+      }
+      return;
+    }
+
+    const down = pointerDownRef.current;
+    pointerDownRef.current = null;
+    const clickNoDrag = !!down && !isDrag(evt.clientX - down.x, evt.clientY - down.y);
+
+    if (activeTool === 'select') {
+        selectHandlePointerUp(evt, down);
+        return;
+    }
+
+    draftHandlePointerUp(down ? down.world : {x:0, y:0}, clickNoDrag);
+  };
+
+  const handleDoubleClick = (evt: React.MouseEvent<HTMLDivElement>) => {
+    if (activeTool === 'select') {
+      const world = toWorldPoint({
+        currentTarget: evt.currentTarget,
+        clientX: evt.clientX,
+        clientY: evt.clientY
+      } as React.PointerEvent<HTMLDivElement>, viewTransform);
+
+      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const hitId = pickShape(world, { x: evt.clientX, y: evt.clientY } as Point, tolerance);
+
+      if (hitId) {
+        const data = useDataStore.getState();
+        const shape = data.shapes[hitId];
+        if (shape && shape.type === 'text') {
+          const textWrapperId = shape.id;
+          const foundTextId = getTextIdForShape(textWrapperId);
+
+          if (foundTextId !== null && textToolRef.current) {
+            useUIStore.getState().setTool('text');
+
+            const anchorY = (shape.y || 0) + (shape.height || 0);
+            const anchorX = (shape.x || 0);
+            const localX = world.x - anchorX;
+            const localY = anchorY - world.y;
+
+            const meta = textBoxMetaRef.current.get(foundTextId);
+            const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+            const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+
+            textToolRef.current.handlePointerDown(foundTextId, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
+
+            requestAnimationFrame(() => textInputProxyRef.current?.focus());
+            return;
+          }
+        }
+      }
+    }
+
+    if (activeTool === 'polyline') {
+        evt.preventDefault();
+        if (draft.kind === 'polyline') commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
+        return;
+    }
+  };
+
+  const draftSvg = useMemo(() => {
+    if (draft.kind === 'none') return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const stroke = toolDefaults.strokeColor || '#22c55e';
+    const strokeWidth = Math.max(1, toolDefaults.strokeWidth ?? 2);
+
+    if (draft.kind === 'line') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'arrow') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'rect') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'text') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'ellipse') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'polygon') {
+      const sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const rx = w / 2;
+      const ry = h / 2;
+      const pts = Array.from({ length: sides }, (_, i) => {
+        const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
+        return { x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry };
+      });
+      const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <polygon points={pointsAttr} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    if (draft.kind === 'conduit') {
+      const a = worldToScreen(draft.start, viewTransform);
+      const b = worldToScreen(draft.current, viewTransform);
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    const pts = draft.points;
+    const pathPts = [...pts, ...(draft.current ? [draft.current] : [])].map((p) => worldToScreen(p, viewTransform));
+    const d = pathPts
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+      .join(' ');
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+      </svg>
+    );
+  }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform, toolDefaults.polygonSides]);
+
+  const selectionSvg = useMemo(() => {
+    if (!selectionBox) return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const a = worldToScreen(selectionBox.start, viewTransform);
+    const b = worldToScreen(selectionBox.current, viewTransform);
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    const w = Math.abs(a.x - b.x);
+    const h = Math.abs(a.y - b.y);
+
+    const isWindow = selectionBox.direction === 'LTR';
+    const stroke = isWindow ? '#3b82f6' : '#22c55e';
+    const fill = isWindow ? 'rgba(59,130,246,0.12)' : 'rgba(34,197,94,0.10)';
+
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <rect x={x} y={y} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1} strokeDasharray="4 3" />
+      </svg>
+    );
+  }, [canvasSize.height, canvasSize.width, selectionBox, viewTransform]);
+
+  return (
+    <div
+      style={{ position: 'absolute', inset: 0, zIndex: 20, touchAction: 'none', cursor }}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {draftSvg}
+      <SelectionOverlay hideAnchors={engineTextEditState.active} />
+      {selectionSvg}
+      <TextInputProxy
+        ref={textInputProxyRef}
+        active={engineTextEditState.active}
+        content={engineTextEditState.content}
+        caretIndex={engineTextEditState.caretIndex}
+        selectionStart={engineTextEditState.selectionStart}
+        selectionEnd={engineTextEditState.selectionEnd}
+        positionHint={engineTextEditState.caretPosition ?? undefined}
+        onInput={(delta: TextInputDelta) => {
+          textToolRef.current?.handleInputDelta(delta);
+        }}
+        onSelectionChange={(start, end) => {
+          textToolRef.current?.handleSelectionChange(start, end);
+        }}
+        onSpecialKey={(key, e) => {
+          textToolRef.current?.handleSpecialKey(key, e);
+        }}
+      />
+
+      <TextCaretOverlay
+        caret={caret}
+        selectionRects={selectionRects}
+        viewTransform={viewTransform}
+        anchor={anchor}
+        rotation={rotation}
+      />
+      {polygonSidesModal ? (
+        <>
+          <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />
+          <div
+            className="absolute left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[280px]"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-3 text-slate-100">
+              <div className="text-xs font-semibold mb-2">Lados do polígono</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={3}
+                  max={24}
+                  value={polygonSidesValue}
+                  onChange={(e) => setPolygonSidesValue(Number.parseInt(e.target.value, 10))}
+                  className="w-full h-8 bg-slate-800 border border-slate-700 rounded px-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
+                  onClick={() => {
+                    const defaultSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+                    const sides = Number.isFinite(polygonSidesValue) ? polygonSidesValue : defaultSides;
+                    commitDefaultPolygonAt(polygonSidesModal.center, sides);
+                    setPolygonSidesModal(null);
+                  }}
+                >
+                  OK
+                </button>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-400">Min 3, max 24. Tamanho inicial 100×100.</div>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+};
+
+export default EngineInteractionLayer;
