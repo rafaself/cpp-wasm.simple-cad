@@ -260,8 +260,6 @@ export class GpuPicker {
       }
 
       if (
-        shape.type === 'line' ||
-        shape.type === 'polyline' ||
         shape.type === 'arrow' ||
         shape.type === 'measure' ||
         shape.type === 'eletroduto'

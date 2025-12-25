@@ -58,6 +58,11 @@ export const pickShapeAtGeometry = (
       if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld, symbolIdOverride: shape.id })) continue;
       return shape.id;
     }
+
+    // Engine is now authoritative for Line and Polyline picking.
+    // Do not fallback to JS geometry checks for these types.
+    if (shape.type === 'line' || shape.type === 'polyline') continue;
+
     if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
   }
 

@@ -37,8 +37,14 @@ O objetivo de longo prazo é migrar para uma arquitetura **Engine-First Real**.
 **Status da Migração:**
 Estamos em fase de transição técnica.
 *   ✅ Otimização do Sync (Dirty Flags).
-*   ✅ Picking via Engine (C++).
+*   ✅ Picking via Engine (C++) — *Lines e Polylines agora são selecionados exclusivamente pelo Engine.*
 *   ⚠️ O React AINDA É o Source of Truth.
+
+**Nota Técnica (Picking):**
+O Engine (C++) agora é a autoridade espacial para seleção (picking) de entidades básicas (`Line`, `Polyline`, `Rect`, `Circle`). O Frontend não executa mais lógica geométrica analítica para esses tipos, apenas consulta o Engine. Para tipos complexos ou não portados, fallbacks JS/GPU podem ser usados excepcionalmente.
+
+**Constraint de Build (C++):**
+Devido a limitações de ambiente (Docker permission error), mudanças no C++ podem ter sido feitas em modo "Blind Coding" (sem verificação de compilação runtime). Mantenha essas mudanças minimais e defensivas.
 
 ---
 
