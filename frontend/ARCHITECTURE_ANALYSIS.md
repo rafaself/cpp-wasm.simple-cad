@@ -1,9 +1,9 @@
 # Frontend Architecture Overview (Current)
 
-This repo has moved away from the Canvas2D renderer. The current runtime path is:
+This repo uses a high-performance rendering pipeline powered by WebGL2 and WASM.
 
 - `frontend/App.tsx` → `frontend/src/components/NextSurface.tsx`
-  - `frontend/src/components/CadViewer.tsx` (R3F/WebGL renderer fed by WASM buffers)
+  - `frontend/src/components/TessellatedWasmLayer.tsx` (WebGL2 custom renderer fed by WASM buffers)
   - `frontend/src/components/EngineInteractionLayer.tsx` (HTML overlay handling user input)
 
 ## 1) Source of Truth (Current State)
@@ -20,33 +20,28 @@ The migration goal is to make **WASM the authoritative document model** (not jus
 
 ## 2) Rendering Flow
 
-- `CadViewer` binds typed array views (`HEAPF32`) to `THREE.BufferGeometry` attributes and renders:
-  - triangles (fills)
-  - line segments (strokes)
-- Selection highlight is rendered as `THREE.Line` primitives built from the decoded snapshot.
+- `TessellatedWasmLayer` manages a `requestAnimationFrame` loop that interfaces directly with the WASM engine.
+- It binds typed array views (from WASM memory) to WebGL2 buffers and renders:
+  - Tessellated geometry (triangles)
+  - Text (MSDF)
+  - Symbols
+- There is no dependency on Three.js or React-Three-Fiber.
 
 ## 3) Interaction Flow
 
 - `EngineInteractionLayer` is an `absolute` overlay that captures pointer/wheel events.
-- Tools are implemented in TS for now and commit changes to `useDataStore`:
-  - `line`, `rect`, `polyline`
-  - `select`, `pan`, `zoom`
-  - `move` (basic translate)
-  - `electrical-symbol` (places symbol; rendered via WebGL instancing)
-  - `eletroduto` (creates conduit segment between nodes)
+- Picking uses `GpuPicker` (WebGL2-based framebuffer reading) for pixel-perfect accuracy, falling back to spatial index queries when needed.
+- Tools are implemented in TS for now and commit changes to `useDataStore`.
 - `frontend/engine/runtime/useEngineStoreSync.ts` subscribes to `useDataStore` and mirrors supported shapes into the WASM engine via commands.
 
 ## 4) Key Performance Notes (Current)
 
-- Rendering is no longer Canvas2D-bound; GPU does the heavy lifting.
+- Rendering is GPU-accelerated via raw WebGL2.
 - Remaining hotspots are mostly TS-side:
-  - decoding snapshot whenever engine `generation` changes (OK; should avoid per-frame decode)
-  - TS→WASM mirroring (`useEngineStoreSync`) still runs on every shape update
+  - decoding snapshot whenever engine `generation` changes.
+  - TS→WASM mirroring (`useEngineStoreSync`) still runs on every shape update.
 
 ## 5) Next Steps (Roadmap)
 
-1) Move tool state machines into WASM (JS sends raw inputs/commands; tools deterministic and reversible).
-2) Replace TS shapes as source-of-truth with an engine document model + queries.
-3) Introduce instanced pipelines:
-   - text: MSDF atlas + instancing (bold/italic/align/size)
-   - symbols: atlas/instancing
+1) Move tool state machines into WASM (JS sends raw inputs/commands).
+2) Replace TS shapes as source-of-truth with an engine document model.
