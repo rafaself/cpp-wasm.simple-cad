@@ -72,6 +72,7 @@ export function useTextEditHandler(params: {
                 clearEngineTextStyleSnapshot();
                 hideCaret();
                 clearSelection();
+                useDataStore.getState().syncConnections();
                 useUIStore.getState().setTool('select');
             },
             onTextCreated: (shapeId: string, textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
@@ -169,7 +170,7 @@ export function useTextEditHandler(params: {
                   y: clampTiny(nextY),
                 };
 
-                data.updateShape(shapeId, updates, false);
+                data.updateShape(shapeId, updates, { skipConnectionSync: true, recordHistory: false });
             },
             onTextDeleted: (textId: number) => {
                 const shapeId = getShapeIdForText(textId);

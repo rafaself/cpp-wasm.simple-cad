@@ -89,3 +89,10 @@ A migração segue etapas estritas para evitar regressões:
 1.  Verifique se está quebrando o fluxo unidirecional React -> Engine.
 2.  Se adicionar features no Engine, exponha via `bindings.cpp` e tipagem em `EngineRuntime.ts`.
 3.  Sempre atualize o `useEngineStoreSync` se adicionar novos tipos de entidades.
+
+## 6. Hot Path Rules (Performance)
+
+*   **No O(N) in pointermove/typing:** Operations running during interactive loops (drag, typing, resize) MUST NOT iterate over all shapes.
+*   **Topology Normalization:** `syncConnections()` is **COMMIT-ONLY**. It must not run during drag.
+*   **Interactive Update:** Use `updateShape(id, diff, { skipConnectionSync: true })` for interactive updates.
+*   **Commit:** Ensure `syncConnections()` is called explicitly at the end of interaction (e.g. `pointerup`).

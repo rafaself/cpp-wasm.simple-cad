@@ -107,7 +107,8 @@ export function useSelectInteraction(params: {
   shapes: Record<string, Shape>;
   layers: any[]; // ImportedLayer[] or Layer[]
   spatialIndex: any; // QuadTree
-  onUpdateShape: (id: string, diff: Partial<Shape>, recordHistory: boolean) => void;
+  onUpdateShape: (id: string, diff: Partial<Shape>, optionsOrRecordHistory?: boolean | { recordHistory?: boolean; skipConnectionSync?: boolean }) => void;
+  onSyncConnections: () => void;
   onSetSelectedShapeIds: (ids: Set<string>) => void;
   onSaveToHistory: (patches: any[]) => void;
   pickShape: (world: {x:number, y:number}, screen: {x:number, y:number}, tolerance: number) => string | null;
@@ -123,6 +124,7 @@ export function useSelectInteraction(params: {
     layers,
     spatialIndex,
     onUpdateShape,
+    onSyncConnections,
     onSetSelectedShapeIds,
     onSaveToHistory,
     pickShape
@@ -350,7 +352,7 @@ export function useSelectInteraction(params: {
           if (shape.y !== undefined) diff.y = clampTiny(shape.y + ddy);
           if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + ddx), y: clampTiny(p.y + ddy) }));
 
-          if (Object.keys(diff).length) onUpdateShape(id, diff, false);
+          if (Object.keys(diff).length) onUpdateShape(id, diff, { skipConnectionSync: true, recordHistory: false });
 
           // Sync text position with engine if this is a text shape
           if (shape.type === 'text' && params.textTool) {
@@ -389,7 +391,7 @@ export function useSelectInteraction(params: {
         }
 
         const nextPoints = curr.points.map((p, i) => (i === state.vertexIndex ? nextPoint : p));
-        onUpdateShape(state.shapeId, { points: nextPoints }, false);
+        onUpdateShape(state.shapeId, { points: nextPoints }, { skipConnectionSync: true, recordHistory: false });
         return;
       }
 
@@ -475,7 +477,7 @@ export function useSelectInteraction(params: {
         const center = { x: fixed.x + rotateVec(localCenter, rotation).x, y: fixed.y + rotateVec(localCenter, rotation).y };
 
         const diff = applyResizeToShape(state.snapshot, state.applyMode, center, nextW, nextH, nextScaleX, nextScaleY);
-        onUpdateShape(state.shapeId, diff, false);
+        onUpdateShape(state.shapeId, diff, { skipConnectionSync: true, recordHistory: false });
 
         if (curr.type === 'text' && params.textTool) {
           const textId = params.getTextIdForShape?.(curr.id);
@@ -522,6 +524,7 @@ export function useSelectInteraction(params: {
 
     if (interaction.kind === 'move') {
       if (!interaction.moved) return;
+      onSyncConnections();
       const patches: any[] = [];
       interaction.state.snapshot.forEach((prevShape, id) => {
         const curr = shapes[id];
@@ -539,6 +542,7 @@ export function useSelectInteraction(params: {
 
     if (interaction.kind === 'resize') {
       if (!interaction.moved) return;
+      onSyncConnections();
       const prevShape = interaction.state.snapshot;
       const curr = shapes[interaction.state.shapeId];
       if (!curr) return;
@@ -556,6 +560,7 @@ export function useSelectInteraction(params: {
 
     if (interaction.kind === 'vertex') {
       if (!interaction.moved) return;
+      onSyncConnections();
       const prevShape = interaction.state.snapshot;
       const curr = shapes[interaction.state.shapeId];
       if (!curr) return;
