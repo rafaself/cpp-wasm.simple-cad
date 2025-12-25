@@ -41,6 +41,16 @@ namespace {
         }
         return logicalCount;
     }
+
+    float pointToSegmentDistanceSq(float px, float py, float ax, float ay, float bx, float by) {
+        const float l2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
+        if (l2 == 0.0f) return (px - ax) * (px - ax) + (py - ay) * (py - ay);
+        float t = ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2;
+        t = std::max(0.0f, std::min(1.0f, t));
+        const float ex = ax + t * (bx - ax);
+        const float ey = ay + t * (by - ay);
+        return (px - ex) * (px - ex) + (py - ey) * (py - ey);
+    }
 }
 
 // Constructor
@@ -291,7 +301,48 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
                 }
                 break;
             }
-            // Add other types as needed
+            case EntityKind::Line: {
+                if (ref.index < entityManager_.lines.size()) {
+                    const auto& l = entityManager_.lines[ref.index];
+                    if (l.enabled == 0.0f) break;
+
+                    const float sw = l.strokeWidthPx > 0.0f ? l.strokeWidthPx : 1.0f;
+                    const float swWorld = sw / (viewScale > 1e-6f ? viewScale : 1.0f);
+                    const float effTol = tolerance + swWorld * 0.5f;
+
+                    if (pointToSegmentDistanceSq(x, y, l.x0, l.y0, l.x1, l.y1) <= effTol * effTol) {
+                        hit = true;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Polyline: {
+                if (ref.index < entityManager_.polylines.size()) {
+                    const auto& pl = entityManager_.polylines[ref.index];
+                    if (pl.enabled == 0.0f) break;
+
+                    const float sw = pl.strokeWidthPx > 0.0f ? pl.strokeWidthPx : 1.0f;
+                    const float swWorld = sw / (viewScale > 1e-6f ? viewScale : 1.0f);
+                    const float effTol = tolerance + swWorld * 0.5f;
+                    const float effTolSq = effTol * effTol;
+
+                    std::uint32_t start = pl.offset;
+                    std::uint32_t end = pl.offset + pl.count;
+                    if (end > entityManager_.points.size()) end = static_cast<std::uint32_t>(entityManager_.points.size());
+
+                    if (end > start + 1) {
+                         for (std::uint32_t i = start; i < end - 1; ++i) {
+                             const auto& p0 = entityManager_.points[i];
+                             const auto& p1 = entityManager_.points[i+1];
+                             if (pointToSegmentDistanceSq(x, y, p0.x, p0.y, p1.x, p1.y) <= effTolSq) {
+                                 hit = true;
+                                 break;
+                             }
+                         }
+                    }
+                }
+                break;
+            }
             default:
                 break;
         }
