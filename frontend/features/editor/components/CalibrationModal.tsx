@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import NumberSpinner from '../../../components/NumberSpinner';
 
+// TODO: Verify this file
 interface CalibrationModalProps {
   isOpen: boolean;
   currentDistancePx: number;
