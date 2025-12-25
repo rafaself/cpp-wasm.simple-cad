@@ -1,6 +1,6 @@
-import type { ViewTransform } from '@/types';
 import type { BufferMeta, WasmModule } from '@/engine/core/EngineRuntime';
 import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
+import type { ViewTransform } from '@/types';
 
 export type TessellatedRenderInput = {
   module: WasmModule;
@@ -18,4 +18,3 @@ export interface TessellatedRenderer {
   render(input: TessellatedRenderInput): void;
   dispose(): void;
 }
-
