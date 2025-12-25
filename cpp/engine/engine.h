@@ -15,6 +15,7 @@
 
 #include "engine/entity_manager.h"
 #include "engine/text_system.h"
+#include "engine/pick_system.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -104,6 +105,9 @@ public:
 
     // Text subsystem
     TextSystem textSystem_;
+
+    // Picking subsystem
+    mutable PickSystem pickSystem_;
 
     float viewScale{1.0f};
 

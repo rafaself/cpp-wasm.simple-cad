@@ -48,7 +48,7 @@ O objetivo de longo prazo é migrar para uma arquitetura **Engine-First Real**.
 **Status da Migração:**
 Estamos em fase de transição técnica.
 *   ✅ Otimização do Sync (Dirty Flags).
-*   ✅ Picking via Engine (C++) — *Geometria básica é selecionada exclusivamente pelo Engine.*
+*   ✅ Picking via Engine (C++) — **Completo**. Picking utiliza índice espacial e é a única fonte de seleção para Rect, Circle, Line, Polyline, Text, Polygon, Arrow. Fallbacks JS/GPU removidos para seleção.
 *   ⚠️ O React AINDA É o Source of Truth.
 
 **Constraint de Build (C++):**

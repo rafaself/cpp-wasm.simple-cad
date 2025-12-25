@@ -239,100 +239,12 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
 }
 
 std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept {
-    // Iterate draw order in reverse (top-most first)
-    if (entityManager_.drawOrderIds.empty()) return 0;
-
-    for (auto it = entityManager_.drawOrderIds.rbegin(); it != entityManager_.drawOrderIds.rend(); ++it) {
-        std::uint32_t id = *it;
-        auto refIt = entityManager_.entities.find(id);
-        if (refIt == entityManager_.entities.end()) continue;
-
-        EntityRef ref = refIt->second;
-        bool hit = false;
-
-        switch (ref.kind) {
-            case EntityKind::Rect: {
-                if (ref.index < entityManager_.rects.size()) {
-                    const auto& r = entityManager_.rects[ref.index];
-                    // Simple AABB check + rotation support if we had rotation in rect (but rects are AABB in this engine mostly?)
-                    // RectRec: x, y, w, h.
-                    // Check if point in rect.
-                    // Tolerance expands the rect.
-                    if (x >= r.x - tolerance && x <= r.x + r.w + tolerance &&
-                        y >= r.y - tolerance && y <= r.y + r.h + tolerance) {
-                        hit = true;
-                    }
-                }
-                break;
-            }
-            case EntityKind::Circle: {
-                if (ref.index < entityManager_.circles.size()) {
-                    const auto& c = entityManager_.circles[ref.index];
-                    // Dist check
-                    float dx = x - c.cx;
-                    float dy = y - c.cy;
-                    float dist2 = dx*dx + dy*dy;
-                    float r = c.rx; // Assuming circular for picking or use max axis
-                    if (dist2 <= (r + tolerance) * (r + tolerance)) {
-                        hit = true;
-                    }
-                }
-                break;
-            }
-            case EntityKind::Line: {
-                if (ref.index < entityManager_.lines.size()) {
-                    const auto& l = entityManager_.lines[ref.index];
-                    if (l.enabled == 0.0f) break;
-
-                    const float sw = l.strokeWidthPx > 0.0f ? l.strokeWidthPx : 1.0f;
-                    const float swWorld = sw / (viewScale > 1e-6f ? viewScale : 1.0f);
-                    const float effTol = tolerance + swWorld * 0.5f;
-
-                    if (pointToSegmentDistanceSq(x, y, l.x0, l.y0, l.x1, l.y1) <= effTol * effTol) {
-                        hit = true;
-                    }
-                }
-                break;
-            }
-            case EntityKind::Polyline: {
-                if (ref.index < entityManager_.polylines.size()) {
-                    const auto& pl = entityManager_.polylines[ref.index];
-                    if (pl.enabled == 0.0f) break;
-
-                    const float sw = pl.strokeWidthPx > 0.0f ? pl.strokeWidthPx : 1.0f;
-                    const float swWorld = sw / (viewScale > 1e-6f ? viewScale : 1.0f);
-                    const float effTol = tolerance + swWorld * 0.5f;
-                    const float effTolSq = effTol * effTol;
-
-                    std::uint32_t start = pl.offset;
-                    std::uint32_t end = pl.offset + pl.count;
-                    if (end > entityManager_.points.size()) end = static_cast<std::uint32_t>(entityManager_.points.size());
-
-                    if (end > start + 1) {
-                         for (std::uint32_t i = start; i < end - 1; ++i) {
-                             const auto& p0 = entityManager_.points[i];
-                             const auto& p1 = entityManager_.points[i+1];
-                             if (pointToSegmentDistanceSq(x, y, p0.x, p0.y, p1.x, p1.y) <= effTolSq) {
-                                 hit = true;
-                                 break;
-                             }
-                         }
-                    }
-                }
-                break;
-            }
-            default:
-                break;
-        }
-
-        if (hit) return id;
-    }
-
-    return 0; // 0 is invalid ID
+    return pickSystem_.pick(x, y, tolerance, viewScale, entityManager_, textSystem_);
 }
 
 void CadEngine::clearWorld() noexcept {
     entityManager_.clear();
+    pickSystem_.clear();
     viewScale = 1.0f;
     triangleVertices.clear();
     lineVertices.clear();
@@ -348,6 +260,8 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
     renderDirty = true;
     snapshotDirty = true;
     
+    pickSystem_.remove(id);
+
     // Check if it's text first, as text is managed by CadEngine/TextStore logic
     auto it = entityManager_.entities.find(id);
     if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Text) {
@@ -366,7 +280,12 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
+    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
     entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx);
+
+    RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
+    pickSystem_.update(id, PickSystem::computeRectAABB(rec));
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
@@ -376,7 +295,12 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
+    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
     entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx);
+
+    LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
+    pickSystem_.update(id, PickSystem::computeLineAABB(rec));
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
@@ -386,7 +310,12 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     renderDirty = true;
     snapshotDirty = true;
+    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
     entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
+
+    PolyRec rec; rec.offset = offset; rec.count = count;
+    pickSystem_.update(id, PickSystem::computePolylineAABB(rec, entityManager_.points));
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
 }
 
 void CadEngine::upsertCircle(
@@ -411,7 +340,12 @@ void CadEngine::upsertCircle(
 ) {
     renderDirty = true;
     snapshotDirty = true;
+    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
     entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+
+    CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry;
+    pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
 }
 
 void CadEngine::upsertPolygon(
@@ -437,7 +371,12 @@ void CadEngine::upsertPolygon(
 ) {
     renderDirty = true;
     snapshotDirty = true;
+    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
     entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+
+    PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot;
+    pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
 }
 
 void CadEngine::upsertArrow(
@@ -456,7 +395,12 @@ void CadEngine::upsertArrow(
 ) {
     renderDirty = true;
     snapshotDirty = true;
+    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
     entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+
+    ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
+    pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
 }
 
 // Static member callback implementation
@@ -497,6 +441,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
                 self->entityManager_.drawOrderIds.push_back(sid);
             }
             self->renderDirty = true;
+            self->pickSystem_.setDrawOrder(self->entityManager_.drawOrderIds);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
@@ -678,6 +623,11 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
+
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
+        pickSystem_.update(id, {minX, minY, maxX, maxY});
+    }
     
     return true;
 }
@@ -914,10 +864,10 @@ bool CadEngine::upsertText(
     
     // Register in entity map if new or replacing non-text
     auto it = entityManager_.entities.find(id);
-    if (it != entityManager_.entities.end()) {
-        if (it->second.kind != EntityKind::Text) {
-            deleteEntity(id);
-        }
+    bool isNew = (it == entityManager_.entities.end());
+    if (!isNew && it->second.kind != EntityKind::Text) {
+        deleteEntity(id);
+        isNew = true;
     }
     
     // Use TextSystem to upsert
@@ -932,6 +882,8 @@ bool CadEngine::upsertText(
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
+
+    pickSystem_.remove(id);
     
     return true;
 }
@@ -952,7 +904,9 @@ bool CadEngine::deleteText(std::uint32_t id) {
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
-    
+
+    pickSystem_.remove(id);
+
     return true;
 }
 
@@ -979,6 +933,11 @@ bool CadEngine::insertTextContent(
     markTextQuadsDirty();
     generation++;
     
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(textId, {minX, minY, maxX, maxY});
+    }
+
     return true;
 }
 
@@ -991,6 +950,12 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
+
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(textId, {minX, minY, maxX, maxY});
+    }
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
     
     return true;
 }
@@ -1004,6 +969,11 @@ bool CadEngine::setTextAlign(std::uint32_t textId, TextAlign align) {
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
+
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(textId, {minX, minY, maxX, maxY});
+    }
 
     return true;
 }
@@ -1022,6 +992,11 @@ bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
+
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(textId, {minX, minY, maxX, maxY});
+    }
 
     return true;
 }
@@ -1048,6 +1023,11 @@ bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxM
     snapshotDirty = true;
     markTextQuadsDirty();
     generation++;
+
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(textId, {minX, minY, maxX, maxY});
+    }
 
     return true;
 }
