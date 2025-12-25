@@ -1,6 +1,6 @@
 import type { TessellatedRenderer } from './tessellatedRenderer';
 
-import { Webgl2TessellatedRenderer } from './webgl2/webgl2TessellatedRenderer';
+import { Webgl2TessellatedRenderer } from '../renderer/webgl2/webgl2TessellatedRenderer';
 
 export const createTessellatedRenderer = async (
   canvas: HTMLCanvasElement,

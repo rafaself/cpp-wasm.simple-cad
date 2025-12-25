@@ -1,5 +1,5 @@
 import type { ViewTransform } from '@/types';
-import type { BufferMeta, WasmModule } from '@/engine/runtime/EngineRuntime';
+import type { BufferMeta, WasmModule } from '@/engine/core/EngineRuntime';
 import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 
 export type TessellatedRenderInput = {

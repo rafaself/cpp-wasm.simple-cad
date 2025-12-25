@@ -18,7 +18,7 @@ import { resolveConnectionNodePosition } from '@/utils/connections';
 import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
 import { isConduitShape } from '@/features/editor/utils/tools';
 import { isShapeInteractable } from '@/utils/visibility';
-import { getEngineRuntime } from '@/engine/runtime/singleton';
+import { getEngineRuntime } from '@/engine/core/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
 import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
 import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
@@ -28,7 +28,7 @@ import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputPr
 import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
 import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/text';
-import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId, setTextMeta, getTextMeta } from '@/engine/runtime/textEngineSync';
+import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId, setTextMeta, getTextMeta } from '@/engine/core/textEngineSync';
 
 type Draft =
   | { kind: 'none' }

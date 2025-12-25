@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeTriangleBatches } from '../engine/renderers/webgl2/triBatching';
+import { computeTriangleBatches } from '@/engine/renderer/webgl2/triBatching';
 
 const floatsPerVertex = 7;
 

@@ -14,7 +14,7 @@ import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcu
 import { useDataStore } from '@/stores/useDataStore';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { useEngineStoreSync } from '@/engine/runtime/useEngineStoreSync';
+import { useEngineStoreSync } from '@/engine/core/useEngineStoreSync';
 import EngineInteractionLayer from './EngineInteractionLayer';
 import TessellatedWasmLayer from './TessellatedWasmLayer';
 

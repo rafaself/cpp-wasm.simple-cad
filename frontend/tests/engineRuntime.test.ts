@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EngineRuntime, type WasmModule, type CadEngineInstance } from '../engine/runtime/EngineRuntime';
-import { CommandOp, type EngineCommand } from '../engine/runtime/commandBuffer';
+import { EngineRuntime, type WasmModule, type CadEngineInstance } from '@/engine/core/EngineRuntime';
+import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
 
 // Mock the factory to avoid loading real WASM
-vi.mock('@/wasm/getCadEngineFactory', () => ({
+vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
   initCadEngineModule: vi.fn(),
 }));
 
-import { initCadEngineModule } from '@/wasm/getCadEngineFactory';
+import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 
 describe('EngineRuntime', () => {
   let mockEngine: CadEngineInstance;

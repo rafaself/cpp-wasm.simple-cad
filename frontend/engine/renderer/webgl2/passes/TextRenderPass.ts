@@ -8,14 +8,14 @@
  * with 6 vertices per glyph (2 triangles).
  */
 
-import type { WasmModule } from '@/engine/runtime/EngineRuntime';
+import type { WasmModule } from '@/engine/core/EngineRuntime';
 import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import {
   TEXT_MSDF_VERTEX_SOURCE,
   TEXT_MSDF_FRAGMENT_SOURCE,
   TEXT_FLOATS_PER_VERTEX,
   DEFAULT_MSDF_PX_RANGE,
-} from './shaders/textMsdf';
+} from '../shaders/textMsdf';
 
 // =============================================================================
 // Types

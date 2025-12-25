@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Layer, Shape } from '../types';
-import { CommandOp } from '../engine/runtime/commandBuffer';
-import { computeChangedLayerIds, computeLayerDrivenReupsertCommands, shapeToEngineCommand } from '../engine/runtime/useEngineStoreSync';
+import { CommandOp } from '@/engine/core/commandBuffer';
+import { computeChangedLayerIds, computeLayerDrivenReupsertCommands, shapeToEngineCommand } from '@/engine/core/useEngineStoreSync';
 import { getDefaultColorMode } from '../utils/shapeColors';
 
 const makeEnsureId = () => {
