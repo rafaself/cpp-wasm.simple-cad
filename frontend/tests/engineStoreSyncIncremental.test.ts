@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CommandOp } from '../engine/runtime/commandBuffer';
+import { CommandOp } from '@/engine/core/commandBuffer';
 import {
   computeLayerDrivenReupsertCommands,
   createStableIdCache,
   getCachedSortedKeys,
-} from '../engine/runtime/useEngineStoreSync';
+} from '@/engine/core/useEngineStoreSync';
 import type { Layer, Shape } from '../types';
 import { getDefaultColorMode } from '../utils/shapeColors';
 
@@ -75,4 +75,3 @@ describe('useEngineStoreSync incremental behaviour', () => {
     expect((commands[0] as any)?.id).toBe(101);
   });
 });
-

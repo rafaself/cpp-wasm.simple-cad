@@ -1,4 +1,4 @@
-import { initCadEngineModule } from '@/wasm/getCadEngineFactory';
+import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { createIdAllocator, type IdMaps } from './idAllocator';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';

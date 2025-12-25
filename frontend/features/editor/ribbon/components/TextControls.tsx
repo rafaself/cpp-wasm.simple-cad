@@ -6,7 +6,7 @@ import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { BUTTON_STYLES, INPUT_STYLES } from '../../../../design/tokens';
 import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 import { useUIStore } from '../../../../stores/useUIStore';
-import { getTextTool } from '../../../../engine/runtime/textEngineSync';
+import { getTextTool } from '../../../../engine/core/textEngineSync';
 import { TextStyleFlags } from '../../../../types/text';
 
 const FONT_OPTIONS = [

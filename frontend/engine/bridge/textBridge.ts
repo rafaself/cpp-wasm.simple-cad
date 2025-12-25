@@ -5,7 +5,7 @@
  * bridging between application code and the WASM engine's text subsystem.
  */
 
-import type { EngineRuntime } from '@/engine/runtime/EngineRuntime';
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import {
   CommandOp,
   type ApplyTextStylePayload,
@@ -15,7 +15,7 @@ import {
   type TextSelectionPayload,
   type TextInsertPayload,
   type TextDeletePayload,
-} from '@/engine/runtime/commandBuffer';
+} from '@/engine/core/commandBuffer';
 import {
   TextHitResult,
   TextCaretPosition,
@@ -422,7 +422,7 @@ export class TextBridge {
   /**
    * Get selection rectangles from engine.
    * @param textId Text entity ID
-   * @param startChar Start character index
+   * @param startChar Selection start character index
    * @param endChar End character index
    * @param content Current content (for conversion)
    */

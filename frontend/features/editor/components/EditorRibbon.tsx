@@ -18,8 +18,8 @@ import LayerControl from '../ribbon/components/LayerControl';
 import GridControl from '../ribbon/components/GridControl';
 import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
-import { getEngineRuntime } from '@/engine/runtime/singleton';
-import { getTextTool, getTextIdForShape } from '@/engine/runtime/textEngineSync';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { getTextTool, getTextIdForShape } from '@/engine/core/textEngineSync';
 import { TextStyleFlags } from '@/types/text';
 
 // Shared styles - using design tokens

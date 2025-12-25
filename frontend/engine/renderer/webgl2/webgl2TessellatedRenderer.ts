@@ -1,20 +1,8 @@
-import type { BufferMeta, WasmModule } from '@/engine/runtime/EngineRuntime';
-import type { TessellatedRenderer, TessellatedRenderInput } from '../tessellatedRenderer';
+import type { BufferMeta, WasmModule } from '@/engine/core/EngineRuntime';
+import type { TessellatedRenderer, TessellatedRenderInput } from '../../renderers/tessellatedRenderer';
 
-import { computeTriangleBatches, type TriangleBatch } from './triBatching';
-import { TextRenderPass } from './textRenderPass';
-
-type RendererResources = {
-  program: WebGLProgram;
-  vao: WebGLVertexArrayObject;
-  vbo: WebGLBuffer;
-  aPosition: number;
-  aColor: number;
-  uViewScale: WebGLUniformLocation;
-  uViewTranslate: WebGLUniformLocation;
-  uCanvasSize: WebGLUniformLocation;
-  uPixelRatio: WebGLUniformLocation;
-};
+import { GeometryPass } from './passes/GeometryPass';
+import { TextRenderPass } from './passes/TextRenderPass';
 
 type SsaaResources = {
   framebuffer: WebGLFramebuffer;
@@ -24,8 +12,6 @@ type SsaaResources = {
   blitVbo: WebGLBuffer;
   uSource: WebGLUniformLocation;
 };
-
-const floatsPerVertex = 7;
 
 const compileShader = (gl: WebGL2RenderingContext, type: number, source: string): WebGLShader => {
   const shader = gl.createShader(type);
@@ -56,64 +42,6 @@ const createProgram = (gl: WebGL2RenderingContext, vertexSource: string, fragmen
     throw new Error(log);
   }
   return program;
-};
-
-const initMainResources = (gl: WebGL2RenderingContext): RendererResources => {
-  const vertexSource = `#version 300 es
-    precision highp float;
-    in vec3 a_position;
-    in vec4 a_color;
-    uniform float u_viewScale;
-    uniform vec2 u_viewTranslate;
-    uniform vec2 u_canvasSize;
-    uniform float u_pixelRatio;
-    out vec4 vColor;
-    void main() {
-      vColor = a_color;
-      vec2 screen;
-      screen.x = a_position.x * u_viewScale + u_viewTranslate.x;
-      screen.y = -a_position.y * u_viewScale + u_viewTranslate.y;
-      screen *= u_pixelRatio;
-      vec2 clip = vec2(
-        (screen.x / u_canvasSize.x) * 2.0 - 1.0,
-        1.0 - (screen.y / u_canvasSize.y) * 2.0
-      );
-      gl_Position = vec4(clip, 0.0, 1.0);
-    }
-  `;
-  const fragmentSource = `#version 300 es
-    precision highp float;
-    in vec4 vColor;
-    out vec4 outColor;
-    void main() {
-      outColor = vColor;
-    }
-  `;
-
-  const program = createProgram(gl, vertexSource, fragmentSource);
-  const vao = gl.createVertexArray();
-  const vbo = gl.createBuffer();
-  if (!vao || !vbo) throw new Error('Failed to create WebGL buffers');
-
-  const aPosition = gl.getAttribLocation(program, 'a_position');
-  const aColor = gl.getAttribLocation(program, 'a_color');
-  const uViewScale = gl.getUniformLocation(program, 'u_viewScale');
-  const uViewTranslate = gl.getUniformLocation(program, 'u_viewTranslate');
-  const uCanvasSize = gl.getUniformLocation(program, 'u_canvasSize');
-  const uPixelRatio = gl.getUniformLocation(program, 'u_pixelRatio');
-  if (aPosition < 0 || aColor < 0 || !uViewScale || !uViewTranslate || !uCanvasSize || !uPixelRatio) {
-    throw new Error('Missing shader attributes/uniforms');
-  }
-
-  gl.bindVertexArray(vao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.enableVertexAttribArray(aPosition);
-  gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, floatsPerVertex * 4, 0);
-  gl.enableVertexAttribArray(aColor);
-  gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, floatsPerVertex * 4, 3 * 4);
-  gl.bindVertexArray(null);
-
-  return { program, vao, vbo, aPosition, aColor, uViewScale, uViewTranslate, uCanvasSize, uPixelRatio };
 };
 
 const initSsaaResources = (gl: WebGL2RenderingContext): SsaaResources => {
@@ -179,13 +107,9 @@ const initSsaaResources = (gl: WebGL2RenderingContext): SsaaResources => {
 
 export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   private gl: WebGL2RenderingContext;
-  private resources: RendererResources;
   private ssaa: SsaaResources;
+  private geometryPass: GeometryPass;
   private textPass: TextRenderPass;
-
-  private lastHeapBuffer: ArrayBuffer | null = null;
-  private lastPositionMeta: BufferMeta | null = null;
-  private lastBatches: TriangleBatch[] = [];
   private offscreenSize: { width: number; height: number } = { width: 0, height: 0 };
 
   // Supersampling scale factor (coverage-style AA). 1 disables SSAA.
@@ -195,19 +119,16 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     const gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false, alpha: true });
     if (!gl) throw new Error('WebGL2 not available');
     this.gl = gl;
-    this.resources = initMainResources(gl);
     this.ssaa = initSsaaResources(gl);
+    this.geometryPass = new GeometryPass(gl);
     this.textPass = new TextRenderPass(gl);
     this.aaScale = Math.max(1, Math.floor(opts?.aaScale ?? 2));
   }
 
   public dispose(): void {
     const { gl } = this;
-    const { program, vao, vbo } = this.resources;
-    gl.deleteBuffer(vbo);
-    gl.deleteVertexArray(vao);
-    gl.deleteProgram(program);
 
+    // Dispose resources managed directly here (SSAA)
     const { framebuffer, texture, blitProgram, blitVao, blitVbo } = this.ssaa;
     gl.deleteFramebuffer(framebuffer);
     gl.deleteTexture(texture);
@@ -215,7 +136,8 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     gl.deleteVertexArray(blitVao);
     gl.deleteProgram(blitProgram);
 
-    // Dispose text render pass
+    // Dispose passes
+    this.geometryPass.dispose();
     this.textPass.dispose();
   }
 
@@ -253,41 +175,16 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     return this.offscreenSize;
   }
 
-  private uploadIfNeeded(input: TessellatedRenderInput): Float32Array {
-    const { module, positionMeta } = input;
-    const heapChanged = module.HEAPF32.buffer !== this.lastHeapBuffer;
-    const metaChanged =
-      !this.lastPositionMeta ||
-      positionMeta.generation !== this.lastPositionMeta.generation ||
-      positionMeta.ptr !== this.lastPositionMeta.ptr ||
-      positionMeta.floatCount !== this.lastPositionMeta.floatCount ||
-      positionMeta.vertexCount !== this.lastPositionMeta.vertexCount;
-
-    const start = positionMeta.ptr >>> 2;
-    const end = start + positionMeta.floatCount;
-    const view = module.HEAPF32.subarray(start, end);
-
-    if (heapChanged || metaChanged) {
-      const { gl } = this;
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.vbo);
-      gl.bufferData(gl.ARRAY_BUFFER, view, gl.DYNAMIC_DRAW);
-      gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-      this.lastBatches = computeTriangleBatches(view, floatsPerVertex);
-      this.lastHeapBuffer = module.HEAPF32.buffer as ArrayBuffer;
-      this.lastPositionMeta = { ...positionMeta };
-    }
-
-    return view;
-  }
-
   public render(input: TessellatedRenderInput): void {
     const { gl } = this;
     const { width, height, pixelRatio } = this.ensureCanvasSize(input);
     const { width: offW, height: offH } = this.ensureOffscreen(width, height);
 
-    // Upload VBO + compute batches (only when buffer/meta changes).
-    this.uploadIfNeeded(input);
+    // Initialize passes on first use
+    if (!this.geometryPass.isInitialized()) this.geometryPass.initialize();
+
+    // Update buffers
+    this.geometryPass.updateBuffer(input.module, input.positionMeta);
 
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
@@ -298,25 +195,16 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     gl.clearColor(input.clearColor.r, input.clearColor.g, input.clearColor.b, input.clearColor.a);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    gl.useProgram(this.resources.program);
-    gl.bindVertexArray(this.resources.vao);
-    gl.uniform1f(this.resources.uViewScale, input.viewTransform.scale || 1);
-    gl.uniform2f(this.resources.uViewTranslate, input.viewTransform.x || 0, input.viewTransform.y || 0);
-    gl.uniform2f(this.resources.uCanvasSize, offW, offH);
-    gl.uniform1f(this.resources.uPixelRatio, pixelRatio * (this.aaScale > 1 ? this.aaScale : 1));
-
-    // Batching: preserve original triangle order while toggling blend state only when needed.
-    for (const batch of this.lastBatches) {
-      if (batch.blended) {
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      } else {
-        gl.disable(gl.BLEND);
-      }
-      gl.drawArrays(gl.TRIANGLES, batch.firstVertex, batch.vertexCount);
-    }
-
-    gl.bindVertexArray(null);
+    // Render Geometry Pass
+    const effectivePixelRatio = pixelRatio * (this.aaScale > 1 ? this.aaScale : 1);
+    this.geometryPass.render({
+      module: input.module,
+      positionMeta: input.positionMeta,
+      viewTransform: input.viewTransform,
+      canvasSizeCss: input.canvasSizeCss,
+      canvasSizeDevice: { width: offW, height: offH },
+      pixelRatio: effectivePixelRatio,
+    });
 
     // -------------------------------------------------------------------------
     // Text Rendering (if text metadata is provided)

@@ -11,9 +11,9 @@
  * - TextCaretOverlay: Renders caret and selection visuals
  */
 
-import type { EngineRuntime } from '@/engine/runtime/EngineRuntime';
-import type { ApplyTextStylePayload } from '@/engine/runtime/commandBuffer';
-import { TextBridge } from '@/wasm/textBridge';
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
+import type { ApplyTextStylePayload } from '@/engine/core/commandBuffer';
+import { TextBridge } from '@/engine/bridge/textBridge';
 import {
   TextBoxMode,
   TextAlign,
@@ -25,7 +25,7 @@ import {
   type TextInputDelta,
   type TextStyleSnapshot,
 } from '@/types/text';
-import { getTextMeta } from '@/engine/runtime/textEngineSync';
+import { getTextMeta } from '@/engine/core/textEngineSync';
 
 // =============================================================================
 // Types
