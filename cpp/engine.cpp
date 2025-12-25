@@ -250,6 +250,58 @@ CadEngine::SnapResult CadEngine::snapElectrical(float x, float y, float toleranc
     return engine::snapElectrical(entityManager_.entities, entityManager_.symbols, entityManager_.nodes, x, y, tolerance);
 }
 
+std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept {
+    // Iterate draw order in reverse (top-most first)
+    if (entityManager_.drawOrderIds.empty()) return 0;
+
+    for (auto it = entityManager_.drawOrderIds.rbegin(); it != entityManager_.drawOrderIds.rend(); ++it) {
+        std::uint32_t id = *it;
+        auto refIt = entityManager_.entities.find(id);
+        if (refIt == entityManager_.entities.end()) continue;
+
+        EntityRef ref = refIt->second;
+        bool hit = false;
+
+        switch (ref.kind) {
+            case EntityKind::Rect: {
+                if (ref.index < entityManager_.rects.size()) {
+                    const auto& r = entityManager_.rects[ref.index];
+                    // Simple AABB check + rotation support if we had rotation in rect (but rects are AABB in this engine mostly?)
+                    // RectRec: x, y, w, h.
+                    // Check if point in rect.
+                    // Tolerance expands the rect.
+                    if (x >= r.x - tolerance && x <= r.x + r.w + tolerance &&
+                        y >= r.y - tolerance && y <= r.y + r.h + tolerance) {
+                        hit = true;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Circle: {
+                if (ref.index < entityManager_.circles.size()) {
+                    const auto& c = entityManager_.circles[ref.index];
+                    // Dist check
+                    float dx = x - c.cx;
+                    float dy = y - c.cy;
+                    float dist2 = dx*dx + dy*dy;
+                    float r = c.rx; // Assuming circular for picking or use max axis
+                    if (dist2 <= (r + tolerance) * (r + tolerance)) {
+                        hit = true;
+                    }
+                }
+                break;
+            }
+            // Add other types as needed
+            default:
+                break;
+        }
+
+        if (hit) return id;
+    }
+
+    return 0; // 0 is invalid ID
+}
+
 void CadEngine::clearWorld() noexcept {
     entityManager_.clear();
     viewScale = 1.0f;

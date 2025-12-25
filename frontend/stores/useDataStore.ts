@@ -27,6 +27,10 @@ export type DataState = ShapeSlice & LayerSlice & HistorySlice & ElectricalSlice
   // Spatial Index
   spatialIndex: QuadTree;
 
+  // Sync Optimization
+  dirtyShapeIds: Set<string>;
+  clearDirtyShapeIds: () => void;
+
   // Document settings
   setWorldScale: (scale: number) => void;
   setFrameEnabled: (enabled: boolean) => void;
@@ -72,6 +76,7 @@ const buildInitialState = () => ({
   },
   vectorSidecar: null,
   spatialIndex: new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 }),
+  dirtyShapeIds: new Set<string>(),
   past: [] as Patch[][],
   future: [] as Patch[][],
 });
@@ -95,6 +100,9 @@ export const useDataStore = create<DataState>()((...args) => {
     },
     vectorSidecar: null,
     spatialIndex: initialQuadTree,
+    dirtyShapeIds: new Set<string>(),
+
+    clearDirtyShapeIds: () => set({ dirtyShapeIds: new Set() }),
 
     // Document settings actions
     setWorldScale: (scale) => set({ worldScale: Math.max(1, scale) }),
@@ -241,6 +249,7 @@ export const useDataStore = create<DataState>()((...args) => {
         frame,
         vectorSidecar,
         spatialIndex,
+        dirtyShapeIds: new Set(Object.keys(nextShapes)), // Mark all as dirty on load
         past: history?.past ?? [],
         future: history?.future ?? [],
       });

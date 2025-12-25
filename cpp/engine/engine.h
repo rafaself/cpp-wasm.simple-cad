@@ -92,6 +92,10 @@ public:
     EngineStats getStats() const noexcept;
 
     SnapResult snapElectrical(float x, float y, float tolerance) const noexcept;
+
+    // picking
+    std::uint32_t pick(float x, float y, float tolerance) const noexcept;
+
 #ifdef EMSCRIPTEN
 private:
 #else

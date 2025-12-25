@@ -28,7 +28,7 @@ export const createShapeSlice: StateCreator<
   shapeOrder: [],
 
   addShape: (shape, electricalElement, diagram) => {
-      const { shapes, shapeOrder, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex } = get();
+      const { shapes, shapeOrder, electricalElements, diagramNodes, diagramEdges, saveToHistory, spatialIndex, dirtyShapeIds } = get();
 
       const linkedShapeRaw = electricalElement ? { ...shape, electricalElementId: electricalElement.id } : shape;
       const linkedShape = normalizeShapeStyle(linkedShapeRaw);
@@ -45,7 +45,11 @@ export const createShapeSlice: StateCreator<
         : diagramEdges;
 
       spatialIndex.insert(linkedShape);
-      set({ shapes: newShapes, shapeOrder: newShapeOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+
+      const newDirty = new Set(dirtyShapeIds);
+      newDirty.add(linkedShape.id);
+
+      set({ shapes: newShapes, shapeOrder: newShapeOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, dirtyShapeIds: newDirty });
       get().syncConnections();
       saveToHistory([{
         type: 'ADD',
@@ -60,16 +64,18 @@ export const createShapeSlice: StateCreator<
   },
 
   addShapes: (shapesToAdd) => {
-      const { shapes, shapeOrder, saveToHistory, spatialIndex } = get();
+      const { shapes, shapeOrder, saveToHistory, spatialIndex, dirtyShapeIds } = get();
       const newShapes = { ...shapes };
       const newShapeOrder = [...shapeOrder];
       const patches: Patch[] = [];
+      const newDirty = new Set(dirtyShapeIds);
 
       shapesToAdd.forEach(shape => {
           const normalized = normalizeShapeStyle(shape);
           newShapes[normalized.id] = normalized;
           if (!newShapeOrder.includes(normalized.id)) newShapeOrder.push(normalized.id);
           spatialIndex.insert(normalized);
+          newDirty.add(normalized.id);
           patches.push({
               type: 'ADD',
               id: normalized.id,
@@ -78,13 +84,13 @@ export const createShapeSlice: StateCreator<
           });
       });
 
-      set({ shapes: newShapes, shapeOrder: newShapeOrder });
+      set({ shapes: newShapes, shapeOrder: newShapeOrder, dirtyShapeIds: newDirty });
       get().syncConnections();
       saveToHistory(patches);
   },
 
   updateShape: (id, diff, recordHistory = true) => {
-      const { shapes, saveToHistory, spatialIndex, connectionNodes } = get();
+      const { shapes, saveToHistory, spatialIndex, connectionNodes, dirtyShapeIds } = get();
       const oldShape = shapes[id];
       if (!oldShape) return;
 
@@ -122,9 +128,11 @@ export const createShapeSlice: StateCreator<
       }
 
       const newShapes = { ...shapes, [id]: newShape };
+      const newDirty = new Set(dirtyShapeIds);
+      newDirty.add(id);
 
       spatialIndex.update(oldShape, newShape);
-      set({ shapes: newShapes });
+      set({ shapes: newShapes, dirtyShapeIds: newDirty });
       get().syncConnections();
       get().syncDiagramEdgesGeometry();
 
@@ -185,6 +193,11 @@ export const createShapeSlice: StateCreator<
       patches.push({ type: 'DELETE', id, prev: targetShape, orderIndex: orderIndex >= 0 ? orderIndex : undefined, electricalElement, diagramNode });
 
       const finalOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
+
+      // Note: We don't add to dirtyShapeIds on delete because the sync loop detects deletion via visibility comparison/missing IDs.
+      // However, if we move to pure delta sync, we might need a 'deletedShapeIds' set.
+      // For now, the sync loop iterates `lastVisibleIds` and checks if they exist in `nextData`.
+
       set({ shapes: newShapes, shapeOrder: finalOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges, connectionNodes: newConnectionNodes });
       saveToHistory(patches);
       get().syncConnections();

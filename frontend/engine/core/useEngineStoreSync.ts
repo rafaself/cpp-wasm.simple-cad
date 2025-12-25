@@ -433,8 +433,16 @@ export const useEngineStoreSync = (): void => {
         }
 
         const visibilityFilterChanged = nextUi.activeFloorId !== prevUi.activeFloorId || nextUi.activeDiscipline !== prevUi.activeDiscipline;
-        const dataChanged = nextData !== prevData;
-        if (!dataChanged && !visibilityFilterChanged) {
+        const shapesRefChanged = nextData.shapes !== prevData.shapes;
+        const layerStyleChanged = nextData.layers !== prevData.layers;
+        const dirtyIds = nextData.dirtyShapeIds;
+
+        // Critical Optimization: Skip sync if nothing relevant changed.
+        // If clearDirtyShapeIds was called, nextData != prevData (because of dirtyShapeIds prop),
+        // but if shapes, layers, and visibility are same, we should do nothing.
+        // Unless dirtyIds has items (which means we haven't processed them yet).
+
+        if (!shapesRefChanged && !visibilityFilterChanged && !layerStyleChanged && dirtyIds.size === 0) {
           if (commands.length) runtime.apply(commands);
           const durationMs = nowMs() - startedAt;
           recordSyncMetrics(commands, durationMs);
@@ -483,10 +491,25 @@ export const useEngineStoreSync = (): void => {
         const layersById = new Map(nextData.layers.map((l) => [l.id, l]));
 
         // Adds + updates for visible shapes.
-        for (const id of nextOrderedIds) {
+        // OPTIMIZATION: Use dirtyShapeIds if available to skip checking ALL shapes.
+
+        // If dirtyIds has items, we assume we only need to check those (plus visibility changes).
+        // If dirtyIds is empty BUT shapesRefChanged is true, it means we missed capturing dirty IDs (e.g. initial load, or some other op), so we must full scan.
+        // Logic: Full scan if (visibility changed OR (shapes changed AND dirty empty)).
+
+        const isFullScanRequired = visibilityFilterChanged || (shapesRefChanged && dirtyIds.size === 0);
+
+        const idsToCheck = isFullScanRequired ? nextOrderedIds : Array.from(dirtyIds);
+
+        for (const id of idsToCheck) {
+          // If using dirtyIds, we must check visibility again because a shape might be dirty but invisible.
+          if (!nextVisibleSet.has(id)) continue;
+
           const nextShape = nextData.shapes[id]!;
           const prevShape = prevData.shapes[id];
-          if (prevShape === nextShape && lastVisibleIds.has(id)) continue;
+
+          // Optimization: identity check if we are doing full scan (if explicit dirty, we assume changed)
+          if (isFullScanRequired && prevShape === nextShape && lastVisibleIds.has(id)) continue;
 
           const layer = layersById.get(nextShape.layerId) ?? null;
           const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
@@ -499,8 +522,10 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Layer style changes: re-upsert affected visible shapes even if the shape object did not change.
-        const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
-        commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
+        if (layerStyleChanged) {
+            const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
+            commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
+        }
 
         // Nodes: deletes then adds/updates (conduits depend on them).
         const prevNodeIds = getCachedSortedKeys(prevData.connectionNodes as Record<string, unknown>, prevConnectionNodeCache);
@@ -526,16 +551,20 @@ export const useEngineStoreSync = (): void => {
         }
 
         // Symbols (used by anchored nodes).
-        const sortedShapeIds = getCachedSortedKeys(nextData.shapes as Record<string, unknown>, shapeIdCache);
-        for (const id of sortedShapeIds) {
-          const nextShape = nextData.shapes[id]!;
+        // Optimization: Use dirty IDs for symbols too? Assuming symbol creation/update is tied to shape update.
+        const shapeIdsForSymbols = isFullScanRequired ? getCachedSortedKeys(nextData.shapes as Record<string, unknown>, shapeIdCache) : Array.from(dirtyIds);
+        for (const id of shapeIdsForSymbols) {
+          const nextShape = nextData.shapes[id];
+          if (!nextShape) continue; // Deleted
           const prevShape = prevData.shapes[id];
-          if (prevShape === nextShape) continue;
+          if (isFullScanRequired && prevShape === nextShape) continue;
+
           const symCmd = toUpsertSymbolCommand(nextShape, ensureId);
           if (symCmd) commands.push(symCmd);
         }
 
         // Draw order (visible shapes only).
+        // This is always O(N) but just an array mapping.
         const drawOrderIds = nextOrderedIds.map((id) => ensureId(id));
         const drawOrderKey = drawOrderIds.join(',');
         if (drawOrderKey !== lastDrawOrderKey) {
@@ -544,6 +573,12 @@ export const useEngineStoreSync = (): void => {
         }
 
         if (commands.length) runtime.apply(commands);
+
+        // Clear dirty flags after sync
+        if (dirtyIds.size > 0 && nextData.clearDirtyShapeIds) {
+            nextData.clearDirtyShapeIds();
+        }
+
         const durationMs = nowMs() - startedAt;
         recordSyncMetrics(commands, durationMs);
         lastVisibleIds = nextVisibleSet;

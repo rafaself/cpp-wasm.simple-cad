@@ -32,6 +32,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("snapElectrical", &CadEngine::snapElectrical)
+        .function("pick", &CadEngine::pick)
         .function("getStats", &CadEngine::getStats)
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
