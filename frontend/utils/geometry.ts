@@ -70,6 +70,8 @@ export const constrainToSquare = (start: Point, end: Point): Point => {
   };
 };
 
+export const isDrag = (dx: number, dy: number): boolean => Math.hypot(dx, dy) > 2;
+
 // Exported from constants now
 // export const TEXT_PADDING = 4;
 

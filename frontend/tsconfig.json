@@ -21,9 +21,11 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@/engine/*": ["./engine/*"],
+      "@/features/*": ["./features/*"],
+      "@/components/*": ["./components/*"],
+      "@/stores/*": ["./stores/*"]
     },
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
