@@ -11,7 +11,7 @@ export interface ShapeSlice {
   shapeOrder: string[];
   addShape: (shape: Shape, electricalElement?: ElectricalElement, diagram?: { node?: DiagramNode; edge?: DiagramEdge }) => void;
   addShapes: (shapes: Shape[]) => void;
-  updateShape: (id: string, diff: Partial<Shape>, recordHistory?: boolean) => void;
+  updateShape: (id: string, diff: Partial<Shape>, optionsOrRecordHistory?: boolean | { recordHistory?: boolean; skipConnectionSync?: boolean }) => void;
   deleteShape: (id: string) => void;
   deleteShapes: (ids: string[]) => void;
   alignSelected: (ids: string[], alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
@@ -89,10 +89,20 @@ export const createShapeSlice: StateCreator<
       saveToHistory(patches);
   },
 
-  updateShape: (id, diff, recordHistory = true) => {
+  updateShape: (id, diff, optionsOrRecordHistory = true) => {
       const { shapes, saveToHistory, spatialIndex, connectionNodes, dirtyShapeIds } = get();
       const oldShape = shapes[id];
       if (!oldShape) return;
+
+      let recordHistory = true;
+      let skipConnectionSync = false;
+
+      if (typeof optionsOrRecordHistory === 'object') {
+          recordHistory = optionsOrRecordHistory.recordHistory ?? true;
+          skipConnectionSync = optionsOrRecordHistory.skipConnectionSync ?? false;
+      } else if (typeof optionsOrRecordHistory === 'boolean') {
+          recordHistory = optionsOrRecordHistory;
+      }
 
       let newShape: Shape = normalizeShapeStyle({ ...oldShape, ...diff });
 
@@ -133,8 +143,11 @@ export const createShapeSlice: StateCreator<
 
       spatialIndex.update(oldShape, newShape);
       set({ shapes: newShapes, dirtyShapeIds: newDirty });
-      get().syncConnections();
-      get().syncDiagramEdgesGeometry();
+
+      if (!skipConnectionSync) {
+          get().syncConnections();
+          get().syncDiagramEdgesGeometry();
+      }
 
       if (recordHistory) {
           saveToHistory([{ type: 'UPDATE', id, diff, prev: oldShape }]);

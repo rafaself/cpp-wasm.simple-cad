@@ -94,6 +94,10 @@ export const normalizeConnectionTopology = (
   nodes: Record<string, ConnectionNode>,
   opts?: { idFactory?: IdFactory; pruneOrphans?: boolean }
 ): { shapes: Record<string, Shape>; nodes: Record<string, ConnectionNode> } => {
+  if (process.env.NODE_ENV === 'development') {
+      console.time('normalizeConnectionTopology');
+  }
+
   const idFactory = opts?.idFactory ?? defaultIdFactory;
   const pruneOrphans = opts?.pruneOrphans ?? true;
   const autoAnchorFreeNodes = true;
@@ -245,6 +249,10 @@ export const normalizeConnectionTopology = (
       }
     });
     nextNodes = pruned;
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+      console.timeEnd('normalizeConnectionTopology');
   }
 
   return { shapes: nextShapes, nodes: nextNodes };

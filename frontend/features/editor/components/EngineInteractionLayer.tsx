@@ -208,6 +208,7 @@ const EngineInteractionLayer: React.FC = () => {
       layers: useDataStore((s) => s.layers),
       spatialIndex: useDataStore((s) => s.spatialIndex),
       onUpdateShape: useDataStore((s) => s.updateShape),
+      onSyncConnections: useDataStore.getState().syncConnections,
       onSetSelectedShapeIds: setSelectedShapeIds,
       onSaveToHistory: useDataStore((s) => s.saveToHistory),
       pickShape,
@@ -475,7 +476,7 @@ const EngineInteractionLayer: React.FC = () => {
           if (shape.y !== undefined) diff.y = clampTiny(shape.y + dy);
           if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
 
-          if (Object.keys(diff).length) data.updateShape(id, diff, false);
+          if (Object.keys(diff).length) data.updateShape(id, diff, { skipConnectionSync: true, recordHistory: false });
 
           if (shape.type === 'text' && textToolRef.current) {
             const textId = getTextIdForShape(id);
@@ -540,6 +541,7 @@ const EngineInteractionLayer: React.FC = () => {
       moveRef.current = null;
       if (moveState) {
         const data = useDataStore.getState();
+        data.syncConnections();
         const patches: Patch[] = [];
         moveState.snapshot.forEach((prevShape, id) => {
           const curr = data.shapes[id];
