@@ -12,8 +12,6 @@
 // Helpers moved to text_system.cpp
 namespace {
     // Map logical index (grapheme/codepoint approximation) to UTF-8 byte offset.
-    // This treats any non-continuation byte as a logical step; true grapheme
-    // clustering is TODO but this keeps logical indices decoupled from bytes.
     std::uint32_t logicalToByteIndex(std::string_view content, std::uint32_t logicalIndex) {
         std::uint32_t bytePos = 0;
         std::uint32_t logicalCount = 0;
@@ -103,13 +101,11 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     reserveWorld(static_cast<std::uint32_t>(sd.rects.size()), static_cast<std::uint32_t>(sd.lines.size()), static_cast<std::uint32_t>(sd.polylines.size()), static_cast<std::uint32_t>(sd.points.size()));
     
     // Move data to EntityManager
-    entityManager_.symbols = std::move(sd.symbols);
-    entityManager_.nodes = std::move(sd.nodes);
-    entityManager_.conduits = std::move(sd.conduits);
     entityManager_.rects = std::move(sd.rects);
     entityManager_.lines = std::move(sd.lines);
     entityManager_.polylines = std::move(sd.polylines);
     entityManager_.points = std::move(sd.points);
+    // Ignore electrical entities from snapshot if any (symbols, nodes, conduits)
     
     snapshotBytes = std::move(sd.rawBytes);
 
@@ -143,26 +139,15 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         pl.strokeEnabled = 1.0f;
         pl.strokeWidthPx = 1.0f;
     }
-    for (auto& c : entityManager_.conduits) {
-        c.r = 0.0f;
-        c.g = 0.0f;
-        c.b = 0.0f;
-        c.a = 1.0f;
-        c.enabled = 1.0f;
-        c.strokeWidthPx = 1.0f;
-    }
 
     // Rebuild entity index and default draw order (snapshot does not persist these).
     entityManager_.entities.clear();
     entityManager_.drawOrderIds.clear();
-    entityManager_.drawOrderIds.reserve(entityManager_.rects.size() + entityManager_.lines.size() + entityManager_.polylines.size() + entityManager_.conduits.size());
+    entityManager_.drawOrderIds.reserve(entityManager_.rects.size() + entityManager_.lines.size() + entityManager_.polylines.size());
     
     for (std::uint32_t i = 0; i < entityManager_.rects.size(); i++) entityManager_.entities[entityManager_.rects[i].id] = EntityRef{EntityKind::Rect, i};
     for (std::uint32_t i = 0; i < entityManager_.lines.size(); i++) entityManager_.entities[entityManager_.lines[i].id] = EntityRef{EntityKind::Line, i};
     for (std::uint32_t i = 0; i < entityManager_.polylines.size(); i++) entityManager_.entities[entityManager_.polylines[i].id] = EntityRef{EntityKind::Polyline, i};
-    for (std::uint32_t i = 0; i < entityManager_.symbols.size(); i++) entityManager_.entities[entityManager_.symbols[i].id] = EntityRef{EntityKind::Symbol, i};
-    for (std::uint32_t i = 0; i < entityManager_.nodes.size(); i++) entityManager_.entities[entityManager_.nodes[i].id] = EntityRef{EntityKind::Node, i};
-    for (std::uint32_t i = 0; i < entityManager_.conduits.size(); i++) entityManager_.entities[entityManager_.conduits[i].id] = EntityRef{EntityKind::Conduit, i};
 
     // Draw order
     entityManager_.drawOrderIds.reserve(entityManager_.entities.size());
@@ -244,9 +229,6 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
         static_cast<std::uint32_t>(entityManager_.rects.size()),
         static_cast<std::uint32_t>(entityManager_.lines.size()),
         static_cast<std::uint32_t>(entityManager_.polylines.size()),
-        static_cast<std::uint32_t>(entityManager_.symbols.size()),
-        static_cast<std::uint32_t>(entityManager_.nodes.size()),
-        static_cast<std::uint32_t>(entityManager_.conduits.size()),
         static_cast<std::uint32_t>(entityManager_.points.size()),
         static_cast<std::uint32_t>(triangleVertices.size() / 7),
         static_cast<std::uint32_t>(lineVertices.size() / 7),
@@ -254,10 +236,6 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
         lastRebuildMs,
         lastApplyMs
     };
-}
-
-CadEngine::SnapResult CadEngine::snapElectrical(float x, float y, float tolerance) const noexcept {
-    return engine::snapElectrical(entityManager_.entities, entityManager_.symbols, entityManager_.nodes, x, y, tolerance);
 }
 
 std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept {
@@ -409,40 +387,6 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
     renderDirty = true;
     snapshotDirty = true;
     entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
-}
-
-void CadEngine::upsertSymbol(
-    std::uint32_t id,
-    std::uint32_t symbolKey,
-    float x,
-    float y,
-    float w,
-    float h,
-    float rotation,
-    float scaleX,
-    float scaleY,
-    float connX,
-    float connY
-) {
-    renderDirty = true;
-    snapshotDirty = true;
-    entityManager_.upsertSymbol(id, symbolKey, x, y, w, h, rotation, scaleX, scaleY, connX, connY);
-}
-
-void CadEngine::upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y) {
-    renderDirty = true;
-    snapshotDirty = true;
-    entityManager_.upsertNode(id, kind, anchorSymbolId, x, y);
-}
-
-void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId) {
-    upsertConduit(id, fromNodeId, toNodeId, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
-}
-
-void CadEngine::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
-    renderDirty = true;
-    snapshotDirty = true;
-    entityManager_.upsertConduit(id, fromNodeId, toNodeId, r, g, b, a, enabled, strokeWidthPx);
 }
 
 void CadEngine::upsertCircle(
@@ -613,28 +557,6 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             ArrowPayload p;
             std::memcpy(&p, payload, sizeof(ArrowPayload));
             self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
-            break;
-        }
-        case static_cast<std::uint32_t>(CommandOp::UpsertSymbol): {
-            if (payloadByteCount != sizeof(SymbolPayload)) return EngineError::InvalidPayloadSize;
-            SymbolPayload p;
-            std::memcpy(&p, payload, sizeof(SymbolPayload));
-            self->upsertSymbol(id, p.symbolKey, p.x, p.y, p.w, p.h, p.rotation, p.scaleX, p.scaleY, p.connX, p.connY);
-            break;
-        }
-        case static_cast<std::uint32_t>(CommandOp::UpsertNode): {
-            if (payloadByteCount != sizeof(NodePayload)) return EngineError::InvalidPayloadSize;
-            NodePayload p;
-            std::memcpy(&p, payload, sizeof(NodePayload));
-            const NodeKind kind = p.kind == 1 ? NodeKind::Anchored : NodeKind::Free;
-            self->upsertNode(id, kind, p.anchorId, p.x, p.y);
-            break;
-        }
-        case static_cast<std::uint32_t>(CommandOp::UpsertConduit): {
-            if (payloadByteCount != sizeof(ConduitPayload)) return EngineError::InvalidPayloadSize;
-            ConduitPayload p;
-            std::memcpy(&p, payload, sizeof(ConduitPayload));
-            self->upsertConduit(id, p.fromNodeId, p.toNodeId, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
             break;
         }
         // =======================================================================
@@ -872,54 +794,12 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
     return out;
 }
 
-const SymbolRec* CadEngine::findSymbol(std::uint32_t id) const noexcept {
-    const auto it = entityManager_.entities.find(id);
-    if (it == entityManager_.entities.end()) return nullptr;
-    if (it->second.kind != EntityKind::Symbol) return nullptr;
-    return &entityManager_.symbols[it->second.index];
-}
-
-const NodeRec* CadEngine::findNode(std::uint32_t id) const noexcept {
-    const auto it = entityManager_.entities.find(id);
-    if (it == entityManager_.entities.end()) return nullptr;
-    if (it->second.kind != EntityKind::Node) return nullptr;
-    return &entityManager_.nodes[it->second.index];
-}
-
-bool CadEngine::resolveNodePosition(std::uint32_t nodeId, Point2& out) const noexcept {
-    return engine::resolveNodePosition(entityManager_.entities, entityManager_.symbols, entityManager_.nodes, nodeId, out);
-}
-
-void CadEngine::compactPolylinePoints() {
-    std::size_t total = 0;
-    for (const auto& pl : entityManager_.polylines) total += pl.count;
-    std::vector<Point2> next;
-    next.reserve(total);
-
-    for (auto& pl : entityManager_.polylines) {
-        const std::uint32_t start = pl.offset;
-        const std::uint32_t end = pl.offset + pl.count;
-        if (end > entityManager_.points.size()) {
-            pl.offset = static_cast<std::uint32_t>(next.size());
-            pl.count = 0;
-            continue;
-        }
-        pl.offset = static_cast<std::uint32_t>(next.size());
-        for (std::uint32_t i = start; i < end; i++) next.push_back(entityManager_.points[i]);
-    }
-
-    entityManager_.points.swap(next);
-}
-
 void CadEngine::rebuildSnapshotBytes() const {
     engine::SnapshotData sd;
     sd.rects = entityManager_.rects;
     sd.lines = entityManager_.lines;
     sd.polylines = entityManager_.polylines;
     sd.points = entityManager_.points;
-    sd.symbols = entityManager_.symbols;
-    sd.nodes = entityManager_.nodes;
-    sd.conduits = entityManager_.conduits;
 
     snapshotBytes = engine::buildSnapshotBytes(sd);
     snapshotDirty = false;
@@ -979,18 +859,14 @@ void CadEngine::rebuildRenderBuffers() const {
         entityManager_.lines,
         entityManager_.polylines,
         entityManager_.points,
-        entityManager_.conduits,
         entityManager_.circles,
         entityManager_.polygons,
         entityManager_.arrows,
-        entityManager_.symbols,
-        entityManager_.nodes,
         entityManager_.entities,
         entityManager_.drawOrderIds,
         viewScale,
         triangleVertices,
         lineVertices,
-        /*resolveCb*/ reinterpret_cast<engine::ResolveNodeCallback>(+[](void* ctx, std::uint32_t nodeId, Point2& out){ const CadEngine* self = reinterpret_cast<const CadEngine*>(ctx); return self->resolveNodePosition(nodeId, out); }),
         const_cast<CadEngine*>(this) 
     );
     renderDirty = false;

@@ -4,7 +4,7 @@ export interface KeyBinding {
   label: string; // Human readable name for the action
   keys: string[]; // Primary keys (e.g. ['L'], ['Control', 'Z'])
   description: string;
-  category: 'ferramentas' | 'editor' | 'navegacao' | 'eletrica';
+  category: 'ferramentas' | 'editor' | 'navegacao';
 }
 
 export const KEYBINDINGS: Record<string, KeyBinding> = {
@@ -110,29 +110,6 @@ export const KEYBINDINGS: Record<string, KeyBinding> = {
     keys: ['z'],
     description: 'Ajustar zoom para caber tudo',
     category: 'navegacao'
-  },
-
-  // Electrical Context (Note: These often conflict with global tools but are active only in specific contexts)
-  'electrical.rotate': {
-    id: 'electrical.rotate',
-    label: 'Rotacionar Símbolo',
-    keys: ['r'],
-    description: 'Girar o símbolo elétrico 90 graus',
-    category: 'eletrica'
-  },
-  'electrical.flipH': {
-    id: 'electrical.flipH',
-    label: 'Espelhar Horizontal',
-    keys: ['f'],
-    description: 'Espelhar símbolo horizontalmente',
-    category: 'eletrica'
-  },
-  'electrical.flipV': {
-    id: 'electrical.flipV',
-    label: 'Espelhar Vertical',
-    keys: ['v'],
-    description: 'Espelhar símbolo verticalmente',
-    category: 'eletrica'
   }
 };
 

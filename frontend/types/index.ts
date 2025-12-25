@@ -13,8 +13,6 @@ export type ToolType =
   | 'move'
   | 'rotate'
   | 'text'
-  | 'electrical-symbol'
-  | 'eletroduto'
   | 'calibrate';
 
 export type ShapeType =
@@ -26,80 +24,13 @@ export type ShapeType =
   | 'polyline'
   | 'arc'
   | 'measure'
-  | 'text'
-  | 'eletroduto';
-
-export type DiagramNodeKind =
-  | 'board'
-  | 'circuit-group'
-  | 'circuit'
-  | 'command'
-  | 'load'
-  | 'note';
-
-export enum ElectricalCategory {
-  POWER = 'power',
-  CONTROL = 'control',
-  SIGNAL = 'signal',
-  LIGHTING = 'lighting',
-  CONDUIT = 'conduit'
-}
-
-export type ConnectionNodeKind = 'free' | 'anchored';
-
-export interface ConnectionNode {
-  id: string;
-  kind: ConnectionNodeKind;
-  /**
-   * Cached/authoritative world position.
-   * - For `free` nodes: authoritative.
-   * - For `anchored` nodes: last known resolved position (fallback if the anchor is missing).
-   */
-  position?: Point;
-  /** Shape id this node is anchored to (electrical symbol). */
-  anchorShapeId?: string;
-  /**
-   * When true, the node should not be auto-anchored by the resolver (e.g., user just detached the conduit).
-   */
-  pinned?: boolean;
-}
-
-export interface DiagramNode {
-  id: string;
-  shapeId: string;
-  kind: DiagramNodeKind;
-  title: string;
-  description?: string;
-}
-
-export interface DiagramEdge {
-  id: string;
-  shapeId: string;
-  fromId: string;
-  toId: string;
-  label?: string;
-}
+  | 'text';
 
 export interface NormalizedViewBox {
   x: number;
   y: number;
   width: number;
   height: number;
-}
-
-export interface ElectricalElement {
-  id: string;
-  shapeId: string;
-  category: ElectricalCategory;
-  /**
-   * Optional semantic refinement (e.g. for POWER devices: outlet vs switch).
-   * Optional and may be omitted.
-   */
-  subcategory?: string;
-  name?: string;
-  description?: string;
-  metadata?: Record<string, string | number | boolean>;
-  circuitId?: string; // #TODO: To be implemented with Load Board
 }
 
 export interface Point {
@@ -155,7 +86,7 @@ export interface Shape {
   type: ShapeType;
   points: Point[];
   floorId?: string;
-  discipline?: 'architecture' | 'electrical';
+  discipline?: 'architecture'; // Simplified discipline if kept, otherwise could be removed entirely or just string
   x?: number;
   y?: number;
   width?: number;
@@ -202,19 +133,6 @@ export interface Shape {
   svgHiddenLayers?: string[];
   svgOriginalRaw?: string;
 
-  // Electrical metadata linkage
-  electricalElementId?: string;
-  connectionPoint?: { x: number; y: number }; // Normalized 0-1 connection anchor point
-
-  // Conduit-specific properties
-  controlPoint?: Point; // Quadratic Bezier control point
-  /** New topology model: conduit endpoints reference connection node ids. */
-  fromNodeId?: string;
-  toNodeId?: string;
-
-  // Special flags
-  diagramNodeId?: string;
-  diagramEdgeId?: string;
   isFrame?: boolean;
 
   // Project Structure (already defined above)
@@ -237,9 +155,6 @@ export interface Patch {
   prev?: Partial<Shape> | Shape; // For UNDO
   /** Optional ordering hint for restoring z-order on undo/redo. */
   orderIndex?: number;
-  electricalElement?: ElectricalElement; // Metadata tied to the shape
-  diagramNode?: DiagramNode;
-  diagramEdge?: DiagramEdge;
 }
 
 export type VectorFillRule = 'nonzero' | 'evenodd';
@@ -279,6 +194,7 @@ export type VectorStrokeStyle = {
 
 export type VectorFillStyle = {
   color: string;
+  width?: never; // Ensure differentiation
 };
 
 export type VectorStyle = {
@@ -326,10 +242,6 @@ export interface SerializedProject {
   layers: Layer[];
   shapes: Shape[];
   activeLayerId: string;
-  electricalElements: ElectricalElement[];
-  connectionNodes: ConnectionNode[];
-  diagramNodes: DiagramNode[];
-  diagramEdges: DiagramEdge[];
   vectorSidecar?: VectorSidecar;
 }
 

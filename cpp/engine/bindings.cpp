@@ -31,7 +31,6 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getPositionBufferMeta", &CadEngine::getPositionBufferMeta)
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
-        .function("snapElectrical", &CadEngine::snapElectrical)
         .function("pick", &CadEngine::pick)
         .function("getStats", &CadEngine::getStats)
         // Text system methods
@@ -84,21 +83,12 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("rectCount", &CadEngine::EngineStats::rectCount)
         .field("lineCount", &CadEngine::EngineStats::lineCount)
         .field("polylineCount", &CadEngine::EngineStats::polylineCount)
-        .field("symbolCount", &CadEngine::EngineStats::symbolCount)
-        .field("nodeCount", &CadEngine::EngineStats::nodeCount)
-        .field("conduitCount", &CadEngine::EngineStats::conduitCount)
         .field("pointCount", &CadEngine::EngineStats::pointCount)
         .field("triangleVertexCount", &CadEngine::EngineStats::triangleVertexCount)
         .field("lineVertexCount", &CadEngine::EngineStats::lineVertexCount)
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
         .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
         .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
-
-    emscripten::value_object<CadEngine::SnapResult>("SnapResult")
-        .field("kind", &CadEngine::SnapResult::kind)
-        .field("id", &CadEngine::SnapResult::id)
-        .field("x", &CadEngine::SnapResult::x)
-        .field("y", &CadEngine::SnapResult::y);
 
     // Text-related value objects
     emscripten::value_object<TextHitResult>("TextHitResult")

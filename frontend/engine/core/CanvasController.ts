@@ -1,6 +1,6 @@
 import { getEngineRuntime } from './singleton';
-import type { TessellatedRenderer } from '@/engine/renderers/tessellatedRenderer';
-import { createTessellatedRenderer } from '@/engine/renderers/createTessellatedRenderer';
+import type { TessellatedRenderer } from '@/engine/renderer/types';
+import { Webgl2TessellatedRenderer } from '@/engine/renderer/webgl2/webgl2TessellatedRenderer';
 import type { ViewTransform } from '@/types';
 import type { BufferMeta } from './EngineRuntime';
 
@@ -28,7 +28,7 @@ export class CanvasController {
     if (!this.canvas) return; // Canvas might have changed while waiting
 
     try {
-      this.renderer = await createTessellatedRenderer(canvas, { aaScale: 2 });
+      this.renderer = new Webgl2TessellatedRenderer(canvas, { aaScale: 2 });
       this.start();
     } catch (e) {
       console.error('[CanvasController] Renderer init failed', e);

@@ -6,29 +6,21 @@ import { useEditorLogic } from '../hooks/useEditorLogic';
 import { MENU_CONFIG, MenuItem } from '../../../config/menu';
 import { getIcon } from '../../../utils/iconMap';
 import ColorPicker from '../../../components/ColorPicker';
-import { getWrappedLines, TEXT_PADDING, getDistance } from '../../../utils/geometry';
+import { getWrappedLines, TEXT_PADDING } from '../../../utils/geometry';
 import type { Layer, Shape } from '../../../types';
 import { ColorPickerTarget } from '../types/ribbon';
 import { TEXT_STYLES, BUTTON_STYLES } from '../../../design/tokens';
-import ElectricalRibbonGallery from '../../library/ElectricalRibbonGallery';
-import { getConnectionPoint } from '../snapEngine/detectors';
-import { resolveConnectionNodePosition } from '../../../utils/connections';
 import { FontFamilyControl, FontSizeControl, TextAlignControl, TextStyleControl, TextFormatGroup } from '../ribbon/components/TextControls';
 import LayerControl from '../ribbon/components/LayerControl';
 import GridControl from '../ribbon/components/GridControl';
-import ElectricalShortcuts from '../ribbon/components/ElectricalShortcuts';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { getTextTool, getTextIdForShape } from '@/engine/core/textEngineSync';
 import { TextStyleFlags } from '@/types/text';
 
 // Shared styles - using design tokens
-const LABEL_STYLE = `${TEXT_STYLES.label} mb-1 block text-center`;
 const BASE_BUTTON_STYLE = BUTTON_STYLES.base;
 const ACTIVE_BUTTON_STYLE = BUTTON_STYLES.active;
-
-
-
 
 // Component Registry for config-driven ribbon widgets
 type RibbonWidgetProps = {
@@ -54,8 +46,6 @@ const ComponentRegistry: Record<string, React.FC<any>> = {
     TextAlignControl,
     TextStyleControl,
     TextFormatGroup,
-    ElectricalLibrary: ElectricalRibbonGallery,
-    ElectricalShortcuts,
     LayerControl,
     GridControl,
 };
@@ -68,19 +58,15 @@ const IMPLEMENTED_ACTIONS = new Set<string>([
     'undo',
     'redo',
     'open-settings',
-    'export-connections',
     'export-project',
     'view-project',
-    'view-connections',
 ]);
 
 const ACTION_BADGES: Record<string, string> = {
     'export-project': 'Download',
-    'export-connections': 'Download',
     'export-json': 'Download',
     'report-csv': 'Download',
     'view-project': 'Nova aba',
-    'view-connections': 'Nova aba',
 };
 
 const getActionBadgeLabel = (action?: string) => (action ? ACTION_BADGES[action] : undefined);
@@ -119,11 +105,8 @@ const EditorRibbon: React.FC = () => {
   const sidebarTab = useUIStore((s) => s.sidebarTab);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
-  const activeElectricalSymbolId = useUIStore((s) => s.activeElectricalSymbolId);
   const setSettingsModalOpen = useUIStore((s) => s.setSettingsModalOpen);
   const setTool = useUIStore((s) => s.setTool);
-  const setElectricalSymbolId = useUIStore((s) => s.setElectricalSymbolId);
-  const resetElectricalPreview = useUIStore((s) => s.resetElectricalPreview);
   const settingsStore = useSettingsStore();
   const dataStore = useDataStore();
   const { deleteSelected, joinSelected, explodeSelected, zoomToFit } = useEditorLogic();
@@ -133,8 +116,6 @@ const EditorRibbon: React.FC = () => {
   const layerButtonRef = useRef<HTMLButtonElement>(null);
   const layerDropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-
-  const isConduitShape = (s: Shape) => s.type === 'eletroduto';
 
   const serializeProject = useDataStore((state) => state.serializeProject);
   const worldScale = useDataStore((state) => state.worldScale);
@@ -260,134 +241,6 @@ const EditorRibbon: React.FC = () => {
       win.document.close();
   }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
 
-  const exportConnectionsMap = useCallback(() => {
-      const shapes = dataStore.shapes;
-      const electrical = dataStore.electricalElements;
-      const nodesById = dataStore.connectionNodes;
-
-      const connections = Object.values(shapes)
-        .filter(s => s && s.svgRaw && s.connectionPoint && s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined)
-        .map(s => {
-            const el = s.electricalElementId ? electrical[s.electricalElementId] : undefined;
-            const point = getConnectionPoint(s);
-            return {
-                id: s.id,
-                name: el?.name ?? s.svgSymbolId ?? s.id,
-                category: el?.category ?? null,
-                position: point,
-                electricalElementId: s.electricalElementId ?? null,
-                layerId: s.layerId,
-            };
-        })
-        .filter(c => c.position);
-
-      const nodes = Object.values(nodesById).map(n => ({
-          id: n.id,
-          kind: n.kind,
-          anchorShapeId: n.anchorShapeId ?? null,
-          position: resolveConnectionNodePosition(n, shapes),
-      }));
-
-      const conduits = Object.values(shapes)
-        .filter(isConduitShape)
-        .flatMap((s) => {
-          const fromNodeId = s.fromNodeId ?? null;
-          const toNodeId = s.toNodeId ?? null;
-          if (!fromNodeId || !toNodeId) return [];
-          return [
-            {
-              id: s.id,
-              fromNodeId,
-              toNodeId,
-              length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]) : null,
-              controlPoint: s.controlPoint,
-              layerId: s.layerId,
-            },
-          ];
-        });
-
-      const payload = {
-          generatedAt: new Date().toISOString(),
-          connections,
-          nodes,
-          conduits,
-      };
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'connections-map.json';
-      a.click();
-      URL.revokeObjectURL(url);
-  }, [dataStore.shapes, dataStore.electricalElements, dataStore.connectionNodes]);
-
-  const viewConnectionsReport = useCallback(() => {
-      const shapes = dataStore.shapes;
-      const electrical = dataStore.electricalElements;
-      const nodesById = dataStore.connectionNodes;
-
-      const connections = Object.values(shapes)
-        .filter(s => s && s.svgRaw && s.connectionPoint && s.x !== undefined && s.y !== undefined && s.width !== undefined && s.height !== undefined)
-        .map(s => {
-            const el = s.electricalElementId ? electrical[s.electricalElementId] : undefined;
-            const point = getConnectionPoint(s);
-            return {
-                id: s.id,
-                name: el?.name ?? s.svgSymbolId ?? s.id,
-                category: el?.category ?? '',
-                position: point,
-            };
-        })
-        .filter(c => c.position);
-
-      const conduits = Object.values(shapes)
-        .filter(isConduitShape)
-        .flatMap((s) => {
-          const fromNodeId = s.fromNodeId ?? null;
-          const toNodeId = s.toNodeId ?? null;
-          if (!fromNodeId || !toNodeId) return [];
-          return [
-            {
-              id: s.id,
-              fromNodeId,
-              toNodeId,
-              length: s.points && s.points.length >= 2 ? getDistance(s.points[0], s.points[1]).toFixed(2) : '0.00',
-            },
-          ];
-        });
-
-      const htmlRows = conduits.map(c => {
-          const fromNode = c.fromNodeId ? nodesById[c.fromNodeId] : null;
-          const toNode = c.toNodeId ? nodesById[c.toNodeId] : null;
-          const fromAnchor = fromNode?.kind === 'anchored' && fromNode.anchorShapeId ? connections.find(n => n.id === fromNode.anchorShapeId) : null;
-          const toAnchor = toNode?.kind === 'anchored' && toNode.anchorShapeId ? connections.find(n => n.id === toNode.anchorShapeId) : null;
-          const fromLabel = escapeHtml(fromAnchor?.name || fromAnchor?.id || c.fromNodeId || '—');
-          const toLabel = escapeHtml(toAnchor?.name || toAnchor?.id || c.toNodeId || '—');
-          return `<tr><td>${escapeHtml(c.id)}</td><td>${fromLabel}</td><td>${toLabel}</td><td>${escapeHtml(String(c.length))}</td></tr>`;
-      }).join('');
-
-      // TODO: Otimizar essa parte
-      const html = `<!doctype html>
-<html><head><meta charset="utf-8"><title>Relatorio de Conexoes</title>
-<style>
-body{font-family:Arial, sans-serif;padding:16px;background:#0f172a;color:#e2e8f0;}
-table{border-collapse:collapse;width:100%;margin-top:12px;background:#1e293b;}
-th,td{border:1px solid #334155;padding:8px;text-align:left;}
-th{background:#0ea5e9;color:#0b1223;}
-tr:nth-child(even){background:#111827;}
-</style></head><body>
-<h2>Relatório de Conexões</h2>
-<p>${Object.keys(nodesById).length} nós, ${conduits.length} eletrodutos.</p>
-<table><thead><tr><th>ID</th><th>De</th><th>Para</th><th>Comprimento</th></tr></thead><tbody>${htmlRows || '<tr><td colspan=\"4\">Nenhum eletroduto encontrado.</td></tr>'}</tbody></table>
-</body></html>`;
-
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }, [dataStore.shapes, dataStore.electricalElements, dataStore.connectionNodes]);
-
   const handleAction = (action?: string) => {
       if (action === 'new-file') newNextDocument();
       if (action === 'open-file') openNextDocument();
@@ -399,10 +252,8 @@ tr:nth-child(even){background:#111827;}
       if (action === 'undo') dataStore.undo();
       if (action === 'redo') dataStore.redo();
       if (action === 'open-settings') setSettingsModalOpen(true);
-      if (action === 'export-connections') exportConnectionsMap();
       if (action === 'export-project') exportProjectData();
       if (action === 'view-project') openProjectPreview();
-      if (action === 'view-connections') viewConnectionsReport();
   };
 
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];
@@ -557,41 +408,20 @@ tr:nth-child(even){background:#111827;}
                         {section.items.map(item => {
                             const actionDisabled = shouldDisableAction(item);
                             const actionBadge = getActionBadgeLabel(item.action);
-                            const labelColorClass = (() => {
-                                if (item.type !== 'tool') return '';
-                                if (item.tool === 'electrical-symbol') {
-                                    const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                        return activeTool === 'electrical-symbol' && activeElectricalSymbolId === symbolMap[item.id] ? 'text-blue-300' : '';
-                                }
-                                return activeTool === item.tool ? 'text-blue-300' : '';
-                            })();
+                            const labelColorClass = activeTool === item.tool ? 'text-blue-300' : '';
+
                             return (
                                 <button
                                     key={item.id}
                                     onClick={() => {
                                         if(item.type === 'tool' && item.tool) {
                                             setTool(item.tool);
-                                            if (item.tool === 'electrical-symbol') {
-                                                const symbolMap: Record<string, string> = {
-                                                    'outlet': 'duplex_outlet',
-                                                    'lamp': 'lamp'
-                                                };
-                                                if (symbolMap[item.id]) {
-                                                    setElectricalSymbolId(symbolMap[item.id]);
-                                                    resetElectricalPreview();
-                                                }
-                                            }
                                         }
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
                                     className={`flex flex-col items-center justify-center px-1 py-1 gap-0.5 rounded w-full min-w-[48px] transition-all duration-150
                                     ${(() => {
                                         if (item.type !== 'tool') return `${BASE_BUTTON_STYLE}${actionDisabled ? ' opacity-30 cursor-not-allowed' : ''}`;
-                                        if (item.tool === 'electrical-symbol') {
-                                            const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                            const isActive = activeTool === 'electrical-symbol' && activeElectricalSymbolId === symbolMap[item.id];
-                                            return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
-                                        }
                                         return activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                     })()}
                                 `}
@@ -628,17 +458,6 @@ tr:nth-child(even){background:#111827;}
                                     onClick={() => {
                                         if(item.type === 'tool' && item.tool) {
                                             setTool(item.tool);
-                                            // Special handling for electrical symbol tools
-                                            if (item.tool === 'electrical-symbol') {
-                                                const symbolMap: Record<string, string> = {
-                                                    'outlet': 'duplex_outlet',
-                                                    'lamp': 'lamp'
-                                                };
-                                                if (symbolMap[item.id]) {
-                                                    setElectricalSymbolId(symbolMap[item.id]);
-                                                    resetElectricalPreview();
-                                                }
-                                            }
                                         }
                                         if(item.type === 'action' && item.action) handleAction(item.action);
                                     }}
@@ -646,11 +465,6 @@ tr:nth-child(even){background:#111827;}
                                     ${(() => {
                                         if (item.type !== 'tool') return `${BASE_BUTTON_STYLE}${actionDisabled ? ' opacity-30 cursor-not-allowed' : ''}`;
                                         if (actionDisabled) return `${BASE_BUTTON_STYLE} opacity-30 cursor-not-allowed`;
-                                        if (item.tool === 'electrical-symbol') {
-                                            const symbolMap: Record<string, string> = { 'outlet': 'duplex_outlet', 'lamp': 'lamp' };
-                                            const isActive = activeTool === 'electrical-symbol' && activeElectricalSymbolId === symbolMap[item.id];
-                                            return isActive ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
-                                        }
                                             return activeTool === item.tool ? ACTIVE_BUTTON_STYLE : BASE_BUTTON_STYLE;
                                         })()}
                                 `}

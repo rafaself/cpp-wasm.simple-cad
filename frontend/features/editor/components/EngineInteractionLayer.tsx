@@ -1,41 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ElectricalElement, Patch, Point, Shape } from '@/types';
+import type { Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { screenToWorld, isPointInShape, worldToScreen, getRectCornersWorld, getShapeBoundingBox } from '@/utils/geometry';
+import { toWorldPoint, pickShapeAtGeometry, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import SelectionOverlay from './SelectionOverlay';
 import { HIT_TOLERANCE } from '@/config/constants';
-import { generateId } from '@/utils/uuid';
-import { getDefaultColorMode } from '@/utils/shapeColors';
-import { useLibraryStore } from '@/stores/useLibraryStore';
-import { getDefaultMetadataForSymbol, getElectricalLayerConfig } from '@/features/library/electricalProperties';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { GpuPicker } from '@/engine/picking/gpuPicker';
-import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
-import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
 import { TextTool } from '@/engine/tools/TextTool';
 import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
 import { TextBoxMode } from '@/types/text';
 import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSync';
+import { getShapeBoundingBox, worldToScreen } from '@/utils/geometry';
 
 // New hooks
-import { useSelectInteraction, type SelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
+import { useSelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
 import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
 import { useTextEditHandler, type TextBoxMeta } from '@/features/editor/hooks/useTextEditHandler';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
-import { useSymbolPlacement } from '@/features/editor/hooks/interaction/useSymbolPlacement';
-import { toWorldPoint, pickShapeAtGeometry, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
-
-// Utility functions moved to @/features/editor/utils/interactionHelpers.ts
 
 const EngineInteractionLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
-  const setViewTransform = useUIStore((s) => s.setViewTransform);
   const activeTool = useUIStore((s) => s.activeTool);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
@@ -123,54 +113,6 @@ const EngineInteractionLayer: React.FC = () => {
         }
     }
 
-    // 2. JS Fallbacks (Symbols, SVG, Complex Shapes not yet in Engine Pick)
-    {
-      const data = useDataStore.getState();
-      const ui = useUIStore.getState();
-      const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
-      const svgCandidates = data.spatialIndex
-        .query(queryRect)
-        .map((c) => data.shapes[c.id])
-        .filter((s): s is Shape => !!s && s.type === 'rect' && !!s.svgRaw && (!s.svgSymbolId || s.svgSymbolId.startsWith('plan:')));
-
-      if (svgCandidates.length) {
-        const orderIndex = new Map<string, number>();
-        for (let i = 0; i < data.shapeOrder.length; i++) orderIndex.set(data.shapeOrder[i]!, i);
-        svgCandidates.sort((a, b) => (orderIndex.get(b.id) ?? -1) - (orderIndex.get(a.id) ?? -1));
-
-        for (const shape of svgCandidates) {
-          const layer = data.layers.find((l) => l.id === shape.layerId);
-          if (layer && (!layer.visible || layer.locked)) continue;
-          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
-          void primeSymbolAlphaMask(shape.id, shape.svgRaw ?? '', 256);
-          if (isSymbolInstanceHitAtWorldPoint(shape, world, getSymbolAlphaAtUv, { toleranceWorld: tolerance, symbolIdOverride: shape.id })) return shape.id;
-        }
-      }
-    }
-
-    {
-      const data = useDataStore.getState();
-      const ui = useUIStore.getState();
-      const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
-      const symbolCandidates = data.spatialIndex
-        .query(queryRect)
-        .map((c) => data.shapes[c.id])
-        .filter((s): s is Shape => !!s && !!s.svgSymbolId);
-
-      if (symbolCandidates.length) {
-        const orderIndex = new Map<string, number>();
-        for (let i = 0; i < data.shapeOrder.length; i++) orderIndex.set(data.shapeOrder[i]!, i);
-        symbolCandidates.sort((a, b) => (orderIndex.get(b.id) ?? -1) - (orderIndex.get(a.id) ?? -1));
-
-        for (const shape of symbolCandidates) {
-          const layer = data.layers.find((l) => l.id === shape.layerId);
-          if (layer && (!layer.visible || layer.locked)) continue;
-          if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
-          if (isSymbolInstanceHitAtWorldPoint(shape, world, getSymbolAlphaAtUv, { toleranceWorld: tolerance })) return shape.id;
-        }
-      }
-    }
-
     if (gpuPickerRef.current) {
       const data = useDataStore.getState();
       const gpuHit = gpuPickerRef.current.pick({
@@ -193,14 +135,14 @@ const EngineInteractionLayer: React.FC = () => {
   }, [activeDiscipline, activeFloorId, canvasSize, viewTransform]);
 
   const {
-      selectInteractionRef,
       selectionBox,
       setSelectionBox,
       cursorOverride,
       setCursorOverride,
       handlePointerDown: selectHandlePointerDown,
       handlePointerMove: selectHandlePointerMove,
-      handlePointerUp: selectHandlePointerUp
+      handlePointerUp: selectHandlePointerUp,
+      selectionSvg
   } = useSelectInteraction({
       viewTransform,
       selectedShapeIds,
@@ -208,7 +150,7 @@ const EngineInteractionLayer: React.FC = () => {
       layers: useDataStore((s) => s.layers),
       spatialIndex: useDataStore((s) => s.spatialIndex),
       onUpdateShape: useDataStore((s) => s.updateShape),
-      onSyncConnections: useDataStore.getState().syncConnections,
+      onSyncConnections: () => {}, // No-op as connections removed
       onSetSelectedShapeIds: setSelectedShapeIds,
       onSaveToHistory: useDataStore((s) => s.saveToHistory),
       pickShape,
@@ -261,13 +203,6 @@ const EngineInteractionLayer: React.FC = () => {
 
       if (activeTool !== 'polyline') return;
 
-      // Access draft state from hook? It's passed down.
-      // Since draft is state in the hook, we can't easily access 'current' value here without exposing ref from hook.
-      // But useDraftHandler handles pointer events.
-      // We need to implement keydown handling inside useDraftHandler or pass it here.
-      // For now, let's keep keydown logic here but we need 'draft' value.
-      // The hook exposes 'draft'.
-
       if (e.key === 'Escape') {
         if (draft.kind === 'polyline') {
           e.preventDefault();
@@ -293,9 +228,6 @@ const EngineInteractionLayer: React.FC = () => {
     if (engineTextEditState.active) return 'text';
     return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
   }, [activeTool, cursorOverride, engineTextEditState.active]);
-
-  // Electrical symbol placement - now provided by useSymbolPlacement hook
-  const { commitElectricalSymbolAt } = useSymbolPlacement();
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
@@ -388,17 +320,11 @@ const EngineInteractionLayer: React.FC = () => {
       const movable = selected.filter((s) => {
         const layer = data.layers.find((l) => l.id === s.layerId);
         if (layer?.locked) return false;
-        if (s.type === 'eletroduto') return false;
         return true;
       });
 
       if (movable.length === 0) return;
       moveRef.current = { start: snapped, snapshot: new Map(movable.map((s) => [s.id, s])) };
-      return;
-    }
-
-    if (activeTool === 'electrical-symbol') {
-      commitElectricalSymbolAt(snapped);
       return;
     }
 
@@ -541,7 +467,7 @@ const EngineInteractionLayer: React.FC = () => {
       moveRef.current = null;
       if (moveState) {
         const data = useDataStore.getState();
-        data.syncConnections();
+        // data.syncConnections(); // REMOVED
         const patches: Patch[] = [];
         moveState.snapshot.forEach((prevShape, id) => {
           const curr = data.shapes[id];
@@ -705,16 +631,6 @@ const EngineInteractionLayer: React.FC = () => {
       return (
         <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <polygon points={pointsAttr} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
-
-    if (draft.kind === 'conduit') {
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
         </svg>
       );
     }

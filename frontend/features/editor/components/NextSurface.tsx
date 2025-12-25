@@ -11,8 +11,6 @@ import EditorStatusBar from '@/features/editor/components/EditorStatusBar';
 import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import EditorTabs from '@/features/editor/components/EditorTabs';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
-import { useDataStore } from '@/stores/useDataStore';
-import { useLibraryStore } from '@/stores/useLibraryStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useEngineStoreSync } from '@/engine/core/useEngineStoreSync';
 import EngineInteractionLayer from './EngineInteractionLayer';
@@ -60,13 +58,6 @@ const NextCanvasArea: React.FC = () => {
 const NextSurface: React.FC = () => {
   useKeyboardShortcuts();
   useEngineStoreSync();
-
-  const worldScale = useDataStore((state) => state.worldScale);
-  const loadLibrary = useLibraryStore((state) => state.loadLibrary);
-
-  useEffect(() => {
-    loadLibrary(worldScale);
-  }, [loadLibrary, worldScale]);
 
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">

@@ -483,19 +483,15 @@ void rebuildRenderBuffers(
     const std::vector<LineRec>& lines,
     const std::vector<PolyRec>& polylines,
     const std::vector<Point2>& points,
-    const std::vector<ConduitRec>& conduits,
     const std::vector<CircleRec>& circles,
     const std::vector<PolygonRec>& polygons,
     const std::vector<ArrowRec>& arrows,
-    const std::vector<SymbolRec>& /*symbols*/, // unused here
-    const std::vector<NodeRec>& /*nodes*/,     // unused here
     const std::unordered_map<std::uint32_t, EntityRef>& entities,
     const std::vector<std::uint32_t>& drawOrderIds,
     float viewScale,
     std::vector<float>& triangleVertices,
     std::vector<float>& lineVertices,
-    ResolveNodeCallback resolveCb,
-    void* resolveCtx
+    void* /*resolveCtx*/
 ) {
     triangleVertices.clear();
     lineVertices.clear();
@@ -509,7 +505,7 @@ void rebuildRenderBuffers(
     seen.reserve(entities.size());
 
     auto isRenderable = [](EntityKind k) {
-        return k == EntityKind::Rect || k == EntityKind::Line || k == EntityKind::Polyline || k == EntityKind::Conduit || k == EntityKind::Circle || k == EntityKind::Polygon || k == EntityKind::Arrow;
+        return k == EntityKind::Rect || k == EntityKind::Line || k == EntityKind::Polyline || k == EntityKind::Circle || k == EntityKind::Polygon || k == EntityKind::Arrow;
     };
 
     for (const auto& id : drawOrderIds) {
@@ -553,11 +549,6 @@ void rebuildRenderBuffers(
         if (!(pl.enabled > 0.5f) || !(clamp01(pl.a) > 0.0f) || pl.count < 2) continue;
         const std::uint32_t segments = (pl.count > 0 ? pl.count - 1 : 0);
         triangleBudget += static_cast<std::size_t>(segments) * quadFloats;
-    }
-
-    for (const auto& c : conduits) {
-        if (!(c.enabled > 0.5f) || !(clamp01(c.a) > 0.0f)) continue;
-        triangleBudget += quadFloats;
     }
 
     for (const auto& c : circles) {
@@ -616,22 +607,6 @@ void rebuildRenderBuffers(
             if (pl.count < 2) continue;
             if (!(pl.enabled > 0.5f)) continue;
             addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
-            continue;
-        }
-        if (ref.kind == EntityKind::Conduit) {
-            const ConduitRec& c = conduits[ref.index];
-            if (!(c.enabled > 0.5f)) continue;
-            const float a = clamp01(c.a);
-            if (!(a > 0.0f)) continue;
-            Point2 a0;
-            Point2 b0;
-            bool okA = false;
-            bool okB = false;
-            if (resolveCb) okA = resolveCb(resolveCtx, c.fromNodeId, a0);
-            if (resolveCb) okB = resolveCb(resolveCtx, c.toNodeId, b0);
-            if (!okA || !okB) continue;
-            const float widthWorld = strokeWidthWorld(c.strokeWidthPx);
-            addSegmentQuad(a0.x, a0.y, b0.x, b0.y, widthWorld, c.r, c.g, c.b, a, triangleVertices);
             continue;
         }
         if (ref.kind == EntityKind::Circle) {

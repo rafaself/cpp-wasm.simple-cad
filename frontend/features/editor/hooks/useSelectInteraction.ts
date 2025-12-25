@@ -14,9 +14,8 @@ import {
   isPointInShape,
   isShapeInSelection
 } from '@/utils/geometry';
-import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX, HIT_TOLERANCE } from '@/config/constants';
+import { HIT_TOLERANCE } from '@/config/constants';
 import { isShapeInteractable } from '@/utils/visibility';
-import { isConduitShape } from '@/features/editor/utils/tools';
 
 // --- Types extracted from EngineInteractionLayer ---
 
@@ -134,7 +133,6 @@ export function useSelectInteraction(params: {
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
 
-  const activeTool = useUIStore((s) => s.activeTool);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
@@ -243,7 +241,7 @@ export function useSelectInteraction(params: {
       if (endpointHit) {
         const shape = shapes[endpointHit.shapeId];
         const layer = shape ? layers.find((l) => l.id === shape.layerId) : null;
-        const movable = !!shape && !(layer?.locked) && !isConduitShape(shape);
+        const movable = !!shape && !(layer?.locked);
         if (shape && movable) {
           if (!selectedShapeIds.has(shape.id) || selectedShapeIds.size !== 1) onSetSelectedShapeIds(new Set([shape.id]));
           selectInteractionRef.current = {
@@ -263,7 +261,7 @@ export function useSelectInteraction(params: {
 
         const hitShape = shapes[hitId];
         const layer = hitShape ? layers.find((l) => l.id === hitShape.layerId) : null;
-        const movable = !!hitShape && !(layer?.locked) && !isConduitShape(hitShape);
+        const movable = !!hitShape && !(layer?.locked);
         if (movable && hitShape) {
           if (hitShape.type === 'line' || hitShape.type === 'arrow' || hitShape.type === 'polyline') {
             const pts = hitShape.points ?? [];

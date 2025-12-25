@@ -6,9 +6,6 @@ export const enum CommandOp {
   UpsertLine = 3,
   UpsertPolyline = 4,
   DeleteEntity = 5,
-  UpsertSymbol = 6,
-  UpsertNode = 7,
-  UpsertConduit = 8,
   SetDrawOrder = 9,
   SetViewScale = 10,
   UpsertCircle = 11,
@@ -43,21 +40,7 @@ export type RectPayload = {
 };
 export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
 export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
-export type SymbolPayload = {
-  symbolKey: number;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  rotation: number;
-  scaleX: number;
-  scaleY: number;
-  connX: number;
-  connY: number;
-};
 
-export type NodePayload = { kind: 0 | 1; anchorSymbolId: number; x: number; y: number };
-export type ConduitPayload = { fromNodeId: number; toNodeId: number; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
 export type SetViewScalePayload = { scale: number };
 export type SetDrawOrderPayload = { ids: readonly number[] };
 export type CirclePayload = {
@@ -161,9 +144,6 @@ export type EngineCommand =
   | { op: CommandOp.UpsertRect; id: number; rect: RectPayload }
   | { op: CommandOp.UpsertLine; id: number; line: LinePayload }
   | { op: CommandOp.UpsertPolyline; id: number; polyline: PolylinePayload }
-  | { op: CommandOp.UpsertSymbol; id: number; symbol: SymbolPayload }
-  | { op: CommandOp.UpsertNode; id: number; node: NodePayload }
-  | { op: CommandOp.UpsertConduit; id: number; conduit: ConduitPayload }
   | { op: CommandOp.SetViewScale; view: SetViewScalePayload }
   | { op: CommandOp.SetDrawOrder; order: SetDrawOrderPayload }
   | { op: CommandOp.UpsertCircle; id: number; circle: CirclePayload }
@@ -208,12 +188,6 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       return 40; // 10 floats * 4 bytes/float (includes strokeWidthPx)
     case CommandOp.UpsertPolyline:
       return 32 + cmd.polyline.points.length * 8; // header (6 floats + u32 count + u32 reserved) + points
-    case CommandOp.UpsertSymbol:
-      return 40;
-    case CommandOp.UpsertNode:
-      return 16;
-    case CommandOp.UpsertConduit:
-      return 32; // 2 u32 + 6 floats (includes strokeWidthPx)
     case CommandOp.UpsertCircle:
       return 68; // 17 floats
     case CommandOp.UpsertPolygon:
@@ -323,34 +297,6 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
           o = writeF32(view, o, p.x);
           o = writeF32(view, o, p.y);
         }
-        break;
-      case CommandOp.UpsertSymbol:
-        o = writeU32(view, o, cmd.symbol.symbolKey);
-        o = writeF32(view, o, cmd.symbol.x);
-        o = writeF32(view, o, cmd.symbol.y);
-        o = writeF32(view, o, cmd.symbol.w);
-        o = writeF32(view, o, cmd.symbol.h);
-        o = writeF32(view, o, cmd.symbol.rotation);
-        o = writeF32(view, o, cmd.symbol.scaleX);
-        o = writeF32(view, o, cmd.symbol.scaleY);
-        o = writeF32(view, o, cmd.symbol.connX);
-        o = writeF32(view, o, cmd.symbol.connY);
-        break;
-      case CommandOp.UpsertNode:
-        o = writeU32(view, o, cmd.node.kind);
-        o = writeU32(view, o, cmd.node.anchorSymbolId);
-        o = writeF32(view, o, cmd.node.x);
-        o = writeF32(view, o, cmd.node.y);
-        break;
-      case CommandOp.UpsertConduit:
-        o = writeU32(view, o, cmd.conduit.fromNodeId);
-        o = writeU32(view, o, cmd.conduit.toNodeId);
-        o = writeF32(view, o, cmd.conduit.r);
-        o = writeF32(view, o, cmd.conduit.g);
-        o = writeF32(view, o, cmd.conduit.b);
-        o = writeF32(view, o, cmd.conduit.a);
-        o = writeF32(view, o, cmd.conduit.enabled);
-        o = writeF32(view, o, cmd.conduit.strokeWidthPx);
         break;
       case CommandOp.UpsertCircle:
         o = writeF32(view, o, cmd.circle.cx);

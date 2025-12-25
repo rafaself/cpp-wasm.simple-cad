@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard,
-  Layers, Settings, MousePointer2, Zap, GitBranch, Workflow, Lightbulb
+  Layers, Settings, MousePointer2, Workflow
 } from 'lucide-react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useDataStore } from '../../../stores/useDataStore';
@@ -9,9 +9,6 @@ import { PositionProperties } from './properties/PositionProperties';
 import { DimensionProperties } from './properties/DimensionProperties';
 import { StyleProperties } from './properties/StyleProperties';
 import { PlanProperties } from './properties/PlanProperties';
-import ElectricalLibraryPanel from '../../library/ElectricalLibraryPanel';
-import ElectricalProperties from './properties/ElectricalProperties';
-import DiagramPanel from '../../diagram/DiagramPanel';
 import { ImportPlanModal } from '../../import/ImportPlanModal';
 import { usePlanImport } from '../../import/usePlanImport';
 import DisciplineContextMenu from './DisciplineContextMenu';
@@ -34,9 +31,7 @@ const EditorSidebar: React.FC = () => {
   const setActiveTab = setSidebarTab;
 
   useEffect(() => {
-    if (sidebarTab === 'eletrica') {
-      setActiveDiscipline('electrical');
-    } else if (sidebarTab === 'edificacao' || sidebarTab === 'desenho' || sidebarTab === 'propriedades') {
+    if (sidebarTab === 'edificacao' || sidebarTab === 'desenho' || sidebarTab === 'propriedades') {
       setActiveDiscipline('architecture');
     }
   }, [sidebarTab, setActiveDiscipline]);
@@ -46,7 +41,7 @@ const EditorSidebar: React.FC = () => {
     visible: boolean;
     x: number;
     y: number;
-    discipline: 'architecture' | 'electrical';
+    discipline: 'architecture';
     floorId: string;
   } | null>(null);
 
@@ -64,11 +59,11 @@ const EditorSidebar: React.FC = () => {
   interface Floor {
     id: string;
     name: string;
-    disciplines: ('architecture' | 'electrical')[];
+    disciplines: 'architecture'[];
   }
 
   const projectStructure: Floor[] = [
-    { id: 'terreo', name: 'Térreo', disciplines: ['architecture', 'electrical'] },
+    { id: 'terreo', name: 'Térreo', disciplines: ['architecture'] },
     // Add more floors here as needed
   ];
 
@@ -80,8 +75,6 @@ const EditorSidebar: React.FC = () => {
           case 'propriedades': return { title: 'Propriedades', icon: <SlidersHorizontal className="text-blue-600" size={16} /> };
           case 'projeto': return { title: 'Projeto', icon: <FolderOpen className="text-blue-600" size={16} /> };
           case 'camadas': return { title: 'Camadas', icon: <Layers className="text-blue-600" size={16} /> };
-          case 'eletrica': return { title: 'Lancamento', icon: <Zap className="text-blue-600" size={16} /> };
-          case 'diagrama': return { title: 'Diagrama', icon: <GitBranch className="text-blue-600" size={16} /> };
           case 'ajustes': return { title: 'Ajustes', icon: <Settings className="text-blue-600" size={16} /> };
           default: return { title: 'Menu', icon: <LayoutDashboard className="text-blue-600" size={16} /> };
       }
@@ -184,8 +177,8 @@ const EditorSidebar: React.FC = () => {
                                 });
                             }}
                         >
-                            {discipline === 'architecture' ? <Workflow size={14} /> : <Lightbulb size={14} />}
-                            <span>{discipline === 'architecture' ? 'Arquitetura' : 'Elétrica'}</span>
+                            <Workflow size={14} />
+                            <span>Arquitetura</span>
                         </div>
                     ))}
                 </div>
@@ -235,17 +228,6 @@ const EditorSidebar: React.FC = () => {
         );
     }
 
-    // Only show drawing properties if in Architecture discipline or if it's an electrical shape
-    if (activeDiscipline === 'architecture' || (selectedShape.discipline === 'electrical')) {
-        return (
-            <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
-                <PositionProperties selectedShape={selectedShape} />
-                <DimensionProperties selectedShape={selectedShape} />
-                <StyleProperties selectedShape={selectedShape} />
-            </div>
-        );
-    }
-    
     return (
       <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
         <PositionProperties selectedShape={selectedShape} />
@@ -266,28 +248,16 @@ const EditorSidebar: React.FC = () => {
       );
     }
 
-    // Determine if we should show properties based on discipline
-    // We allow showing properties for Electrical elements even in Architecture mode if they are selected (though selection might be prevented)
-    // But mainly we care about the Active Discipline.
-    // If selected shape is from a different discipline, we might show "Read Only" or limited props?
-    // Current logic: if selected, show props. Interaction layer enforces selection rules.
-
     return (
       <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
         <PositionProperties selectedShape={selectedShape} />
         
-        {selectedShape.electricalElementId && (
-            <ElectricalProperties selectedShape={selectedShape} />
-        )}
-
         {/* Plan / Reference Properties */}
         {(selectedShape.svgRaw || selectedShape.discipline === 'architecture') && (
             <PlanProperties selectedShape={selectedShape} />
         )}
 
         {/* Standard shapes (not imported plans/symbols) - show style/dimensions */}
-        {/* We exclude electrical symbols (which have svgRaw) from generic dimension editing if desired, or keep it. */}
-        {/* Usually electrical symbols have fixed dimensions or scale. Let's hide Dimension/Style for SVG symbols for now to keep it clean, or just Style. */}
         {!selectedShape.svgRaw && (
             <>
                 <DimensionProperties selectedShape={selectedShape} />
@@ -297,12 +267,6 @@ const EditorSidebar: React.FC = () => {
       </div>
     );
   };
-
-  const renderDiagrama = () => (
-    <div className="flex-grow min-h-0 p-3 bg-white">
-      <DiagramPanel />
-    </div>
-  );
 
   return (
     <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden select-none">
@@ -330,12 +294,6 @@ const EditorSidebar: React.FC = () => {
                   <p className="text-xs">Use o gerenciador de camadas no ribbon.</p>
               </div>
           )}
-          {activeTab === 'eletrica' && (
-              <div className="flex-grow min-h-0 p-3 bg-white">
-                  <ElectricalLibraryPanel compact />
-              </div>
-          )}
-          {activeTab === 'diagrama' && renderDiagrama()}
           {activeTab === 'ajustes' && (
               <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
                   <Settings size={32} className="mb-4 opacity-20 shrink-0" />
@@ -396,24 +354,6 @@ const EditorSidebar: React.FC = () => {
         >
           <Layers size={18} />
         </button>
-
-        <button
-          onClick={() => !isDragging && setActiveTab('eletrica')}
-          title="Lancamento"
-          aria-label="Lancamento"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'eletrica' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <Zap size={18} />
-        </button>
-        <button
-          onClick={() => !isDragging && setActiveTab('diagrama')}
-          title="Diagrama"
-          aria-label="Diagrama"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'diagrama' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <GitBranch size={18} />
-        </button>
-
 
         <button 
           onClick={() => !isDragging && setActiveTab('ajustes')}
