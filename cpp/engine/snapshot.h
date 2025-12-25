@@ -12,9 +12,6 @@ struct SnapshotData {
     std::vector<LineRec> lines;
     std::vector<PolyRec> polylines;
     std::vector<Point2> points;
-    std::vector<SymbolRec> symbols;
-    std::vector<NodeRec> nodes;
-    std::vector<ConduitRec> conduits;
     std::vector<std::uint8_t> rawBytes; // original payload (header + records)
     std::uint32_t version{0};
 };

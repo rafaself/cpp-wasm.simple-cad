@@ -12,7 +12,6 @@
 #include "engine/commands.h"
 #include "engine/render.h"
 #include "engine/snapshot.h"
-#include "engine/electrical.h"
 
 #include "engine/entity_manager.h"
 #include "engine/text_system.h"
@@ -33,8 +32,6 @@ class CadEngine {
 public:
     // Expose legacy nested type names for backwards compatibility with existing callers/tests
     using CommandOp = ::CommandOp;
-    using NodeKind = ::NodeKind;
-    using SnapResult = ::SnapResult;
 
     CadEngine();
 
@@ -78,9 +75,6 @@ public:
         std::uint32_t rectCount;
         std::uint32_t lineCount;
         std::uint32_t polylineCount;
-        std::uint32_t symbolCount;
-        std::uint32_t nodeCount;
-        std::uint32_t conduitCount;
         std::uint32_t pointCount;
         std::uint32_t triangleVertexCount;
         std::uint32_t lineVertexCount;
@@ -90,8 +84,6 @@ public:
     };
 
     EngineStats getStats() const noexcept;
-
-    SnapResult snapElectrical(float x, float y, float tolerance) const noexcept;
 
     // picking
     std::uint32_t pick(float x, float y, float tolerance) const noexcept;
@@ -146,22 +138,6 @@ public:
     void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx);
-    void upsertSymbol(
-        std::uint32_t id,
-        std::uint32_t symbolKey,
-        float x,
-        float y,
-        float w,
-        float h,
-        float rotation,
-        float scaleX,
-        float scaleY,
-        float connX,
-        float connY
-    );
-    void upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y);
-    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId);
-    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled, float strokeWidthPx);
 
     void upsertCircle(
         std::uint32_t id,
@@ -439,11 +415,6 @@ public:
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);
-
-    const SymbolRec* findSymbol(std::uint32_t id) const noexcept;
-    const NodeRec* findNode(std::uint32_t id) const noexcept;
-
-    bool resolveNodePosition(std::uint32_t nodeId, Point2& out) const noexcept;
 
     void compactPolylinePoints();
 

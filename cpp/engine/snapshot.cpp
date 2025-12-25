@@ -22,17 +22,40 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
     const std::uint32_t polyCount = readU32(src, 16);
     const std::uint32_t pointCount = readU32(src, 20);
 
-    std::uint32_t symbolCount = 0;
-    std::uint32_t nodeCount = 0;
-    std::uint32_t conduitCount = 0;
+    // V3 supports backward compatibility reading, but we ignore electrical fields if present
     std::size_t headerBytes = snapshotHeaderBytesV2;
     if (version == 3) {
         if (byteCount < snapshotHeaderBytesV3) return EngineError::BufferTruncated;
+        headerBytes = snapshotHeaderBytesV3;
+        // We read but discard symbolCount, nodeCount, conduitCount
+    }
+
+    // Since we ignore electrical, we calculate expected size for geometry only first?
+    // No, we need to skip bytes if they exist.
+    // But since we removed the structs, we can't calculate exact expected bytes for V3 easily without reading counts.
+    // Let's assume for this cleanup we only support loading V2/V3 geometry.
+    // If V3 file has electrical data, we need to skip it.
+
+    // Actually, to correctly parse the buffer we need to know where things are.
+    // If we receive a V3 buffer with electrical data, we must skip it.
+    // Let's read the counts to skip correctly.
+
+    std::uint32_t symbolCount = 0;
+    std::uint32_t nodeCount = 0;
+    std::uint32_t conduitCount = 0;
+
+    if (version == 3) {
         symbolCount = readU32(src, 24);
         nodeCount = readU32(src, 28);
         conduitCount = readU32(src, 32);
-        headerBytes = snapshotHeaderBytesV3;
     }
+
+    // We can't use sizeof(SymbolRec) etc because we deleted them from types.h
+    // We need to use the magic constants for sizes if we want to skip.
+    // Let's define local constants for skipping.
+    constexpr std::size_t legacySymbolRecordBytes = 44;
+    constexpr std::size_t legacyNodeRecordBytes = 20;
+    constexpr std::size_t legacyConduitRecordBytes = 12;
 
     const std::size_t expected =
         headerBytes +
@@ -40,9 +63,9 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         static_cast<std::size_t>(lineCount) * lineRecordBytes +
         static_cast<std::size_t>(polyCount) * polyRecordBytes +
         static_cast<std::size_t>(pointCount) * pointRecordBytes +
-        static_cast<std::size_t>(symbolCount) * symbolRecordBytes +
-        static_cast<std::size_t>(nodeCount) * nodeRecordBytes +
-        static_cast<std::size_t>(conduitCount) * conduitRecordBytes;
+        static_cast<std::size_t>(symbolCount) * legacySymbolRecordBytes +
+        static_cast<std::size_t>(nodeCount) * legacyNodeRecordBytes +
+        static_cast<std::size_t>(conduitCount) * legacyConduitRecordBytes;
 
     if (expected > byteCount) return EngineError::BufferTruncated;
 
@@ -85,55 +108,28 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         out.points[i].y = readF32(src, o); o += 4;
     }
 
+    // Skip electrical entities
     if (version == 3) {
-        out.symbols.resize(symbolCount);
-        for (std::uint32_t i = 0; i < symbolCount; ++i) {
-            out.symbols[i].id = readU32(src, o); o += 4;
-            out.symbols[i].symbolKey = readU32(src, o); o += 4;
-            out.symbols[i].x = readF32(src, o); o += 4;
-            out.symbols[i].y = readF32(src, o); o += 4;
-            out.symbols[i].w = readF32(src, o); o += 4;
-            out.symbols[i].h = readF32(src, o); o += 4;
-            out.symbols[i].rotation = readF32(src, o); o += 4;
-            out.symbols[i].scaleX = readF32(src, o); o += 4;
-            out.symbols[i].scaleY = readF32(src, o); o += 4;
-            out.symbols[i].connX = readF32(src, o); o += 4;
-            out.symbols[i].connY = readF32(src, o); o += 4;
-        }
-
-        out.nodes.resize(nodeCount);
-        for (std::uint32_t i = 0; i < nodeCount; ++i) {
-            out.nodes[i].id = readU32(src, o); o += 4;
-            const std::uint32_t kindU32 = readU32(src, o); o += 4;
-            out.nodes[i].kind = kindU32 == 1 ? NodeKind::Anchored : NodeKind::Free;
-            out.nodes[i].anchorSymbolId = readU32(src, o); o += 4;
-            out.nodes[i].x = readF32(src, o); o += 4;
-            out.nodes[i].y = readF32(src, o); o += 4;
-        }
-
-        out.conduits.resize(conduitCount);
-        for (std::uint32_t i = 0; i < conduitCount; ++i) {
-            out.conduits[i].id = readU32(src, o); o += 4;
-            out.conduits[i].fromNodeId = readU32(src, o); o += 4;
-            out.conduits[i].toNodeId = readU32(src, o); o += 4;
-        }
+        o += symbolCount * legacySymbolRecordBytes;
+        o += nodeCount * legacyNodeRecordBytes;
+        o += conduitCount * legacyConduitRecordBytes;
     }
 
     return EngineError::Ok;
 }
 
 std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
-    const std::uint32_t version = 3; // always emit v3
+    // Revert to V2 or keep V3 but with 0 electrical counts?
+    // Let's keep V3 format structure but always 0 electrical.
+    const std::uint32_t version = 3;
 
     const std::size_t totalBytes =
         snapshotHeaderBytesV3 +
         data.rects.size() * rectRecordBytes +
         data.lines.size() * lineRecordBytes +
         data.polylines.size() * polyRecordBytes +
-        data.points.size() * pointRecordBytes +
-        data.symbols.size() * symbolRecordBytes +
-        data.nodes.size() * nodeRecordBytes +
-        data.conduits.size() * conduitRecordBytes;
+        data.points.size() * pointRecordBytes;
+        // + 0 electrical
 
     std::vector<std::uint8_t> out;
     out.resize(totalBytes);
@@ -146,11 +142,11 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
     writeU32LE(dst, o, static_cast<std::uint32_t>(data.lines.size())); o += 4;
     writeU32LE(dst, o, static_cast<std::uint32_t>(data.polylines.size())); o += 4;
     writeU32LE(dst, o, static_cast<std::uint32_t>(data.points.size())); o += 4;
-    writeU32LE(dst, o, static_cast<std::uint32_t>(data.symbols.size())); o += 4;
-    writeU32LE(dst, o, static_cast<std::uint32_t>(data.nodes.size())); o += 4;
-    writeU32LE(dst, o, static_cast<std::uint32_t>(data.conduits.size())); o += 4;
-    writeU32LE(dst, o, 0); o += 4;
-    writeU32LE(dst, o, 0); o += 4;
+    writeU32LE(dst, o, 0); o += 4; // symbolCount
+    writeU32LE(dst, o, 0); o += 4; // nodeCount
+    writeU32LE(dst, o, 0); o += 4; // conduitCount
+    writeU32LE(dst, o, 0); o += 4; // reserved
+    writeU32LE(dst, o, 0); o += 4; // reserved
 
     for (const auto& r : data.rects) {
         writeU32LE(dst, o, r.id); o += 4;
@@ -181,34 +177,6 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
     for (const auto& p : data.points) {
         writeF32LE(dst, o, p.x); o += 4;
         writeF32LE(dst, o, p.y); o += 4;
-    }
-
-    for (const auto& s : data.symbols) {
-        writeU32LE(dst, o, s.id); o += 4;
-        writeU32LE(dst, o, s.symbolKey); o += 4;
-        writeF32LE(dst, o, s.x); o += 4;
-        writeF32LE(dst, o, s.y); o += 4;
-        writeF32LE(dst, o, s.w); o += 4;
-        writeF32LE(dst, o, s.h); o += 4;
-        writeF32LE(dst, o, s.rotation); o += 4;
-        writeF32LE(dst, o, s.scaleX); o += 4;
-        writeF32LE(dst, o, s.scaleY); o += 4;
-        writeF32LE(dst, o, s.connX); o += 4;
-        writeF32LE(dst, o, s.connY); o += 4;
-    }
-
-    for (const auto& n : data.nodes) {
-        writeU32LE(dst, o, n.id); o += 4;
-        writeU32LE(dst, o, n.kind == NodeKind::Anchored ? 1u : 0u); o += 4;
-        writeU32LE(dst, o, n.anchorSymbolId); o += 4;
-        writeF32LE(dst, o, n.x); o += 4;
-        writeF32LE(dst, o, n.y); o += 4;
-    }
-
-    for (const auto& c : data.conduits) {
-        writeU32LE(dst, o, c.id); o += 4;
-        writeU32LE(dst, o, c.fromNodeId); o += 4;
-        writeU32LE(dst, o, c.toNodeId); o += 4;
     }
 
     return out;

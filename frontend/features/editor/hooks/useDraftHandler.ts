@@ -1,18 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
 import type { Shape, ViewTransform } from '@/types';
-import { useUIStore } from '@/stores/useUIStore';
-import { useDataStore } from '@/stores/useDataStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import {
-  screenToWorld,
-  worldToScreen
-} from '@/utils/geometry';
-import { getDefaultColorMode } from '@/utils/shapeColors';
+import { useDataStore } from '@/stores/useDataStore';
 import { generateId } from '@/utils/uuid';
-import { CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX } from '@/config/constants';
-import { getConnectionPoint } from '@/features/editor/snapEngine/detectors';
-import { resolveConnectionNodePosition } from '@/utils/connections';
-import { getDistance, getShapeBoundingBox } from '@/utils/geometry';
+import { getDefaultColorMode } from '@/utils/shapeColors';
 
 export type Draft =
   | { kind: 'none' }
@@ -22,10 +13,7 @@ export type Draft =
   | { kind: 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
   | { kind: 'arrow'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'conduit'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'text'; start: { x: number; y: number }; current: { x: number; y: number } };
-
-type ConduitStart = { nodeId: string; point: { x: number; y: number } };
 
 const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 
@@ -44,14 +32,13 @@ export function useDraftHandler(params: {
     onAddShape: (shape: Shape) => void;
     onFinalizeDraw: (id: string) => void;
     activeFloorId: string | null;
-    activeDiscipline: 'architecture' | 'electrical';
+    activeDiscipline: 'architecture';
     runtime: any;
 }) {
-    const { activeTool, viewTransform, snapSettings, onAddShape, onFinalizeDraw, activeFloorId, activeDiscipline, runtime } = params;
+    const { activeTool, onAddShape, onFinalizeDraw, activeFloorId, activeDiscipline } = params;
 
     const [draft, setDraft] = useState<Draft>({ kind: 'none' });
     const draftRef = useRef<Draft>({ kind: 'none' });
-    const [conduitStart, setConduitStart] = useState<ConduitStart | null>(null);
     const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
     const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
 
@@ -66,67 +53,6 @@ export function useDraftHandler(params: {
     useEffect(() => {
         draftRef.current = draft;
     }, [draft]);
-
-    const tryFindAnchoredNode = (world: { x: number; y: number }): { nodeId: string; point: { x: number; y: number } } | null => {
-        const data = useDataStore.getState();
-        const ui = useUIStore.getState();
-        const scale = Math.max(ui.viewTransform.scale || 1, 0.01);
-        const tolerance = CONDUIT_CONNECTION_ANCHOR_TOLERANCE_PX / scale;
-
-        if (runtime && typeof runtime.engine.snapElectrical === 'function') {
-            try {
-                const r = runtime.engine.snapElectrical(world.x, world.y, tolerance);
-                if (r.kind === 1 && r.id !== 0) {
-                    const nodeStringId = runtime.getIdMaps().idHashToString.get(r.id);
-                    if (nodeStringId && data.connectionNodes[nodeStringId]) {
-                        return { nodeId: nodeStringId, point: { x: r.x, y: r.y } };
-                    }
-                }
-                if (r.kind === 2 && r.id !== 0) {
-                    const symbolStringId = runtime.getIdMaps().idHashToString.get(r.id);
-                    if (symbolStringId) {
-                        const nodeId = data.getOrCreateAnchoredConnectionNode(symbolStringId);
-                        return { nodeId, point: { x: r.x, y: r.y } };
-                    }
-                }
-            } catch {
-                // Fall back to TS snap below.
-            }
-        }
-
-        const queryRect = { x: world.x - tolerance, y: world.y - tolerance, width: tolerance * 2, height: tolerance * 2 };
-        const candidates = data.spatialIndex.query(queryRect).map((c) => data.shapes[c.id]).filter(Boolean) as Shape[];
-
-        for (const shape of candidates) {
-            const layer = data.layers.find((l) => l.id === shape.layerId);
-            if (layer && (!layer.visible || layer.locked)) continue;
-
-            const connPt = getConnectionPoint(shape);
-            if (!connPt) continue;
-
-            const nearConnection = getDistance(connPt, world) <= tolerance;
-            const bbox = getShapeBoundingBox(shape);
-            const insideBBox =
-                !!bbox &&
-                world.x >= bbox.x - tolerance &&
-                world.x <= bbox.x + bbox.width + tolerance &&
-                world.y >= bbox.y - tolerance &&
-                world.y <= bbox.y + bbox.height + tolerance;
-
-            if (nearConnection || insideBBox) {
-                const nodeId = data.getOrCreateAnchoredConnectionNode(shape.id);
-                return { nodeId, point: connPt };
-            }
-        }
-
-        for (const node of Object.values(data.connectionNodes)) {
-            const pos = resolveConnectionNodePosition(node, data.shapes);
-            if (!pos) continue;
-            if (getDistance(pos, world) <= tolerance) return { nodeId: node.id, point: pos };
-        }
-
-        return null;
-    };
 
     const commitLine = (start: { x: number; y: number }, end: { x: number; y: number }) => {
         const dx = end.x - start.x;
@@ -153,7 +79,7 @@ export function useDraftHandler(params: {
             fillColor: toolDefaults.fillColor ?? '#D9D9D9',
             fillEnabled: false,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -188,7 +114,7 @@ export function useDraftHandler(params: {
             fillColor,
             fillEnabled,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -228,7 +154,7 @@ export function useDraftHandler(params: {
             fillColor,
             fillEnabled,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -260,7 +186,7 @@ export function useDraftHandler(params: {
             fillColor,
             fillEnabled,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -299,7 +225,7 @@ export function useDraftHandler(params: {
             fillColor,
             fillEnabled,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -335,7 +261,7 @@ export function useDraftHandler(params: {
             fillColor,
             fillEnabled,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -362,7 +288,7 @@ export function useDraftHandler(params: {
             fillColor: toolDefaults.fillColor ?? '#D9D9D9',
             fillEnabled: false,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
@@ -397,39 +323,13 @@ export function useDraftHandler(params: {
             fillColor: toolDefaults.fillColor ?? '#D9D9D9',
             fillEnabled: false,
             colorMode: getDefaultColorMode(),
-            floorId: activeFloorId,
+            floorId: activeFloorId ?? undefined,
             discipline: activeDiscipline,
         };
 
         onAddShape(s);
         onFinalizeDraw(id);
     };
-
-    const commitConduitSegmentTo = (end: { x: number; y: number }) => {
-        const start = conduitStart;
-        if (!start) return;
-
-        const data = useDataStore.getState();
-        const endHit = tryFindAnchoredNode(end);
-        const endNodeId = endHit ? endHit.nodeId : data.createFreeConnectionNode(end);
-
-        if (endNodeId === start.nodeId) {
-            setConduitStart(null);
-            setDraft({ kind: 'none' });
-            return;
-        }
-
-        const layer = data.layers.find((l) => l.id === 'eletrodutos') ?? data.layers.find((l) => l.id === data.activeLayerId) ?? data.layers[0];
-        const layerId = layer?.id ?? data.activeLayerId;
-        const strokeColor = layer?.strokeColor ?? toolDefaults.strokeColor;
-
-        const conduitId = data.addConduitBetweenNodes({ fromNodeId: start.nodeId, toNodeId: endNodeId, layerId, strokeColor });
-        onSetSelectedShapeIds(new Set([conduitId]));
-        setConduitStart(null);
-        setDraft({ kind: 'none' });
-    };
-
-    const onSetSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
 
     const handlePointerDown = (snapped: { x: number; y: number }, button: number, altKey: boolean) => {
         if (button !== 0) return;
@@ -467,20 +367,6 @@ export function useDraftHandler(params: {
             setDraft({ kind: 'arrow', start: snapped, current: snapped });
             return;
         }
-
-        if (activeTool === 'eletroduto') {
-             if (!conduitStart) {
-                const startHit = tryFindAnchoredNode(snapped);
-                const startNodeId = startHit ? startHit.nodeId : useDataStore.getState().createFreeConnectionNode(snapped);
-                const startPoint = startHit ? startHit.point : snapped;
-                setConduitStart({ nodeId: startNodeId, point: startPoint });
-                setDraft({ kind: 'conduit', start: startPoint, current: startPoint });
-                return;
-              }
-
-              commitConduitSegmentTo(snapped);
-              return;
-        }
     };
 
     const handlePointerMove = (snapped: { x: number; y: number }, shiftKey: boolean) => {
@@ -497,7 +383,6 @@ export function useDraftHandler(params: {
                 return { ...prev, current: { x: prev.start.x + sx * size, y: prev.start.y + sy * size } };
             }
             if (prev.kind === 'polyline') return { ...prev, current: snapped };
-            if (prev.kind === 'conduit') return { ...prev, current: snapped };
             return prev;
         });
     };

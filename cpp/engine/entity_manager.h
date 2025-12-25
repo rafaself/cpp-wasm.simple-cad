@@ -1,7 +1,6 @@
 #pragma once
 
 #include "engine/types.h"
-#include "engine/electrical.h" // For resolveNodePosition helper if needed, or implement internally
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
@@ -20,9 +19,6 @@ public:
     std::vector<CircleRec> circles;
     std::vector<PolygonRec> polygons;
     std::vector<ArrowRec> arrows;
-    std::vector<SymbolRec> symbols;
-    std::vector<NodeRec> nodes;
-    std::vector<ConduitRec> conduits;
 
     // Global entity index
     std::unordered_map<std::uint32_t, EntityRef> entities;
@@ -50,17 +46,9 @@ public:
     void upsertCircle(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx);
     void upsertPolygon(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, std::uint32_t sides, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx);
     void upsertArrow(std::uint32_t id, float ax, float ay, float bx, float by, float head, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx);
-    void upsertSymbol(std::uint32_t id, std::uint32_t symbolKey, float x, float y, float w, float h, float rotation, float scaleX, float scaleY, float connX, float connY);
-    void upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y);
-    void upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled, float strokeWidthPx);
 
     // Text registration helper (called by CadEngine when text is added/updated)
     void registerTextEntity(std::uint32_t id);
-
-    // Query helpers
-    const SymbolRec* findSymbol(std::uint32_t id) const noexcept;
-    const NodeRec* findNode(std::uint32_t id) const noexcept;
-    bool resolveNodePosition(std::uint32_t nodeId, Point2& out) const noexcept;
     
     // Garbage collection for polyline points
     void compactPolylinePoints();

@@ -47,10 +47,8 @@ export const MENU_CONFIG: MenuTab[] = [
          items: [
             { id: 'export-json', label: 'Exportar JSON', icon: 'ExportJSON', type: 'action', action: 'export-json' },
             { id: 'report-csv', label: 'Relatorio CSV', icon: 'ExportCSV', type: 'action', action: 'report-csv' },
-            { id: 'export-connections', label: 'Exportar Conexoes', icon: 'ExportJSON', type: 'action', action: 'export-connections' },
              { id: 'export-project', label: 'Exportar Projeto (download)', icon: 'ExportJSON', type: 'action', action: 'export-project' },
              { id: 'view-project', label: 'Ver Projeto JSON (nova aba)', icon: 'ExportJSON', type: 'action', action: 'view-project' },
-            { id: 'view-connections', label: 'Ver Relatorio', icon: 'ExportJSON', type: 'action', action: 'view-connections' }
         ]
       },
       {
@@ -142,27 +140,6 @@ export const MENU_CONFIG: MenuTab[] = [
         items: [
             { id: 'undo', label: 'Desfazer', icon: 'Undo', type: 'action', action: 'undo', shortcut: getShortcutLabel('editor.undo') },
             { id: 'redo', label: 'Refazer', icon: 'Redo', type: 'action', action: 'redo', shortcut: getShortcutLabel('editor.redo') },
-        ]
-      }
-    ]
-  },
-  {
-    id: 'electrical',
-    label: 'LANCAMENTO',
-    sections: [
-      {
-        title: 'Caminhos',
-        layout: 'row',
-        items: [
-           { id: 'conduit', label: 'Eletroduto', icon: 'Conduit', type: 'tool', tool: 'eletroduto' }
-        ]
-      },
-      {
-        title: 'Pontos',
-        layout: 'row',
-        items: [
-          { id: 'outlet', label: 'Tomada', icon: 'Plug', type: 'tool', tool: 'electrical-symbol' },
-          { id: 'lamp', label: 'Lampada', icon: 'Lightbulb', type: 'tool', tool: 'electrical-symbol' }
         ]
       }
     ]

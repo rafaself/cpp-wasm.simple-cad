@@ -11,9 +11,6 @@ void EntityManager::clear() noexcept {
     circles.clear();
     polygons.clear();
     arrows.clear();
-    symbols.clear();
-    nodes.clear();
-    conduits.clear();
     entities.clear();
     drawOrderIds.clear();
 }
@@ -73,28 +70,6 @@ void EntityManager::deleteEntity(std::uint32_t id) noexcept {
         return;
     }
 
-    if (ref.kind == EntityKind::Symbol) {
-        const std::uint32_t idx = ref.index;
-        const std::uint32_t lastIdx = static_cast<std::uint32_t>(symbols.size() - 1);
-        if (idx != lastIdx) {
-            symbols[idx] = symbols[lastIdx];
-            entities[symbols[idx].id] = EntityRef{EntityKind::Symbol, idx};
-        }
-        symbols.pop_back();
-        return;
-    }
-
-    if (ref.kind == EntityKind::Node) {
-        const std::uint32_t idx = ref.index;
-        const std::uint32_t lastIdx = static_cast<std::uint32_t>(nodes.size() - 1);
-        if (idx != lastIdx) {
-            nodes[idx] = nodes[lastIdx];
-            entities[nodes[idx].id] = EntityRef{EntityKind::Node, idx};
-        }
-        nodes.pop_back();
-        return;
-    }
-
     if (ref.kind == EntityKind::Circle) {
         const std::uint32_t idx = ref.index;
         const std::uint32_t lastIdx = static_cast<std::uint32_t>(circles.size() - 1);
@@ -125,17 +100,6 @@ void EntityManager::deleteEntity(std::uint32_t id) noexcept {
             entities[arrows[idx].id] = EntityRef{EntityKind::Arrow, idx};
         }
         arrows.pop_back();
-        return;
-    }
-
-    if (ref.kind == EntityKind::Conduit) {
-        const std::uint32_t idx = ref.index;
-        const std::uint32_t lastIdx = static_cast<std::uint32_t>(conduits.size() - 1);
-        if (idx != lastIdx) {
-            conduits[idx] = conduits[lastIdx];
-            entities[conduits[idx].id] = EntityRef{EntityKind::Conduit, idx};
-        }
-        conduits.pop_back();
         return;
     }
     
@@ -266,72 +230,6 @@ void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, 
     drawOrderIds.push_back(id);
 }
 
-void EntityManager::upsertSymbol(std::uint32_t id, std::uint32_t symbolKey, float x, float y, float w, float h, float rotation, float scaleX, float scaleY, float connX, float connY) {
-    const auto it = entities.find(id);
-    if (it != entities.end() && it->second.kind != EntityKind::Symbol) {
-        deleteEntity(id);
-    }
-
-    const auto it2 = entities.find(id);
-    if (it2 != entities.end()) {
-        auto& s = symbols[it2->second.index];
-        s.symbolKey = symbolKey;
-        s.x = x; s.y = y; s.w = w; s.h = h;
-        s.rotation = rotation;
-        s.scaleX = scaleX;
-        s.scaleY = scaleY;
-        s.connX = connX;
-        s.connY = connY;
-        return;
-    }
-
-    symbols.push_back(SymbolRec{id, symbolKey, x, y, w, h, rotation, scaleX, scaleY, connX, connY});
-    entities[id] = EntityRef{EntityKind::Symbol, static_cast<std::uint32_t>(symbols.size() - 1)};
-    // Symbols do not go into drawOrderIds? engine.cpp L517 has no push_back.
-    // Confirmed in previous view_file. Symbols seem to be drawn implicitly or managed differently?
-    // Wait, let's re-verify engine.cpp upsertSymbol.
-}
-
-void EntityManager::upsertNode(std::uint32_t id, NodeKind kind, std::uint32_t anchorSymbolId, float x, float y) {
-    const auto it = entities.find(id);
-    if (it != entities.end() && it->second.kind != EntityKind::Node) {
-        deleteEntity(id);
-    }
-
-    const auto it2 = entities.find(id);
-    if (it2 != entities.end()) {
-        auto& n = nodes[it2->second.index];
-        n.kind = kind;
-        n.anchorSymbolId = anchorSymbolId;
-        n.x = x;
-        n.y = y;
-        return;
-    }
-
-    nodes.push_back(NodeRec{id, kind, anchorSymbolId, x, y});
-    entities[id] = EntityRef{EntityKind::Node, static_cast<std::uint32_t>(nodes.size() - 1)};
-}
-
-void EntityManager::upsertConduit(std::uint32_t id, std::uint32_t fromNodeId, std::uint32_t toNodeId, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
-    const auto it = entities.find(id);
-    if (it != entities.end() && it->second.kind != EntityKind::Conduit) {
-        deleteEntity(id);
-    }
-
-    const auto it2 = entities.find(id);
-    if (it2 != entities.end()) {
-        auto& c = conduits[it2->second.index];
-        c.fromNodeId = fromNodeId;
-        c.toNodeId = toNodeId;
-        c.r = r; c.g = g; c.b = b; c.a = a; c.enabled = enabled; c.strokeWidthPx = strokeWidthPx;
-        return;
-    }
-
-    conduits.push_back(ConduitRec{id, fromNodeId, toNodeId, r, g, b, a, enabled, strokeWidthPx});
-    entities[id] = EntityRef{EntityKind::Conduit, static_cast<std::uint32_t>(conduits.size() - 1)};
-    drawOrderIds.push_back(id);
-}
-
 void EntityManager::registerTextEntity(std::uint32_t id) {
     const auto it = entities.find(id);
     if (it != entities.end()) {
@@ -342,24 +240,6 @@ void EntityManager::registerTextEntity(std::uint32_t id) {
     // For text, index matches ID as per original engine.cpp convention
     entities[id] = EntityRef{EntityKind::Text, id};
     // No push_back to drawOrderIds as per original engine.cpp behavior for upsertText.
-}
-
-const SymbolRec* EntityManager::findSymbol(std::uint32_t id) const noexcept {
-    const auto it = entities.find(id);
-    if (it == entities.end()) return nullptr;
-    if (it->second.kind != EntityKind::Symbol) return nullptr;
-    return &symbols[it->second.index];
-}
-
-const NodeRec* EntityManager::findNode(std::uint32_t id) const noexcept {
-    const auto it = entities.find(id);
-    if (it == entities.end()) return nullptr;
-    if (it->second.kind != EntityKind::Node) return nullptr;
-    return &nodes[it->second.index];
-}
-
-bool EntityManager::resolveNodePosition(std::uint32_t nodeId, Point2& out) const noexcept {
-    return engine::resolveNodePosition(entities, symbols, nodes, nodeId, out);
 }
 
 void EntityManager::compactPolylinePoints() {

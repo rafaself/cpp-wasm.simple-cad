@@ -22,9 +22,6 @@ static constexpr std::size_t rectRecordBytes = 36; // id (4) + x,y,w,h,r,g,b,a (
 static constexpr std::size_t lineRecordBytes = 20;
 static constexpr std::size_t polyRecordBytes = 12;
 static constexpr std::size_t pointRecordBytes = 8;
-static constexpr std::size_t symbolRecordBytes = 44;
-static constexpr std::size_t nodeRecordBytes = 20;
-static constexpr std::size_t conduitRecordBytes = 12;
 static constexpr std::size_t textRunRecordBytes = 20; // TextRunPayload size
 static constexpr std::size_t textPayloadHeaderBytes = 24; // TextPayloadHeader size
 
@@ -91,38 +88,6 @@ struct ArrowRec {
     float head;
     float sr, sg, sb, sa;
     float strokeEnabled;
-    float strokeWidthPx;
-};
-
-struct SymbolRec {
-    std::uint32_t id;
-    std::uint32_t symbolKey;
-    float x;
-    float y;
-    float w;
-    float h;
-    float rotation;
-    float scaleX;
-    float scaleY;
-    float connX;
-    float connY;
-};
-
-enum class NodeKind : std::uint32_t { Free = 0, Anchored = 1 };
-struct NodeRec {
-    std::uint32_t id;
-    NodeKind kind;
-    std::uint32_t anchorSymbolId; // 0 when not anchored
-    float x;
-    float y;
-};
-
-struct ConduitRec {
-    std::uint32_t id;
-    std::uint32_t fromNodeId;
-    std::uint32_t toNodeId;
-    float r, g, b, a;
-    float enabled;
     float strokeWidthPx;
 };
 
@@ -226,7 +191,7 @@ struct TextCaretPosition {
     std::uint32_t lineIndex;      // Which line the caret is on
 };
 
-enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3, Symbol = 4, Node = 5, Conduit = 6, Circle = 7, Polygon = 8, Arrow = 9, Text = 10 };
+enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3, Circle = 7, Polygon = 8, Arrow = 9, Text = 10 };
 struct EntityRef { EntityKind kind; std::uint32_t index; };
 
 enum class CommandOp : std::uint32_t {
@@ -235,9 +200,6 @@ enum class CommandOp : std::uint32_t {
     UpsertLine = 3,
     UpsertPolyline = 4,
     DeleteEntity = 5,
-    UpsertSymbol = 6,
-    UpsertNode = 7,
-    UpsertConduit = 8,
     SetDrawOrder = 9,
     SetViewScale = 10,
     UpsertCircle = 11,
@@ -269,23 +231,6 @@ struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, stro
 struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx; };
 // Polyline payload is variable length, handled manually
 struct PolylinePayloadHeader { float r, g, b, a, enabled, strokeWidthPx; std::uint32_t count; std::uint32_t reserved; };
-struct SymbolPayload {
-    std::uint32_t symbolKey;
-    float x, y, w, h;
-    float rotation;
-    float scaleX, scaleY;
-    float connX, connY;
-};
-struct NodePayload {
-    std::uint32_t kind;
-    std::uint32_t anchorId;
-    float x, y;
-};
-struct ConduitPayload {
-    std::uint32_t fromNodeId;
-    std::uint32_t toNodeId;
-    float r, g, b, a, enabled, strokeWidthPx;
-};
 
 struct DrawOrderPayloadHeader {
     std::uint32_t count;
@@ -381,13 +326,6 @@ struct TextAlignmentPayload {
     std::uint32_t textId;
     std::uint8_t align;         // TextAlign enum
     std::uint8_t reserved[3];
-};
-
-struct SnapResult {
-    std::uint32_t kind; // 0 none, 1 node, 2 symbol-connection
-    std::uint32_t id;   // node id or symbol id
-    float x;
-    float y;
 };
 
 #endif // ELETROCAD_ENGINE_TYPES_H

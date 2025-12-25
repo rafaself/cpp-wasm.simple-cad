@@ -8,8 +8,6 @@ import { screenToWorld, isPointInShape } from '@/utils/geometry';
 import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { isShapeInteractable } from '@/utils/visibility';
-import { getSymbolAlphaAtUv, primeSymbolAlphaMask } from '@/features/library/symbolAlphaMaskCache';
-import { isSymbolInstanceHitAtWorldPoint } from '@/features/library/symbolPicking';
 
 /**
  * Convert pointer event to world coordinates.
@@ -49,15 +47,6 @@ export const pickShapeAtGeometry = (
     const layer = data.layers.find((l) => l.id === shape.layerId);
     if (layer && (!layer.visible || layer.locked)) continue;
     if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
-    if (shape.svgSymbolId) {
-      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld })) continue;
-      return shape.id;
-    }
-    if (shape.type === 'rect' && shape.svgRaw) {
-      void primeSymbolAlphaMask(shape.id, shape.svgRaw, 256);
-      if (!isSymbolInstanceHitAtWorldPoint(shape, worldPoint, getSymbolAlphaAtUv, { toleranceWorld, symbolIdOverride: shape.id })) continue;
-      return shape.id;
-    }
 
     // Engine is now authoritative for Line and Polyline picking.
     // Do not fallback to JS geometry checks for these types.

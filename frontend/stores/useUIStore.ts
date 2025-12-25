@@ -4,7 +4,7 @@ import { Point, ToolType, ViewTransform } from '../types';
 
 export interface EditorTab {
   floorId: string;
-  discipline: 'architecture' | 'electrical';
+  discipline: 'architecture';
 }
 
 interface UIState {
@@ -12,7 +12,7 @@ interface UIState {
   activeTool: ToolType;
   sidebarTab: string;
   activeFloorId?: string;
-  activeDiscipline: 'architecture' | 'electrical';
+  activeDiscipline: 'architecture';
   viewTransform: ViewTransform;
   mousePos: Point | null;
   canvasSize: { width: number; height: number };
@@ -37,12 +37,6 @@ interface UIState {
   openTabs: EditorTab[];
   openTab: (tab: EditorTab) => void;
   closeTab: (tab: EditorTab) => void;
-
-  // Electrical insertion
-  activeElectricalSymbolId: string | null;
-  electricalRotation: number;
-  electricalFlipX: number;
-  electricalFlipY: number;
 
   // Selection
   selectedShapeIds: Set<string>;
@@ -69,18 +63,13 @@ interface UIState {
   clearEngineTextStyleSnapshot: () => void;
 
   setActiveFloorId: (id: string) => void;
-  setActiveDiscipline: (discipline: 'architecture' | 'electrical') => void;
-
-  setElectricalSymbolId: (id: string | null) => void;
-  rotateElectricalPreview: (delta: number) => void;
-  flipElectricalPreview: (axis: 'x' | 'y') => void;
-  resetElectricalPreview: () => void;
+  setActiveDiscipline: (discipline: 'architecture') => void;
 
   setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 
   // References
-  referencedDisciplines: Map<string, Set<'architecture' | 'electrical'>>; // Map<floorId, Set<discipline>>
-  toggleReference: (floorId: string, disciplineToToggle: 'architecture' | 'electrical') => void;
+  referencedDisciplines: Map<string, Set<'architecture'>>; // Map<floorId, Set<discipline>>
+  toggleReference: (floorId: string, disciplineToToggle: 'architecture') => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -106,9 +95,9 @@ export const useUIStore = create<UIState>((set) => ({
   engineTextStyleSnapshot: null,
 
   activeFloorId: 'terreo',
-  activeDiscipline: 'electrical',
+  activeDiscipline: 'architecture',
   
-  openTabs: [{ floorId: 'terreo', discipline: 'electrical' }],
+  openTabs: [{ floorId: 'terreo', discipline: 'architecture' }],
 
   referencedDisciplines: new Map(), // Default to empty Map
   toggleReference: (floorId, disciplineToToggle) => set((state) => {
@@ -162,11 +151,6 @@ export const useUIStore = create<UIState>((set) => ({
     }
     return updates;
   }),
-
-  activeElectricalSymbolId: null,
-  electricalRotation: 0,
-  electricalFlipX: 1,
-  electricalFlipY: 1,
 
   selectedShapeIds: new Set<string>(),
 
@@ -227,19 +211,6 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
   setActiveDiscipline: (discipline) =>
     set((state) => (state.activeDiscipline === discipline ? state : { activeDiscipline: discipline, selectedShapeIds: new Set() })),
-
-  setElectricalSymbolId: (id) => set({ activeElectricalSymbolId: id }),
-  rotateElectricalPreview: (delta) => set((state) => {
-    let newRotation = state.electricalRotation + delta;
-    // Ensure rotation stays within [0, 2*PI)
-    newRotation = (newRotation % (Math.PI * 2) + (Math.PI * 2)) % (Math.PI * 2);
-    return { electricalRotation: newRotation };
-  }),
-  flipElectricalPreview: (axis) => set((state) => ({
-    electricalFlipX: axis === 'x' ? state.electricalFlipX * -1 : state.electricalFlipX,
-    electricalFlipY: axis === 'y' ? state.electricalFlipY * -1 : state.electricalFlipY,
-  })),
-  resetElectricalPreview: () => set({ electricalRotation: 0, electricalFlipX: 1, electricalFlipY: 1 }),
 
   setSelectedShapeIds: (ids) => set((state) => ({ selectedShapeIds: typeof ids === 'function' ? ids(state.selectedShapeIds) : ids })),
 }));

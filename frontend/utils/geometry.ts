@@ -209,28 +209,6 @@ const isPointNearSegments = (point: Point, points: Point[], threshold: number): 
   return false;
 };
 
-const sampleQuadraticBezier = (start: Point, control: Point, end: Point, segments = 12): Point[] => {
-  const pts: Point[] = [];
-  const steps = Math.max(2, Math.floor(segments));
-  for (let i = 0; i <= steps; i += 1) {
-    const t = i / steps;
-    const mt = 1 - t;
-    pts.push({
-      x: mt * mt * start.x + 2 * mt * t * control.x + t * t * end.x,
-      y: mt * mt * start.y + 2 * mt * t * control.y + t * t * end.y,
-    });
-  }
-  return pts;
-};
-
-const getConduitPathPoints = (shape: Shape): Point[] => {
-  if (!shape.points || shape.points.length < 2) return [];
-  if (shape.controlPoint) {
-    return sampleQuadraticBezier(shape.points[0], shape.controlPoint, shape.points[1], 16);
-  }
-  return shape.points;
-};
-
 export const getPolygonVertices = (shape: Shape): Point[] => {
   const cx = shape.x ?? 0;
   const cy = shape.y ?? 0;
@@ -320,11 +298,6 @@ export const isPointInShape = (point: Point, shape: Shape, scale: number = 1, la
     case 'measure':
       if (!shape.points || shape.points.length < 2) return false;
       return isPointNearSegments(point, shape.points, threshold);
-    case 'eletroduto':
-      if (shape.points.length < 2) return false;
-      const pathPoints = getConduitPathPoints(shape);
-      if (pathPoints.length < 2) return false;
-      return isPointNearSegments(point, pathPoints, threshold);
 
     case 'arrow':
       if (shape.points.length < 2) return false;
@@ -473,8 +446,8 @@ export const isShapeInSelection = (shape: Shape, rect: Rect, mode: 'WINDOW' | 'C
   // --- CROSSING Mode Logic for remaining shapes ---
   // We know the AABB intersects, but the shape isn't fully inside.
 
-  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow' || shape.type === 'eletroduto') {
-    const points = shape.type === 'eletroduto' ? getConduitPathPoints(shape) : shape.points;
+  if (shape.type === 'line' || shape.type === 'measure' || shape.type === 'polyline' || shape.type === 'arrow') {
+    const points = shape.points;
     if (!points || points.length === 0) return false;
     // Any point inside rect?
     if (points.some(p => isPointInRect(p, rect))) return true;
@@ -527,11 +500,8 @@ export const getShapeBounds = (shape: Shape): Rect | null => {
          }
     }
     // Point-based shapes rely on already-rotated coordinates
-    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow' || shape.type === 'eletroduto') && shape.points) {
+    else if ((shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arrow') && shape.points) {
 	        let pointList: Point[] = shape.points;
-	        if (shape.type === 'eletroduto') {
-	            pointList = getConduitPathPoints(shape);
-	        }
 	        pointList.forEach(addPoint);
 	    } 
     else if (shape.type === 'rect' || shape.type === 'text' || shape.type === 'circle' || shape.type === 'polygon') {
@@ -671,21 +641,7 @@ const getRotatedCursor = (index: number, rotation: number): string => {
 
 export const getShapeHandles = (shape: Shape): Handle[] => {
     const handles: Handle[] = [];
-    if (shape.electricalElementId) return handles;
     
-	    if (shape.type === 'eletroduto') {
-	        if (shape.points && shape.points.length >= 2) {
-	            // Start point
-	            handles.push({ x: shape.points[0].x, y: shape.points[0].y, cursor: 'move', index: 0, type: 'vertex' });
-	            // End point
-            handles.push({ x: shape.points[1].x, y: shape.points[1].y, cursor: 'move', index: 1, type: 'vertex' });
-            // Control point
-            const cp = shape.controlPoint ?? { x: (shape.points[0].x + shape.points[1].x)/2, y: (shape.points[0].y + shape.points[1].y)/2 };
-            handles.push({ x: cp.x, y: cp.y, cursor: 'pointer', index: 2, type: 'bezier-control' });
-        }
-        return handles;
-    }
-
     if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'arrow') {
         if (shape.points && Array.isArray(shape.points)) {
             shape.points.forEach((p, i) => {
