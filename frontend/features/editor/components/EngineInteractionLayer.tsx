@@ -102,6 +102,28 @@ const EngineInteractionLayer: React.FC = () => {
   }, []);
 
   const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
+    // 1. Try Engine Pick (CPU O(N)) for immediate hits
+    if (runtimeRef.current) {
+        // Engine returns uint32 ID. We need to map it back to string ID.
+        const id = runtimeRef.current.engine.pick(world.x, world.y, tolerance);
+        if (id !== 0) {
+            const strId = runtimeRef.current.getIdMaps().idHashToString.get(id);
+            // Check visibility/interactability for the hit
+            if (strId) {
+                const data = useDataStore.getState();
+                const shape = data.shapes[strId];
+                const layer = shape ? data.layers.find(l => l.id === shape.layerId) : null;
+                const ui = useUIStore.getState();
+                const interactable = shape && isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline });
+                const visible = layer && layer.visible && !layer.locked;
+                if (interactable && visible) {
+                    return strId;
+                }
+            }
+        }
+    }
+
+    // 2. JS Fallbacks (Symbols, SVG, Complex Shapes not yet in Engine Pick)
     {
       const data = useDataStore.getState();
       const ui = useUIStore.getState();
@@ -706,28 +728,6 @@ const EngineInteractionLayer: React.FC = () => {
       </svg>
     );
   }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform, toolDefaults.polygonSides]);
-
-  const selectionSvg = useMemo(() => {
-    if (!selectionBox) return null;
-    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
-
-    const a = worldToScreen(selectionBox.start, viewTransform);
-    const b = worldToScreen(selectionBox.current, viewTransform);
-    const x = Math.min(a.x, b.x);
-    const y = Math.min(a.y, b.y);
-    const w = Math.abs(a.x - b.x);
-    const h = Math.abs(a.y - b.y);
-
-    const isWindow = selectionBox.direction === 'LTR';
-    const stroke = isWindow ? '#3b82f6' : '#22c55e';
-    const fill = isWindow ? 'rgba(59,130,246,0.12)' : 'rgba(34,197,94,0.10)';
-
-    return (
-      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <rect x={x} y={y} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1} strokeDasharray="4 3" />
-      </svg>
-    );
-  }, [canvasSize.height, canvasSize.width, selectionBox, viewTransform]);
 
   return (
     <div
