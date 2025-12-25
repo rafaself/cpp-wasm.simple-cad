@@ -28,6 +28,7 @@ const CalibrationModal: React.FC<CalibrationModalProps> = ({ isOpen, currentDist
             value={distanceCm}
             onChange={setDistanceCm}
             min={1}
+            max={10000}
             className="flex-1 bg-slate-700 h-9"
           />
           <span className="text-sm font-medium">cm</span>

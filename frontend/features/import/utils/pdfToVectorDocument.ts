@@ -9,7 +9,7 @@ type Matrix = [number, number, number, number, number, number];
 
 type PdfPageProxyLike = {
   getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[] }>;
-  getViewport: (opts: { scale: number }) => { transform: Matrix };
+  getViewport: (opts: { scale: number }) => { transform: number[] };
 };
 
 export interface PdfVectorImportOptions {
@@ -306,7 +306,7 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
 
     const opList = await page.getOperatorList();
     const viewport = page.getViewport({ scale: 1.0 });
-    const viewportMatrix: Matrix = viewport.transform;
+    const viewportMatrix: Matrix = viewport.transform as Matrix;
 
     const OPS = pdfjs.OPS;
 

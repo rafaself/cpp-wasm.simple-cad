@@ -47,7 +47,8 @@ type RibbonWidgetProps = {
   handleColorChange: (newColor: string) => void;
 };
 
-const ComponentRegistry: Record<string, React.FC<RibbonWidgetProps>> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ComponentRegistry: Record<string, React.FC<any>> = {
     FontFamilyControl,
     FontSizeControl,
     TextAlignControl,
@@ -177,7 +178,7 @@ const EditorRibbon: React.FC = () => {
         const engineSnapshot = new Uint8Array(runtime.module.HEAPU8.subarray(snapMeta.ptr, snapMeta.ptr + snapMeta.byteCount));
 
         const bytes = encodeNextDocumentFile(payload, { engineSnapshot });
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -513,7 +514,7 @@ tr:nth-child(even){background:#111827;}
       settingsStore.setGridColor(newColor);
   };
 
-  const componentProps = {
+  const componentProps: RibbonWidgetProps = {
       activeLayer,
       isLayerDropdownOpen,
       setLayerDropdownOpen,
@@ -523,7 +524,10 @@ tr:nth-child(even){background:#111827;}
       dropdownPos,
       selectedTextIds,
       applyTextUpdate,
-      openColorPicker
+      setColorPickerTarget,
+      openColorPicker,
+      activeColor,
+      handleColorChange
   };
 
   return (

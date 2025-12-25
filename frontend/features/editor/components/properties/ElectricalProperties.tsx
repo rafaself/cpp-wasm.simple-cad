@@ -98,7 +98,7 @@ export const ElectricalProperties: React.FC<ElectricalPropertiesProps> = ({ sele
                 type={definition.type === 'number' ? 'number' : 'text'}
                 step={definition.step}
                 min={definition.min}
-                value={mergedMetadata[definition.key] ?? ''}
+                value={String(mergedMetadata[definition.key] ?? '')}
                 onChange={(e) => handleChange(definition, e.target.value)}
                 placeholder={definition.placeholder}
                 className="w-full bg-transparent border-none text-[12px] text-slate-700 h-full focus:ring-0 focus:outline-none"

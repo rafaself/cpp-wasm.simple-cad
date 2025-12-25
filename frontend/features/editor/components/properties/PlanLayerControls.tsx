@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { Shape } from '../../../types';
-import { useDataStore } from '../../../../stores/useDataStore';
+import type { Shape } from '@/types';
+import { useDataStore } from '@/stores/useDataStore';
 
 interface Props {
   shape: Shape;
@@ -38,7 +38,7 @@ const PlanLayerControls: React.FC<Props> = ({ shape }) => {
     } else {
       nextHidden.add(id);
     }
-    updateShape(shape.id, { svgHiddenLayers: Array.from(nextHidden) });
+    updateShape(shape.id, { svgHiddenLayers: Array.from(nextHidden) as string[] });
   };
 
   return (

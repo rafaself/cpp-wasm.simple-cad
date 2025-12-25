@@ -466,5 +466,5 @@ type ImportedLayer = {
 type ImportedShape = Shape & { id: string; layerId: string };
 
 type DxfWorkerMessage =
-  | { success: true; data: { shapes: ImportedShape[]; layers: ImportedLayer[] } }
-  | { success: false; error?: string };
+  | { success: true; data: { shapes: ImportedShape[]; layers: ImportedLayer[] }; error?: never }
+  | { success: false; data?: never; error?: string };

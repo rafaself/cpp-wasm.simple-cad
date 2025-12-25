@@ -195,7 +195,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     return true;
   };
 
-  const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrag = useCallback((e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -205,7 +205,7 @@ export const ImportPlanModal: React.FC<ImportPlanModalProps> = ({
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
