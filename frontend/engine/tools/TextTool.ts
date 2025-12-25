@@ -26,6 +26,8 @@ import {
   type TextStyleSnapshot,
 } from '@/types/text';
 import { getTextMeta } from '@/engine/core/textEngineSync';
+import { ensureId } from '@/engine/core/IdRegistry';
+import { generateId } from '@/utils/uuid';
 
 // =============================================================================
 // Types
@@ -75,7 +77,7 @@ export interface TextToolCallbacks {
   /** Called when editing ends */
   onEditEnd: () => void;
   /** Called when a new text entity is created (for syncing to JS store) */
-  onTextCreated?: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => void;
+  onTextCreated?: (shapeId: string, textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => void;
   /** Called when text content/bounds are updated */
   onTextUpdated?: (
     textId: number,
@@ -100,7 +102,6 @@ export class TextTool {
   private state: TextToolState;
   private styleDefaults: TextStyleDefaults;
   private callbacks: TextToolCallbacks;
-  private nextTextId = 1;
   private initialized = false;
 
   constructor(callbacks: TextToolCallbacks) {
@@ -208,7 +209,8 @@ export class TextTool {
     }
 
     // Create new text entity with AutoWidth mode
-    const textId = this.allocateTextId();
+    const shapeId = generateId();
+    const textId = ensureId(shapeId);
 
     this.state = {
       mode: 'creating',
@@ -233,7 +235,7 @@ export class TextTool {
     const w = bounds && bounds.valid ? bounds.maxX - bounds.minX : 0;
     const h = bounds && bounds.valid ? bounds.maxY - bounds.minY : this.styleDefaults.fontSize * 1.2;
 
-    this.callbacks.onTextCreated?.(textId, worldX, worldY, TextBoxMode.AutoWidth, 0, w, h);
+    this.callbacks.onTextCreated?.(shapeId, textId, worldX, worldY, TextBoxMode.AutoWidth, 0, w, h);
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
@@ -259,7 +261,8 @@ export class TextTool {
     const constraintWidth = Math.max(width, 50);
 
     // Create new text entity with FixedWidth mode
-    const textId = this.allocateTextId();
+    const shapeId = generateId();
+    const textId = ensureId(shapeId);
 
     this.state = {
       mode: 'creating',
@@ -283,7 +286,7 @@ export class TextTool {
     // Preserve the user-drawn height so the box remains fixed like Figma area text.
     const h = height;
 
-    this.callbacks.onTextCreated?.(textId, x, y, TextBoxMode.FixedWidth, constraintWidth, w, h);
+    this.callbacks.onTextCreated?.(shapeId, textId, x, y, TextBoxMode.FixedWidth, constraintWidth, w, h);
 
     this.callbacks.onStateChange(this.state);
     this.updateCaretPosition();
@@ -1198,9 +1201,6 @@ export class TextTool {
   // Private Helpers
   // ===========================================================================
 
-  private allocateTextId(): number {
-    return this.nextTextId++;
-  }
 
   private createTextEntity(
     textId: number,

@@ -10,16 +10,13 @@
  * 
  * Architecture:
  * - Text is created via TextTool → TextBridge → Engine
- * - This manager tracks the ID mapping
+ * - This manager tracks the ID mapping (now via IdRegistry)
  * - When shapes are deleted/moved, this manager syncs with engine
  */
 
 import type { TextTool } from '@/engine/tools/TextTool';
+import { IdRegistry, ensureId, getEngineId, getShapeId, releaseId } from './IdRegistry';
 
-// Singleton state for text ID mapping
-let textIdToShapeId = new Map<number, string>();
-let shapeIdToTextId = new Map<string, number>();
-let textMeta = new Map<number, { boxMode: number; constraintWidth: number }>();
 let textToolInstance: TextTool | null = null;
 
 /**
@@ -38,18 +35,33 @@ export function getTextTool(): TextTool | null {
 
 /**
  * Register a text ID ↔ shape ID mapping.
+ * Verifies consistency with IdRegistry.
  */
 export function registerTextMapping(textId: number, shapeId: string): void {
-  textIdToShapeId.set(textId, shapeId);
-  shapeIdToTextId.set(shapeId, textId);
+  // Ensure consistency: The shapeId MUST map to this textId in the Registry.
+  // Since TextTool now calls ensureId(shapeId) to get textId, this should essentially be a no-op or verification.
+  const registeredId = ensureId(shapeId);
+  if (registeredId !== textId) {
+    console.error(`[textEngineSync] ID Mismatch! Shape ${shapeId} maps to ${registeredId} but tried to register ${textId}`);
+    return;
+  }
+  
+  // Mark as text type
+  IdRegistry.setMeta(textId, 'entityType', 'text');
 }
 
 export function setTextMeta(textId: number, boxMode: number, constraintWidth: number): void {
-  textMeta.set(textId, { boxMode, constraintWidth });
+  IdRegistry.setMeta(textId, 'boxMode', boxMode);
+  IdRegistry.setMeta(textId, 'constraintWidth', constraintWidth);
 }
 
 export function getTextMeta(textId: number): { boxMode: number; constraintWidth: number } | null {
-  return textMeta.get(textId) ?? null;
+  const meta = IdRegistry.getMeta(textId);
+  if (!meta) return null;
+  return {
+    boxMode: meta.boxMode ?? 0,
+    constraintWidth: meta.constraintWidth ?? 0
+  };
 }
 
 /**
@@ -57,40 +69,65 @@ export function getTextMeta(textId: number): { boxMode: number; constraintWidth:
  * Returns the text ID if found, null otherwise.
  */
 export function unregisterTextMappingByShapeId(shapeId: string): number | null {
-  const textId = shapeIdToTextId.get(shapeId);
-  if (textId === undefined) return null;
-  
-  shapeIdToTextId.delete(shapeId);
-  textIdToShapeId.delete(textId);
-  textMeta.delete(textId);
-  return textId;
+  // Instead of full release, we might want to just keeping the ID but marking it dead?
+  // But the interface says unregister.
+  // IdRegistry.release deletes the mapping.
+  return releaseId(shapeId);
 }
 
 /**
  * Get the text ID for a shape ID.
  */
 export function getTextIdForShape(shapeId: string): number | null {
-  return shapeIdToTextId.get(shapeId) ?? null;
+  return getEngineId(shapeId);
 }
 
 /**
  * Get the shape ID for a text ID.
  */
 export function getShapeIdForText(textId: number): string | null {
-  return textIdToShapeId.get(textId) ?? null;
+  return getShapeId(textId);
 }
 
 /**
  * Get all text shape IDs currently tracked.
+ * Warning: Iterates all registered shapes.
  */
 export function getAllTextShapeIds(): string[] {
-  return Array.from(shapeIdToTextId.keys());
+  const allIds = IdRegistry.getAllShapeIds();
+  const textIds: string[] = [];
+  for (const shapeId of allIds) {
+    const eid = getEngineId(shapeId);
+    if (eid !== null) {
+      const meta = IdRegistry.getMeta(eid);
+      if (meta?.entityType === 'text') {
+        textIds.push(shapeId);
+      }
+    }
+  }
+  return textIds;
 }
 
 /**
  * Get the entire mapping (for debugging/iteration).
  */
 export function getTextMappings(): { textIdToShapeId: Map<number, string>; shapeIdToTextId: Map<string, number> } {
+  // Reconstruct maps for debug compatibility
+  const textIdToShapeId = new Map<number, string>();
+  const shapeIdToTextId = new Map<string, number>();
+  
+  const allIds = IdRegistry.getAllShapeIds();
+  for (const shapeId of allIds) {
+    const eid = getEngineId(shapeId);
+    if (eid !== null) {
+         const meta = IdRegistry.getMeta(eid);
+         if (meta?.entityType === 'text') {
+           textIdToShapeId.set(eid, shapeId);
+           shapeIdToTextId.set(shapeId, eid);
+         }
+    }
+  }
+
   return { textIdToShapeId, shapeIdToTextId };
 }
 
@@ -99,12 +136,15 @@ export function getTextMappings(): { textIdToShapeId: Map<number, string>; shape
  * This should be called when a text shape is deleted from the JS store.
  */
 export function deleteTextByShapeId(shapeId: string): boolean {
-  const textId = shapeIdToTextId.get(shapeId);
-  if (textId === undefined) return false;
+  const textId = getEngineId(shapeId);
+  if (textId === null) return false;
   
-  // Remove from mappings
-  shapeIdToTextId.delete(shapeId);
-  textIdToShapeId.delete(textId);
+  // Check if it is text
+  const meta = IdRegistry.getMeta(textId);
+  if (meta?.entityType !== 'text') return false;
+
+  // Release mapping
+  releaseId(shapeId);
   
   // Delete from engine
   if (textToolInstance) {
@@ -121,9 +161,10 @@ export function deleteTextByShapeId(shapeId: string): boolean {
  * @param anchorY New anchor Y (top-left in Y-Up world)
  */
 export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: number): boolean {
-  const textId = shapeIdToTextId.get(shapeId);
-  if (textId === undefined) return false;
-  const meta = textMeta.get(textId);
+  const textId = getEngineId(shapeId);
+  if (textId === null) return false;
+  
+  const meta = getTextMeta(textId);
   const boxMode = meta?.boxMode ?? 0;
   const constraintWidth = meta?.constraintWidth ?? 0;
 
@@ -138,7 +179,5 @@ export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: num
  * Clear all mappings (e.g., on document reset).
  */
 export function clearTextMappings(): void {
-  textIdToShapeId.clear();
-  shapeIdToTextId.clear();
-  textMeta.clear();
+  IdRegistry.clear();
 }

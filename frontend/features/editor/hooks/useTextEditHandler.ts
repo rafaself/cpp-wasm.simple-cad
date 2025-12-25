@@ -74,10 +74,10 @@ export function useTextEditHandler(params: {
                 clearSelection();
                 useUIStore.getState().setTool('select');
             },
-            onTextCreated: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
+            onTextCreated: (shapeId: string, textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
                 const data = useDataStore.getState();
-                const shapeId = generateId();
-
+                // shapeId is provided by TextTool (which got it from IdRegistry generation)
+                
                 registerTextMapping(textId, shapeId);
                 setTextMeta(textId, boxMode, constraintWidth);
 

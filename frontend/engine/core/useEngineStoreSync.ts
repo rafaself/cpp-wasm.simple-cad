@@ -7,6 +7,7 @@ import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 import { deleteTextByShapeId, moveTextByShapeId, getAllTextShapeIds } from './textEngineSync';
+import { ensureId, getEngineId } from './IdRegistry';
 
 export type StableIdCache = {
   lastRef: Record<string, unknown> | null;
@@ -408,7 +409,8 @@ export const useEngineStoreSync = (): void => {
       const runtime = await getEngineRuntime();
       if (disposed) return;
 
-      const ensureId = runtime.ids.ensureIdForString;
+      // REMOVED: const ensureId = runtime.ids.ensureIdForString;
+      // Now imported from IdRegistry
 
       let lastData = useDataStore.getState();
       let lastUi = useUIStore.getState();
@@ -448,8 +450,8 @@ export const useEngineStoreSync = (): void => {
         // Deletes when shapes disappear or become invisible.
         for (const id of lastVisibleIds) {
           if (nextVisibleSet.has(id)) continue;
-          const eid = runtime.ids.maps.idStringToHash.get(id);
-          if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
+          const eid = getEngineId(id);
+          if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
         }
 
         // Sync text entities: delete texts whose shapes were deleted
@@ -491,8 +493,8 @@ export const useEngineStoreSync = (): void => {
           if (cmd) {
             commands.push(cmd);
           } else {
-            const eid = runtime.ids.maps.idStringToHash.get(id);
-            if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
+            const eid = getEngineId(id);
+            if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
           }
         }
 
@@ -504,8 +506,8 @@ export const useEngineStoreSync = (): void => {
         const prevNodeIds = getCachedSortedKeys(prevData.connectionNodes as Record<string, unknown>, prevConnectionNodeCache);
         for (const prevNodeId of prevNodeIds) {
           if (nextData.connectionNodes[prevNodeId]) continue;
-          const eid = runtime.ids.maps.idStringToHash.get(prevNodeId);
-          if (eid !== undefined) commands.push({ op: CommandOp.DeleteEntity, id: eid });
+          const eid = getEngineId(prevNodeId);
+          if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
         }
         const nextNodeIds = getCachedSortedKeys(nextData.connectionNodes as Record<string, unknown>, connectionNodeCache);
         for (const id of nextNodeIds) {
