@@ -6,7 +6,6 @@ import {
   isDrag,
   isShapeInSelection
 } from '@/utils/geometry';
-import { HIT_TOLERANCE } from '@/config/constants';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 
@@ -38,20 +37,16 @@ const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number })
 
 export function useSelectInteraction(params: {
   viewTransform: ViewTransform;
-  selectedShapeIds: Set<string>;
   shapes: Record<string, Shape>;
   layers: any[]; // ImportedLayer[] or Layer[]
   onSetSelectedShapeIds: (ids: Set<string>) => void;
-  pickShape: (world: {x:number, y:number}, screen: {x:number, y:number}, tolerance: number) => string | null;
   runtime?: any;
 }) {
   const {
     viewTransform,
-    selectedShapeIds,
     shapes,
     layers,
     onSetSelectedShapeIds,
-    pickShape,
     runtime
   } = params;
 
@@ -63,33 +58,15 @@ export function useSelectInteraction(params: {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>, world: {x:number, y:number}) => {
-      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
-      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-
-      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-      const hitId = pickShape(world, screen, tolerance);
-      if (hitId) {
-        if (!selectedShapeIds.has(hitId) || selectedShapeIds.size !== 1) onSetSelectedShapeIds(new Set([hitId]));
-        selectInteractionRef.current = { kind: 'none' };
-        setCursorOverride('move');
-        return;
-      }
-
       selectInteractionRef.current = { kind: 'marquee' };
       setCursorOverride(null);
       return;
   };
 
   const handlePointerMove = (evt: React.PointerEvent<HTMLDivElement>, down: {x:number, y:number, world: {x:number, y:number}} | null, snapped: {x:number, y:number}) => {
-      const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
-      const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-
       const interaction = selectInteractionRef.current;
 
       if (!down) {
-        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-        const hit = pickShape(snapped, screen, tolerance);
-        setCursorOverride(hit ? 'move' : null);
         return;
       }
 
@@ -164,12 +141,7 @@ export function useSelectInteraction(params: {
       onSetSelectedShapeIds(selected);
       return;
     }
-
-    // Click selection (no marquee, no drag interactions).
-    const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-    const hit = pickShape(down.world, screen, tolerance);
     setSelectionBox(null);
-    onSetSelectedShapeIds(hit ? new Set([hit]) : new Set());
     return;
   };
 

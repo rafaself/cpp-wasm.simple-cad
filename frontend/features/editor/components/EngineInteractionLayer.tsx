@@ -4,11 +4,10 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
 import { toWorldPoint, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
-import { calculateZoomTransform } from '@/utils/zoomHelper';
 import SelectionOverlay from './SelectionOverlay';
 import { HIT_TOLERANCE } from '@/config/constants';
-import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/core/singleton';
+import { applyCommitOpToShape, TransformMode, TransformOpCode } from '@/engine/core/interactionSession';
 import { TextTool } from '@/engine/tools/TextTool';
 import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
@@ -33,19 +32,6 @@ type DragMode =
   | { type: "edge"; id: string; edgeIndex: number; startWorld: Point; snapshot: Shape } // Placeholder
   | { type: "engine_session"; startWorld: Point; vertexIndex?: number; activeId?: string };
 
-enum TransformMode {
-    Move = 0,
-    VertexDrag = 1,
-    EdgeDrag = 2,
-    Resize = 3
-}
-
-enum TransformOpCode {
-    MOVE = 1,
-    VERTEX_SET = 2,
-    RESIZE = 3
-}
-
 const EngineInteractionLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const activeTool = useUIStore((s) => s.activeTool);
@@ -59,8 +45,11 @@ const EngineInteractionLayer: React.FC = () => {
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
 
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const capturedPointerIdRef = useRef<number | null>(null);
   const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const dragRef = useRef<DragMode>({ type: "none" });
+  const marqueeArmedRef = useRef(false);
   
   // Pan/Zoom hook
   const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
@@ -126,13 +115,45 @@ const EngineInteractionLayer: React.FC = () => {
       handlePointerUp: selectHandlePointerUp
   } = useSelectInteraction({
       viewTransform,
-      selectedShapeIds,
       shapes: useDataStore((s) => s.shapes),
       layers: useDataStore((s) => s.layers),
       onSetSelectedShapeIds: setSelectedShapeIds,
-      pickShape,
       runtime: runtimeRef.current
   });
+
+  const cancelActiveEngineSession = useCallback(
+    (reason: string): boolean => {
+      const runtime = runtimeRef.current;
+      const interactionActive = !!runtime?.isInteractionActive?.() || dragRef.current.type === 'engine_session';
+      if (!interactionActive) return false;
+
+      if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_INTERACTION") === "1") {
+        console.log(`[EngineInteractionLayer] cancelActiveEngineSession reason=${reason}`);
+      }
+
+      runtime?.cancelTransform?.();
+
+      // Best-effort: release pointer capture if we still hold it.
+      try {
+        const el = layerRef.current;
+        const pid = capturedPointerIdRef.current;
+        if (el && pid !== null) {
+          el.releasePointerCapture(pid);
+        }
+      } catch {
+        // ignore
+      }
+
+      capturedPointerIdRef.current = null;
+      pointerDownRef.current = null;
+      dragRef.current = { type: "none" };
+      marqueeArmedRef.current = false;
+      setSelectionBox(null);
+      setCursorOverride(null);
+      return true;
+    },
+    [setCursorOverride, setSelectionBox],
+  );
 
   const moveRef = useRef<MoveState | null>(null);
 
@@ -198,13 +219,73 @@ const EngineInteractionLayer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTool, polygonSidesModal, draft, commitPolyline, setDraft]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (engineTextEditState.active) return;
+      const canceled = cancelActiveEngineSession('escape');
+      if (canceled) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cancelActiveEngineSession, engineTextEditState.active]);
+
+  useEffect(() => {
+    const handleBlur = () => {
+      if (engineTextEditState.active) return;
+      cancelActiveEngineSession('blur');
+    };
+
+    const handleVisibilityChange = () => {
+      if (engineTextEditState.active) return;
+      if (document.visibilityState === 'hidden') {
+        cancelActiveEngineSession('visibilitychange:hidden');
+      }
+    };
+
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [cancelActiveEngineSession, engineTextEditState.active]);
+
   const cursor = useMemo(() => {
     if (engineTextEditState.active) return 'text';
     return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
   }, [activeTool, cursorOverride, engineTextEditState.active]);
 
+  const handlePointerCancel = (evt: React.PointerEvent<HTMLDivElement>) => {
+    cancelActiveEngineSession('pointercancel');
+    capturedPointerIdRef.current = null;
+    pointerDownRef.current = null;
+    marqueeArmedRef.current = false;
+    setSelectionBox(null);
+    setCursorOverride(null);
+  };
+
+  const handleLostPointerCapture = () => {
+    cancelActiveEngineSession('lostpointercapture');
+    capturedPointerIdRef.current = null;
+    pointerDownRef.current = null;
+    marqueeArmedRef.current = false;
+    setSelectionBox(null);
+    setCursorOverride(null);
+  };
+
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
+    // If the engine reports an active interaction but the local drag state is not tracking it,
+    // we are likely in a stuck state (lost pointer events). Cancel defensively to unblock sync.
+    if (runtimeRef.current?.isInteractionActive?.() && dragRef.current.type !== 'engine_session') {
+      cancelActiveEngineSession('stale_before_pointerdown');
+    }
+
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
+    capturedPointerIdRef.current = evt.pointerId;
 
     // Text Edit Logic Priority
     if (engineTextEditState.active && textToolRef.current) {
@@ -266,12 +347,13 @@ const EngineInteractionLayer: React.FC = () => {
     const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
     pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
 
-    if (activeTool === 'select') {
-        setSelectionBox(null);
+	    if (activeTool === 'select') {
+	        setSelectionBox(null);
+	        marqueeArmedRef.current = false;
 
-        // ------------------------------------------------------------------
-        // NEW: Engine-First Picking Logic
-        // ------------------------------------------------------------------
+	        // ------------------------------------------------------------------
+	        // NEW: Engine-First Picking Logic
+	        // ------------------------------------------------------------------
         if (runtimeRef.current) {
             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
             // Mask: Body | Edge | Vertex | Handles (future)
@@ -297,13 +379,14 @@ const EngineInteractionLayer: React.FC = () => {
             if (res.subTarget !== PickSubTarget.None && res.id !== 0) {
                  const strId = getShapeIdFromRegistry(res.id);
                  if (strId) {
-                     const data = useDataStore.getState();
-                     const shape = data.shapes[strId];
+	                     const data = useDataStore.getState();
+	                     const shape = data.shapes[strId];
 
-                     // Ensure selection
-                     if (!selectedShapeIds.has(strId)) {
-                        setSelectedShapeIds(new Set([strId]));
-                     }
+	                     // Ensure selection
+	                     const nextSelectionIds = selectedShapeIds.has(strId) ? selectedShapeIds : new Set([strId]);
+	                     if (nextSelectionIds !== selectedShapeIds) {
+	                        setSelectedShapeIds(nextSelectionIds);
+	                     }
 
                      // Prepare IDs for Engine Session
                      // We need to pass ALL selected IDs if we are moving?
@@ -314,63 +397,69 @@ const EngineInteractionLayer: React.FC = () => {
                      // If vertex drag, usually only one shape is active for vertex edit at a time?
                      // Assuming single shape vertex edit for MVP.
                      
-                     const activeIds = Array.from(useUIStore.getState().selectedShapeIds)
-                        .map(id => getEngineId(id))
-                        .filter((x): x is number => x !== null && x !== 0);
+	                     const activeIds = Array.from(nextSelectionIds)
+	                        .map((id) => getEngineId(id))
+	                        .filter((x): x is number => x !== null && x !== 0);
 
-                     if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0 && shape) {
-                         // Shape Vertex Drag
-                         const idHash = getEngineId(strId);
-                         if (idHash !== null) {
-                           runtimeRef.current.beginTransform([idHash], TransformMode.VertexDrag, idHash, res.subIndex, snapped.x, snapped.y);
-                           dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
-                           return;
-                         }
-                     } 
-                     else if (res.subTarget === PickSubTarget.Edge) {
+	                     if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0 && shape) {
+	                         // Shape Vertex Drag
+	                         const idHash = getEngineId(strId);
+	                         if (idHash !== null) {
+	                           setCursorOverride('move');
+	                           runtimeRef.current.beginTransform([idHash], TransformMode.VertexDrag, idHash, res.subIndex, snapped.x, snapped.y);
+	                           dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
+	                           return;
+	                         }
+	                     } 
+	                     else if (res.subTarget === PickSubTarget.Edge) {
                           // Edge Drag (treat as Move for now, or implement edge drag if engine supports it)
                           // Engine supports EdgeDrag (2).
                           // For now, let's Map Edge Drag to Move if we want standard behavior, 
                           // OR pass EdgeDrag to engine if engine implements it.
-                          // Engine implementation: EdgeDrag -> updates x/y? 
-                          // Let's use Move behavior for Edge/Body hits for now to support multi-select move.
-                          if (activeIds.length > 0) {
-                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
-                              dragRef.current = { type: "engine_session", startWorld: snapped };
-                              return;
-                          }
-                     }
-                     else if (res.subTarget === PickSubTarget.Body) {
-                          if (activeIds.length > 0) {
-                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
-                              dragRef.current = { type: "engine_session", startWorld: snapped };
-                              return;
-                          }
-                     }
-                 }
-            }
-            if (res.id !== 0 && res.subTarget === PickSubTarget.None) {
-                 const strId = getShapeIdFromRegistry(res.id);
-                 if (strId) {
-                     if (!selectedShapeIds.has(strId)) {
-                         setSelectedShapeIds(new Set([strId]));
-                     }
-                     const activeIds = Array.from(useUIStore.getState().selectedShapeIds)
-                        .map(id => getEngineId(id))
-                        .filter((x): x is number => x !== null && x !== 0);
-                     if (activeIds.length > 0) {
-                         runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
-                         dragRef.current = { type: "engine_session", startWorld: snapped };
-                         return;
+	                          // Engine implementation: EdgeDrag -> updates x/y? 
+	                          // Let's use Move behavior for Edge/Body hits for now to support multi-select move.
+	                          if (activeIds.length > 0) {
+	                              setCursorOverride('move');
+	                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
+	                              dragRef.current = { type: "engine_session", startWorld: snapped };
+	                              return;
+	                          }
+	                     }
+	                     else if (res.subTarget === PickSubTarget.Body) {
+	                          if (activeIds.length > 0) {
+	                              setCursorOverride('move');
+	                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
+	                              dragRef.current = { type: "engine_session", startWorld: snapped };
+	                              return;
+	                          }
                      }
                  }
             }
-            // If subTarget is None (fallback), we fall through to selectHandlePointerDown
-        }
+	            if (res.id !== 0 && res.subTarget === PickSubTarget.None) {
+	                 const strId = getShapeIdFromRegistry(res.id);
+	                 if (strId) {
+	                     const nextSelectionIds = selectedShapeIds.has(strId) ? selectedShapeIds : new Set([strId]);
+	                     if (nextSelectionIds !== selectedShapeIds) {
+	                         setSelectedShapeIds(nextSelectionIds);
+	                     }
+		                     const activeIds = Array.from(nextSelectionIds)
+		                        .map((id) => getEngineId(id))
+		                        .filter((x): x is number => x !== null && x !== 0);
+		                     if (activeIds.length > 0) {
+		                         setCursorOverride('move');
+		                         runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
+		                         dragRef.current = { type: "engine_session", startWorld: snapped };
+		                         return;
+	                     }
+                 }
+            }
+	            // Miss → marquee selection (handled by useSelectInteraction).
+	        }
 
-        selectHandlePointerDown(evt, world);
-        return;
-    }
+	        marqueeArmedRef.current = true;
+	        selectHandlePointerDown(evt, world);
+	        return;
+	    }
 
     // Tools logic
     if (activeTool === 'text') {
@@ -460,11 +549,25 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'select') {
-      // If we are NOT in a special drag mode, fallback to legacy
-      selectHandlePointerMove(evt, pointerDownRef.current, snapped);
-      return;
-    }
+	    if (activeTool === 'select') {
+	      const down = pointerDownRef.current;
+	      if (!down) {
+	        const runtime = runtimeRef.current;
+	        if (!runtime) {
+	          setCursorOverride(null);
+	          return;
+	        }
+
+	        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+	        const pickMask = 3; // Body(1) | Edge(2)
+	        const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
+	        setCursorOverride(res.id !== 0 ? 'move' : null);
+	        return;
+	      }
+
+	      selectHandlePointerMove(evt, down, snapped);
+	      return;
+	    }
 
     if (activeTool === 'move') {
        // ... existing move logic
@@ -517,53 +620,36 @@ const EngineInteractionLayer: React.FC = () => {
              return;
         }
 
-        if (mode.type === 'engine_session') {
-            if (runtimeRef.current) {
-                const result = runtimeRef.current.commitTransform();
-                if (result) {
-                    const { ids, opCodes, payloads } = result;
-                    const data = useDataStore.getState();
-                    const patches: Patch[] = [];
+	        if (mode.type === 'engine_session') {
+	            if (runtimeRef.current) {
+	                const result = runtimeRef.current.commitTransform();
+	                if (result) {
+	                    const { ids, opCodes, payloads } = result;
+	                    const data = useDataStore.getState();
+	                    const patches: Patch[] = [];
 
-                    for(let i=0; i<ids.length; i++) {
-                        const id = ids[i];
-                        const strId = getShapeIdFromRegistry(id);
-                        if (!strId) continue;
-                        
-                        const op = opCodes[i];
-                        const p0 = payloads[i*4 + 0];
-                        const p1 = payloads[i*4 + 1];
+	                    for(let i=0; i<ids.length; i++) {
+	                        const engineId = ids[i];
+	                        const strId = getShapeIdFromRegistry(engineId);
+	                        if (!strId) continue;
+	                        
+	                        const prevShape = data.shapes[strId];
+	                        if (!prevShape) continue;
 
-                        const shape = data.shapes[strId];
-                        if (!shape) continue;
+	                        const op = opCodes[i] as TransformOpCode;
+	                        const diff = applyCommitOpToShape(prevShape, op, payloads, i);
 
-                        const diff: Partial<Shape> = {};
+	                        if (diff && Object.keys(diff).length > 0) {
+	                            data.updateShape(strId, diff, { skipConnectionSync: true, recordHistory: false });
+	                            patches.push({ type: 'UPDATE', id: strId, diff, prev: prevShape });
+	                        } else if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_INTERACTION") === "1") {
+	                            console.warn(`[EngineInteractionLayer] Ignored commit entry: id=${engineId} op=${op}`);
+	                        }
+	                    }
 
-                        if (op === TransformOpCode.MOVE) { 
-                            if (shape.x !== undefined) diff.x = clampTiny((shape.x || 0) + p0);
-                            if (shape.y !== undefined) diff.y = clampTiny((shape.y || 0) + p1);
-                            if (shape.points) {
-                                diff.points = shape.points.map(pt => ({ x: clampTiny(pt.x + p0), y: clampTiny(pt.y + p1) }));
-                            }
-                        } 
-                        else if (op === TransformOpCode.VERTEX_SET) {
-                            if (mode.vertexIndex !== undefined && shape.points) {
-                                const nextPoints = [...shape.points];
-                                if (nextPoints[mode.vertexIndex]) {
-                                    nextPoints[mode.vertexIndex] = { x: p0, y: p1 };
-                                    diff.points = nextPoints;
-                                }
-                            }
-                        }
-                        
-                        if (Object.keys(diff).length > 0) {
-                            patches.push({ type: 'UPDATE', id: strId, diff, prev: shape }); // Prev is flawed here if multiple updates, but acceptable for single session end
-                        }
-                    }
-
-                    if (patches.length > 0) {
-                        data.saveToHistory(patches);
-                    }
+	                    if (patches.length > 0) {
+	                        data.saveToHistory(patches);
+	                    }
                 }
             }
             pointerDownRef.current = null;
@@ -620,10 +706,14 @@ const EngineInteractionLayer: React.FC = () => {
     pointerDownRef.current = null;
     const clickNoDrag = !!down && !isDrag(evt.clientX - down.x, evt.clientY - down.y);
 
-    if (activeTool === 'select') {
-        selectHandlePointerUp(evt, down);
-        return;
-    }
+	    if (activeTool === 'select') {
+	        selectHandlePointerUp(evt, down);
+	        if (clickNoDrag && marqueeArmedRef.current) {
+	          setSelectedShapeIds(new Set());
+	        }
+	        marqueeArmedRef.current = false;
+	        return;
+	    }
 
     draftHandlePointerUp(down ? down.world : {x:0, y:0}, clickNoDrag);
   };
@@ -805,6 +895,9 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerUp={handlePointerUp}
       onDoubleClick={handleDoubleClick}
       onContextMenu={(e) => e.preventDefault()}
+      onPointerCancel={handlePointerCancel}
+      onLostPointerCapture={handleLostPointerCapture}
+      ref={layerRef}
     >
       {draftSvg}
       <SelectionOverlay hideAnchors={engineTextEditState.active} />
