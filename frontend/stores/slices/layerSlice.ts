@@ -45,63 +45,31 @@ export const createLayerSlice: StateCreator<
   }),
 
   deleteLayer: (id) => {
-    const { layers, shapes, shapeOrder, activeLayerId, saveToHistory, spatialIndex, electricalElements, diagramNodes, diagramEdges } = get();
+    const { layers, shapes, shapeOrder, activeLayerId, saveToHistory, spatialIndex } = get();
     const layerToDelete = layers.find(l => l.id === id);
     if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return false;
 
     const newLayers = layers.filter(l => l.id !== id);
     const newShapes = { ...shapes };
     let newShapeOrder = [...shapeOrder];
-    const newElectrical = { ...electricalElements };
-    const newDiagramNodes = { ...diagramNodes };
-    const newDiagramEdges = { ...diagramEdges };
-    const edgeIdsToDrop = new Set<string>();
     const patches: any[] = []; // Patch type
 
     Object.values(shapes).forEach((s) => {
       if (s.layerId === id) {
         const orderIndex = shapeOrder.indexOf(s.id);
-        const electricalElement = s.electricalElementId ? electricalElements[s.electricalElementId] : undefined;
-        if (electricalElement) delete newElectrical[electricalElement.id];
-        const diagramNode = Object.values(diagramNodes).find(n => n.shapeId === s.id);
-        if (diagramNode) {
-          delete newDiagramNodes[diagramNode.id];
-          Object.values(diagramEdges).forEach(edge => {
-            if (edge.fromId === diagramNode.id || edge.toId === diagramNode.id) edgeIdsToDrop.add(edge.id);
-          });
-        }
-        Object.values(diagramEdges).forEach(edge => {
-          if (edge.shapeId === s.id) edgeIdsToDrop.add(edge.id);
-        });
-        patches.push({ type: 'DELETE', id: s.id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined, electricalElement, diagramNode });
+        patches.push({ type: 'DELETE', id: s.id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined });
         delete newShapes[s.id];
         if (newShapeOrder.includes(s.id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== s.id);
         spatialIndex.remove(s);
       }
     });
 
-    edgeIdsToDrop.forEach(edgeId => {
-      const edge = diagramEdges[edgeId];
-      const edgeShape = edge ? shapes[edge.shapeId] : undefined;
-      const edgeOrderIndex = edgeShape ? shapeOrder.indexOf(edgeShape.id) : -1;
-      if (edgeShape) {
-        delete newShapes[edgeShape.id];
-        if (newShapeOrder.includes(edgeShape.id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== edgeShape.id);
-        spatialIndex.remove(edgeShape);
-      }
-      if (edge) {
-        delete newDiagramEdges[edge.id];
-        patches.push({ type: 'DELETE', id: edge.shapeId, prev: edgeShape, orderIndex: edgeOrderIndex >= 0 ? edgeOrderIndex : undefined, diagramEdge: edge });
-      }
-    });
-
     newShapeOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
-    set({ layers: newLayers, shapes: newShapes, shapeOrder: newShapeOrder, electricalElements: newElectrical, diagramNodes: newDiagramNodes, diagramEdges: newDiagramEdges });
+    set({ layers: newLayers, shapes: newShapes, shapeOrder: newShapeOrder });
 
     if (patches.length > 0) {
       saveToHistory(patches);
     }
-    get().syncDiagramEdgesGeometry();
     return true;
   },
 

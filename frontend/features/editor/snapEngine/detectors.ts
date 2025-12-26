@@ -3,7 +3,7 @@ import { getDistance, rotatePoint, getShapeCenter } from '../../../utils/geometr
 
 export const getEndpoints = (shape: Shape): Point[] => {
     if (shape.points && shape.points.length > 0) {
-        if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow' || shape.type === 'eletroduto') {
+        if (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'measure' || shape.type === 'arc' || shape.type === 'arrow') {
             const pts = [shape.points[0], shape.points[shape.points.length - 1]];
             if (shape.type === 'polyline') {
                 return shape.points;
@@ -61,12 +61,6 @@ export const getMidpoints = (shape: Shape): Point[] => {
 };
 
 export const getCenter = (shape: Shape): Point | null => {
-    // Reuse geometry.ts logic which handles shape types generically if we wanted,
-    // but here we can just delegate to getShapeCenter for consistency if needed.
-    // However, existing logic is fine as center is rotation invariant.
-    // But to be DRY, let's use getShapeCenter if possible, or keep it simple.
-    // The previous implementation was fine.
-
     if (shape.type === 'rect' && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
         return { x: shape.x + shape.width/2, y: shape.y + shape.height/2 };
     }
@@ -80,14 +74,4 @@ export const getGridSnap = (point: Point, gridSize: number): Point => {
     const gx = Math.round(point.x / gridSize) * gridSize;
     const gy = Math.round(point.y / gridSize) * gridSize;
     return { x: gx, y: gy };
-};
-
-export const getConnectionPoint = (shape: Shape): Point | null => {
-    if (shape.svgRaw && shape.connectionPoint && shape.x !== undefined && shape.y !== undefined && shape.width !== undefined && shape.height !== undefined) {
-        return {
-            x: shape.x + shape.connectionPoint.x * shape.width,
-            y: shape.y + shape.connectionPoint.y * shape.height
-        };
-    }
-    return null;
 };

@@ -323,7 +323,7 @@ export const usePlanImport = (): PlanImportHook => {
           if (options?.importMode === 'svg') {
               shapesToAdd = shapesToAdd.map((s: ImportedShape) => ({
                   ...s,
-                  ...(s && s.type === 'rect' && s.svgRaw && !s.electricalElementId ? { proportionsLinked: true } : {})
+                  ...(s && s.type === 'rect' && s.svgRaw ? { proportionsLinked: true } : {})
               }));
           }
 

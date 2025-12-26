@@ -99,17 +99,20 @@ const EngineInteractionLayer: React.FC = () => {
         if (id !== 0) {
             const strId = runtimeRef.current.getIdMaps().idHashToString.get(id);
             if (strId) {
-                // Validate state (visible/interactable) to be safe, though engine should ideally filter.
-                // This is O(1) and ensures no ghost selection.
-                const data = useDataStore.getState();
-                const shape = data.shapes[strId];
-                const layer = shape ? data.layers.find(l => l.id === shape.layerId) : null;
-                const ui = useUIStore.getState();
-                const interactable = shape && isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline });
-                const visible = layer && layer.visible && !layer.locked;
-                if (interactable && visible) {
-                    return strId;
+                // Engine is authority. Assert validity in DEV only.
+                if (process.env.NODE_ENV !== 'production') {
+                    const data = useDataStore.getState();
+                    const shape = data.shapes[strId];
+                    if (!shape) {
+                        console.warn('Engine picked non-existent shape:', strId);
+                    } else {
+                        const layer = data.layers.find(l => l.id === shape.layerId);
+                        if (layer && (layer.locked || !layer.visible)) {
+                             console.error('Engine picked locked/hidden shape! Flags not synced?', strId, layer);
+                        }
+                    }
                 }
+                return strId;
             }
         }
     }

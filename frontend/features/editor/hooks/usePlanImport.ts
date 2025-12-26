@@ -35,7 +35,7 @@ const parseSvgViewBox = (svgRaw: string): NormalizedViewBox | null => {
 const buildPlanShape = (
   svgRaw: string,
   viewBox: NormalizedViewBox | null,
-  defaults: { layerId: string; floorId?: string; discipline: 'architecture' | 'electrical' }
+  defaults: { layerId: string; floorId?: string; discipline: 'architecture' }
 ): Shape => {
   const vb = viewBox ?? { x: 0, y: 0, width: 1000, height: 1000 };
   return {

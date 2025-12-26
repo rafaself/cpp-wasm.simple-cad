@@ -1,7 +1,7 @@
 import { Point, Shape, SnapOptions } from '../../../types';
 import { SNAP_THRESHOLD } from '../../../config/constants';
 import { getDistance } from '../../../utils/geometry';
-import { getEndpoints, getMidpoints, getCenter, getGridSnap, getConnectionPoint } from './detectors';
+import { getEndpoints, getMidpoints, getCenter, getGridSnap } from './detectors';
 import { getSvgSnapPoints } from './svgBackground';
 
 export const getSnapPoint = (
@@ -39,8 +39,6 @@ export const getSnapPoint = (
           const c = getCenter(shape);
           if (c) checkObjectPoint(c);
       }
-      const connPt = getConnectionPoint(shape);
-      if (connPt) checkObjectPoint(connPt);
 
       if (shape.type === 'rect' && shape.svgRaw && shape.svgViewBox) {
           getSvgSnapPoints(shape).forEach(checkObjectPoint);

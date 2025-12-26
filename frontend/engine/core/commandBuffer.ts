@@ -18,6 +18,8 @@ export const enum CommandOp {
   SetTextSelection = 17,
   InsertTextContent = 18,
   DeleteTextContent = 19,
+  SetEntityFlags = 20,
+  SetEntityFlagsBatch = 21,
   ApplyTextStyle = 42, // 0x2A
   SetTextAlign = 43, // 0x2B
 }
@@ -43,6 +45,9 @@ export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>;
 
 export type SetViewScalePayload = { scale: number };
 export type SetDrawOrderPayload = { ids: readonly number[] };
+export type SetEntityFlagsPayload = { flags: number };
+export type SetEntityFlagsBatchPayload = { updates: ReadonlyArray<{ id: number; flags: number }> };
+
 export type CirclePayload = {
   cx: number;
   cy: number;
@@ -146,6 +151,8 @@ export type EngineCommand =
   | { op: CommandOp.UpsertPolyline; id: number; polyline: PolylinePayload }
   | { op: CommandOp.SetViewScale; view: SetViewScalePayload }
   | { op: CommandOp.SetDrawOrder; order: SetDrawOrderPayload }
+  | { op: CommandOp.SetEntityFlags; id: number; flags: SetEntityFlagsPayload }
+  | { op: CommandOp.SetEntityFlagsBatch; batch: SetEntityFlagsBatchPayload }
   | { op: CommandOp.UpsertCircle; id: number; circle: CirclePayload }
   | { op: CommandOp.UpsertPolygon; id: number; polygon: PolygonPayload }
   | { op: CommandOp.UpsertArrow; id: number; arrow: ArrowPayload }
@@ -182,6 +189,10 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       return 4; // 1 float
     case CommandOp.SetDrawOrder:
       return 8 + cmd.order.ids.length * 4; // u32 count + u32 reserved + u32 ids[]
+    case CommandOp.SetEntityFlags:
+      return 4; // u32 flags
+    case CommandOp.SetEntityFlagsBatch:
+      return 8 + cmd.batch.updates.length * 8; // u32 count + u32 reserved + (u32 id + u32 flags) * count
     case CommandOp.UpsertRect:
       return 56; // 14 floats * 4 bytes/float
     case CommandOp.UpsertLine:
@@ -247,6 +258,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
     switch (cmd.op) {
       case CommandOp.ClearAll:
       case CommandOp.DeleteEntity:
+      case CommandOp.DeleteText:
         break;
       case CommandOp.SetViewScale:
         o = writeF32(view, o, cmd.view.scale);
@@ -255,6 +267,17 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeU32(view, o, cmd.order.ids.length);
         o = writeU32(view, o, 0);
         for (const id of cmd.order.ids) o = writeU32(view, o, id);
+        break;
+      case CommandOp.SetEntityFlags:
+        o = writeU32(view, o, cmd.flags.flags);
+        break;
+      case CommandOp.SetEntityFlagsBatch:
+        o = writeU32(view, o, cmd.batch.updates.length);
+        o = writeU32(view, o, 0); // reserved
+        for (const up of cmd.batch.updates) {
+          o = writeU32(view, o, up.id);
+          o = writeU32(view, o, up.flags);
+        }
         break;
       case CommandOp.UpsertRect:
         o = writeF32(view, o, cmd.rect.x);
@@ -414,6 +437,8 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeU32(view, o, 0); // reserved
         break;
       case CommandOp.ApplyTextStyle: {
+        const paramsLen = cmd.style.styleParams.byteLength;
+        const totalLen = 18 + paramsLen;
         o = writeU32(view, o, cmd.style.textId);
         o = writeU32(view, o, cmd.style.rangeStartLogical);
         o = writeU32(view, o, cmd.style.rangeEndLogical);
