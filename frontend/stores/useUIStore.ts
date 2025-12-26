@@ -21,6 +21,7 @@ interface UIState {
   editingTextId: string | null;
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
+  interactionDragActive: boolean;
 
   // Engine-native text editing state
   engineTextEditState: {
@@ -54,6 +55,7 @@ interface UIState {
   setEditingTextId: (id: string | null) => void;
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
+  setInteractionDragActive: (active: boolean) => void;
 
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
@@ -85,6 +87,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingTextId: null,
   isEditingAppearance: false,
   engineInteractionActive: false,
+  interactionDragActive: false,
 
   engineTextEditState: {
     active: false,
@@ -170,6 +173,7 @@ export const useUIStore = create<UIState>((set) => ({
   setEditingTextId: (id) => set({ editingTextId: id }),
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
+  setInteractionDragActive: (active) => set({ interactionDragActive: active }),
 
   // Engine text editing setters
   setEngineTextEditActive: (active, textId = null) => set((state) => ({

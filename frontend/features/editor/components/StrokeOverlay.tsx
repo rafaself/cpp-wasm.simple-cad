@@ -27,6 +27,8 @@ const getAlpha01 = (shape: Shape): number => {
 
 export const StrokeOverlay: React.FC = () => {
   const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const engineInteractionActive = useUIStore((s) => s.engineInteractionActive);
+  const interactionDragActive = useUIStore((s) => s.interactionDragActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
 
@@ -37,6 +39,7 @@ export const StrokeOverlay: React.FC = () => {
 
   const items = useMemo((): StrokeItem[] => {
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return [];
+    if (engineInteractionActive || interactionDragActive) return [];
 
     const out: StrokeItem[] = [];
     for (const id of Object.keys(shapesById)) {
@@ -107,7 +110,7 @@ export const StrokeOverlay: React.FC = () => {
 
     out.sort((a, b) => a.id.localeCompare(b.id));
     return out;
-  }, [activeFloorId, canvasSize.height, canvasSize.width, layerById, shapesById, viewTransform]);
+  }, [activeFloorId, canvasSize.height, canvasSize.width, engineInteractionActive, interactionDragActive, layerById, shapesById, viewTransform]);
 
   if (items.length === 0) return null;
 

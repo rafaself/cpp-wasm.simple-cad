@@ -42,6 +42,7 @@ const EngineInteractionLayer: React.FC = () => {
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const setSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
   const setEngineInteractionActive = useUIStore((s) => s.setEngineInteractionActive);
+  const setInteractionDragActive = useUIStore((s) => s.setInteractionDragActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
 
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
@@ -299,6 +300,7 @@ const EngineInteractionLayer: React.FC = () => {
     capturedPointerIdRef.current = null;
     pointerDownRef.current = null;
     marqueeArmedRef.current = false;
+    setInteractionDragActive(false);
     setSelectionBox(null);
     setCursorOverride(null);
   };
@@ -308,6 +310,7 @@ const EngineInteractionLayer: React.FC = () => {
     capturedPointerIdRef.current = null;
     pointerDownRef.current = null;
     marqueeArmedRef.current = false;
+    setInteractionDragActive(false);
     setSelectionBox(null);
     setCursorOverride(null);
   };
@@ -539,6 +542,9 @@ const EngineInteractionLayer: React.FC = () => {
       });
       if (movable.length > 0) {
         moveRef.current = { start: snapped, snapshot: new Map(movable.map((s) => [s.id, s])) };
+        setInteractionDragActive(true);
+      } else {
+        setInteractionDragActive(false);
       }
       return;
     }
@@ -778,6 +784,7 @@ const EngineInteractionLayer: React.FC = () => {
         });
         data.saveToHistory(patches);
       }
+      setInteractionDragActive(false);
       return;
     }
 
