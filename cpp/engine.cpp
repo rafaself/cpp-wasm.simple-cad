@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>  // For printf debugging
+#include <limits>
 #include <string_view>
 
 // Helpers moved to text_system.cpp
