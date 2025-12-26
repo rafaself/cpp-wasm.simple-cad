@@ -6,6 +6,7 @@
 
 // Include the engine public API header for bindings.
 #include "engine/engine.h"
+#include "engine/pick_system.h" // For PickResult definition
 
 #ifdef EMSCRIPTEN
 struct TextBoundsResult {
@@ -17,6 +18,27 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::enum_<TextBoxMode>("TextBoxMode")
         .value("AutoWidth", TextBoxMode::AutoWidth)
         .value("FixedWidth", TextBoxMode::FixedWidth);
+
+    // Pick enums
+    emscripten::enum_<PickSubTarget>("PickSubTarget")
+        .value("None", PickSubTarget::None)
+        .value("Body", PickSubTarget::Body)
+        .value("Edge", PickSubTarget::Edge)
+        .value("Vertex", PickSubTarget::Vertex)
+        .value("ResizeHandle", PickSubTarget::ResizeHandle)
+        .value("RotateHandle", PickSubTarget::RotateHandle)
+        .value("TextBody", PickSubTarget::TextBody)
+        .value("TextCaret", PickSubTarget::TextCaret);
+
+    emscripten::enum_<PickEntityKind>("PickEntityKind")
+        .value("Unknown", PickEntityKind::Unknown)
+        .value("Rect", PickEntityKind::Rect)
+        .value("Circle", PickEntityKind::Circle)
+        .value("Line", PickEntityKind::Line)
+        .value("Polyline", PickEntityKind::Polyline)
+        .value("Polygon", PickEntityKind::Polygon)
+        .value("Arrow", PickEntityKind::Arrow)
+        .value("Text", PickEntityKind::Text);
 
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
@@ -32,6 +54,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("pick", &CadEngine::pick)
+        .function("pickEx", &CadEngine::pickEx)
         .function("getStats", &CadEngine::getStats)
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
@@ -65,6 +88,15 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         }));
     
     // ... values ...
+
+    emscripten::value_object<PickResult>("PickResult")
+        .field("id", &PickResult::id)
+        .field("kind", &PickResult::kind)
+        .field("subTarget", &PickResult::subTarget)
+        .field("subIndex", &PickResult::subIndex)
+        .field("distance", &PickResult::distance)
+        .field("hitX", &PickResult::hitX)
+        .field("hitY", &PickResult::hitY);
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
         .field("generation", &CadEngine::BufferMeta::generation)

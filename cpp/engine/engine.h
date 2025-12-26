@@ -89,6 +89,11 @@ public:
     // picking
     std::uint32_t pick(float x, float y, float tolerance) const noexcept;
 
+    // Extended pick
+    // IMPORTANT: Since Emscripten value_object bindings work best with POD structs,
+    // PickResult is defined in pick_system.h and bound in bindings.cpp
+    PickResult pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept;
+
 #ifdef EMSCRIPTEN
 private:
 #else

@@ -2,6 +2,7 @@ import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { createIdAllocator, type IdMaps } from './idAllocator';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
+import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 
 export type BufferMeta = {
   generation: number;
@@ -27,6 +28,10 @@ export type CadEngineInstance = {
   getLineBufferMeta: () => BufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
   pick: (x: number, y: number, tolerance: number) => number;
+
+  // New extended pick (optional during migration)
+  pickEx?: (x: number, y: number, tolerance: number, pickMask: number) => PickResult;
+
   getStats: () => {
     generation: number;
     rectCount: number;
@@ -107,5 +112,24 @@ export class EngineRuntime {
     } finally {
       this.engine.freeBytes(ptr);
     }
+  }
+
+  // Wrapper for pickEx with fallback
+  public pickEx(x: number, y: number, tolerance: number, pickMask: number): PickResult {
+      // Feature detection: Check if pickEx exists on the WASM instance
+      if (typeof this.engine.pickEx === 'function') {
+          return this.engine.pickEx(x, y, tolerance, pickMask);
+      }
+
+      // Fallback to legacy pick (ID only)
+      // subTarget MUST be None to avoid creating fake interaction states
+      const id = this.engine.pick(x, y, tolerance);
+      return {
+          id,
+          kind: PickEntityKind.Unknown,
+          subTarget: PickSubTarget.None,
+          subIndex: -1,
+          distance: id !== 0 ? 0 : Infinity // Placeholder distance for hit
+      };
   }
 }

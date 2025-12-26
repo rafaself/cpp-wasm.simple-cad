@@ -17,6 +17,7 @@ import type { TextInputDelta } from '@/types/text';
 import { TextBoxMode } from '@/types/text';
 import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSync';
 import { getShapeBoundingBox, worldToScreen } from '@/utils/geometry';
+import { PickSubTarget } from '@/types/picking';
 
 // New hooks
 import { useSelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
@@ -94,10 +95,19 @@ const EngineInteractionLayer: React.FC = () => {
   const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
     // 1. Engine Pick Only (Source of Truth)
     if (runtimeRef.current) {
-        // Engine returns uint32 ID. We need to map it back to string ID.
-        const id = runtimeRef.current.engine.pick(world.x, world.y, tolerance);
-        if (id !== 0) {
-            const strId = runtimeRef.current.getIdMaps().idHashToString.get(id);
+        // Use pickEx exclusively
+        // Standard mask: Body | Edge (3)
+        // TODO: In Phase 4, mask will be dynamic based on tool
+        const pickMask = 3; // Body(1) | Edge(2)
+        const res = runtimeRef.current.pickEx(world.x, world.y, tolerance, pickMask);
+
+        // DEV-only tracing
+        if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_PICK") === "1") {
+            console.log("[EngineInteractionLayer] pickEx result:", res);
+        }
+
+        if (res.id !== 0) {
+            const strId = runtimeRef.current.getIdMaps().idHashToString.get(res.id);
             if (strId) {
                 // Engine is authority. Assert validity in DEV only.
                 if (process.env.NODE_ENV !== 'production') {
@@ -117,7 +127,6 @@ const EngineInteractionLayer: React.FC = () => {
         }
     }
 
-    // Fallbacks removed as per Phase 2 requirements (Engine is authority).
     return null;
   }, [activeDiscipline, activeFloorId, canvasSize, viewTransform]);
 
