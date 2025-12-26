@@ -127,8 +127,6 @@ public:
     mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
 
-    void markTextQuadsDirty() const { textQuadsDirty_ = true; }
-    bool isTextQuadsDirty() const { return textQuadsDirty_; }
 
     // Error handling
     mutable EngineError lastError{EngineError::Ok};
@@ -401,6 +399,16 @@ public:
      */
     bool isAtlasDirty() const noexcept;
     
+    /**
+     * Check if text quads need to be rebuilt.
+     */
+    bool isTextQuadsDirty() const { return textQuadsDirty_; }
+
+    /**
+     * Mark text quads as dirty.
+     */
+    void markTextQuadsDirty() const { textQuadsDirty_ = true; }
+
     /**
      * Clear atlas dirty flag after texture upload.
      */
