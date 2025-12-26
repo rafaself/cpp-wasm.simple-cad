@@ -1,5 +1,5 @@
 import type { BufferMeta, WasmModule } from '@/engine/core/EngineRuntime';
-import type { TessellatedRenderer, TessellatedRenderInput } from '../../renderers/tessellatedRenderer';
+import type { TessellatedRenderer, TessellatedRenderInput } from '../types';
 
 import { GeometryPass } from './passes/GeometryPass';
 import { TextRenderPass } from './passes/TextRenderPass';
