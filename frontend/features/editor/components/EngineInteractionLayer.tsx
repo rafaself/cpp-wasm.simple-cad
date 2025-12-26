@@ -3,13 +3,12 @@ import type { Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { toWorldPoint, pickShapeAtGeometry, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
+import { toWorldPoint, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 import SelectionOverlay from './SelectionOverlay';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { GpuPicker } from '@/engine/picking/gpuPicker';
 import { TextTool } from '@/engine/tools/TextTool';
 import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputProxy';
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
@@ -67,7 +66,6 @@ const EngineInteractionLayer: React.FC = () => {
 
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(false);
-  const gpuPickerRef = useRef<GpuPicker | null>(null);
 
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
@@ -104,16 +102,6 @@ const EngineInteractionLayer: React.FC = () => {
       textToolRef
   });
 
-  useEffect(() => {
-    // Always instantiate GpuPicker (modern WebGL2 path).
-    if (!gpuPickerRef.current) {
-      gpuPickerRef.current = new GpuPicker();
-    }
-    return () => {
-      gpuPickerRef.current?.dispose();
-    };
-  }, []);
-
   const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
     // Legacy pickShape is less critical now for selection if we use pickEx in pointerDown,
     // but useful for hover cursors or double click.
@@ -140,7 +128,6 @@ const EngineInteractionLayer: React.FC = () => {
       selectedShapeIds,
       shapes: useDataStore((s) => s.shapes),
       layers: useDataStore((s) => s.layers),
-      spatialIndex: useDataStore((s) => s.spatialIndex),
       onUpdateShape: useDataStore((s) => s.updateShape),
       onSyncConnections: () => {}, // No-op as connections removed
       onSetSelectedShapeIds: setSelectedShapeIds,
@@ -149,7 +136,8 @@ const EngineInteractionLayer: React.FC = () => {
       textTool: textToolRef.current,
       getTextIdForShape,
       textBoxMetaRef,
-      TextBoxMode
+      TextBoxMode,
+      runtime: runtimeRef.current
   });
 
   const moveRef = useRef<MoveState | null>(null);

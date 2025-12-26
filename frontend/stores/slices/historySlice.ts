@@ -29,7 +29,7 @@ export const createHistorySlice: StateCreator<
   },
 
   undo: () => {
-    const { past, future, shapes, shapeOrder, spatialIndex } = get();
+    const { past, future, shapes, shapeOrder } = get();
     if (past.length === 0) return;
 
     const patches = past[past.length - 1];
@@ -42,9 +42,6 @@ export const createHistorySlice: StateCreator<
     patches.forEach(patch => {
         if (patch.type === 'ADD') {
             const s = newShapes[patch.id];
-            if (s) {
-              spatialIndex.remove(s);
-            }
             delete newShapes[patch.id];
             if (newShapeOrder.includes(patch.id)) newShapeOrder = newShapeOrder.filter((id) => id !== patch.id);
             redoPatches.push(patch);
@@ -52,7 +49,6 @@ export const createHistorySlice: StateCreator<
             const oldS = newShapes[patch.id];
             if (oldS) {
                 const updated = { ...oldS, ...(patch.prev as Partial<Shape>) };
-                spatialIndex.update(oldS, updated);
                 newShapes[patch.id] = updated;
                 redoPatches.push(patch);
             }
@@ -60,7 +56,6 @@ export const createHistorySlice: StateCreator<
             if (patch.prev) {
                 const restoredShape = { ...(patch.prev as Shape) };
                 newShapes[patch.id] = restoredShape;
-                spatialIndex.insert(restoredShape);
                 if (!newShapeOrder.includes(patch.id)) {
                   const at = typeof patch.orderIndex === 'number' && Number.isFinite(patch.orderIndex) ? patch.orderIndex : newShapeOrder.length;
                   const clamped = Math.max(0, Math.min(newShapeOrder.length, Math.floor(at)));
@@ -80,7 +75,7 @@ export const createHistorySlice: StateCreator<
   },
 
   redo: () => {
-    const { past, future, shapes, shapeOrder, spatialIndex } = get();
+    const { past, future, shapes, shapeOrder } = get();
     if (future.length === 0) return;
 
     const patches = future[0];
@@ -100,7 +95,6 @@ export const createHistorySlice: StateCreator<
                    const clamped = Math.max(0, Math.min(newShapeOrder.length, Math.floor(at)));
                    newShapeOrder = [...newShapeOrder.slice(0, clamped), patch.id, ...newShapeOrder.slice(clamped)];
                  }
-                 spatialIndex.insert(shapeToAdd);
                  undoPatches.push({
                    type: 'ADD',
                    id: patch.id,
@@ -112,14 +106,12 @@ export const createHistorySlice: StateCreator<
              const oldS = newShapes[patch.id];
              if (oldS) {
                 const updated = { ...oldS, ...patch.diff };
-                spatialIndex.update(oldS, updated);
                 newShapes[patch.id] = updated;
                 undoPatches.push(patch);
              }
         } else if (patch.type === 'DELETE') {
              const s = newShapes[patch.id];
              if (s) {
-                spatialIndex.remove(s);
                 delete newShapes[patch.id];
                 if (newShapeOrder.includes(patch.id)) newShapeOrder = newShapeOrder.filter((id) => id !== patch.id);
                 undoPatches.push({

@@ -105,7 +105,6 @@ export function useSelectInteraction(params: {
   selectedShapeIds: Set<string>;
   shapes: Record<string, Shape>;
   layers: any[]; // ImportedLayer[] or Layer[]
-  spatialIndex: any; // QuadTree
   onUpdateShape: (id: string, diff: Partial<Shape>, optionsOrRecordHistory?: boolean | { recordHistory?: boolean; skipConnectionSync?: boolean }) => void;
   onSyncConnections: () => void;
   onSetSelectedShapeIds: (ids: Set<string>) => void;
@@ -115,18 +114,19 @@ export function useSelectInteraction(params: {
   getTextIdForShape?: (id: string) => number | null;
   textBoxMetaRef?: React.MutableRefObject<Map<number, any>>;
   TextBoxMode?: any;
+  runtime?: any;
 }) {
   const {
     viewTransform,
     selectedShapeIds,
     shapes,
     layers,
-    spatialIndex,
     onUpdateShape,
     onSyncConnections,
     onSetSelectedShapeIds,
     onSaveToHistory,
-    pickShape
+    pickShape,
+    runtime
   } = params;
 
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
@@ -578,10 +578,21 @@ export function useSelectInteraction(params: {
       const rect = normalizeRect(down.world, worldUp);
 
       const queryRect = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
-      const candidates = spatialIndex
-        .query(queryRect)
-        .map((c: any) => shapes[c.id])
-        .filter(Boolean) as Shape[];
+      // Use runtime queryArea instead of spatialIndex
+      let candidates: Shape[] = [];
+      if (runtime && runtime.engine.queryArea) {
+          const candidatesU32 = runtime.engine.queryArea(queryRect.x, queryRect.y, queryRect.x + queryRect.width, queryRect.y + queryRect.height);
+          const idMap = runtime.getIdMaps().idHashToString;
+          const count = candidatesU32.size();
+          for(let i=0; i<count; ++i) {
+              const idHash = candidatesU32.get(i);
+              const idStr = idMap.get(idHash);
+              if (idStr && shapes[idStr]) {
+                  candidates.push(shapes[idStr]);
+              }
+          }
+          candidatesU32.delete();
+      }
 
       const selected = new Set<string>();
       for (const shape of candidates) {

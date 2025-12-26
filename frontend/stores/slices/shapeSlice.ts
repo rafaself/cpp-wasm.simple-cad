@@ -26,13 +26,11 @@ export const createShapeSlice: StateCreator<
   shapeOrder: [],
 
   addShape: (shape) => {
-      const { shapes, shapeOrder, saveToHistory, spatialIndex, dirtyShapeIds } = get();
+      const { shapes, shapeOrder, saveToHistory, dirtyShapeIds } = get();
 
       const linkedShape = normalizeShapeStyle(shape);
       const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
       const newShapeOrder = shapeOrder.includes(linkedShape.id) ? shapeOrder : [...shapeOrder, linkedShape.id];
-
-      spatialIndex.insert(linkedShape);
 
       const newDirty = new Set(dirtyShapeIds);
       newDirty.add(linkedShape.id);
@@ -47,7 +45,7 @@ export const createShapeSlice: StateCreator<
   },
 
   addShapes: (shapesToAdd) => {
-      const { shapes, shapeOrder, saveToHistory, spatialIndex, dirtyShapeIds } = get();
+      const { shapes, shapeOrder, saveToHistory, dirtyShapeIds } = get();
       const newShapes = { ...shapes };
       const newShapeOrder = [...shapeOrder];
       const patches: Patch[] = [];
@@ -57,7 +55,6 @@ export const createShapeSlice: StateCreator<
           const normalized = normalizeShapeStyle(shape);
           newShapes[normalized.id] = normalized;
           if (!newShapeOrder.includes(normalized.id)) newShapeOrder.push(normalized.id);
-          spatialIndex.insert(normalized);
           newDirty.add(normalized.id);
           patches.push({
               type: 'ADD',
@@ -72,7 +69,7 @@ export const createShapeSlice: StateCreator<
   },
 
   updateShape: (id, diff, optionsOrRecordHistory = true) => {
-      const { shapes, saveToHistory, spatialIndex, dirtyShapeIds } = get();
+      const { shapes, saveToHistory, dirtyShapeIds } = get();
       const oldShape = shapes[id];
       if (!oldShape) return;
 
@@ -90,7 +87,6 @@ export const createShapeSlice: StateCreator<
       const newDirty = new Set(dirtyShapeIds);
       newDirty.add(id);
 
-      spatialIndex.update(oldShape, newShape);
       set({ shapes: newShapes, dirtyShapeIds: newDirty });
 
       if (recordHistory) {
@@ -99,7 +95,7 @@ export const createShapeSlice: StateCreator<
   },
 
   deleteShape: (id) => {
-      const { shapes, shapeOrder, saveToHistory, spatialIndex } = get();
+      const { shapes, shapeOrder, saveToHistory } = get();
       const targetShape = shapes[id];
       if (!targetShape) return;
 
@@ -109,7 +105,6 @@ export const createShapeSlice: StateCreator<
       const patches: Patch[] = [];
 
       delete newShapes[id];
-      spatialIndex.remove(targetShape);
       patches.push({ type: 'DELETE', id, prev: targetShape, orderIndex: orderIndex >= 0 ? orderIndex : undefined });
 
       const finalOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
@@ -156,7 +151,7 @@ export const createShapeSlice: StateCreator<
   },
 
   deleteShapes: (ids) => {
-    const { layers, shapes, shapeOrder, saveToHistory, spatialIndex } = get();
+    const { layers, shapes, shapeOrder, saveToHistory } = get();
     if (ids.length === 0) return;
 
     const patches: Patch[] = [];
@@ -174,7 +169,6 @@ export const createShapeSlice: StateCreator<
 
         delete newShapes[id];
         if (newShapeOrder.includes(id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== id);
-        spatialIndex.remove(s);
         const orderIndex = shapeOrder.indexOf(id);
         patches.push({ type: 'DELETE', id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined });
     });
