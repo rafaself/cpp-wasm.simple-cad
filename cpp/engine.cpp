@@ -242,6 +242,10 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
     return pickSystem_.pick(x, y, tolerance, viewScale, entityManager_, textSystem_);
 }
 
+PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept {
+    return pickSystem_.pickEx(x, y, tolerance, viewScale, pickMask, entityManager_, textSystem_);
+}
+
 void CadEngine::clearWorld() noexcept {
     entityManager_.clear();
     pickSystem_.clear();
