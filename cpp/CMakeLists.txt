@@ -1,3 +1,87 @@
+cmake_minimum_required(VERSION 3.20)
+project(cad_engine_wasm LANGUAGES CXX C)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Make engine/ headers discoverable
+include_directories(${PROJECT_SOURCE_DIR})
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# =============================================================================
+# Text Engine Dependencies (FreeType, HarfBuzz, msdfgen)
+# =============================================================================
+include(FetchContent)
+
+# Option to enable/disable text engine (for incremental builds)
+option(ENGINE_ENABLE_TEXT "Enable text rendering with FreeType/HarfBuzz/msdfgen" ON)
+
+if(ENGINE_ENABLE_TEXT)
+  message(STATUS "Text engine ENABLED - fetching FreeType, HarfBuzz, msdfgen")
+
+  # --- FreeType ---
+  set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+  set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+  set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+  set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+  set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+  
+  FetchContent_Declare(
+    freetype
+    GIT_REPOSITORY https://github.com/freetype/freetype.git
+    GIT_TAG VER-2-13-2
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_MakeAvailable(freetype)
+
+  set(FREETYPE_INCLUDE_DIRS "${freetype_SOURCE_DIR}/include" CACHE PATH "" FORCE)
+  set(FREETYPE_LIBRARY freetype CACHE STRING "" FORCE)
+  set(FREETYPE_FOUND TRUE CACHE BOOL "" FORCE)
+
+  # --- HarfBuzz ---
+  set(HB_HAVE_FREETYPE ON CACHE BOOL "" FORCE)
+  set(HB_BUILD_UTILS OFF CACHE BOOL "" FORCE)
+  set(HB_BUILD_SUBSET OFF CACHE BOOL "" FORCE)
+  set(HB_HAVE_GLIB OFF CACHE BOOL "" FORCE)
+  set(HB_HAVE_ICU OFF CACHE BOOL "" FORCE)
+  set(HB_HAVE_GOBJECT OFF CACHE BOOL "" FORCE)
+  set(HB_HAVE_CAIRO OFF CACHE BOOL "" FORCE)
+  
+  FetchContent_Declare(
+    harfbuzz
+    GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+    GIT_TAG 8.3.0
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_MakeAvailable(harfbuzz)
+
+  # --- msdfgen ---
+  set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+  set(MSDFGEN_USE_SKIA OFF CACHE BOOL "" FORCE)
+  set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "" FORCE)
+  set(MSDFGEN_INSTALL OFF CACHE BOOL "" FORCE)
+  set(MSDFGEN_CORE_ONLY ON CACHE BOOL "" FORCE)
+  set(MSDFGEN_USE_OPENMP OFF CACHE BOOL "" FORCE)
+  
+  FetchContent_Declare(
+    msdfgen
+    GIT_REPOSITORY https://github.com/Chlumsky/msdfgen.git
+    GIT_TAG v1.11
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_MakeAvailable(msdfgen)
+
+  add_compile_definitions(ENGINE_TEXT_ENABLED=1)
+else()
+  message(STATUS "Text engine DISABLED")
+  add_compile_definitions(ENGINE_TEXT_ENABLED=0)
+endif()
+
 # Main source files for the WASM engine (engine core + extracted modules)
 set(ENGINE_SOURCES
   engine/bindings.cpp
@@ -5,6 +89,7 @@ set(ENGINE_SOURCES
   engine/commands.cpp
   engine/snapshot.cpp
   engine/render.cpp
+  engine/pick_system.cpp
   engine/vector_tessellation.cpp
   engine/entity_manager.cpp
 )
@@ -57,6 +142,8 @@ if(EMSCRIPTEN)
   target_link_options(engine PRIVATE ${EMPSCRIPTEN_LINK_FLAGS})
   set_target_properties(engine PROPERTIES OUTPUT_NAME "engine")
   
+  target_include_directories(engine PRIVATE .)
+  
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)
     target_link_libraries(engine PRIVATE freetype harfbuzz msdfgen::msdfgen)
@@ -64,6 +151,7 @@ if(EMSCRIPTEN)
       ${freetype_SOURCE_DIR}/include
       ${harfbuzz_SOURCE_DIR}/src
       ${msdfgen_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen_config
     )
   endif()
   
@@ -114,6 +202,7 @@ if(NOT EMSCRIPTEN)
     engine_tests
     PRIVATE GTest::gtest_main
   )
+  target_include_directories(engine_tests PRIVATE .)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)
@@ -122,6 +211,7 @@ if(NOT EMSCRIPTEN)
       ${freetype_SOURCE_DIR}/include
       ${harfbuzz_SOURCE_DIR}/src
       ${msdfgen_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen_config
     )
   endif()
 

@@ -625,8 +625,8 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
     generation++;
 
     float minX, minY, maxX, maxY;
-    if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
-        pickSystem_.update(id, {minX, minY, maxX, maxY});
+    if (textSystem_.getBounds(payload.textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(payload.textId, {minX, minY, maxX, maxY});
     }
     
     return true;
@@ -742,6 +742,9 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
     out.textGeneration = generation;
     out.styleTriStateParamsLen = 0;
     return out;
+}
+void CadEngine::compactPolylinePoints() {
+    entityManager_.compactPolylinePoints();
 }
 
 void CadEngine::rebuildSnapshotBytes() const {
@@ -883,7 +886,11 @@ bool CadEngine::upsertText(
     markTextQuadsDirty();
     generation++;
 
-    pickSystem_.remove(id);
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
+        pickSystem_.update(id, {minX, minY, maxX, maxY});
+    }
+    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
     
     return true;
 }
@@ -955,7 +962,6 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
     
     return true;
 }
