@@ -38,11 +38,6 @@ export const useKeyboardShortcuts = () => {
           if (hasShift && !e.shiftKey) return false;
           if (hasAlt && !e.altKey) return false;
 
-          // Check exact modifiers if NOT specified (e.g. if config is just 'z', ctrl+z shouldn't trigger it)
-          // Exception: simple letters usually allow shift for caps, but strict tools might not.
-          // For now, let's keep it simple: if mod is required, it must be there.
-          // We should ideally check that *extra* modifiers are NOT pressed, but let's stick to the previous simple logic for now unless strictness is needed.
-          
           // Check main key
           if (mainKey === 'space' && e.code === 'Space') return true;
           if (mainKey === 'delete' && e.key === 'Delete') return true;
@@ -71,15 +66,6 @@ export const useKeyboardShortcuts = () => {
           uiStore.setTool('pan');
         }
         return;
-      }
-
-      // Tool Shortcuts
-      if (uiStore.activeTool === 'electrical-symbol') {
-        if (checkKey('editor.cancel')) {
-          uiStore.setTool('select');
-        }
-        // Electrical Context Specifics could be added here
-        // if (checkKey('electrical.rotate')) { uiStore.rotateElectricalPreview(...); }
       }
 
       // Global Tools

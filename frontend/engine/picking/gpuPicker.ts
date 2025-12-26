@@ -15,7 +15,7 @@ type PickInput = {
   layers: Layer[];
   spatialIndex: QuadTree;
   activeFloorId?: string;
-  activeDiscipline: 'architecture' | 'electrical';
+  activeDiscipline: 'architecture';
 };
 
 type GpuResources = {
@@ -261,13 +261,10 @@ export class GpuPicker {
 
       if (
         shape.type === 'arrow' ||
-        shape.type === 'measure' ||
-        shape.type === 'eletroduto'
+        shape.type === 'measure'
       ) {
         if (!strokeEnabled || halfWidthWorld <= 0) continue;
-        const points = shape.controlPoint && shape.points?.length === 2
-          ? sampleQuadratic(shape.points[0], shape.controlPoint, shape.points[1], 16)
-          : (shape.points ?? []);
+        const points = shape.points ?? [];
         if (points.length < 2) continue;
         const out: number[] = [];
         collectPolylineVertices(out, points, halfWidthWorld);

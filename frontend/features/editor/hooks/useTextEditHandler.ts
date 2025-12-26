@@ -72,7 +72,6 @@ export function useTextEditHandler(params: {
                 clearEngineTextStyleSnapshot();
                 hideCaret();
                 clearSelection();
-                useDataStore.getState().syncConnections();
                 useUIStore.getState().setTool('select');
             },
             onTextCreated: (shapeId: string, textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {

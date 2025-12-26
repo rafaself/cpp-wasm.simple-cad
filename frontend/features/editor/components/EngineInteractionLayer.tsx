@@ -92,46 +92,33 @@ const EngineInteractionLayer: React.FC = () => {
   }, []);
 
   const pickShape = useCallback((world: Point, screen: Point, tolerance: number): string | null => {
-    // 1. Try Engine Pick (CPU O(N)) for immediate hits
+    // 1. Engine Pick Only (Source of Truth)
     if (runtimeRef.current) {
         // Engine returns uint32 ID. We need to map it back to string ID.
         const id = runtimeRef.current.engine.pick(world.x, world.y, tolerance);
         if (id !== 0) {
             const strId = runtimeRef.current.getIdMaps().idHashToString.get(id);
-            // Check visibility/interactability for the hit
             if (strId) {
-                const data = useDataStore.getState();
-                const shape = data.shapes[strId];
-                const layer = shape ? data.layers.find(l => l.id === shape.layerId) : null;
-                const ui = useUIStore.getState();
-                const interactable = shape && isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline });
-                const visible = layer && layer.visible && !layer.locked;
-                if (interactable && visible) {
-                    return strId;
+                // Engine is authority. Assert validity in DEV only.
+                if (process.env.NODE_ENV !== 'production') {
+                    const data = useDataStore.getState();
+                    const shape = data.shapes[strId];
+                    if (!shape) {
+                        console.warn('Engine picked non-existent shape:', strId);
+                    } else {
+                        const layer = data.layers.find(l => l.id === shape.layerId);
+                        if (layer && (layer.locked || !layer.visible)) {
+                             console.error('Engine picked locked/hidden shape! Flags not synced?', strId, layer);
+                        }
+                    }
                 }
+                return strId;
             }
         }
     }
 
-    if (gpuPickerRef.current) {
-      const data = useDataStore.getState();
-      const gpuHit = gpuPickerRef.current.pick({
-        screen,
-        world,
-        toleranceWorld: tolerance,
-        viewTransform,
-        canvasSize,
-        shapes: data.shapes,
-        shapeOrder: data.shapeOrder,
-        layers: data.layers,
-        spatialIndex: data.spatialIndex,
-        activeFloorId: activeFloorId ?? 'terreo',
-        activeDiscipline,
-      });
-      if (gpuHit) return gpuHit;
-    }
-
-    return pickShapeAtGeometry(world, tolerance);
+    // Fallbacks removed as per Phase 2 requirements (Engine is authority).
+    return null;
   }, [activeDiscipline, activeFloorId, canvasSize, viewTransform]);
 
   const {
@@ -141,8 +128,7 @@ const EngineInteractionLayer: React.FC = () => {
       setCursorOverride,
       handlePointerDown: selectHandlePointerDown,
       handlePointerMove: selectHandlePointerMove,
-      handlePointerUp: selectHandlePointerUp,
-      selectionSvg
+      handlePointerUp: selectHandlePointerUp
   } = useSelectInteraction({
       viewTransform,
       selectedShapeIds,
@@ -541,6 +527,28 @@ const EngineInteractionLayer: React.FC = () => {
         return;
     }
   };
+
+  const selectionSvg = useMemo(() => {
+    if (!selectionBox) return null;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const a = worldToScreen(selectionBox.start, viewTransform);
+    const b = worldToScreen(selectionBox.current, viewTransform);
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    const w = Math.abs(a.x - b.x);
+    const h = Math.abs(a.y - b.y);
+
+    const stroke = '#3b82f6';
+    const fill = 'rgba(59, 130, 246, 0.2)';
+    const strokeDash = selectionBox.direction === 'RTL' ? '5 5' : undefined; // Crossing (RTL) vs Window (LTR)
+
+    return (
+      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 25 }}>
+        <rect x={x} y={y} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1} strokeDasharray={strokeDash} />
+      </svg>
+    );
+  }, [selectionBox, viewTransform, canvasSize]);
 
   const draftSvg = useMemo(() => {
     if (draft.kind === 'none') return null;

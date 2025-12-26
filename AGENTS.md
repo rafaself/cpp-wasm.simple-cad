@@ -48,7 +48,8 @@ O objetivo de longo prazo é migrar para uma arquitetura **Engine-First Real**.
 **Status da Migração:**
 Estamos em fase de transição técnica.
 *   ✅ Otimização do Sync (Dirty Flags).
-*   ✅ Picking via Engine (C++) — *Geometria básica é selecionada exclusivamente pelo Engine.*
+*   ✅ Picking via Engine (C++) — **Completo e Reforçado**. Picking utiliza índice espacial, Z-order e flags (visible/locked) no Engine. Sem fallbacks ou validação funcional no Frontend.
+*   ✅ Domínio Elétrico Removido — Código limpo de referências a eletrodutos, símbolos elétricos, etc.
 *   ⚠️ O React AINDA É o Source of Truth.
 
 **Constraint de Build (C++):**

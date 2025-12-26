@@ -104,14 +104,13 @@ const recordSyncMetrics = (commands: readonly EngineCommand[], durationMs: numbe
   if (debug.history.length > 50) debug.history.shift();
 };
 
-type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'eletroduto' | 'circle' | 'polygon' | 'arrow';
+type SupportedShapeType = 'rect' | 'line' | 'polyline' | 'circle' | 'polygon' | 'arrow';
 
 const isSupportedShape = (s: Shape): s is Shape & { type: SupportedShapeType } => {
   return (
     (s.type === 'rect' && !s.svgSymbolId && !s.svgRaw) ||
     s.type === 'line' ||
     s.type === 'polyline' ||
-    s.type === 'eletroduto' ||
     s.type === 'circle' ||
     s.type === 'polygon' ||
     s.type === 'arrow'
@@ -180,13 +179,6 @@ export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, ensureId
       id,
       line: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, r: strokeRgb.r, g: strokeRgb.g, b: strokeRgb.b, a: strokeOpacity, enabled: strokeEnabled, strokeWidthPx },
     };
-  }
-
-  if (shape.type === 'eletroduto') {
-    if (!shape.fromNodeId || !shape.toNodeId) return null;
-    const fromNodeId = ensureId(shape.fromNodeId);
-    const toNodeId = ensureId(shape.toNodeId);
-    return { op: CommandOp.UpsertConduit, id, conduit: { fromNodeId, toNodeId, r: strokeRgb.r, g: strokeRgb.g, b: strokeRgb.b, a: strokeOpacity, enabled: strokeEnabled, strokeWidthPx } };
   }
 
   if (shape.type === 'polyline') {
@@ -279,7 +271,7 @@ export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, ensureId
     };
   }
 
-  // Arrow: shaft thickness is screen-space (strokeWidthPx), head is in world units (as authored in shape.arrowHeadSize).
+  // Arrow
   const p0 = shape.points?.[0];
   const p1 = shape.points?.[1];
   if (!p0 || !p1) return null;
@@ -311,7 +303,13 @@ export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers:
   for (const l of nextLayers) {
     const prevL = prevById.get(l.id);
     if (!prevL) continue;
-    if (l.strokeColor !== prevL.strokeColor || l.fillColor !== prevL.fillColor || l.strokeEnabled !== prevL.strokeEnabled || l.fillEnabled !== prevL.fillEnabled) {
+    if (
+        l.strokeColor !== prevL.strokeColor ||
+        l.fillColor !== prevL.fillColor ||
+        l.strokeEnabled !== prevL.strokeEnabled ||
+        l.fillEnabled !== prevL.fillEnabled ||
+        l.locked !== prevL.locked
+    ) {
       changedLayerIds.add(l.id);
     }
   }
@@ -341,33 +339,15 @@ export const computeLayerDrivenReupsertCommands = (
     const mode = getShapeColorMode(s);
     const dependsOnLayerFill = (s.type === 'rect' || s.type === 'circle' || s.type === 'polygon') && mode.fill === 'layer';
     const dependsOnLayerStroke = mode.stroke === 'layer';
-    if (!dependsOnLayerFill && !dependsOnLayerStroke) continue;
 
-    const layer = layersById.get(s.layerId) ?? null;
-    const cmd = shapeToEngineCommand(s, layer, ensureId);
-    if (cmd) out.push(cmd);
+    if (dependsOnLayerFill || dependsOnLayerStroke) {
+        const layer = layersById.get(s.layerId) ?? null;
+        const cmd = shapeToEngineCommand(s, layer, ensureId);
+        if (cmd) out.push(cmd);
+    }
   }
 
   return out;
-};
-
-const toUpsertSymbolCommand = (shape: Shape, ensureId: (id: string) => number): EngineCommand | null => {
-  if (shape.type !== 'rect') return null;
-  if (!shape.svgSymbolId) return null;
-  if (!shape.connectionPoint) return null;
-  if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
-
-  const id = ensureId(shape.id);
-  const symbolKey = ensureId(`sym:${shape.svgSymbolId}`);
-  const rotation = shape.rotation ?? 0;
-  const scaleX = shape.scaleX ?? 1;
-  const scaleY = shape.scaleY ?? 1;
-
-  return {
-    op: CommandOp.UpsertSymbol,
-    id,
-    symbol: { symbolKey, x: shape.x, y: shape.y, w: shape.width, h: shape.height, rotation, scaleX, scaleY, connX: shape.connectionPoint.x, connY: shape.connectionPoint.y },
-  };
 };
 
 const buildVisibleOrder = (
@@ -409,17 +389,12 @@ export const useEngineStoreSync = (): void => {
       const runtime = await getEngineRuntime();
       if (disposed) return;
 
-      // REMOVED: const ensureId = runtime.ids.ensureIdForString;
-      // Now imported from IdRegistry
-
       let lastData = useDataStore.getState();
       let lastUi = useUIStore.getState();
       let lastVisibleIds = new Set<string>();
       let lastDrawOrderKey = '';
       let lastScale = lastUi.viewTransform.scale || 1;
       const shapeIdCache = createStableIdCache();
-      const connectionNodeCache = createStableIdCache();
-      const prevConnectionNodeCache = createStableIdCache();
 
       const applySync = (nextData: typeof lastData, nextUi: typeof lastUi, prevData: typeof lastData, prevUi: typeof lastUi) => {
         const startedAt = nowMs();
@@ -436,11 +411,6 @@ export const useEngineStoreSync = (): void => {
         const shapesRefChanged = nextData.shapes !== prevData.shapes;
         const layerStyleChanged = nextData.layers !== prevData.layers;
         const dirtyIds = nextData.dirtyShapeIds;
-
-        // Critical Optimization: Skip sync if nothing relevant changed.
-        // If clearDirtyShapeIds was called, nextData != prevData (because of dirtyShapeIds prop),
-        // but if shapes, layers, and visibility are same, we should do nothing.
-        // Unless dirtyIds has items (which means we haven't processed them yet).
 
         if (!shapesRefChanged && !visibilityFilterChanged && !layerStyleChanged && dirtyIds.size === 0) {
           if (commands.length) runtime.apply(commands);
@@ -466,7 +436,6 @@ export const useEngineStoreSync = (): void => {
         const trackedTextShapeIds = getAllTextShapeIds();
         for (const shapeId of trackedTextShapeIds) {
           if (!nextData.shapes[shapeId]) {
-            // Shape was deleted - delete from engine
             deleteTextByShapeId(shapeId);
           }
         }
@@ -478,10 +447,8 @@ export const useEngineStoreSync = (): void => {
           if (!nextShape || !prevShape) continue;
           if (nextShape.type !== 'text') continue;
           
-          // Check if position changed
           const posChanged = nextShape.x !== prevShape.x || nextShape.y !== prevShape.y;
           if (posChanged) {
-            // Calculate anchor position (top-left in Y-Up world)
             const anchorX = nextShape.x ?? 0;
             const anchorY = (nextShape.y ?? 0) + (nextShape.height ?? 0);
             moveTextByShapeId(shapeId, anchorX, anchorY);
@@ -490,81 +457,54 @@ export const useEngineStoreSync = (): void => {
 
         const layersById = new Map(nextData.layers.map((l) => [l.id, l]));
 
-        // Adds + updates for visible shapes.
-        // OPTIMIZATION: Use dirtyShapeIds if available to skip checking ALL shapes.
-
-        // If dirtyIds has items, we assume we only need to check those (plus visibility changes).
-        // If dirtyIds is empty BUT shapesRefChanged is true, it means we missed capturing dirty IDs (e.g. initial load, or some other op), so we must full scan.
-        // Logic: Full scan if (visibility changed OR (shapes changed AND dirty empty)).
-
         const isFullScanRequired = visibilityFilterChanged || (shapesRefChanged && dirtyIds.size === 0);
-
         const idsToCheck = isFullScanRequired ? nextOrderedIds : Array.from(dirtyIds);
 
+        const flagsUpdates: { id: number; flags: number }[] = [];
+
         for (const id of idsToCheck) {
-          // If using dirtyIds, we must check visibility again because a shape might be dirty but invisible.
           if (!nextVisibleSet.has(id)) continue;
 
           const nextShape = nextData.shapes[id]!;
           const prevShape = prevData.shapes[id];
 
-          // Optimization: identity check if we are doing full scan (if explicit dirty, we assume changed)
           if (isFullScanRequired && prevShape === nextShape && lastVisibleIds.has(id)) continue;
 
           const layer = layersById.get(nextShape.layerId) ?? null;
           const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
           if (cmd) {
             commands.push(cmd);
+            const locked = layer?.locked ?? false;
+            // Check if command has ID (ClearAll etc don't, but shape commands do)
+            if ('id' in cmd) {
+                flagsUpdates.push({ id: cmd.id, flags: locked ? 2 : 0 });
+            }
           } else {
             const eid = getEngineId(id);
             if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
           }
         }
 
-        // Layer style changes: re-upsert affected visible shapes even if the shape object did not change.
         if (layerStyleChanged) {
             const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
             commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
+
+            // Also update flags for all shapes in changed layers (including those re-upserted above)
+            for (const id of nextOrderedIds) {
+                const s = nextData.shapes[id]!;
+                if (changedLayerIds.has(s.layerId)) {
+                    const layer = layersById.get(s.layerId);
+                    const locked = layer?.locked ?? false;
+                    const eid = ensureId(s.id);
+                    flagsUpdates.push({ id: eid, flags: locked ? 2 : 0 });
+                }
+            }
         }
 
-        // Nodes: deletes then adds/updates (conduits depend on them).
-        const prevNodeIds = getCachedSortedKeys(prevData.connectionNodes as Record<string, unknown>, prevConnectionNodeCache);
-        for (const prevNodeId of prevNodeIds) {
-          if (nextData.connectionNodes[prevNodeId]) continue;
-          const eid = getEngineId(prevNodeId);
-          if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
-        }
-        const nextNodeIds = getCachedSortedKeys(nextData.connectionNodes as Record<string, unknown>, connectionNodeCache);
-        for (const id of nextNodeIds) {
-          const nextNode = nextData.connectionNodes[id]!;
-          const prevNode = prevData.connectionNodes[id];
-          if (prevNode === nextNode) continue;
-          const eid = ensureId(id);
-          if (nextNode.kind === 'anchored' && nextNode.anchorShapeId) {
-            const anchorSymbolId = ensureId(nextNode.anchorShapeId);
-            commands.push({ op: CommandOp.UpsertNode, id: eid, node: { kind: 1, anchorSymbolId, x: 0, y: 0 } });
-          } else {
-            const x = nextNode.position?.x ?? 0;
-            const y = nextNode.position?.y ?? 0;
-            commands.push({ op: CommandOp.UpsertNode, id: eid, node: { kind: 0, anchorSymbolId: 0, x, y } });
-          }
+        if (flagsUpdates.length > 0) {
+            commands.push({ op: CommandOp.SetEntityFlagsBatch, batch: { updates: flagsUpdates } });
         }
 
-        // Symbols (used by anchored nodes).
-        // Optimization: Use dirty IDs for symbols too? Assuming symbol creation/update is tied to shape update.
-        const shapeIdsForSymbols = isFullScanRequired ? getCachedSortedKeys(nextData.shapes as Record<string, unknown>, shapeIdCache) : Array.from(dirtyIds);
-        for (const id of shapeIdsForSymbols) {
-          const nextShape = nextData.shapes[id];
-          if (!nextShape) continue; // Deleted
-          const prevShape = prevData.shapes[id];
-          if (isFullScanRequired && prevShape === nextShape) continue;
-
-          const symCmd = toUpsertSymbolCommand(nextShape, ensureId);
-          if (symCmd) commands.push(symCmd);
-        }
-
-        // Draw order (visible shapes only).
-        // This is always O(N) but just an array mapping.
         const drawOrderIds = nextOrderedIds.map((id) => ensureId(id));
         const drawOrderKey = drawOrderIds.join(',');
         if (drawOrderKey !== lastDrawOrderKey) {
@@ -574,7 +514,6 @@ export const useEngineStoreSync = (): void => {
 
         if (commands.length) runtime.apply(commands);
 
-        // Clear dirty flags after sync
         if (dirtyIds.size > 0 && nextData.clearDirtyShapeIds) {
             nextData.clearDirtyShapeIds();
         }
@@ -599,28 +538,23 @@ export const useEngineStoreSync = (): void => {
         initCommands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
 
         const layersById = new Map(lastData.layers.map((l) => [l.id, l]));
-        for (const nodeId of Object.keys(lastData.connectionNodes).sort((a, b) => a.localeCompare(b))) {
-          const n = lastData.connectionNodes[nodeId]!;
-          const id = ensureId(n.id);
-          if (n.kind === 'anchored' && n.anchorShapeId) {
-            const anchorSymbolId = ensureId(n.anchorShapeId);
-            initCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 1, anchorSymbolId, x: 0, y: 0 } });
-          } else {
-            const x = n.position?.x ?? 0;
-            const y = n.position?.y ?? 0;
-            initCommands.push({ op: CommandOp.UpsertNode, id, node: { kind: 0, anchorSymbolId: 0, x, y } });
-          }
-        }
-        for (const s of Object.values(lastData.shapes)) {
-          if (!s) continue;
-          const symCmd = toUpsertSymbolCommand(s, ensureId);
-          if (symCmd) initCommands.push(symCmd);
-        }
+        const flagsUpdates: { id: number; flags: number }[] = [];
+
         for (const id of orderedIds) {
           const s = lastData.shapes[id]!;
           const layer = layersById.get(s.layerId) ?? null;
           const cmd = shapeToEngineCommand(s, layer, ensureId);
-          if (cmd) initCommands.push(cmd);
+          if (cmd) {
+              initCommands.push(cmd);
+              const locked = layer?.locked ?? false;
+              if ('id' in cmd) {
+                  flagsUpdates.push({ id: cmd.id, flags: locked ? 2 : 0 });
+              }
+          }
+        }
+
+        if (flagsUpdates.length > 0) {
+            initCommands.push({ op: CommandOp.SetEntityFlagsBatch, batch: { updates: flagsUpdates } });
         }
 
         runtime.apply(initCommands);
