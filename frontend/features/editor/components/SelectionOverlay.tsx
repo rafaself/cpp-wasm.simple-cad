@@ -88,6 +88,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
+  const engineInteractionActive = useUIStore((s) => s.engineInteractionActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
@@ -109,7 +110,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   );
 
   const selectedOverlaySvg = useMemo(() => {
-    if (isEditingAppearance) return null;
+    if (isEditingAppearance || engineInteractionActive) return null;
     if (selectedShapeIds.size === 0) return null;
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
 
@@ -243,7 +244,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
         })}
       </svg>
     );
-  }, [activeFloorId, canvasSize.height, canvasSize.width, engineResizeEnabled, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
+  }, [activeFloorId, canvasSize.height, canvasSize.width, engineInteractionActive, engineResizeEnabled, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
 
   return selectedOverlaySvg;
 };

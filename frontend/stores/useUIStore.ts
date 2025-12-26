@@ -20,6 +20,7 @@ interface UIState {
   isLayerManagerOpen: boolean;
   editingTextId: string | null;
   isEditingAppearance: boolean;
+  engineInteractionActive: boolean;
 
   // Engine-native text editing state
   engineTextEditState: {
@@ -52,6 +53,7 @@ interface UIState {
   setLayerManagerOpen: (isOpen: boolean) => void;
   setEditingTextId: (id: string | null) => void;
   setIsEditingAppearance: (isEditing: boolean) => void;
+  setEngineInteractionActive: (active: boolean) => void;
 
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
@@ -82,6 +84,7 @@ export const useUIStore = create<UIState>((set) => ({
   isLayerManagerOpen: false,
   editingTextId: null,
   isEditingAppearance: false,
+  engineInteractionActive: false,
 
   engineTextEditState: {
     active: false,
@@ -166,6 +169,7 @@ export const useUIStore = create<UIState>((set) => ({
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
   setEditingTextId: (id) => set({ editingTextId: id }),
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
+  setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
 
   // Engine text editing setters
   setEngineTextEditActive: (active, textId = null) => set((state) => ({

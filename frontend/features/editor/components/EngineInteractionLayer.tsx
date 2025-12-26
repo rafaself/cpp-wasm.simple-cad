@@ -41,6 +41,7 @@ const EngineInteractionLayer: React.FC = () => {
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const setSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
+  const setEngineInteractionActive = useUIStore((s) => s.setEngineInteractionActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
 
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
@@ -79,6 +80,18 @@ const EngineInteractionLayer: React.FC = () => {
       });
     },
     [activeFloorId],
+  );
+
+  const beginEngineSession = useCallback(
+    (ids: number[], mode: TransformMode, specificId: number, vertexIndex: number, startX: number, startY: number): boolean => {
+      const runtime = runtimeRef.current;
+      if (!runtime) return false;
+      if (typeof runtime.engine?.beginTransform !== 'function') return false;
+      setEngineInteractionActive(true);
+      runtime.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+      return true;
+    },
+    [setEngineInteractionActive],
   );
 
   useEffect(() => {
@@ -171,9 +184,10 @@ const EngineInteractionLayer: React.FC = () => {
       marqueeArmedRef.current = false;
       setSelectionBox(null);
       setCursorOverride(null);
+      setEngineInteractionActive(false);
       return true;
     },
-    [setCursorOverride, setSelectionBox],
+    [setCursorOverride, setEngineInteractionActive, setSelectionBox],
   );
 
   const moveRef = useRef<MoveState | null>(null);
@@ -434,9 +448,10 @@ const EngineInteractionLayer: React.FC = () => {
 	                           if (idHash !== null) {
 	                             const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
 	                             setCursorOverride(cursor);
-	                             runtimeRef.current.beginTransform([idHash], TransformMode.Resize, idHash, res.subIndex, snapped.x, snapped.y);
-	                             dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
-	                             return;
+	                             if (beginEngineSession([idHash], TransformMode.Resize, idHash, res.subIndex, snapped.x, snapped.y)) {
+	                               dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
+	                               return;
+	                             }
 	                           }
 	                         }
 	                     }
@@ -446,31 +461,34 @@ const EngineInteractionLayer: React.FC = () => {
 	                         const idHash = getEngineId(strId);
 	                         if (idHash !== null) {
 	                           setCursorOverride('move');
-	                           runtimeRef.current.beginTransform([idHash], TransformMode.VertexDrag, idHash, res.subIndex, snapped.x, snapped.y);
-	                           dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
-	                           return;
+	                           if (beginEngineSession([idHash], TransformMode.VertexDrag, idHash, res.subIndex, snapped.x, snapped.y)) {
+	                             dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
+	                             return;
+	                           }
 	                         }
 	                     } 
 	                     else if (res.subTarget === PickSubTarget.Edge) {
                           // Edge Drag (treat as Move for now, or implement edge drag if engine supports it)
                           // Engine supports EdgeDrag (2).
-                          // For now, let's Map Edge Drag to Move if we want standard behavior, 
-                          // OR pass EdgeDrag to engine if engine implements it.
+	                          // For now, let's Map Edge Drag to Move if we want standard behavior, 
+	                          // OR pass EdgeDrag to engine if engine implements it.
 	                          // Engine implementation: EdgeDrag -> updates x/y? 
 	                          // Let's use Move behavior for Edge/Body hits for now to support multi-select move.
 	                          if (activeIds.length > 0) {
 	                              setCursorOverride('move');
-	                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
-	                              dragRef.current = { type: "engine_session", startWorld: snapped };
-	                              return;
+	                              if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
+	                                dragRef.current = { type: "engine_session", startWorld: snapped };
+	                                return;
+	                              }
 	                          }
 	                     }
 	                     else if (res.subTarget === PickSubTarget.Body || res.subTarget === PickSubTarget.TextBody) {
 	                          if (activeIds.length > 0) {
 	                              setCursorOverride('move');
-	                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
-	                              dragRef.current = { type: "engine_session", startWorld: snapped };
-	                              return;
+	                              if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
+	                                dragRef.current = { type: "engine_session", startWorld: snapped };
+	                                return;
+	                              }
 	                          }
 	                     }
                  }
@@ -490,9 +508,10 @@ const EngineInteractionLayer: React.FC = () => {
 		                        .filter((x): x is number => x !== null && x !== 0);
 		                     if (activeIds.length > 0) {
 		                         setCursorOverride('move');
-		                         runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
-		                         dragRef.current = { type: "engine_session", startWorld: snapped };
-		                         return;
+		                         if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
+		                           dragRef.current = { type: "engine_session", startWorld: snapped };
+		                           return;
+		                         }
 	                     }
                  }
             }
@@ -712,6 +731,7 @@ const EngineInteractionLayer: React.FC = () => {
                 }
             }
             pointerDownRef.current = null;
+            setEngineInteractionActive(false);
             return;
         }
     }
