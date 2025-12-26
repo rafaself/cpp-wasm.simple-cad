@@ -574,3 +574,29 @@ PickResult PickSystem::pickEx(
 
     return { 0, (uint16_t)PickEntityKind::Unknown, (uint8_t)PickSubTarget::None, -1, std::numeric_limits<float>::infinity() };
 }
+
+void PickSystem::queryArea(const AABB& area, std::vector<std::uint32_t>& outResults) const {
+    lastStats_.candidatesChecked = 0;
+    lastStats_.indexCellsQueried = 0;
+
+    std::vector<std::uint32_t> candidates;
+    index_.query(area, candidates);
+    if (candidates.empty()) return;
+
+    lastStats_.indexCellsQueried = 1;
+    lastStats_.candidatesChecked = static_cast<std::uint32_t>(candidates.size());
+
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+
+    std::sort(candidates.begin(), candidates.end(), [&](std::uint32_t a, std::uint32_t b) {
+        const auto ita = zIndexMap_.find(a);
+        const auto itb = zIndexMap_.find(b);
+        const std::uint32_t za = ita != zIndexMap_.end() ? ita->second : 0;
+        const std::uint32_t zb = itb != zIndexMap_.end() ? itb->second : 0;
+        if (za != zb) return za > zb;
+        return a < b;
+    });
+
+    outResults.insert(outResults.end(), candidates.begin(), candidates.end());
+}

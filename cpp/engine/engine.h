@@ -24,6 +24,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 // Public CadEngine API header. Implementation remains header-only for now
 // (methods are defined inline inside the class to preserve simplicity during
@@ -93,6 +94,18 @@ public:
     // IMPORTANT: Since Emscripten value_object bindings work best with POD structs,
     // PickResult is defined in pick_system.h and bound in bindings.cpp
     PickResult pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept;
+    // Marquee query (returns IDs only; filtering happens in JS)
+    std::vector<std::uint32_t> queryArea(float minX, float minY, float maxX, float maxY) const {
+        AABB area{
+            std::min(minX, maxX),
+            std::min(minY, maxY),
+            std::max(minX, maxX),
+            std::max(minY, maxY)
+        };
+        std::vector<std::uint32_t> out;
+        pickSystem_.queryArea(area, out);
+        return out;
+    }
 
 #ifdef EMSCRIPTEN
 private:

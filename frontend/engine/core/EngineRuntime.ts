@@ -1,6 +1,6 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
-import { createIdAllocator, type IdMaps } from './idAllocator';
+import { IdRegistry } from './IdRegistry';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 
@@ -10,6 +10,12 @@ export type BufferMeta = {
   capacity: number;
   floatCount: number;
   ptr: number;
+};
+
+type WasmU32Vector = {
+  size: () => number;
+  get: (index: number) => number;
+  delete: () => void;
 };
 
 export type SnapshotBufferMeta = {
@@ -31,6 +37,7 @@ export type CadEngineInstance = {
 
   // New extended pick (optional during migration)
   pickEx?: (x: number, y: number, tolerance: number, pickMask: number) => PickResult;
+  queryArea?: (minX: number, minY: number, maxX: number, maxY: number) => WasmU32Vector;
 
   getStats: () => {
     generation: number;
@@ -85,22 +92,17 @@ export class EngineRuntime {
     return new EngineRuntime(module, engine);
   }
 
-  public readonly ids = createIdAllocator();
   private constructor(
     public readonly module: WasmModule,
     public readonly engine: CadEngineInstance,
   ) {}
 
-  public getIdMaps(): IdMaps {
-    return this.ids.maps;
-  }
-
   public resetIds(): void {
-    this.ids.maps.idHashToString.clear();
-    this.ids.maps.idStringToHash.clear();
+    IdRegistry.clear();
   }
 
   public clear(): void {
+    IdRegistry.clear();
     this.engine.clear();
   }
 

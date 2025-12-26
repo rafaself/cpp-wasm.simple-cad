@@ -6,8 +6,8 @@ import { CommandOp, type EngineCommand } from './commandBuffer';
 import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
-import { deleteTextByShapeId, moveTextByShapeId, getAllTextShapeIds } from './textEngineSync';
-import { ensureId, getEngineId } from './IdRegistry';
+import { deleteTextByShapeId, moveTextByShapeId, getTrackedTextShapeIds } from './textEngineSync';
+import { ensureId, getEngineId, releaseId } from './IdRegistry';
 
 export type StableIdCache = {
   lastRef: Record<string, unknown> | null;
@@ -413,6 +413,7 @@ export const useEngineStoreSync = (): void => {
 
         const startedAt = nowMs();
         const commands: EngineCommand[] = [];
+        // P0-2: SetEntityFlags opcodes are not implemented in the engine; skip emitting to avoid UnknownCommand.
 
         const nextScale = nextUi.viewTransform.scale || 1;
         const scaleChanged = nextScale !== lastScale;
@@ -425,6 +426,15 @@ export const useEngineStoreSync = (): void => {
         const shapesRefChanged = nextData.shapes !== prevData.shapes;
         const layerStyleChanged = nextData.layers !== prevData.layers;
         const dirtyIds = nextData.dirtyShapeIds;
+        const shapeOrderChanged = nextData.shapeOrder !== prevData.shapeOrder;
+        const hasNewShape = Array.from(dirtyIds).some((id) => !prevData.shapes[id]);
+        const hasDeletedShape = Array.from(dirtyIds).some((id) => !!prevData.shapes[id] && !nextData.shapes[id]);
+        const dirtyVisibilityChange = Array.from(dirtyIds).some((id) => {
+          const prevShape = prevData.shapes[id];
+          const nextShape = nextData.shapes[id];
+          if (!prevShape || !nextShape) return false;
+          return prevShape.floorId !== nextShape.floorId || prevShape.discipline !== nextShape.discipline || prevShape.layerId !== nextShape.layerId;
+        });
 
         if (!shapesRefChanged && !visibilityFilterChanged && !layerStyleChanged && dirtyIds.size === 0) {
           if (commands.length) runtime.apply(commands);
@@ -433,48 +443,68 @@ export const useEngineStoreSync = (): void => {
           return;
         }
 
-        const { orderedIds: nextOrderedIds, idSet: nextVisibleSet } = buildVisibleOrder(
-          nextData,
-          { activeFloorId: nextUi.activeFloorId, activeDiscipline: nextUi.activeDiscipline },
-          shapeIdCache,
-        );
+        let nextOrderedIds: string[] = [];
+        let nextVisibleSet: Set<string>;
+
+        const isFullScanRequired = visibilityFilterChanged || (shapesRefChanged && dirtyIds.size === 0);
+        const reuseVisibleOrder = !visibilityFilterChanged && !layerStyleChanged && !shapeOrderChanged && !isFullScanRequired && !hasNewShape && !hasDeletedShape && !dirtyVisibilityChange;
+
+        if (reuseVisibleOrder) {
+          nextVisibleSet = new Set(lastVisibleIds);
+          for (const id of dirtyIds) {
+            if (!nextData.shapes[id]) {
+              nextVisibleSet.delete(id);
+            }
+          }
+        } else {
+          const built = buildVisibleOrder(
+            nextData,
+            { activeFloorId: nextUi.activeFloorId, activeDiscipline: nextUi.activeDiscipline },
+            shapeIdCache,
+          );
+          nextOrderedIds = built.orderedIds;
+          nextVisibleSet = built.idSet;
+        }
 
         // Deletes when shapes disappear or become invisible.
         for (const id of lastVisibleIds) {
           if (nextVisibleSet.has(id)) continue;
           const eid = getEngineId(id);
           if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
-        }
-
-        // Sync text entities: delete texts whose shapes were deleted
-        const trackedTextShapeIds = getAllTextShapeIds();
-        for (const shapeId of trackedTextShapeIds) {
-          if (!nextData.shapes[shapeId]) {
-            deleteTextByShapeId(shapeId);
+          if (!nextData.shapes[id]) {
+            releaseId(id);
           }
         }
 
-        // Sync text position changes
-        for (const shapeId of trackedTextShapeIds) {
-          const nextShape = nextData.shapes[shapeId];
-          const prevShape = prevData.shapes[shapeId];
-          if (!nextShape || !prevShape) continue;
-          if (nextShape.type !== 'text') continue;
-          
-          const posChanged = nextShape.x !== prevShape.x || nextShape.y !== prevShape.y;
-          if (posChanged) {
-            const anchorX = nextShape.x ?? 0;
-            const anchorY = (nextShape.y ?? 0) + (nextShape.height ?? 0);
-            moveTextByShapeId(shapeId, anchorX, anchorY);
+        // Sync text entities only when relevant to avoid O(N) scans during pointermove/typing.
+        const trackedTextIds = getTrackedTextShapeIds();
+        const shouldProcessText = isFullScanRequired || Array.from(dirtyIds).some((id) => trackedTextIds.has(id));
+        if (shouldProcessText) {
+          const textIdsToCheck = isFullScanRequired
+            ? Array.from(trackedTextIds)
+            : Array.from(dirtyIds).filter((id) => trackedTextIds.has(id));
+
+          for (const shapeId of textIdsToCheck) {
+            const nextShape = nextData.shapes[shapeId];
+            const prevShape = prevData.shapes[shapeId];
+            if (!nextShape) {
+              deleteTextByShapeId(shapeId);
+              continue;
+            }
+            if (!prevShape || nextShape.type !== 'text') continue;
+
+            const posChanged = nextShape.x !== prevShape.x || nextShape.y !== prevShape.y;
+            if (posChanged) {
+              const anchorX = nextShape.x ?? 0;
+              const anchorY = (nextShape.y ?? 0) + (nextShape.height ?? 0);
+              moveTextByShapeId(shapeId, anchorX, anchorY);
+            }
           }
         }
 
         const layersById = new Map(nextData.layers.map((l) => [l.id, l]));
 
-        const isFullScanRequired = visibilityFilterChanged || (shapesRefChanged && dirtyIds.size === 0);
         const idsToCheck = isFullScanRequired ? nextOrderedIds : Array.from(dirtyIds);
-
-        const flagsUpdates: { id: number; flags: number }[] = [];
 
         for (const id of idsToCheck) {
           if (!nextVisibleSet.has(id)) continue;
@@ -488,11 +518,6 @@ export const useEngineStoreSync = (): void => {
           const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
           if (cmd) {
             commands.push(cmd);
-            const locked = layer?.locked ?? false;
-            // Check if command has ID (ClearAll etc don't, but shape commands do)
-            if ('id' in cmd) {
-                flagsUpdates.push({ id: cmd.id, flags: locked ? 2 : 0 });
-            }
           } else {
             const eid = getEngineId(id);
             if (eid !== null) commands.push({ op: CommandOp.DeleteEntity, id: eid });
@@ -502,28 +527,15 @@ export const useEngineStoreSync = (): void => {
         if (layerStyleChanged) {
             const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
             commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
-
-            // Also update flags for all shapes in changed layers (including those re-upserted above)
-            for (const id of nextOrderedIds) {
-                const s = nextData.shapes[id]!;
-                if (changedLayerIds.has(s.layerId)) {
-                    const layer = layersById.get(s.layerId);
-                    const locked = layer?.locked ?? false;
-                    const eid = ensureId(s.id);
-                    flagsUpdates.push({ id: eid, flags: locked ? 2 : 0 });
-                }
-            }
         }
 
-        if (flagsUpdates.length > 0) {
-            commands.push({ op: CommandOp.SetEntityFlagsBatch, batch: { updates: flagsUpdates } });
-        }
-
-        const drawOrderIds = nextOrderedIds.map((id) => ensureId(id));
-        const drawOrderKey = drawOrderIds.join(',');
-        if (drawOrderKey !== lastDrawOrderKey) {
-          commands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
-          lastDrawOrderKey = drawOrderKey;
+        if (!reuseVisibleOrder) {
+          const drawOrderIds = nextOrderedIds.map((id) => ensureId(id));
+          const drawOrderKey = drawOrderIds.join(',');
+          if (drawOrderKey !== lastDrawOrderKey) {
+            commands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
+            lastDrawOrderKey = drawOrderKey;
+          }
         }
 
         if (commands.length) runtime.apply(commands);
@@ -552,7 +564,6 @@ export const useEngineStoreSync = (): void => {
         initCommands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
 
         const layersById = new Map(lastData.layers.map((l) => [l.id, l]));
-        const flagsUpdates: { id: number; flags: number }[] = [];
 
         for (const id of orderedIds) {
           const s = lastData.shapes[id]!;
@@ -560,15 +571,7 @@ export const useEngineStoreSync = (): void => {
           const cmd = shapeToEngineCommand(s, layer, ensureId);
           if (cmd) {
               initCommands.push(cmd);
-              const locked = layer?.locked ?? false;
-              if ('id' in cmd) {
-                  flagsUpdates.push({ id: cmd.id, flags: locked ? 2 : 0 });
-              }
           }
-        }
-
-        if (flagsUpdates.length > 0) {
-            initCommands.push({ op: CommandOp.SetEntityFlagsBatch, batch: { updates: flagsUpdates } });
         }
 
         runtime.apply(initCommands);

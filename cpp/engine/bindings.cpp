@@ -67,6 +67,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
+        .function("queryArea", &CadEngine::queryArea)
         .function("getStats", &CadEngine::getStats)
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
@@ -202,6 +203,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("height", &CadEngine::TextSelectionRect::height)
         .field("lineIndex", &CadEngine::TextSelectionRect::lineIndex);
 
+    emscripten::register_vector<std::uint32_t>("VectorUInt32");
     emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");
 }
 #endif

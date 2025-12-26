@@ -18,6 +18,7 @@ import type { TextTool } from '@/engine/tools/TextTool';
 import { IdRegistry, ensureId, getEngineId, getShapeId, releaseId } from './IdRegistry';
 
 let textToolInstance: TextTool | null = null;
+const trackedTextShapeIds = new Set<string>();
 
 /**
  * Register the TextTool instance for engine operations.
@@ -48,6 +49,7 @@ export function registerTextMapping(textId: number, shapeId: string): void {
   
   // Mark as text type
   IdRegistry.setMeta(textId, 'entityType', 'text');
+  trackedTextShapeIds.add(shapeId);
 }
 
 export function setTextMeta(textId: number, boxMode: number, constraintWidth: number): void {
@@ -72,6 +74,7 @@ export function unregisterTextMappingByShapeId(shapeId: string): number | null {
   // Instead of full release, we might want to just keeping the ID but marking it dead?
   // But the interface says unregister.
   // IdRegistry.release deletes the mapping.
+  trackedTextShapeIds.delete(shapeId);
   return releaseId(shapeId);
 }
 
@@ -94,18 +97,7 @@ export function getShapeIdForText(textId: number): string | null {
  * Warning: Iterates all registered shapes.
  */
 export function getAllTextShapeIds(): string[] {
-  const allIds = IdRegistry.getAllShapeIds();
-  const textIds: string[] = [];
-  for (const shapeId of allIds) {
-    const eid = getEngineId(shapeId);
-    if (eid !== null) {
-      const meta = IdRegistry.getMeta(eid);
-      if (meta?.entityType === 'text') {
-        textIds.push(shapeId);
-      }
-    }
-  }
-  return textIds;
+  return Array.from(getTrackedTextShapeIds());
 }
 
 /**
@@ -116,15 +108,11 @@ export function getTextMappings(): { textIdToShapeId: Map<number, string>; shape
   const textIdToShapeId = new Map<number, string>();
   const shapeIdToTextId = new Map<string, number>();
   
-  const allIds = IdRegistry.getAllShapeIds();
-  for (const shapeId of allIds) {
+  for (const shapeId of trackedTextShapeIds) {
     const eid = getEngineId(shapeId);
     if (eid !== null) {
-         const meta = IdRegistry.getMeta(eid);
-         if (meta?.entityType === 'text') {
-           textIdToShapeId.set(eid, shapeId);
-           shapeIdToTextId.set(shapeId, eid);
-         }
+      textIdToShapeId.set(eid, shapeId);
+      shapeIdToTextId.set(shapeId, eid);
     }
   }
 
@@ -144,6 +132,7 @@ export function deleteTextByShapeId(shapeId: string): boolean {
   if (meta?.entityType !== 'text') return false;
 
   // Release mapping
+  trackedTextShapeIds.delete(shapeId);
   releaseId(shapeId);
   
   // Delete from engine
@@ -180,4 +169,27 @@ export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: num
  */
 export function clearTextMappings(): void {
   IdRegistry.clear();
+  trackedTextShapeIds.clear();
+}
+
+export function getTrackedTextShapeIds(): ReadonlySet<string> {
+  if (trackedTextShapeIds.size === 0) {
+    const allIds = IdRegistry.getAllShapeIds();
+    for (const shapeId of allIds) {
+      const eid = getEngineId(shapeId);
+      if (eid !== null) {
+        const meta = IdRegistry.getMeta(eid);
+        if (meta?.entityType === 'text') {
+          trackedTextShapeIds.add(shapeId);
+        }
+      }
+    }
+  } else {
+    for (const shapeId of Array.from(trackedTextShapeIds)) {
+      if (getEngineId(shapeId) === null) {
+        trackedTextShapeIds.delete(shapeId);
+      }
+    }
+  }
+  return trackedTextShapeIds;
 }
