@@ -141,7 +141,18 @@ export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, ensureId
   const strokeWidthPx = clampStrokeWidthPx(shape.strokeWidth);
 
   if (shape.type === 'rect') {
-    if (shape.x === undefined || shape.y === undefined || shape.width === undefined || shape.height === undefined) return null;
+    // Robust check: ensure values are present, default to 0 if missing (should not happen for valid shapes)
+    const x = shape.x ?? 0;
+    const y = shape.y ?? 0;
+    const w = shape.width ?? 0;
+    const h = shape.height ?? 0;
+
+    // Only skip if width/height are effectively zero or invalid (NaN)
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+         // Allow tiny rects if needed, but usually 0 size is invalid for engine picking
+         if (w === 0 && h === 0) return null;
+    }
+
     const fillEnabledEff = isFillEffectivelyEnabled(shape, layer);
     const fillHex = getEffectiveFillColor(shape, layer);
     const fillRgb = rgb01(fillHex);

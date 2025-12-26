@@ -281,14 +281,15 @@ const EngineInteractionLayer: React.FC = () => {
         if (runtimeRef.current) {
             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
             // Mask: Body | Edge | Vertex | Handles (future)
-            const pickMask = 15; // Body(1) | Edge(2) | Vertex(4) | Handle(8) ... wait, check C++ enum values
+            const pickMask = 15; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
             // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
             // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
-            // Let's pass 15 (1|2|4|8)
-            const res = runtimeRef.current.pickEx(world.x, world.y, tolerance, 15);
+
+            const res = runtimeRef.current.pickEx(world.x, world.y, tolerance, pickMask);
 
             if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_PICK") === "1") {
-                 console.log("[EngineInteractionLayer] pickEx pointerDown:", res);
+                 console.log(`[EngineInteractionLayer] pickEx input: x=${world.x.toFixed(2)} y=${world.y.toFixed(2)} tol=${tolerance.toFixed(2)} mask=${pickMask}`);
+                 console.log("[EngineInteractionLayer] pickEx result:", res);
             }
 
             // CRITICAL: Fallback path check.
