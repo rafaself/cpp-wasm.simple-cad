@@ -20,7 +20,6 @@ const DEFAULT_VIEWPORT_PADDING = 64; // generous margin to avoid over-culling
 
 export interface RenderExtractOptions {
   activeFloorId?: string;
-  activeDiscipline?: 'architecture' | 'electrical';
 }
 
 export interface RenderExtractResult {
@@ -45,7 +44,6 @@ export function buildRenderBatch(
     byType[shape.type] = (byType[shape.type] ?? 0) + 1;
 
     if (opts.activeFloorId && shape.floorId && shape.floorId !== opts.activeFloorId) continue;
-    if (opts.activeDiscipline && shape.discipline && shape.discipline !== opts.activeDiscipline) continue;
 
     const layer = layerMap.get(shape.layerId);
     if (!layer || !layer.visible) continue;

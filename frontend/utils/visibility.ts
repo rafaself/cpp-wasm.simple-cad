@@ -1,46 +1,23 @@
 import { Shape } from '../types';
-import { useUIStore } from '../stores/useUIStore';
 
 interface ViewContext {
-  activeFloorId: string;
-  activeDiscipline: 'architecture' | 'electrical';
+  activeFloorId?: string;
 }
 
+const isOnActiveFloor = (shape: Shape, context: ViewContext): boolean => {
+  const shapeFloor = shape.floorId || 'terreo';
+  if (!context.activeFloorId) return true;
+  return shapeFloor === context.activeFloorId;
+};
+
 export const isShapeVisible = (shape: Shape, context: ViewContext): boolean => {
-  const shapeFloor = shape.floorId || 'terreo'; // Default fallback
-  if (shapeFloor !== context.activeFloorId) return false;
-
-  const shapeDiscipline = shape.discipline || 'electrical'; // Default fallback
-
-  // Architecture Mode: Show ONLY Architecture
-  if (context.activeDiscipline === 'architecture') {
-    return shapeDiscipline === 'architecture';
-  }
-
-  // Electrical Mode: Show Electrical shapes AND referenced Architecture shapes
-  const uiStore = useUIStore.getState(); // Directly access the store for references
-  const floorReferences = uiStore.referencedDisciplines.get(context.activeFloorId);
-
-  if (shapeDiscipline === 'electrical') {
-      return true; // Always show electrical in electrical mode
-  }
-  if (shapeDiscipline === 'architecture') {
-      return !!floorReferences?.has('architecture'); // Show architecture only if referenced for this floor
-  }
-  return false; // Unknown discipline
+  return isOnActiveFloor(shape, context);
 };
 
 export const isShapeInteractable = (shape: Shape, context: ViewContext): boolean => {
-  const shapeFloor = shape.floorId || 'terreo';
-  if (shapeFloor !== context.activeFloorId) return false;
-
-  const shapeDiscipline = shape.discipline || 'electrical';
-
-  // Strict Isolation: Can only select/edit shapes of the ACTIVE discipline
-  return shapeDiscipline === context.activeDiscipline;
+  return isOnActiveFloor(shape, context);
 };
 
 export const isShapeSnappable = (shape: Shape, context: ViewContext): boolean => {
-  // Snappable if visible (reference layers are snappable but not interactable)
   return isShapeVisible(shape, context);
 };

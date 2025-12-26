@@ -95,6 +95,27 @@ export const KEYBINDINGS: Record<string, KeyBinding> = {
     description: 'Cancelar ferramenta atual ou desmarcar',
     category: 'editor'
   },
+  'transform.rotate': {
+    id: 'transform.rotate',
+    label: 'Rotacionar 90°',
+    keys: ['shift+r'],
+    description: 'Rotacionar seleção em 90°',
+    category: 'editor'
+  },
+  'transform.flipH': {
+    id: 'transform.flipH',
+    label: 'Espelhar Horizontal',
+    keys: ['shift+h'],
+    description: 'Espelhar seleção na horizontal',
+    category: 'editor'
+  },
+  'transform.flipV': {
+    id: 'transform.flipV',
+    label: 'Espelhar Vertical',
+    keys: ['shift+v'],
+    description: 'Espelhar seleção na vertical',
+    category: 'editor'
+  },
 
   // Navigation
   'nav.pan': {

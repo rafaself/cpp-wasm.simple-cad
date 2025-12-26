@@ -363,7 +363,7 @@ export const computeLayerDrivenReupsertCommands = (
 
 const buildVisibleOrder = (
   state: ReturnType<typeof useDataStore.getState>,
-  ui: Pick<ReturnType<typeof useUIStore.getState>, 'activeFloorId' | 'activeDiscipline'>,
+  ui: Pick<ReturnType<typeof useUIStore.getState>, 'activeFloorId'>,
   shapeIdCache: StableIdCache,
 ): { orderedIds: string[]; idSet: Set<string> } => {
   const layerById = new Map(state.layers.map((l) => [l.id, l]));
@@ -375,7 +375,6 @@ const buildVisibleOrder = (
     if (!s) return;
     if (!isSupportedShape(s)) return;
     if (s.floorId && ui.activeFloorId && s.floorId !== ui.activeFloorId) return;
-    if (s.discipline && ui.activeDiscipline && s.discipline !== ui.activeDiscipline) return;
     const layer = layerById.get(s.layerId);
     if (layer && !layer.visible) return;
     if (idSet.has(id)) return;
@@ -422,7 +421,7 @@ export const useEngineStoreSync = (): void => {
           lastScale = nextScale;
         }
 
-        const visibilityFilterChanged = nextUi.activeFloorId !== prevUi.activeFloorId || nextUi.activeDiscipline !== prevUi.activeDiscipline;
+        const visibilityFilterChanged = nextUi.activeFloorId !== prevUi.activeFloorId;
         const shapesRefChanged = nextData.shapes !== prevData.shapes;
         const layerStyleChanged = nextData.layers !== prevData.layers;
         const dirtyIds = nextData.dirtyShapeIds;
@@ -433,7 +432,7 @@ export const useEngineStoreSync = (): void => {
           const prevShape = prevData.shapes[id];
           const nextShape = nextData.shapes[id];
           if (!prevShape || !nextShape) return false;
-          return prevShape.floorId !== nextShape.floorId || prevShape.discipline !== nextShape.discipline || prevShape.layerId !== nextShape.layerId;
+          return prevShape.floorId !== nextShape.floorId || prevShape.layerId !== nextShape.layerId;
         });
 
         if (!shapesRefChanged && !visibilityFilterChanged && !layerStyleChanged && dirtyIds.size === 0) {
@@ -459,7 +458,7 @@ export const useEngineStoreSync = (): void => {
         } else {
           const built = buildVisibleOrder(
             nextData,
-            { activeFloorId: nextUi.activeFloorId, activeDiscipline: nextUi.activeDiscipline },
+            { activeFloorId: nextUi.activeFloorId },
             shapeIdCache,
           );
           nextOrderedIds = built.orderedIds;
@@ -557,7 +556,7 @@ export const useEngineStoreSync = (): void => {
 
         const { orderedIds } = buildVisibleOrder(
           lastData,
-          { activeFloorId: lastUi.activeFloorId, activeDiscipline: lastUi.activeDiscipline },
+          { activeFloorId: lastUi.activeFloorId },
           shapeIdCache,
         );
         const drawOrderIds = orderedIds.map((id) => ensureId(id));

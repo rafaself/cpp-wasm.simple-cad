@@ -56,7 +56,6 @@ export function useSelectInteraction(params: {
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
 
   const activeFloorId = useUIStore((s) => s.activeFloorId);
-  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>, world: {x:number, y:number}) => {
       selectInteractionRef.current = { kind: 'marquee' };
@@ -127,7 +126,7 @@ export function useSelectInteraction(params: {
 
           const layer = layers.find((l) => l.id === shape.layerId);
           if (layer && (!layer.visible || layer.locked)) continue;
-          if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
           selected.add(shape.id);
         }
         selectedU32.delete();
@@ -153,7 +152,7 @@ export function useSelectInteraction(params: {
         for (const shape of candidates) {
           const layer = layers.find((l) => l.id === shape.layerId);
           if (layer && (!layer.visible || layer.locked)) continue;
-          if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
           if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
           selected.add(shape.id);
         }

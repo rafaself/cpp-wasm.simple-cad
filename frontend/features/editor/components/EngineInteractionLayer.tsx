@@ -76,10 +76,9 @@ const EngineInteractionLayer: React.FC = () => {
       if (layer && (!layer.visible || layer.locked)) return false;
       return isShapeInteractable(shape, {
         activeFloorId: activeFloorId ?? 'terreo',
-        activeDiscipline,
       });
     },
-    [activeDiscipline, activeFloorId],
+    [activeFloorId],
   );
 
   useEffect(() => {

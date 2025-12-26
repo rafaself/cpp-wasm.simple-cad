@@ -26,7 +26,6 @@ describe('EngineRuntime', () => {
       getPositionBufferMeta: vi.fn(),
       getLineBufferMeta: vi.fn(),
       getSnapshotBufferMeta: vi.fn(),
-      snapElectrical: vi.fn(),
       getStats: vi.fn(),
     } as unknown as CadEngineInstance;
 

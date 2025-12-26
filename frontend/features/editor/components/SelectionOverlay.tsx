@@ -85,7 +85,6 @@ const offsetPolyline = (points: readonly { x: number; y: number }[], delta: numb
 };
 
 const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = false }) => {
-  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
@@ -131,7 +130,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
       if (!shape) return;
       const layer = layers.find((l) => l.id === shape.layerId);
       if (layer && (!layer.visible || layer.locked)) return;
-      if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) return;
+      if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) return;
 
       if (shape.type === 'line' || shape.type === 'arrow') {
         const a = shape.points?.[0];
@@ -244,7 +243,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
         })}
       </svg>
     );
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, engineResizeEnabled, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
+  }, [activeFloorId, canvasSize.height, canvasSize.width, engineResizeEnabled, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
 
   return selectedOverlaySvg;
 };

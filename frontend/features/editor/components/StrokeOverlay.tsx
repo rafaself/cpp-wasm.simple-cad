@@ -26,7 +26,6 @@ const getAlpha01 = (shape: Shape): number => {
 };
 
 export const StrokeOverlay: React.FC = () => {
-  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
@@ -44,11 +43,10 @@ export const StrokeOverlay: React.FC = () => {
       const shape = shapesById[id]!;
       if (!shape) continue;
       if (shape.floorId && activeFloorId && shape.floorId !== activeFloorId) continue;
-      if (shape.discipline && activeDiscipline && shape.discipline !== activeDiscipline) continue;
 
       const layer = layerById.get(shape.layerId) as Layer | undefined;
       if (layer && (!layer.visible || layer.locked)) continue;
-      if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) continue;
+      if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
 
       if (shape.type !== 'rect' && shape.type !== 'circle' && shape.type !== 'polygon') continue;
       if (shape.type === 'rect' && (shape.svgSymbolId || shape.svgRaw)) continue;
@@ -109,7 +107,7 @@ export const StrokeOverlay: React.FC = () => {
 
     out.sort((a, b) => a.id.localeCompare(b.id));
     return out;
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, layerById, shapesById, viewTransform]);
+  }, [activeFloorId, canvasSize.height, canvasSize.width, layerById, shapesById, viewTransform]);
 
   if (items.length === 0) return null;
 

@@ -14,8 +14,7 @@ export const ShortcutsSettings: React.FC = () => {
   const categoryLabels: Record<string, string> = {
     ferramentas: 'Ferramentas de Desenho',
     editor: 'Editor e Ações',
-    navegacao: 'Navegação',
-    eletrica: 'Elétrica (Contexto)'
+    navegacao: 'Navegação'
   };
 
   return (
