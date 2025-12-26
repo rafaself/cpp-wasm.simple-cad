@@ -52,4 +52,13 @@ public:
     
     // Garbage collection for polyline points
     void compactPolylinePoints();
+
+    // Accessors needed by PickSystem
+    const RectRec* getRect(std::uint32_t id) const;
+    const LineRec* getLine(std::uint32_t id) const;
+    const PolyRec* getPolyline(std::uint32_t id) const;
+    const CircleRec* getCircle(std::uint32_t id) const;
+    const PolygonRec* getPolygon(std::uint32_t id) const;
+    const ArrowRec* getArrow(std::uint32_t id) const;
+    const std::vector<Point2>& getPoints() const { return points; }
 };

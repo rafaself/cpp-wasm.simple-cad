@@ -56,7 +56,19 @@ export type CadEngineInstance = {
   getTextQuadBufferMeta?: () => TextQuadBufferMeta;
   getAtlasTextureMeta?: () => TextureBufferMeta;
   isAtlasDirty?: () => boolean;
+
   clearAtlasDirty?: () => void;
+
+  // Interaction Session
+  beginTransform?: (idsPtr: number, idCount: number, mode: number, specificId: number, vertexIndex: number, startX: number, startY: number) => void;
+  updateTransform?: (worldX: number, worldY: number) => void;
+  commitTransform?: () => void;
+  cancelTransform?: () => void;
+  isInteractionActive?: () => boolean;
+  getCommitResultCount?: () => number;
+  getCommitResultIdsPtr?: () => number;
+  getCommitResultOpCodesPtr?: () => number;
+  getCommitResultPayloadsPtr?: () => number;
 };
 
 export type WasmModule = {
@@ -130,6 +142,78 @@ export class EngineRuntime {
           subTarget: PickSubTarget.None,
           subIndex: -1,
           distance: id !== 0 ? 0 : Infinity // Placeholder distance for hit
+      };
+  }
+
+
+  // ========================================================================
+  // Interaction Session wrappers
+  // ========================================================================
+
+  public beginTransform(
+    ids: number[],
+    mode: number,
+    specificId: number = 0,
+    vertexIndex: number = -1,
+    startX: number = 0,
+    startY: number = 0
+  ): void {
+    if (!this.engine.beginTransform || !this.engine.allocBytes || !this.engine.freeBytes) {
+       console.warn("WASM engine does not support beginTransform");
+       return;
+    }
+
+    const ptr = this.engine.allocBytes(ids.length * 4);
+    try {
+        const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
+        u32.set(ids);
+        this.engine.beginTransform(ptr, ids.length, mode, specificId, vertexIndex, startX, startY);
+    } catch(e) { 
+        console.error(e);
+    } finally {
+        this.engine.freeBytes(ptr);
+    }
+  }
+
+  public updateTransform(worldX: number, worldY: number): void {
+      this.engine.updateTransform?.(worldX, worldY);
+  }
+
+  public cancelTransform(): void {
+      this.engine.cancelTransform?.();
+  }
+
+  public isInteractionActive(): boolean {
+      return !!this.engine.isInteractionActive?.();
+  }
+
+  public commitTransform(): { ids: Uint32Array, opCodes: Uint8Array, payloads: Float32Array } | null {
+      if (!this.engine.commitTransform) return null;
+      
+      this.engine.commitTransform();
+      
+      const count = this.engine.getCommitResultCount?.() ?? 0;
+      if (count === 0) return null;
+
+      // Copy data out of WASM memory immediately
+      // Because buffers in WASM might be reused or invalidated? 
+      // Actually they are vectors in C++, valid until next clear/reserve.
+      // But creating a copy in JS is safer for async/React processing.
+      
+      const idsPtr = this.engine.getCommitResultIdsPtr!();
+      const opCodesPtr = this.engine.getCommitResultOpCodesPtr!();
+      const payloadsPtr = this.engine.getCommitResultPayloadsPtr!();
+      
+      // Access direct views
+      const idsView = new Uint32Array(this.module.HEAPU8.buffer, idsPtr, count);
+      const opCodesView = new Uint8Array(this.module.HEAPU8.buffer, opCodesPtr, count);
+      const payloadsView = new Float32Array(this.module.HEAPU8.buffer, payloadsPtr, count * 4); // Stride 4
+
+      // Slice to copy
+      return {
+          ids: idsView.slice(),
+          opCodes: opCodesView.slice(),
+          payloads: payloadsView.slice()
       };
   }
 }

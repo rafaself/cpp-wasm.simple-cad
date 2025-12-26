@@ -425,7 +425,8 @@ bool PickSystem::checkCandidate(
         hit = (bestDist < std::numeric_limits<float>::max());
     }
     // 5. TEXT
-    else if (const TextRec* t = entities.getText(id)) {
+    // 5. TEXT
+    else if (const TextRec* t = textSystem.store.getText(id)) {
         outCandidate.kind = PickEntityKind::Text;
 
         // Hit test via TextSystem

@@ -1161,3 +1161,386 @@ std::uint32_t CadEngine::getLineUpIndex(std::uint32_t textId, std::uint32_t char
 std::uint32_t CadEngine::getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const {
     return textSystem_.getLineDownIndex(textId, charIndex);
 }
+
+// ==============================================================================
+// Interaction Session Implementation
+// ==============================================================================
+
+void CadEngine::beginTransform(
+    const std::uint32_t* ids, 
+    std::uint32_t idCount, 
+    TransformMode mode, 
+    std::uint32_t specificId, 
+    int32_t vertexIndex, 
+    float startX, 
+    float startY
+) {
+    // 1. Reset Session
+    session_ = InteractionSession{};
+    session_.active = true;
+    session_.mode = mode;
+    session_.specificId = specificId;
+    session_.vertexIndex = vertexIndex;
+    session_.startX = startX;
+    session_.startY = startY;
+
+    // 2. Capture Snapshots
+    session_.initialIds.reserve(idCount);
+    session_.snapshots.reserve(idCount);
+
+    for (std::uint32_t i = 0; i < idCount; i++) {
+        std::uint32_t id = ids[i];
+        session_.initialIds.push_back(id);
+
+        auto it = entityManager_.entities.find(id);
+        if (it == entityManager_.entities.end()) continue; // Should not happen in valid flow
+
+        TransformSnapshot snap;
+        snap.id = id;
+        
+        // Capture based on entity type
+        if (it->second.kind == EntityKind::Rect) {
+            for (const auto& r : entityManager_.rects) {
+                if (r.id == id) {
+                    snap.x = r.x;
+                    snap.y = r.y;
+                    break;
+                }
+            }
+        } else if (it->second.kind == EntityKind::Circle) {
+             for (const auto& c : entityManager_.circles) {
+                if (c.id == id) {
+                    snap.x = c.cx;
+                    snap.y = c.cy;
+                    break;
+                }
+            }
+        } else if (it->second.kind == EntityKind::Polygon) {
+             for (const auto& p : entityManager_.polygons) {
+                if (p.id == id) {
+                    snap.x = p.cx;
+                    snap.y = p.cy;
+                    break;
+                }
+            }
+        } else if (it->second.kind == EntityKind::Text) {
+             // Text handled via TextStore
+             const TextRec* tr = textSystem_.store.getText(id);
+             if (tr) {
+                 snap.x = tr->x;
+                 snap.y = tr->y;
+             }
+        } else if (it->second.kind == EntityKind::Line) {
+            for (const auto& l : entityManager_.lines) {
+                 if (l.id == id) {
+                     snap.points.push_back({l.x0, l.y0});
+                     snap.points.push_back({l.x1, l.y1});
+                     break;
+                 }
+            }
+        } else if (it->second.kind == EntityKind::Polyline) {
+             for (const auto& pl : entityManager_.polylines) {
+                 if (pl.id == id) {
+                     for (std::uint32_t k = 0; k < pl.count; k++) {
+                         if (pl.offset + k < entityManager_.points.size()) {
+                             snap.points.push_back(entityManager_.points[pl.offset + k]);
+                         }
+                     }
+                     break;
+                 }
+             }
+        } else if (it->second.kind == EntityKind::Arrow) {
+             for (const auto& a : entityManager_.arrows) {
+                if (a.id == id) {
+                    snap.points.push_back({a.ax, a.ay});
+                    snap.points.push_back({a.bx, a.by});
+                    break;
+                }
+             }
+        }
+
+        session_.snapshots.push_back(std::move(snap));
+    }
+}
+
+void CadEngine::updateTransform(float worldX, float worldY) {
+    if (!session_.active) return;
+    
+    float totalDx = worldX - session_.startX;
+    float totalDy = worldY - session_.startY;
+    
+    if (session_.mode == TransformMode::Move) {
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            
+             auto it = entityManager_.entities.find(id);
+             if (it == entityManager_.entities.end()) continue;
+             
+             if (it->second.kind == EntityKind::Rect) {
+                  for (auto& r : entityManager_.rects) { if (r.id == id) { r.x = snap.x + totalDx; r.y = snap.y + totalDy; break; } }
+             } else if (it->second.kind == EntityKind::Circle) {
+                  for (auto& c : entityManager_.circles) { if (c.id == id) { c.cx = snap.x + totalDx; c.cy = snap.y + totalDy; break; } }
+             } else if (it->second.kind == EntityKind::Polygon) {
+                  for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x + totalDx; p.cy = snap.y + totalDy; break; } }
+             } else if (it->second.kind == EntityKind::Text) {
+                  TextRec* tr = textSystem_.store.getTextMutable(id); 
+                  if (tr) {
+                       tr->x = snap.x + totalDx;
+                       tr->y = snap.y + totalDy;
+                       textQuadsDirty_ = true;
+                       float minX, minY, maxX, maxY;
+                       if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
+                           pickSystem_.update(id, {minX, minY, maxX, maxY});
+                       }
+                   }
+             } else if (it->second.kind == EntityKind::Line) {
+                 if (snap.points.size() >= 2) {
+                     for (auto& l : entityManager_.lines) { 
+                         if (l.id == id) { 
+                             l.x0 = snap.points[0].x + totalDx; 
+                             l.y0 = snap.points[0].y + totalDy; 
+                             l.x1 = snap.points[1].x + totalDx; 
+                             l.y1 = snap.points[1].y + totalDy; 
+                             break; 
+                         } 
+                     }
+                 }
+             } else if (it->second.kind == EntityKind::Arrow) {
+                 if (snap.points.size() >= 2) {
+                    for (auto& a : entityManager_.arrows) {
+                        if (a.id == id) {
+                            a.ax = snap.points[0].x + totalDx;
+                            a.ay = snap.points[0].y + totalDy;
+                            a.bx = snap.points[1].x + totalDx;
+                            a.by = snap.points[1].y + totalDy;
+                            break;
+                        }
+                    }
+                 }
+             } else if (it->second.kind == EntityKind::Polyline) {
+                 for (auto& pl : entityManager_.polylines) {
+                     if (pl.id == id) {
+                         for (std::uint32_t k = 0; k < pl.count && k < snap.points.size(); k++) {
+                             if (pl.offset + k < entityManager_.points.size()) {
+                                 entityManager_.points[pl.offset + k].x = snap.points[k].x + totalDx;
+                                 entityManager_.points[pl.offset + k].y = snap.points[k].y + totalDy;
+                             }
+                         }
+                         break;
+                     }
+                 }
+             }
+        }
+    } else if (session_.mode == TransformMode::VertexDrag) {
+        std::uint32_t id = session_.specificId;
+        int32_t idx = session_.vertexIndex;
+        
+        const TransformSnapshot* snap = nullptr;
+        for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
+        
+        if (snap && idx >= 0) {
+             auto it = entityManager_.entities.find(id);
+             if (it != entityManager_.entities.end()) {
+                 if (it->second.kind == EntityKind::Polyline) {
+                      for (auto& pl : entityManager_.polylines) {
+                          if (pl.id == id) {
+                              if (static_cast<std::uint32_t>(idx) < pl.count && static_cast<std::uint32_t>(idx) < snap->points.size()) {
+                                  float nx = snap->points[idx].x + totalDx;
+                                  float ny = snap->points[idx].y + totalDy;
+                                  entityManager_.points[pl.offset + idx].x = nx;
+                                  entityManager_.points[pl.offset + idx].y = ny;
+                              }
+                              break;
+                          }
+                      }
+                 } else if (it->second.kind == EntityKind::Line) {
+                      for (auto& l : entityManager_.lines) {
+                          if (l.id == id) {
+                              if (idx == 0 && snap->points.size() > 0) {
+                                  l.x0 = snap->points[0].x + totalDx;
+                                  l.y0 = snap->points[0].y + totalDy;
+                              } else if (idx == 1 && snap->points.size() > 1) {
+                                  l.x1 = snap->points[1].x + totalDx;
+                                  l.y1 = snap->points[1].y + totalDy;
+                              }
+                              break;
+                          }
+                      }
+                 } else if (it->second.kind == EntityKind::Arrow) {
+                      for (auto& a : entityManager_.arrows) {
+                          if (a.id == id) {
+                              if (idx == 0 && snap->points.size() > 0) {
+                                  a.ax = snap->points[0].x + totalDx;
+                                  a.ay = snap->points[0].y + totalDy;
+                              } else if (idx == 1 && snap->points.size() > 1) {
+                                  a.bx = snap->points[1].x + totalDx;
+                                  a.by = snap->points[1].y + totalDy;
+                              }
+                              break;
+                          }
+                      }
+                 }
+             }
+        }
+    }
+
+    renderDirty = true;
+    snapshotDirty = true;
+}
+
+void CadEngine::commitTransform() {
+    if (!session_.active) return;
+    
+    commitResultIds.clear();
+    commitResultOpCodes.clear();
+    commitResultPayloads.clear();
+    
+    std::uint32_t n = static_cast<std::uint32_t>(session_.snapshots.size());
+    commitResultIds.reserve(n);
+    commitResultOpCodes.reserve(n);
+    commitResultPayloads.reserve(n * 4);
+    
+    if (session_.mode == TransformMode::Move) {
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            float curX = 0, curY = 0;
+            auto it = entityManager_.entities.find(id);
+             if (it == entityManager_.entities.end()) continue;
+             
+             if (it->second.kind == EntityKind::Rect) {
+                  for (auto& r : entityManager_.rects) { if (r.id == id) { curX = r.x; curY = r.y; break; } }
+             } else if (it->second.kind == EntityKind::Circle) {
+                  for (auto& c : entityManager_.circles) { if (c.id == id) { curX = c.cx; curY = c.cy; break; } }
+             } else if (it->second.kind == EntityKind::Text) {
+                  const TextRec* tr = textSystem_.store.getText(id); if (tr) { curX = tr->x; curY = tr->y; }
+             } else if (it->second.kind == EntityKind::Polygon) {
+                   for (auto& p : entityManager_.polygons) { if (p.id == id) { curX = p.cx; curY = p.cy; break; } }
+             } else if (it->second.kind == EntityKind::Line) {
+                 for (auto& l : entityManager_.lines) { if (l.id == id) { curX = l.x0; curY = l.y0; break; } }
+             } else if (it->second.kind == EntityKind::Arrow) {
+                  for (auto& a : entityManager_.arrows) { if (a.id == id) { curX = a.ax; curY = a.ay; break; } }
+             } else if (it->second.kind == EntityKind::Polyline) {
+                  for (auto& pl : entityManager_.polylines) { 
+                      if (pl.id == id && pl.count > 0) { 
+                          curX = entityManager_.points[pl.offset].x; 
+                          curY = entityManager_.points[pl.offset].y; 
+                          break; 
+                      } 
+                  }
+             }
+
+             float origX = 0, origY = 0;
+             if (snap.points.empty()) {
+                  origX = snap.x; origY = snap.y;
+             } else {
+                  origX = snap.points[0].x; origY = snap.points[0].y;
+             }
+             
+             float dx = curX - origX;
+             float dy = curY - origY;
+             
+             commitResultIds.push_back(id);
+             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::MOVE));
+             commitResultPayloads.push_back(dx);
+             commitResultPayloads.push_back(dy);
+             commitResultPayloads.push_back(0.0f);
+             commitResultPayloads.push_back(0.0f);
+        }
+    } else if (session_.mode == TransformMode::VertexDrag) {
+        std::uint32_t id = session_.specificId;
+        int32_t idx = session_.vertexIndex;
+        float cx = 0, cy = 0;
+        bool found = false;
+        
+         auto it = entityManager_.entities.find(id);
+         if (it != entityManager_.entities.end()) {
+             if (it->second.kind == EntityKind::Polyline) {
+                   for (const auto& pl : entityManager_.polylines) {
+                       if (pl.id == id) {
+                           if (idx >= 0 && static_cast<std::uint32_t>(idx) < pl.count) {
+                               cx = entityManager_.points[pl.offset + idx].x;
+                               cy = entityManager_.points[pl.offset + idx].y;
+                               found = true;
+                           }
+                           break;
+                       }
+                   }
+             } else if (it->second.kind == EntityKind::Line) {
+                  for (const auto& l : entityManager_.lines) {
+                      if (l.id == id) {
+                          if (idx == 0) { cx = l.x0; cy = l.y0; found = true; }
+                          else if (idx == 1) { cx = l.x1; cy = l.y1; found = true; }
+                          break;
+                      }
+                  }
+             } else if (it->second.kind == EntityKind::Arrow) {
+                   for (const auto& a : entityManager_.arrows) {
+                      if (a.id == id) {
+                          if (idx == 0) { cx = a.ax; cy = a.ay; found = true; }
+                          else if (idx == 1) { cx = a.bx; cy = a.by; found = true; }
+                          break;
+                      }
+                  }
+             }
+         }
+         
+         if (found) {
+             commitResultIds.push_back(id);
+             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::VERTEX_SET));
+             commitResultPayloads.push_back(static_cast<float>(idx));
+             commitResultPayloads.push_back(cx);
+             commitResultPayloads.push_back(cy);
+             commitResultPayloads.push_back(0.0f);
+         }
+    }
+
+    session_ = InteractionSession{};
+}
+
+void CadEngine::cancelTransform() {
+    if (!session_.active) return;
+    
+    for (const auto& snap : session_.snapshots) {
+        std::uint32_t id = snap.id;
+         auto it = entityManager_.entities.find(id);
+         if (it == entityManager_.entities.end()) continue;
+         
+         if (it->second.kind == EntityKind::Rect) {
+             for (auto& r : entityManager_.rects) { if (r.id == id) { r.x = snap.x; r.y = snap.y; break; } }
+         } else if (it->second.kind == EntityKind::Circle) {
+              for (auto& c : entityManager_.circles) { if (c.id == id) { c.cx = snap.x; c.cy = snap.y; break; } }
+         } else if (it->second.kind == EntityKind::Polygon) {
+              for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x; p.cy = snap.y; break; } }
+         } else if (it->second.kind == EntityKind::Text) {
+             TextRec* tr = textSystem_.store.getTextMutable(id); if (tr) { tr->x = snap.x; tr->y = snap.y; textQuadsDirty_ = true; }
+         } else if (it->second.kind == EntityKind::Polyline) {
+             for (auto& pl : entityManager_.polylines) {
+                 if (pl.id == id) {
+                     for (std::uint32_t k = 0; k < pl.count && k < snap.points.size(); k++) {
+                         entityManager_.points[pl.offset + k] = snap.points[k];
+                     }
+                     break;
+                 }
+             }
+         } else if (it->second.kind == EntityKind::Line) {
+               for (auto& l : entityManager_.lines) {
+                   if (l.id == id && snap.points.size() >= 2) {
+                       l.x0 = snap.points[0].x; l.y0 = snap.points[0].y;
+                       l.x1 = snap.points[1].x; l.y1 = snap.points[1].y;
+                       break;
+                   }
+               }
+          } else if (it->second.kind == EntityKind::Arrow) {
+               for (auto& a : entityManager_.arrows) {
+                   if (a.id == id && snap.points.size() >= 2) {
+                       a.ax = snap.points[0].x; a.ay = snap.points[0].y;
+                       a.bx = snap.points[1].x; a.by = snap.points[1].y;
+                       break;
+                   }
+               }
+          }
+    }
+    
+    renderDirty = true;
+    session_ = InteractionSession{};
+}

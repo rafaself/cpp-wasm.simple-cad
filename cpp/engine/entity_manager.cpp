@@ -262,3 +262,51 @@ void EntityManager::compactPolylinePoints() {
 
     points.swap(next);
 }
+
+const RectRec* EntityManager::getRect(std::uint32_t id) const {
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind == EntityKind::Rect) {
+        return &rects[it->second.index];
+    }
+    return nullptr;
+}
+
+const LineRec* EntityManager::getLine(std::uint32_t id) const {
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind == EntityKind::Line) {
+        return &lines[it->second.index];
+    }
+    return nullptr;
+}
+
+const PolyRec* EntityManager::getPolyline(std::uint32_t id) const {
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind == EntityKind::Polyline) {
+        return &polylines[it->second.index];
+    }
+    return nullptr;
+}
+
+const CircleRec* EntityManager::getCircle(std::uint32_t id) const {
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind == EntityKind::Circle) {
+        return &circles[it->second.index];
+    }
+    return nullptr;
+}
+
+const PolygonRec* EntityManager::getPolygon(std::uint32_t id) const {
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind == EntityKind::Polygon) {
+        return &polygons[it->second.index];
+    }
+    return nullptr;
+}
+
+const ArrowRec* EntityManager::getArrow(std::uint32_t id) const {
+    const auto it = entities.find(id);
+    if (it != entities.end() && it->second.kind == EntityKind::Arrow) {
+        return &arrows[it->second.index];
+    }
+    return nullptr;
+}

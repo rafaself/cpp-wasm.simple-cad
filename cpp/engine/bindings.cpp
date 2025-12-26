@@ -38,7 +38,19 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .value("Polyline", PickEntityKind::Polyline)
         .value("Polygon", PickEntityKind::Polygon)
         .value("Arrow", PickEntityKind::Arrow)
+        .value("Arrow", PickEntityKind::Arrow)
         .value("Text", PickEntityKind::Text);
+
+    emscripten::enum_<CadEngine::TransformMode>("TransformMode")
+        .value("Move", CadEngine::TransformMode::Move)
+        .value("VertexDrag", CadEngine::TransformMode::VertexDrag)
+        .value("EdgeDrag", CadEngine::TransformMode::EdgeDrag)
+        .value("Resize", CadEngine::TransformMode::Resize);
+
+    emscripten::enum_<CadEngine::TransformOpCode>("TransformOpCode")
+        .value("MOVE", CadEngine::TransformOpCode::MOVE)
+        .value("VERTEX_SET", CadEngine::TransformOpCode::VERTEX_SET)
+        .value("RESIZE", CadEngine::TransformOpCode::RESIZE);
 
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
@@ -85,7 +97,20 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
                 return TextBoundsResult{x1, y1, x2, y2, true};
             }
             return TextBoundsResult{0,0,0,0, false};
-        }));
+            return TextBoundsResult{0,0,0,0, false};
+        }))
+        // Interaction Session
+        .function("beginTransform", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode, std::uint32_t specificId, int32_t vertexIndex, float startX, float startY) {
+            self.beginTransform(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::TransformMode>(mode), specificId, vertexIndex, startX, startY);
+        }))
+        .function("updateTransform", &CadEngine::updateTransform)
+        .function("commitTransform", &CadEngine::commitTransform)
+        .function("cancelTransform", &CadEngine::cancelTransform)
+        .function("isInteractionActive", &CadEngine::isInteractionActive)
+        .function("getCommitResultCount", &CadEngine::getCommitResultCount)
+        .function("getCommitResultIdsPtr", &CadEngine::getCommitResultIdsPtr)
+        .function("getCommitResultOpCodesPtr", &CadEngine::getCommitResultOpCodesPtr)
+        .function("getCommitResultPayloadsPtr", &CadEngine::getCommitResultPayloadsPtr);
     
     // ... values ...
 

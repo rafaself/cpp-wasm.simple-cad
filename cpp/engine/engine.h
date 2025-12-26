@@ -439,4 +439,100 @@ public:
     void addLineSegment(float x0, float y0, float x1, float y1, float z = 0.0f) const;
 
     void rebuildRenderBuffers() const;
+
+// ==============================================================================
+// Interaction Session (Phase 4)
+// ==============================================================================
+public:
+    enum class TransformMode : uint8_t {
+        Move = 0,
+        VertexDrag = 1,
+        EdgeDrag = 2,
+        Resize = 3
+    };
+
+    enum class TransformOpCode : uint8_t {
+        MOVE = 1,
+        VERTEX_SET = 2,
+        RESIZE = 3
+    };
+
+private:
+    struct TransformSnapshot {
+        std::uint32_t id;
+        float x, y; // For rects/circles/text/etc
+        std::vector<Point2> points; // For lines/polylines
+    };
+
+    struct InteractionSession {
+        bool active = false;
+        TransformMode mode = TransformMode::Move;
+        std::vector<std::uint32_t> initialIds;
+        std::uint32_t specificId = 0; // For vertex drag
+        int32_t vertexIndex = -1;     // For vertex drag
+        float startX = 0.0f;
+        float startY = 0.0f;
+        
+        // Snapshot for cancel/delta calculation
+        std::vector<TransformSnapshot> snapshots;
+    };
+
+    InteractionSession session_;
+
+    // Commit Result Buffers (Struct-of-Arrays)
+    // We keep these alive between commits so WASM can read them safely immediately after commit.
+    std::vector<std::uint32_t> commitResultIds;
+    std::vector<std::uint8_t> commitResultOpCodes;
+    std::vector<float> commitResultPayloads; // Stride = 4
+
+public:
+    /**
+     * Start an interactive transform session.
+     * @param ids List of entity IDs to transform
+     * @param idCount Number of IDs
+     * @param mode Transform mode (Move, VertexDrag, etc)
+     * @param specificId ID of the specific sub-element being dragged (e.g. vertex owner)
+     * @param vertexIndex Index of vertex if applicable, -1 otherwise
+     * @param startX World X start position
+     * @param startY World Y start position
+     */
+    void beginTransform(
+        const std::uint32_t* ids, 
+        std::uint32_t idCount, 
+        TransformMode mode, 
+        std::uint32_t specificId, 
+        int32_t vertexIndex, 
+        float startX, 
+        float startY
+    );
+
+    /**
+     * Update the current transform session.
+     * @param worldX Current pointer World X
+     * @param worldY Current pointer World Y
+     */
+    void updateTransform(float worldX, float worldY);
+
+    /**
+     * Commit changes and end the session.
+     * Populates commitResult buffers.
+     */
+    void commitTransform();
+
+    /**
+     * Cancel changes and revert to initial state.
+     * Ends the session.
+     */
+    void cancelTransform();
+
+    /**
+     * Check if a session is currently active.
+     */
+    bool isInteractionActive() const { return session_.active; }
+
+    // Accessors for Commit Results (WASM Bindings)
+    std::uint32_t getCommitResultCount() const { return static_cast<std::uint32_t>(commitResultIds.size()); }
+    std::uintptr_t getCommitResultIdsPtr() const { return reinterpret_cast<std::uintptr_t>(commitResultIds.data()); }
+    std::uintptr_t getCommitResultOpCodesPtr() const { return reinterpret_cast<std::uintptr_t>(commitResultOpCodes.data()); }
+    std::uintptr_t getCommitResultPayloadsPtr() const { return reinterpret_cast<std::uintptr_t>(commitResultPayloads.data()); }
 };

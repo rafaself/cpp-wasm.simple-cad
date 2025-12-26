@@ -397,6 +397,9 @@ export const useEngineStoreSync = (): void => {
       const shapeIdCache = createStableIdCache();
 
       const applySync = (nextData: typeof lastData, nextUi: typeof lastUi, prevData: typeof lastData, prevUi: typeof lastUi) => {
+        // Prevent sync during active engine interaction to avoid fighting with the engine's local state
+        if (runtime.isInteractionActive && runtime.isInteractionActive()) return;
+
         const startedAt = nowMs();
         const commands: EngineCommand[] = [];
 

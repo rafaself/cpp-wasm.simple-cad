@@ -30,7 +30,21 @@ type DragMode =
   | { type: "none" }
   | { type: "move"; id: string }
   | { type: "vertex"; id: string; vertexIndex: number; startWorld: Point; snapshot: Shape }
-  | { type: "edge"; id: string; edgeIndex: number; startWorld: Point; snapshot: Shape }; // Placeholder for edge drag
+  | { type: "edge"; id: string; edgeIndex: number; startWorld: Point; snapshot: Shape } // Placeholder
+  | { type: "engine_session"; startWorld: Point; vertexIndex?: number; activeId?: string };
+
+enum TransformMode {
+    Move = 0,
+    VertexDrag = 1,
+    EdgeDrag = 2,
+    Resize = 3
+}
+
+enum TransformOpCode {
+    MOVE = 1,
+    VERTEX_SET = 2,
+    RESIZE = 3
+}
 
 const EngineInteractionLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
@@ -304,36 +318,49 @@ const EngineInteractionLayer: React.FC = () => {
                      const shape = data.shapes[strId];
 
                      // Ensure selection
-                     if (!selectedShapeIds.has(strId) || selectedShapeIds.size > 1) {
-                         setSelectedShapeIds(new Set([strId]));
+                     if (!selectedShapeIds.has(strId)) {
+                        setSelectedShapeIds(new Set([strId]));
                      }
 
+                     // Prepare IDs for Engine Session
+                     // We need to pass ALL selected IDs if we are moving?
+                     // Or just the one we clicked if it's vertex/resize?
+                     // Verify: Engine supports multi-selection move?
+                     // beginTransform takes a list of IDs.
+                     // If moving, pass all selected IDs.
+                     // If vertex drag, usually only one shape is active for vertex edit at a time?
+                     // Assuming single shape vertex edit for MVP.
+                     
+                     const activeIds = Array.from(useUIStore.getState().selectedShapeIds)
+                        .map(id => runtimeRef.current!.getIdMaps().idStringToHash.get(id))
+                        .filter((x): x is number => x !== undefined && x !== 0);
+
                      if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0 && shape) {
-                         dragRef.current = {
-                             type: "vertex",
-                             id: strId,
-                             vertexIndex: res.subIndex,
-                             startWorld: snapped,
-                             snapshot: shape
-                         };
-                         return; // Handled by engine logic
-                     } else if (res.subTarget === PickSubTarget.Edge) {
-                          // Edge drag not fully implemented, treat as move for now or implement "edge slide" later
-                          // Fallthrough to standard move for now, or explicit move mode
-                          dragRef.current = { type: "move", id: strId };
-                          // Could initiate moveRef here to share logic?
-                          // Let's defer to selectHandlePointerDown if we want "standard move" behavior
-                          // OR unify.
-                          // To keep "changes minimal", if it's Body/Edge, we can let useSelectInteraction handle the "Move" setup
-                          // BUT we want to avoid re-hit testing.
-                          // So, set up moveRef manually?
-                          // useSelectInteraction manages its own ref. We can't easily inject into it without refactoring it.
-                          // Strategy: If Body/Edge, we can just let `selectHandlePointerDown` run?
-                          // `selectHandlePointerDown` calls `pickShape`. `pickShape` calls `pickEx`.
-                          // So it effectively re-picks.
-                          // Optimization: pass result? No easy way.
-                          // Acceptable double-pick for Body/Edge for now to avoid refactoring useSelectInteraction.
-                          // BUT for VERTEX, we intercept.
+                         // Shape Vertex Drag
+                         const idHash = runtimeRef.current.getIdMaps().idStringToHash.get(strId)!;
+                         runtimeRef.current.beginTransform([idHash], TransformMode.VertexDrag, idHash, res.subIndex, snapped.x, snapped.y);
+                         dragRef.current = { type: "engine_session", startWorld: snapped };
+                         return;
+                     } 
+                     else if (res.subTarget === PickSubTarget.Edge) {
+                          // Edge Drag (treat as Move for now, or implement edge drag if engine supports it)
+                          // Engine supports EdgeDrag (2).
+                          // For now, let's Map Edge Drag to Move if we want standard behavior, 
+                          // OR pass EdgeDrag to engine if engine implements it.
+                          // Engine implementation: EdgeDrag -> updates x/y? 
+                          // Let's use Move behavior for Edge/Body hits for now to support multi-select move.
+                          if (activeIds.length > 0) {
+                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
+                              dragRef.current = { type: "engine_session", startWorld: snapped };
+                              return;
+                          }
+                     }
+                      else if (res.subTarget === PickSubTarget.Body) {
+                          if (activeIds.length > 0) {
+                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
+                              dragRef.current = { type: "engine_session", startWorld: snapped };
+                              return;
+                          }
                      }
                  }
             }
@@ -380,6 +407,13 @@ const EngineInteractionLayer: React.FC = () => {
     // ------------------------------------------------------------------
     // NEW: Handle Drag Modes
     // ------------------------------------------------------------------
+    if (dragRef.current.type === 'engine_session') {
+        if (runtimeRef.current) {
+            runtimeRef.current.updateTransform(snapped.x, snapped.y);
+        }
+        return;
+    }
+
     if (dragRef.current.type === 'vertex') {
         const { id, vertexIndex, startWorld, snapshot } = dragRef.current;
         const data = useDataStore.getState();
@@ -480,6 +514,60 @@ const EngineInteractionLayer: React.FC = () => {
              }
              pointerDownRef.current = null;
              return;
+        }
+
+        if (mode.type === 'engine_session') {
+            if (runtimeRef.current) {
+                const result = runtimeRef.current.commitTransform();
+                if (result) {
+                    const { ids, opCodes, payloads } = result;
+                    const data = useDataStore.getState();
+                    const patches: Patch[] = [];
+                    const idMap = runtimeRef.current.getIdMaps().idHashToString;
+
+                    for(let i=0; i<ids.length; i++) {
+                        const id = ids[i];
+                        const strId = idMap.get(id);
+                        if (!strId) continue;
+                        
+                        const op = opCodes[i];
+                        const p0 = payloads[i*4 + 0];
+                        const p1 = payloads[i*4 + 1];
+
+                        const shape = data.shapes[strId];
+                        if (!shape) continue;
+
+                        const diff: Partial<Shape> = {};
+
+                        if (op === TransformOpCode.MOVE) { 
+                            if (shape.x !== undefined) diff.x = clampTiny((shape.x || 0) + p0);
+                            if (shape.y !== undefined) diff.y = clampTiny((shape.y || 0) + p1);
+                            if (shape.points) {
+                                diff.points = shape.points.map(pt => ({ x: clampTiny(pt.x + p0), y: clampTiny(pt.y + p1) }));
+                            }
+                        } 
+                        else if (op === TransformOpCode.VERTEX_SET) {
+                            if (mode.vertexIndex !== undefined && shape.points) {
+                                const nextPoints = [...shape.points];
+                                if (nextPoints[mode.vertexIndex]) {
+                                    nextPoints[mode.vertexIndex] = { x: p0, y: p1 };
+                                    diff.points = nextPoints;
+                                }
+                            }
+                        }
+                        
+                        if (Object.keys(diff).length > 0) {
+                            patches.push({ type: 'UPDATE', id: strId, diff, prev: shape }); // Prev is flawed here if multiple updates, but acceptable for single session end
+                        }
+                    }
+
+                    if (patches.length > 0) {
+                        data.saveToHistory(patches);
+                    }
+                }
+            }
+            pointerDownRef.current = null;
+            return;
         }
     }
 
