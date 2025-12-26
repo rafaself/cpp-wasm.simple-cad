@@ -2,9 +2,9 @@
 
 ## 1. Executive Summary
 
-- Veredito técnico: ainda NÃO pronto como “gate final” por riscos remanescentes (marquee com filtro geométrico em JS,
-  semântica de locked/discipline fora do Engine, overlays O(N)), mas o pipeline crítico de sessão (commit/cancel) e o
-  resize end-to-end (dev-flagged) estão coerentes e cobertos por testes.
+- Veredito técnico: ainda NÃO pronto como “gate final” por riscos remanescentes (semântica de locked/discipline fora
+  do Engine, overlays O(N)), mas o pipeline crítico de sessão (commit/cancel), resize end-to-end (dev-flagged) e
+  marquee WINDOW/CROSSING engine-side estão coerentes e cobertos por testes.
 - RESOLVIDO (persistência): commitTransform() aplica diffs no Source of Truth (Zustand) e grava histórico/undo
   (frontend/features/editor/components/EngineInteractionLayer.tsx, frontend/engine/core/interactionSession.ts).
 - RESOLVIDO (ABI/semântica): VERTEX_SET decodifica payload [idx, x, y, _] alinhado ao Engine, com testes
@@ -33,8 +33,8 @@
 - Sync React→Engine com dirty flags + guard de interação: useEngineStoreSync bloqueia sync quando
   isInteractionActive() está true, evitando “briga” Store vs sessão local (frontend/engine/core/
   useEngineStoreSync.ts:410).
-- Marquee broad-phase no Engine: useSelectInteraction usa engine.queryArea(...) quando disponível, reduzindo
-  dependência de varredura total (frontend/features/editor/hooks/useSelectInteraction.ts:138).
+- Marquee selection engine-side: useSelectInteraction usa engine.queryMarquee(...) para WINDOW/CROSSING, removendo
+  isShapeInSelection do caminho principal (frontend/features/editor/hooks/useSelectInteraction.ts).
 
 ## 3. O que foi corrigido em relação aos problemas anteriores
 
@@ -43,8 +43,8 @@
 - Prevenção explícita de conflito sync vs drag: guard de isInteractionActive() no sync (frontend/engine/core/
   useEngineStoreSync.ts:410) é uma correção direta do problema típico “Store atualiza durante drag e sobrescreve o
   Engine”.
-- Remoção parcial de O(N) em seleção por área: queryArea no engine substitui o antigo fallback de “varrer shapes” na
-  maioria dos builds (frontend/features/editor/hooks/useSelectInteraction.ts:138).
+- Remoção de geometria crítica JS no marquee: queryMarquee no Engine substitui isShapeInSelection no modo WINDOW/
+  CROSSING (frontend/features/editor/hooks/useSelectInteraction.ts).
 
 ## 4. Pontos de Atenção (Remaining Risks)
 
@@ -57,10 +57,8 @@
 - Semântica de “locked” inconsistente: buildVisibleOrder inclui shapes em layers locked (filtra só visible) (frontend/
   engine/core/useEngineStoreSync.ts:379), e o caminho engine-first de drag não bloqueia locked; isso permite mover/
   selecionar shapes em layer locked via pickEx + beginTransform.
-- Marquee ainda depende de geometria JS para “window vs crossing”: broad-phase no engine, mas decisão final usa
-  isShapeInSelection(...) em JS (frontend/features/editor/hooks/useSelectInteraction.ts:159), potencialmente
-  divergente do Engine (especialmente para polygon regular e text com rotação, onde o engine é aproximado em alguns
-  pontos).
+- Marquee crossing para circle/polygon é AABB-based (por design), então ainda pode haver falsos positivos em casos
+  limite (consistente com o comportamento anterior no frontend).
 - Overlays React pesados: StrokeOverlay faz for (Object.keys(shapesById)) (O(N)) e recalcula em qualquer update de
   shapes; se algum modo ainda atualiza Store durante pointermove (ex.: tool move), isso vira hot-path caro (frontend/
   features/editor/components/StrokeOverlay.tsx:39).
@@ -83,7 +81,7 @@
 ## 6. Checklist de Prontidão
 
 - [x] Click-select/hover no modo select é via pickEx (sem hit-test JS no caminho do clique).
-- [ ] Marquee selection não depende de filtro geométrico crítico em JS (ainda usa isShapeInSelection no frontend).
+- [x] Marquee selection não depende de filtro geométrico crítico em JS (queryMarquee; fallback só para WASM antigo).
 - [x] Move com botão esquerdo funciona e persiste no Store (MOVE commit→updateShape).
 - [x] Sem flag: não existem handles de resize visíveis/clicáveis no modo select (guardrail).
 - [x] Com flag: resize via handles altera shape real e persiste no Store (RESIZE commit→updateShape; undo/redo).
@@ -100,9 +98,9 @@
 ## 7. Veredito Final
 
 Ainda NÃO aprovado como “gate final”. Os blockers P0 do pipeline de commit/cancel (MOVE/VERTEX_SET) e a consolidação de
-click-select/hover via pickEx foram resolvidos (Fases 0–2), e o resize end-to-end foi entregue de forma controlada
-(FASE 4, feature flag). Permanecem riscos de coerência (marquee com filtro geométrico em JS, semântica de locked/
-discipline fora do Engine, overlays O(N)).
+click-select/hover via pickEx foram resolvidos (Fases 0–2), o resize end-to-end foi entregue de forma controlada
+(FASE 4, feature flag) e o marquee WINDOW/CROSSING foi movido para o Engine (FASE 5). Permanecem riscos de coerência
+(semântica de locked/discipline fora do Engine, overlays O(N)).
 
 ## 8. FASES
 
@@ -274,7 +272,7 @@ Implementação (principais evidências):
 
 ———
 
-FASE 5 — P2: Marquee Selection Engine-Side (remover geometria crítica JS)
+FASE 5 — P2: Marquee Selection Engine-Side (remover geometria crítica JS) (EXECUTADA)
 Objetivo:
 Mover a decisão final de seleção por área (window/crossing) para o Engine, eliminando duplicação geométrica no
 frontend.
@@ -296,3 +294,11 @@ Problemas atacados:
   Riscos se pulada:
 - Divergência continua exatamente no fluxo mais propenso a edge cases geométricos.
 - Custo de manutenção cresce (regras de seleção duplicadas a cada evolução do Engine).
+
+Status:
+EXECUTADA.
+Implementação (principais evidências):
+- cpp/engine/engine.h (API queryMarquee: mode=WINDOW/CROSSING).
+- cpp/engine.cpp (implementação queryMarquee: line/polyline/arrow com interseção real; demais por AABB tight).
+- cpp/engine/bindings.cpp (exposição para JS/WASM).
+- frontend/features/editor/hooks/useSelectInteraction.ts (marquee usa queryMarquee e elimina isShapeInSelection do caminho principal).

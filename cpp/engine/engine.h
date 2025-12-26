@@ -107,6 +107,10 @@ public:
         return out;
     }
 
+    // Marquee selection (returns final IDs based on WINDOW/CROSSING rules; filtering happens in JS)
+    // mode: 0 = WINDOW, 1 = CROSSING
+    std::vector<std::uint32_t> queryMarquee(float minX, float minY, float maxX, float maxY, int mode) const;
+
 #ifdef EMSCRIPTEN
 private:
 #else

@@ -109,32 +109,50 @@ export function useSelectInteraction(params: {
       const worldUp = screenToWorld(screen, viewTransform);
       const rect = normalizeRect(down.world, worldUp);
 
-      const queryRect = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
-      // Use runtime queryArea instead of spatialIndex
-      let candidates: Shape[] = [];
-      if (runtime && runtime.engine.queryArea) {
+      const selected = new Set<string>();
+
+      // Preferred (Phase 5): Engine returns the final selection set for WINDOW/CROSSING.
+      if (runtime && runtime.engine.queryMarquee) {
+        const selectedU32 = runtime.engine.queryMarquee(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, mode === 'WINDOW' ? 0 : 1);
+        const count = selectedU32.size();
+        for (let i = 0; i < count; ++i) {
+          const idHash = selectedU32.get(i);
+          const idStr = getShapeIdFromRegistry(idHash);
+          const shape = idStr ? shapes[idStr] : null;
+          if (!shape) continue;
+
+          const layer = layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) continue;
+          selected.add(shape.id);
+        }
+        selectedU32.delete();
+      } else {
+        // Fallback (old WASM): engine provides broad-phase candidates only.
+        const queryRect = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
+        let candidates: Shape[] = [];
+        if (runtime && runtime.engine.queryArea) {
           const candidatesU32 = runtime.engine.queryArea(queryRect.x, queryRect.y, queryRect.x + queryRect.width, queryRect.y + queryRect.height);
           const count = candidatesU32.size();
-          for(let i=0; i<count; ++i) {
-              const idHash = candidatesU32.get(i);
-              const idStr = getShapeIdFromRegistry(idHash);
-              if (idStr && shapes[idStr]) {
-                  candidates.push(shapes[idStr]);
-              }
+          for (let i = 0; i < count; ++i) {
+            const idHash = candidatesU32.get(i);
+            const idStr = getShapeIdFromRegistry(idHash);
+            if (idStr && shapes[idStr]) {
+              candidates.push(shapes[idStr]);
+            }
           }
           candidatesU32.delete();
-      } else {
-          // Fallback: legacy JS scan when WASM does not expose queryArea
+        } else {
           candidates = Object.values(shapes);
-      }
+        }
 
-      const selected = new Set<string>();
-      for (const shape of candidates) {
-        const layer = layers.find((l) => l.id === shape.layerId);
-        if (layer && (!layer.visible || layer.locked)) continue;
-        if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) continue;
-        if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
-        selected.add(shape.id);
+        for (const shape of candidates) {
+          const layer = layers.find((l) => l.id === shape.layerId);
+          if (layer && (!layer.visible || layer.locked)) continue;
+          if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo', activeDiscipline })) continue;
+          if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
+          selected.add(shape.id);
+        }
       }
 
       setSelectionBox(null);

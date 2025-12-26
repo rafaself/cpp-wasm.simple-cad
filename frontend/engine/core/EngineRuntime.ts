@@ -38,6 +38,7 @@ export type CadEngineInstance = {
   // New extended pick (optional during migration)
   pickEx?: (x: number, y: number, tolerance: number, pickMask: number) => PickResult;
   queryArea?: (minX: number, minY: number, maxX: number, maxY: number) => WasmU32Vector;
+  queryMarquee?: (minX: number, minY: number, maxX: number, maxY: number, mode: number) => WasmU32Vector;
 
   getStats: () => {
     generation: number;

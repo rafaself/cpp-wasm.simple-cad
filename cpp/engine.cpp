@@ -246,6 +246,199 @@ PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pi
     return pickSystem_.pickEx(x, y, tolerance, viewScale, pickMask, entityManager_, textSystem_);
 }
 
+namespace {
+    constexpr float kPi = 3.14159265358979323846f;
+    constexpr float kTwoPi = 2.0f * kPi;
+
+    inline bool aabbIntersects(const AABB& a, const AABB& b) {
+        if (a.maxX < b.minX) return false;
+        if (a.minX > b.maxX) return false;
+        if (a.maxY < b.minY) return false;
+        if (a.minY > b.maxY) return false;
+        return true;
+    }
+
+    inline bool aabbInside(const AABB& a, const AABB& container) {
+        return a.minX >= container.minX && a.maxX <= container.maxX && a.minY >= container.minY && a.maxY <= container.maxY;
+    }
+
+    inline bool segmentIntersectsAabb(float x0, float y0, float x1, float y1, const AABB& r) {
+        // Liang–Barsky line clipping for AABB intersection.
+        float t0 = 0.0f;
+        float t1 = 1.0f;
+        const float dx = x1 - x0;
+        const float dy = y1 - y0;
+
+        auto clip = [&](float p, float q) -> bool {
+            if (p == 0.0f) return q >= 0.0f;
+            const float t = q / p;
+            if (p < 0.0f) {
+                if (t > t1) return false;
+                if (t > t0) t0 = t;
+            } else {
+                if (t < t0) return false;
+                if (t < t1) t1 = t;
+            }
+            return true;
+        };
+
+        if (!clip(-dx, x0 - r.minX)) return false;
+        if (!clip( dx, r.maxX - x0)) return false;
+        if (!clip(-dy, y0 - r.minY)) return false;
+        if (!clip( dy, r.maxY - y0)) return false;
+        return t0 <= t1;
+    }
+
+    inline AABB rectAabbExact(const RectRec& r) {
+        return { r.x, r.y, r.x + r.w, r.y + r.h };
+    }
+
+    inline AABB ellipseAabbTight(const CircleRec& c) {
+        const float rx = std::abs(c.rx * c.sx);
+        const float ry = std::abs(c.ry * c.sy);
+        const float rot = c.rot;
+        const float cosR = rot ? std::cos(rot) : 1.0f;
+        const float sinR = rot ? std::sin(rot) : 0.0f;
+        const float ex = std::sqrt(rx * rx * cosR * cosR + ry * ry * sinR * sinR);
+        const float ey = std::sqrt(rx * rx * sinR * sinR + ry * ry * cosR * cosR);
+        return { c.cx - ex, c.cy - ey, c.cx + ex, c.cy + ey };
+    }
+
+    inline AABB polygonAabbTight(const PolygonRec& p) {
+        const std::uint32_t sides = std::min<std::uint32_t>(1024u, std::max<std::uint32_t>(3u, p.sides));
+        const float rot = p.rot;
+        const float cosR = rot ? std::cos(rot) : 1.0f;
+        const float sinR = rot ? std::sin(rot) : 0.0f;
+
+        float minX = std::numeric_limits<float>::infinity();
+        float minY = std::numeric_limits<float>::infinity();
+        float maxX = -std::numeric_limits<float>::infinity();
+        float maxY = -std::numeric_limits<float>::infinity();
+
+        for (std::uint32_t i = 0; i < sides; i++) {
+            const float t = (static_cast<float>(i) / static_cast<float>(sides)) * kTwoPi - kPi * 0.5f;
+            const float dx = std::cos(t) * p.rx * p.sx;
+            const float dy = std::sin(t) * p.ry * p.sy;
+            const float x = p.cx + dx * cosR - dy * sinR;
+            const float y = p.cy + dx * sinR + dy * cosR;
+            minX = std::min(minX, x);
+            minY = std::min(minY, y);
+            maxX = std::max(maxX, x);
+            maxY = std::max(maxY, y);
+        }
+
+        if (!std::isfinite(minX) || !std::isfinite(minY) || !std::isfinite(maxX) || !std::isfinite(maxY)) {
+            return { p.cx, p.cy, p.cx, p.cy };
+        }
+        return { minX, minY, maxX, maxY };
+    }
+}
+
+std::vector<std::uint32_t> CadEngine::queryMarquee(float minX, float minY, float maxX, float maxY, int mode) const {
+    const AABB sel{
+        std::min(minX, maxX),
+        std::min(minY, maxY),
+        std::max(minX, maxX),
+        std::max(minY, maxY),
+    };
+
+    std::vector<std::uint32_t> candidates;
+    pickSystem_.queryArea(sel, candidates);
+    if (candidates.empty()) return {};
+
+    std::vector<std::uint32_t> out;
+    out.reserve(candidates.size());
+
+    const bool window = mode == 0;
+
+    for (const std::uint32_t id : candidates) {
+        const auto it = entityManager_.entities.find(id);
+        if (it == entityManager_.entities.end()) continue;
+
+        bool hit = false;
+        switch (it->second.kind) {
+            case EntityKind::Rect: {
+                if (it->second.index >= entityManager_.rects.size()) break;
+                const RectRec& r = entityManager_.rects[it->second.index];
+                const AABB aabb = rectAabbExact(r);
+                hit = window ? aabbInside(aabb, sel) : aabbIntersects(aabb, sel);
+                break;
+            }
+            case EntityKind::Circle: {
+                if (it->second.index >= entityManager_.circles.size()) break;
+                const CircleRec& c = entityManager_.circles[it->second.index];
+                const AABB aabb = ellipseAabbTight(c);
+                hit = window ? aabbInside(aabb, sel) : aabbIntersects(aabb, sel);
+                break;
+            }
+            case EntityKind::Polygon: {
+                if (it->second.index >= entityManager_.polygons.size()) break;
+                const PolygonRec& p = entityManager_.polygons[it->second.index];
+                const AABB aabb = polygonAabbTight(p);
+                hit = window ? aabbInside(aabb, sel) : aabbIntersects(aabb, sel);
+                break;
+            }
+            case EntityKind::Line: {
+                if (it->second.index >= entityManager_.lines.size()) break;
+                const LineRec& l = entityManager_.lines[it->second.index];
+                if (window) {
+                    hit = aabbInside(PickSystem::computeLineAABB(l), sel);
+                } else {
+                    hit = segmentIntersectsAabb(l.x0, l.y0, l.x1, l.y1, sel);
+                }
+                break;
+            }
+            case EntityKind::Polyline: {
+                if (it->second.index >= entityManager_.polylines.size()) break;
+                const PolyRec& pl = entityManager_.polylines[it->second.index];
+                if (pl.count < 2) break;
+                const std::uint32_t start = pl.offset;
+                const std::uint32_t end = pl.offset + pl.count;
+                if (end > entityManager_.points.size()) break;
+
+                const AABB aabb = PickSystem::computePolylineAABB(pl, entityManager_.points);
+                if (window) {
+                    hit = aabbInside(aabb, sel);
+                } else {
+                    // CROSSING: true if any segment intersects selection rect.
+                    for (std::uint32_t i = start; i + 1 < end; i++) {
+                        const Point2& p0 = entityManager_.points[i];
+                        const Point2& p1 = entityManager_.points[i + 1];
+                        if (segmentIntersectsAabb(p0.x, p0.y, p1.x, p1.y, sel)) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            case EntityKind::Arrow: {
+                if (it->second.index >= entityManager_.arrows.size()) break;
+                const ArrowRec& a = entityManager_.arrows[it->second.index];
+                if (window) {
+                    hit = aabbInside(PickSystem::computeArrowAABB(a), sel);
+                } else {
+                    hit = segmentIntersectsAabb(a.ax, a.ay, a.bx, a.by, sel);
+                }
+                break;
+            }
+            case EntityKind::Text: {
+                const TextRec* tr = textSystem_.store.getText(id);
+                if (!tr) break;
+                const AABB aabb{ tr->minX, tr->minY, tr->maxX, tr->maxY };
+                hit = window ? aabbInside(aabb, sel) : aabbIntersects(aabb, sel);
+                break;
+            }
+            default:
+                break;
+        }
+
+        if (hit) out.push_back(id);
+    }
+
+    return out;
+}
+
 void CadEngine::clearWorld() noexcept {
     entityManager_.clear();
     pickSystem_.clear();

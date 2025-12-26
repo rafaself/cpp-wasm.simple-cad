@@ -68,6 +68,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
         .function("queryArea", &CadEngine::queryArea)
+        .function("queryMarquee", &CadEngine::queryMarquee)
         .function("getStats", &CadEngine::getStats)
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
