@@ -412,7 +412,6 @@ export const useEngineStoreSync = (): void => {
 
         const startedAt = nowMs();
         const commands: EngineCommand[] = [];
-        // P0-2: SetEntityFlags opcodes are not implemented in the engine; skip emitting to avoid UnknownCommand.
 
         const nextScale = nextUi.viewTransform.scale || 1;
         const scaleChanged = nextScale !== lastScale;
