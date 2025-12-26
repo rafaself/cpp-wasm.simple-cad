@@ -45,7 +45,7 @@ export const createLayerSlice: StateCreator<
   }),
 
   deleteLayer: (id) => {
-    const { layers, shapes, shapeOrder, activeLayerId, saveToHistory, spatialIndex } = get();
+    const { layers, shapes, shapeOrder, activeLayerId, saveToHistory } = get();
     const layerToDelete = layers.find(l => l.id === id);
     if (layers.length <= 1 || id === activeLayerId || layerToDelete?.isNative) return false;
 
@@ -60,7 +60,6 @@ export const createLayerSlice: StateCreator<
         patches.push({ type: 'DELETE', id: s.id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined });
         delete newShapes[s.id];
         if (newShapeOrder.includes(s.id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== s.id);
-        spatialIndex.remove(s);
       }
     });
 

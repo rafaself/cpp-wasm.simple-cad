@@ -128,6 +128,7 @@ public:
     float lastApplyMs{0.0f};
 
     void markTextQuadsDirty() const { textQuadsDirty_ = true; }
+    bool isTextQuadsDirty() const { return textQuadsDirty_; }
 
     // Error handling
     mutable EngineError lastError{EngineError::Ok};

@@ -56,6 +56,7 @@ export type CadEngineInstance = {
   getTextQuadBufferMeta?: () => TextQuadBufferMeta;
   getAtlasTextureMeta?: () => TextureBufferMeta;
   isAtlasDirty?: () => boolean;
+  isTextQuadsDirty?: () => boolean;
 
   clearAtlasDirty?: () => void;
 
@@ -130,7 +131,15 @@ export class EngineRuntime {
   public pickEx(x: number, y: number, tolerance: number, pickMask: number): PickResult {
       // Feature detection: Check if pickEx exists on the WASM instance
       if (typeof this.engine.pickEx === 'function') {
-          return this.engine.pickEx(x, y, tolerance, pickMask);
+          const res = this.engine.pickEx(x, y, tolerance, pickMask);
+
+          // DEV Assertion: Check for fallback condition where ID is found but subTarget is None
+          // This implies the engine found something but didn't classify it correctly in pickEx.
+          if (import.meta.env.DEV && res.id !== 0 && res.subTarget === PickSubTarget.None) {
+              console.error(`[EngineRuntime] pickEx returned valid ID ${res.id} but subTarget is None! This indicates a gap in pick_system.cpp or binding.`);
+          }
+
+          return res;
       }
 
       // Fallback to legacy pick (ID only)

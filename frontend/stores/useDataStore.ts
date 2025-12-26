@@ -8,9 +8,6 @@ import { createShapeSlice, ShapeSlice } from './slices/shapeSlice';
 import { createLayerSlice, LayerSlice } from './slices/layerSlice';
 import { createHistorySlice, HistorySlice } from './slices/historySlice';
 
-// Initialize Quadtree outside to avoid reactivity loop, but accessible
-const initialQuadTree = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
-
 export type DataState = ShapeSlice & LayerSlice & HistorySlice & {
   // World Scale
   worldScale: number;
@@ -20,9 +17,6 @@ export type DataState = ShapeSlice & LayerSlice & HistorySlice & {
 
   // Vector IR sidecar
   vectorSidecar: VectorSidecar | null;
-
-  // Spatial Index
-  spatialIndex: QuadTree;
 
   // Sync Optimization
   dirtyShapeIds: Set<string>;
@@ -45,7 +39,6 @@ export type DataState = ShapeSlice & LayerSlice & HistorySlice & {
   }) => void;
 
   // Helpers
-  syncQuadTree: () => void;
   ensureLayer: (name: string, defaults?: Partial<Omit<Layer, 'id' | 'name'>>) => string;
 
   setVectorSidecar: (sidecar: VectorSidecar | null) => void;
@@ -66,7 +59,6 @@ const buildInitialState = () => ({
     marginMm: 10,
   },
   vectorSidecar: null,
-  spatialIndex: new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 }),
   dirtyShapeIds: new Set<string>(),
   past: [] as Patch[][],
   future: [] as Patch[][],
@@ -89,7 +81,6 @@ export const useDataStore = create<DataState>()((...args) => {
       marginMm: 10,
     },
     vectorSidecar: null,
-    spatialIndex: initialQuadTree,
     dirtyShapeIds: new Set<string>(),
 
     clearDirtyShapeIds: () => set({ dirtyShapeIds: new Set() }),
@@ -109,13 +100,6 @@ export const useDataStore = create<DataState>()((...args) => {
       const safeMargin = Math.max(0, Math.min(marginMm, state.frame.widthMm / 2, state.frame.heightMm / 2));
       return { frame: { ...state.frame, marginMm: safeMargin } };
     }),
-
-    // Coordination
-    syncQuadTree: () => {
-      const { shapes, spatialIndex } = get();
-      spatialIndex.clear();
-      Object.values(shapes).forEach(shape => spatialIndex.insert(shape));
-    },
 
     serializeProject: () => {
         const { layers, shapes, shapeOrder, activeLayerId, vectorSidecar } = get();
@@ -160,9 +144,6 @@ export const useDataStore = create<DataState>()((...args) => {
       const nextShapeOrder = project.shapes.map((s) => s.id);
       const vectorSidecar = migrateVectorSidecar(project.vectorSidecar);
 
-      const spatialIndex = new QuadTree({ x: -100000, y: -100000, width: 200000, height: 200000 });
-      Object.values(nextShapes).forEach((shape) => spatialIndex.insert(shape));
-
       set({
         layers: project.layers.map(normalizeLayerStyle),
         shapes: nextShapes,
@@ -171,7 +152,6 @@ export const useDataStore = create<DataState>()((...args) => {
         worldScale,
         frame,
         vectorSidecar,
-        spatialIndex,
         dirtyShapeIds: new Set(Object.keys(nextShapes)), // Mark all as dirty on load
         past: history?.past ?? [],
         future: history?.future ?? [],

@@ -78,6 +78,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getAtlasTextureMeta", &CadEngine::getAtlasTextureMeta)
         .function("isAtlasDirty", &CadEngine::isAtlasDirty)
         .function("clearAtlasDirty", &CadEngine::clearAtlasDirty)
+        .function("isTextQuadsDirty", &CadEngine::isTextQuadsDirty)
         .function("getTextContentMeta", &CadEngine::getTextContentMeta)
         .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
         .function("getTextStyleSnapshot", &CadEngine::getTextStyleSnapshot)

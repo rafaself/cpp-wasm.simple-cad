@@ -22,43 +22,6 @@ export const toWorldPoint = (
 };
 
 /**
- * Pick a shape at a world point using geometry-based hit testing.
- */
-export const pickShapeAtGeometry = (
-  worldPoint: Point,
-  toleranceWorld: number,
-): string | null => {
-  const data = useDataStore.getState();
-  const ui = useUIStore.getState();
-
-  const queryRect = {
-    x: worldPoint.x - toleranceWorld,
-    y: worldPoint.y - toleranceWorld,
-    width: toleranceWorld * 2,
-    height: toleranceWorld * 2,
-  };
-
-  const candidates = data.spatialIndex
-    .query(queryRect)
-    .map((c: any) => data.shapes[c.id])
-    .filter(Boolean) as Shape[];
-
-  for (const shape of candidates) {
-    const layer = data.layers.find((l) => l.id === shape.layerId);
-    if (layer && (!layer.visible || layer.locked)) continue;
-    if (!isShapeInteractable(shape, { activeFloorId: ui.activeFloorId ?? 'terreo', activeDiscipline: ui.activeDiscipline })) continue;
-
-    // Engine is now authoritative for Line and Polyline picking.
-    // Do not fallback to JS geometry checks for these types.
-    if (shape.type === 'line' || shape.type === 'polyline') continue;
-
-    if (isPointInShape(worldPoint, shape, ui.viewTransform.scale || 1, layer)) return shape.id;
-  }
-
-  return null;
-};
-
-/**
  * Clamp tiny values to zero (for floating point stability).
  */
 export const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
