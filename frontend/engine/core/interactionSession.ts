@@ -22,6 +22,7 @@ const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 
 export type MoveCommitPayload = { dx: number; dy: number };
 export type VertexSetCommitPayload = { vertexIndex: number; x: number; y: number };
+export type ResizeCommitPayload = { x: number; y: number; width: number; height: number };
 
 export const decodeMovePayload = (payloads: Float32Array, i: number): MoveCommitPayload | null => {
   const o = i * COMMIT_PAYLOAD_STRIDE;
@@ -49,6 +50,24 @@ export const decodeVertexSetPayload = (payloads: Float32Array, i: number): Verte
   const rounded = Math.round(rawIndex);
   const vertexIndex = Math.abs(rawIndex - rounded) < 1e-3 ? rounded : Math.trunc(rawIndex);
   return { vertexIndex, x, y };
+};
+
+// Contract (C++):
+// - payload[0] = x (rect: minX, circle/polygon: cx)
+// - payload[1] = y (rect: minY, circle/polygon: cy)
+// - payload[2] = width  (rect: w, circle/polygon: diameterX)
+// - payload[3] = height (rect: h, circle/polygon: diameterY)
+export const decodeResizePayload = (payloads: Float32Array, i: number): ResizeCommitPayload | null => {
+  const o = i * COMMIT_PAYLOAD_STRIDE;
+  if (o + 3 >= payloads.length) return null;
+
+  const x = payloads[o + 0]!;
+  const y = payloads[o + 1]!;
+  const width = payloads[o + 2]!;
+  const height = payloads[o + 3]!;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) return null;
+
+  return { x, y, width, height };
 };
 
 export const applyCommitOpToShape = (shape: Shape, op: TransformOpCode, payloads: Float32Array, i: number): Partial<Shape> | null => {
@@ -82,6 +101,27 @@ export const applyCommitOpToShape = (shape: Shape, op: TransformOpCode, payloads
     return { points: nextPoints };
   }
 
+  if (op === TransformOpCode.RESIZE) {
+    const resize = decodeResizePayload(payloads, i);
+    if (!resize) return null;
+
+    const nextX = clampTiny(resize.x);
+    const nextY = clampTiny(resize.y);
+    const nextW = Math.max(1e-3, resize.width);
+    const nextH = Math.max(1e-3, resize.height);
+
+    const diff: Partial<Shape> = {};
+    if (shape.x === undefined || shape.x !== nextX) diff.x = nextX;
+    if (shape.y === undefined || shape.y !== nextY) diff.y = nextY;
+    if (shape.width === undefined || shape.width !== nextW) diff.width = nextW;
+    if (shape.height === undefined || shape.height !== nextH) diff.height = nextH;
+
+    if ((shape.type === 'circle' || shape.type === 'polygon') && shape.radius !== undefined) {
+      diff.radius = undefined;
+    }
+
+    return Object.keys(diff).length > 0 ? diff : null;
+  }
+
   return null;
 };
-

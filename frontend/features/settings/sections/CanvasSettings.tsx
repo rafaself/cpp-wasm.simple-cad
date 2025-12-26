@@ -195,9 +195,9 @@ const CanvasSettings: React.FC = () => {
 
       <Section title="Dev">
         <Toggle
-          label="Enable Text Resize (Dev)"
-          checked={settings.featureFlags.enableTextResize}
-          onChange={settings.setTextResizeEnabled}
+          label="Enable Engine Resize (Dev)"
+          checked={settings.featureFlags.enableEngineResize}
+          onChange={settings.setEngineResizeEnabled}
         />
       </Section>
 

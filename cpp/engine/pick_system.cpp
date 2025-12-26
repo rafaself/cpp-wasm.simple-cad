@@ -25,6 +25,28 @@ static float distToSegmentSq(float px, float py, float x1, float y1, float x2, f
     return distSq(px, py, x1 + t * (x2 - x1), y1 + t * (y2 - y1));
 }
 
+static bool tryPickResizeHandleAabb(float x, float y, float tol, float minX, float minY, float maxX, float maxY, float& bestDist, PickCandidate& outCandidate) {
+    bool hit = false;
+    const float corners[4][2] = {
+        {minX, minY},
+        {maxX, minY},
+        {maxX, maxY},
+        {minX, maxY},
+    };
+
+    for (int i = 0; i < 4; ++i) {
+        const float d = std::sqrt(distSq(x, y, corners[i][0], corners[i][1]));
+        if (d <= tol && d < bestDist) {
+            bestDist = d;
+            outCandidate.subTarget = PickSubTarget::ResizeHandle;
+            outCandidate.subIndex = i;
+            hit = true;
+        }
+    }
+
+    return hit;
+}
+
 // SpatialHashGrid implementation
 SpatialHashGrid::SpatialHashGrid(float cellSize) : cellSize_(cellSize) {}
 
@@ -247,31 +269,28 @@ bool PickSystem::checkCandidate(
         float maxX = r->x + r->w;
         float maxY = r->y + r->h;
 
+        // Resize Handles (BBox corners)
+        if (pickMask & PICK_HANDLES) {
+            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                outCandidate.distance = bestDist;
+                return true;
+            }
+        }
+
         // Vertex
         if (pickMask & PICK_VERTEX) {
             float dCorners[4] = {
-                distSq(x, y, minX, minY), // TL
-                distSq(x, y, maxX, minY), // TR
-                distSq(x, y, maxX, maxY), // BR
-                distSq(x, y, minX, maxY)  // BL
+                distSq(x, y, minX, minY),
+                distSq(x, y, maxX, minY),
+                distSq(x, y, maxX, maxY),
+                distSq(x, y, minX, maxY)
             };
             for(int i=0; i<4; ++i) {
                 float d = std::sqrt(dCorners[i]);
                 if (d <= tol && d < bestDist) {
                     bestDist = d;
                     outCandidate.subTarget = PickSubTarget::Vertex;
-                    outCandidate.subIndex = i; // 0=TL, 1=TR, 2=BR, 3=BL (matches geometry.ts corner order? geometry.ts says 0=BL usually, check consistency. TS: BL, BR, TR, TL? Let's stick to standard order. JS uses BL=0 usually? Let's use 0=TL for now consistent with visual flow, or match geometry.ts)
-                    // geometry.ts usually returns [BL, BR, TR, TL].
-                    // Let's map: 0:BL (minX, maxY), 1:BR (maxX, maxY), 2:TR (maxX, minY), 3:TL (minX, minY).
-                    // In Y-UP (CAD): Y+ is Up.
-                    // minX, minY is Bottom-Left?
-                    // If Y-Up: minX, minY is Bottom-Left.
-                    // Let's assume minX, minY is the anchor.
-                    // If standard 2D, minX,minY is Top-Left usually.
-                    // BUT this is a CAD engine. Y-Up?
-                    // "Cartesian coordinate system (Y-axis points UP)".
-                    // So minX, minY is Bottom-Left.
-                    // Let's index: 0=BL (min,min), 1=BR (max,min), 2=TR (max,max), 3=TL (min,max).
+                    outCandidate.subIndex = i;
                 }
             }
         }
@@ -327,6 +346,20 @@ bool PickSystem::checkCandidate(
         // Ellipse math is hard, treat as circle for MVP if sx=sy
         // Assuming uniform scale for now or just simple radius check
         // Check types.h: cx, cy, rx, ry.
+
+        // Resize Handles (BBox corners)
+        if (pickMask & PICK_HANDLES) {
+            const float rx = std::abs(c->rx * c->sx);
+            const float ry = std::abs(c->ry * c->sy);
+            const float minX = c->cx - rx;
+            const float maxX = c->cx + rx;
+            const float minY = c->cy - ry;
+            const float maxY = c->cy + ry;
+            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                outCandidate.distance = bestDist;
+                return true;
+            }
+        }
 
         // Transform point to local unit circle
         // But let's assume circle for now (rx approx ry)
@@ -470,6 +503,21 @@ bool PickSystem::checkCandidate(
     // 6. POLYGON (Regular)
     else if (const PolygonRec* p = entities.getPolygon(id)) {
         outCandidate.kind = PickEntityKind::Polygon;
+
+        // Resize Handles (BBox corners)
+        if (pickMask & PICK_HANDLES) {
+            const float rx = std::abs(p->rx * p->sx);
+            const float ry = std::abs(p->ry * p->sy);
+            const float minX = p->cx - rx;
+            const float maxX = p->cx + rx;
+            const float minY = p->cy - ry;
+            const float maxY = p->cy + ry;
+            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                outCandidate.distance = bestDist;
+                return true;
+            }
+        }
+
         // Treat like circle for bounds, but check edges for regular polygon math?
         // Too complex for blind coding. Fallback to Circle-ish logic or simple radius.
         float dist = std::sqrt(distSq(x, y, p->cx, p->cy));

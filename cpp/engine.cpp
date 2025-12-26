@@ -1195,34 +1195,44 @@ void CadEngine::beginTransform(
         auto it = entityManager_.entities.find(id);
         if (it == entityManager_.entities.end()) continue; // Should not happen in valid flow
 
-        TransformSnapshot snap;
-        snap.id = id;
-        
-        // Capture based on entity type
-        if (it->second.kind == EntityKind::Rect) {
-            for (const auto& r : entityManager_.rects) {
-                if (r.id == id) {
-                    snap.x = r.x;
-                    snap.y = r.y;
-                    break;
-                }
-            }
-        } else if (it->second.kind == EntityKind::Circle) {
-             for (const auto& c : entityManager_.circles) {
-                if (c.id == id) {
-                    snap.x = c.cx;
-                    snap.y = c.cy;
-                    break;
-                }
-            }
-        } else if (it->second.kind == EntityKind::Polygon) {
-             for (const auto& p : entityManager_.polygons) {
-                if (p.id == id) {
-                    snap.x = p.cx;
-                    snap.y = p.cy;
-                    break;
-                }
-            }
+	        TransformSnapshot snap;
+	        snap.id = id;
+	        snap.x = 0.0f;
+	        snap.y = 0.0f;
+	        snap.w = 0.0f;
+	        snap.h = 0.0f;
+	        
+	        // Capture based on entity type
+	        if (it->second.kind == EntityKind::Rect) {
+	            for (const auto& r : entityManager_.rects) {
+	                if (r.id == id) {
+	                    snap.x = r.x;
+	                    snap.y = r.y;
+	                    snap.w = r.w;
+	                    snap.h = r.h;
+	                    break;
+	                }
+	            }
+	        } else if (it->second.kind == EntityKind::Circle) {
+	             for (const auto& c : entityManager_.circles) {
+	                if (c.id == id) {
+	                    snap.x = c.cx;
+	                    snap.y = c.cy;
+	                    snap.w = c.rx;
+	                    snap.h = c.ry;
+	                    break;
+	                }
+	            }
+	        } else if (it->second.kind == EntityKind::Polygon) {
+	             for (const auto& p : entityManager_.polygons) {
+	                if (p.id == id) {
+	                    snap.x = p.cx;
+	                    snap.y = p.cy;
+	                    snap.w = p.rx;
+	                    snap.h = p.ry;
+	                    break;
+	                }
+	            }
         } else if (it->second.kind == EntityKind::Text) {
              // Text handled via TextStore
              const TextRec* tr = textSystem_.store.getText(id);
@@ -1331,9 +1341,9 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                  }
              }
         }
-    } else if (session_.mode == TransformMode::VertexDrag) {
-        std::uint32_t id = session_.specificId;
-        int32_t idx = session_.vertexIndex;
+	    } else if (session_.mode == TransformMode::VertexDrag) {
+	        std::uint32_t id = session_.specificId;
+	        int32_t idx = session_.vertexIndex;
         
         const TransformSnapshot* snap = nullptr;
         for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
@@ -1380,13 +1390,104 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                           }
                       }
                  }
-             }
-        }
-    }
+	             }
+	        }
+	    }
+	    else if (session_.mode == TransformMode::Resize) {
+	        std::uint32_t id = session_.specificId;
+	        const int32_t handleIndex = session_.vertexIndex;
 
-    renderDirty = true;
-    snapshotDirty = true;
-}
+	        const TransformSnapshot* snap = nullptr;
+	        for (const auto& s : session_.snapshots) {
+	            if (s.id == id) { snap = &s; break; }
+	        }
+
+	        if (!snap || handleIndex < 0 || handleIndex > 3) {
+	            renderDirty = true;
+	            snapshotDirty = true;
+	            return;
+	        }
+
+	        auto it = entityManager_.entities.find(id);
+	        if (it == entityManager_.entities.end()) {
+	            renderDirty = true;
+	            snapshotDirty = true;
+	            return;
+	        }
+
+	        // Compute original AABB from snapshot (in world space).
+	        float origMinX = 0.0f, origMinY = 0.0f, origMaxX = 0.0f, origMaxY = 0.0f;
+	        if (it->second.kind == EntityKind::Rect) {
+	            origMinX = snap->x;
+	            origMinY = snap->y;
+	            origMaxX = snap->x + snap->w;
+	            origMaxY = snap->y + snap->h;
+	        } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
+	            // Snapshot stores rx/ry in w/h for circles/polygons.
+	            origMinX = snap->x - snap->w;
+	            origMaxX = snap->x + snap->w;
+	            origMinY = snap->y - snap->h;
+	            origMaxY = snap->y + snap->h;
+	        } else {
+	            renderDirty = true;
+	            snapshotDirty = true;
+	            return;
+	        }
+
+	        // Handle index order matches frontend (geometry.ts): 0=BL, 1=BR, 2=TR, 3=TL
+	        float anchorX = 0.0f, anchorY = 0.0f;
+	        switch (handleIndex) {
+	            case 0: anchorX = origMaxX; anchorY = origMaxY; break; // BL -> anchor TR
+	            case 1: anchorX = origMinX; anchorY = origMaxY; break; // BR -> anchor TL
+	            case 2: anchorX = origMinX; anchorY = origMinY; break; // TR -> anchor BL
+	            case 3: anchorX = origMaxX; anchorY = origMinY; break; // TL -> anchor BR
+	            default: break;
+	        }
+
+	        const float minX = std::min(anchorX, worldX);
+	        const float maxX = std::max(anchorX, worldX);
+	        const float minY = std::min(anchorY, worldY);
+	        const float maxY = std::max(anchorY, worldY);
+
+	        const float w = std::max(1e-3f, maxX - minX);
+	        const float h = std::max(1e-3f, maxY - minY);
+
+	        if (it->second.kind == EntityKind::Rect) {
+	            for (auto& r : entityManager_.rects) {
+	                if (r.id != id) continue;
+	                r.x = minX;
+	                r.y = minY;
+	                r.w = w;
+	                r.h = h;
+	                pickSystem_.update(id, PickSystem::computeRectAABB(r));
+	                break;
+	            }
+	        } else if (it->second.kind == EntityKind::Circle) {
+	            for (auto& c : entityManager_.circles) {
+	                if (c.id != id) continue;
+	                c.cx = (minX + maxX) * 0.5f;
+	                c.cy = (minY + maxY) * 0.5f;
+	                c.rx = w * 0.5f;
+	                c.ry = h * 0.5f;
+	                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
+	                break;
+	            }
+	        } else if (it->second.kind == EntityKind::Polygon) {
+	            for (auto& p : entityManager_.polygons) {
+	                if (p.id != id) continue;
+	                p.cx = (minX + maxX) * 0.5f;
+	                p.cy = (minY + maxY) * 0.5f;
+	                p.rx = w * 0.5f;
+	                p.ry = h * 0.5f;
+	                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
+	                break;
+	            }
+	        }
+	    }
+
+	    renderDirty = true;
+	    snapshotDirty = true;
+	}
 
 void CadEngine::commitTransform() {
     if (!session_.active) return;
@@ -1484,18 +1585,71 @@ void CadEngine::commitTransform() {
              }
          }
          
-         if (found) {
-             commitResultIds.push_back(id);
-             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::VERTEX_SET));
-             commitResultPayloads.push_back(static_cast<float>(idx));
-             commitResultPayloads.push_back(cx);
-             commitResultPayloads.push_back(cy);
-             commitResultPayloads.push_back(0.0f);
-         }
-    }
+	         if (found) {
+	             commitResultIds.push_back(id);
+	             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::VERTEX_SET));
+	             commitResultPayloads.push_back(static_cast<float>(idx));
+	             commitResultPayloads.push_back(cx);
+	             commitResultPayloads.push_back(cy);
+	             commitResultPayloads.push_back(0.0f);
+	         }
+	    } else if (session_.mode == TransformMode::Resize) {
+	        for (const auto& snap : session_.snapshots) {
+	            const std::uint32_t id = snap.id;
+	            auto it = entityManager_.entities.find(id);
+	            if (it == entityManager_.entities.end()) continue;
 
-    session_ = InteractionSession{};
-}
+	            float outX = 0.0f;
+	            float outY = 0.0f;
+	            float outW = 0.0f;
+	            float outH = 0.0f;
+	            bool found = false;
+
+	            if (it->second.kind == EntityKind::Rect) {
+	                for (const auto& r : entityManager_.rects) {
+	                    if (r.id != id) continue;
+	                    outX = r.x;
+	                    outY = r.y;
+	                    outW = r.w;
+	                    outH = r.h;
+	                    found = true;
+	                    break;
+	                }
+	            } else if (it->second.kind == EntityKind::Circle) {
+	                for (const auto& c : entityManager_.circles) {
+	                    if (c.id != id) continue;
+	                    outX = c.cx;
+	                    outY = c.cy;
+	                    outW = c.rx * 2.0f;
+	                    outH = c.ry * 2.0f;
+	                    found = true;
+	                    break;
+	                }
+	            } else if (it->second.kind == EntityKind::Polygon) {
+	                for (const auto& p : entityManager_.polygons) {
+	                    if (p.id != id) continue;
+	                    outX = p.cx;
+	                    outY = p.cy;
+	                    outW = p.rx * 2.0f;
+	                    outH = p.ry * 2.0f;
+	                    found = true;
+	                    break;
+	                }
+	            }
+
+	            if (!found) continue;
+
+	            commitResultIds.push_back(id);
+	            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::RESIZE));
+	            commitResultPayloads.push_back(outX);
+	            commitResultPayloads.push_back(outY);
+	            commitResultPayloads.push_back(outW);
+	            commitResultPayloads.push_back(outH);
+	        }
+	    }
+
+	    session_ = InteractionSession{};
+	}
 
 void CadEngine::cancelTransform() {
     if (!session_.active) return;
@@ -1506,13 +1660,49 @@ void CadEngine::cancelTransform() {
          if (it == entityManager_.entities.end()) continue;
          
          if (it->second.kind == EntityKind::Rect) {
-             for (auto& r : entityManager_.rects) { if (r.id == id) { r.x = snap.x; r.y = snap.y; break; } }
+             for (auto& r : entityManager_.rects) {
+                 if (r.id == id) {
+                     r.x = snap.x;
+                     r.y = snap.y;
+                     r.w = snap.w;
+                     r.h = snap.h;
+                     pickSystem_.update(id, PickSystem::computeRectAABB(r));
+                     break;
+                 }
+             }
          } else if (it->second.kind == EntityKind::Circle) {
-              for (auto& c : entityManager_.circles) { if (c.id == id) { c.cx = snap.x; c.cy = snap.y; break; } }
+              for (auto& c : entityManager_.circles) {
+                  if (c.id == id) {
+                      c.cx = snap.x;
+                      c.cy = snap.y;
+                      c.rx = snap.w;
+                      c.ry = snap.h;
+                      pickSystem_.update(id, PickSystem::computeCircleAABB(c));
+                      break;
+                  }
+              }
          } else if (it->second.kind == EntityKind::Polygon) {
-              for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x; p.cy = snap.y; break; } }
+              for (auto& p : entityManager_.polygons) {
+                  if (p.id == id) {
+                      p.cx = snap.x;
+                      p.cy = snap.y;
+                      p.rx = snap.w;
+                      p.ry = snap.h;
+                      pickSystem_.update(id, PickSystem::computePolygonAABB(p));
+                      break;
+                  }
+              }
          } else if (it->second.kind == EntityKind::Text) {
-             TextRec* tr = textSystem_.store.getTextMutable(id); if (tr) { tr->x = snap.x; tr->y = snap.y; textQuadsDirty_ = true; }
+             TextRec* tr = textSystem_.store.getTextMutable(id);
+             if (tr) {
+                 tr->x = snap.x;
+                 tr->y = snap.y;
+                 textQuadsDirty_ = true;
+                 float minX, minY, maxX, maxY;
+                 if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
+                     pickSystem_.update(id, {minX, minY, maxX, maxY});
+                 }
+             }
          } else if (it->second.kind == EntityKind::Polyline) {
              for (auto& pl : entityManager_.polylines) {
                  if (pl.id == id) {

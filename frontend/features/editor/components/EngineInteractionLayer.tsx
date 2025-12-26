@@ -44,6 +44,7 @@ const EngineInteractionLayer: React.FC = () => {
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
+  const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
 
   const layerRef = useRef<HTMLDivElement | null>(null);
   const capturedPointerIdRef = useRef<number | null>(null);
@@ -354,12 +355,12 @@ const EngineInteractionLayer: React.FC = () => {
 	        // ------------------------------------------------------------------
 	        // NEW: Engine-First Picking Logic
 	        // ------------------------------------------------------------------
-        if (runtimeRef.current) {
-            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-            // Mask: Body | Edge | Vertex | Handles (future)
-            const pickMask = 15; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
-            // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
-            // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
+	        if (runtimeRef.current) {
+	            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+	            // Mask: Body | Edge | Vertex (+ Handles behind feature flag)
+	            const pickMask = enableEngineResize ? 15 : 7; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
+	            // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
+	            // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
 
             const res = runtimeRef.current.pickEx(world.x, world.y, tolerance, pickMask);
 
@@ -401,6 +402,25 @@ const EngineInteractionLayer: React.FC = () => {
 	                        .map((id) => getEngineId(id))
 	                        .filter((x): x is number => x !== null && x !== 0);
 
+	                     if (enableEngineResize && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0 && shape) {
+	                         // Engine-first bbox resize (dev-flagged). For now, force single-shape resize.
+	                         if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') {
+	                           const nextSingle = new Set([strId]);
+	                           if (selectedShapeIds.size !== 1 || !selectedShapeIds.has(strId)) {
+	                             setSelectedShapeIds(nextSingle);
+	                           }
+
+	                           const idHash = getEngineId(strId);
+	                           if (idHash !== null) {
+	                             const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
+	                             setCursorOverride(cursor);
+	                             runtimeRef.current.beginTransform([idHash], TransformMode.Resize, idHash, res.subIndex, snapped.x, snapped.y);
+	                             dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: strId };
+	                             return;
+	                           }
+	                         }
+	                     }
+
 	                     if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0 && shape) {
 	                         // Shape Vertex Drag
 	                         const idHash = getEngineId(strId);
@@ -425,14 +445,14 @@ const EngineInteractionLayer: React.FC = () => {
 	                              return;
 	                          }
 	                     }
-	                     else if (res.subTarget === PickSubTarget.Body) {
+	                     else if (res.subTarget === PickSubTarget.Body || res.subTarget === PickSubTarget.TextBody) {
 	                          if (activeIds.length > 0) {
 	                              setCursorOverride('move');
 	                              runtimeRef.current.beginTransform(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y);
 	                              dragRef.current = { type: "engine_session", startWorld: snapped };
 	                              return;
 	                          }
-                     }
+	                     }
                  }
             }
 	            if (res.id !== 0 && res.subTarget === PickSubTarget.None) {
@@ -559,8 +579,13 @@ const EngineInteractionLayer: React.FC = () => {
 	        }
 
 	        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-	        const pickMask = 3; // Body(1) | Edge(2)
+	        const pickMask = enableEngineResize ? 15 : 3; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
 	        const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
+	        if (enableEngineResize && res.subTarget === PickSubTarget.ResizeHandle) {
+	          const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
+	          setCursorOverride(cursor);
+	          return;
+	        }
 	        setCursorOverride(res.id !== 0 ? 'move' : null);
 	        return;
 	      }

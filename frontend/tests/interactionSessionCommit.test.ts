@@ -83,5 +83,28 @@ describe('interactionSession commit decoding (Phase 0)', () => {
     const diff = applyCommitOpToShape(shape, TransformOpCode.VERTEX_SET, payloads, 0);
     expect(diff).toEqual({ points: [{ x: 0, y: 0 }, { x: 9, y: 9 }] });
   });
-});
 
+  it('applies RESIZE payload as [x, y, w, h] to bbox shapes', () => {
+    const shape = baseShape({ type: 'rect', x: 10, y: 20, width: 5, height: 6, points: [] });
+    const payloads = new Float32Array([12, 18, 7, 9]);
+
+    const diff = applyCommitOpToShape(shape, TransformOpCode.RESIZE, payloads, 0);
+    expect(diff).toEqual({ x: 12, y: 18, width: 7, height: 9 });
+  });
+
+  it('clears radius when applying RESIZE to circles/polygons', () => {
+    const shape = baseShape({ type: 'circle', x: 1, y: 2, radius: 5, points: [] });
+    const payloads = new Float32Array([3, 4, 20, 10]);
+
+    const diff = applyCommitOpToShape(shape, TransformOpCode.RESIZE, payloads, 0);
+    expect(diff).toEqual({ x: 3, y: 4, width: 20, height: 10, radius: undefined });
+  });
+
+  it('returns null when RESIZE does not change the shape', () => {
+    const shape = baseShape({ type: 'rect', x: 10, y: 20, width: 5, height: 6, points: [] });
+    const payloads = new Float32Array([10, 20, 5, 6]);
+
+    const diff = applyCommitOpToShape(shape, TransformOpCode.RESIZE, payloads, 0);
+    expect(diff).toBeNull();
+  });
+});

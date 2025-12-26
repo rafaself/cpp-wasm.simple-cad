@@ -90,6 +90,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
+  const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
 
   const layers = useDataStore((s) => s.layers);
 
@@ -157,19 +158,13 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
       if (supportsBBoxResize(shape)) {
         const r = getRectCornersWorld(shape);
         if (!r) return;
-        
-        // Check feature flag for text resize handles
-        let showHandles = true;
-        if (shape.type === 'text') {
-           const allowTextResize = useSettingsStore.getState().featureFlags.enableTextResize;
-           if (!allowTextResize) showHandles = false;
-        }
 
-        const handles = showHandles 
-          ? getShapeHandles(shape)
-              .filter((h) => h.type === 'resize')
-              .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform))
-          : [];
+        const handles =
+          enableEngineResize && shape.type !== 'text'
+            ? getShapeHandles(shape)
+                .filter((h) => h.type === 'resize')
+                .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform))
+            : [];
 
         const outline = inflateConvexPolygon(r.corners.map((p) => worldToScreen(p, viewTransform)), OUTLINE_OFFSET_PX);
         items.push({
@@ -246,7 +241,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
         })}
       </svg>
     );
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
+  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, enableEngineResize, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
 
   return selectedOverlaySvg;
 };

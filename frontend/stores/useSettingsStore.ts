@@ -50,7 +50,7 @@ interface SettingsState {
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
   featureFlags: {
-    enableTextResize: boolean;
+    enableEngineResize: boolean;
   };
 
   setSnapEnabled: (enabled: boolean) => void;
@@ -86,7 +86,7 @@ interface SettingsState {
   setTextUnderline: (underline: boolean) => void;
   setTextStrike: (strike: boolean) => void;
 
-  setTextResizeEnabled: (enabled: boolean) => void;
+  setEngineResizeEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -137,7 +137,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
   },
   featureFlags: {
-    enableTextResize: false,
+    enableEngineResize: false,
   },
 
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
@@ -172,5 +172,5 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
   setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
   setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
-  setTextResizeEnabled: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, enableTextResize: enabled } })),
+  setEngineResizeEnabled: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, enableEngineResize: enabled } })),
 }));

@@ -483,6 +483,7 @@ private:
     struct TransformSnapshot {
         std::uint32_t id;
         float x, y; // For rects/circles/text/etc
+        float w, h; // For rects/circles/polygons (rect: w/h, circle/polygon: rx/ry)
         std::vector<Point2> points; // For lines/polylines
     };
 

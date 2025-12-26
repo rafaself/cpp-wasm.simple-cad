@@ -2,19 +2,22 @@
 
 ## 1. Executive Summary
 
-- Veredito técnico: ainda NÃO pronto como “gate final” por ausência de Resize/handles end-to-end, mas o pipeline crítico
-  de sessão (commit/cancel) e o contrato ABI MOVE/VERTEX_SET estão coerentes e cobertos por testes.
+- Veredito técnico: ainda NÃO pronto como “gate final” por riscos remanescentes (marquee com filtro geométrico em JS,
+  semântica de locked/discipline fora do Engine, overlays O(N)), mas o pipeline crítico de sessão (commit/cancel) e o
+  resize end-to-end (dev-flagged) estão coerentes e cobertos por testes.
 - RESOLVIDO (persistência): commitTransform() aplica diffs no Source of Truth (Zustand) e grava histórico/undo
   (frontend/features/editor/components/EngineInteractionLayer.tsx, frontend/engine/core/interactionSession.ts).
 - RESOLVIDO (ABI/semântica): VERTEX_SET decodifica payload [idx, x, y, _] alinhado ao Engine, com testes
   (frontend/engine/core/interactionSession.ts, frontend/tests/interactionSessionCommit.test.ts).
-- AINDA PENDENTE (resize/handles): não existe pipeline real para Resize via handles (pick/transform); PICK_HANDLES está
-  ausente/inefetivo no Engine (cpp/engine/pick_system.cpp) e não há TransformMode.Resize end-to-end.
+- IMPLEMENTADO (resize/handles, dev-flagged): pickEx retorna ResizeHandle e TransformMode.Resize emite RESIZE com
+  commit→Store (enableEngineResize default-off).
 - Seleção por clique/hover: consolidada em pickEx no EngineInteractionLayer (sem hit-test JS no caminho de clique);
   useSelectInteraction ficou marquee-only (frontend/features/editor/hooks/useSelectInteraction.ts).
+- Guardrails de resize: default-off por feature flag; sem flag, não há handles visíveis e o pickMask do select exclui
+  PICK_HANDLES (frontend/features/editor/components/SelectionOverlay.tsx, frontend/features/editor/components/EngineInteractionLayer.tsx).
 - Sessões: cancelamento robusto (ESC/pointercancel/lostpointercapture/blur/visibilitychange) chama cancelTransform() e
   reduz risco de sessão “presa” travando o sync.
-- Testes: suíte pnpm test no frontend/ passou (Vitest: 31 files, 130 testes).
+- Testes: suíte pnpm test no frontend/ passou (Vitest: 31 files, 133 testes).
 
 ## 2. O que está CORRETO agora
 
@@ -47,12 +50,8 @@
 
 - Contrato de commit parcial: applyCommitOpToShape cobre MOVE e VERTEX_SET; qualquer novo TransformOpCode emitido pelo
   Engine precisa de mapeamento explícito no TS (senão o commit vira noop + warning DEV).
-- Resize/handles inexistente no pipeline real (CRÍTICO):
-  - Engine: PICK_HANDLES declarado como “not fully implemented” e não há emissão de PickSubTarget::ResizeHandle
-    (cpp/engine/pick_system.cpp:10).
-  - Frontend: não existe branch para PickSubTarget.ResizeHandle nem uso de TransformMode.Resize; SelectionOverlay
-    desenha handles com pointerEvents: none, portanto são apenas visuais (frontend/features/editor/components/
-    SelectionOverlay.tsx:200).
+- Resize/handles (parcial) engine-first: pipeline end-to-end existe para rect/circle/polygon via enableEngineResize,
+  mas text resize permanece fora de escopo (e a UI não expõe handles de text).
 - Risco residual de sessão “presa”: o hardening cobre ESC/pointercancel/lostpointercapture/blur/visibilitychange e
   cancel defensivo, mas bugs no C++/WASM ainda podem manter isInteractionActive() true e congelar o sync.
 - Semântica de “locked” inconsistente: buildVisibleOrder inclui shapes em layers locked (filtra só visible) (frontend/
@@ -77,30 +76,33 @@
 - Seleção/locks não são autoridade do Engine: lock/visibilidade/interatividade são aplicados no frontend (ex.:
   marquee) e não via flags no engine (inclusive SetEntityFlags nem existe no C++ e é evitado) (frontend/engine/core/
   useEngineStoreSync.ts:416).
-- Handles/Resize não são engine-first: não há picking/transform de handles no engine (cpp/engine/pick_system.cpp:10) e
-  não há pipeline correspondente no TS.
+- Handles/Resize engine-first (parcial): PICK_HANDLES retorna PickSubTarget.ResizeHandle (com subIndex 0..3) e
+  TransformMode.Resize/TransformOpCode.RESIZE são aplicados no Store; text resize segue desabilitado (cpp/engine/
+  pick_system.cpp, cpp/engine.cpp, frontend/engine/core/interactionSession.ts).
 
 ## 6. Checklist de Prontidão
 
 - [x] Click-select/hover no modo select é via pickEx (sem hit-test JS no caminho do clique).
 - [ ] Marquee selection não depende de filtro geométrico crítico em JS (ainda usa isShapeInSelection no frontend).
 - [x] Move com botão esquerdo funciona e persiste no Store (MOVE commit→updateShape).
-- [ ] Resize via handles altera shape real (pipeline ausente).
+- [x] Sem flag: não existem handles de resize visíveis/clicáveis no modo select (guardrail).
+- [x] Com flag: resize via handles altera shape real e persiste no Store (RESIZE commit→updateShape; undo/redo).
 - [x] Vertex drag persiste correto no Store (VERTEX_SET ABI alinhada e testada).
-- [ ] pickEx cobre subTargets necessários para UX (handles não implementados no engine).
+- [x] pickEx cobre subTargets necessários para UX (ResizeHandle implementado para bbox shapes).
 - [x] ESC cancela interação ativa (cancelTransform wired).
 - [x] Sync não interfere durante interação (guard por isInteractionActive) (frontend/engine/core/
       useEngineStoreSync.ts:410).
 - [x] Engine é autoridade durante a sessão; Store volta a ser autoridade após commit/cancel (React-first controlado).
-- [ ] Sem risco de ABI drift TS↔WASM no pipeline de interação (MOVE/VERTEX_SET locked; demais opCodes pendentes +
+- [ ] Sem risco de ABI drift TS↔WASM no pipeline de interação (MOVE/VERTEX_SET/RESIZE locked; demais opCodes pendentes +
       warning de duplicidade em commandBuffer.ts).
-- [x] Test suite passa (frontend: Vitest 130/130).
+- [x] Test suite passa (frontend: Vitest 133/133).
 
 ## 7. Veredito Final
 
 Ainda NÃO aprovado como “gate final”. Os blockers P0 do pipeline de commit/cancel (MOVE/VERTEX_SET) e a consolidação de
-click-select/hover via pickEx foram resolvidos (Fases 0–2), mas Resize/handles segue ausente end-to-end e ainda há
-riscos de coerência (marquee com filtro geométrico em JS, semântica de locked/discipline fora do Engine).
+click-select/hover via pickEx foram resolvidos (Fases 0–2), e o resize end-to-end foi entregue de forma controlada
+(FASE 4, feature flag). Permanecem riscos de coerência (marquee com filtro geométrico em JS, semântica de locked/
+discipline fora do Engine, overlays O(N)).
 
 ## 8. FASES
 
@@ -209,7 +211,7 @@ Implementação (principais evidências):
 
 ———
 
-FASE 3 — P1: Guardrails de UX (desativar Resize/Handles até existir suporte no Engine)
+FASE 3 — P1: Guardrails de UX (desativar Resize/Handles até existir suporte no Engine) (EXECUTADA)
 Objetivo:
 Remover affordances quebradas de resize para evitar que o usuário entre em fluxos inexistentes/inconsistentes.
 Problemas atacados:
@@ -229,9 +231,15 @@ Problemas atacados:
 - UX “mentirosa” gera bugs percebidos como seleção/move instáveis (na prática, tentativa de resize).
 - Aumenta ruído no QA e dificulta separar regressões reais do pipeline.
 
+Status:
+EXECUTADA.
+Implementação (principais evidências):
+- frontend/features/editor/components/SelectionOverlay.tsx (handles de resize ocultos por default; exibidos apenas com enableEngineResize).
+- frontend/features/editor/components/EngineInteractionLayer.tsx (sem flag: pickMask exclui PICK_HANDLES e não inicia TransformMode.Resize).
+
 ———
 
-FASE 4 — P2: Handles + Resize Engine-First (end-to-end, feature flag)
+FASE 4 — P2: Handles + Resize Engine-First (end-to-end, feature flag) (EXECUTADA)
 Objetivo:
 Entregar resize real via handles com pickEx + sessão no Engine + commit para o Store, de forma incremental e
 controlada.
@@ -253,6 +261,16 @@ Problemas atacados:
   Riscos se pulada:
 - Editor permanece sem um pilar de UX CAD/Figma (resize), limitando validação de “pronto para usuários”.
 - Pressão para reintroduzir resize via JS tende a recriar geometria duplicada e regressões.
+
+Status:
+EXECUTADA.
+Implementação (principais evidências):
+- cpp/engine/pick_system.cpp (PICK_HANDLES + PickSubTarget::ResizeHandle para rect/circle/polygon; subIndex 0..3).
+- cpp/engine.cpp (TransformMode::Resize: begin/update/commit/cancel; commit emite TransformOpCode::RESIZE stride=4).
+- frontend/features/editor/components/EngineInteractionLayer.tsx (pickMask inclui handles com enableEngineResize; inicia sessão Resize; cursor hover).
+- frontend/engine/core/interactionSession.ts (decode/aplica RESIZE → {x,y,width,height} no Store).
+- frontend/features/editor/components/SelectionOverlay.tsx (renderiza handles de resize apenas com enableEngineResize, exclui text).
+- frontend/tests/interactionSessionCommit.test.ts (cobertura unitária para RESIZE decode/apply).
 
 ———
 
