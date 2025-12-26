@@ -17,6 +17,7 @@ import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSy
 import { getShapeBoundingBox, worldToScreen } from '@/utils/geometry';
 import { PickSubTarget } from '@/types/picking';
 import { getEngineId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import { supportsEngineResize } from '@/engine/core/capabilities';
 
 // New hooks
 import { useSelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
@@ -45,6 +46,8 @@ const EngineInteractionLayer: React.FC = () => {
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
   const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
+  const engineCapabilitiesMask = useSettingsStore((s) => s.engineCapabilitiesMask);
+  const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
 
   const layerRef = useRef<HTMLDivElement | null>(null);
   const capturedPointerIdRef = useRef<number | null>(null);
@@ -358,7 +361,7 @@ const EngineInteractionLayer: React.FC = () => {
 	        if (runtimeRef.current) {
 	            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
 	            // Mask: Body | Edge | Vertex (+ Handles behind feature flag)
-	            const pickMask = enableEngineResize ? 15 : 7; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
+	            const pickMask = engineResizeEnabled ? 15 : 7; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
 	            // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
 	            // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
 
@@ -402,7 +405,7 @@ const EngineInteractionLayer: React.FC = () => {
 	                        .map((id) => getEngineId(id))
 	                        .filter((x): x is number => x !== null && x !== 0);
 
-	                     if (enableEngineResize && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0 && shape) {
+	                     if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0 && shape) {
 	                         // Engine-first bbox resize (dev-flagged). For now, force single-shape resize.
 	                         if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') {
 	                           const nextSingle = new Set([strId]);
@@ -579,9 +582,9 @@ const EngineInteractionLayer: React.FC = () => {
 	        }
 
 	        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-	        const pickMask = enableEngineResize ? 15 : 3; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
+	        const pickMask = engineResizeEnabled ? 15 : 3; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
 	        const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
-	        if (enableEngineResize && res.subTarget === PickSubTarget.ResizeHandle) {
+	        if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle) {
 	          const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
 	          setCursorOverride(cursor);
 	          return;

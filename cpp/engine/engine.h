@@ -35,6 +35,12 @@ public:
     // Expose legacy nested type names for backwards compatibility with existing callers/tests
     using CommandOp = ::CommandOp;
 
+    enum class EngineCapability : std::uint32_t {
+        HAS_QUERY_MARQUEE = 1 << 0,
+        HAS_RESIZE_HANDLES = 1 << 1,
+        HAS_TRANSFORM_RESIZE = 1 << 2,
+    };
+
     CadEngine();
 
     void clear() noexcept;
@@ -51,6 +57,11 @@ public:
 
     std::uint32_t getVertexCount() const noexcept;
     std::uintptr_t getVertexDataPtr() const noexcept;
+    std::uint32_t getCapabilities() const noexcept {
+        return static_cast<std::uint32_t>(EngineCapability::HAS_QUERY_MARQUEE)
+             | static_cast<std::uint32_t>(EngineCapability::HAS_RESIZE_HANDLES)
+             | static_cast<std::uint32_t>(EngineCapability::HAS_TRANSFORM_RESIZE);
+    }
 
     struct BufferMeta {
         std::uint32_t generation;

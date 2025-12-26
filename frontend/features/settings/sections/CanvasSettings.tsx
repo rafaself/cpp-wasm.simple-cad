@@ -5,9 +5,12 @@ import { Section } from "../../../components/ui/Section";
 import { Toggle } from "../../../components/ui/Toggle";
 import { UI } from "../../../design/tokens";
 import { RotateCcw } from "lucide-react";
+import { supportsEngineResize } from "../../../engine/core/capabilities";
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
+  const engineResizeSupported = supportsEngineResize(settings.engineCapabilitiesMask);
+  const engineResizeEnabled = settings.featureFlags.enableEngineResize && engineResizeSupported;
 
   // Color picker state
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(
@@ -195,8 +198,8 @@ const CanvasSettings: React.FC = () => {
 
       <Section title="Dev">
         <Toggle
-          label="Enable Engine Resize (Dev)"
-          checked={settings.featureFlags.enableEngineResize}
+          label={engineResizeSupported ? "Enable Engine Resize (Dev)" : "Enable Engine Resize (Dev) - requires WASM rebuild"}
+          checked={engineResizeEnabled}
           onChange={settings.setEngineResizeEnabled}
         />
       </Section>

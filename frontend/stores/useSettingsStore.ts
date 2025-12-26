@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { SnapOptions } from '../types';
 import { UI } from '../design/tokens';
+import { supportsEngineResize } from '@/engine/core/capabilities';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
 
@@ -52,6 +53,7 @@ interface SettingsState {
   featureFlags: {
     enableEngineResize: boolean;
   };
+  engineCapabilitiesMask: number;
 
   setSnapEnabled: (enabled: boolean) => void;
   setSnapOption: (option: keyof SnapOptions, value: boolean) => void;
@@ -87,6 +89,7 @@ interface SettingsState {
   setTextStrike: (strike: boolean) => void;
 
   setEngineResizeEnabled: (enabled: boolean) => void;
+  setEngineCapabilitiesMask: (mask: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -139,6 +142,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   featureFlags: {
     enableEngineResize: false,
   },
+  engineCapabilitiesMask: 0,
 
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
   setSnapOption: (option, value) => set((state) => ({ snap: { ...state.snap, [option]: value } })),
@@ -172,5 +176,19 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
   setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
   setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
-  setEngineResizeEnabled: (enabled) => set((state) => ({ featureFlags: { ...state.featureFlags, enableEngineResize: enabled } })),
+  setEngineResizeEnabled: (enabled) => set((state) => {
+    if (!enabled) {
+      if (!state.featureFlags.enableEngineResize) return state;
+      return { featureFlags: { ...state.featureFlags, enableEngineResize: false } };
+    }
+    if (!supportsEngineResize(state.engineCapabilitiesMask)) {
+      if (import.meta.env.DEV) {
+        console.warn('[Settings] enableEngineResize ignored: WASM lacks resize capabilities.');
+      }
+      return state;
+    }
+    if (state.featureFlags.enableEngineResize) return state;
+    return { featureFlags: { ...state.featureFlags, enableEngineResize: true } };
+  }),
+  setEngineCapabilitiesMask: (mask) => set((state) => (state.engineCapabilitiesMask === mask ? state : { engineCapabilitiesMask: mask })),
 }));

@@ -1,8 +1,10 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { IdRegistry } from './IdRegistry';
+import { supportsEngineResize, type EngineCapability } from './capabilities';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 
 export type BufferMeta = {
   generation: number;
@@ -33,6 +35,7 @@ export type CadEngineInstance = {
   getPositionBufferMeta: () => BufferMeta;
   getLineBufferMeta: () => BufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
+  getCapabilities?: () => number;
   pick: (x: number, y: number, tolerance: number) => number;
 
   // New extended pick (optional during migration)
@@ -90,16 +93,26 @@ export class EngineRuntime {
   public static async create(): Promise<EngineRuntime> {
     const module = await initCadEngineModule<WasmModule>();
     const engine = new module.CadEngine();
-    return new EngineRuntime(module, engine);
+    const runtime = new EngineRuntime(module, engine);
+    runtime.applyCapabilityGuards();
+    return runtime;
   }
 
   private constructor(
     public readonly module: WasmModule,
     public readonly engine: CadEngineInstance,
-  ) {}
+  ) {
+    this.capabilitiesMask = EngineRuntime.readCapabilities(engine);
+  }
+
+  public readonly capabilitiesMask: number;
 
   public resetIds(): void {
     IdRegistry.clear();
+  }
+
+  public hasCapability(capability: EngineCapability): boolean {
+    return (this.capabilitiesMask & capability) !== 0;
   }
 
   public clear(): void {
@@ -127,6 +140,30 @@ export class EngineRuntime {
       this.engine.applyCommandBuffer(ptr, bytes.byteLength);
     } finally {
       this.engine.freeBytes(ptr);
+    }
+  }
+
+  private static readCapabilities(engine: CadEngineInstance): number {
+    if (typeof engine.getCapabilities === 'function') {
+      return engine.getCapabilities();
+    }
+    if (import.meta.env.DEV) {
+      console.warn('[EngineRuntime] getCapabilities not found; assuming legacy WASM.');
+    }
+    return 0;
+  }
+
+  private applyCapabilityGuards(): void {
+    const store = useSettingsStore.getState();
+    store.setEngineCapabilitiesMask(this.capabilitiesMask);
+
+    const supportsResize = supportsEngineResize(this.capabilitiesMask);
+    if (!supportsResize) {
+      const wasEnabled = store.featureFlags.enableEngineResize;
+      store.setEngineResizeEnabled(false);
+      if (wasEnabled && import.meta.env.DEV) {
+        console.warn('[EngineRuntime] Engine resize disabled: WASM lacks resize capabilities.');
+      }
     }
   }
 

@@ -12,6 +12,7 @@ import {
   supportsBBoxResize
 } from '@/utils/geometry';
 import { Shape } from '@/types';
+import { supportsEngineResize } from '@/engine/core/capabilities';
 
 const HANDLE_SIZE_PX = 8;
 const OUTLINE_OFFSET_PX = 1;
@@ -91,6 +92,8 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
+  const engineCapabilitiesMask = useSettingsStore((s) => s.engineCapabilitiesMask);
+  const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
 
   const layers = useDataStore((s) => s.layers);
 
@@ -160,7 +163,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
         if (!r) return;
 
         const handles =
-          enableEngineResize && shape.type !== 'text'
+          engineResizeEnabled && shape.type !== 'text'
             ? getShapeHandles(shape)
                 .filter((h) => h.type === 'resize')
                 .map((h) => worldToScreen({ x: h.x, y: h.y }, viewTransform))
@@ -241,7 +244,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
         })}
       </svg>
     );
-  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, enableEngineResize, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
+  }, [activeDiscipline, activeFloorId, canvasSize.height, canvasSize.width, engineResizeEnabled, hideAnchors, isEditingAppearance, layers, selectedShapeIds, shapesById, viewTransform]);
 
   return selectedOverlaySvg;
 };

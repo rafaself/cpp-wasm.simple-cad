@@ -8,6 +8,7 @@ import {
 } from '@/utils/geometry';
 import { isShapeInteractable } from '@/utils/visibility';
 import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import { EngineCapability } from '@/engine/core/capabilities';
 
 // --- Types extracted from EngineInteractionLayer ---
 
@@ -112,7 +113,10 @@ export function useSelectInteraction(params: {
       const selected = new Set<string>();
 
       // Preferred (Phase 5): Engine returns the final selection set for WINDOW/CROSSING.
-      if (runtime && runtime.engine.queryMarquee) {
+      const canUseMarquee =
+        !!runtime?.hasCapability?.(EngineCapability.HasQueryMarquee) &&
+        typeof runtime?.engine?.queryMarquee === 'function';
+      if (runtime && canUseMarquee) {
         const selectedU32 = runtime.engine.queryMarquee(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, mode === 'WINDOW' ? 0 : 1);
         const count = selectedU32.size();
         for (let i = 0; i < count; ++i) {

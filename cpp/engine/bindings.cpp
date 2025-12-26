@@ -52,6 +52,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .value("VERTEX_SET", CadEngine::TransformOpCode::VERTEX_SET)
         .value("RESIZE", CadEngine::TransformOpCode::RESIZE);
 
+    emscripten::enum_<CadEngine::EngineCapability>("EngineCapability")
+        .value("HAS_QUERY_MARQUEE", CadEngine::EngineCapability::HAS_QUERY_MARQUEE)
+        .value("HAS_RESIZE_HANDLES", CadEngine::EngineCapability::HAS_RESIZE_HANDLES)
+        .value("HAS_TRANSFORM_RESIZE", CadEngine::EngineCapability::HAS_TRANSFORM_RESIZE);
+
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
         .function("clear", &CadEngine::clear)
@@ -65,6 +70,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getPositionBufferMeta", &CadEngine::getPositionBufferMeta)
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
+        .function("getCapabilities", &CadEngine::getCapabilities)
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
         .function("queryArea", &CadEngine::queryArea)
