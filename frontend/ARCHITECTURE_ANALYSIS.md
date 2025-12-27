@@ -1,47 +1,31 @@
-# Frontend Architecture Overview (Current)
+# Frontend Architecture Overview (Engine-First)
 
 This repo uses a high-performance rendering pipeline powered by WebGL2 and WASM.
 
 - `frontend/App.tsx` → `frontend/src/components/NextSurface.tsx`
-  - `frontend/src/components/TessellatedWasmLayer.tsx` (WebGL2 custom renderer fed by WASM buffers)
+  - `frontend/src/components/TessellatedWasmLayer.tsx` (WebGL2 renderer fed by WASM buffers)
   - `frontend/src/components/EngineInteractionLayer.tsx` (HTML overlay handling user input)
 
 ## 1) Source of Truth (Current State)
 
-This is currently a **hybrid**:
+The **C++/WASM engine is the only source of truth** for the document:
 
-- **Authoritative document store (temporary):** `frontend/stores/useDataStore.ts` (Zustand)
-  - Holds shapes, layers, connection graph, history (undo/redo), etc.
-- **Authoritative renderer buffers:** **C++/WASM engine**
-  - Receives shape updates via a **binary command buffer** (`applyCommandBuffer`) and rebuilds GPU buffers.
-  - Exposes a compact **snapshot** buffer for picking/selection and UI queries.
-
-The migration goal is to make **WASM the authoritative document model** (not just renderer buffers), and keep TS stores as view-model/UI state.
+- Entities, layers, flags, selection, draw order, history, and snapshots live in WASM.
+- The frontend never stores authoritative shapes or layers.
+- UI state (tool selection, viewport, panels, preferences) lives in `useUIStore` and `useSettingsStore`.
 
 ## 2) Rendering Flow
 
-- `TessellatedWasmLayer` manages a `requestAnimationFrame` loop that interfaces directly with the WASM engine.
-- It binds typed array views (from WASM memory) to WebGL2 buffers and renders:
-  - Tessellated geometry (triangles)
-  - Text (MSDF)
-  - Symbols
-- There is no dependency on Three.js or React-Three-Fiber.
+- `TessellatedWasmLayer` pulls render buffers directly from the engine on each frame.
+- No JS-side reconstruction of geometry or draw order is allowed.
 
 ## 3) Interaction Flow
 
-- `EngineInteractionLayer` is an `absolute` overlay that captures pointer/wheel events.
-- Picking uses `GpuPicker` (WebGL2-based framebuffer reading) for pixel-perfect accuracy, falling back to spatial index queries when needed.
-- Tools are implemented in TS for now and commit changes to `useDataStore`.
-- `frontend/engine/runtime/useEngineStoreSync.ts` subscribes to `useDataStore` and mirrors supported shapes into the WASM engine via commands.
+- `EngineInteractionLayer` captures input and sends **commands** to the engine.
+- Selection, picking, and overlays are resolved inside the engine and queried by the UI.
+- The UI reacts to the engine **event stream** and updates only UI state or caches.
 
-## 4) Key Performance Notes (Current)
+## 4) Performance Notes
 
-- Rendering is GPU-accelerated via raw WebGL2.
-- Remaining hotspots are mostly TS-side:
-  - decoding snapshot whenever engine `generation` changes.
-  - TS→WASM mirroring (`useEngineStoreSync`) still runs on every shape update.
-
-## 5) Next Steps (Roadmap)
-
-1) Move tool state machines into WASM (JS sends raw inputs/commands).
-2) Replace TS shapes as source-of-truth with an engine document model.
+- Interactive transforms avoid global rebuilds; only dirty entities are retessellated on commit.
+- Overlay geometry (bounds/handles/caret) is queried from the engine to avoid JS geometry math.

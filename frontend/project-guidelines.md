@@ -69,7 +69,7 @@ When asked to implement a new feature (e.g., "Add a Layer Manager"):
     *   *If specific:* Add to `src/features/editor/components`.
     *   *If new domain:* Create `src/features/layers/`.
 2.  **Define Types:** Update `src/types/index.ts` with new data structures.
-3.  **Update Store:** Add state slices and actions to the appropriate store (`src/stores/useDataStore.ts` for domain data, `src/stores/useUIStore.ts` for UI state).
+3.  **Update State:** Add UI-only state in `src/stores/useUIStore.ts` or `src/stores/useSettingsStore.ts` and send document mutations to the engine via commands.
 4.  **Create Logic/UI:** Implement components.
 5.  **Register:** If it's a tool/action, register it in `src/config/menu.ts`.
 
@@ -80,10 +80,9 @@ When asked to implement a new feature (e.g., "Add a Layer Manager"):
 If you are an AI assistant reading this, follow these rules when generating code:
 
 1.  **Check Existing Structure:** Do not create duplicate files. Check `src/features` first.
-2.  **Respect the Split Store Architecture:** State is distributed across `useDataStore` (domain), `useUIStore` (transient), `useSettingsStore` (config), and `useLibraryStore` (assets). Do not create a monolithic `useAppStore`.
+2.  **Engine-First State:** The engine owns all document data; the frontend stores only UI state (tools, viewport, panels, preferences).
 3.  **JSON Menus:** If the user asks to "Add a button", generate the change for `src/config/menu.ts`.
-4.  **Geometry:** Use helpers in `src/utils/geometry.ts` for math calculations.
-5.  **Output Format:** Always return changes in the XML format `<changes><change>...</change></changes>`.
+4.  **Geometry:** Do not compute authoritative shape geometry in JS; prefer engine queries and overlay buffers.
 
 ---
 

@@ -2,6 +2,7 @@ import { decodeEsnpSnapshot } from '@/persistence/esnpSnapshot';
 import { clearTextMappings, registerTextMapping, setTextMeta } from './textEngineSync';
 import { bumpDocumentSignal } from './engineDocumentSignals';
 import { syncHistoryMetaFromEngine } from './engineStateSync';
+import { useUIStore } from '@/stores/useUIStore';
 import type { EngineRuntime } from './EngineRuntime';
 
 export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number): void => {
@@ -15,15 +16,31 @@ export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number
     return;
   }
 
-  runtime.loadSnapshotBytes(bytes);
   runtime.resetIds();
   clearTextMappings();
+  runtime.loadSnapshotBytes(bytes);
 
   const snapshot = decodeEsnpSnapshot(bytes);
   for (const text of snapshot.texts) {
     const shapeId = `entity-${text.id}`;
     registerTextMapping(text.id, shapeId);
     setTextMeta(text.id, text.boxMode, text.constraintWidth);
+  }
+
+  if (runtime.engine.getLayersSnapshot) {
+    const vec = runtime.engine.getLayersSnapshot();
+    const count = vec.size();
+    let firstId: number | null = null;
+    let minOrder = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < count; i++) {
+      const rec = vec.get(i);
+      if (rec.order < minOrder) {
+        minOrder = rec.order;
+        firstId = rec.id;
+      }
+    }
+    vec.delete();
+    if (firstId !== null) useUIStore.getState().setActiveLayerId(firstId);
   }
 
   bumpDocumentSignal('layers');

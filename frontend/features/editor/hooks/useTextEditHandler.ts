@@ -77,6 +77,11 @@ export function useTextEditHandler(params: {
           maxAutoWidth: Math.max(initialWidth, constraintWidth, 0),
         });
 
+        const currentLayerId = useUIStore.getState().activeLayerId;
+        if (currentLayerId !== null && runtime?.engine?.setEntityLayer) {
+          runtime.engine.setEntityLayer(textId, currentLayerId);
+        }
+
         if (runtime?.setSelection) {
           runtime.setSelection([textId], SelectionMode.Replace);
         }
