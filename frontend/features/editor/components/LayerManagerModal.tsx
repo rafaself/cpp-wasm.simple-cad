@@ -35,9 +35,8 @@ const LayerManagerModal: React.FC = () => {
   };
 
   const handleAddLayer = () => {
-    if (!runtime?.engine.setLayerProps) return;
-    const maxId = layers.reduce((max, layer) => Math.max(max, layer.id), 0);
-    const nextId = maxId + 1;
+    if (!runtime?.engine.setLayerProps || !runtime.allocateLayerId) return;
+    const nextId = runtime.allocateLayerId();
     const flags = EngineLayerFlags.Visible;
     runtime.engine.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
     setActiveLayerId(nextId);

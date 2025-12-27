@@ -92,6 +92,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getCapabilities", &CadEngine::getCapabilities)
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
         .function("allocateEntityId", &CadEngine::allocateEntityId)
+        .function("allocateLayerId", &CadEngine::allocateLayerId)
         .function("getDocumentDigest", &CadEngine::getDocumentDigest)
         .function("getHistoryMeta", &CadEngine::getHistoryMeta)
         .function("canUndo", &CadEngine::canUndo)

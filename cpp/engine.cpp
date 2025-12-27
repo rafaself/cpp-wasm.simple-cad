@@ -120,6 +120,12 @@ std::uint32_t CadEngine::allocateEntityId() {
     return id;
 }
 
+std::uint32_t CadEngine::allocateLayerId() {
+    const std::uint32_t id = nextLayerId_;
+    nextLayerId_ = (nextLayerId_ == std::numeric_limits<std::uint32_t>::max()) ? nextLayerId_ : (nextLayerId_ + 1);
+    return id;
+}
+
 void CadEngine::reserveWorld(std::uint32_t maxRects, std::uint32_t maxLines, std::uint32_t maxPolylines, std::uint32_t maxPoints) {
     entityManager_.reserve(maxRects, maxLines, maxPolylines, maxPoints);
 
@@ -149,10 +155,13 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     std::vector<std::string> layerNames;
     layerRecords.reserve(sd.layers.size());
     layerNames.reserve(sd.layers.size());
+    std::uint32_t maxLayerId = 0;
     for (const auto& layer : sd.layers) {
+        if (layer.id > maxLayerId) maxLayerId = layer.id;
         layerRecords.push_back(LayerRecord{layer.id, layer.order, layer.flags});
         layerNames.push_back(layer.name);
     }
+    nextLayerId_ = maxLayerId + 1;
     entityManager_.layerStore.loadSnapshot(layerRecords, layerNames);
 
     entityManager_.points = sd.points;

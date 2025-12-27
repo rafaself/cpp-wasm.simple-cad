@@ -18,7 +18,7 @@ import {
   type EntityAabb,
   type HistoryMeta,
 } from './protocol';
-import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
+import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta, TextContentMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
@@ -61,7 +61,9 @@ export type CadEngineInstance = {
   getFullSnapshotMeta: () => SnapshotBufferMeta;
   getCapabilities?: () => number;
   getProtocolInfo: () => ProtocolInfo;
+  getTextContentMeta?: (textId: number) => TextContentMeta; // Add this to type
   allocateEntityId?: () => EntityId;
+  allocateLayerId?: () => number;
   getDocumentDigest?: () => DocumentDigest;
   getHistoryMeta?: () => HistoryMeta;
   canUndo?: () => boolean;
@@ -210,6 +212,13 @@ export class EngineRuntime {
       throw new Error('[EngineRuntime] allocateEntityId() missing in WASM build.');
     }
     return this.engine.allocateEntityId();
+  }
+
+  public allocateLayerId(): number {
+    if (!this.engine.allocateLayerId) {
+      throw new Error('[EngineRuntime] allocateLayerId() missing in WASM build.');
+    }
+    return this.engine.allocateLayerId();
   }
 
   public loadSnapshotBytes(bytes: Uint8Array): void {
@@ -442,6 +451,16 @@ export class EngineRuntime {
     } finally {
       this.engine.freeBytes(ptr);
     }
+  }
+
+  public getTextContent(textId: number): string | null {
+      if (!this.engine.getTextContentMeta) return null;
+      const meta = this.engine.getTextContentMeta(textId);
+      if (!meta.exists) return null;
+      if (meta.byteCount === 0) return '';
+      
+      const bytes = this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
+      return new TextDecoder().decode(bytes);
   }
 
 

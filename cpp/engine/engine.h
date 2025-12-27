@@ -182,6 +182,7 @@ public:
     }
 
     std::uint32_t allocateEntityId();
+    std::uint32_t allocateLayerId();
 
     struct BufferMeta {
         std::uint32_t generation;
@@ -357,6 +358,7 @@ public:
     std::vector<std::uint32_t> selectionOrdered_{};
     std::uint32_t selectionGeneration_{0};
     std::uint32_t nextEntityId_{1};
+    std::uint32_t nextLayerId_{1};
     std::vector<HistoryEntry> history_{};
     std::size_t historyCursor_{0};
     std::uint32_t historyGeneration_{0};

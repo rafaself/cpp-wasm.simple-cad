@@ -127,9 +127,14 @@ export class TextTool {
       anchorX: 0,
       anchorY: 0,
       rotation: 0,
-      content: '',
+      content: '', // Will be updated from engine
     };
   }
+
+  private getPooledContent(): string {
+     if (!this.bridge || this.state.activeTextId === null) return '';
+     return this.bridge.getTextContent(this.state.activeTextId) ?? '';
+   }
 
   // ===========================================================================
   // Initialization
@@ -343,12 +348,8 @@ export class TextTool {
     let charIndex = 0;
     
     // Get content
-    let content = '';
-    if (this.state.activeTextId === textId && this.state.content) {
-      content = this.state.content;
-    } else {
-      content = this.bridge.getTextContent(textId) || '';
-    }
+    // Get content
+    const content = this.bridge.getTextContent(textId) || '';
 
     if (hitResult) {
       charIndex = byteIndexToCharIndex(content, hitResult.byteIndex);
@@ -589,11 +590,7 @@ export class TextTool {
         const byteIndex = charIndexToByteIndex(this.state.content, delta.at);
         this.bridge.insertContentByteIndex(textId, byteIndex, delta.text);
 
-        // Update local state
-        const newContent =
-          this.state.content.slice(0, delta.at) +
-          delta.text +
-          this.state.content.slice(delta.at);
+        const newContent = this.getPooledContent();
         const newCaretIndex = delta.at + delta.text.length;
 
         this.state = {
@@ -611,9 +608,7 @@ export class TextTool {
         const endByte = charIndexToByteIndex(this.state.content, delta.end);
         this.bridge.deleteContentByteIndex(textId, startByte, endByte);
 
-        // Update local state
-        const newContent =
-          this.state.content.slice(0, delta.start) + this.state.content.slice(delta.end);
+        const newContent = this.getPooledContent();
 
         this.state = {
           ...this.state,
@@ -633,11 +628,7 @@ export class TextTool {
         this.bridge.deleteContentByteIndex(textId, startByte, endByte);
         this.bridge.insertContentByteIndex(textId, startByte, delta.text);
 
-        // Update local state
-        const newContent =
-          this.state.content.slice(0, delta.start) +
-          delta.text +
-          this.state.content.slice(delta.end);
+        const newContent = this.getPooledContent();
         const newCaretIndex = delta.start + delta.text.length;
 
         this.state = {
