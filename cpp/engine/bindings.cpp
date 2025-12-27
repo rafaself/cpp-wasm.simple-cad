@@ -91,9 +91,13 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getFullSnapshotMeta", &CadEngine::getFullSnapshotMeta)
         .function("getCapabilities", &CadEngine::getCapabilities)
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
+        .function("allocateEntityId", &CadEngine::allocateEntityId)
         .function("getDocumentDigest", &CadEngine::getDocumentDigest)
         .function("pollEvents", &CadEngine::pollEvents)
         .function("ackResync", &CadEngine::ackResync)
+        .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
+        .function("getSelectionHandleMeta", &CadEngine::getSelectionHandleMeta)
+        .function("getEntityAabb", &CadEngine::getEntityAabb)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("setLayerProps", &CadEngine::setLayerProps)
@@ -225,9 +229,24 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("pointCount", &CadEngine::EngineStats::pointCount)
         .field("triangleVertexCount", &CadEngine::EngineStats::triangleVertexCount)
         .field("lineVertexCount", &CadEngine::EngineStats::lineVertexCount)
+        .field("rebuildAllGeometryCount", &CadEngine::EngineStats::rebuildAllGeometryCount)
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
         .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
         .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
+
+    emscripten::value_object<CadEngine::OverlayBufferMeta>("OverlayBufferMeta")
+        .field("generation", &CadEngine::OverlayBufferMeta::generation)
+        .field("primitiveCount", &CadEngine::OverlayBufferMeta::primitiveCount)
+        .field("floatCount", &CadEngine::OverlayBufferMeta::floatCount)
+        .field("primitivesPtr", &CadEngine::OverlayBufferMeta::primitivesPtr)
+        .field("dataPtr", &CadEngine::OverlayBufferMeta::dataPtr);
+
+    emscripten::value_object<CadEngine::EntityAabb>("EntityAabb")
+        .field("minX", &CadEngine::EntityAabb::minX)
+        .field("minY", &CadEngine::EntityAabb::minY)
+        .field("maxX", &CadEngine::EntityAabb::maxX)
+        .field("maxY", &CadEngine::EntityAabb::maxY)
+        .field("valid", &CadEngine::EntityAabb::valid);
 
     // Text-related value objects
     emscripten::value_object<TextHitResult>("TextHitResult")

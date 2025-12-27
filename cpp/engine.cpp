@@ -111,6 +111,12 @@ void CadEngine::freeBytes(std::uintptr_t ptr) {
     std::free(reinterpret_cast<void*>(ptr));
 }
 
+std::uint32_t CadEngine::allocateEntityId() {
+    const std::uint32_t id = nextEntityId_;
+    nextEntityId_ = (nextEntityId_ == std::numeric_limits<std::uint32_t>::max()) ? nextEntityId_ : (nextEntityId_ + 1);
+    return id;
+}
+
 void CadEngine::reserveWorld(std::uint32_t maxRects, std::uint32_t maxLines, std::uint32_t maxPolylines, std::uint32_t maxPoints) {
     entityManager_.reserve(maxRects, maxLines, maxPolylines, maxPoints);
 
@@ -391,6 +397,7 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
         static_cast<std::uint32_t>(entityManager_.points.size()),
         static_cast<std::uint32_t>(triangleVertices.size() / 7),
         static_cast<std::uint32_t>(lineVertices.size() / 7),
+        rebuildAllGeometryCount_,
         lastLoadMs,
         lastRebuildMs,
         lastApplyMs
@@ -943,6 +950,217 @@ std::vector<std::uint32_t> CadEngine::queryMarquee(float minX, float minY, float
     return out;
 }
 
+CadEngine::EntityAabb CadEngine::getEntityAabb(std::uint32_t entityId) const {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return EntityAabb{0, 0, 0, 0, 0};
+
+    switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            const RectRec& r = entityManager_.rects[it->second.index];
+            const AABB aabb = PickSystem::computeRectAABB(r);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            const CircleRec& c = entityManager_.circles[it->second.index];
+            const AABB aabb = PickSystem::computeCircleAABB(c);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            const PolygonRec& p = entityManager_.polygons[it->second.index];
+            const AABB aabb = PickSystem::computePolygonAABB(p);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Line: {
+            if (it->second.index >= entityManager_.lines.size()) break;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            const AABB aabb = PickSystem::computeLineAABB(l);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Polyline: {
+            if (it->second.index >= entityManager_.polylines.size()) break;
+            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 2) break;
+            const AABB aabb = PickSystem::computePolylineAABB(pl, entityManager_.points);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Arrow: {
+            if (it->second.index >= entityManager_.arrows.size()) break;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            const AABB aabb = PickSystem::computeArrowAABB(a);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Text: {
+            float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+            if (textSystem_.getBounds(entityId, minX, minY, maxX, maxY)) {
+                return EntityAabb{minX, minY, maxX, maxY, 1};
+            }
+            return EntityAabb{0, 0, 0, 0, 0};
+        }
+        default:
+            break;
+    }
+
+    return EntityAabb{0, 0, 0, 0, 0};
+}
+
+CadEngine::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
+    selectionOutlinePrimitives_.clear();
+    selectionOutlineData_.clear();
+
+    auto pushPrimitive = [&](OverlayKind kind, std::uint32_t count) {
+        const std::uint32_t offset = static_cast<std::uint32_t>(selectionOutlineData_.size());
+        selectionOutlinePrimitives_.push_back(OverlayPrimitive{
+            static_cast<std::uint16_t>(kind),
+            0,
+            count,
+            offset
+        });
+    };
+
+    for (const std::uint32_t id : selectionOrdered_) {
+        if (!entityManager_.isEntityPickable(id)) continue;
+        const auto it = entityManager_.entities.find(id);
+        if (it == entityManager_.entities.end()) continue;
+
+        if (it->second.kind == EntityKind::Line) {
+            if (it->second.index >= entityManager_.lines.size()) continue;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            pushPrimitive(OverlayKind::Segment, 2);
+            selectionOutlineData_.push_back(l.x0);
+            selectionOutlineData_.push_back(l.y0);
+            selectionOutlineData_.push_back(l.x1);
+            selectionOutlineData_.push_back(l.y1);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Arrow) {
+            if (it->second.index >= entityManager_.arrows.size()) continue;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            pushPrimitive(OverlayKind::Segment, 2);
+            selectionOutlineData_.push_back(a.ax);
+            selectionOutlineData_.push_back(a.ay);
+            selectionOutlineData_.push_back(a.bx);
+            selectionOutlineData_.push_back(a.by);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Polyline) {
+            if (it->second.index >= entityManager_.polylines.size()) continue;
+            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 2) continue;
+            if (pl.offset + pl.count > entityManager_.points.size()) continue;
+            pushPrimitive(OverlayKind::Polyline, pl.count);
+            for (std::uint32_t k = 0; k < pl.count; ++k) {
+                const Point2& pt = entityManager_.points[pl.offset + k];
+                selectionOutlineData_.push_back(pt.x);
+                selectionOutlineData_.push_back(pt.y);
+            }
+            continue;
+        }
+
+        const EntityAabb aabb = getEntityAabb(id);
+        if (!aabb.valid) continue;
+        pushPrimitive(OverlayKind::Polygon, 4);
+        selectionOutlineData_.push_back(aabb.minX);
+        selectionOutlineData_.push_back(aabb.minY);
+        selectionOutlineData_.push_back(aabb.maxX);
+        selectionOutlineData_.push_back(aabb.minY);
+        selectionOutlineData_.push_back(aabb.maxX);
+        selectionOutlineData_.push_back(aabb.maxY);
+        selectionOutlineData_.push_back(aabb.minX);
+        selectionOutlineData_.push_back(aabb.maxY);
+    }
+
+    return OverlayBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(selectionOutlinePrimitives_.size()),
+        static_cast<std::uint32_t>(selectionOutlineData_.size()),
+        reinterpret_cast<std::uintptr_t>(selectionOutlinePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(selectionOutlineData_.data()),
+    };
+}
+
+CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
+    selectionHandlePrimitives_.clear();
+    selectionHandleData_.clear();
+
+    auto pushPrimitive = [&](std::uint32_t count) {
+        const std::uint32_t offset = static_cast<std::uint32_t>(selectionHandleData_.size());
+        selectionHandlePrimitives_.push_back(OverlayPrimitive{
+            static_cast<std::uint16_t>(OverlayKind::Point),
+            0,
+            count,
+            offset
+        });
+    };
+
+    for (const std::uint32_t id : selectionOrdered_) {
+        if (!entityManager_.isEntityPickable(id)) continue;
+        const auto it = entityManager_.entities.find(id);
+        if (it == entityManager_.entities.end()) continue;
+
+        if (it->second.kind == EntityKind::Line) {
+            if (it->second.index >= entityManager_.lines.size()) continue;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            pushPrimitive(2);
+            selectionHandleData_.push_back(l.x0);
+            selectionHandleData_.push_back(l.y0);
+            selectionHandleData_.push_back(l.x1);
+            selectionHandleData_.push_back(l.y1);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Arrow) {
+            if (it->second.index >= entityManager_.arrows.size()) continue;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            pushPrimitive(2);
+            selectionHandleData_.push_back(a.ax);
+            selectionHandleData_.push_back(a.ay);
+            selectionHandleData_.push_back(a.bx);
+            selectionHandleData_.push_back(a.by);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Polyline) {
+            if (it->second.index >= entityManager_.polylines.size()) continue;
+            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 2) continue;
+            if (pl.offset + pl.count > entityManager_.points.size()) continue;
+            pushPrimitive(pl.count);
+            for (std::uint32_t k = 0; k < pl.count; ++k) {
+                const Point2& pt = entityManager_.points[pl.offset + k];
+                selectionHandleData_.push_back(pt.x);
+                selectionHandleData_.push_back(pt.y);
+            }
+            continue;
+        }
+
+        const EntityAabb aabb = getEntityAabb(id);
+        if (!aabb.valid) continue;
+        pushPrimitive(4);
+        // Handle order must match pick_system.cpp: 0=BL, 1=BR, 2=TR, 3=TL
+        selectionHandleData_.push_back(aabb.minX);
+        selectionHandleData_.push_back(aabb.minY);
+        selectionHandleData_.push_back(aabb.maxX);
+        selectionHandleData_.push_back(aabb.minY);
+        selectionHandleData_.push_back(aabb.maxX);
+        selectionHandleData_.push_back(aabb.maxY);
+        selectionHandleData_.push_back(aabb.minX);
+        selectionHandleData_.push_back(aabb.maxY);
+    }
+
+    return OverlayBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(selectionHandlePrimitives_.size()),
+        static_cast<std::uint32_t>(selectionHandleData_.size()),
+        reinterpret_cast<std::uintptr_t>(selectionHandlePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(selectionHandleData_.data()),
+    };
+}
+
 std::vector<std::uint32_t> CadEngine::getSelectionIds() const {
     return selectionOrdered_;
 }
@@ -1192,6 +1410,7 @@ void CadEngine::clearWorld() noexcept {
     viewScale = 1.0f;
     triangleVertices.clear();
     lineVertices.clear();
+    renderRanges_.clear();
     snapshotBytes.clear();
     selectionSet_.clear();
     selectionOrdered_.clear();
@@ -1200,6 +1419,8 @@ void CadEngine::clearWorld() noexcept {
     lastLoadMs = 0.0f;
     lastRebuildMs = 0.0f;
     lastApplyMs = 0.0f;
+    rebuildAllGeometryCount_ = 0;
+    pendingFullRebuild_ = false;
     renderDirty = true;
     snapshotDirty = true;
     textQuadsDirty_ = true;
@@ -2280,6 +2501,7 @@ void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) 
 
 void CadEngine::rebuildRenderBuffers() const {
     const double t0 = emscripten_get_now();
+    rebuildAllGeometryCount_++;
     
     engine::rebuildRenderBuffers(
         entityManager_.rects,
@@ -2295,12 +2517,54 @@ void CadEngine::rebuildRenderBuffers() const {
         triangleVertices,
         lineVertices,
         const_cast<CadEngine*>(this),
-        &isEntityVisibleForRender
+        &isEntityVisibleForRender,
+        &renderRanges_
     );
     renderDirty = false;
+    pendingFullRebuild_ = false;
     
     const double t1 = emscripten_get_now();
     lastRebuildMs = static_cast<float>(t1 - t0);
+}
+
+bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
+    if (renderDirty) return false;
+    const auto rangeIt = renderRanges_.find(id);
+    if (rangeIt == renderRanges_.end()) return false;
+    const auto entIt = entityManager_.entities.find(id);
+    if (entIt == entityManager_.entities.end()) return false;
+
+    std::vector<float> temp;
+    temp.reserve(rangeIt->second.count);
+    const bool appended = engine::buildEntityRenderData(
+        id,
+        entIt->second,
+        entityManager_.rects,
+        entityManager_.lines,
+        entityManager_.polylines,
+        entityManager_.points,
+        entityManager_.circles,
+        entityManager_.polygons,
+        entityManager_.arrows,
+        viewScale,
+        temp,
+        const_cast<CadEngine*>(this),
+        &isEntityVisibleForRender
+    );
+
+    if (!appended) return false;
+    if (temp.size() != rangeIt->second.count) {
+        pendingFullRebuild_ = true;
+        return false;
+    }
+    const std::size_t start = rangeIt->second.offset;
+    if (start + temp.size() > triangleVertices.size()) {
+        pendingFullRebuild_ = true;
+        return false;
+    }
+
+    std::copy(temp.begin(), temp.end(), triangleVertices.begin() + static_cast<std::ptrdiff_t>(start));
+    return true;
 }
 
 // =============================================================================
@@ -2677,6 +2941,10 @@ void CadEngine::beginTransform(
     float startX, 
     float startY
 ) {
+    if (renderDirty) {
+        rebuildRenderBuffers();
+    }
+
     // 1. Reset Session
     session_ = InteractionSession{};
     session_.active = true;
@@ -2795,6 +3063,7 @@ void CadEngine::beginTransform(
 
 void CadEngine::updateTransform(float worldX, float worldY) {
     if (!session_.active) return;
+    bool updated = false;
     
     float totalDx = worldX - session_.startX;
     float totalDy = worldY - session_.startY;
@@ -2807,11 +3076,35 @@ void CadEngine::updateTransform(float worldX, float worldY) {
              if (it == entityManager_.entities.end()) continue;
              
              if (it->second.kind == EntityKind::Rect) {
-                  for (auto& r : entityManager_.rects) { if (r.id == id) { r.x = snap.x + totalDx; r.y = snap.y + totalDy; break; } }
+                  for (auto& r : entityManager_.rects) { 
+                      if (r.id == id) { 
+                          r.x = snap.x + totalDx; 
+                          r.y = snap.y + totalDy; 
+                          refreshEntityRenderRange(id);
+                          updated = true;
+                          break; 
+                      } 
+                  }
              } else if (it->second.kind == EntityKind::Circle) {
-                  for (auto& c : entityManager_.circles) { if (c.id == id) { c.cx = snap.x + totalDx; c.cy = snap.y + totalDy; break; } }
+                  for (auto& c : entityManager_.circles) { 
+                      if (c.id == id) { 
+                          c.cx = snap.x + totalDx; 
+                          c.cy = snap.y + totalDy; 
+                          refreshEntityRenderRange(id);
+                          updated = true;
+                          break; 
+                      } 
+                  }
              } else if (it->second.kind == EntityKind::Polygon) {
-                  for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x + totalDx; p.cy = snap.y + totalDy; break; } }
+                  for (auto& p : entityManager_.polygons) { 
+                      if (p.id == id) { 
+                          p.cx = snap.x + totalDx; 
+                          p.cy = snap.y + totalDy; 
+                          refreshEntityRenderRange(id);
+                          updated = true;
+                          break; 
+                      } 
+                  }
              } else if (it->second.kind == EntityKind::Text) {
                   TextRec* tr = textSystem_.store.getTextMutable(id); 
                   if (tr) {
@@ -2822,6 +3115,7 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                        if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
                            pickSystem_.update(id, {minX, minY, maxX, maxY});
                        }
+                       updated = true;
                    }
              } else if (it->second.kind == EntityKind::Line) {
                  if (snap.points.size() >= 2) {
@@ -2831,6 +3125,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                              l.y0 = snap.points[0].y + totalDy; 
                              l.x1 = snap.points[1].x + totalDx; 
                              l.y1 = snap.points[1].y + totalDy; 
+                             refreshEntityRenderRange(id);
+                             updated = true;
                              break; 
                          } 
                      }
@@ -2843,6 +3139,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                             a.ay = snap.points[0].y + totalDy;
                             a.bx = snap.points[1].x + totalDx;
                             a.by = snap.points[1].y + totalDy;
+                            refreshEntityRenderRange(id);
+                            updated = true;
                             break;
                         }
                     }
@@ -2856,6 +3154,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                                  entityManager_.points[pl.offset + k].y = snap.points[k].y + totalDy;
                              }
                          }
+                         refreshEntityRenderRange(id);
+                         updated = true;
                          break;
                      }
                  }
@@ -2879,6 +3179,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                                   float ny = snap->points[idx].y + totalDy;
                                   entityManager_.points[pl.offset + idx].x = nx;
                                   entityManager_.points[pl.offset + idx].y = ny;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               }
                               break;
                           }
@@ -2889,9 +3191,13 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                               if (idx == 0 && snap->points.size() > 0) {
                                   l.x0 = snap->points[0].x + totalDx;
                                   l.y0 = snap->points[0].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               } else if (idx == 1 && snap->points.size() > 1) {
                                   l.x1 = snap->points[1].x + totalDx;
                                   l.y1 = snap->points[1].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               }
                               break;
                           }
@@ -2902,9 +3208,13 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                               if (idx == 0 && snap->points.size() > 0) {
                                   a.ax = snap->points[0].x + totalDx;
                                   a.ay = snap->points[0].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               } else if (idx == 1 && snap->points.size() > 1) {
                                   a.bx = snap->points[1].x + totalDx;
                                   a.by = snap->points[1].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               }
                               break;
                           }
@@ -2922,18 +3232,14 @@ void CadEngine::updateTransform(float worldX, float worldY) {
 	            if (s.id == id) { snap = &s; break; }
 	        }
 
-	        if (!snap || handleIndex < 0 || handleIndex > 3) {
-	            renderDirty = true;
-	            snapshotDirty = true;
-	            return;
-	        }
+        if (!snap || handleIndex < 0 || handleIndex > 3) {
+            return;
+        }
 
 	        auto it = entityManager_.entities.find(id);
-	        if (it == entityManager_.entities.end()) {
-	            renderDirty = true;
-	            snapshotDirty = true;
-	            return;
-	        }
+        if (it == entityManager_.entities.end()) {
+            return;
+        }
 
 	        // Compute original AABB from snapshot (in world space).
 	        float origMinX = 0.0f, origMinY = 0.0f, origMaxX = 0.0f, origMaxY = 0.0f;
@@ -2948,11 +3254,9 @@ void CadEngine::updateTransform(float worldX, float worldY) {
 	            origMaxX = snap->x + snap->w;
 	            origMinY = snap->y - snap->h;
 	            origMaxY = snap->y + snap->h;
-	        } else {
-	            renderDirty = true;
-	            snapshotDirty = true;
-	            return;
-	        }
+        } else {
+            return;
+        }
 
 	        // Handle index order matches frontend (geometry.ts): 0=BL, 1=BR, 2=TR, 3=TL
 	        float anchorX = 0.0f, anchorY = 0.0f;
@@ -2972,42 +3276,49 @@ void CadEngine::updateTransform(float worldX, float worldY) {
 	        const float w = std::max(1e-3f, maxX - minX);
 	        const float h = std::max(1e-3f, maxY - minY);
 
-	        if (it->second.kind == EntityKind::Rect) {
-	            for (auto& r : entityManager_.rects) {
-	                if (r.id != id) continue;
-	                r.x = minX;
-	                r.y = minY;
-	                r.w = w;
-	                r.h = h;
-	                pickSystem_.update(id, PickSystem::computeRectAABB(r));
-	                break;
-	            }
-	        } else if (it->second.kind == EntityKind::Circle) {
-	            for (auto& c : entityManager_.circles) {
-	                if (c.id != id) continue;
-	                c.cx = (minX + maxX) * 0.5f;
-	                c.cy = (minY + maxY) * 0.5f;
-	                c.rx = w * 0.5f;
-	                c.ry = h * 0.5f;
-	                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-	                break;
-	            }
-	        } else if (it->second.kind == EntityKind::Polygon) {
-	            for (auto& p : entityManager_.polygons) {
-	                if (p.id != id) continue;
-	                p.cx = (minX + maxX) * 0.5f;
-	                p.cy = (minY + maxY) * 0.5f;
-	                p.rx = w * 0.5f;
-	                p.ry = h * 0.5f;
-	                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-	                break;
-	            }
-	        }
-	    }
+        if (it->second.kind == EntityKind::Rect) {
+            for (auto& r : entityManager_.rects) {
+                if (r.id != id) continue;
+                r.x = minX;
+                r.y = minY;
+                r.w = w;
+                r.h = h;
+                pickSystem_.update(id, PickSystem::computeRectAABB(r));
+                refreshEntityRenderRange(id);
+                updated = true;
+                break;
+            }
+        } else if (it->second.kind == EntityKind::Circle) {
+            for (auto& c : entityManager_.circles) {
+                if (c.id != id) continue;
+                c.cx = (minX + maxX) * 0.5f;
+                c.cy = (minY + maxY) * 0.5f;
+                c.rx = w * 0.5f;
+                c.ry = h * 0.5f;
+                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
+                refreshEntityRenderRange(id);
+                updated = true;
+                break;
+            }
+        } else if (it->second.kind == EntityKind::Polygon) {
+            for (auto& p : entityManager_.polygons) {
+                if (p.id != id) continue;
+                p.cx = (minX + maxX) * 0.5f;
+                p.cy = (minY + maxY) * 0.5f;
+                p.rx = w * 0.5f;
+                p.ry = h * 0.5f;
+                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
+                refreshEntityRenderRange(id);
+                updated = true;
+                break;
+            }
+        }
+    }
 
-	    renderDirty = true;
-	    snapshotDirty = true;
-	}
+    if (updated) {
+        generation++;
+    }
+}
 
 void CadEngine::commitTransform() {
     if (!session_.active) return;
@@ -3166,10 +3477,14 @@ void CadEngine::commitTransform() {
 	            commitResultPayloads.push_back(outW);
 	            commitResultPayloads.push_back(outH);
 	        }
-	    }
+    }
 
-	    session_ = InteractionSession{};
-	}
+    session_ = InteractionSession{};
+    snapshotDirty = true;
+    if (pendingFullRebuild_) {
+        renderDirty = true;
+    }
+}
 
 void CadEngine::cancelTransform() {
     if (!session_.active) return;

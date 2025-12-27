@@ -4,7 +4,7 @@
  */
 
 import type { Shape, ViewTransform, Point } from '@/types';
-import { screenToWorld, isPointInShape } from '@/utils/geometry';
+import { screenToWorld } from '@/utils/viewportMath';
 import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { isShapeInteractable } from '@/utils/visibility';

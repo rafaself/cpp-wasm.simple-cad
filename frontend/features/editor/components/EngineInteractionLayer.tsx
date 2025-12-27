@@ -3,7 +3,7 @@ import type { Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { toWorldPoint, clampTiny, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
+import { toWorldPoint, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
 import SelectionOverlay from './SelectionOverlay';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { getEngineRuntime } from '@/engine/core/singleton';
@@ -13,17 +13,17 @@ import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputPr
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
 import { TextBoxMode } from '@/types/text';
-import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSync';
-import { getShapeBoundingBox, worldToScreen } from '@/utils/geometry';
+import { getTextIdForShape } from '@/engine/core/textEngineSync';
+import { worldToScreen } from '@/utils/viewportMath';
 import { PickSubTarget } from '@/types/picking';
-import { ensureId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import { getEngineId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 import { SelectionMode, SelectionModifier, type EntityId } from '@/engine/core/protocol';
 import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 import { isShapeInteractable } from '@/utils/visibility';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 
 // New hooks
-import { useSelectInteraction, type MoveState } from '@/features/editor/hooks/useSelectInteraction';
+import { useSelectInteraction } from '@/features/editor/hooks/useSelectInteraction';
 import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
 import { useTextEditHandler, type TextBoxMeta } from '@/features/editor/hooks/useTextEditHandler';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
@@ -31,9 +31,6 @@ import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 // Minimal internal drag state for engine-first interaction
 type DragMode =
   | { type: "none" }
-  | { type: "move"; id: string }
-  | { type: "vertex"; id: string; vertexIndex: number; startWorld: Point; snapshot: Shape }
-  | { type: "edge"; id: string; edgeIndex: number; startWorld: Point; snapshot: Shape } // Placeholder
   | { type: "engine_session"; startWorld: Point; vertexIndex?: number; activeId?: EntityId };
 
 const EngineInteractionLayer: React.FC = () => {
@@ -229,7 +226,6 @@ const EngineInteractionLayer: React.FC = () => {
     [setCursorOverride, setEngineInteractionActive, setSelectionBox],
   );
 
-  const moveRef = useRef<MoveState | null>(null);
 
   const {
       draft,
@@ -249,8 +245,10 @@ const EngineInteractionLayer: React.FC = () => {
       snapSettings: snapOptions,
       onAddShape: useDataStore.getState().addShape,
       onFinalizeDraw: (id: string) => {
-        const entityId = ensureId(id);
-        setEngineSelection([entityId], SelectionMode.Replace);
+        const entityId = getEngineId(id);
+        if (entityId !== null) {
+          setEngineSelection([entityId], SelectionMode.Replace);
+        }
         const ui = useUIStore.getState();
         ui.setSidebarTab('desenho');
         ui.setTool('select');
@@ -368,36 +366,29 @@ const EngineInteractionLayer: React.FC = () => {
     if (engineTextEditState.active && textToolRef.current) {
       const world = toWorldPoint(evt, viewTransform);
       const activeTextId = engineTextEditState.textId;
-      const activeShapeId = activeTextId !== null ? getShapeIdForText(activeTextId) : null;
-      if (activeShapeId) {
-        const data = useDataStore.getState();
-        const shape = data.shapes[activeShapeId];
-        if (shape) {
-            // ... (Existing text hit check logic simplified for brevity, rely on textToolRef internal hitTest or bounds check)
-            // For now, keeping existing bounding box logic to respect current implementation structure
-            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-            const meta = textBoxMetaRef.current.get(activeTextId!);
-            const boxWidth = Math.max(0, meta ? meta.boxMode === TextBoxMode.FixedWidth ? meta.constraintWidth : meta.maxAutoWidth ?? (shape.width || 0) : shape.width || 0);
-            const boxHeight = Math.max(0, meta?.fixedHeight ?? (shape.height || 0));
-            const anchorX = shape.x || 0;
-            const anchorY = (shape.y || 0) + boxHeight;
-            const minX = anchorX - tolerance;
-            const maxX = anchorX + boxWidth + tolerance;
-            const minY = (shape.y || 0) - tolerance;
-            const maxY = anchorY + tolerance;
-            const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
-
-            if (inside) {
-                const localX = world.x - anchorX;
-                const localY = world.y - anchorY;
-                const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
-                const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
-                textToolRef.current.handlePointerDown(activeTextId!, localX, localY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth);
-                textInputProxyRef.current?.focus();
-                evt.preventDefault();
-                evt.stopPropagation();
-                return;
-            }
+      if (activeTextId !== null && runtimeRef.current?.getEntityAabb) {
+        const aabb = runtimeRef.current.getEntityAabb(activeTextId);
+        if (aabb.valid) {
+          const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+          const minX = aabb.minX - tolerance;
+          const maxX = aabb.maxX + tolerance;
+          const minY = aabb.minY - tolerance;
+          const maxY = aabb.maxY + tolerance;
+          const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
+          if (inside) {
+            const meta = textBoxMetaRef.current.get(activeTextId);
+            const anchorX = aabb.minX;
+            const anchorY = aabb.maxY;
+            const localX = world.x - anchorX;
+            const localY = world.y - anchorY;
+            const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
+            const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
+            textToolRef.current.handlePointerDown(activeTextId, localX, localY, evt.shiftKey, anchorX, anchorY, 0, boxMode, constraintWidth);
+            textInputProxyRef.current?.focus();
+            evt.preventDefault();
+            evt.stopPropagation();
+            return;
+          }
         }
       }
       textToolRef.current.commitAndExit();
@@ -523,25 +514,16 @@ const EngineInteractionLayer: React.FC = () => {
     if (activeTool === 'move') {
       const data = useDataStore.getState();
       const activeIds: EntityId[] = [];
-      const selectedShapes: Shape[] = [];
       selectedEntityIds.forEach((entityId) => {
         const shapeId = getShapeIdFromRegistry(entityId);
         const shape = shapeId ? data.shapes[shapeId] : null;
         if (!shape || !isShapeSelectable(shape)) return;
         activeIds.push(entityId);
-        selectedShapes.push(shape);
       });
 
       if (activeIds.length > 0 && beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
         dragRef.current = { type: 'engine_session', startWorld: snapped };
         return;
-      }
-
-      if (selectedShapes.length > 0) {
-        moveRef.current = { start: snapped, snapshot: new Map(selectedShapes.map((s) => [s.id, s])) };
-        setInteractionDragActive(true);
-      } else {
-        setInteractionDragActive(false);
       }
       return;
     }
@@ -569,39 +551,26 @@ const EngineInteractionLayer: React.FC = () => {
         return;
     }
 
-    if (dragRef.current.type === 'vertex') {
-        const { id, vertexIndex, startWorld, snapshot } = dragRef.current;
-        const data = useDataStore.getState();
-        const shape = data.shapes[id];
-        if (shape && shape.points) {
-             // Basic vertex drag logic
-             // No complex snapping or 45-deg constraint logic duplicated here yet (MVP)
-             const nextPoints = [...shape.points];
-             nextPoints[vertexIndex] = { x: clampTiny(snapped.x), y: clampTiny(snapped.y) };
-             data.updateShape(id, { points: nextPoints }, { skipConnectionSync: true, recordHistory: false });
-        }
-        return;
-    }
-
     // Text edit logic
     if (engineTextEditState.active) {
        // ... (existing hover logic)
        if (textToolRef.current && engineTextEditState.textId !== null) {
           const activeTextId = engineTextEditState.textId;
-          const activeShapeId = getShapeIdForText(activeTextId);
-          if (activeShapeId) {
-             const data = useDataStore.getState();
-             const shape = data.shapes[activeShapeId];
-             if (shape) {
-                const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-                const bbox = getShapeBoundingBox(shape);
-                const inside = world.x >= bbox.x - tolerance && world.x <= bbox.x + bbox.width + tolerance &&
-                               world.y >= bbox.y - tolerance && world.y <= bbox.y + bbox.height + tolerance;
-                setCursorOverride(inside ? 'text' : null);
-                const anchorY = (shape.y || 0) + (shape.height || 0);
-                const anchorX = (shape.x || 0);
-                textToolRef.current.handlePointerMove(activeTextId, world.x - anchorX, world.y - anchorY);
-             }
+          const runtime = runtimeRef.current;
+          if (runtime?.getEntityAabb) {
+            const aabb = runtime.getEntityAabb(activeTextId);
+            if (aabb.valid) {
+              const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+              const inside =
+                world.x >= aabb.minX - tolerance &&
+                world.x <= aabb.maxX + tolerance &&
+                world.y >= aabb.minY - tolerance &&
+                world.y <= aabb.maxY + tolerance;
+              setCursorOverride(inside ? 'text' : null);
+              const anchorX = aabb.minX;
+              const anchorY = aabb.maxY;
+              textToolRef.current.handlePointerMove(activeTextId, world.x - anchorX, world.y - anchorY);
+            }
           }
        }
        return;
@@ -650,27 +619,6 @@ const EngineInteractionLayer: React.FC = () => {
 	      return;
 	    }
 
-    if (activeTool === 'move') {
-       // ... existing move logic
-      const moveState = moveRef.current;
-      if (moveState) {
-        const data = useDataStore.getState();
-        const dx = snapped.x - moveState.start.x;
-        const dy = snapped.y - moveState.start.y;
-        moveState.snapshot.forEach((shape, id) => {
-          const curr = data.shapes[id];
-          if (!curr) return;
-          const diff: Partial<Shape> = {};
-          if (shape.x !== undefined) diff.x = clampTiny(shape.x + dx);
-          if (shape.y !== undefined) diff.y = clampTiny(shape.y + dy);
-          if (shape.points) diff.points = shape.points.map((p) => ({ x: clampTiny(p.x + dx), y: clampTiny(p.y + dy) }));
-          if (Object.keys(diff).length) data.updateShape(id, diff, { skipConnectionSync: true, recordHistory: false });
-          // Text move sync omitted for brevity, reusing existing structure
-        });
-      }
-      return;
-    }
-
     draftHandlePointerMove(snapped, evt.shiftKey);
   };
 
@@ -688,18 +636,6 @@ const EngineInteractionLayer: React.FC = () => {
     if (dragRef.current.type !== 'none') {
         const mode = dragRef.current;
         dragRef.current = { type: 'none' };
-
-        if (mode.type === 'vertex') {
-             // Commit history
-             const data = useDataStore.getState();
-             const curr = data.shapes[mode.id];
-             if (curr) {
-                 const diff: Partial<Shape> = { points: curr.points };
-                 data.saveToHistory([{ type: 'UPDATE', id: mode.id, diff, prev: mode.snapshot }]);
-             }
-             pointerDownRef.current = null;
-             return;
-        }
 
 	        if (mode.type === 'engine_session') {
 	            if (runtimeRef.current) {
@@ -763,28 +699,6 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'move') {
-      const moveState = moveRef.current;
-      moveRef.current = null;
-      if (moveState) {
-        const data = useDataStore.getState();
-        const patches: Patch[] = [];
-        moveState.snapshot.forEach((prevShape, id) => {
-          const curr = data.shapes[id];
-          if (!curr) return;
-          const diff: Partial<Shape> = {};
-          if (prevShape.x !== curr.x) diff.x = curr.x;
-          if (prevShape.y !== curr.y) diff.y = curr.y;
-          if (prevShape.points || curr.points) diff.points = curr.points;
-          if (Object.keys(diff).length === 0) return;
-          patches.push({ type: 'UPDATE', id, diff, prev: prevShape });
-        });
-        data.saveToHistory(patches);
-      }
-      setInteractionDragActive(false);
-      return;
-    }
-
     const down = pointerDownRef.current;
     pointerDownRef.current = null;
     const clickNoDrag = !!down && !isDrag(evt.clientX - down.x, evt.clientY - down.y);
@@ -824,12 +738,16 @@ const EngineInteractionLayer: React.FC = () => {
 
           if (foundTextId !== null && textToolRef.current) {
             useUIStore.getState().setTool('text');
-            const anchorY = (shape.y || 0) + (shape.height || 0);
-            const anchorX = (shape.x || 0);
+            const runtime = runtimeRef.current;
+            if (!runtime?.getEntityAabb) return;
+            const aabb = runtime.getEntityAabb(foundTextId);
+            if (!aabb.valid) return;
+            const anchorX = aabb.minX;
+            const anchorY = aabb.maxY;
             const meta = textBoxMetaRef.current.get(foundTextId);
             const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
             const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
-            textToolRef.current.handlePointerDown(foundTextId, world.x - anchorX, anchorY - world.y, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
+            textToolRef.current.handlePointerDown(foundTextId, world.x - anchorX, world.y - anchorY, evt.shiftKey, anchorX, anchorY, shape.rotation || 0, boxMode, constraintWidth, false);
             requestAnimationFrame(() => textInputProxyRef.current?.focus());
             return;
           }

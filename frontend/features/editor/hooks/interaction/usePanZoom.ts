@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { useUIStore } from '@/stores/useUIStore';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
-import { screenToWorld } from '@/utils/geometry';
+import { screenToWorld } from '@/utils/viewportMath';
 import type { ViewTransform } from '@/types';
 
 /**

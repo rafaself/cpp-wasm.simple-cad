@@ -9,9 +9,7 @@ import { TextCaretOverlay, useTextCaret } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
 import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/text';
 import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId, setTextMeta, getTextMeta } from '@/engine/core/textEngineSync';
-import { generateId } from '@/utils/uuid';
 import { getDefaultColorMode } from '@/utils/shapeColors';
-import { ensureId } from '@/engine/core/IdRegistry';
 import { SelectionMode } from '@/engine/core/protocol';
 import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
@@ -121,7 +119,7 @@ export function useTextEditHandler(params: {
 
               data.addShape(s);
               if (runtime?.setSelection) {
-                runtime.setSelection([ensureId(shapeId)], SelectionMode.Replace);
+                runtime.setSelection([textId], SelectionMode.Replace);
                 syncSelection();
               }
             },

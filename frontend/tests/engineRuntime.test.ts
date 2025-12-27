@@ -40,8 +40,12 @@ describe('EngineRuntime', () => {
       getFullSnapshotMeta: vi.fn(() => ({ generation: 0, byteCount: 0, ptr: 0 })),
       getStats: vi.fn(),
       getProtocolInfo: vi.fn(() => EXPECTED_PROTOCOL_INFO),
+      allocateEntityId: vi.fn(() => 1000),
       pollEvents: vi.fn(() => ({ generation: 0, count: 0, ptr: 0 })),
       ackResync: vi.fn(),
+      getSelectionOutlineMeta: vi.fn(() => ({ generation: 0, primitiveCount: 0, floatCount: 0, primitivesPtr: 0, dataPtr: 0 })),
+      getSelectionHandleMeta: vi.fn(() => ({ generation: 0, primitiveCount: 0, floatCount: 0, primitivesPtr: 0, dataPtr: 0 })),
+      getEntityAabb: vi.fn(() => ({ minX: 0, minY: 0, maxX: 0, maxY: 0, valid: 0 })),
       getSelectionIds: vi.fn(() => makeVector(selectionIds)),
       clearSelection: vi.fn(() => {
         selectionIds = [];

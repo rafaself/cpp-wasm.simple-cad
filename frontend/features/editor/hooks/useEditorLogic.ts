@@ -1,26 +1,87 @@
 import { useDataStore } from '../../../stores/useDataStore';
 import { useUIStore } from '../../../stores/useUIStore';
-import { getCombinedBounds, getShapeBounds, getDistance, getShapeCenter, rotatePoint, getShapeBoundingBox } from '../../../utils/geometry';
-import { Shape, Patch, Point } from '../../../types';
+import { getCombinedBounds, getDistance, getShapeCenter, rotatePoint, getShapeBoundingBox } from '../../../utils/geometry';
+import { Shape, Point } from '../../../types';
 import { computeFrameData } from '../../../utils/frame';
-import { generateId } from '../../../utils/uuid';
 import { UI } from '../../../design/tokens';
-import { ensureId, getEngineId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
-import { SelectionMode, type EntityId } from '@/engine/core/protocol';
+import { getEngineId, getShapeId as getShapeIdFromRegistry, registerEngineId, releaseId } from '@/engine/core/IdRegistry';
+import { CommandOp } from '@/engine/core/commandBuffer';
+import { EngineLayerFlags, LayerPropMask, SelectionMode, type EntityId } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
+import { shapeToEngineCommand } from '@/engine/core/useEngineStoreSync';
+import { ensureLayerEngineId, getLayerEngineId } from '@/engine/core/LayerRegistry';
+import { deleteTextByShapeId } from '@/engine/core/textEngineSync';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
     const uiStore = useUIStore();
 
+    const ensureEngineLayer = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>, layerId: string) => {
+        const layer = dataStore.layers.find((l) => l.id === layerId) ?? null;
+        const engineLayerId = ensureLayerEngineId(layerId);
+        if (runtime.engine.setLayerProps) {
+            const flags =
+                (layer?.visible ? EngineLayerFlags.Visible : 0) |
+                (layer?.locked ? EngineLayerFlags.Locked : 0);
+            runtime.engine.setLayerProps(
+                engineLayerId,
+                LayerPropMask.Name | LayerPropMask.Visible | LayerPropMask.Locked,
+                flags,
+                layer?.name ?? 'Layer'
+            );
+        }
+        return engineLayerId;
+    };
+
+    const buildCreateCommand = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>, shape: Shape) => {
+        const engineId = runtime.allocateEntityId();
+        const shapeId = `entity-${engineId}`;
+        registerEngineId(engineId, shapeId);
+
+        const nextShape = { ...shape, id: shapeId };
+        const layer = dataStore.layers.find((l) => l.id === nextShape.layerId) ?? null;
+        const cmd = shapeToEngineCommand(nextShape, layer, () => engineId);
+        if (!cmd) return null;
+
+        return { shape: nextShape, engineId, cmd };
+    };
+
     const deleteSelected = () => {
-        const ids = Array.from(uiStore.selectedEntityIds)
-            .map((id) => getShapeIdFromRegistry(id))
+        const selectedIds = Array.from(uiStore.selectedEntityIds);
+        if (selectedIds.length === 0) return;
+
+        const deletions = selectedIds.map((entityId) => {
+            const shapeId = getShapeIdFromRegistry(entityId);
+            const shape = shapeId ? dataStore.shapes[shapeId] : null;
+            return { entityId, shapeId, shape };
+        });
+
+        const shapeIds = deletions
+            .map((entry) => entry.shapeId)
             .filter((id): id is string => !!id);
-        if (ids.length === 0) return;
-        dataStore.deleteShapes(ids);
+        if (shapeIds.length > 0) {
+            dataStore.deleteShapes(shapeIds);
+        }
+
         void getEngineRuntime().then((runtime) => {
+            const commands: { op: CommandOp; id: EntityId }[] = [];
+            for (const entry of deletions) {
+                if (entry.shapeId && entry.shape?.type === 'text') {
+                    const deleted = deleteTextByShapeId(entry.shapeId);
+                    if (!deleted) {
+                        commands.push({ op: CommandOp.DeleteText, id: entry.entityId });
+                        releaseId(entry.shapeId);
+                    }
+                } else {
+                    commands.push({ op: CommandOp.DeleteEntity, id: entry.entityId });
+                    if (entry.shapeId) releaseId(entry.shapeId);
+                }
+            }
+
+            if (commands.length > 0) {
+                runtime.apply(commands);
+            }
             runtime.clearSelection();
             syncSelectionFromEngine(runtime);
         });
@@ -32,9 +93,14 @@ export const useEditorLogic = () => {
         Object.values(dataStore.shapes).forEach(s => {
             if (s.layerId === id) shapesToDelete.push(s.id);
         });
+        const deletionEntries = shapesToDelete.map((shapeId) => ({
+            shapeId,
+            shape: dataStore.shapes[shapeId],
+            entityId: getEngineId(shapeId),
+        }));
         const entityIdsToDelete = new Set(
-            shapesToDelete
-                .map((shapeId) => getEngineId(shapeId))
+            deletionEntries
+                .map((entry) => entry.entityId)
                 .filter((entityId): entityId is EntityId => entityId !== null)
         );
 
@@ -44,6 +110,28 @@ export const useEditorLogic = () => {
         if (success) {
             const remaining = Array.from(uiStore.selectedEntityIds).filter((entityId) => !entityIdsToDelete.has(entityId));
             void getEngineRuntime().then((runtime) => {
+                const commands: { op: CommandOp; id: EntityId }[] = [];
+                for (const entry of deletionEntries) {
+                    const { shapeId, shape, entityId } = entry;
+                    if (entityId === null) continue;
+                    if (shape?.type === 'text') {
+                        const deleted = deleteTextByShapeId(shapeId);
+                        if (!deleted) {
+                            commands.push({ op: CommandOp.DeleteText, id: entityId });
+                            releaseId(shapeId);
+                        }
+                    } else {
+                        commands.push({ op: CommandOp.DeleteEntity, id: entityId });
+                        releaseId(shapeId);
+                    }
+                }
+                if (commands.length > 0) {
+                    runtime.apply(commands);
+                }
+                const engineLayerId = getLayerEngineId(id);
+                if (engineLayerId !== null) {
+                    runtime.engine.deleteLayer?.(engineLayerId);
+                }
                 runtime.setSelection(remaining, SelectionMode.Replace);
                 syncSelectionFromEngine(runtime);
             });
@@ -143,25 +231,36 @@ export const useEditorLogic = () => {
         if (processedIds.size > 1) {
             const newPolyline: Shape = {
                 ...baseShape,
-                id: generateId(),
+                id: 'pending',
                 type: 'polyline',
                 points: mergedPoints
             };
 
-            // Using deleteShapes instead of deleteSelected (which will be removed/renamed)
             const idsToDelete = Array.from(processedIds);
+            const deleteEntries = idsToDelete.map((shapeId) => ({
+                shapeId,
+                entityId: getEngineId(shapeId),
+            }));
 
-            // We need to delete old shapes and add new one.
-            // Ideally we want atomic operation or batched history.
-            // Current DataStore doesn't expose batched arbitrary ops easily except via internal saveToHistory.
-            // But we can call methods.
-
-            dataStore.deleteShapes(idsToDelete);
-            dataStore.addShape(newPolyline);
-
-            const entityId = ensureId(newPolyline.id);
             void getEngineRuntime().then((runtime) => {
-                runtime.setSelection([entityId], SelectionMode.Replace);
+                const created = buildCreateCommand(runtime, newPolyline);
+                if (!created) return;
+
+                const commands: { op: CommandOp; id: EntityId }[] = [];
+                for (const entry of deleteEntries) {
+                    if (entry.entityId === null) continue;
+                    commands.push({ op: CommandOp.DeleteEntity, id: entry.entityId });
+                }
+                runtime.apply([created.cmd, ...commands]);
+
+                const engineLayerId = ensureEngineLayer(runtime, created.shape.layerId);
+                runtime.engine.setEntityLayer?.(created.engineId, engineLayerId);
+
+                dataStore.deleteShapes(idsToDelete);
+                dataStore.addShape(created.shape);
+                idsToDelete.forEach((shapeId) => releaseId(shapeId));
+
+                runtime.setSelection([created.engineId], SelectionMode.Replace);
                 syncSelectionFromEngine(runtime);
             });
         }
@@ -198,7 +297,7 @@ export const useEditorLogic = () => {
 
                     newShapes.push({
                         ...shape,
-                        id: generateId(),
+                        id: 'pending',
                         type: 'line',
                         points: [start, end],
                         rotation: 0, // Reset rotation since points are now baked
@@ -229,7 +328,7 @@ export const useEditorLogic = () => {
                     const end = finalCorners[(i + 1) % 4];
                     newShapes.push({
                         ...shape,
-                        id: generateId(),
+                        id: 'pending',
                         type: 'line',
                         points: [start, end],
                         rotation: 0, // Reset rotation as points are already rotated
@@ -262,7 +361,7 @@ export const useEditorLogic = () => {
                     const end = vertices[(i + 1) % sides];
                     newShapes.push({
                         ...shape,
-                        id: generateId(),
+                        id: 'pending',
                         type: 'line',
                         points: [start, end],
                         rotation: 0,
@@ -274,13 +373,34 @@ export const useEditorLogic = () => {
         });
 
         if (idsToDelete.length > 0 && newShapes.length > 0) {
-            dataStore.deleteShapes(idsToDelete);
-            // Add all new shapes
-            newShapes.forEach(s => dataStore.addShape(s)); // addShape handles single addition, loop is fine
+            const deleteEntries = idsToDelete.map((shapeId) => ({
+                shapeId,
+                entityId: getEngineId(shapeId),
+            }));
 
-            const entityIds = newShapes.map((s) => ensureId(s.id));
             void getEngineRuntime().then((runtime) => {
-                runtime.setSelection(entityIds, SelectionMode.Replace);
+                const created = newShapes
+                    .map((shape) => buildCreateCommand(runtime, shape))
+                    .filter((entry): entry is NonNullable<ReturnType<typeof buildCreateCommand>> => !!entry);
+
+                const commands: { op: CommandOp; id: EntityId }[] = [];
+                for (const entry of deleteEntries) {
+                    if (entry.entityId === null) continue;
+                    commands.push({ op: CommandOp.DeleteEntity, id: entry.entityId });
+                }
+
+                runtime.apply([...created.map((entry) => entry.cmd), ...commands]);
+
+                for (const entry of created) {
+                    const engineLayerId = ensureEngineLayer(runtime, entry.shape.layerId);
+                    runtime.engine.setEntityLayer?.(entry.engineId, engineLayerId);
+                }
+
+                dataStore.deleteShapes(idsToDelete);
+                created.forEach((entry) => dataStore.addShape(entry.shape));
+                idsToDelete.forEach((shapeId) => releaseId(shapeId));
+
+                runtime.setSelection(created.map((entry) => entry.engineId), SelectionMode.Replace);
                 syncSelectionFromEngine(runtime);
             });
         }

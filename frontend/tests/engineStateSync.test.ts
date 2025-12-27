@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useDataStore, __resetDataStoreForTests } from '@/stores/useDataStore';
-import { IdRegistry, ensureId } from '@/engine/core/IdRegistry';
+import { IdRegistry, registerEngineId } from '@/engine/core/IdRegistry';
 import { syncDrawOrderFromEngine } from '@/engine/core/engineStateSync';
 
 describe('engine state sync', () => {
@@ -19,11 +19,11 @@ describe('engine state sync', () => {
       shapeOrder: ['a', 'b', 'c'],
     });
 
-    const idB = ensureId('b');
-    const idA = ensureId('a');
+    registerEngineId(2, 'b');
+    registerEngineId(1, 'a');
 
     const runtime = {
-      getDrawOrderSnapshot: () => new Uint32Array([idB, idA]),
+      getDrawOrderSnapshot: () => new Uint32Array([2, 1]),
     } as any;
 
     syncDrawOrderFromEngine(runtime);

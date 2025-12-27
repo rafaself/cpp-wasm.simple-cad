@@ -15,7 +15,7 @@
  */
 
 import type { TextTool } from '@/engine/tools/TextTool';
-import { IdRegistry, ensureId, getEngineId, getShapeId, releaseId } from './IdRegistry';
+import { IdRegistry, getEngineId, getShapeId, registerEngineId, releaseId } from './IdRegistry';
 
 let textToolInstance: TextTool | null = null;
 const trackedTextShapeIds = new Set<string>();
@@ -39,10 +39,10 @@ export function getTextTool(): TextTool | null {
  * Verifies consistency with IdRegistry.
  */
 export function registerTextMapping(textId: number, shapeId: string): void {
-  // Ensure consistency: The shapeId MUST map to this textId in the Registry.
-  // Since TextTool now calls ensureId(shapeId) to get textId, this should essentially be a no-op or verification.
-  const registeredId = ensureId(shapeId);
-  if (registeredId !== textId) {
+  const registeredId = getEngineId(shapeId);
+  if (registeredId === null) {
+    registerEngineId(textId, shapeId);
+  } else if (registeredId !== textId) {
     console.error(`[textEngineSync] ID Mismatch! Shape ${shapeId} maps to ${registeredId} but tried to register ${textId}`);
     return;
   }

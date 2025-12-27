@@ -26,8 +26,7 @@ import {
   type TextStyleSnapshot,
 } from '@/types/text';
 import { getTextMeta } from '@/engine/core/textEngineSync';
-import { ensureId } from '@/engine/core/IdRegistry';
-import { generateId } from '@/utils/uuid';
+import { registerEngineId } from '@/engine/core/IdRegistry';
 
 // =============================================================================
 // Types
@@ -208,9 +207,12 @@ export class TextTool {
       return;
     }
 
+    if (!this.runtime) return;
+
     // Create new text entity with AutoWidth mode
-    const shapeId = generateId();
-    const textId = ensureId(shapeId);
+    const textId = this.runtime.allocateEntityId();
+    const shapeId = `entity-${textId}`;
+    registerEngineId(textId, shapeId);
 
     this.state = {
       mode: 'creating',
@@ -250,6 +252,7 @@ export class TextTool {
    */
   handleDrag(startX: number, startY: number, endX: number, endY: number): void {
     if (!this.isReady()) return;
+    if (!this.runtime) return;
 
     // Calculate box dimensions
     const x = Math.min(startX, endX);
@@ -261,8 +264,9 @@ export class TextTool {
     const constraintWidth = Math.max(width, 50);
 
     // Create new text entity with FixedWidth mode
-    const shapeId = generateId();
-    const textId = ensureId(shapeId);
+    const textId = this.runtime.allocateEntityId();
+    const shapeId = `entity-${textId}`;
+    registerEngineId(textId, shapeId);
 
     this.state = {
       mode: 'creating',

@@ -15,10 +15,12 @@ import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
 import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
 import { buildDxfSvgVectorSidecarV1 } from './utils/dxf/dxfSvgToVectorSidecar';
-import { ensureId } from '@/engine/core/IdRegistry';
-import { SelectionMode } from '@/engine/core/protocol';
+import { registerEngineId, releaseId } from '@/engine/core/IdRegistry';
+import { EngineLayerFlags, LayerPropMask, SelectionMode } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
+import { shapeToEngineCommand } from '@/engine/core/useEngineStoreSync';
+import { ensureLayerEngineId } from '@/engine/core/LayerRegistry';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -71,6 +73,63 @@ export const usePlanImport = (): PlanImportHook => {
   }, []);
 
   const closeImportModal = useCallback(() => setIsImportModalOpen(false), []);
+
+  const applyEngineShapes = useCallback(
+    (runtime: Awaited<ReturnType<typeof getEngineRuntime>>, shapes: ImportedShape[]) => {
+      const layerById = new Map(dataStore.layers.map((layer) => [layer.id, layer]));
+      const layerIds = new Set(shapes.map((shape) => shape.layerId));
+      for (const layerId of layerIds) {
+        const layer = layerById.get(layerId);
+        const engineLayerId = ensureLayerEngineId(layerId);
+        if (runtime.engine.setLayerProps) {
+          const flags =
+            (layer?.visible ? EngineLayerFlags.Visible : 0) |
+            (layer?.locked ? EngineLayerFlags.Locked : 0);
+          runtime.engine.setLayerProps(
+            engineLayerId,
+            LayerPropMask.Name | LayerPropMask.Visible | LayerPropMask.Locked,
+            flags,
+            layer?.name ?? 'Layer'
+          );
+        }
+      }
+
+      const commands = [];
+      const nextShapes: ImportedShape[] = [];
+      const entityIds: number[] = [];
+      const idMap = new Map<string, string>();
+
+      for (const shape of shapes) {
+        const originalId = shape.id;
+        const engineId = runtime.allocateEntityId();
+        const shapeId = `entity-${engineId}`;
+        registerEngineId(engineId, shapeId);
+        idMap.set(originalId, shapeId);
+
+        const nextShape = { ...shape, id: shapeId };
+        const layer = layerById.get(nextShape.layerId) ?? null;
+        const cmd = shapeToEngineCommand(nextShape, layer, () => engineId);
+        if (!cmd) {
+          releaseId(shapeId);
+          continue;
+        }
+
+        commands.push(cmd);
+        nextShapes.push(nextShape);
+        entityIds.push(engineId);
+
+        const engineLayerId = ensureLayerEngineId(nextShape.layerId);
+        runtime.engine.setEntityLayer?.(engineId, engineLayerId);
+      }
+
+      if (commands.length > 0) {
+        runtime.apply(commands);
+      }
+
+      return { shapes: nextShapes, entityIds, idMap };
+    },
+    [dataStore.layers],
+  );
 
   const processFile = useCallback(async (
     file: File,
@@ -366,9 +425,11 @@ export const usePlanImport = (): PlanImportHook => {
           }
 
           console.log(`Imported ${shapesToAdd.length} shapes from DXF (Mode: ${options?.importMode})`);
-          dataStore.addShapes(shapesToAdd);
-          if (options?.importMode === 'svg' && shapesToAdd.length === 1) {
-              const shape = shapesToAdd[0];
+          const runtime = await getEngineRuntime();
+          const { shapes: engineShapes, entityIds } = applyEngineShapes(runtime, shapesToAdd);
+          dataStore.addShapes(engineShapes);
+          if (options?.importMode === 'svg' && engineShapes.length === 1) {
+              const shape = engineShapes[0];
               const nextSidecar = buildDxfSvgVectorSidecarV1(shape);
               if (nextSidecar) {
                   const current = dataStore.vectorSidecar;
@@ -376,10 +437,8 @@ export const usePlanImport = (): PlanImportHook => {
                   dataStore.setVectorSidecar(mergeVectorSidecarsV1(base, nextSidecar, `dxf:${shape.id}:`));
               }
           }
-          void getEngineRuntime().then((runtime) => {
-            runtime.setSelection(shapesToAdd.map((s) => ensureId(s.id)), SelectionMode.Replace);
-            syncSelectionFromEngine(runtime);
-          });
+          runtime.setSelection(entityIds, SelectionMode.Replace);
+          syncSelectionFromEngine(runtime);
           uiStore.setTool('select');
           
           // Center content after import
@@ -424,17 +483,26 @@ export const usePlanImport = (): PlanImportHook => {
       const result = await processFile(file, { targetLayerId, options });
       if (result && result.shapes.length > 0) {
         console.log(`Importing ${result.shapes.length} shapes.`);
-        dataStore.addShapes(result.shapes);
+        const runtime = await getEngineRuntime();
+        const { shapes: engineShapes, entityIds, idMap } = applyEngineShapes(runtime, result.shapes as ImportedShape[]);
+        dataStore.addShapes(engineShapes);
         if (result.vectorSidecarToMerge) {
           const current = dataStore.vectorSidecar;
           const base = current && current.version === 1 ? (current as VectorSidecarV1) : null;
-          const merged = mergeVectorSidecarsV1(base, result.vectorSidecarToMerge.sidecar, result.vectorSidecarToMerge.prefix);
+          const remappedBindings: VectorSidecarV1['bindings'] = {};
+          for (const [shapeId, binding] of Object.entries(result.vectorSidecarToMerge.sidecar.bindings)) {
+            const nextId = idMap.get(shapeId) ?? shapeId;
+            remappedBindings[nextId] = binding;
+          }
+          const remappedSidecar: VectorSidecarV1 = {
+            ...result.vectorSidecarToMerge.sidecar,
+            bindings: remappedBindings,
+          };
+          const merged = mergeVectorSidecarsV1(base, remappedSidecar, result.vectorSidecarToMerge.prefix);
           dataStore.setVectorSidecar(merged);
         }
-        void getEngineRuntime().then((runtime) => {
-          runtime.setSelection(result.shapes.map((s) => ensureId(s.id)), SelectionMode.Replace);
-          syncSelectionFromEngine(runtime);
-        });
+        runtime.setSelection(entityIds, SelectionMode.Replace);
+        syncSelectionFromEngine(runtime);
         uiStore.setTool('select');
         
         // Center content after import
@@ -450,7 +518,7 @@ export const usePlanImport = (): PlanImportHook => {
     } finally {
       setIsLoading(false);
     }
-  }, [processFile, dataStore, closeImportModal, importMode, uiStore]);
+  }, [processFile, dataStore, closeImportModal, importMode, uiStore, applyEngineShapes, zoomToFit]);
 
   return {
     isImportModalOpen,

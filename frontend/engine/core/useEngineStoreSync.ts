@@ -7,7 +7,7 @@ import { getEngineRuntime } from './singleton';
 import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 import { deleteTextByShapeId, moveTextByShapeId, getTrackedTextShapeIds } from './textEngineSync';
-import { ensureId, getEngineId, releaseId } from './IdRegistry';
+import { getEngineId, registerEngineId, releaseId } from './IdRegistry';
 import { syncDrawOrderFromEngine, syncSelectionFromEngine } from './engineStateSync';
 import { ensureLayerEngineId, ensureLayerIdFromEngine, getLayerEngineId } from './LayerRegistry';
 import { EngineLayerFlags, LayerPropMask } from './protocol';
@@ -214,9 +214,9 @@ const rgb01 = (hex: string): { r: number; g: number; b: number } => {
   return { r: rgb.r / 255.0, g: rgb.g / 255.0, b: rgb.b / 255.0 };
 };
 
-export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, ensureId: (id: string) => number): EngineCommand | null => {
+export const shapeToEngineCommand = (shape: Shape, layer: Layer | null, resolveId: (id: string) => number): EngineCommand | null => {
   if (!isSupportedShape(shape)) return null;
-  const id = ensureId(shape.id);
+  const id = resolveId(shape.id);
 
   const strokeEnabledEff = isStrokeEffectivelyEnabled(shape, layer);
   const strokeHex = getEffectiveStrokeColor(shape, layer);
@@ -494,7 +494,7 @@ export const computeLayerDrivenReupsertCommands = (
   visibleShapeIds: ReadonlySet<string>,
   layers: readonly Layer[],
   changedLayerIds: ReadonlySet<string>,
-  ensureId: (id: string) => number,
+  resolveId: (id: string) => number,
   orderedShapeIds?: readonly string[],
 ): EngineCommand[] => {
   if (changedLayerIds.size === 0) return [];
@@ -515,7 +515,7 @@ export const computeLayerDrivenReupsertCommands = (
 
     if (dependsOnLayerFill || dependsOnLayerStroke) {
       const layer = layersById.get(s.layerId) ?? null;
-      const cmd = shapeToEngineCommand(s, layer, ensureId);
+      const cmd = shapeToEngineCommand(s, layer, resolveId);
       if (cmd) out.push(cmd);
     }
   }
@@ -576,6 +576,13 @@ export const useEngineStoreSync = (): void => {
       let lastScale = lastUi.viewTransform.scale || 1;
       const shapeIdCache = createStableIdCache();
       let isApplyingEngineLayerSnapshot = false;
+      const resolveEngineId = (shapeId: string): number => {
+        const existing = getEngineId(shapeId);
+        if (existing !== null) return existing;
+        const allocated = runtime.allocateEntityId();
+        registerEngineId(allocated, shapeId);
+        return allocated;
+      };
 
       const syncEngineLayersToStore = (snapshot: EngineLayerSnapshot[], baseData: typeof lastData): void => {
         const merged = mergeEngineLayers(snapshot, baseData.layers);
@@ -704,7 +711,7 @@ export const useEngineStoreSync = (): void => {
             if (!nextShape) continue;
             const prevShape = prevData.shapes[id];
             if (!isFullScanRequired && prevShape && prevShape.layerId === nextShape.layerId) continue;
-            const engineId = ensureId(id);
+            const engineId = resolveEngineId(id);
             const engineLayerId = ensureLayerEngineId(nextShape.layerId);
             setEntityLayer(engineId, engineLayerId);
           }
@@ -723,7 +730,7 @@ export const useEngineStoreSync = (): void => {
           if (isFullScanRequired && prevShape === nextShape && lastVisibleIds.has(id)) continue;
 
           const layer = layersById.get(nextShape.layerId) ?? null;
-          const cmd = shapeToEngineCommand(nextShape, layer, ensureId);
+          const cmd = shapeToEngineCommand(nextShape, layer, resolveEngineId);
           if (cmd) {
             commands.push(cmd);
           } else {
@@ -739,7 +746,7 @@ export const useEngineStoreSync = (): void => {
               nextVisibleSet,
               nextData.layers,
               changedLayerIds,
-              ensureId,
+              resolveEngineId,
               nextOrderedIds,
             ),
           );
@@ -785,7 +792,7 @@ export const useEngineStoreSync = (): void => {
           for (const shapeId of Object.keys(lastData.shapes)) {
             const shape = lastData.shapes[shapeId];
             if (!shape) continue;
-            const engineId = ensureId(shapeId);
+            const engineId = resolveEngineId(shapeId);
             const engineLayerId = ensureLayerEngineId(shape.layerId);
             setEntityLayer(engineId, engineLayerId);
           }
@@ -801,7 +808,7 @@ export const useEngineStoreSync = (): void => {
         for (const id of orderedIds) {
           const s = lastData.shapes[id]!;
           const layer = layersById.get(s.layerId) ?? null;
-          const cmd = shapeToEngineCommand(s, layer, ensureId);
+          const cmd = shapeToEngineCommand(s, layer, resolveEngineId);
           if (cmd) {
               initCommands.push(cmd);
           }

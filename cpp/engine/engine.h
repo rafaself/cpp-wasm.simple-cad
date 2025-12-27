@@ -50,6 +50,8 @@ public:
         FEATURE_SELECTION_ORDER = 1 << 2,
         FEATURE_SNAPSHOT_VNEXT = 1 << 3,
         FEATURE_EVENT_STREAM = 1 << 4,
+        FEATURE_OVERLAY_QUERIES = 1 << 5,
+        FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
     };
 
     enum class LayerPropMask : std::uint32_t {
@@ -127,7 +129,9 @@ public:
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM);
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -170,6 +174,8 @@ public:
             kFeatureFlags
         };
     }
+
+    std::uint32_t allocateEntityId();
 
     struct BufferMeta {
         std::uint32_t generation;
@@ -217,6 +223,41 @@ public:
     EventBufferMeta pollEvents(std::uint32_t maxEvents);
     void ackResync(std::uint32_t resyncGeneration);
 
+    enum class OverlayKind : std::uint16_t {
+        Polyline = 1,
+        Polygon = 2,
+        Segment = 3,
+        Rect = 4,
+        Point = 5,
+    };
+
+    struct OverlayPrimitive {
+        std::uint16_t kind;
+        std::uint16_t flags;
+        std::uint32_t count;  // number of points
+        std::uint32_t offset; // float offset into data buffer
+    };
+
+    struct OverlayBufferMeta {
+        std::uint32_t generation;
+        std::uint32_t primitiveCount;
+        std::uint32_t floatCount;
+        std::uintptr_t primitivesPtr;
+        std::uintptr_t dataPtr;
+    };
+
+    struct EntityAabb {
+        float minX;
+        float minY;
+        float maxX;
+        float maxY;
+        std::uint32_t valid;
+    };
+
+    OverlayBufferMeta getSelectionOutlineMeta() const;
+    OverlayBufferMeta getSelectionHandleMeta() const;
+    EntityAabb getEntityAabb(std::uint32_t entityId) const;
+
     struct EngineStats {
         std::uint32_t generation;
         std::uint32_t rectCount;
@@ -225,6 +266,7 @@ public:
         std::uint32_t pointCount;
         std::uint32_t triangleVertexCount;
         std::uint32_t lineVertexCount;
+        std::uint32_t rebuildAllGeometryCount;
         float lastLoadMs;
         float lastRebuildMs;
         float lastApplyMs;
@@ -282,11 +324,14 @@ public:
 
     mutable std::vector<float> triangleVertices;
     mutable std::vector<float> lineVertices;
+    mutable std::unordered_map<std::uint32_t, engine::RenderRange> renderRanges_{};
     mutable std::vector<std::uint8_t> snapshotBytes;
     mutable bool textQuadsDirty_{true};
     mutable bool renderDirty{false};
     mutable bool snapshotDirty{false};
     std::uint32_t generation{0};
+    mutable std::uint32_t rebuildAllGeometryCount_{0};
+    mutable bool pendingFullRebuild_{false};
     mutable float lastLoadMs{0.0f};
     mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
@@ -312,6 +357,11 @@ public:
     bool pendingSelectionChanged_{false};
     bool pendingOrderChanged_{false};
     bool pendingHistoryChanged_{false};
+
+    mutable std::vector<OverlayPrimitive> selectionOutlinePrimitives_{};
+    mutable std::vector<float> selectionOutlineData_{};
+    mutable std::vector<OverlayPrimitive> selectionHandlePrimitives_{};
+    mutable std::vector<float> selectionHandleData_{};
 
 
     // Error handling
@@ -648,6 +698,7 @@ public:
     void addLineSegment(float x0, float y0, float x1, float y1, float z = 0.0f) const;
 
     void rebuildRenderBuffers() const;
+    bool refreshEntityRenderRange(std::uint32_t id) const;
 
 // ==============================================================================
 // Interaction Session (Phase 4)
@@ -784,6 +835,8 @@ private:
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM),
         });
 
         h = hashEnum(h, 0xE000000Bu, {
@@ -851,6 +904,14 @@ private:
             static_cast<std::uint32_t>(ChangeMask::RenderData),
         });
 
+        h = hashEnum(h, 0xE0000014u, {
+            static_cast<std::uint32_t>(OverlayKind::Polyline),
+            static_cast<std::uint32_t>(OverlayKind::Polygon),
+            static_cast<std::uint32_t>(OverlayKind::Segment),
+            static_cast<std::uint32_t>(OverlayKind::Rect),
+            static_cast<std::uint32_t>(OverlayKind::Point),
+        });
+
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, protocolVersion)),
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, commandVersion)),
@@ -882,6 +943,7 @@ private:
             static_cast<std::uint32_t>(offsetof(EngineStats, pointCount)),
             static_cast<std::uint32_t>(offsetof(EngineStats, triangleVertexCount)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lineVertexCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, rebuildAllGeometryCount)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastLoadMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastRebuildMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastApplyMs)),
@@ -1130,6 +1192,29 @@ private:
             static_cast<std::uint32_t>(offsetof(EventBufferMeta, generation)),
             static_cast<std::uint32_t>(offsetof(EventBufferMeta, count)),
             static_cast<std::uint32_t>(offsetof(EventBufferMeta, ptr)),
+        });
+
+        h = hashStruct(h, 0x53000021u, sizeof(OverlayPrimitive), {
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, kind)),
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, flags)),
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, count)),
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, offset)),
+        });
+
+        h = hashStruct(h, 0x53000022u, sizeof(OverlayBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, primitiveCount)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, floatCount)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, primitivesPtr)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, dataPtr)),
+        });
+
+        h = hashStruct(h, 0x53000023u, sizeof(EntityAabb), {
+            static_cast<std::uint32_t>(offsetof(EntityAabb, minX)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, minY)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, maxX)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, maxY)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, valid)),
         });
 
         return h;

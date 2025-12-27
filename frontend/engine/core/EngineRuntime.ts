@@ -14,6 +14,8 @@ import {
   type DocumentDigest,
   type EngineEvent,
   type EventBufferMeta,
+  type OverlayBufferMeta,
+  type EntityAabb,
 } from './protocol';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
@@ -58,9 +60,13 @@ export type CadEngineInstance = {
   getFullSnapshotMeta: () => SnapshotBufferMeta;
   getCapabilities?: () => number;
   getProtocolInfo: () => ProtocolInfo;
+  allocateEntityId?: () => EntityId;
   getDocumentDigest?: () => DocumentDigest;
   pollEvents: (maxEvents: number) => EventBufferMeta;
   ackResync: (resyncGeneration: number) => void;
+  getSelectionOutlineMeta?: () => OverlayBufferMeta;
+  getSelectionHandleMeta?: () => OverlayBufferMeta;
+  getEntityAabb?: (entityId: EntityId) => EntityAabb;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
@@ -92,6 +98,7 @@ export type CadEngineInstance = {
     pointCount: number;
     triangleVertexCount: number;
     lineVertexCount: number;
+    rebuildAllGeometryCount?: number;
     lastLoadMs: number;
     lastRebuildMs: number;
     lastApplyMs?: number;
@@ -145,6 +152,15 @@ export class EngineRuntime {
     if (typeof engine.getFullSnapshotMeta !== 'function') {
       throw new Error('[EngineRuntime] Missing getFullSnapshotMeta() in WASM. Rebuild engine to match frontend.');
     }
+    if (typeof engine.allocateEntityId !== 'function') {
+      throw new Error('[EngineRuntime] Missing allocateEntityId() in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.getSelectionOutlineMeta !== 'function' || typeof engine.getSelectionHandleMeta !== 'function') {
+      throw new Error('[EngineRuntime] Missing overlay query APIs in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.getEntityAabb !== 'function') {
+      throw new Error('[EngineRuntime] Missing getEntityAabb() in WASM. Rebuild engine to match frontend.');
+    }
     const runtime = new EngineRuntime(module, engine);
     runtime.applyCapabilityGuards();
     return runtime;
@@ -172,6 +188,13 @@ export class EngineRuntime {
     IdRegistry.clear();
     LayerRegistry.clear();
     this.engine.clear();
+  }
+
+  public allocateEntityId(): EntityId {
+    if (!this.engine.allocateEntityId) {
+      throw new Error('[EngineRuntime] allocateEntityId() missing in WASM build.');
+    }
+    return this.engine.allocateEntityId();
   }
 
   public loadSnapshotBytes(bytes: Uint8Array): void {
@@ -232,6 +255,27 @@ export class EngineRuntime {
       generation: meta.generation,
       events: decodeEngineEvents(this.module.HEAPU8, meta.ptr, meta.count),
     };
+  }
+
+  public getSelectionOutlineMeta(): OverlayBufferMeta {
+    if (!this.engine.getSelectionOutlineMeta) {
+      throw new Error('[EngineRuntime] getSelectionOutlineMeta() missing in WASM build.');
+    }
+    return this.engine.getSelectionOutlineMeta();
+  }
+
+  public getSelectionHandleMeta(): OverlayBufferMeta {
+    if (!this.engine.getSelectionHandleMeta) {
+      throw new Error('[EngineRuntime] getSelectionHandleMeta() missing in WASM build.');
+    }
+    return this.engine.getSelectionHandleMeta();
+  }
+
+  public getEntityAabb(entityId: EntityId): EntityAabb {
+    if (!this.engine.getEntityAabb) {
+      throw new Error('[EngineRuntime] getEntityAabb() missing in WASM build.');
+    }
+    return this.engine.getEntityAabb(entityId);
   }
 
   public ackResync(resyncGeneration: number): void {

@@ -2,8 +2,12 @@ import { useRef, useState, useEffect } from 'react';
 import type { Shape, ViewTransform } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useDataStore } from '@/stores/useDataStore';
-import { generateId } from '@/utils/uuid';
 import { getDefaultColorMode } from '@/utils/shapeColors';
+import { shapeToEngineCommand } from '@/engine/core/useEngineStoreSync';
+import { registerEngineId } from '@/engine/core/IdRegistry';
+import { ensureLayerEngineId, getLayerEngineId } from '@/engine/core/LayerRegistry';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 export type Draft =
   | { kind: 'none' }
@@ -33,9 +37,10 @@ export function useDraftHandler(params: {
     onFinalizeDraw: (id: string) => void;
     activeFloorId: string | null;
     activeDiscipline: 'architecture';
-    runtime: any;
+    runtime: EngineRuntime | null;
 }) {
     const { activeTool, onAddShape, onFinalizeDraw, activeFloorId, activeDiscipline } = params;
+    const runtime = params.runtime;
 
     const [draft, setDraft] = useState<Draft>({ kind: 'none' });
     const draftRef = useRef<Draft>({ kind: 'none' });
@@ -43,6 +48,39 @@ export function useDraftHandler(params: {
     const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
 
     const toolDefaults = useSettingsStore((s) => s.toolDefaults);
+
+    const ensureEngineLayer = (layerId: string) => {
+        if (!runtime) return null;
+        const data = useDataStore.getState();
+        const layer = data.layers.find((l) => l.id === layerId) ?? null;
+        const engineLayerId = getLayerEngineId(layerId) ?? ensureLayerEngineId(layerId);
+        if (runtime.engine.setLayerProps) {
+            const flags =
+                (layer?.visible ? EngineLayerFlags.Visible : 0) |
+                (layer?.locked ? EngineLayerFlags.Locked : 0);
+            runtime.engine.setLayerProps(
+                engineLayerId,
+                LayerPropMask.Name | LayerPropMask.Visible | LayerPropMask.Locked,
+                flags,
+                layer?.name ?? 'Layer'
+            );
+        }
+        return engineLayerId;
+    };
+
+    const applyShapeToEngine = (shape: Shape, engineId: number) => {
+        if (!runtime) return false;
+        const data = useDataStore.getState();
+        const layer = data.layers.find((l) => l.id === shape.layerId) ?? null;
+        const cmd = shapeToEngineCommand(shape, layer, () => engineId);
+        if (!cmd) return false;
+        runtime.apply([cmd]);
+        const engineLayerId = ensureEngineLayer(shape.layerId);
+        if (engineLayerId !== null && runtime.engine.setEntityLayer) {
+            runtime.engine.setEntityLayer(engineId, engineLayerId);
+        }
+        return true;
+    };
 
     // Reset transient drawing state when switching tools
     useEffect(() => {
@@ -58,8 +96,11 @@ export function useDraftHandler(params: {
         const dx = end.x - start.x;
         const dy = end.y - start.y;
         if (Math.hypot(dx, dy) < 1e-3) return;
+        if (!runtime) return;
 
-        const id = generateId();
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -83,6 +124,7 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
@@ -90,8 +132,11 @@ export function useDraftHandler(params: {
     const commitRect = (start: { x: number; y: number }, end: { x: number; y: number }) => {
         const r = normalizeRect(start, end);
         if (r.w < 1e-3 || r.h < 1e-3) return;
+        if (!runtime) return;
 
-        const id = generateId();
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -118,6 +163,7 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
@@ -130,8 +176,11 @@ export function useDraftHandler(params: {
     const commitEllipse = (start: { x: number; y: number }, end: { x: number; y: number }) => {
         const r = normalizeRect(start, end);
         if (r.w < 1e-3 || r.h < 1e-3) return;
+        if (!runtime) return;
 
-        const id = generateId();
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -158,12 +207,16 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
 
     const commitDefaultEllipseAt = (center: { x: number; y: number }) => {
-        const id = generateId();
+        if (!runtime) return;
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -190,6 +243,7 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
@@ -197,8 +251,11 @@ export function useDraftHandler(params: {
     const commitPolygon = (start: { x: number; y: number }, end: { x: number; y: number }) => {
         const r = normalizeRect(start, end);
         if (r.w < 1e-3 || r.h < 1e-3) return;
+        if (!runtime) return;
 
-        const id = generateId();
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -229,12 +286,16 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
 
     const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
-        const id = generateId();
+        if (!runtime) return;
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -265,14 +326,18 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
 
     const commitPolyline = (points: { x: number; y: number }[]) => {
         if (points.length < 2) return;
+        if (!runtime) return;
 
-        const id = generateId();
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -292,6 +357,7 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };
@@ -300,8 +366,11 @@ export function useDraftHandler(params: {
         const dx = end.x - start.x;
         const dy = end.y - start.y;
         if (Math.hypot(dx, dy) < 1e-3) return;
+        if (!runtime) return;
 
-        const id = generateId();
+        const engineId = runtime.allocateEntityId();
+        const id = `entity-${engineId}`;
+        registerEngineId(engineId, id);
         const data = useDataStore.getState();
         const layerId = data.activeLayerId;
         const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
@@ -327,6 +396,7 @@ export function useDraftHandler(params: {
             discipline: activeDiscipline,
         };
 
+        if (!applyShapeToEngine(s, engineId)) return;
         onAddShape(s);
         onFinalizeDraw(id);
     };

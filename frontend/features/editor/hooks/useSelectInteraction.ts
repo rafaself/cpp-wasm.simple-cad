@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { Shape, ViewTransform } from '@/types';
-import { screenToWorld, isDrag } from '@/utils/geometry';
+import { screenToWorld } from '@/utils/viewportMath';
+import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { EngineCapability } from '@/engine/core/capabilities';
 import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/protocol';
 import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';

@@ -6,6 +6,8 @@ export enum EngineFeatureFlags {
   FEATURE_SELECTION_ORDER = 1 << 2,
   FEATURE_SNAPSHOT_VNEXT = 1 << 3,
   FEATURE_EVENT_STREAM = 1 << 4,
+  FEATURE_OVERLAY_QUERIES = 1 << 5,
+  FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
 }
 
 export enum EngineLayerFlags {
@@ -108,6 +110,37 @@ export type EventBufferMeta = {
   ptr: number;
 };
 
+export enum OverlayKind {
+  Polyline = 1,
+  Polygon = 2,
+  Segment = 3,
+  Rect = 4,
+  Point = 5,
+}
+
+export type OverlayPrimitive = {
+  kind: number;
+  flags: number;
+  count: number;
+  offset: number;
+};
+
+export type OverlayBufferMeta = {
+  generation: number;
+  primitiveCount: number;
+  floatCount: number;
+  primitivesPtr: number;
+  dataPtr: number;
+};
+
+export type EntityAabb = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  valid: number;
+};
+
 export const PROTOCOL_VERSION = 1 as const;
 export const COMMAND_VERSION = 2 as const;
 export const SNAPSHOT_VERSION = 1 as const;
@@ -115,7 +148,8 @@ export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
   EngineFeatureFlags.FEATURE_PROTOCOL |
-  EngineFeatureFlags.FEATURE_EVENT_STREAM;
+  EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
+  EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -173,6 +207,8 @@ const computeAbiHash = (): number => {
     EngineFeatureFlags.FEATURE_SELECTION_ORDER,
     EngineFeatureFlags.FEATURE_SNAPSHOT_VNEXT,
     EngineFeatureFlags.FEATURE_EVENT_STREAM,
+    EngineFeatureFlags.FEATURE_OVERLAY_QUERIES,
+    EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM,
   ]);
 
   h = hashEnum(h, 0xE000000B, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);
@@ -227,13 +263,21 @@ const computeAbiHash = (): number => {
     ChangeMask.RenderData,
   ]);
 
+  h = hashEnum(h, 0xE0000014, [
+    OverlayKind.Polyline,
+    OverlayKind.Polygon,
+    OverlayKind.Segment,
+    OverlayKind.Rect,
+    OverlayKind.Point,
+  ]);
+
   h = hashStruct(h, 0x53000001, 24, [0, 4, 8, 12, 16, 20]);
 
   h = hashStruct(h, 0x53000002, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000003, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x53000004, 40, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36]);
+  h = hashStruct(h, 0x53000004, 44, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40]);
 
   h = hashStruct(h, 0x53000005, 24, [0, 4, 6, 8, 12, 16, 20]);
 
@@ -296,6 +340,12 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x5300001F, 20, [0, 2, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000020, 12, [0, 4, 8]);
+
+  h = hashStruct(h, 0x53000021, 12, [0, 2, 4, 8]);
+
+  h = hashStruct(h, 0x53000022, 20, [0, 4, 8, 12, 16]);
+
+  h = hashStruct(h, 0x53000023, 20, [0, 4, 8, 12, 16]);
 
   return h >>> 0;
 };
