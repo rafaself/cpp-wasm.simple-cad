@@ -90,6 +90,7 @@ describe('engine full resync', () => {
       ackResync: vi.fn(),
       getSelectionIds: () => new Uint32Array(),
       getDrawOrderSnapshot: () => new Uint32Array(),
+      getHistoryMeta: () => ({ depth: 0, cursor: 0, generation: 0 }),
     } as any;
 
     applyFullResync(runtime, 42);

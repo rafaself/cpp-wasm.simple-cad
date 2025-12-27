@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { TextStyleSnapshot } from '../types/text';
 import { Point, ToolType, ViewTransform } from '../types';
-import type { EntityId } from '@/engine/core/protocol';
+import type { EntityId, HistoryMeta } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
@@ -33,6 +33,13 @@ interface UIState {
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
   documentSource: 'react' | 'engine';
+  history: {
+    canUndo: boolean;
+    canRedo: boolean;
+    depth: number;
+    cursor: number;
+    generation: number;
+  };
 
   // Engine-native text editing state
   engineTextEditState: {
@@ -68,6 +75,7 @@ interface UIState {
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
   setDocumentSource: (source: 'react' | 'engine') => void;
+  setHistoryMeta: (meta: HistoryMeta) => void;
 
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
@@ -101,6 +109,13 @@ export const useUIStore = create<UIState>((set) => ({
   engineInteractionActive: false,
   interactionDragActive: false,
   documentSource: 'engine',
+  history: {
+    canUndo: false,
+    canRedo: false,
+    depth: 0,
+    cursor: 0,
+    generation: 0,
+  },
 
   engineTextEditState: {
     active: false,
@@ -191,6 +206,15 @@ export const useUIStore = create<UIState>((set) => ({
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),
   setDocumentSource: (source) => set({ documentSource: source }),
+  setHistoryMeta: (meta) => set({
+    history: {
+      depth: meta.depth,
+      cursor: meta.cursor,
+      generation: meta.generation,
+      canUndo: meta.cursor > 0,
+      canRedo: meta.cursor < meta.depth,
+    },
+  }),
 
   // Engine text editing setters
   setEngineTextEditActive: (active, textId = null) => set((state) => ({

@@ -93,6 +93,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
         .function("allocateEntityId", &CadEngine::allocateEntityId)
         .function("getDocumentDigest", &CadEngine::getDocumentDigest)
+        .function("getHistoryMeta", &CadEngine::getHistoryMeta)
+        .function("canUndo", &CadEngine::canUndo)
+        .function("canRedo", &CadEngine::canRedo)
+        .function("undo", &CadEngine::undo)
+        .function("redo", &CadEngine::redo)
         .function("pollEvents", &CadEngine::pollEvents)
         .function("ackResync", &CadEngine::ackResync)
         .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
@@ -220,6 +225,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::value_object<CadEngine::DocumentDigest>("DocumentDigest")
         .field("lo", &CadEngine::DocumentDigest::lo)
         .field("hi", &CadEngine::DocumentDigest::hi);
+
+    emscripten::value_object<CadEngine::HistoryMeta>("HistoryMeta")
+        .field("depth", &CadEngine::HistoryMeta::depth)
+        .field("cursor", &CadEngine::HistoryMeta::cursor)
+        .field("generation", &CadEngine::HistoryMeta::generation);
 
     emscripten::value_object<CadEngine::EngineStats>("EngineStats")
         .field("generation", &CadEngine::EngineStats::generation)

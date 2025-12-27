@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Patch, Point, Shape } from '@/types';
+import type { Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
@@ -643,8 +643,6 @@ const EngineInteractionLayer: React.FC = () => {
 	                if (result) {
 	                    const { ids, opCodes, payloads } = result;
 	                    const data = useDataStore.getState();
-	                    const patches: Patch[] = [];
-
 	                    for(let i=0; i<ids.length; i++) {
 	                        const engineId = ids[i] as EntityId;
 	                        const strId = getShapeIdFromRegistry(engineId);
@@ -658,14 +656,9 @@ const EngineInteractionLayer: React.FC = () => {
 
 	                        if (diff && Object.keys(diff).length > 0) {
 	                            data.updateShape(strId, diff, { skipConnectionSync: true, recordHistory: false });
-	                            patches.push({ type: 'UPDATE', id: strId, diff, prev: prevShape });
 	                        } else if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_INTERACTION") === "1") {
 	                            console.warn(`[EngineInteractionLayer] Ignored commit entry: id=${engineId} op=${op}`);
 	                        }
-	                    }
-
-	                    if (patches.length > 0) {
-	                        data.saveToHistory(patches);
 	                    }
                 }
             }

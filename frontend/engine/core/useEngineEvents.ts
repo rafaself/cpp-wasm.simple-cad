@@ -5,7 +5,7 @@ import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { getEngineRuntime } from './singleton';
 import { ChangeMask, EventType } from './protocol';
-import { syncDrawOrderFromEngine, syncSelectionFromEngine } from './engineStateSync';
+import { syncDrawOrderFromEngine, syncHistoryMetaFromEngine, syncSelectionFromEngine } from './engineStateSync';
 import { ensureLayerIdFromEngine } from './LayerRegistry';
 import { applyFullResync } from './engineEventResync';
 
@@ -122,6 +122,7 @@ export const useEngineEvents = (): void => {
         syncEngineLayersToStore(runtime);
         syncSelectionFromEngine(runtime);
         syncDrawOrderFromEngine(runtime);
+        syncHistoryMetaFromEngine(runtime);
         bootstrapped = true;
       }
 
@@ -145,6 +146,7 @@ export const useEngineEvents = (): void => {
       let needsLayers = false;
       let needsSelection = false;
       let needsOrder = false;
+      let needsHistory = false;
 
       for (const ev of events) {
         switch (ev.type) {
@@ -156,6 +158,9 @@ export const useEngineEvents = (): void => {
             break;
           case EventType.OrderChanged:
             needsOrder = true;
+            break;
+          case EventType.HistoryChanged:
+            needsHistory = true;
             break;
           case EventType.DocChanged: {
             const mask = ev.a >>> 0;
@@ -171,6 +176,7 @@ export const useEngineEvents = (): void => {
       if (needsLayers) syncEngineLayersToStore(runtime);
       if (needsSelection) syncSelectionFromEngine(runtime);
       if (needsOrder) syncDrawOrderFromEngine(runtime);
+      if (needsHistory) syncHistoryMetaFromEngine(runtime);
 
       rafId = requestAnimationFrame(tick);
     };

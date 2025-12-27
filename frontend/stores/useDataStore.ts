@@ -1,14 +1,12 @@
 import { create } from 'zustand';
-import { FrameSettings, Layer, Patch, SerializedProject, Shape, VectorSidecar } from '../types';
+import { FrameSettings, Layer, SerializedProject, Shape, VectorSidecar } from '../types';
 import { QuadTree } from '../utils/spatial';
 import { normalizeShapeStyle, normalizeLayerStyle } from '../utils/storeNormalization';
 import { migrateVectorSidecar } from '../utils/vectorSidecar';
 
 import { createShapeSlice, ShapeSlice } from './slices/shapeSlice';
 import { createLayerSlice, LayerSlice } from './slices/layerSlice';
-import { createHistorySlice, HistorySlice } from './slices/historySlice';
-
-export type DataState = ShapeSlice & LayerSlice & HistorySlice & {
+export type DataState = ShapeSlice & LayerSlice & {
   // World Scale
   worldScale: number;
 
@@ -35,7 +33,6 @@ export type DataState = ShapeSlice & LayerSlice & HistorySlice & {
     project: SerializedProject;
     worldScale: number;
     frame: FrameSettings;
-    history?: { past: Patch[][]; future: Patch[][] };
   }) => void;
 
   // Helpers
@@ -60,8 +57,6 @@ const buildInitialState = () => ({
   },
   vectorSidecar: null,
   dirtyShapeIds: new Set<string>(),
-  past: [] as Patch[][],
-  future: [] as Patch[][],
 });
 
 export const useDataStore = create<DataState>()((...args) => {
@@ -70,7 +65,6 @@ export const useDataStore = create<DataState>()((...args) => {
   return {
     ...createShapeSlice(...args),
     ...createLayerSlice(...args),
-    ...createHistorySlice(...args),
 
     // Base state
     worldScale: 100,
@@ -126,7 +120,7 @@ export const useDataStore = create<DataState>()((...args) => {
       set({ ...initial });
     },
 
-    loadSerializedProject: ({ project, worldScale, frame, history }) => {
+    loadSerializedProject: ({ project, worldScale, frame }) => {
       // Data Migration: Explicitly ignore legacy electrical fields (electricalElements, connectionNodes, diagramNodes, diagramEdges)
       // They are simply dropped here as they are not part of the new state schema.
 
@@ -153,8 +147,6 @@ export const useDataStore = create<DataState>()((...args) => {
         frame,
         vectorSidecar,
         dirtyShapeIds: new Set(Object.keys(nextShapes)), // Mark all as dirty on load
-        past: history?.past ?? [],
-        future: history?.future ?? [],
       });
     },
 

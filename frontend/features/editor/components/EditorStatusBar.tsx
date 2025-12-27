@@ -8,6 +8,7 @@ import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
 import EditableNumber from '../../../components/EditableNumber';
 import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import { getEngineRuntime } from '@/engine/core/singleton';
 
 const EditorStatusBar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
@@ -15,6 +16,7 @@ const EditorStatusBar: React.FC = () => {
   const mousePos = useUIStore((s) => s.mousePos);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
+  const history = useUIStore((s) => s.history);
   const { zoomToFit } = useEditorLogic();
   const snapSettings = useSettingsStore(s => s.snap);
   const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
@@ -68,6 +70,12 @@ const EditorStatusBar: React.FC = () => {
 
   const handleZoomIn = () => setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
   const handleZoomOut = () => setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
+  const handleUndo = () => {
+    void getEngineRuntime().then((runtime) => runtime.undo());
+  };
+  const handleRedo = () => {
+    void getEngineRuntime().then((runtime) => runtime.redo());
+  };
 
   return (
     <div className="w-full h-9 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-300 select-none z-50">
@@ -124,18 +132,18 @@ const EditorStatusBar: React.FC = () => {
 
       <div className="flex items-center gap-2">
          <button
-           onClick={dataStore.undo}
-           className={`p-1 hover:bg-slate-700 rounded ${dataStore.past.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-           disabled={dataStore.past.length === 0}
+           onClick={handleUndo}
+           className={`p-1 hover:bg-slate-700 rounded ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
+           disabled={!history.canUndo}
            title="Desfazer (Ctrl+Z)"
            aria-label="Desfazer"
          >
            <Undo size={14} />
          </button>
          <button
-           onClick={dataStore.redo}
-           className={`p-1 hover:bg-slate-700 rounded ${dataStore.future.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-           disabled={dataStore.future.length === 0}
+           onClick={handleRedo}
+           className={`p-1 hover:bg-slate-700 rounded ${history.canRedo ? '' : 'opacity-50 cursor-not-allowed'}`}
+           disabled={!history.canRedo}
            title="Refazer (Ctrl+Y)"
            aria-label="Refazer"
          >

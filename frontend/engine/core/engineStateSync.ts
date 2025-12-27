@@ -1,4 +1,5 @@
 import type { EngineRuntime } from './EngineRuntime';
+import type { HistoryMeta } from './protocol';
 import { getShapeId } from './IdRegistry';
 import type { EntityId } from './protocol';
 import { useDataStore } from '@/stores/useDataStore';
@@ -17,6 +18,12 @@ export const syncSelectionFromEngine = (runtime: EngineRuntime): Set<EntityId> =
   const next = new Set<EntityId>(ids);
   useUIStore.setState({ selectedEntityIds: next });
   return next;
+};
+
+export const syncHistoryMetaFromEngine = (runtime: EngineRuntime): HistoryMeta => {
+  const meta = runtime.getHistoryMeta();
+  useUIStore.getState().setHistoryMeta(meta);
+  return meta;
 };
 
 export const syncDrawOrderFromEngine = (runtime: EngineRuntime): string[] => {

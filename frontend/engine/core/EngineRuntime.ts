@@ -16,6 +16,7 @@ import {
   type EventBufferMeta,
   type OverlayBufferMeta,
   type EntityAabb,
+  type HistoryMeta,
 } from './protocol';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
@@ -62,6 +63,11 @@ export type CadEngineInstance = {
   getProtocolInfo: () => ProtocolInfo;
   allocateEntityId?: () => EntityId;
   getDocumentDigest?: () => DocumentDigest;
+  getHistoryMeta?: () => HistoryMeta;
+  canUndo?: () => boolean;
+  canRedo?: () => boolean;
+  undo?: () => void;
+  redo?: () => void;
   pollEvents: (maxEvents: number) => EventBufferMeta;
   ackResync: (resyncGeneration: number) => void;
   getSelectionOutlineMeta?: () => OverlayBufferMeta;
@@ -161,6 +167,15 @@ export class EngineRuntime {
     if (typeof engine.getEntityAabb !== 'function') {
       throw new Error('[EngineRuntime] Missing getEntityAabb() in WASM. Rebuild engine to match frontend.');
     }
+    if (
+      typeof engine.getHistoryMeta !== 'function' ||
+      typeof engine.canUndo !== 'function' ||
+      typeof engine.canRedo !== 'function' ||
+      typeof engine.undo !== 'function' ||
+      typeof engine.redo !== 'function'
+    ) {
+      throw new Error('[EngineRuntime] Missing history APIs in WASM. Rebuild engine to match frontend.');
+    }
     const runtime = new EngineRuntime(module, engine);
     runtime.applyCapabilityGuards();
     return runtime;
@@ -224,6 +239,41 @@ export class EngineRuntime {
   public getDocumentDigest(): DocumentDigest | null {
     if (typeof this.engine.getDocumentDigest !== 'function') return null;
     return this.engine.getDocumentDigest();
+  }
+
+  public getHistoryMeta(): HistoryMeta {
+    if (!this.engine.getHistoryMeta) {
+      throw new Error('[EngineRuntime] getHistoryMeta() missing in WASM build.');
+    }
+    return this.engine.getHistoryMeta();
+  }
+
+  public canUndo(): boolean {
+    if (!this.engine.canUndo) {
+      throw new Error('[EngineRuntime] canUndo() missing in WASM build.');
+    }
+    return this.engine.canUndo();
+  }
+
+  public canRedo(): boolean {
+    if (!this.engine.canRedo) {
+      throw new Error('[EngineRuntime] canRedo() missing in WASM build.');
+    }
+    return this.engine.canRedo();
+  }
+
+  public undo(): void {
+    if (!this.engine.undo) {
+      throw new Error('[EngineRuntime] undo() missing in WASM build.');
+    }
+    this.engine.undo();
+  }
+
+  public redo(): void {
+    if (!this.engine.redo) {
+      throw new Error('[EngineRuntime] redo() missing in WASM build.');
+    }
+    this.engine.redo();
   }
 
   public apply(commands: readonly EngineCommand[]): void {

@@ -17,7 +17,7 @@ import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persist
 import { decodeEsnpSnapshot } from '@/persistence/esnpSnapshot';
 import { buildProjectFromEsnp } from '@/persistence/esnpHydration';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { syncDrawOrderFromEngine, syncSelectionFromEngine } from '@/engine/core/engineStateSync';
+import { syncDrawOrderFromEngine, syncHistoryMetaFromEngine, syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 import { getShapeId as getShapeIdFromRegistry, registerEngineId, setNextEngineId } from '@/engine/core/IdRegistry';
 import { ensureLayerIdFromEngine } from '@/engine/core/LayerRegistry';
 import { clearTextMappings, getTextTool, getTextIdForShape, registerTextMapping, setTextMeta } from '@/engine/core/textEngineSync';
@@ -226,12 +226,12 @@ const EditorRibbon: React.FC = () => {
             project: hydration.project,
             worldScale: payload.worldScale,
             frame: payload.frame,
-            history: { past: [], future: [] },
           });
           dataStore.clearDirtyShapeIds();
 
           syncDrawOrderFromEngine(runtime);
           syncSelectionFromEngine(runtime);
+          syncHistoryMetaFromEngine(runtime);
           useUIStore.getState().setTool('select');
         } catch (err) {
           console.error(err);
@@ -248,6 +248,7 @@ const EditorRibbon: React.FC = () => {
           const runtime = await getEngineRuntime();
           runtime.resetIds();
           runtime.clear();
+          syncHistoryMetaFromEngine(runtime);
         } catch (e) {
           console.error(e);
         }
@@ -290,8 +291,12 @@ const EditorRibbon: React.FC = () => {
       if (action === 'join') joinSelected();
       if (action === 'explode') explodeSelected();
       if (action === 'zoom-fit') zoomToFit();
-      if (action === 'undo') dataStore.undo();
-      if (action === 'redo') dataStore.redo();
+      if (action === 'undo') {
+        void getEngineRuntime().then((runtime) => runtime.undo());
+      }
+      if (action === 'redo') {
+        void getEngineRuntime().then((runtime) => runtime.redo());
+      }
       if (action === 'open-settings') setSettingsModalOpen(true);
       if (action === 'export-project') exportProjectData();
       if (action === 'view-project') openProjectPreview();

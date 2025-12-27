@@ -4,12 +4,13 @@ import { buildProjectFromEsnp } from '@/persistence/esnpHydration';
 import { ensureLayerIdFromEngine, LayerRegistry } from './LayerRegistry';
 import { registerEngineId, setNextEngineId } from './IdRegistry';
 import { clearTextMappings, registerTextMapping, setTextMeta } from './textEngineSync';
-import { syncDrawOrderFromEngine, syncSelectionFromEngine } from './engineStateSync';
+import { syncDrawOrderFromEngine, syncHistoryMetaFromEngine, syncSelectionFromEngine } from './engineStateSync';
 import type { EngineRuntime } from './EngineRuntime';
 
 export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number): void => {
   const bytes = runtime.getFullSnapshotBytes();
   if (bytes.byteLength === 0) {
+    syncHistoryMetaFromEngine(runtime);
     runtime.ackResync(resyncGeneration);
     return;
   }
@@ -41,12 +42,12 @@ export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number
     project: hydration.project,
     worldScale: data.worldScale,
     frame: data.frame,
-    history: { past: [], future: [] },
   });
   data.clearDirtyShapeIds();
 
   syncDrawOrderFromEngine(runtime);
   syncSelectionFromEngine(runtime);
+  syncHistoryMetaFromEngine(runtime);
 
   runtime.ackResync(resyncGeneration);
 };

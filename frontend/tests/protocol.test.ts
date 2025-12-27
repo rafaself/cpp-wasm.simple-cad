@@ -42,13 +42,25 @@ describe('validateProtocolOrThrow', () => {
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
 
-  it('accepts when only required flags are present', () => {
+  it('throws when engine history flag is missing', () => {
     const info = {
       ...EXPECTED_PROTOCOL_INFO,
       featureFlags:
         EngineFeatureFlags.FEATURE_PROTOCOL |
         EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
         EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM,
+    };
+    expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
+  });
+
+  it('accepts when only required flags are present', () => {
+    const info = {
+      ...EXPECTED_PROTOCOL_INFO,
+      featureFlags:
+        EngineFeatureFlags.FEATURE_PROTOCOL |
+        EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
+        EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM |
+        EngineFeatureFlags.FEATURE_ENGINE_HISTORY,
     };
     expect(() => validateProtocolOrThrow(info)).not.toThrow();
   });

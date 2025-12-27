@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import type { Shape, Patch, Point } from '@/types';
+import type { Shape, Point } from '@/types';
 import { DataState } from '../useDataStore';
 import { normalizeShapeStyle } from '../../utils/storeNormalization';
 import { getCombinedBounds, getShapeBounds, getShapeBoundingBox, getShapeCenter, rotatePoint } from '@/utils/geometry';
@@ -26,7 +26,7 @@ export const createShapeSlice: StateCreator<
   shapeOrder: [],
 
   addShape: (shape) => {
-      const { shapes, shapeOrder, saveToHistory, dirtyShapeIds } = get();
+      const { shapes, shapeOrder, dirtyShapeIds } = get();
 
       const linkedShape = normalizeShapeStyle(shape);
       const newShapes = { ...shapes, [linkedShape.id]: linkedShape };
@@ -36,19 +36,12 @@ export const createShapeSlice: StateCreator<
       newDirty.add(linkedShape.id);
 
       set({ shapes: newShapes, shapeOrder: newShapeOrder, dirtyShapeIds: newDirty });
-      saveToHistory([{
-        type: 'ADD',
-        id: linkedShape.id,
-        data: linkedShape,
-        orderIndex: newShapeOrder.indexOf(linkedShape.id),
-      }]);
   },
 
   addShapes: (shapesToAdd) => {
-      const { shapes, shapeOrder, saveToHistory, dirtyShapeIds } = get();
+      const { shapes, shapeOrder, dirtyShapeIds } = get();
       const newShapes = { ...shapes };
       const newShapeOrder = [...shapeOrder];
-      const patches: Patch[] = [];
       const newDirty = new Set(dirtyShapeIds);
 
       shapesToAdd.forEach(shape => {
@@ -56,30 +49,15 @@ export const createShapeSlice: StateCreator<
           newShapes[normalized.id] = normalized;
           if (!newShapeOrder.includes(normalized.id)) newShapeOrder.push(normalized.id);
           newDirty.add(normalized.id);
-          patches.push({
-              type: 'ADD',
-              id: normalized.id,
-              data: normalized,
-              orderIndex: newShapeOrder.indexOf(normalized.id),
-          });
       });
 
       set({ shapes: newShapes, shapeOrder: newShapeOrder, dirtyShapeIds: newDirty });
-      saveToHistory(patches);
   },
 
-  updateShape: (id, diff, optionsOrRecordHistory = true) => {
-      const { shapes, saveToHistory, dirtyShapeIds } = get();
+  updateShape: (id, diff, _optionsOrRecordHistory = true) => {
+      const { shapes, dirtyShapeIds } = get();
       const oldShape = shapes[id];
       if (!oldShape) return;
-
-      let recordHistory = true;
-
-      if (typeof optionsOrRecordHistory === 'object') {
-          recordHistory = optionsOrRecordHistory.recordHistory ?? true;
-      } else if (typeof optionsOrRecordHistory === 'boolean') {
-          recordHistory = optionsOrRecordHistory;
-      }
 
       let newShape: Shape = normalizeShapeStyle({ ...oldShape, ...diff });
 
@@ -89,38 +67,30 @@ export const createShapeSlice: StateCreator<
 
       set({ shapes: newShapes, dirtyShapeIds: newDirty });
 
-      if (recordHistory) {
-          saveToHistory([{ type: 'UPDATE', id, diff, prev: oldShape }]);
-      }
   },
 
   deleteShape: (id) => {
-      const { shapes, shapeOrder, saveToHistory } = get();
+      const { shapes, shapeOrder } = get();
       const targetShape = shapes[id];
       if (!targetShape) return;
 
       const newShapes = { ...shapes };
       const orderIndex = shapeOrder.indexOf(id);
       const newShapeOrder = orderIndex >= 0 ? shapeOrder.filter((sid) => sid !== id) : shapeOrder;
-      const patches: Patch[] = [];
-
       delete newShapes[id];
-      patches.push({ type: 'DELETE', id, prev: targetShape, orderIndex: orderIndex >= 0 ? orderIndex : undefined });
 
       const finalOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
 
       set({ shapes: newShapes, shapeOrder: finalOrder });
-      saveToHistory(patches);
   },
 
   alignSelected: (ids, alignment) => {
-    const { shapes, saveToHistory, updateShape } = get();
+    const { shapes, updateShape } = get();
     if (ids.length < 2) return;
     const selectedList = ids.map((id: string) => shapes[id]).filter(s => !!s);
     const combinedBounds = getCombinedBounds(selectedList);
     if (!combinedBounds) return;
 
-    const patches: Patch[] = [];
     selectedList.forEach(s => {
         const bounds = getShapeBounds(s);
         if (!bounds) return;
@@ -143,18 +113,14 @@ export const createShapeSlice: StateCreator<
         if (s.points) diff.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
 
         const prev: Partial<Shape> = { x: s.x, y: s.y, points: s.points };
-        patches.push({ type: 'UPDATE', id: s.id, diff, prev });
         updateShape(s.id, diff, false);
     });
-
-    saveToHistory(patches);
   },
 
   deleteShapes: (ids) => {
-    const { shapes, shapeOrder, saveToHistory } = get();
+    const { shapes, shapeOrder } = get();
     if (ids.length === 0) return;
 
-    const patches: Patch[] = [];
     const newShapes = { ...shapes };
     let newShapeOrder = [...shapeOrder];
 
@@ -165,20 +131,15 @@ export const createShapeSlice: StateCreator<
         delete newShapes[id];
         if (newShapeOrder.includes(id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== id);
         const orderIndex = shapeOrder.indexOf(id);
-        patches.push({ type: 'DELETE', id, prev: s, orderIndex: orderIndex >= 0 ? orderIndex : undefined });
     });
 
-    if (patches.length > 0) {
-        newShapeOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
-        set({ shapes: newShapes, shapeOrder: newShapeOrder });
-        saveToHistory(patches);
-    }
+    newShapeOrder = newShapeOrder.filter((sid) => !!newShapes[sid]);
+    set({ shapes: newShapes, shapeOrder: newShapeOrder });
   },
 
   rotateSelected: (ids, pivot, angle) => {
-     const { shapes, saveToHistory, updateShape } = get();
+     const { shapes, updateShape } = get();
      if (ids.length === 0) return;
-     const patches: Patch[] = [];
      ids.forEach(id => {
          const s = shapes[id];
          if (!s) return;
@@ -205,9 +166,7 @@ export const createShapeSlice: StateCreator<
          }
 
          const prev: Partial<Shape> = { points: s.points, x: s.x, y: s.y, rotation: s.rotation };
-         patches.push({ type: 'UPDATE', id, diff, prev });
          updateShape(id, diff, false);
      });
-     saveToHistory(patches);
   },
 });

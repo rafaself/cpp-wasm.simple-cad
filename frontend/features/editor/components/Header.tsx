@@ -9,14 +9,19 @@ import {
   Maximize,
   Minimize
 } from 'lucide-react';
-import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { getEngineRuntime } from '@/engine/core/singleton';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 
 const Header: React.FC = () => {
-  const { undo, redo } = useDataStore();
   const setSettingsModalOpen = useUIStore(s => s.setSettingsModalOpen);
   const [isFullScreen, setIsFullScreen] = React.useState(false);
+  const handleUndo = () => {
+    void getEngineRuntime().then((runtime) => runtime.undo());
+  };
+  const handleRedo = () => {
+    void getEngineRuntime().then((runtime) => runtime.redo());
+  };
 
   // Detect OS for correct fullscreen shortcut
   const isMac = React.useMemo(() => {
@@ -77,14 +82,14 @@ const Header: React.FC = () => {
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title="Desfazer (Ctrl+Z)"
-            onClick={undo}
+            onClick={handleUndo}
           >
             <Undo2 size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title="Refazer (Ctrl+Y)"
-            onClick={redo}
+            onClick={handleRedo}
           >
             <Redo2 size={14} />
           </button>
@@ -145,6 +150,5 @@ const Header: React.FC = () => {
 };
 
 export default Header;
-
 
 

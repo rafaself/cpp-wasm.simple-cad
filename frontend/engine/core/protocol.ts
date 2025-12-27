@@ -8,6 +8,7 @@ export enum EngineFeatureFlags {
   FEATURE_EVENT_STREAM = 1 << 4,
   FEATURE_OVERLAY_QUERIES = 1 << 5,
   FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
+  FEATURE_ENGINE_HISTORY = 1 << 7,
 }
 
 export enum EngineLayerFlags {
@@ -95,6 +96,12 @@ export type DocumentDigest = {
   hi: number;
 };
 
+export type HistoryMeta = {
+  depth: number;
+  cursor: number;
+  generation: number;
+};
+
 export type EngineEvent = {
   type: number;
   flags: number;
@@ -149,7 +156,8 @@ export const EVENT_STREAM_VERSION = 1 as const;
 export const REQUIRED_FEATURE_FLAGS =
   EngineFeatureFlags.FEATURE_PROTOCOL |
   EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
-  EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM;
+  EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM |
+  EngineFeatureFlags.FEATURE_ENGINE_HISTORY;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -209,6 +217,7 @@ const computeAbiHash = (): number => {
     EngineFeatureFlags.FEATURE_EVENT_STREAM,
     EngineFeatureFlags.FEATURE_OVERLAY_QUERIES,
     EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM,
+    EngineFeatureFlags.FEATURE_ENGINE_HISTORY,
   ]);
 
   h = hashEnum(h, 0xE000000B, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);
@@ -346,6 +355,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x53000022, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000023, 20, [0, 4, 8, 12, 16]);
+
+  h = hashStruct(h, 0x53000024, 12, [0, 4, 8]);
 
   return h >>> 0;
 };

@@ -187,6 +187,7 @@ if(NOT EMSCRIPTEN)
     tests/event_stream_test.cpp
     tests/overlay_query_test.cpp
     tests/interactive_transform_perf_test.cpp
+    tests/history_test.cpp
   )
   
   # Add text tests if enabled

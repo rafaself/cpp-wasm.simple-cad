@@ -52,6 +52,7 @@ public:
         FEATURE_EVENT_STREAM = 1 << 4,
         FEATURE_OVERLAY_QUERIES = 1 << 5,
         FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
+        FEATURE_ENGINE_HISTORY = 1 << 7,
     };
 
     enum class LayerPropMask : std::uint32_t {
@@ -131,7 +132,8 @@ public:
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM);
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -204,6 +206,18 @@ public:
         std::uint32_t hi;
     };
     DocumentDigest getDocumentDigest() const noexcept;
+
+    struct HistoryMeta {
+        std::uint32_t depth;
+        std::uint32_t cursor;
+        std::uint32_t generation;
+    };
+
+    HistoryMeta getHistoryMeta() const noexcept;
+    bool canUndo() const noexcept;
+    bool canRedo() const noexcept;
+    void undo();
+    void redo();
 
     struct EngineEvent {
         std::uint16_t type;
@@ -339,6 +353,11 @@ public:
     std::vector<std::uint32_t> selectionOrdered_{};
     std::uint32_t selectionGeneration_{0};
     std::uint32_t nextEntityId_{1};
+    std::vector<HistoryEntry> history_{};
+    std::size_t historyCursor_{0};
+    std::uint32_t historyGeneration_{0};
+    bool historySuppressed_{false};
+    HistoryTransaction historyTransaction_{};
 
     static constexpr std::size_t kMaxEvents = 2048;
     std::vector<EngineEvent> eventQueue_{};
@@ -387,6 +406,25 @@ public:
     void recordSelectionChanged();
     void recordOrderChanged();
     void recordHistoryChanged();
+    void clearHistory();
+    bool beginHistoryEntry();
+    void commitHistoryEntry();
+    void discardHistoryEntry();
+    void pushHistoryEntry(HistoryEntry&& entry);
+    void markEntityChange(std::uint32_t id);
+    void markLayerChange();
+    void markDrawOrderChange();
+    void markSelectionChange();
+    void finalizeHistoryEntry(HistoryEntry& entry);
+    bool captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out) const;
+    EntitySnapshot buildSnapshotFromTransform(const TransformSnapshot& snap) const;
+    void applyEntitySnapshot(const EntitySnapshot& snap);
+    void applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers);
+    void applyDrawOrderSnapshot(const std::vector<std::uint32_t>& order);
+    void applySelectionSnapshot(const std::vector<std::uint32_t>& selection);
+    void applyHistoryEntry(const HistoryEntry& entry, bool useAfter);
+    std::vector<std::uint8_t> encodeHistoryBytes() const;
+    void decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCount);
     void flushPendingEvents();
     bool pushEvent(const EngineEvent& ev);
 
@@ -837,6 +875,7 @@ private:
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY),
         });
 
         h = hashEnum(h, 0xE000000Bu, {
@@ -1217,6 +1256,12 @@ private:
             static_cast<std::uint32_t>(offsetof(EntityAabb, valid)),
         });
 
+        h = hashStruct(h, 0x53000024u, sizeof(HistoryMeta), {
+            static_cast<std::uint32_t>(offsetof(HistoryMeta, depth)),
+            static_cast<std::uint32_t>(offsetof(HistoryMeta, cursor)),
+            static_cast<std::uint32_t>(offsetof(HistoryMeta, generation)),
+        });
+
         return h;
     }
 
@@ -1243,6 +1288,52 @@ private:
     };
 
     InteractionSession session_;
+
+    struct EntitySnapshot {
+        std::uint32_t id{0};
+        EntityKind kind{EntityKind::Rect};
+        std::uint32_t layerId{0};
+        std::uint32_t flags{0};
+        RectRec rect{};
+        LineRec line{};
+        PolyRec poly{};
+        CircleRec circle{};
+        PolygonRec polygon{};
+        ArrowRec arrow{};
+        std::vector<Point2> points{};
+        TextPayloadHeader textHeader{};
+        std::vector<TextRunPayload> textRuns{};
+        std::string textContent{};
+    };
+
+    struct EntityChange {
+        std::uint32_t id{0};
+        bool existedBefore{false};
+        bool existedAfter{false};
+        EntitySnapshot before{};
+        EntitySnapshot after{};
+    };
+
+    struct HistoryEntry {
+        std::vector<EntityChange> entities{};
+        bool hasLayerChange{false};
+        std::vector<engine::LayerSnapshot> layersBefore{};
+        std::vector<engine::LayerSnapshot> layersAfter{};
+        bool hasDrawOrderChange{false};
+        std::vector<std::uint32_t> drawOrderBefore{};
+        std::vector<std::uint32_t> drawOrderAfter{};
+        bool hasSelectionChange{false};
+        std::vector<std::uint32_t> selectionBefore{};
+        std::vector<std::uint32_t> selectionAfter{};
+        std::uint32_t nextIdBefore{1};
+        std::uint32_t nextIdAfter{1};
+    };
+
+    struct HistoryTransaction {
+        bool active{false};
+        HistoryEntry entry{};
+        std::unordered_map<std::uint32_t, std::size_t> entityIndex{};
+    };
 
     // Commit Result Buffers (Struct-of-Arrays)
     // We keep these alive between commits so WASM can read them safely immediately after commit.
