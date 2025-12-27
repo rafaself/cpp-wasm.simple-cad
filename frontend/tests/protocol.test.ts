@@ -26,9 +26,20 @@ describe('validateProtocolOrThrow', () => {
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
 
-  it('throws when layers feature flag is missing', () => {
-    const info = { ...EXPECTED_PROTOCOL_INFO, featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL };
+  it('throws when snapshot feature flag is missing', () => {
+    const info = {
+      ...EXPECTED_PROTOCOL_INFO,
+      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_LAYERS_FLAGS,
+    };
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
+  });
+
+  it('accepts when only required flags are present', () => {
+    const info = {
+      ...EXPECTED_PROTOCOL_INFO,
+      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_SNAPSHOT_VNEXT,
+    };
+    expect(() => validateProtocolOrThrow(info)).not.toThrow();
   });
 
   it('accepts matching protocol info', () => {

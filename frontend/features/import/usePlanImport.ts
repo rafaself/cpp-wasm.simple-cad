@@ -16,6 +16,9 @@ import { DxfColorScheme } from './utils/dxf/colorScheme';
 import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
 import { buildDxfSvgVectorSidecarV1 } from './utils/dxf/dxfSvgToVectorSidecar';
 import { ensureId } from '@/engine/core/IdRegistry';
+import { SelectionMode } from '@/engine/core/protocol';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -373,7 +376,10 @@ export const usePlanImport = (): PlanImportHook => {
                   dataStore.setVectorSidecar(mergeVectorSidecarsV1(base, nextSidecar, `dxf:${shape.id}:`));
               }
           }
-          uiStore.setSelectedEntityIds(new Set(shapesToAdd.map((s) => ensureId(s.id))));
+          void getEngineRuntime().then((runtime) => {
+            runtime.setSelection(shapesToAdd.map((s) => ensureId(s.id)), SelectionMode.Replace);
+            syncSelectionFromEngine(runtime);
+          });
           uiStore.setTool('select');
           
           // Center content after import
@@ -425,7 +431,10 @@ export const usePlanImport = (): PlanImportHook => {
           const merged = mergeVectorSidecarsV1(base, result.vectorSidecarToMerge.sidecar, result.vectorSidecarToMerge.prefix);
           dataStore.setVectorSidecar(merged);
         }
-        uiStore.setSelectedEntityIds(new Set(result.shapes.map((s) => ensureId(s.id))));
+        void getEngineRuntime().then((runtime) => {
+          runtime.setSelection(result.shapes.map((s) => ensureId(s.id)), SelectionMode.Replace);
+          syncSelectionFromEngine(runtime);
+        });
         uiStore.setTool('select');
         
         // Center content after import

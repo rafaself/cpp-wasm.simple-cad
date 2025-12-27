@@ -5,17 +5,20 @@ export type NextDocumentHistory = {
   future: Patch[][];
 };
 
-export type NextDocumentPayload = {
+export type NextDocumentMeta = {
   worldScale: number;
   frame: FrameSettings;
-  project: SerializedProject;
-  history: NextDocumentHistory;
+};
+
+export type NextDocumentPayload = NextDocumentMeta & {
+  project?: SerializedProject;
+  history?: NextDocumentHistory;
 };
 
 export type NextDocumentExtras = {
   /**
-   * Optional WASM engine snapshot bytes (EWC1).
-   * Not required to restore the UI store, but reserved for fast-engine hydration in Phase 6+.
+   * Optional WASM engine snapshot bytes (ESNP).
+   * Required for engine-first load (PR-03).
    */
   engineSnapshot?: Uint8Array;
 };
@@ -25,6 +28,7 @@ export type NextDocumentDecoded = NextDocumentPayload & NextDocumentExtras;
 const MAGIC = new Uint8Array([0x45, 0x57, 0x4e, 0x44]); // "EWND"
 const VERSION_V1 = 1;
 const VERSION_V2 = 2;
+const VERSION_V3 = 3;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -45,7 +49,7 @@ const fourCC = (s: string): number => {
 const TAG_META = fourCC('META');
 const TAG_PROJ = fourCC('PROJ');
 const TAG_HIST = fourCC('HIST');
-const TAG_ESNP = fourCC('ESNP'); // engine snapshot (EWC1)
+const TAG_ESNP = fourCC('ESNP'); // engine snapshot (ESNP)
 
 const crcTable: Uint32Array = (() => {
   const table = new Uint32Array(256);
@@ -71,17 +75,16 @@ type Section = {
 };
 
 export const encodeNextDocumentFile = (payload: NextDocumentPayload, extras?: NextDocumentExtras): Uint8Array => {
-  const projectBytes = textEncoder.encode(JSON.stringify(payload.project));
-  const historyBytes = textEncoder.encode(JSON.stringify(payload.history));
+  if (!extras?.engineSnapshot || extras.engineSnapshot.byteLength === 0) {
+    throw new Error('NextDocument V3 requires an ESNP engine snapshot.');
+  }
+
   const metaBytes = textEncoder.encode(JSON.stringify({ worldScale: payload.worldScale, frame: payload.frame }));
 
   const sections: Section[] = [
     { tag: TAG_META, bytes: metaBytes },
-    { tag: TAG_PROJ, bytes: projectBytes },
-    { tag: TAG_HIST, bytes: historyBytes },
+    { tag: TAG_ESNP, bytes: extras.engineSnapshot },
   ];
-
-  if (extras?.engineSnapshot) sections.push({ tag: TAG_ESNP, bytes: extras.engineSnapshot });
 
   // Header:
   // - magic[4]
@@ -101,7 +104,7 @@ export const encodeNextDocumentFile = (payload: NextDocumentPayload, extras?: Ne
   const out = new Uint8Array(totalBytes);
   out.set(MAGIC, 0);
   const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
-  writeU32LE(view, 4, VERSION_V2);
+  writeU32LE(view, 4, VERSION_V3);
   writeU32LE(view, 8, sections.length);
   writeU32LE(view, 12, 0);
 
@@ -168,7 +171,7 @@ export const decodeNextDocumentFile = (bytes: Uint8Array): NextDocumentDecoded =
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const version = readU32LE(view, 4);
   if (version === VERSION_V1) return decodeV1(bytes);
-  if (version !== VERSION_V2) throw new Error(`Unsupported file version: ${version}`);
+  if (version !== VERSION_V2 && version !== VERSION_V3) throw new Error(`Unsupported file version: ${version}`);
 
   const sectionCount = readU32LE(view, 8);
   const headerBytes = 16;
@@ -197,18 +200,21 @@ export const decodeNextDocumentFile = (bytes: Uint8Array): NextDocumentDecoded =
   }
 
   const metaBytes = sectionsByTag.get(TAG_META);
-  const projectBytes = sectionsByTag.get(TAG_PROJ);
-  const historyBytes = sectionsByTag.get(TAG_HIST);
-  if (!metaBytes || !projectBytes || !historyBytes) throw new Error('Invalid file: missing required sections.');
+  if (!metaBytes) throw new Error('Invalid file: missing META section.');
 
   const metaJson = textDecoder.decode(metaBytes);
-  const projectJson = textDecoder.decode(projectBytes);
-  const historyJson = textDecoder.decode(historyBytes);
-
   const meta = JSON.parse(metaJson) as { worldScale: number; frame: FrameSettings };
-  const project = JSON.parse(projectJson) as SerializedProject;
-  const history = JSON.parse(historyJson) as NextDocumentHistory;
+
+  const projectBytes = sectionsByTag.get(TAG_PROJ);
+  const historyBytes = sectionsByTag.get(TAG_HIST);
   const engineSnapshot = sectionsByTag.get(TAG_ESNP);
+
+  const project = projectBytes ? (JSON.parse(textDecoder.decode(projectBytes)) as SerializedProject) : undefined;
+  const history = historyBytes ? (JSON.parse(textDecoder.decode(historyBytes)) as NextDocumentHistory) : undefined;
+
+  if (version === VERSION_V3 && !engineSnapshot) {
+    throw new Error('Invalid file: missing ESNP snapshot for V3.');
+  }
 
   return {
     worldScale: meta.worldScale,

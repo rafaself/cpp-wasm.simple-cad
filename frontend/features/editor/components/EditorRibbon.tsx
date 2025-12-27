@@ -14,9 +14,13 @@ import { FontFamilyControl, FontSizeControl, TextAlignControl, TextStyleControl,
 import LayerControl from '../ribbon/components/LayerControl';
 import GridControl from '../ribbon/components/GridControl';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
+import { decodeEsnpSnapshot } from '@/persistence/esnpSnapshot';
+import { buildProjectFromEsnp } from '@/persistence/esnpHydration';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
-import { getTextTool, getTextIdForShape } from '@/engine/core/textEngineSync';
+import { syncDrawOrderFromEngine, syncSelectionFromEngine } from '@/engine/core/engineStateSync';
+import { getShapeId as getShapeIdFromRegistry, registerEngineId, setNextEngineId } from '@/engine/core/IdRegistry';
+import { ensureLayerIdFromEngine } from '@/engine/core/LayerRegistry';
+import { clearTextMappings, getTextTool, getTextIdForShape, registerTextMapping, setTextMeta } from '@/engine/core/textEngineSync';
 import { TextStyleFlags } from '@/types/text';
 
 // Shared styles - using design tokens
@@ -156,16 +160,10 @@ const EditorRibbon: React.FC = () => {
 
   const saveNextDocument = useCallback(() => {
       void (async () => {
-        const payload = {
-          worldScale,
-          frame,
-          project: serializeProject(),
-          history: { past: dataStore.past, future: dataStore.future },
-        };
+        const payload = { worldScale, frame };
 
         const runtime = await getEngineRuntime();
-        const snapMeta = runtime.engine.getSnapshotBufferMeta();
-        const engineSnapshot = new Uint8Array(runtime.module.HEAPU8.subarray(snapMeta.ptr, snapMeta.ptr + snapMeta.byteCount));
+        const engineSnapshot = runtime.saveSnapshotBytes();
 
         const bytes = encodeNextDocumentFile(payload, { engineSnapshot });
         const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
@@ -176,7 +174,7 @@ const EditorRibbon: React.FC = () => {
         a.click();
         URL.revokeObjectURL(url);
       })();
-  }, [dataStore.future, dataStore.past, frame, serializeProject, worldScale]);
+  }, [frame, worldScale]);
 
   const openNextDocument = useCallback(() => {
       const input = document.createElement('input');
@@ -186,30 +184,60 @@ const EditorRibbon: React.FC = () => {
         const file = input.files?.[0];
         if (!file) return;
         const buf = await file.arrayBuffer();
-        const payload = decodeNextDocumentFile(new Uint8Array(buf));
-
-        // The WASM runtime is a singleton; restore (or at least clear) it immediately
-        // to avoid rendering stale geometry from the previous document.
+        let payload;
         try {
-          const runtime = await getEngineRuntime();
-          runtime.resetIds();
-          if (payload.engineSnapshot && payload.engineSnapshot.byteLength > 0) {
-            runtime.loadSnapshotBytes(payload.engineSnapshot);
-          } else {
-            runtime.clear();
-          }
-        } catch (e) {
-          console.error(e);
+          payload = decodeNextDocumentFile(new Uint8Array(buf));
+        } catch (err) {
+          console.error(err);
+          alert('Arquivo inválido ou corrompido.');
+          return;
         }
 
-        dataStore.loadSerializedProject({
-          project: payload.project,
-          worldScale: payload.worldScale,
-          frame: payload.frame,
-          history: payload.history,
-        });
-        useUIStore.getState().setSelectedEntityIds(new Set());
-        useUIStore.getState().setTool('select');
+        if (!payload.engineSnapshot || payload.engineSnapshot.byteLength === 0) {
+          alert('Arquivo sem snapshot ESNP. Abra apenas documentos vNext.');
+          return;
+        }
+
+        try {
+          const runtime = await getEngineRuntime();
+          useUIStore.getState().setDocumentSource('engine');
+          runtime.resetIds();
+          clearTextMappings();
+          runtime.loadSnapshotBytes(payload.engineSnapshot);
+
+          const snapshot = decodeEsnpSnapshot(payload.engineSnapshot);
+          const hydration = buildProjectFromEsnp(snapshot, {
+            layerIdForEngine: (engineId) => ensureLayerIdFromEngine(engineId),
+            shapeIdForEntity: (engineId) => {
+              const shapeId = `entity-${engineId}`;
+              registerEngineId(engineId, shapeId);
+              return shapeId;
+            },
+          });
+
+          for (const entry of hydration.entities) {
+            if (!entry.textMeta) continue;
+            registerTextMapping(entry.engineId, entry.shape.id);
+            setTextMeta(entry.engineId, entry.textMeta.boxMode, entry.textMeta.constraintWidth);
+          }
+          setNextEngineId(snapshot.nextId);
+
+          dataStore.loadSerializedProject({
+            project: hydration.project,
+            worldScale: payload.worldScale,
+            frame: payload.frame,
+            history: { past: [], future: [] },
+          });
+          dataStore.clearDirtyShapeIds();
+
+          syncDrawOrderFromEngine(runtime);
+          syncSelectionFromEngine(runtime);
+          useUIStore.getState().setTool('select');
+        } catch (err) {
+          console.error(err);
+          useUIStore.getState().setDocumentSource('react');
+          alert('Falha ao carregar o snapshot ESNP.');
+        }
       };
       input.click();
   }, [dataStore]);
@@ -224,8 +252,12 @@ const EditorRibbon: React.FC = () => {
           console.error(e);
         }
       })();
+      useUIStore.getState().setDocumentSource('react');
       dataStore.resetDocument();
-      useUIStore.getState().setSelectedEntityIds(new Set());
+      void getEngineRuntime().then((runtime) => {
+        runtime.clearSelection();
+        syncSelectionFromEngine(runtime);
+      });
       useUIStore.getState().setTool('select');
   }, [dataStore]);
 

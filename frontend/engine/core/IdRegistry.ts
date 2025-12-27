@@ -27,6 +27,17 @@ class IdRegistryImpl {
   }
 
   /**
+   * Register a pre-existing engine ID mapping (used for snapshot hydration).
+   */
+  registerEngineId(engineId: EntityId, shapeId: string): void {
+    this.shapeToEngine.set(shapeId, engineId);
+    this.engineToShape.set(engineId, shapeId);
+    if (engineId >= this.nextEngineId) {
+      this.nextEngineId = engineId + 1;
+    }
+  }
+
+  /**
    * Get the engine ID for a shape, or null if not registered.
    */
   getEngineId(shapeId: string): EntityId | null {
@@ -86,6 +97,14 @@ class IdRegistryImpl {
   }
 
   /**
+   * Override the next engine ID (used for snapshot hydration).
+   */
+  setNextEngineId(nextId: EntityId): void {
+    if (nextId <= 0) return;
+    this.nextEngineId = Math.max(this.nextEngineId, nextId);
+  }
+
+  /**
    * Get all registered shape IDs.
    */
   getAllShapeIds(): string[] {
@@ -115,3 +134,6 @@ export const ensureId = (shapeId: string): EntityId => IdRegistry.ensureEngineId
 export const getEngineId = (shapeId: string): EntityId | null => IdRegistry.getEngineId(shapeId);
 export const getShapeId = (engineId: EntityId): string | null => IdRegistry.getShapeId(engineId);
 export const releaseId = (shapeId: string): EntityId | null => IdRegistry.release(shapeId);
+export const registerEngineId = (engineId: EntityId, shapeId: string): void =>
+  IdRegistry.registerEngineId(engineId, shapeId);
+export const setNextEngineId = (nextId: EntityId): void => IdRegistry.setNextEngineId(nextId);

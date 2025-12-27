@@ -2,11 +2,20 @@ import { create } from 'zustand';
 import { TextStyleSnapshot } from '../types/text';
 import { Point, ToolType, ViewTransform } from '../types';
 import type { EntityId } from '@/engine/core/protocol';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
 export interface EditorTab {
   floorId: string;
   discipline: 'architecture';
 }
+
+const clearEngineSelection = (): void => {
+  void getEngineRuntime().then((runtime) => {
+    runtime.clearSelection();
+    syncSelectionFromEngine(runtime);
+  });
+};
 
 interface UIState {
   // UI State
@@ -23,6 +32,7 @@ interface UIState {
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
+  documentSource: 'react' | 'engine';
 
   // Engine-native text editing state
   engineTextEditState: {
@@ -57,6 +67,7 @@ interface UIState {
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
+  setDocumentSource: (source: 'react' | 'engine') => void;
 
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
@@ -89,6 +100,7 @@ export const useUIStore = create<UIState>((set) => ({
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
+  documentSource: 'react',
 
   engineTextEditState: {
     active: false,
@@ -125,7 +137,9 @@ export const useUIStore = create<UIState>((set) => ({
       return { referencedDisciplines: newReferences };
   }),
   
-  openTab: (tab) => set((state) => {
+  openTab: (tab) => {
+    clearEngineSelection();
+    return set((state) => {
     const exists = state.openTabs.some(t => t.floorId === tab.floorId && t.discipline === tab.discipline);
     
     // Always clear selection when switching context
@@ -142,7 +156,8 @@ export const useUIStore = create<UIState>((set) => ({
         ...updates,
         openTabs: [...state.openTabs, tab],
     };
-  }),
+  });
+  },
   
   closeTab: (tab) => set((state) => {
     const newTabs = state.openTabs.filter(t => !(t.floorId === tab.floorId && t.discipline === tab.discipline));
@@ -175,6 +190,7 @@ export const useUIStore = create<UIState>((set) => ({
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),
+  setDocumentSource: (source) => set({ documentSource: source }),
 
   // Engine text editing setters
   setEngineTextEditActive: (active, textId = null) => set((state) => ({
@@ -217,9 +233,16 @@ export const useUIStore = create<UIState>((set) => ({
   setEngineTextStyleSnapshot: (textId, snapshot) => set({ engineTextStyleSnapshot: { textId, snapshot } }),
   clearEngineTextStyleSnapshot: () => set({ engineTextStyleSnapshot: null }),
 
-  setActiveFloorId: (id) => set({ activeFloorId: id, selectedEntityIds: new Set() }),
+  setActiveFloorId: (id) => {
+    clearEngineSelection();
+    set({ activeFloorId: id, selectedEntityIds: new Set() });
+  },
   setActiveDiscipline: (discipline) =>
-    set((state) => (state.activeDiscipline === discipline ? state : { activeDiscipline: discipline, selectedEntityIds: new Set() })),
+    set((state) => {
+      if (state.activeDiscipline === discipline) return state;
+      clearEngineSelection();
+      return { activeDiscipline: discipline, selectedEntityIds: new Set() };
+    }),
 
   setSelectedEntityIds: (ids) => set((state) => ({ selectedEntityIds: typeof ids === 'function' ? ids(state.selectedEntityIds) : ids })),
 }));

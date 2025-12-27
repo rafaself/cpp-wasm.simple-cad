@@ -3,24 +3,90 @@
 
 #include "engine/types.h"
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace engine {
 
+struct LayerSnapshot {
+    std::uint32_t id;
+    std::uint32_t order;
+    std::uint32_t flags;
+    std::string name;
+};
+
+struct RectSnapshot {
+    RectRec rec;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+};
+
+struct LineSnapshot {
+    LineRec rec;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+};
+
+struct PolySnapshot {
+    PolyRec rec;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+};
+
+struct CircleSnapshot {
+    CircleRec rec;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+};
+
+struct PolygonSnapshot {
+    PolygonRec rec;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+};
+
+struct ArrowSnapshot {
+    ArrowRec rec;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+};
+
+struct TextSnapshot {
+    std::uint32_t id;
+    std::uint32_t layerId;
+    std::uint32_t flags;
+    TextPayloadHeader header;
+    std::vector<TextRunPayload> runs;
+    std::string content;
+    float layoutWidth;
+    float layoutHeight;
+    float minX;
+    float minY;
+    float maxX;
+    float maxY;
+};
+
 struct SnapshotData {
-    std::vector<RectRec> rects;
-    std::vector<LineRec> lines;
-    std::vector<PolyRec> polylines;
+    std::vector<RectSnapshot> rects;
+    std::vector<LineSnapshot> lines;
+    std::vector<PolySnapshot> polylines;
     std::vector<Point2> points;
-    std::vector<std::uint8_t> rawBytes; // original payload (header + records)
+    std::vector<CircleSnapshot> circles;
+    std::vector<PolygonSnapshot> polygons;
+    std::vector<ArrowSnapshot> arrows;
+    std::vector<LayerSnapshot> layers;
+    std::vector<std::uint32_t> drawOrder;
+    std::vector<std::uint32_t> selection;
+    std::vector<TextSnapshot> texts;
+    std::uint32_t nextId{1};
     std::uint32_t version{0};
 };
 
-// Parse snapshot bytes into a SnapshotData structure.
+// Parse ESNP snapshot bytes into a SnapshotData structure.
 // Returns EngineError::Ok on success.
 EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, SnapshotData& out);
 
-// Build bytes for a V3 snapshot from SnapshotData.
+// Build bytes for an ESNP snapshot from SnapshotData.
 std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data);
 
 } // namespace engine

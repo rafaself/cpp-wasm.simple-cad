@@ -41,8 +41,12 @@ public:
     
     // Rendering
     void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible = {});
+    void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible, const std::vector<std::uint32_t>& drawOrder);
     bool isAtlasDirty() const;
     void clearAtlasDirty();
+
+    // Snapshot/loading helpers
+    void clear();
     
     // Navigation
     std::uint32_t getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;

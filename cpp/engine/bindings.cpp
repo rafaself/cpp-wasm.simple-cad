@@ -47,6 +47,28 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .value("VERTEX_SET", CadEngine::TransformOpCode::VERTEX_SET)
         .value("RESIZE", CadEngine::TransformOpCode::RESIZE);
 
+    emscripten::enum_<CadEngine::SelectionMode>("SelectionMode")
+        .value("Replace", CadEngine::SelectionMode::Replace)
+        .value("Add", CadEngine::SelectionMode::Add)
+        .value("Remove", CadEngine::SelectionMode::Remove)
+        .value("Toggle", CadEngine::SelectionMode::Toggle);
+
+    emscripten::enum_<CadEngine::SelectionModifier>("SelectionModifier")
+        .value("Shift", CadEngine::SelectionModifier::Shift)
+        .value("Ctrl", CadEngine::SelectionModifier::Ctrl)
+        .value("Alt", CadEngine::SelectionModifier::Alt)
+        .value("Meta", CadEngine::SelectionModifier::Meta);
+
+    emscripten::enum_<CadEngine::MarqueeMode>("MarqueeMode")
+        .value("Window", CadEngine::MarqueeMode::Window)
+        .value("Crossing", CadEngine::MarqueeMode::Crossing);
+
+    emscripten::enum_<CadEngine::ReorderAction>("ReorderAction")
+        .value("BringToFront", CadEngine::ReorderAction::BringToFront)
+        .value("SendToBack", CadEngine::ReorderAction::SendToBack)
+        .value("BringForward", CadEngine::ReorderAction::BringForward)
+        .value("SendBackward", CadEngine::ReorderAction::SendBackward);
+
     emscripten::enum_<CadEngine::EngineCapability>("EngineCapability")
         .value("HAS_QUERY_MARQUEE", CadEngine::EngineCapability::HAS_QUERY_MARQUEE)
         .value("HAS_RESIZE_HANDLES", CadEngine::EngineCapability::HAS_RESIZE_HANDLES)
@@ -64,9 +86,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getVertexDataPtr", &CadEngine::getVertexDataPtr)
         .function("getPositionBufferMeta", &CadEngine::getPositionBufferMeta)
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
+        .function("saveSnapshot", &CadEngine::saveSnapshot)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("getCapabilities", &CadEngine::getCapabilities)
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
+        .function("getDocumentDigest", &CadEngine::getDocumentDigest)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("setLayerProps", &CadEngine::setLayerProps)
@@ -75,6 +99,18 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("setEntityFlags", &CadEngine::setEntityFlags)
         .function("setEntityLayer", &CadEngine::setEntityLayer)
         .function("getEntityLayer", &CadEngine::getEntityLayer)
+        .function("getSelectionIds", &CadEngine::getSelectionIds)
+        .function("getSelectionGeneration", &CadEngine::getSelectionGeneration)
+        .function("clearSelection", &CadEngine::clearSelection)
+        .function("setSelection", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode) {
+            self.setSelection(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::SelectionMode>(mode));
+        }))
+        .function("selectByPick", &CadEngine::selectByPick)
+        .function("marqueeSelect", &CadEngine::marqueeSelect)
+        .function("getDrawOrderSnapshot", &CadEngine::getDrawOrderSnapshot)
+        .function("reorderEntities", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int action, std::uint32_t refId) {
+            self.reorderEntities(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::ReorderAction>(action), refId);
+        }))
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
         .function("queryArea", &CadEngine::queryArea)
@@ -160,6 +196,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("generation", &CadEngine::ByteBufferMeta::generation)
         .field("byteCount", &CadEngine::ByteBufferMeta::byteCount)
         .field("ptr", &CadEngine::ByteBufferMeta::ptr);
+
+    emscripten::value_object<CadEngine::DocumentDigest>("DocumentDigest")
+        .field("lo", &CadEngine::DocumentDigest::lo)
+        .field("hi", &CadEngine::DocumentDigest::hi);
 
     emscripten::value_object<CadEngine::EngineStats>("EngineStats")
         .field("generation", &CadEngine::EngineStats::generation)

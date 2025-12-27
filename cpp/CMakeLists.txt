@@ -181,6 +181,7 @@ if(NOT EMSCRIPTEN)
     tests/snapshot_test.cpp
     tests/render_test.cpp
     tests/layer_flags_test.cpp
+    tests/selection_order_test.cpp
     tests/vector_tessellation_test.cpp
     tests/protocol_info_test.cpp
   )

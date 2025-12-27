@@ -8,6 +8,7 @@ import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 import { deleteTextByShapeId, moveTextByShapeId, getTrackedTextShapeIds } from './textEngineSync';
 import { ensureId, getEngineId, releaseId } from './IdRegistry';
+import { syncDrawOrderFromEngine, syncSelectionFromEngine } from './engineStateSync';
 import { ensureLayerEngineId, ensureLayerIdFromEngine, getLayerEngineId } from './LayerRegistry';
 import { EngineLayerFlags, LayerPropMask } from './protocol';
 import { normalizeLayerStyle } from '@/utils/storeNormalization';
@@ -548,7 +549,16 @@ const buildVisibleOrder = (
 };
 
 export const useEngineStoreSync = (): void => {
+  const documentSource = useUIStore((s) => s.documentSource);
+
   useEffect(() => {
+    if (documentSource === 'engine') {
+      if (import.meta.env.DEV) {
+        console.warn('[useEngineStoreSync] Engine-first mode active; store sync disabled.');
+      }
+      return;
+    }
+
     let unsubscribeData: (() => void) | null = null;
     let unsubscribeUi: (() => void) | null = null;
     let disposed = false;
@@ -560,7 +570,6 @@ export const useEngineStoreSync = (): void => {
       let lastData = useDataStore.getState();
       let lastUi = useUIStore.getState();
       let lastVisibleIds = new Set<string>();
-      let lastDrawOrderKey = '';
       let lastScale = lastUi.viewTransform.scale || 1;
       const shapeIdCache = createStableIdCache();
       let isApplyingEngineLayerSnapshot = false;
@@ -582,6 +591,7 @@ export const useEngineStoreSync = (): void => {
       };
 
       const applySync = (nextData: typeof lastData, nextUi: typeof lastUi, prevData: typeof lastData, prevUi: typeof lastUi) => {
+        if (useUIStore.getState().documentSource === 'engine') return;
         // Prevent sync during active engine interaction to avoid fighting with the engine's local state
         if (runtime.isInteractionActive && runtime.isInteractionActive()) return;
         if (isApplyingEngineLayerSnapshot) return;
@@ -732,20 +742,21 @@ export const useEngineStoreSync = (): void => {
           );
         }
 
-        if (!reuseVisibleOrder) {
-          const drawOrderIds = nextOrderedIds.map((id) => ensureId(id));
-          const drawOrderKey = drawOrderIds.join(',');
-          if (drawOrderKey !== lastDrawOrderKey) {
-            commands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
-            lastDrawOrderKey = drawOrderKey;
-          }
-        }
-
         if (commands.length) runtime.apply(commands);
+
+        const shouldSyncDrawOrder = shapeOrderChanged || hasNewShape || hasDeletedShape;
+        if (shouldSyncDrawOrder) {
+          syncDrawOrderFromEngine(runtime);
+        }
 
         if (layerPropsChanged) {
           const snapshot = readEngineLayerSnapshot(runtime);
           if (snapshot) syncEngineLayersToStore(snapshot, nextData);
+        }
+
+        const shouldSyncSelection = layerPropsChanged || hasDeletedShape;
+        if (shouldSyncSelection) {
+          syncSelectionFromEngine(runtime);
         }
 
         if (dirtyIds.size > 0 && nextData.clearDirtyShapeIds) {
@@ -782,9 +793,6 @@ export const useEngineStoreSync = (): void => {
           { activeFloorId: lastUi.activeFloorId },
           shapeIdCache,
         );
-        const drawOrderIds = orderedIds.map((id) => ensureId(id));
-        initCommands.push({ op: CommandOp.SetDrawOrder, order: { ids: drawOrderIds } });
-
         const layersById = new Map(lastData.layers.map((l) => [l.id, l]));
 
         for (const id of orderedIds) {
@@ -799,8 +807,7 @@ export const useEngineStoreSync = (): void => {
         runtime.apply(initCommands);
         recordSyncMetrics(initCommands, nowMs() - initStartedAt);
         lastVisibleIds = new Set(orderedIds);
-        lastDrawOrderKey = drawOrderIds.join(',');
-
+        syncDrawOrderFromEngine(runtime);
         const initSnapshot = readEngineLayerSnapshot(runtime);
         if (initSnapshot) {
           syncEngineLayersToStore(initSnapshot, lastData);
@@ -825,5 +832,5 @@ export const useEngineStoreSync = (): void => {
       unsubscribeData?.();
       unsubscribeUi?.();
     };
-  }, []);
+  }, [documentSource]);
 };

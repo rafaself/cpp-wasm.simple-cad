@@ -33,6 +33,7 @@ public:
     bool deleteLayer(std::uint32_t id);
     void setLayerFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value);
     void setLayerName(std::uint32_t id, const std::string& name);
+    void loadSnapshot(const std::vector<LayerRecord>& records, const std::vector<std::string>& names);
     std::uint32_t getLayerFlags(std::uint32_t id) const;
     std::string getLayerName(std::uint32_t id) const;
     std::vector<LayerRecord> snapshot() const;
@@ -93,7 +94,7 @@ public:
     void upsertPolygon(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, std::uint32_t sides, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx);
     void upsertArrow(std::uint32_t id, float ax, float ay, float bx, float by, float head, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx);
 
-    // Text registration helper (called by CadEngine when text is added/updated)
+    // Text registration helper (called by CadEngine when text is added)
     void registerTextEntity(std::uint32_t id);
 
     // Entity metadata helpers

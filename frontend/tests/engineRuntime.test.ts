@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EngineRuntime, type WasmModule, type CadEngineInstance } from '@/engine/core/EngineRuntime';
 import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
-import { EXPECTED_PROTOCOL_INFO } from '@/engine/core/protocol';
+import { EXPECTED_PROTOCOL_INFO, SelectionMode, ReorderAction } from '@/engine/core/protocol';
 
 // Mock the factory to avoid loading real WASM
 vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
@@ -14,9 +14,19 @@ describe('EngineRuntime', () => {
   let mockEngine: CadEngineInstance;
   let mockModule: WasmModule;
   let heapBuffer: Uint8Array;
+  let selectionIds: number[];
+  let drawOrderIds: number[];
 
   beforeEach(() => {
     heapBuffer = new Uint8Array(1024);
+    selectionIds = [];
+    drawOrderIds = [1, 2, 3];
+
+    const makeVector = (values: number[]) => ({
+      size: () => values.length,
+      get: (index: number) => values[index] ?? 0,
+      delete: () => undefined,
+    });
     
     mockEngine = {
       clear: vi.fn(),
@@ -29,6 +39,39 @@ describe('EngineRuntime', () => {
       getSnapshotBufferMeta: vi.fn(),
       getStats: vi.fn(),
       getProtocolInfo: vi.fn(() => EXPECTED_PROTOCOL_INFO),
+      getSelectionIds: vi.fn(() => makeVector(selectionIds)),
+      clearSelection: vi.fn(() => {
+        selectionIds = [];
+      }),
+      setSelection: vi.fn((ptr, count, mode) => {
+        const incoming = Array.from(new Uint32Array(heapBuffer.buffer, ptr, count));
+        if (mode === SelectionMode.Replace) {
+          selectionIds = incoming;
+        } else if (mode === SelectionMode.Add) {
+          const set = new Set(selectionIds);
+          incoming.forEach((id) => set.add(id));
+          selectionIds = Array.from(set);
+        } else if (mode === SelectionMode.Remove) {
+          const removeSet = new Set(incoming);
+          selectionIds = selectionIds.filter((id) => !removeSet.has(id));
+        } else if (mode === SelectionMode.Toggle) {
+          const set = new Set(selectionIds);
+          incoming.forEach((id) => {
+            if (set.has(id)) set.delete(id);
+            else set.add(id);
+          });
+          selectionIds = Array.from(set);
+        }
+      }),
+      getDrawOrderSnapshot: vi.fn(() => makeVector(drawOrderIds)),
+      reorderEntities: vi.fn((ptr, count, action) => {
+        const moveIds = Array.from(new Uint32Array(heapBuffer.buffer, ptr, count));
+        if (action === ReorderAction.BringToFront) {
+          drawOrderIds = drawOrderIds.filter((id) => !moveIds.includes(id)).concat(moveIds);
+        } else if (action === ReorderAction.SendToBack) {
+          drawOrderIds = moveIds.concat(drawOrderIds.filter((id) => !moveIds.includes(id)));
+        }
+      }),
     } as unknown as CadEngineInstance;
 
     const MockCadEngine = class {
@@ -107,5 +150,17 @@ describe('EngineRuntime', () => {
     const runtime = await EngineRuntime.create();
     runtime.apply([]);
     expect(mockEngine.allocBytes).not.toHaveBeenCalled();
+  });
+
+  it('roundtrips selection ids through setSelection/getSelectionIds', async () => {
+    const runtime = await EngineRuntime.create();
+    runtime.setSelection([10, 20], SelectionMode.Replace);
+    expect(runtime.getSelectionIds()).toEqual(new Uint32Array([10, 20]));
+  });
+
+  it('updates draw order via reorderEntities', async () => {
+    const runtime = await EngineRuntime.create();
+    runtime.reorderEntities([1], ReorderAction.BringToFront);
+    expect(runtime.getDrawOrderSnapshot()).toEqual(new Uint32Array([2, 3, 1]));
   });
 });

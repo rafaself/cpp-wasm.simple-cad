@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <algorithm>
 
@@ -46,12 +47,40 @@ public:
     enum class EngineFeatureFlags : std::uint32_t {
         FEATURE_PROTOCOL = 1 << 0,
         FEATURE_LAYERS_FLAGS = 1 << 1,
+        FEATURE_SELECTION_ORDER = 1 << 2,
+        FEATURE_SNAPSHOT_VNEXT = 1 << 3,
     };
 
     enum class LayerPropMask : std::uint32_t {
         Name = 1 << 0,
         Visible = 1 << 1,
         Locked = 1 << 2,
+    };
+
+    enum class SelectionMode : std::uint32_t {
+        Replace = 0,
+        Add = 1,
+        Remove = 2,
+        Toggle = 3,
+    };
+
+    enum class SelectionModifier : std::uint32_t {
+        Shift = 1 << 0,
+        Ctrl = 1 << 1,
+        Alt = 1 << 2,
+        Meta = 1 << 3,
+    };
+
+    enum class MarqueeMode : std::uint32_t {
+        Window = 0,
+        Crossing = 1,
+    };
+
+    enum class ReorderAction : std::uint32_t {
+        BringToFront = 1,
+        SendToBack = 2,
+        BringForward = 3,
+        SendBackward = 4,
     };
 
     // Handshake payload (POD): frontend validates version + abiHash + feature flags.
@@ -67,11 +96,13 @@ public:
     // Protocol versions (must be non-zero; keep in sync with TS).
     static constexpr std::uint32_t kProtocolVersion = 1;      // Handshake schema version
     static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
-    static constexpr std::uint32_t kSnapshotVersion = 3;      // Snapshot format version (EWC1 v3)
+    static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version (ESNP v1)
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
     static constexpr std::uint32_t kFeatureFlags =
         static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS);
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -133,7 +164,14 @@ public:
         std::uintptr_t ptr;
     };
 
+    ByteBufferMeta saveSnapshot() const noexcept;
     ByteBufferMeta getSnapshotBufferMeta() const noexcept;
+
+    struct DocumentDigest {
+        std::uint32_t lo;
+        std::uint32_t hi;
+    };
+    DocumentDigest getDocumentDigest() const noexcept;
 
     struct EngineStats {
         std::uint32_t generation;
@@ -163,6 +201,18 @@ public:
     // Marquee selection (returns final IDs based on WINDOW/CROSSING rules; filtering happens in JS)
     // mode: 0 = WINDOW, 1 = CROSSING
     std::vector<std::uint32_t> queryMarquee(float minX, float minY, float maxX, float maxY, int mode) const;
+
+    // Selection state (engine-authoritative)
+    std::vector<std::uint32_t> getSelectionIds() const;
+    std::uint32_t getSelectionGeneration() const noexcept { return selectionGeneration_; }
+    void clearSelection();
+    void setSelection(const std::uint32_t* ids, std::uint32_t idCount, SelectionMode mode);
+    void selectByPick(const PickResult& pick, std::uint32_t modifiers);
+    void marqueeSelect(float minX, float minY, float maxX, float maxY, SelectionMode mode, int hitMode);
+
+    // Draw order (engine-authoritative)
+    std::vector<std::uint32_t> getDrawOrderSnapshot() const;
+    void reorderEntities(const std::uint32_t* ids, std::uint32_t idCount, ReorderAction action, std::uint32_t refId);
 
 #ifdef EMSCRIPTEN
 private:
@@ -196,6 +246,10 @@ public:
     mutable float lastLoadMs{0.0f};
     mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
+    std::unordered_set<std::uint32_t> selectionSet_{};
+    std::vector<std::uint32_t> selectionOrdered_{};
+    std::uint32_t selectionGeneration_{0};
+    std::uint32_t nextEntityId_{1};
 
 
     // Error handling
@@ -207,7 +261,10 @@ public:
     // read/write helpers moved to engine/util.h
 
     void clearWorld() noexcept;
+    void rebuildSelectionOrder();
+    bool pruneSelection();
 
+    void trackNextEntityId(std::uint32_t id);
     void deleteEntity(std::uint32_t id) noexcept;
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
@@ -651,6 +708,8 @@ private:
         h = hashEnum(h, 0xE000000Au, {
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT),
         });
 
         h = hashEnum(h, 0xE000000Bu, {
@@ -667,6 +726,32 @@ private:
             static_cast<std::uint32_t>(LayerPropMask::Name),
             static_cast<std::uint32_t>(LayerPropMask::Visible),
             static_cast<std::uint32_t>(LayerPropMask::Locked),
+        });
+
+        h = hashEnum(h, 0xE000000Eu, {
+            static_cast<std::uint32_t>(SelectionMode::Replace),
+            static_cast<std::uint32_t>(SelectionMode::Add),
+            static_cast<std::uint32_t>(SelectionMode::Remove),
+            static_cast<std::uint32_t>(SelectionMode::Toggle),
+        });
+
+        h = hashEnum(h, 0xE000000Fu, {
+            static_cast<std::uint32_t>(SelectionModifier::Shift),
+            static_cast<std::uint32_t>(SelectionModifier::Ctrl),
+            static_cast<std::uint32_t>(SelectionModifier::Alt),
+            static_cast<std::uint32_t>(SelectionModifier::Meta),
+        });
+
+        h = hashEnum(h, 0xE0000010u, {
+            static_cast<std::uint32_t>(MarqueeMode::Window),
+            static_cast<std::uint32_t>(MarqueeMode::Crossing),
+        });
+
+        h = hashEnum(h, 0xE0000011u, {
+            static_cast<std::uint32_t>(ReorderAction::BringToFront),
+            static_cast<std::uint32_t>(ReorderAction::SendToBack),
+            static_cast<std::uint32_t>(ReorderAction::BringForward),
+            static_cast<std::uint32_t>(ReorderAction::SendBackward),
         });
 
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
@@ -928,6 +1013,11 @@ private:
             static_cast<std::uint32_t>(offsetof(LayerRecord, id)),
             static_cast<std::uint32_t>(offsetof(LayerRecord, order)),
             static_cast<std::uint32_t>(offsetof(LayerRecord, flags)),
+        });
+
+        h = hashStruct(h, 0x5300001Eu, sizeof(DocumentDigest), {
+            static_cast<std::uint32_t>(offsetof(DocumentDigest, lo)),
+            static_cast<std::uint32_t>(offsetof(DocumentDigest, hi)),
         });
 
         return h;

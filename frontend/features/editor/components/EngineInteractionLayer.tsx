@@ -17,7 +17,8 @@ import { getTextIdForShape, getShapeIdForText } from '@/engine/core/textEngineSy
 import { getShapeBoundingBox, worldToScreen } from '@/utils/geometry';
 import { PickSubTarget } from '@/types/picking';
 import { ensureId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
-import type { EntityId } from '@/engine/core/protocol';
+import { SelectionMode, SelectionModifier, type EntityId } from '@/engine/core/protocol';
+import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 import { isShapeInteractable } from '@/utils/visibility';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 
@@ -41,7 +42,6 @@ const EngineInteractionLayer: React.FC = () => {
   const activeFloorId = useUIStore((s) => s.activeFloorId);
   const activeDiscipline = useUIStore((s) => s.activeDiscipline);
   const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
-  const setSelectedEntityIds = useUIStore((s) => s.setSelectedEntityIds);
   const setEngineInteractionActive = useUIStore((s) => s.setEngineInteractionActive);
   const setInteractionDragActive = useUIStore((s) => s.setInteractionDragActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
@@ -93,6 +93,48 @@ const EngineInteractionLayer: React.FC = () => {
     },
     [setEngineInteractionActive],
   );
+
+  const syncSelection = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return new Set<EntityId>();
+    return syncSelectionFromEngine(runtime);
+  }, []);
+
+  const setEngineSelection = useCallback(
+    (ids: EntityId[], mode: SelectionMode) => {
+      const runtime = runtimeRef.current;
+      if (!runtime) return new Set<EntityId>();
+      runtime.setSelection(ids, mode);
+      return syncSelection();
+    },
+    [syncSelection],
+  );
+
+  const clearEngineSelection = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return new Set<EntityId>();
+    runtime.clearSelection();
+    return syncSelection();
+  }, [syncSelection]);
+
+  const selectionModifiersFromEvent = (evt: React.PointerEvent): number => (
+    (evt.shiftKey ? SelectionModifier.Shift : 0) |
+    (evt.ctrlKey ? SelectionModifier.Ctrl : 0) |
+    (evt.metaKey ? SelectionModifier.Meta : 0)
+  );
+
+  const filterSelectableIds = useCallback((ids: Iterable<EntityId>): EntityId[] => {
+    const data = useDataStore.getState();
+    const out: EntityId[] = [];
+    for (const id of ids) {
+      const shapeId = getShapeIdFromRegistry(id);
+      if (!shapeId) continue;
+      const shape = data.shapes[shapeId];
+      if (!shape || !isShapeSelectable(shape)) continue;
+      out.push(id);
+    }
+    return out;
+  }, [isShapeSelectable]);
 
   useEffect(() => {
     let disposed = false;
@@ -149,8 +191,6 @@ const EngineInteractionLayer: React.FC = () => {
       handlePointerUp: selectHandlePointerUp
   } = useSelectInteraction({
       viewTransform,
-      shapes: useDataStore((s) => s.shapes),
-      onSetSelectedEntityIds: setSelectedEntityIds,
       runtime: runtimeRef.current
   });
 
@@ -210,7 +250,7 @@ const EngineInteractionLayer: React.FC = () => {
       onAddShape: useDataStore.getState().addShape,
       onFinalizeDraw: (id: string) => {
         const entityId = ensureId(id);
-        setSelectedEntityIds(new Set([entityId]));
+        setEngineSelection([entityId], SelectionMode.Replace);
         const ui = useUIStore.getState();
         ui.setSidebarTab('desenho');
         ui.setTool('select');
@@ -391,128 +431,78 @@ const EngineInteractionLayer: React.FC = () => {
 	        // ------------------------------------------------------------------
 	        // NEW: Engine-First Picking Logic
 	        // ------------------------------------------------------------------
-	        if (runtimeRef.current) {
-	            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-	            // Mask: Body | Edge | Vertex (+ Handles behind feature flag)
-	            const pickMask = engineResizeEnabled ? 15 : 7; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
-	            // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
-	            // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
+        if (runtimeRef.current) {
+            const runtime = runtimeRef.current;
+            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+            // Mask: Body | Edge | Vertex (+ Handles behind feature flag)
+            const pickMask = engineResizeEnabled ? 15 : 7; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
+            // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
+            // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
 
-            const res = runtimeRef.current.pickEx(world.x, world.y, tolerance, pickMask);
+            const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
 
             if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_PICK") === "1") {
                  console.log(`[EngineInteractionLayer] pickEx input: x=${world.x.toFixed(2)} y=${world.y.toFixed(2)} tol=${tolerance.toFixed(2)} mask=${pickMask}`);
                  console.log("[EngineInteractionLayer] pickEx result:", res);
             }
 
-            // CRITICAL: Fallback path check.
-            // If WASM is old, pickEx returns subTarget: None, even if it hit an ID (id != 0).
-            // We must detect this case.
-            // PickResult { id, kind, subTarget, ... }
-            // If id != 0 BUT subTarget == None, it implies legacy pick behavior (or weird miss on subtarget).
-            // Actually, safe fallback in EngineRuntime returns subTarget: None.
-
-            // If subTarget != None, we have granular info.
-            if (res.subTarget !== PickSubTarget.None && res.id !== 0) {
+            if (res.id !== 0 && res.subTarget !== PickSubTarget.None) {
                  const data = useDataStore.getState();
                  const entityId = res.id;
                  const strId = getShapeIdFromRegistry(entityId);
                  const shape = strId ? data.shapes[strId] : undefined;
                  if (strId && isShapeSelectable(shape)) {
-	                     // Ensure selection
-	                     const nextSelectionIds = selectedEntityIds.has(entityId) ? selectedEntityIds : new Set([entityId]);
-	                     if (nextSelectionIds !== selectedEntityIds) {
-	                        setSelectedEntityIds(nextSelectionIds);
-	                     }
+                     const modifiers = selectionModifiersFromEvent(evt);
+                     runtime.selectByPick(res, modifiers);
+                     const selectedIds = syncSelection();
+                     const activeIds = filterSelectableIds(selectedIds);
 
-                     // Prepare IDs for Engine Session
-                     // We need to pass ALL selected IDs if we are moving?
-                     // Or just the one we clicked if it's vertex/resize?
-                     // Verify: Engine supports multi-selection move?
-                     // beginTransform takes a list of IDs.
-                     // If moving, pass all selected IDs.
-                     // If vertex drag, usually only one shape is active for vertex edit at a time?
-                     // Assuming single shape vertex edit for MVP.
-                     
-	                     const activeIds = Array.from(nextSelectionIds)
-	                        .filter((id) => {
-	                          const shapeId = getShapeIdFromRegistry(id);
-                          return !!shapeId && isShapeSelectable(data.shapes[shapeId]);
-	                        });
+                     if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0 && shape) {
+                         if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') {
+                           setEngineSelection([entityId], SelectionMode.Replace);
+                           const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
+                           setCursorOverride(cursor);
+                           if (beginEngineSession([entityId], TransformMode.Resize, entityId, res.subIndex, snapped.x, snapped.y)) {
+                             dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
+                             return;
+                           }
+                         }
+                     }
 
-	                     if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0 && shape) {
-	                         // Engine-first bbox resize (dev-flagged). For now, force single-shape resize.
-	                         if (shape.type === 'rect' || shape.type === 'circle' || shape.type === 'polygon') {
-	                           const nextSingle = new Set([entityId]);
-	                           if (selectedEntityIds.size !== 1 || !selectedEntityIds.has(entityId)) {
-	                             setSelectedEntityIds(nextSingle);
-	                           }
-
-	                           const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
-	                           setCursorOverride(cursor);
-	                           if (beginEngineSession([entityId], TransformMode.Resize, entityId, res.subIndex, snapped.x, snapped.y)) {
-	                             dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
-	                             return;
-	                           }
-	                         }
-	                     }
-
-	                     if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0 && shape) {
-	                         // Shape Vertex Drag
-	                         setCursorOverride('move');
-	                         if (beginEngineSession([entityId], TransformMode.VertexDrag, entityId, res.subIndex, snapped.x, snapped.y)) {
-	                           dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
-	                           return;
-	                         }
-	                     } 
-	                     else if (res.subTarget === PickSubTarget.Edge) {
-                          // Edge Drag (treat as Move for now, or implement edge drag if engine supports it)
-                          // Engine supports EdgeDrag (2).
-	                          // For now, let's Map Edge Drag to Move if we want standard behavior, 
-	                          // OR pass EdgeDrag to engine if engine implements it.
-	                          // Engine implementation: EdgeDrag -> updates x/y? 
-	                          // Let's use Move behavior for Edge/Body hits for now to support multi-select move.
-	                          if (activeIds.length > 0) {
-	                              setCursorOverride('move');
-	                              if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
-	                                dragRef.current = { type: "engine_session", startWorld: snapped };
-	                                return;
-	                              }
-	                          }
-	                     }
-	                     else if (res.subTarget === PickSubTarget.Body || res.subTarget === PickSubTarget.TextBody) {
-	                          if (activeIds.length > 0) {
-	                              setCursorOverride('move');
-	                              if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
-	                                dragRef.current = { type: "engine_session", startWorld: snapped };
-	                                return;
-	                              }
-	                          }
-	                     }
+                     if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0 && shape) {
+                         setEngineSelection([entityId], SelectionMode.Replace);
+                         setCursorOverride('move');
+                         if (beginEngineSession([entityId], TransformMode.VertexDrag, entityId, res.subIndex, snapped.x, snapped.y)) {
+                           dragRef.current = { type: "engine_session", startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
+                           return;
+                         }
+                     } else if (res.subTarget === PickSubTarget.Edge || res.subTarget === PickSubTarget.Body || res.subTarget === PickSubTarget.TextBody) {
+                          if (activeIds.length > 0) {
+                              setCursorOverride('move');
+                              if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
+                                dragRef.current = { type: "engine_session", startWorld: snapped };
+                                return;
+                              }
+                          }
+                     }
                  }
-            }
-	            if (res.id !== 0 && res.subTarget === PickSubTarget.None) {
-	                 const data = useDataStore.getState();
-	                 const entityId = res.id;
-	                 const strId = getShapeIdFromRegistry(entityId);
-	                 const shape = strId ? data.shapes[strId] : undefined;
-	                 if (strId && isShapeSelectable(shape)) {
-	                     const nextSelectionIds = selectedEntityIds.has(entityId) ? selectedEntityIds : new Set([entityId]);
-	                     if (nextSelectionIds !== selectedEntityIds) {
-	                         setSelectedEntityIds(nextSelectionIds);
-	                     }
-		                     const activeIds = Array.from(nextSelectionIds)
-		                        .filter((id) => {
-		                          const shapeId = getShapeIdFromRegistry(id);
-		                          return !!shapeId && isShapeSelectable(data.shapes[shapeId]);
-		                        });
-		                     if (activeIds.length > 0) {
-		                         setCursorOverride('move');
-		                         if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
-		                           dragRef.current = { type: "engine_session", startWorld: snapped };
-		                           return;
-		                         }
-	                     }
+            } else if (res.id !== 0 && res.subTarget === PickSubTarget.None) {
+                 // Legacy fallback: treat as a body hit.
+                 const data = useDataStore.getState();
+                 const entityId = res.id;
+                 const strId = getShapeIdFromRegistry(entityId);
+                 const shape = strId ? data.shapes[strId] : undefined;
+                 if (strId && isShapeSelectable(shape)) {
+                     const modifiers = selectionModifiersFromEvent(evt);
+                     runtime.selectByPick?.(res, modifiers);
+                     const activeIds = filterSelectableIds(syncSelection());
+                     if (activeIds.length > 0) {
+                         setCursorOverride('move');
+                         if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
+                           dragRef.current = { type: "engine_session", startWorld: snapped };
+                           return;
+                         }
+                     }
                  }
             }
 	            // Miss → marquee selection (handled by useSelectInteraction).
@@ -802,7 +792,7 @@ const EngineInteractionLayer: React.FC = () => {
 	    if (activeTool === 'select') {
 	        selectHandlePointerUp(evt, down);
 	        if (clickNoDrag && marqueeArmedRef.current) {
-	          setSelectedEntityIds(new Set());
+	          clearEngineSelection();
 	        }
 	        marqueeArmedRef.current = false;
 	        return;

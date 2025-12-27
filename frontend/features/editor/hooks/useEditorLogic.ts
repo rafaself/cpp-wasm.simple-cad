@@ -6,7 +6,9 @@ import { computeFrameData } from '../../../utils/frame';
 import { generateId } from '../../../utils/uuid';
 import { UI } from '../../../design/tokens';
 import { ensureId, getEngineId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
-import type { EntityId } from '@/engine/core/protocol';
+import { SelectionMode, type EntityId } from '@/engine/core/protocol';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
@@ -18,7 +20,10 @@ export const useEditorLogic = () => {
             .filter((id): id is string => !!id);
         if (ids.length === 0) return;
         dataStore.deleteShapes(ids);
-        uiStore.setSelectedEntityIds(new Set());
+        void getEngineRuntime().then((runtime) => {
+            runtime.clearSelection();
+            syncSelectionFromEngine(runtime);
+        });
     };
 
     const deleteLayer = (id: string) => {
@@ -37,16 +42,11 @@ export const useEditorLogic = () => {
         const success = dataStore.deleteLayer(id);
 
         if (success) {
-            // Update selection if needed
-            const newSelected = new Set(uiStore.selectedEntityIds);
-            let changed = false;
-            entityIdsToDelete.forEach(entityId => {
-                if (newSelected.has(entityId)) {
-                    newSelected.delete(entityId);
-                    changed = true;
-                }
+            const remaining = Array.from(uiStore.selectedEntityIds).filter((entityId) => !entityIdsToDelete.has(entityId));
+            void getEngineRuntime().then((runtime) => {
+                runtime.setSelection(remaining, SelectionMode.Replace);
+                syncSelectionFromEngine(runtime);
             });
-            if (changed) uiStore.setSelectedEntityIds(newSelected);
         }
     };
 
@@ -160,7 +160,10 @@ export const useEditorLogic = () => {
             dataStore.addShape(newPolyline);
 
             const entityId = ensureId(newPolyline.id);
-            uiStore.setSelectedEntityIds(new Set([entityId]));
+            void getEngineRuntime().then((runtime) => {
+                runtime.setSelection([entityId], SelectionMode.Replace);
+                syncSelectionFromEngine(runtime);
+            });
         }
     };
 
@@ -275,8 +278,11 @@ export const useEditorLogic = () => {
             // Add all new shapes
             newShapes.forEach(s => dataStore.addShape(s)); // addShape handles single addition, loop is fine
 
-            // Select new shapes
-            uiStore.setSelectedEntityIds(new Set(newShapes.map((s) => ensureId(s.id))));
+            const entityIds = newShapes.map((s) => ensureId(s.id));
+            void getEngineRuntime().then((runtime) => {
+                runtime.setSelection(entityIds, SelectionMode.Replace);
+                syncSelectionFromEngine(runtime);
+            });
         }
     };
 

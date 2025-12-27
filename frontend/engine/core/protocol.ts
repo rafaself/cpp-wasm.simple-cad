@@ -3,6 +3,8 @@ export type EntityId = number;
 export enum EngineFeatureFlags {
   FEATURE_PROTOCOL = 1 << 0,
   FEATURE_LAYERS_FLAGS = 1 << 1,
+  FEATURE_SELECTION_ORDER = 1 << 2,
+  FEATURE_SNAPSHOT_VNEXT = 1 << 3,
 }
 
 export enum EngineLayerFlags {
@@ -21,6 +23,32 @@ export enum LayerPropMask {
   Locked = 1 << 2,
 }
 
+export enum SelectionMode {
+  Replace = 0,
+  Add = 1,
+  Remove = 2,
+  Toggle = 3,
+}
+
+export enum SelectionModifier {
+  Shift = 1 << 0,
+  Ctrl = 1 << 1,
+  Alt = 1 << 2,
+  Meta = 1 << 3,
+}
+
+export enum MarqueeMode {
+  Window = 0,
+  Crossing = 1,
+}
+
+export enum ReorderAction {
+  BringToFront = 1,
+  SendToBack = 2,
+  BringForward = 3,
+  SendBackward = 4,
+}
+
 export type LayerRecord = {
   id: number;
   order: number;
@@ -36,13 +64,19 @@ export type ProtocolInfo = {
   featureFlags: number;
 };
 
+export type DocumentDigest = {
+  lo: number;
+  hi: number;
+};
+
 export const PROTOCOL_VERSION = 1 as const;
 export const COMMAND_VERSION = 2 as const;
-export const SNAPSHOT_VERSION = 3 as const;
+export const SNAPSHOT_VERSION = 1 as const;
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
-  EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_LAYERS_FLAGS;
+  EngineFeatureFlags.FEATURE_PROTOCOL |
+  EngineFeatureFlags.FEATURE_SNAPSHOT_VNEXT;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -97,6 +131,8 @@ const computeAbiHash = (): number => {
   h = hashEnum(h, 0xE000000A, [
     EngineFeatureFlags.FEATURE_PROTOCOL,
     EngineFeatureFlags.FEATURE_LAYERS_FLAGS,
+    EngineFeatureFlags.FEATURE_SELECTION_ORDER,
+    EngineFeatureFlags.FEATURE_SNAPSHOT_VNEXT,
   ]);
 
   h = hashEnum(h, 0xE000000B, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);
@@ -104,6 +140,29 @@ const computeAbiHash = (): number => {
   h = hashEnum(h, 0xE000000C, [EngineEntityFlags.Visible, EngineEntityFlags.Locked]);
 
   h = hashEnum(h, 0xE000000D, [LayerPropMask.Name, LayerPropMask.Visible, LayerPropMask.Locked]);
+
+  h = hashEnum(h, 0xE000000E, [
+    SelectionMode.Replace,
+    SelectionMode.Add,
+    SelectionMode.Remove,
+    SelectionMode.Toggle,
+  ]);
+
+  h = hashEnum(h, 0xE000000F, [
+    SelectionModifier.Shift,
+    SelectionModifier.Ctrl,
+    SelectionModifier.Alt,
+    SelectionModifier.Meta,
+  ]);
+
+  h = hashEnum(h, 0xE0000010, [MarqueeMode.Window, MarqueeMode.Crossing]);
+
+  h = hashEnum(h, 0xE0000011, [
+    ReorderAction.BringToFront,
+    ReorderAction.SendToBack,
+    ReorderAction.BringForward,
+    ReorderAction.SendBackward,
+  ]);
 
   h = hashStruct(h, 0x53000001, 24, [0, 4, 8, 12, 16, 20]);
 
@@ -168,6 +227,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x5300001C, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x5300001D, 12, [0, 4, 8]);
+
+  h = hashStruct(h, 0x5300001E, 8, [0, 4]);
 
   return h >>> 0;
 };

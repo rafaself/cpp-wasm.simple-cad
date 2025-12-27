@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "../engine/engine.h"
+#include "../engine/entity_manager.h"
 #include <vector>
 
 class CadEngineTest : public ::testing::Test {
@@ -101,12 +102,11 @@ TEST_F(CadEngineTest, SnapshotRoundTrip) {
     // 1. Populate initial state
     engine.upsertRect(1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f, 1.0f); // Add color
     engine.upsertLine(2, 0, 0, 50, 50);
-    // Trigger rebuilds
-    engine.rebuildRenderBuffers();
-    engine.rebuildSnapshotBytes();
+    const std::uint32_t selectId = 1;
+    engine.setSelection(&selectId, 1, CadEngine::SelectionMode::Replace);
 
     // 2. Get snapshot data
-    auto meta = engine.getSnapshotBufferMeta();
+    auto meta = engine.saveSnapshot();
     ASSERT_GT(meta.byteCount, 0);
     ASSERT_NE(meta.ptr, 0);
 
@@ -131,6 +131,37 @@ TEST_F(CadEngineTest, SnapshotRoundTrip) {
     EXPECT_EQ(engine2.entityManager_.rects[0].r, 0.0f);
     EXPECT_EQ(engine2.entityManager_.rects[0].g, 0.0f);
     EXPECT_EQ(engine2.entityManager_.rects[0].b, 1.0f);
+}
+
+TEST_F(CadEngineTest, DocumentDigestDeterministicSaveLoad) {
+    engine.upsertRect(1, 0, 0, 10, 10, 0.2f, 0.3f, 0.4f, 1.0f);
+    engine.upsertLine(2, 5, 5, 15, 15);
+
+    const std::uint32_t layer2 = 2;
+    const std::uint32_t props =
+        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Name)
+        | static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible);
+    engine.setLayerProps(layer2, props, static_cast<std::uint32_t>(LayerFlags::Visible), "Layer 2");
+    engine.setEntityLayer(2, layer2);
+
+    const std::uint32_t flagsMask =
+        static_cast<std::uint32_t>(EntityFlags::Visible)
+        | static_cast<std::uint32_t>(EntityFlags::Locked);
+    engine.setEntityFlags(2, flagsMask, static_cast<std::uint32_t>(EntityFlags::Visible));
+
+    const std::uint32_t ids[] = {1, 2};
+    engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
+    engine.reorderEntities(ids, 2, CadEngine::ReorderAction::BringToFront, 0);
+
+    const auto digest1 = engine.getDocumentDigest();
+    const auto meta = engine.saveSnapshot();
+
+    CadEngine engine2;
+    engine2.loadSnapshotFromPtr(meta.ptr, meta.byteCount);
+    const auto digest2 = engine2.getDocumentDigest();
+
+    EXPECT_EQ(digest1.lo, digest2.lo);
+    EXPECT_EQ(digest1.hi, digest2.hi);
 }
 
 TEST_F(CadEngineTest, CommandBufferError) {

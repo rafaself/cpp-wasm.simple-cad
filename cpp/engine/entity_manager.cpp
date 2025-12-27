@@ -48,6 +48,43 @@ void LayerStore::setLayerName(std::uint32_t id, const std::string& name) {
     names_[id] = name;
 }
 
+void LayerStore::loadSnapshot(const std::vector<LayerRecord>& records, const std::vector<std::string>& names) {
+    layers_.clear();
+    names_.clear();
+    order_.clear();
+
+    if (records.empty()) {
+        ensureLayer(kDefaultLayerId);
+        names_[kDefaultLayerId] = "Default";
+        return;
+    }
+
+    std::vector<std::size_t> indices(records.size());
+    for (std::size_t i = 0; i < indices.size(); ++i) indices[i] = i;
+
+    std::stable_sort(indices.begin(), indices.end(), [&](std::size_t a, std::size_t b) {
+        return records[a].order < records[b].order;
+    });
+
+    for (std::size_t idx = 0; idx < indices.size(); ++idx) {
+        const std::size_t i = indices[idx];
+        const LayerRecord& rec = records[i];
+        const std::uint32_t order = static_cast<std::uint32_t>(order_.size());
+        layers_.emplace(rec.id, LayerRecord{rec.id, order, rec.flags});
+        order_.push_back(rec.id);
+        if (i < names.size()) {
+            names_[rec.id] = names[i];
+        }
+    }
+
+    if (layers_.find(kDefaultLayerId) == layers_.end()) {
+        const std::uint32_t order = static_cast<std::uint32_t>(order_.size());
+        layers_.emplace(kDefaultLayerId, LayerRecord{kDefaultLayerId, order, kDefaultFlags});
+        order_.push_back(kDefaultLayerId);
+        names_[kDefaultLayerId] = "Default";
+    }
+}
+
 std::uint32_t LayerStore::getLayerFlags(std::uint32_t id) const {
     auto it = layers_.find(id);
     if (it == layers_.end()) return kDefaultFlags;
@@ -335,11 +372,15 @@ void EntityManager::registerTextEntity(std::uint32_t id) {
     if (it != entities.end()) {
         if (it->second.kind != EntityKind::Text) {
             deleteEntity(id);
+        } else {
+            ensureEntityMetadata(id);
+            return;
         }
     }
+
     // For text, index matches ID as per original engine.cpp convention
     entities[id] = EntityRef{EntityKind::Text, id};
-    // No push_back to drawOrderIds as per original engine.cpp behavior for upsertText.
+    drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
 }
 

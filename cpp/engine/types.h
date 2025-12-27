@@ -13,17 +13,21 @@ static constexpr std::size_t defaultSnapshotCapacityBytes = 1 * 1024 * 1024;
 
 // Snapshot/command format constants
 static constexpr std::uint32_t snapshotMagicEwc1 = 0x31435745; // "EWC1"
+static constexpr std::uint32_t snapshotMagicEsnp = 0x504E5345; // "ESNP"
+static constexpr std::uint32_t snapshotVersionEsnp = 1;
 static constexpr std::uint32_t commandMagicEwdc = 0x43445745; // "EWDC"
 static constexpr std::size_t snapshotHeaderBytesV2 = 8 * 4;
 static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
+static constexpr std::size_t snapshotHeaderBytesEsnp = 4 * 4; // magic + version + sectionCount + reserved
+static constexpr std::size_t snapshotSectionEntryBytes = 4 * 4; // tag + offset + size + crc32
 static constexpr std::size_t commandHeaderBytes = 4 * 4;
 static constexpr std::size_t perCommandHeaderBytes = 4 * 4;
 static constexpr std::size_t rectRecordBytes = 36; // id (4) + x,y,w,h,r,g,b,a (8 * 4 = 32) = 36
 static constexpr std::size_t lineRecordBytes = 20;
 static constexpr std::size_t polyRecordBytes = 12;
 static constexpr std::size_t pointRecordBytes = 8;
-static constexpr std::size_t textRunRecordBytes = 20; // TextRunPayload size
-static constexpr std::size_t textPayloadHeaderBytes = 24; // TextPayloadHeader size
+static constexpr std::size_t textRunRecordBytes = 24; // TextRunPayload size
+static constexpr std::size_t textPayloadHeaderBytes = 28; // TextPayloadHeader size
 
 // Render budgeting constants
 static constexpr std::size_t rectTriangleFloats = 6 * 7; // 6 vertices * (x,y,z,r,g,b,a)

@@ -12,6 +12,8 @@ import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdFor
 import { generateId } from '@/utils/uuid';
 import { getDefaultColorMode } from '@/utils/shapeColors';
 import { ensureId } from '@/engine/core/IdRegistry';
+import { SelectionMode } from '@/engine/core/protocol';
+import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
 export type TextBoxMeta = {
   boxMode: TextBoxMode;
@@ -43,7 +45,7 @@ export function useTextEditHandler(params: {
     const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
     const activeFloorId = useUIStore((s) => s.activeFloorId);
     const activeDiscipline = useUIStore((s) => s.activeDiscipline);
-    const setSelectedEntityIds = useUIStore((s) => s.setSelectedEntityIds);
+    const syncSelection = () => (runtime ? syncSelectionFromEngine(runtime) : new Set());
 
     // Initialize TextTool
     useEffect(() => {
@@ -118,7 +120,10 @@ export function useTextEditHandler(params: {
               };
 
               data.addShape(s);
-              setSelectedEntityIds(new Set([ensureId(shapeId)]));
+              if (runtime?.setSelection) {
+                runtime.setSelection([ensureId(shapeId)], SelectionMode.Replace);
+                syncSelection();
+              }
             },
             onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number, x?: number, y?: number) => {
                 const shapeId = getShapeIdForText(textId);
@@ -181,7 +186,7 @@ export function useTextEditHandler(params: {
 
                 const data = useDataStore.getState();
                 data.deleteShape(shapeId);
-                setSelectedEntityIds(new Set());
+                syncSelection();
             },
         };
 

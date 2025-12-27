@@ -149,6 +149,11 @@ bool TextSystem::getBounds(std::uint32_t textId, float& minX, float& minY, float
 }
 
 void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible) {
+    const auto textIds = store.getAllTextIds();
+    rebuildQuadBuffer(isVisible, textIds);
+}
+
+void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible, const std::vector<std::uint32_t>& drawOrder) {
     if (!initialized) {
         if (!quadBuffer.empty()) quadBuffer.clear();
         return;
@@ -165,11 +170,8 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
     quadBuffer.clear();
     quadsDirty = false;
     
-    // Get all text IDs
-    const auto textIds = store.getAllTextIds();
-    
     // For each text entity, generate quads for its glyphs
-    for (std::uint32_t textId : textIds) {
+    for (std::uint32_t textId : drawOrder) {
         if (isVisible && !isVisible(textId)) {
             continue;
         }
@@ -354,6 +356,16 @@ bool TextSystem::isAtlasDirty() const {
 
 void TextSystem::clearAtlasDirty() {
     if (initialized) glyphAtlas.clearDirty();
+}
+
+void TextSystem::clear() {
+    store.clear();
+    layoutEngine.clearAllLayouts();
+    if (initialized) {
+        glyphAtlas.clearAtlas();
+    }
+    quadBuffer.clear();
+    quadsDirty = true;
 }
 
 std::uint32_t TextSystem::getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const {
