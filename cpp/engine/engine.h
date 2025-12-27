@@ -49,6 +49,7 @@ public:
         FEATURE_LAYERS_FLAGS = 1 << 1,
         FEATURE_SELECTION_ORDER = 1 << 2,
         FEATURE_SNAPSHOT_VNEXT = 1 << 3,
+        FEATURE_EVENT_STREAM = 1 << 4,
     };
 
     enum class LayerPropMask : std::uint32_t {
@@ -83,6 +84,29 @@ public:
         SendBackward = 4,
     };
 
+    enum class EventType : std::uint16_t {
+        Overflow = 1,
+        DocChanged = 2,
+        EntityChanged = 3,
+        EntityCreated = 4,
+        EntityDeleted = 5,
+        LayerChanged = 6,
+        SelectionChanged = 7,
+        OrderChanged = 8,
+        HistoryChanged = 9,
+    };
+
+    enum class ChangeMask : std::uint32_t {
+        Geometry = 1 << 0,
+        Style = 1 << 1,
+        Flags = 1 << 2,
+        Layer = 1 << 3,
+        Order = 1 << 4,
+        Text = 1 << 5,
+        Bounds = 1 << 6,
+        RenderData = 1 << 7,
+    };
+
     // Handshake payload (POD): frontend validates version + abiHash + feature flags.
     struct ProtocolInfo {
         std::uint32_t protocolVersion;
@@ -102,7 +126,8 @@ public:
         static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT);
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -166,12 +191,31 @@ public:
 
     ByteBufferMeta saveSnapshot() const noexcept;
     ByteBufferMeta getSnapshotBufferMeta() const noexcept;
+    ByteBufferMeta getFullSnapshotMeta() const noexcept { return saveSnapshot(); }
 
     struct DocumentDigest {
         std::uint32_t lo;
         std::uint32_t hi;
     };
     DocumentDigest getDocumentDigest() const noexcept;
+
+    struct EngineEvent {
+        std::uint16_t type;
+        std::uint16_t flags;
+        std::uint32_t a;
+        std::uint32_t b;
+        std::uint32_t c;
+        std::uint32_t d;
+    };
+
+    struct EventBufferMeta {
+        std::uint32_t generation;
+        std::uint32_t count;
+        std::uintptr_t ptr;
+    };
+
+    EventBufferMeta pollEvents(std::uint32_t maxEvents);
+    void ackResync(std::uint32_t resyncGeneration);
 
     struct EngineStats {
         std::uint32_t generation;
@@ -251,6 +295,24 @@ public:
     std::uint32_t selectionGeneration_{0};
     std::uint32_t nextEntityId_{1};
 
+    static constexpr std::size_t kMaxEvents = 2048;
+    std::vector<EngineEvent> eventQueue_{};
+    std::size_t eventHead_{0};
+    std::size_t eventTail_{0};
+    std::size_t eventCount_{0};
+    bool eventOverflowed_{false};
+    std::uint32_t eventOverflowGeneration_{0};
+    std::vector<EngineEvent> eventBuffer_{};
+
+    std::unordered_map<std::uint32_t, std::uint32_t> pendingEntityChanges_{};
+    std::unordered_map<std::uint32_t, std::uint32_t> pendingEntityCreates_{};
+    std::unordered_set<std::uint32_t> pendingEntityDeletes_{};
+    std::unordered_map<std::uint32_t, std::uint32_t> pendingLayerChanges_{};
+    std::uint32_t pendingDocMask_{0};
+    bool pendingSelectionChanged_{false};
+    bool pendingOrderChanged_{false};
+    bool pendingHistoryChanged_{false};
+
 
     // Error handling
     mutable EngineError lastError{EngineError::Ok};
@@ -266,6 +328,17 @@ public:
 
     void trackNextEntityId(std::uint32_t id);
     void deleteEntity(std::uint32_t id) noexcept;
+    void clearEventState();
+    void recordDocChanged(std::uint32_t mask);
+    void recordEntityChanged(std::uint32_t id, std::uint32_t mask);
+    void recordEntityCreated(std::uint32_t id, std::uint32_t kind);
+    void recordEntityDeleted(std::uint32_t id);
+    void recordLayerChanged(std::uint32_t layerId, std::uint32_t mask);
+    void recordSelectionChanged();
+    void recordOrderChanged();
+    void recordHistoryChanged();
+    void flushPendingEvents();
+    bool pushEvent(const EngineEvent& ev);
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx);
@@ -710,6 +783,7 @@ private:
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM),
         });
 
         h = hashEnum(h, 0xE000000Bu, {
@@ -752,6 +826,29 @@ private:
             static_cast<std::uint32_t>(ReorderAction::SendToBack),
             static_cast<std::uint32_t>(ReorderAction::BringForward),
             static_cast<std::uint32_t>(ReorderAction::SendBackward),
+        });
+
+        h = hashEnum(h, 0xE0000012u, {
+            static_cast<std::uint32_t>(EventType::Overflow),
+            static_cast<std::uint32_t>(EventType::DocChanged),
+            static_cast<std::uint32_t>(EventType::EntityChanged),
+            static_cast<std::uint32_t>(EventType::EntityCreated),
+            static_cast<std::uint32_t>(EventType::EntityDeleted),
+            static_cast<std::uint32_t>(EventType::LayerChanged),
+            static_cast<std::uint32_t>(EventType::SelectionChanged),
+            static_cast<std::uint32_t>(EventType::OrderChanged),
+            static_cast<std::uint32_t>(EventType::HistoryChanged),
+        });
+
+        h = hashEnum(h, 0xE0000013u, {
+            static_cast<std::uint32_t>(ChangeMask::Geometry),
+            static_cast<std::uint32_t>(ChangeMask::Style),
+            static_cast<std::uint32_t>(ChangeMask::Flags),
+            static_cast<std::uint32_t>(ChangeMask::Layer),
+            static_cast<std::uint32_t>(ChangeMask::Order),
+            static_cast<std::uint32_t>(ChangeMask::Text),
+            static_cast<std::uint32_t>(ChangeMask::Bounds),
+            static_cast<std::uint32_t>(ChangeMask::RenderData),
         });
 
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
@@ -1018,6 +1115,21 @@ private:
         h = hashStruct(h, 0x5300001Eu, sizeof(DocumentDigest), {
             static_cast<std::uint32_t>(offsetof(DocumentDigest, lo)),
             static_cast<std::uint32_t>(offsetof(DocumentDigest, hi)),
+        });
+
+        h = hashStruct(h, 0x5300001Fu, sizeof(EngineEvent), {
+            static_cast<std::uint32_t>(offsetof(EngineEvent, type)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, flags)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, a)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, b)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, c)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, d)),
+        });
+
+        h = hashStruct(h, 0x53000020u, sizeof(EventBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(EventBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(EventBufferMeta, count)),
+            static_cast<std::uint32_t>(offsetof(EventBufferMeta, ptr)),
         });
 
         return h;

@@ -37,8 +37,11 @@ describe('EngineRuntime', () => {
       getPositionBufferMeta: vi.fn(),
       getLineBufferMeta: vi.fn(),
       getSnapshotBufferMeta: vi.fn(),
+      getFullSnapshotMeta: vi.fn(() => ({ generation: 0, byteCount: 0, ptr: 0 })),
       getStats: vi.fn(),
       getProtocolInfo: vi.fn(() => EXPECTED_PROTOCOL_INFO),
+      pollEvents: vi.fn(() => ({ generation: 0, count: 0, ptr: 0 })),
+      ackResync: vi.fn(),
       getSelectionIds: vi.fn(() => makeVector(selectionIds)),
       clearSelection: vi.fn(() => {
         selectionIds = [];

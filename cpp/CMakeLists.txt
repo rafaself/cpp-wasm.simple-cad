@@ -184,6 +184,7 @@ if(NOT EMSCRIPTEN)
     tests/selection_order_test.cpp
     tests/vector_tessellation_test.cpp
     tests/protocol_info_test.cpp
+    tests/event_stream_test.cpp
   )
   
   # Add text tests if enabled

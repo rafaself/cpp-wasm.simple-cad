@@ -26,10 +26,10 @@ describe('validateProtocolOrThrow', () => {
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
 
-  it('throws when snapshot feature flag is missing', () => {
+  it('throws when event stream feature flag is missing', () => {
     const info = {
       ...EXPECTED_PROTOCOL_INFO,
-      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_LAYERS_FLAGS,
+      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_SNAPSHOT_VNEXT,
     };
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
@@ -37,7 +37,7 @@ describe('validateProtocolOrThrow', () => {
   it('accepts when only required flags are present', () => {
     const info = {
       ...EXPECTED_PROTOCOL_INFO,
-      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_SNAPSHOT_VNEXT,
+      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_EVENT_STREAM,
     };
     expect(() => validateProtocolOrThrow(info)).not.toThrow();
   });

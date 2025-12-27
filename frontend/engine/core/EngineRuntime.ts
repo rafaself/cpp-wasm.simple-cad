@@ -2,6 +2,7 @@ import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { IdRegistry } from './IdRegistry';
 import { LayerRegistry } from './LayerRegistry';
+import { decodeEngineEvents } from './engineEventDecoder';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
 import {
   validateProtocolOrThrow,
@@ -11,6 +12,8 @@ import {
   type SelectionMode,
   type ReorderAction,
   type DocumentDigest,
+  type EngineEvent,
+  type EventBufferMeta,
 } from './protocol';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
@@ -52,9 +55,12 @@ export type CadEngineInstance = {
   getLineBufferMeta: () => BufferMeta;
   saveSnapshot?: () => SnapshotBufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
+  getFullSnapshotMeta: () => SnapshotBufferMeta;
   getCapabilities?: () => number;
   getProtocolInfo: () => ProtocolInfo;
   getDocumentDigest?: () => DocumentDigest;
+  pollEvents: (maxEvents: number) => EventBufferMeta;
+  ackResync: (resyncGeneration: number) => void;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
@@ -133,6 +139,12 @@ export class EngineRuntime {
     }
     const protocolInfo = engine.getProtocolInfo();
     validateProtocolOrThrow(protocolInfo);
+    if (typeof engine.pollEvents !== 'function' || typeof engine.ackResync !== 'function') {
+      throw new Error('[EngineRuntime] Missing event stream APIs in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.getFullSnapshotMeta !== 'function') {
+      throw new Error('[EngineRuntime] Missing getFullSnapshotMeta() in WASM. Rebuild engine to match frontend.');
+    }
     const runtime = new EngineRuntime(module, engine);
     runtime.applyCapabilityGuards();
     return runtime;
@@ -180,6 +192,12 @@ export class EngineRuntime {
     return new Uint8Array(this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
   }
 
+  public getFullSnapshotBytes(): Uint8Array {
+    const meta = this.engine.getFullSnapshotMeta();
+    if (!meta || meta.byteCount === 0) return new Uint8Array();
+    return new Uint8Array(this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
+  }
+
   public getDocumentDigest(): DocumentDigest | null {
     if (typeof this.engine.getDocumentDigest !== 'function') return null;
     return this.engine.getDocumentDigest();
@@ -206,6 +224,18 @@ export class EngineRuntime {
     }
     vec.delete();
     return out;
+  }
+
+  public pollEvents(maxEvents: number): { generation: number; events: EngineEvent[] } {
+    const meta = this.engine.pollEvents(maxEvents);
+    return {
+      generation: meta.generation,
+      events: decodeEngineEvents(this.module.HEAPU8, meta.ptr, meta.count),
+    };
+  }
+
+  public ackResync(resyncGeneration: number): void {
+    this.engine.ackResync(resyncGeneration);
   }
 
   private static readCapabilities(engine: CadEngineInstance): number {

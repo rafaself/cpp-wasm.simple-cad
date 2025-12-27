@@ -88,9 +88,12 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("saveSnapshot", &CadEngine::saveSnapshot)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
+        .function("getFullSnapshotMeta", &CadEngine::getFullSnapshotMeta)
         .function("getCapabilities", &CadEngine::getCapabilities)
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
         .function("getDocumentDigest", &CadEngine::getDocumentDigest)
+        .function("pollEvents", &CadEngine::pollEvents)
+        .function("ackResync", &CadEngine::ackResync)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("setLayerProps", &CadEngine::setLayerProps)
@@ -196,6 +199,19 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("generation", &CadEngine::ByteBufferMeta::generation)
         .field("byteCount", &CadEngine::ByteBufferMeta::byteCount)
         .field("ptr", &CadEngine::ByteBufferMeta::ptr);
+
+    emscripten::value_object<CadEngine::EngineEvent>("EngineEvent")
+        .field("type", &CadEngine::EngineEvent::type)
+        .field("flags", &CadEngine::EngineEvent::flags)
+        .field("a", &CadEngine::EngineEvent::a)
+        .field("b", &CadEngine::EngineEvent::b)
+        .field("c", &CadEngine::EngineEvent::c)
+        .field("d", &CadEngine::EngineEvent::d);
+
+    emscripten::value_object<CadEngine::EventBufferMeta>("EventBufferMeta")
+        .field("generation", &CadEngine::EventBufferMeta::generation)
+        .field("count", &CadEngine::EventBufferMeta::count)
+        .field("ptr", &CadEngine::EventBufferMeta::ptr);
 
     emscripten::value_object<CadEngine::DocumentDigest>("DocumentDigest")
         .field("lo", &CadEngine::DocumentDigest::lo)

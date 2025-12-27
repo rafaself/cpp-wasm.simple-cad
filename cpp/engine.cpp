@@ -90,6 +90,8 @@ CadEngine::CadEngine() {
     triangleVertices.reserve(defaultCapacityFloats);
     lineVertices.reserve(defaultLineCapacityFloats);
     snapshotBytes.reserve(defaultSnapshotCapacityBytes);
+    eventQueue_.resize(kMaxEvents);
+    eventBuffer_.reserve(kMaxEvents + 1);
     renderDirty = false;
     snapshotDirty = false;
     lastError = EngineError::Ok;
@@ -653,7 +655,13 @@ void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, st
         pruneSelection();
     }
 
-    if (visibilityChanged || lockedChanged || nameChanged) {
+    const std::uint32_t changedMask =
+        (visibilityChanged ? visibleMask : 0)
+        | (lockedChanged ? lockedMask : 0)
+        | (nameChanged ? nameMask : 0);
+
+    if (changedMask != 0) {
+        recordLayerChanged(layerId, changedMask);
         generation++;
     }
 }
@@ -663,6 +671,12 @@ bool CadEngine::deleteLayer(std::uint32_t layerId) {
     if (deleted) {
         renderDirty = true;
         textQuadsDirty_ = true;
+        recordLayerChanged(
+            layerId,
+            static_cast<std::uint32_t>(LayerPropMask::Name)
+            | static_cast<std::uint32_t>(LayerPropMask::Visible)
+            | static_cast<std::uint32_t>(LayerPropMask::Locked)
+        );
         generation++;
     }
     return deleted;
@@ -685,6 +699,7 @@ void CadEngine::setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, 
         pruneSelection();
     }
     if (prevFlags != nextFlags) {
+        recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Flags));
         generation++;
     }
 }
@@ -696,6 +711,7 @@ void CadEngine::setEntityLayer(std::uint32_t entityId, std::uint32_t layerId) {
         renderDirty = true;
         textQuadsDirty_ = true;
         pruneSelection();
+        recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Layer));
         generation++;
     }
 }
@@ -971,6 +987,7 @@ bool CadEngine::pruneSelection() {
     if (changed) {
         rebuildSelectionOrder();
         selectionGeneration_++;
+        recordSelectionChanged();
     }
     return changed;
 }
@@ -980,6 +997,7 @@ void CadEngine::clearSelection() {
     selectionSet_.clear();
     selectionOrdered_.clear();
     selectionGeneration_++;
+    recordSelectionChanged();
 }
 
 void CadEngine::setSelection(const std::uint32_t* ids, std::uint32_t idCount, SelectionMode mode) {
@@ -1034,6 +1052,7 @@ void CadEngine::setSelection(const std::uint32_t* ids, std::uint32_t idCount, Se
     if (changed) {
         rebuildSelectionOrder();
         selectionGeneration_++;
+        recordSelectionChanged();
     }
 }
 
@@ -1161,6 +1180,7 @@ void CadEngine::reorderEntities(const std::uint32_t* ids, std::uint32_t idCount,
     if (!changed) return;
     pickSystem_.setDrawOrder(order);
     renderDirty = true;
+    recordOrderChanged();
     generation++;
     if (!selectionSet_.empty()) rebuildSelectionOrder();
 }
@@ -1183,6 +1203,349 @@ void CadEngine::clearWorld() noexcept {
     renderDirty = true;
     snapshotDirty = true;
     textQuadsDirty_ = true;
+    clearEventState();
+    recordDocChanged(
+        static_cast<std::uint32_t>(ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(ChangeMask::Style)
+        | static_cast<std::uint32_t>(ChangeMask::Flags)
+        | static_cast<std::uint32_t>(ChangeMask::Layer)
+        | static_cast<std::uint32_t>(ChangeMask::Order)
+        | static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+    );
+    recordSelectionChanged();
+    recordOrderChanged();
+}
+
+void CadEngine::clearEventState() {
+    eventHead_ = 0;
+    eventTail_ = 0;
+    eventCount_ = 0;
+    eventOverflowed_ = false;
+    eventOverflowGeneration_ = 0;
+    pendingEntityChanges_.clear();
+    pendingEntityCreates_.clear();
+    pendingEntityDeletes_.clear();
+    pendingLayerChanges_.clear();
+    pendingDocMask_ = 0;
+    pendingSelectionChanged_ = false;
+    pendingOrderChanged_ = false;
+    pendingHistoryChanged_ = false;
+}
+
+void CadEngine::recordDocChanged(std::uint32_t mask) {
+    if (eventOverflowed_) return;
+    pendingDocMask_ |= mask;
+}
+
+void CadEngine::recordEntityChanged(std::uint32_t id, std::uint32_t mask) {
+    if (eventOverflowed_) return;
+    if (pendingEntityDeletes_.find(id) != pendingEntityDeletes_.end()) return;
+    pendingEntityChanges_[id] |= mask;
+    recordDocChanged(mask);
+}
+
+void CadEngine::recordEntityCreated(std::uint32_t id, std::uint32_t kind) {
+    if (eventOverflowed_) return;
+    pendingEntityDeletes_.erase(id);
+    pendingEntityChanges_.erase(id);
+    pendingEntityCreates_[id] = kind;
+    std::uint32_t docMask =
+        static_cast<std::uint32_t>(ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(ChangeMask::Style)
+        | static_cast<std::uint32_t>(ChangeMask::Layer)
+        | static_cast<std::uint32_t>(ChangeMask::Flags)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds);
+    if (kind == static_cast<std::uint32_t>(EntityKind::Text)) {
+        docMask |= static_cast<std::uint32_t>(ChangeMask::Text);
+    }
+    recordDocChanged(docMask);
+    recordOrderChanged();
+}
+
+void CadEngine::recordEntityDeleted(std::uint32_t id) {
+    if (eventOverflowed_) return;
+    pendingEntityDeletes_.insert(id);
+    pendingEntityChanges_.erase(id);
+    pendingEntityCreates_.erase(id);
+    recordDocChanged(
+        static_cast<std::uint32_t>(ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(ChangeMask::Layer)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+    );
+    recordOrderChanged();
+}
+
+void CadEngine::recordLayerChanged(std::uint32_t layerId, std::uint32_t mask) {
+    if (eventOverflowed_) return;
+    pendingLayerChanges_[layerId] |= mask;
+    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Layer));
+}
+
+void CadEngine::recordSelectionChanged() {
+    if (eventOverflowed_) return;
+    pendingSelectionChanged_ = true;
+}
+
+void CadEngine::recordOrderChanged() {
+    if (eventOverflowed_) return;
+    pendingOrderChanged_ = true;
+    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Order));
+}
+
+void CadEngine::recordHistoryChanged() {
+    if (eventOverflowed_) return;
+    pendingHistoryChanged_ = true;
+}
+
+bool CadEngine::pushEvent(const EngineEvent& ev) {
+    if (eventOverflowed_) return false;
+    if (eventCount_ >= kMaxEvents) {
+        eventOverflowed_ = true;
+        eventOverflowGeneration_ = generation;
+        eventHead_ = 0;
+        eventTail_ = 0;
+        eventCount_ = 0;
+        return false;
+    }
+    eventQueue_[eventTail_] = ev;
+    eventTail_ = (eventTail_ + 1) % kMaxEvents;
+    eventCount_++;
+    return true;
+}
+
+void CadEngine::flushPendingEvents() {
+    if (eventOverflowed_) {
+        pendingEntityChanges_.clear();
+        pendingEntityCreates_.clear();
+        pendingEntityDeletes_.clear();
+        pendingLayerChanges_.clear();
+        pendingDocMask_ = 0;
+        pendingSelectionChanged_ = false;
+        pendingOrderChanged_ = false;
+        pendingHistoryChanged_ = false;
+        return;
+    }
+
+    if (pendingDocMask_ == 0 &&
+        pendingEntityChanges_.empty() &&
+        pendingEntityCreates_.empty() &&
+        pendingEntityDeletes_.empty() &&
+        pendingLayerChanges_.empty() &&
+        !pendingSelectionChanged_ &&
+        !pendingOrderChanged_ &&
+        !pendingHistoryChanged_) {
+        return;
+    }
+
+    auto pushOrOverflow = [&](const EngineEvent& ev) -> bool {
+        if (!pushEvent(ev)) {
+            pendingEntityChanges_.clear();
+            pendingEntityCreates_.clear();
+            pendingEntityDeletes_.clear();
+            pendingLayerChanges_.clear();
+            pendingDocMask_ = 0;
+            pendingSelectionChanged_ = false;
+            pendingOrderChanged_ = false;
+            pendingHistoryChanged_ = false;
+            return false;
+        }
+        return true;
+    };
+
+    if (pendingDocMask_ != 0) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::DocChanged),
+                0,
+                pendingDocMask_,
+                0,
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    if (!pendingLayerChanges_.empty()) {
+        std::vector<std::uint32_t> layerIds;
+        layerIds.reserve(pendingLayerChanges_.size());
+        for (const auto& kv : pendingLayerChanges_) layerIds.push_back(kv.first);
+        std::sort(layerIds.begin(), layerIds.end());
+        for (const std::uint32_t id : layerIds) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::LayerChanged),
+                    0,
+                    id,
+                    pendingLayerChanges_[id],
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (!pendingEntityCreates_.empty()) {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(pendingEntityCreates_.size());
+        for (const auto& kv : pendingEntityCreates_) ids.push_back(kv.first);
+        std::sort(ids.begin(), ids.end());
+        for (const std::uint32_t id : ids) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::EntityCreated),
+                    0,
+                    id,
+                    pendingEntityCreates_[id],
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (!pendingEntityChanges_.empty()) {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(pendingEntityChanges_.size());
+        for (const auto& kv : pendingEntityChanges_) ids.push_back(kv.first);
+        std::sort(ids.begin(), ids.end());
+        for (const std::uint32_t id : ids) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::EntityChanged),
+                    0,
+                    id,
+                    pendingEntityChanges_[id],
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (!pendingEntityDeletes_.empty()) {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(pendingEntityDeletes_.size());
+        for (const auto& id : pendingEntityDeletes_) ids.push_back(id);
+        std::sort(ids.begin(), ids.end());
+        for (const std::uint32_t id : ids) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::EntityDeleted),
+                    0,
+                    id,
+                    0,
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (pendingSelectionChanged_) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::SelectionChanged),
+                0,
+                selectionGeneration_,
+                static_cast<std::uint32_t>(selectionOrdered_.size()),
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    if (pendingOrderChanged_) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::OrderChanged),
+                0,
+                generation,
+                static_cast<std::uint32_t>(entityManager_.drawOrderIds.size()),
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    if (pendingHistoryChanged_) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::HistoryChanged),
+                0,
+                generation,
+                0,
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    pendingEntityChanges_.clear();
+    pendingEntityCreates_.clear();
+    pendingEntityDeletes_.clear();
+    pendingLayerChanges_.clear();
+    pendingDocMask_ = 0;
+    pendingSelectionChanged_ = false;
+    pendingOrderChanged_ = false;
+    pendingHistoryChanged_ = false;
+}
+
+CadEngine::EventBufferMeta CadEngine::pollEvents(std::uint32_t maxEvents) {
+    flushPendingEvents();
+
+    eventBuffer_.clear();
+    if (eventOverflowed_) {
+        eventBuffer_.push_back(EngineEvent{
+            static_cast<std::uint16_t>(EventType::Overflow),
+            0,
+            eventOverflowGeneration_,
+            0,
+            0,
+            0,
+        });
+        return EventBufferMeta{
+            generation,
+            static_cast<std::uint32_t>(eventBuffer_.size()),
+            reinterpret_cast<std::uintptr_t>(eventBuffer_.data()),
+        };
+    }
+
+    if (eventCount_ == 0 || maxEvents == 0) {
+        return EventBufferMeta{generation, 0, 0};
+    }
+
+    const std::size_t count = std::min<std::size_t>(maxEvents, eventCount_);
+    eventBuffer_.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        eventBuffer_.push_back(eventQueue_[eventHead_]);
+        eventHead_ = (eventHead_ + 1) % kMaxEvents;
+        eventCount_--;
+    }
+
+    return EventBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(eventBuffer_.size()),
+        reinterpret_cast<std::uintptr_t>(eventBuffer_.data()),
+    };
+}
+
+void CadEngine::ackResync(std::uint32_t resyncGeneration) {
+    if (!eventOverflowed_) return;
+    if (resyncGeneration < eventOverflowGeneration_) return;
+    eventOverflowed_ = false;
+    eventOverflowGeneration_ = 0;
+    eventHead_ = 0;
+    eventTail_ = 0;
+    eventCount_ = 0;
+    pendingEntityChanges_.clear();
+    pendingEntityCreates_.clear();
+    pendingEntityDeletes_.clear();
+    pendingLayerChanges_.clear();
+    pendingDocMask_ = 0;
+    pendingSelectionChanged_ = false;
+    pendingOrderChanged_ = false;
+    pendingHistoryChanged_ = false;
 }
 
 void CadEngine::trackNextEntityId(std::uint32_t id) {
@@ -1205,7 +1568,11 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
     }
 
     // Delegate to EntityManager for all geometry
+    const bool existed = (it != entityManager_.entities.end());
     entityManager_.deleteEntity(id);
+    if (existed) {
+        recordEntityDeleted(id);
+    }
     pruneSelection();
 }
 
@@ -1223,6 +1590,14 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
     RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
     pickSystem_.update(id, PickSystem::computeRectAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Rect));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
@@ -1239,6 +1614,14 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
     LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
     pickSystem_.update(id, PickSystem::computeLineAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Line));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
@@ -1255,6 +1638,14 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
     PolyRec rec; rec.offset = offset; rec.count = count;
     pickSystem_.update(id, PickSystem::computePolylineAABB(rec, entityManager_.points));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Polyline));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
 }
 
 void CadEngine::upsertCircle(
@@ -1286,6 +1677,14 @@ void CadEngine::upsertCircle(
     CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry;
     pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Circle));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
 }
 
 void CadEngine::upsertPolygon(
@@ -1318,6 +1717,14 @@ void CadEngine::upsertPolygon(
     PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot;
     pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Polygon));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
 }
 
 void CadEngine::upsertArrow(
@@ -1343,6 +1750,14 @@ void CadEngine::upsertArrow(
     ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
     pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Arrow));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
 }
 
 // Static member callback implementation
@@ -1385,6 +1800,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->renderDirty = true;
             self->pickSystem_.setDrawOrder(self->entityManager_.drawOrderIds);
             if (!self->selectionSet_.empty()) self->rebuildSelectionOrder();
+            self->recordOrderChanged();
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
@@ -1954,6 +2370,14 @@ bool CadEngine::upsertText(
         pickSystem_.update(id, {minX, minY, maxX, maxY});
     }
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Text));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Text)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds)
+            | static_cast<std::uint32_t>(ChangeMask::Style));
+    }
     
     return true;
 }
@@ -1976,6 +2400,7 @@ bool CadEngine::deleteText(std::uint32_t id) {
 
     pickSystem_.remove(id);
     pruneSelection();
+    recordEntityDeleted(id);
 
     return true;
 }
@@ -2007,6 +2432,9 @@ bool CadEngine::insertTextContent(
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
 
     return true;
 }
@@ -2025,6 +2453,9 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
     
     return true;
 }
@@ -2043,6 +2474,10 @@ bool CadEngine::setTextAlign(std::uint32_t textId, TextAlign align) {
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+        | static_cast<std::uint32_t>(ChangeMask::Style));
 
     return true;
 }
@@ -2066,6 +2501,9 @@ bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
 
     return true;
 }
@@ -2097,6 +2535,9 @@ bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxM
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
 
     return true;
 }

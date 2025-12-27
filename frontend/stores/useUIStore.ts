@@ -100,7 +100,7 @@ export const useUIStore = create<UIState>((set) => ({
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
-  documentSource: 'react',
+  documentSource: 'engine',
 
   engineTextEditState: {
     active: false,

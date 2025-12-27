@@ -558,6 +558,9 @@ export const useEngineStoreSync = (): void => {
       }
       return;
     }
+    if (import.meta.env.DEV) {
+      console.error('[useEngineStoreSync] Store->engine sync is deprecated after PR-04.');
+    }
 
     let unsubscribeData: (() => void) | null = null;
     let unsubscribeUi: (() => void) | null = null;

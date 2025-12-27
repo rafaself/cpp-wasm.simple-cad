@@ -12,7 +12,7 @@ import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar'
 import EditorTabs from '@/features/editor/components/EditorTabs';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
 import { useUIStore } from '@/stores/useUIStore';
-import { useEngineStoreSync } from '@/engine/core/useEngineStoreSync';
+import { useEngineEvents } from '@/engine/core/useEngineEvents';
 import EngineInteractionLayer from './EngineInteractionLayer';
 import TessellatedWasmLayer from '@/engine/renderer/TessellatedWasmLayer';
 
@@ -57,7 +57,7 @@ const NextCanvasArea: React.FC = () => {
 
 const NextSurface: React.FC = () => {
   useKeyboardShortcuts();
-  useEngineStoreSync();
+  useEngineEvents();
 
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
