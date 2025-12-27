@@ -7,7 +7,8 @@ import {
   isShapeInSelection
 } from '@/utils/geometry';
 import { isShapeInteractable } from '@/utils/visibility';
-import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import { ensureId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import type { EntityId } from '@/engine/core/protocol';
 import { EngineCapability } from '@/engine/core/capabilities';
 
 // --- Types extracted from EngineInteractionLayer ---
@@ -40,14 +41,14 @@ export function useSelectInteraction(params: {
   viewTransform: ViewTransform;
   shapes: Record<string, Shape>;
   layers: any[]; // ImportedLayer[] or Layer[]
-  onSetSelectedShapeIds: (ids: Set<string>) => void;
+  onSetSelectedEntityIds: (ids: Set<EntityId>) => void;
   runtime?: any;
 }) {
   const {
     viewTransform,
     shapes,
     layers,
-    onSetSelectedShapeIds,
+    onSetSelectedEntityIds,
     runtime
   } = params;
 
@@ -109,7 +110,7 @@ export function useSelectInteraction(params: {
       const worldUp = screenToWorld(screen, viewTransform);
       const rect = normalizeRect(down.world, worldUp);
 
-      const selected = new Set<string>();
+      const selected = new Set<EntityId>();
 
       // Preferred (Phase 5): Engine returns the final selection set for WINDOW/CROSSING.
       const canUseMarquee =
@@ -127,7 +128,7 @@ export function useSelectInteraction(params: {
           const layer = layers.find((l) => l.id === shape.layerId);
           if (layer && (!layer.visible || layer.locked)) continue;
           if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
-          selected.add(shape.id);
+          selected.add(idHash);
         }
         selectedU32.delete();
       } else {
@@ -154,12 +155,12 @@ export function useSelectInteraction(params: {
           if (layer && (!layer.visible || layer.locked)) continue;
           if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
           if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
-          selected.add(shape.id);
+          selected.add(ensureId(shape.id));
         }
       }
 
       setSelectionBox(null);
-      onSetSelectedShapeIds(selected);
+      onSetSelectedEntityIds(selected);
       return;
     }
     setSelectionBox(null);

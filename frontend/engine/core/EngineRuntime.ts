@@ -2,6 +2,7 @@ import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { IdRegistry } from './IdRegistry';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
+import { validateProtocolOrThrow, type ProtocolInfo, type EntityId } from './protocol';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -36,7 +37,8 @@ export type CadEngineInstance = {
   getLineBufferMeta: () => BufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
   getCapabilities?: () => number;
-  pick: (x: number, y: number, tolerance: number) => number;
+  getProtocolInfo: () => ProtocolInfo;
+  pick: (x: number, y: number, tolerance: number) => EntityId;
 
   // New extended pick (optional during migration)
   pickEx?: (x: number, y: number, tolerance: number, pickMask: number) => PickResult;
@@ -72,7 +74,7 @@ export type CadEngineInstance = {
   clearAtlasDirty?: () => void;
 
   // Interaction Session
-  beginTransform?: (idsPtr: number, idCount: number, mode: number, specificId: number, vertexIndex: number, startX: number, startY: number) => void;
+  beginTransform?: (idsPtr: number, idCount: number, mode: number, specificId: EntityId, vertexIndex: number, startX: number, startY: number) => void;
   updateTransform?: (worldX: number, worldY: number) => void;
   commitTransform?: () => void;
   cancelTransform?: () => void;
@@ -93,6 +95,11 @@ export class EngineRuntime {
   public static async create(): Promise<EngineRuntime> {
     const module = await initCadEngineModule<WasmModule>();
     const engine = new module.CadEngine();
+    if (typeof engine.getProtocolInfo !== 'function') {
+      throw new Error('[EngineRuntime] Missing getProtocolInfo() in WASM. Rebuild engine to match frontend.');
+    }
+    const protocolInfo = engine.getProtocolInfo();
+    validateProtocolOrThrow(protocolInfo);
     const runtime = new EngineRuntime(module, engine);
     runtime.applyCapabilityGuards();
     return runtime;
@@ -200,9 +207,9 @@ export class EngineRuntime {
   // ========================================================================
 
   public beginTransform(
-    ids: number[],
+    ids: EntityId[],
     mode: number,
-    specificId: number = 0,
+    specificId: EntityId = 0,
     vertexIndex: number = -1,
     startX: number = 0,
     startY: number = 0

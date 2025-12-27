@@ -13,12 +13,13 @@ import { ImportPlanModal } from '../../import/ImportPlanModal';
 import { usePlanImport } from '../../import/usePlanImport';
 import DisciplineContextMenu from './DisciplineContextMenu';
 import PlanLayerControls from './properties/PlanLayerControls';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 
 const EditorSidebar: React.FC = () => {
   const sidebarTab = useUIStore((s) => s.sidebarTab);
   const setSidebarTab = useUIStore((s) => s.setSidebarTab);
   const setActiveDiscipline = useUIStore((s) => s.setActiveDiscipline);
-  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
   const dataStore = useDataStore();
 
   const activeFloorId = useUIStore((s) => s.activeFloorId);
@@ -52,7 +53,8 @@ const EditorSidebar: React.FC = () => {
   const dragStartRef = useRef<{x: number, scrollLeft: number} | null>(null);
 
   // Helper to get selected shape
-  const selectedShapeId = selectedShapeIds.values().next().value;
+  const selectedEntityId = selectedEntityIds.values().next().value;
+  const selectedShapeId = selectedEntityId ? getShapeIdFromRegistry(selectedEntityId) : null;
   const selectedShape = selectedShapeId ? dataStore.shapes[selectedShapeId] : undefined;
 
   // --- Project Structure Definition ---

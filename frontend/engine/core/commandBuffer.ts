@@ -1,5 +1,7 @@
 export const COMMAND_BUFFER_MAGIC = 0x43445745; // "EWDC" little-endian bytes
 
+import type { EntityId } from './protocol';
+
 export const enum CommandOp {
   ClearAll = 1,
   UpsertRect = 2,
@@ -42,7 +44,7 @@ export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: n
 export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
 
 export type SetViewScalePayload = { scale: number };
-export type SetDrawOrderPayload = { ids: readonly number[] };
+export type SetDrawOrderPayload = { ids: readonly EntityId[] };
 
 export type CirclePayload = {
   cx: number;
@@ -100,36 +102,36 @@ export type TextPayload = {
 };
 
 export type TextCaretPayload = {
-  textId: number;
+  textId: EntityId;
   caretIndex: number; // UTF-8 byte position
 };
 
 export type TextSelectionPayload = {
-  textId: number;
+  textId: EntityId;
   selectionStart: number;
   selectionEnd: number;
 };
 
 export type TextInsertPayload = {
-  textId: number;
+  textId: EntityId;
   insertIndex: number; // UTF-8 byte position
   content: string; // UTF-8 text to insert
 };
 
 export type TextDeletePayload = {
-  textId: number;
+  textId: EntityId;
   startIndex: number; // UTF-8 byte start (inclusive)
   endIndex: number; // UTF-8 byte end (exclusive)
 };
 
 export type TextAlignmentPayload = {
-  textId: number;
+  textId: EntityId;
   align: number; // TextAlign enum
 };
 
 // Text style apply payload (logical indices; engine maps to UTF-8 internally)
 export type ApplyTextStylePayload = {
-  textId: number;
+  textId: EntityId;
   rangeStartLogical: number;
   rangeEndLogical: number;
   flagsMask: number; // bits: bold/italic/underline/strike
@@ -141,23 +143,23 @@ export type ApplyTextStylePayload = {
 
 export type EngineCommand =
   | { op: CommandOp.ClearAll }
-  | { op: CommandOp.DeleteEntity; id: number }
-  | { op: CommandOp.UpsertRect; id: number; rect: RectPayload }
-  | { op: CommandOp.UpsertLine; id: number; line: LinePayload }
-  | { op: CommandOp.UpsertPolyline; id: number; polyline: PolylinePayload }
+  | { op: CommandOp.DeleteEntity; id: EntityId }
+  | { op: CommandOp.UpsertRect; id: EntityId; rect: RectPayload }
+  | { op: CommandOp.UpsertLine; id: EntityId; line: LinePayload }
+  | { op: CommandOp.UpsertPolyline; id: EntityId; polyline: PolylinePayload }
   | { op: CommandOp.SetViewScale; view: SetViewScalePayload }
   | { op: CommandOp.SetDrawOrder; order: SetDrawOrderPayload }
-  | { op: CommandOp.UpsertCircle; id: number; circle: CirclePayload }
-  | { op: CommandOp.UpsertPolygon; id: number; polygon: PolygonPayload }
-  | { op: CommandOp.UpsertArrow; id: number; arrow: ArrowPayload }
+  | { op: CommandOp.UpsertCircle; id: EntityId; circle: CirclePayload }
+  | { op: CommandOp.UpsertPolygon; id: EntityId; polygon: PolygonPayload }
+  | { op: CommandOp.UpsertArrow; id: EntityId; arrow: ArrowPayload }
   // Text commands
-  | { op: CommandOp.UpsertText; id: number; text: TextPayload }
-  | { op: CommandOp.DeleteText; id: number }
+  | { op: CommandOp.UpsertText; id: EntityId; text: TextPayload }
+  | { op: CommandOp.DeleteText; id: EntityId }
   | { op: CommandOp.SetTextCaret; caret: TextCaretPayload }
   | { op: CommandOp.SetTextSelection; selection: TextSelectionPayload }
   | { op: CommandOp.InsertTextContent; insert: TextInsertPayload }
   | { op: CommandOp.DeleteTextContent; del: TextDeletePayload }
-  | { op: CommandOp.ApplyTextStyle; id: number; style: ApplyTextStylePayload }
+  | { op: CommandOp.ApplyTextStyle; id: EntityId; style: ApplyTextStylePayload }
   | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload };
 
 // UTF-8 encoder for text content

@@ -1,3 +1,5 @@
+import type { EntityId } from '@/engine/core/protocol';
+
 // Matching C++ enums in cpp/engine/pick_system.h
 
 export enum PickSubTarget {
@@ -23,7 +25,7 @@ export enum PickEntityKind {
 }
 
 export interface PickResult {
-  id: number;          // 0 = miss
+  id: EntityId;        // 0 = miss
   kind: PickEntityKind;
   subTarget: PickSubTarget;
   subIndex: number;     // -1 if N/A

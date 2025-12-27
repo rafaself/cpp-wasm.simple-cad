@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useDataStore } from '../../../stores/useDataStore';
@@ -7,10 +7,11 @@ import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Re
 import { SnapOptions } from '../../../types';
 import { getDistance } from '../../../utils/geometry';
 import EditableNumber from '../../../components/EditableNumber';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 
 const EditorStatusBar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
-  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
   const mousePos = useUIStore((s) => s.mousePos);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
@@ -21,12 +22,20 @@ const EditorStatusBar: React.FC = () => {
   const dataStore = useDataStore();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
   const [totalLength, setTotalLength] = useState<string | null>(null);
+  const selectedShapeIds = useMemo(() => {
+    const ids: string[] = [];
+    selectedEntityIds.forEach((entityId) => {
+      const shapeId = getShapeIdFromRegistry(entityId);
+      if (shapeId) ids.push(shapeId);
+    });
+    return ids;
+  }, [selectedEntityIds]);
 
   useEffect(() => {
-    if (selectedShapeIds.size > 0) {
+    if (selectedShapeIds.length > 0) {
         let total = 0;
         let hasLines = false;
-        selectedShapeIds.forEach(id => {
+        selectedShapeIds.forEach((id) => {
             const s = dataStore.shapes[id];
             if (!s) return;
             if (s.type === 'line' || s.type === 'polyline' || s.type === 'measure') {
@@ -138,8 +147,8 @@ const EditorStatusBar: React.FC = () => {
          <button
            onClick={zoomToFit}
            className="p-1 hover:bg-slate-700 rounded"
-           title={selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
-           aria-label={selectedShapeIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+           title={selectedEntityIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+           aria-label={selectedEntityIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
          >
            <Scan size={14} />
          </button>

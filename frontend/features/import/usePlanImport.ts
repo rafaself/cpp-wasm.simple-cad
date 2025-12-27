@@ -15,6 +15,7 @@ import DxfWorker from './utils/dxf/dxfWorker?worker';
 import { DxfColorScheme } from './utils/dxf/colorScheme';
 import { LayerNameConflictPolicy, mapImportedLayerNames } from './utils/layerNameCollision';
 import { buildDxfSvgVectorSidecarV1 } from './utils/dxf/dxfSvgToVectorSidecar';
+import { ensureId } from '@/engine/core/IdRegistry';
 
 // Configure PDF.js worker source using CDN to avoid local build issues
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -372,7 +373,7 @@ export const usePlanImport = (): PlanImportHook => {
                   dataStore.setVectorSidecar(mergeVectorSidecarsV1(base, nextSidecar, `dxf:${shape.id}:`));
               }
           }
-          uiStore.setSelectedShapeIds(new Set(shapesToAdd.map(s => s.id)));
+          uiStore.setSelectedEntityIds(new Set(shapesToAdd.map((s) => ensureId(s.id))));
           uiStore.setTool('select');
           
           // Center content after import
@@ -424,7 +425,7 @@ export const usePlanImport = (): PlanImportHook => {
           const merged = mergeVectorSidecarsV1(base, result.vectorSidecarToMerge.sidecar, result.vectorSidecarToMerge.prefix);
           dataStore.setVectorSidecar(merged);
         }
-        uiStore.setSelectedShapeIds(new Set(result.shapes.map(s => s.id)));
+        uiStore.setSelectedEntityIds(new Set(result.shapes.map((s) => ensureId(s.id))));
         uiStore.setTool('select');
         
         // Center content after import

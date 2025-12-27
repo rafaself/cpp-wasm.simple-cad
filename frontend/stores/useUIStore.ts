@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { TextStyleSnapshot } from '../types/text';
 import { Point, ToolType, ViewTransform } from '../types';
+import type { EntityId } from '@/engine/core/protocol';
 
 export interface EditorTab {
   floorId: string;
@@ -41,7 +42,7 @@ interface UIState {
   closeTab: (tab: EditorTab) => void;
 
   // Selection
-  selectedShapeIds: Set<string>;
+  selectedEntityIds: Set<EntityId>;
 
   // Setters
   setTool: (tool: ToolType) => void;
@@ -69,7 +70,7 @@ interface UIState {
   setActiveFloorId: (id: string) => void;
   setActiveDiscipline: (discipline: 'architecture') => void;
 
-  setSelectedShapeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setSelectedEntityIds: (ids: Set<EntityId> | ((prev: Set<EntityId>) => Set<EntityId>)) => void;
 
   // References
   referencedDisciplines: Map<string, Set<'architecture'>>; // Map<floorId, Set<discipline>>
@@ -131,7 +132,7 @@ export const useUIStore = create<UIState>((set) => ({
     const updates = { 
         activeFloorId: tab.floorId, 
         activeDiscipline: tab.discipline,
-        selectedShapeIds: new Set<string>() 
+        selectedEntityIds: new Set<EntityId>() 
     };
 
     if (exists) {
@@ -158,7 +159,7 @@ export const useUIStore = create<UIState>((set) => ({
     return updates;
   }),
 
-  selectedShapeIds: new Set<string>(),
+  selectedEntityIds: new Set<EntityId>(),
 
   setTool: (tool) => set({ activeTool: tool }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -216,9 +217,9 @@ export const useUIStore = create<UIState>((set) => ({
   setEngineTextStyleSnapshot: (textId, snapshot) => set({ engineTextStyleSnapshot: { textId, snapshot } }),
   clearEngineTextStyleSnapshot: () => set({ engineTextStyleSnapshot: null }),
 
-  setActiveFloorId: (id) => set({ activeFloorId: id, selectedShapeIds: new Set() }),
+  setActiveFloorId: (id) => set({ activeFloorId: id, selectedEntityIds: new Set() }),
   setActiveDiscipline: (discipline) =>
-    set((state) => (state.activeDiscipline === discipline ? state : { activeDiscipline: discipline, selectedShapeIds: new Set() })),
+    set((state) => (state.activeDiscipline === discipline ? state : { activeDiscipline: discipline, selectedEntityIds: new Set() })),
 
-  setSelectedShapeIds: (ids) => set((state) => ({ selectedShapeIds: typeof ids === 'function' ? ids(state.selectedShapeIds) : ids })),
+  setSelectedEntityIds: (ids) => set((state) => ({ selectedEntityIds: typeof ids === 'function' ? ids(state.selectedEntityIds) : ids })),
 }));

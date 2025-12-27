@@ -5,16 +5,20 @@ import { Shape, Patch, Point } from '../../../types';
 import { computeFrameData } from '../../../utils/frame';
 import { generateId } from '../../../utils/uuid';
 import { UI } from '../../../design/tokens';
+import { ensureId, getEngineId, getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import type { EntityId } from '@/engine/core/protocol';
 
 export const useEditorLogic = () => {
     const dataStore = useDataStore();
     const uiStore = useUIStore();
 
     const deleteSelected = () => {
-        const ids = Array.from(uiStore.selectedShapeIds);
+        const ids = Array.from(uiStore.selectedEntityIds)
+            .map((id) => getShapeIdFromRegistry(id))
+            .filter((id): id is string => !!id);
         if (ids.length === 0) return;
         dataStore.deleteShapes(ids);
-        uiStore.setSelectedShapeIds(new Set());
+        uiStore.setSelectedEntityIds(new Set());
     };
 
     const deleteLayer = (id: string) => {
@@ -23,21 +27,26 @@ export const useEditorLogic = () => {
         Object.values(dataStore.shapes).forEach(s => {
             if (s.layerId === id) shapesToDelete.push(s.id);
         });
+        const entityIdsToDelete = new Set(
+            shapesToDelete
+                .map((shapeId) => getEngineId(shapeId))
+                .filter((entityId): entityId is EntityId => entityId !== null)
+        );
 
         // Perform deletion in DataStore
         const success = dataStore.deleteLayer(id);
 
         if (success) {
             // Update selection if needed
-            const newSelected = new Set(uiStore.selectedShapeIds);
+            const newSelected = new Set(uiStore.selectedEntityIds);
             let changed = false;
-            shapesToDelete.forEach(sid => {
-                if (newSelected.has(sid)) {
-                    newSelected.delete(sid);
+            entityIdsToDelete.forEach(entityId => {
+                if (newSelected.has(entityId)) {
+                    newSelected.delete(entityId);
                     changed = true;
                 }
             });
-            if (changed) uiStore.setSelectedShapeIds(newSelected);
+            if (changed) uiStore.setSelectedEntityIds(newSelected);
         }
     };
 
@@ -81,7 +90,9 @@ export const useEditorLogic = () => {
     };
 
     const joinSelected = () => {
-        const ids = Array.from(uiStore.selectedShapeIds);
+        const ids = Array.from(uiStore.selectedEntityIds)
+            .map((id) => getShapeIdFromRegistry(id))
+            .filter((id): id is string => !!id);
         const candidates = ids.map(id => dataStore.shapes[id]).filter(s => s && (s.type === 'line' || s.type === 'polyline'));
         if (candidates.length < 2) return;
 
@@ -148,12 +159,15 @@ export const useEditorLogic = () => {
             dataStore.deleteShapes(idsToDelete);
             dataStore.addShape(newPolyline);
 
-            uiStore.setSelectedShapeIds(new Set([newPolyline.id]));
+            const entityId = ensureId(newPolyline.id);
+            uiStore.setSelectedEntityIds(new Set([entityId]));
         }
     };
 
     const explodeSelected = () => {
-        const ids = Array.from(uiStore.selectedShapeIds);
+        const ids = Array.from(uiStore.selectedEntityIds)
+            .map((id) => getShapeIdFromRegistry(id))
+            .filter((id): id is string => !!id);
         if (ids.length === 0) return;
 
         const newShapes: Shape[] = [];
@@ -262,7 +276,7 @@ export const useEditorLogic = () => {
             newShapes.forEach(s => dataStore.addShape(s)); // addShape handles single addition, loop is fine
 
             // Select new shapes
-            uiStore.setSelectedShapeIds(new Set(newShapes.map(s => s.id)));
+            uiStore.setSelectedEntityIds(new Set(newShapes.map((s) => ensureId(s.id))));
         }
     };
 

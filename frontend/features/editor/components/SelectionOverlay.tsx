@@ -13,6 +13,7 @@ import {
 } from '@/utils/geometry';
 import { Shape } from '@/types';
 import { supportsEngineResize } from '@/engine/core/capabilities';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 
 const HANDLE_SIZE_PX = 8;
 const OUTLINE_OFFSET_PX = 1;
@@ -86,7 +87,7 @@ const offsetPolyline = (points: readonly { x: number; y: number }[], delta: numb
 
 const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = false }) => {
   const activeFloorId = useUIStore((s) => s.activeFloorId);
-  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
   const engineInteractionActive = useUIStore((s) => s.engineInteractionActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
@@ -96,6 +97,15 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
 
   const layers = useDataStore((s) => s.layers);
+
+  const selectedShapeIds = useMemo(() => {
+    const ids = new Set<string>();
+    selectedEntityIds.forEach((entityId) => {
+      const shapeId = getShapeIdFromRegistry(entityId);
+      if (shapeId) ids.add(shapeId);
+    });
+    return ids;
+  }, [selectedEntityIds]);
 
   // OPTIMIZATION: Only subscribe to the subset of shapes that are selected.
   // This prevents the overlay from re-rendering when off-screen or unselected shapes change.

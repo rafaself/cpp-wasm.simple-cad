@@ -11,6 +11,7 @@ import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/t
 import { registerTextTool, registerTextMapping, getTextIdForShape, getShapeIdForText, getTextMappings, unregisterTextMappingByShapeId, setTextMeta, getTextMeta } from '@/engine/core/textEngineSync';
 import { generateId } from '@/utils/uuid';
 import { getDefaultColorMode } from '@/utils/shapeColors';
+import { ensureId } from '@/engine/core/IdRegistry';
 
 export type TextBoxMeta = {
   boxMode: TextBoxMode;
@@ -42,7 +43,7 @@ export function useTextEditHandler(params: {
     const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
     const activeFloorId = useUIStore((s) => s.activeFloorId);
     const activeDiscipline = useUIStore((s) => s.activeDiscipline);
-    const setSelectedShapeIds = useUIStore((s) => s.setSelectedShapeIds);
+    const setSelectedEntityIds = useUIStore((s) => s.setSelectedEntityIds);
 
     // Initialize TextTool
     useEffect(() => {
@@ -117,7 +118,7 @@ export function useTextEditHandler(params: {
               };
 
               data.addShape(s);
-              setSelectedShapeIds(new Set([shapeId]));
+              setSelectedEntityIds(new Set([ensureId(shapeId)]));
             },
             onTextUpdated: (textId: number, content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number, x?: number, y?: number) => {
                 const shapeId = getShapeIdForText(textId);
@@ -180,7 +181,7 @@ export function useTextEditHandler(params: {
 
                 const data = useDataStore.getState();
                 data.deleteShape(shapeId);
-                setSelectedShapeIds(new Set());
+                setSelectedEntityIds(new Set());
             },
         };
 

@@ -9,11 +9,6 @@
 #include "engine/pick_system.h" // For PickResult definition
 
 #ifdef EMSCRIPTEN
-struct TextBoundsResult {
-    float minX, minY, maxX, maxY;
-    bool valid;
-};
-
 EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::enum_<TextBoxMode>("TextBoxMode")
         .value("AutoWidth", TextBoxMode::AutoWidth)
@@ -71,6 +66,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("getCapabilities", &CadEngine::getCapabilities)
+        .function("getProtocolInfo", &CadEngine::getProtocolInfo)
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
         .function("queryArea", &CadEngine::queryArea)
@@ -131,6 +127,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("distance", &PickResult::distance)
         .field("hitX", &PickResult::hitX)
         .field("hitY", &PickResult::hitY);
+
+    emscripten::value_object<CadEngine::ProtocolInfo>("ProtocolInfo")
+        .field("protocolVersion", &CadEngine::ProtocolInfo::protocolVersion)
+        .field("commandVersion", &CadEngine::ProtocolInfo::commandVersion)
+        .field("snapshotVersion", &CadEngine::ProtocolInfo::snapshotVersion)
+        .field("eventStreamVersion", &CadEngine::ProtocolInfo::eventStreamVersion)
+        .field("abiHash", &CadEngine::ProtocolInfo::abiHash)
+        .field("featureFlags", &CadEngine::ProtocolInfo::featureFlags);
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
         .field("generation", &CadEngine::BufferMeta::generation)

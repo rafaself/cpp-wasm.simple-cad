@@ -6,6 +6,7 @@ import { useDataStore } from '../../../../stores/useDataStore';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '../../../../utils/shapeColors';
 import EditableNumber from '../../../../components/EditableNumber';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 
 interface ColorControlProps {
   activeLayer: Layer | undefined;
@@ -18,8 +19,15 @@ const ColorControl: React.FC<ColorControlProps> = ({
   activeLayer,
   openColorPicker
 }) => {
-  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
-  const selectedIds = React.useMemo(() => Array.from(selectedShapeIds), [selectedShapeIds]);
+  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
+  const selectedIds = React.useMemo(() => {
+    const ids: string[] = [];
+    selectedEntityIds.forEach((entityId) => {
+      const shapeId = getShapeIdFromRegistry(entityId);
+      if (shapeId) ids.push(shapeId);
+    });
+    return ids;
+  }, [selectedEntityIds]);
   const shapes = useDataStore((s) => s.shapes);
   const updateShape = useDataStore((s) => s.updateShape);
   const updateLayer = useDataStore((s) => s.updateLayer);

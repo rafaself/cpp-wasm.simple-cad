@@ -181,6 +181,7 @@ if(NOT EMSCRIPTEN)
     tests/snapshot_test.cpp
     tests/render_test.cpp
     tests/vector_tessellation_test.cpp
+    tests/protocol_info_test.cpp
   )
   
   # Add text tests if enabled

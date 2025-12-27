@@ -15,6 +15,7 @@ import LayerControl from '../ribbon/components/LayerControl';
 import GridControl from '../ribbon/components/GridControl';
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
 import { getEngineRuntime } from '@/engine/core/singleton';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 import { getTextTool, getTextIdForShape } from '@/engine/core/textEngineSync';
 import { TextStyleFlags } from '@/types/text';
 
@@ -104,7 +105,7 @@ const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
   const sidebarTab = useUIStore((s) => s.sidebarTab);
   const viewTransform = useUIStore((s) => s.viewTransform);
-  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
   const setSettingsModalOpen = useUIStore((s) => s.setSettingsModalOpen);
   const setTool = useUIStore((s) => s.setTool);
   const settingsStore = useSettingsStore();
@@ -120,6 +121,14 @@ const EditorRibbon: React.FC = () => {
   const serializeProject = useDataStore((state) => state.serializeProject);
   const worldScale = useDataStore((state) => state.worldScale);
   const frame = useDataStore((state) => state.frame);
+  const selectedShapeIds = useMemo(() => {
+    const ids: string[] = [];
+    selectedEntityIds.forEach((entityId) => {
+      const shapeId = getShapeIdFromRegistry(entityId);
+      if (shapeId) ids.push(shapeId);
+    });
+    return ids;
+  }, [selectedEntityIds]);
 
 
   const exportProjectData = useCallback(() => {
@@ -132,7 +141,7 @@ const EditorRibbon: React.FC = () => {
           viewTransform,
           activeTool,
           sidebarTab,
-          selectedShapeIds: Array.from(selectedShapeIds)
+          selectedEntityIds: Array.from(selectedEntityIds)
       },
           project
       };
@@ -143,7 +152,7 @@ const EditorRibbon: React.FC = () => {
       a.download = 'endeavour-project.json';
       a.click();
       URL.revokeObjectURL(url);
-  }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
+  }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedEntityIds]);
 
   const saveNextDocument = useCallback(() => {
       void (async () => {
@@ -199,7 +208,7 @@ const EditorRibbon: React.FC = () => {
           frame: payload.frame,
           history: payload.history,
         });
-        useUIStore.getState().setSelectedShapeIds(new Set());
+        useUIStore.getState().setSelectedEntityIds(new Set());
         useUIStore.getState().setTool('select');
       };
       input.click();
@@ -216,7 +225,7 @@ const EditorRibbon: React.FC = () => {
         }
       })();
       dataStore.resetDocument();
-      useUIStore.getState().setSelectedShapeIds(new Set());
+      useUIStore.getState().setSelectedEntityIds(new Set());
       useUIStore.getState().setTool('select');
   }, [dataStore]);
 
@@ -230,7 +239,7 @@ const EditorRibbon: React.FC = () => {
           viewTransform,
           activeTool,
           sidebarTab,
-          selectedShapeIds: Array.from(selectedShapeIds)
+          selectedEntityIds: Array.from(selectedEntityIds)
       },
           project
       };
@@ -239,7 +248,7 @@ const EditorRibbon: React.FC = () => {
       if (!win) return;
       win.document.write(`<!doctype html><html><head><title>Projeto Endeavour</title><style>body{background:#0f172a;color:#e2e8f0;font-family:Menlo,Consolas,monospace;margin:0;padding:16px;}pre{white-space:pre-wrap;font-size:12px;line-height:1.4;}</style></head><body><pre>${escapeHtml(serialized)}</pre></body></html>`);
       win.document.close();
-  }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedShapeIds]);
+  }, [serializeProject, worldScale, frame, activeTool, sidebarTab, viewTransform, selectedEntityIds]);
 
   const handleAction = (action?: string) => {
       if (action === 'new-file') newNextDocument();
@@ -259,7 +268,7 @@ const EditorRibbon: React.FC = () => {
   const activeTab = MENU_CONFIG.find(t => t.id === activeTabId) || MENU_CONFIG[0];
   const activeLayer = dataStore.layers.find(l => l.id === dataStore.activeLayerId);
   const selectedTextIds = useMemo(
-    () => Array.from(selectedShapeIds).filter(id => dataStore.shapes[id]?.type === 'text'),
+    () => selectedShapeIds.filter(id => dataStore.shapes[id]?.type === 'text'),
     [selectedShapeIds, dataStore.shapes]
   );
 

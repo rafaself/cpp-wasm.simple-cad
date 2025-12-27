@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EngineRuntime, type WasmModule, type CadEngineInstance } from '@/engine/core/EngineRuntime';
 import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
+import { EXPECTED_PROTOCOL_INFO } from '@/engine/core/protocol';
 
 // Mock the factory to avoid loading real WASM
 vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
@@ -27,6 +28,7 @@ describe('EngineRuntime', () => {
       getLineBufferMeta: vi.fn(),
       getSnapshotBufferMeta: vi.fn(),
       getStats: vi.fn(),
+      getProtocolInfo: vi.fn(() => EXPECTED_PROTOCOL_INFO),
     } as unknown as CadEngineInstance;
 
     const MockCadEngine = class {

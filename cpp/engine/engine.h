@@ -16,6 +16,7 @@
 #include "engine/entity_manager.h"
 #include "engine/text_system.h"
 #include "engine/pick_system.h"
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -41,6 +42,30 @@ public:
         HAS_TRANSFORM_RESIZE = 1 << 2,
     };
 
+    // Feature flags for build-time capabilities (protocol handshake).
+    enum class EngineFeatureFlags : std::uint32_t {
+        FEATURE_PROTOCOL = 1 << 0,
+    };
+
+    // Handshake payload (POD): frontend validates version + abiHash + feature flags.
+    struct ProtocolInfo {
+        std::uint32_t protocolVersion;
+        std::uint32_t commandVersion;
+        std::uint32_t snapshotVersion;
+        std::uint32_t eventStreamVersion;
+        std::uint32_t abiHash;
+        std::uint32_t featureFlags;
+    };
+
+    // Protocol versions (must be non-zero; keep in sync with TS).
+    static constexpr std::uint32_t kProtocolVersion = 1;      // Handshake schema version
+    static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
+    static constexpr std::uint32_t kSnapshotVersion = 3;      // Snapshot format version (EWC1 v3)
+    static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
+    static constexpr std::uint32_t kFeatureFlags = static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL);
+    static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
+    static constexpr std::uint32_t kAbiHashPrime = 16777619u;
+
     CadEngine();
 
     void clear() noexcept;
@@ -61,6 +86,16 @@ public:
         return static_cast<std::uint32_t>(EngineCapability::HAS_QUERY_MARQUEE)
              | static_cast<std::uint32_t>(EngineCapability::HAS_RESIZE_HANDLES)
              | static_cast<std::uint32_t>(EngineCapability::HAS_TRANSFORM_RESIZE);
+    }
+    ProtocolInfo getProtocolInfo() const noexcept {
+        return ProtocolInfo{
+            kProtocolVersion,
+            kCommandVersion,
+            kSnapshotVersion,
+            kEventStreamVersion,
+            kAbiHash,
+            kFeatureFlags
+        };
     }
 
     struct BufferMeta {
@@ -495,6 +530,381 @@ public:
     };
 
 private:
+    static constexpr std::uint32_t hashU32(std::uint32_t h, std::uint32_t v) {
+        return (h ^ v) * kAbiHashPrime;
+    }
+
+    template <std::size_t N>
+    static constexpr std::uint32_t hashArray(std::uint32_t h, const std::array<std::uint32_t, N>& values) {
+        for (std::size_t i = 0; i < N; ++i) {
+            h = hashU32(h, values[i]);
+        }
+        return h;
+    }
+
+    template <std::size_t N>
+    static constexpr std::uint32_t hashEnum(std::uint32_t h, std::uint32_t tag, const std::array<std::uint32_t, N>& values) {
+        h = hashU32(h, tag);
+        h = hashU32(h, static_cast<std::uint32_t>(N));
+        return hashArray(h, values);
+    }
+
+    template <std::size_t N>
+    static constexpr std::uint32_t hashStruct(std::uint32_t h, std::uint32_t tag, std::uint32_t size, const std::array<std::uint32_t, N>& offsets) {
+        h = hashU32(h, tag);
+        h = hashU32(h, size);
+        h = hashU32(h, static_cast<std::uint32_t>(N));
+        return hashArray(h, offsets);
+    }
+
+    static constexpr std::uint32_t computeAbiHash() {
+        std::uint32_t h = kAbiHashOffset;
+
+        h = hashEnum(h, 0xE0000001u, {
+            static_cast<std::uint32_t>(CommandOp::ClearAll),
+            static_cast<std::uint32_t>(CommandOp::UpsertRect),
+            static_cast<std::uint32_t>(CommandOp::UpsertLine),
+            static_cast<std::uint32_t>(CommandOp::UpsertPolyline),
+            static_cast<std::uint32_t>(CommandOp::DeleteEntity),
+            static_cast<std::uint32_t>(CommandOp::SetDrawOrder),
+            static_cast<std::uint32_t>(CommandOp::SetViewScale),
+            static_cast<std::uint32_t>(CommandOp::UpsertCircle),
+            static_cast<std::uint32_t>(CommandOp::UpsertPolygon),
+            static_cast<std::uint32_t>(CommandOp::UpsertArrow),
+            static_cast<std::uint32_t>(CommandOp::UpsertText),
+            static_cast<std::uint32_t>(CommandOp::DeleteText),
+            static_cast<std::uint32_t>(CommandOp::SetTextCaret),
+            static_cast<std::uint32_t>(CommandOp::SetTextSelection),
+            static_cast<std::uint32_t>(CommandOp::InsertTextContent),
+            static_cast<std::uint32_t>(CommandOp::DeleteTextContent),
+            static_cast<std::uint32_t>(CommandOp::ApplyTextStyle),
+            static_cast<std::uint32_t>(CommandOp::SetTextAlign),
+        });
+
+        h = hashEnum(h, 0xE0000002u, {
+            static_cast<std::uint32_t>(PickSubTarget::None),
+            static_cast<std::uint32_t>(PickSubTarget::Body),
+            static_cast<std::uint32_t>(PickSubTarget::Edge),
+            static_cast<std::uint32_t>(PickSubTarget::Vertex),
+            static_cast<std::uint32_t>(PickSubTarget::ResizeHandle),
+            static_cast<std::uint32_t>(PickSubTarget::RotateHandle),
+            static_cast<std::uint32_t>(PickSubTarget::TextBody),
+            static_cast<std::uint32_t>(PickSubTarget::TextCaret),
+        });
+
+        h = hashEnum(h, 0xE0000003u, {
+            static_cast<std::uint32_t>(PickEntityKind::Unknown),
+            static_cast<std::uint32_t>(PickEntityKind::Rect),
+            static_cast<std::uint32_t>(PickEntityKind::Circle),
+            static_cast<std::uint32_t>(PickEntityKind::Line),
+            static_cast<std::uint32_t>(PickEntityKind::Polyline),
+            static_cast<std::uint32_t>(PickEntityKind::Polygon),
+            static_cast<std::uint32_t>(PickEntityKind::Arrow),
+            static_cast<std::uint32_t>(PickEntityKind::Text),
+        });
+
+        h = hashEnum(h, 0xE0000004u, {
+            static_cast<std::uint32_t>(TransformMode::Move),
+            static_cast<std::uint32_t>(TransformMode::VertexDrag),
+            static_cast<std::uint32_t>(TransformMode::EdgeDrag),
+            static_cast<std::uint32_t>(TransformMode::Resize),
+        });
+
+        h = hashEnum(h, 0xE0000005u, {
+            static_cast<std::uint32_t>(TransformOpCode::MOVE),
+            static_cast<std::uint32_t>(TransformOpCode::VERTEX_SET),
+            static_cast<std::uint32_t>(TransformOpCode::RESIZE),
+        });
+
+        h = hashEnum(h, 0xE0000006u, {
+            static_cast<std::uint32_t>(EngineCapability::HAS_QUERY_MARQUEE),
+            static_cast<std::uint32_t>(EngineCapability::HAS_RESIZE_HANDLES),
+            static_cast<std::uint32_t>(EngineCapability::HAS_TRANSFORM_RESIZE),
+        });
+
+        h = hashEnum(h, 0xE0000007u, {
+            static_cast<std::uint32_t>(TextStyleFlags::None),
+            static_cast<std::uint32_t>(TextStyleFlags::Bold),
+            static_cast<std::uint32_t>(TextStyleFlags::Italic),
+            static_cast<std::uint32_t>(TextStyleFlags::Underline),
+            static_cast<std::uint32_t>(TextStyleFlags::Strike),
+        });
+
+        h = hashEnum(h, 0xE0000008u, {
+            static_cast<std::uint32_t>(TextAlign::Left),
+            static_cast<std::uint32_t>(TextAlign::Center),
+            static_cast<std::uint32_t>(TextAlign::Right),
+        });
+
+        h = hashEnum(h, 0xE0000009u, {
+            static_cast<std::uint32_t>(TextBoxMode::AutoWidth),
+            static_cast<std::uint32_t>(TextBoxMode::FixedWidth),
+        });
+
+        h = hashEnum(h, 0xE000000Au, {
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL),
+        });
+
+        h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
+            static_cast<std::uint32_t>(offsetof(ProtocolInfo, protocolVersion)),
+            static_cast<std::uint32_t>(offsetof(ProtocolInfo, commandVersion)),
+            static_cast<std::uint32_t>(offsetof(ProtocolInfo, snapshotVersion)),
+            static_cast<std::uint32_t>(offsetof(ProtocolInfo, eventStreamVersion)),
+            static_cast<std::uint32_t>(offsetof(ProtocolInfo, abiHash)),
+            static_cast<std::uint32_t>(offsetof(ProtocolInfo, featureFlags)),
+        });
+
+        h = hashStruct(h, 0x53000002u, sizeof(BufferMeta), {
+            static_cast<std::uint32_t>(offsetof(BufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(BufferMeta, vertexCount)),
+            static_cast<std::uint32_t>(offsetof(BufferMeta, capacity)),
+            static_cast<std::uint32_t>(offsetof(BufferMeta, floatCount)),
+            static_cast<std::uint32_t>(offsetof(BufferMeta, ptr)),
+        });
+
+        h = hashStruct(h, 0x53000003u, sizeof(ByteBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(ByteBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(ByteBufferMeta, byteCount)),
+            static_cast<std::uint32_t>(offsetof(ByteBufferMeta, ptr)),
+        });
+
+        h = hashStruct(h, 0x53000004u, sizeof(EngineStats), {
+            static_cast<std::uint32_t>(offsetof(EngineStats, generation)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, rectCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lineCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, polylineCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, pointCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, triangleVertexCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lineVertexCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastLoadMs)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastRebuildMs)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastApplyMs)),
+        });
+
+        h = hashStruct(h, 0x53000005u, sizeof(PickResult), {
+            static_cast<std::uint32_t>(offsetof(PickResult, id)),
+            static_cast<std::uint32_t>(offsetof(PickResult, kind)),
+            static_cast<std::uint32_t>(offsetof(PickResult, subTarget)),
+            static_cast<std::uint32_t>(offsetof(PickResult, subIndex)),
+            static_cast<std::uint32_t>(offsetof(PickResult, distance)),
+            static_cast<std::uint32_t>(offsetof(PickResult, hitX)),
+            static_cast<std::uint32_t>(offsetof(PickResult, hitY)),
+        });
+
+        h = hashStruct(h, 0x53000006u, sizeof(TextHitResult), {
+            static_cast<std::uint32_t>(offsetof(TextHitResult, charIndex)),
+            static_cast<std::uint32_t>(offsetof(TextHitResult, lineIndex)),
+            static_cast<std::uint32_t>(offsetof(TextHitResult, isLeadingEdge)),
+        });
+
+        h = hashStruct(h, 0x53000007u, sizeof(TextCaretPosition), {
+            static_cast<std::uint32_t>(offsetof(TextCaretPosition, x)),
+            static_cast<std::uint32_t>(offsetof(TextCaretPosition, y)),
+            static_cast<std::uint32_t>(offsetof(TextCaretPosition, height)),
+            static_cast<std::uint32_t>(offsetof(TextCaretPosition, lineIndex)),
+        });
+
+        h = hashStruct(h, 0x53000008u, sizeof(TextureBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, width)),
+            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, height)),
+            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, byteCount)),
+            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, ptr)),
+        });
+
+        h = hashStruct(h, 0x53000009u, sizeof(TextContentMeta), {
+            static_cast<std::uint32_t>(offsetof(TextContentMeta, byteCount)),
+            static_cast<std::uint32_t>(offsetof(TextContentMeta, ptr)),
+            static_cast<std::uint32_t>(offsetof(TextContentMeta, exists)),
+        });
+
+        h = hashStruct(h, 0x5300000Au, sizeof(engine::text::TextStyleSnapshot), {
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, selectionStartLogical)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, selectionEndLogical)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, selectionStartByte)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, selectionEndByte)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, caretLogical)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, caretByte)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, lineIndex)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, x)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, y)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, lineHeight)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, styleTriStateFlags)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, align)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, textGeneration)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, styleTriStateParamsLen)),
+        });
+
+        h = hashStruct(h, 0x5300000Bu, sizeof(engine::text::ApplyTextStylePayload), {
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, textId)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, rangeStartLogical)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, rangeEndLogical)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, flagsMask)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, flagsValue)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, mode)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, styleParamsVersion)),
+            static_cast<std::uint32_t>(offsetof(engine::text::ApplyTextStylePayload, styleParamsLen)),
+        });
+
+        h = hashStruct(h, 0x5300000Cu, sizeof(RectPayload), {
+            static_cast<std::uint32_t>(offsetof(RectPayload, x)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, y)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, w)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, h)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, fillR)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, fillG)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, fillB)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, fillA)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, strokeR)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, strokeG)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, strokeB)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, strokeA)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, strokeEnabled)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, strokeWidthPx)),
+        });
+
+        h = hashStruct(h, 0x5300000Du, sizeof(LinePayload), {
+            static_cast<std::uint32_t>(offsetof(LinePayload, x0)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, y0)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, x1)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, y1)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, r)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, g)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, b)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, a)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, enabled)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, strokeWidthPx)),
+        });
+
+        h = hashStruct(h, 0x5300000Eu, sizeof(PolylinePayloadHeader), {
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, r)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, g)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, b)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, a)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, enabled)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, strokeWidthPx)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, count)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, reserved)),
+        });
+
+        h = hashStruct(h, 0x5300000Fu, sizeof(DrawOrderPayloadHeader), {
+            static_cast<std::uint32_t>(offsetof(DrawOrderPayloadHeader, count)),
+            static_cast<std::uint32_t>(offsetof(DrawOrderPayloadHeader, reserved)),
+        });
+
+        h = hashStruct(h, 0x53000010u, sizeof(ViewScalePayload), {
+            static_cast<std::uint32_t>(offsetof(ViewScalePayload, scale)),
+        });
+
+        h = hashStruct(h, 0x53000011u, sizeof(CirclePayload), {
+            static_cast<std::uint32_t>(offsetof(CirclePayload, cx)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, cy)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, rx)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, ry)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, rot)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, sx)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, sy)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, fillR)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, fillG)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, fillB)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, fillA)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, strokeR)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, strokeG)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, strokeB)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, strokeA)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, strokeEnabled)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, strokeWidthPx)),
+        });
+
+        h = hashStruct(h, 0x53000012u, sizeof(PolygonPayload), {
+            static_cast<std::uint32_t>(offsetof(PolygonPayload, sides)),
+        });
+
+        h = hashStruct(h, 0x53000013u, sizeof(ArrowPayload), {
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, ax)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, ay)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, bx)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, by)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, head)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeR)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeG)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeB)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeA)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeEnabled)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeWidthPx)),
+        });
+
+        h = hashStruct(h, 0x53000014u, sizeof(TextPayloadHeader), {
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, x)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, y)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, rotation)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, boxMode)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, align)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, constraintWidth)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, runCount)),
+            static_cast<std::uint32_t>(offsetof(TextPayloadHeader, contentLength)),
+        });
+
+        h = hashStruct(h, 0x53000015u, sizeof(TextRunPayload), {
+            static_cast<std::uint32_t>(offsetof(TextRunPayload, startIndex)),
+            static_cast<std::uint32_t>(offsetof(TextRunPayload, length)),
+            static_cast<std::uint32_t>(offsetof(TextRunPayload, fontId)),
+            static_cast<std::uint32_t>(offsetof(TextRunPayload, fontSize)),
+            static_cast<std::uint32_t>(offsetof(TextRunPayload, colorRGBA)),
+            static_cast<std::uint32_t>(offsetof(TextRunPayload, flags)),
+        });
+
+        h = hashStruct(h, 0x53000016u, sizeof(TextCaretPayload), {
+            static_cast<std::uint32_t>(offsetof(TextCaretPayload, textId)),
+            static_cast<std::uint32_t>(offsetof(TextCaretPayload, caretIndex)),
+        });
+
+        h = hashStruct(h, 0x53000017u, sizeof(TextSelectionPayload), {
+            static_cast<std::uint32_t>(offsetof(TextSelectionPayload, textId)),
+            static_cast<std::uint32_t>(offsetof(TextSelectionPayload, selectionStart)),
+            static_cast<std::uint32_t>(offsetof(TextSelectionPayload, selectionEnd)),
+        });
+
+        h = hashStruct(h, 0x53000018u, sizeof(TextInsertPayloadHeader), {
+            static_cast<std::uint32_t>(offsetof(TextInsertPayloadHeader, textId)),
+            static_cast<std::uint32_t>(offsetof(TextInsertPayloadHeader, insertIndex)),
+            static_cast<std::uint32_t>(offsetof(TextInsertPayloadHeader, byteLength)),
+            static_cast<std::uint32_t>(offsetof(TextInsertPayloadHeader, reserved)),
+        });
+
+        h = hashStruct(h, 0x53000019u, sizeof(TextDeletePayload), {
+            static_cast<std::uint32_t>(offsetof(TextDeletePayload, textId)),
+            static_cast<std::uint32_t>(offsetof(TextDeletePayload, startIndex)),
+            static_cast<std::uint32_t>(offsetof(TextDeletePayload, endIndex)),
+            static_cast<std::uint32_t>(offsetof(TextDeletePayload, reserved)),
+        });
+
+        h = hashStruct(h, 0x5300001Au, sizeof(TextAlignmentPayload), {
+            static_cast<std::uint32_t>(offsetof(TextAlignmentPayload, textId)),
+            static_cast<std::uint32_t>(offsetof(TextAlignmentPayload, align)),
+        });
+
+        h = hashStruct(h, 0x5300001Bu, sizeof(engine::text::TextLayoutEngine::SelectionRect), {
+            static_cast<std::uint32_t>(offsetof(engine::text::TextLayoutEngine::SelectionRect, x)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextLayoutEngine::SelectionRect, y)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextLayoutEngine::SelectionRect, width)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextLayoutEngine::SelectionRect, height)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextLayoutEngine::SelectionRect, lineIndex)),
+        });
+
+        h = hashStruct(h, 0x5300001Cu, sizeof(TextBoundsResult), {
+            static_cast<std::uint32_t>(offsetof(TextBoundsResult, minX)),
+            static_cast<std::uint32_t>(offsetof(TextBoundsResult, minY)),
+            static_cast<std::uint32_t>(offsetof(TextBoundsResult, maxX)),
+            static_cast<std::uint32_t>(offsetof(TextBoundsResult, maxY)),
+            static_cast<std::uint32_t>(offsetof(TextBoundsResult, valid)),
+        });
+
+        return h;
+    }
+
+    static constexpr std::uint32_t kAbiHash = computeAbiHash();
+
     struct TransformSnapshot {
         std::uint32_t id;
         float x, y; // For rects/circles/text/etc

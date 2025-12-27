@@ -1,3 +1,5 @@
+import type { EntityId } from './protocol';
+
 /**
  * Centralized ID registry for mapping between JS shape IDs (string)
  * and WASM engine entity IDs (uint32).
@@ -5,16 +7,16 @@
  * Single source of truth for all ID mappings in the application.
  */
 class IdRegistryImpl {
-  private nextEngineId = 1;
-  private shapeToEngine = new Map<string, number>();
-  private engineToShape = new Map<number, string>();
-  private entityMeta = new Map<number, EntityMeta>();
+  private nextEngineId: EntityId = 1;
+  private shapeToEngine = new Map<string, EntityId>();
+  private engineToShape = new Map<EntityId, string>();
+  private entityMeta = new Map<EntityId, EntityMeta>();
 
   /**
    * Allocate or retrieve an engine ID for a shape ID.
    * If the shape already has an engine ID, returns the existing one.
    */
-  ensureEngineId(shapeId: string): number {
+  ensureEngineId(shapeId: string): EntityId {
     let engineId = this.shapeToEngine.get(shapeId);
     if (engineId === undefined) {
       engineId = this.nextEngineId++;
@@ -27,14 +29,14 @@ class IdRegistryImpl {
   /**
    * Get the engine ID for a shape, or null if not registered.
    */
-  getEngineId(shapeId: string): number | null {
+  getEngineId(shapeId: string): EntityId | null {
     return this.shapeToEngine.get(shapeId) ?? null;
   }
 
   /**
    * Get the shape ID for an engine ID, or null if not registered.
    */
-  getShapeId(engineId: number): string | null {
+  getShapeId(engineId: EntityId): string | null {
     return this.engineToShape.get(engineId) ?? null;
   }
 
@@ -42,7 +44,7 @@ class IdRegistryImpl {
    * Release the mapping for a shape ID.
    * Call when a shape is deleted.
    */
-  release(shapeId: string): number | null {
+  release(shapeId: string): EntityId | null {
     const engineId = this.shapeToEngine.get(shapeId);
     if (engineId === undefined) return null;
 
@@ -57,7 +59,7 @@ class IdRegistryImpl {
    * Store entity-specific metadata.
    */
   setMeta<K extends keyof EntityMeta>(
-    engineId: number,
+    engineId: EntityId,
     key: K,
     value: EntityMeta[K]
   ): void {
@@ -69,7 +71,7 @@ class IdRegistryImpl {
   /**
    * Get entity metadata.
    */
-  getMeta(engineId: number): EntityMeta | null {
+  getMeta(engineId: EntityId): EntityMeta | null {
     return this.entityMeta.get(engineId) ?? null;
   }
 
@@ -109,7 +111,7 @@ interface EntityMeta {
 export const IdRegistry = new IdRegistryImpl();
 
 // Convenience functions for common operations
-export const ensureId = (shapeId: string) => IdRegistry.ensureEngineId(shapeId);
-export const getEngineId = (shapeId: string) => IdRegistry.getEngineId(shapeId);
-export const getShapeId = (engineId: number) => IdRegistry.getShapeId(engineId);
-export const releaseId = (shapeId: string) => IdRegistry.release(shapeId);
+export const ensureId = (shapeId: string): EntityId => IdRegistry.ensureEngineId(shapeId);
+export const getEngineId = (shapeId: string): EntityId | null => IdRegistry.getEngineId(shapeId);
+export const getShapeId = (engineId: EntityId): string | null => IdRegistry.getShapeId(engineId);
+export const releaseId = (shapeId: string): EntityId | null => IdRegistry.release(shapeId);

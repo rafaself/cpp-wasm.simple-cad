@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Eye, EyeOff, Lock, Unlock, Plus, Layers, Settings2 } from 'lucide-react';
 import { Layer } from '../../../../types';
 import { useDataStore } from '../../../../stores/useDataStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { BUTTON_STYLES, INPUT_STYLES } from '../../../../design/tokens';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 
 interface LayerControlProps {
   activeLayer: Layer | undefined;
@@ -37,8 +38,16 @@ const LayerControl: React.FC<LayerControlProps> = ({
   const addLayer = useDataStore((s) => s.addLayer);
   const updateLayer = useDataStore((s) => s.updateLayer);
   const updateShape = useDataStore((s) => s.updateShape);
-  const selectedShapeIds = useUIStore((s) => s.selectedShapeIds);
+  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
   const setLayerManagerOpen = useUIStore((s) => s.setLayerManagerOpen);
+  const selectedShapeIds = useMemo(() => {
+    const ids = new Set<string>();
+    selectedEntityIds.forEach((entityId) => {
+      const shapeId = getShapeIdFromRegistry(entityId);
+      if (shapeId) ids.add(shapeId);
+    });
+    return ids;
+  }, [selectedEntityIds]);
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (!isLayerDropdownOpen) return;

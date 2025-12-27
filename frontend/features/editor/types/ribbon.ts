@@ -4,6 +4,8 @@
 
 import type { RefObject, MouseEvent } from 'react';
 import { Layer, Shape, ToolType } from '@/types';
+import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import type { EntityId } from '@/engine/core/protocol';
 
 // ============================================
 // TEXT CONTROL TYPES
@@ -86,16 +88,17 @@ export interface ApplyLayerButtonState {
 }
 
 export const getApplyLayerButtonState = (
-  selectedShapeIds: Set<string>,
+  selectedEntityIds: Set<EntityId>,
   shapes: Record<string, Shape>,
   activeLayer: Layer | undefined
 ): ApplyLayerButtonState => {
-  if (selectedShapeIds.size === 0) {
+  if (selectedEntityIds.size === 0) {
     return { state: 'disabled', hasCustomMode: false, isDifferentLayer: false };
   }
 
-  const firstId = Array.from(selectedShapeIds)[0];
-  const shape = shapes[firstId];
+  const firstEntityId = Array.from(selectedEntityIds)[0];
+  const shapeId = firstEntityId ? getShapeIdFromRegistry(firstEntityId) : null;
+  const shape = shapeId ? shapes[shapeId] : undefined;
 
   if (!shape) {
     return { state: 'disabled', hasCustomMode: false, isDifferentLayer: false };

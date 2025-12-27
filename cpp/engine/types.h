@@ -191,6 +191,12 @@ struct TextCaretPosition {
     std::uint32_t lineIndex;      // Which line the caret is on
 };
 
+// Result of querying text layout bounds (AABB).
+struct TextBoundsResult {
+    float minX, minY, maxX, maxY;
+    bool valid;
+};
+
 enum class EntityKind : std::uint8_t { Rect = 1, Line = 2, Polyline = 3, Circle = 7, Polygon = 8, Arrow = 9, Text = 10 };
 struct EntityRef { EntityKind kind; std::uint32_t index; };
 
