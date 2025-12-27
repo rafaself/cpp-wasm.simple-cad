@@ -12,6 +12,8 @@
 
 // Helpers moved to text_system.cpp
 namespace {
+    using EntityChange = HistoryEntry::EntityChange;
+
     // Map logical index (grapheme/codepoint approximation) to UTF-8 byte offset.
     std::uint32_t logicalToByteIndex(std::string_view content, std::uint32_t logicalIndex) {
         std::uint32_t bytePos = 0;
@@ -53,7 +55,7 @@ namespace {
 
     bool isEntityVisibleForRender(void* ctx, std::uint32_t id) {
         const auto* engine = static_cast<const CadEngine*>(ctx);
-        return engine ? engine->entityManager_.isEntityVisible(id) : true;
+        return engine ? (engine->getEntityFlags(id) & static_cast<std::uint32_t>(EntityFlags::Visible)) : true;
     }
 
     constexpr std::uint64_t kDigestOffset = 14695981039346656037ull;
@@ -2106,7 +2108,7 @@ bool CadEngine::captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out) con
     return true;
 }
 
-CadEngine::EntitySnapshot CadEngine::buildSnapshotFromTransform(const TransformSnapshot& snap) const {
+EntitySnapshot CadEngine::buildSnapshotFromTransform(const TransformSnapshot& snap) const {
     EntitySnapshot out{};
     if (!captureEntitySnapshot(snap.id, out)) {
         return out;

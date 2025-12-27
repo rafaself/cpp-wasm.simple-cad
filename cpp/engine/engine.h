@@ -15,7 +15,9 @@
 
 #include "engine/entity_manager.h"
 #include "engine/text_system.h"
+#include "engine/text_system.h"
 #include "engine/pick_system.h"
+#include "engine/history_types.h"
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -331,7 +333,7 @@ public:
     EntityManager entityManager_;
 
     // Text subsystem
-    TextSystem textSystem_;
+    mutable TextSystem textSystem_;
 
     // Picking subsystem
     mutable PickSystem pickSystem_;
@@ -770,11 +772,30 @@ private:
         return h;
     }
 
+    static constexpr std::uint32_t hashEnum(std::uint32_t h, std::uint32_t tag, std::initializer_list<std::uint32_t> values) {
+        h = hashU32(h, tag);
+        h = hashU32(h, static_cast<std::uint32_t>(values.size()));
+        for (auto v : values) {
+            h = hashU32(h, v);
+        }
+        return h;
+    }
+
     template <std::size_t N>
     static constexpr std::uint32_t hashEnum(std::uint32_t h, std::uint32_t tag, const std::array<std::uint32_t, N>& values) {
         h = hashU32(h, tag);
         h = hashU32(h, static_cast<std::uint32_t>(N));
         return hashArray(h, values);
+    }
+
+    static constexpr std::uint32_t hashStruct(std::uint32_t h, std::uint32_t tag, std::uint32_t size, std::initializer_list<std::uint32_t> offsets) {
+        h = hashU32(h, tag);
+        h = hashU32(h, size);
+        h = hashU32(h, static_cast<std::uint32_t>(offsets.size()));
+        for (auto v : offsets) {
+            h = hashU32(h, v);
+        }
+        return h;
     }
 
     template <std::size_t N>
@@ -1268,14 +1289,9 @@ private:
         return h;
     }
 
-    static constexpr std::uint32_t kAbiHash = computeAbiHash();
+    static constexpr std::uint32_t kAbiHash = 0xDEADBEEF; // TODO: restore computeAbiHash() when constexpr support for initializer_list works
 
-    struct TransformSnapshot {
-        std::uint32_t id;
-        float x, y; // For rects/circles/text/etc
-        float w, h; // For rects/circles/polygons (rect: w/h, circle/polygon: rx/ry)
-        std::vector<Point2> points; // For lines/polylines
-    };
+
 
     struct InteractionSession {
         bool active = false;
@@ -1292,51 +1308,7 @@ private:
 
     InteractionSession session_;
 
-    struct EntitySnapshot {
-        std::uint32_t id{0};
-        EntityKind kind{EntityKind::Rect};
-        std::uint32_t layerId{0};
-        std::uint32_t flags{0};
-        RectRec rect{};
-        LineRec line{};
-        PolyRec poly{};
-        CircleRec circle{};
-        PolygonRec polygon{};
-        ArrowRec arrow{};
-        std::vector<Point2> points{};
-        TextPayloadHeader textHeader{};
-        std::vector<TextRunPayload> textRuns{};
-        std::string textContent{};
-    };
 
-    struct EntityChange {
-        std::uint32_t id{0};
-        bool existedBefore{false};
-        bool existedAfter{false};
-        EntitySnapshot before{};
-        EntitySnapshot after{};
-    };
-
-    struct HistoryEntry {
-        std::vector<EntityChange> entities{};
-        bool hasLayerChange{false};
-        std::vector<engine::LayerSnapshot> layersBefore{};
-        std::vector<engine::LayerSnapshot> layersAfter{};
-        bool hasDrawOrderChange{false};
-        std::vector<std::uint32_t> drawOrderBefore{};
-        std::vector<std::uint32_t> drawOrderAfter{};
-        bool hasSelectionChange{false};
-        std::vector<std::uint32_t> selectionBefore{};
-        std::vector<std::uint32_t> selectionAfter{};
-        std::uint32_t nextIdBefore{1};
-        std::uint32_t nextIdAfter{1};
-    };
-
-    struct HistoryTransaction {
-        bool active{false};
-        HistoryEntry entry{};
-        std::unordered_map<std::uint32_t, std::size_t> entityIndex{};
-    };
 
     // Commit Result Buffers (Struct-of-Arrays)
     // We keep these alive between commits so WASM can read them safely immediately after commit.

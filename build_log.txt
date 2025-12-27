@@ -1,0 +1,69 @@
+pnpm --dir frontend install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 2.4s using pnpm v9.15.9
+pnpm --dir frontend build:wasm
+
+> protoncanvas@0.0.0 build:wasm /home/rafa/dev/eletrocad-webapp/frontend
+> docker compose -f ../docker-compose.yml run --rm wasm-builder
+
+configure: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOUTPUT_DIR=/workspace/output -DCMAKE_TOOLCHAIN_FILE=/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=/emsdk/node/16.20.0_64bit/bin/node
+-- Text engine ENABLED - fetching FreeType, HarfBuzz, msdfgen
+-- Could NOT find PkgConfig (missing: PKG_CONFIG_EXECUTABLE) 
+WARNHarfBuzz has a Meson port and tries to migrate all the other build systems to it, please consider using it as we might remove our cmake port soon.
+-- WASM output dir: /workspace/output
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workspace/cpp/build
+Consolidate compiler generated dependencies of target freetype
+[ 53%] Built target freetype
+Consolidate compiler generated dependencies of target msdfgen-core
+Consolidate compiler generated dependencies of target harfbuzz
+[ 58%] Built target harfbuzz
+[ 81%] Built target msdfgen-core
+Consolidate compiler generated dependencies of target engine
+[ 83%] Building CXX object CMakeFiles/engine.dir/engine/bindings.cpp.o
+[ 83%] Building CXX object CMakeFiles/engine.dir/engine.cpp.o
+In file included from /workspace/cpp/engine/bindings.cpp:8:
+/workspace/cpp/engine/engine.h:1292:36: error: constexpr variable 'kAbiHash' must be initialized by a constant expression
+ 1292 |     static constexpr std::uint32_t kAbiHash = computeAbiHash();
+      |                                    ^          ~~~~~~~~~~~~~~~~
+/workspace/cpp/engine/engine.h:1292:47: note: undefined function 'computeAbiHash' cannot be used in a constant expression
+ 1292 |     static constexpr std::uint32_t kAbiHash = computeAbiHash();
+      |                                               ^
+/workspace/cpp/engine/engine.h:809:36: note: declared here
+  809 |     static constexpr std::uint32_t computeAbiHash() {
+      |                                    ^
+In file included from /workspace/cpp/engine.cpp:2:
+/workspace/cpp/engine/engine.h:1292:36: error: constexpr variable 'kAbiHash' must be initialized by a constant expression
+ 1292 |     static constexpr std::uint32_t kAbiHash = computeAbiHash();
+      |                                    ^          ~~~~~~~~~~~~~~~~
+/workspace/cpp/engine/engine.h:1292:47: note: undefined function 'computeAbiHash' cannot be used in a constant expression
+ 1292 |     static constexpr std::uint32_t kAbiHash = computeAbiHash();
+      |                                               ^
+/workspace/cpp/engine/engine.h:809:36: note: declared here
+  809 |     static constexpr std::uint32_t computeAbiHash() {
+      |                                    ^
+/workspace/cpp/engine/engine.h:1151:40: warning: offset of on non-standard-layout type 'PolygonPayload' [-Winvalid-offsetof]
+ 1151 |             static_cast<std::uint32_t>(offsetof(PolygonPayload, sides)),
+      |                                        ^                        ~~~~~
+/emsdk/upstream/lib/clang/18/include/__stddef_offsetof.h:11:24: note: expanded from macro 'offsetof'
+   11 | #define offsetof(t, d) __builtin_offsetof(t, d)
+      |                        ^                     ~
+/workspace/cpp/engine/engine.h:1151:40: warning: offset of on non-standard-layout type 'PolygonPayload' [-Winvalid-offsetof]
+ 1151 |             static_cast<std::uint32_t>(offsetof(PolygonPayload, sides)),
+      |                                        ^                        ~~~~~
+/emsdk/upstream/lib/clang/18/include/__stddef_offsetof.h:11:24: note: expanded from macro 'offsetof'
+   11 | #define offsetof(t, d) __builtin_offsetof(t, d)
+      |                        ^                     ~
+1 warning and 1 error generated.
+gmake[2]: *** [CMakeFiles/engine.dir/build.make:77: CMakeFiles/engine.dir/engine/bindings.cpp.o] Error 1
+gmake[2]: *** Waiting for unfinished jobs....
+1 warning and 1 error generated.
+gmake[2]: *** [CMakeFiles/engine.dir/build.make:92: CMakeFiles/engine.dir/engine.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:138: CMakeFiles/engine.dir/all] Error 2
+gmake: *** [Makefile:111: all] Error 2
+
+ ELIFECYCLE  Command failed with exit code 2.
+make: *** [Makefile:10: fbuild] Error 2

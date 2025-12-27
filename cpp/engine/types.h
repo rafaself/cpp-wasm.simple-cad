@@ -260,7 +260,15 @@ struct CirclePayload {
     float strokeWidthPx;
 };
 
-struct PolygonPayload : CirclePayload {
+struct PolygonPayload {
+    float cx, cy;
+    float rx, ry;
+    float rot;
+    float sx, sy;
+    float fillR, fillG, fillB, fillA;
+    float strokeR, strokeG, strokeB, strokeA;
+    float strokeEnabled;
+    float strokeWidthPx;
     std::uint32_t sides;
 };
 
