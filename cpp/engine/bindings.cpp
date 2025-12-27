@@ -147,6 +147,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("isTextQuadsDirty", &CadEngine::isTextQuadsDirty)
         .function("getTextContentMeta", &CadEngine::getTextContentMeta)
         .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
+        .function("getAllTextMetas", &CadEngine::getAllTextMetas)
         .function("getTextStyleSnapshot", &CadEngine::getTextStyleSnapshot)
         .function("setTextConstraintWidth", &CadEngine::setTextConstraintWidth)
         .function("setTextPosition", &CadEngine::setTextPosition)
@@ -318,8 +319,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("height", &CadEngine::TextSelectionRect::height)
         .field("lineIndex", &CadEngine::TextSelectionRect::lineIndex);
 
+    emscripten::value_object<CadEngine::TextEntityMeta>("TextEntityMeta")
+        .field("id", &CadEngine::TextEntityMeta::id)
+        .field("boxMode", &CadEngine::TextEntityMeta::boxMode)
+        .field("constraintWidth", &CadEngine::TextEntityMeta::constraintWidth);
+
     emscripten::register_vector<std::uint32_t>("VectorUInt32");
     emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");
+    emscripten::register_vector<CadEngine::TextEntityMeta>("VectorTextEntityMeta");
     emscripten::register_vector<LayerRecord>("VectorLayerRecord");
 }
 #endif

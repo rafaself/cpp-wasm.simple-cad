@@ -4,7 +4,6 @@ import { FolderOpen, Save, Undo2, Redo2, Type, MousePointer2, Square, Circle, Mi
 import { useUIStore } from '../../../stores/useUIStore';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { encodeNextDocumentFile, decodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
-import { decodeEsnpSnapshot } from '@/persistence/esnpSnapshot';
 import { clearTextMappings, registerTextMapping, setTextMeta } from '@/engine/core/textEngineSync';
 import { bumpDocumentSignal } from '@/engine/core/engineDocumentSignals';
 
@@ -66,10 +65,11 @@ const EditorRibbon: React.FC = () => {
       clearTextMappings();
       runtime.loadSnapshotBytes(payload.engineSnapshot);
 
-      const snapshot = decodeEsnpSnapshot(payload.engineSnapshot);
-      for (const text of snapshot.texts) {
-        registerTextMapping(text.id, `entity-${text.id}`);
-        setTextMeta(text.id, text.boxMode, text.constraintWidth);
+      // Use engine-authoritative API instead of re-decoding snapshot
+      const textMetas = runtime.getAllTextMetas();
+      for (const meta of textMetas) {
+        registerTextMapping(meta.id, `entity-${meta.id}`);
+        setTextMeta(meta.id, meta.boxMode, meta.constraintWidth);
       }
 
       if (runtime.engine.getLayersSnapshot) {

@@ -735,6 +735,18 @@ public:
      * @return Metadata with pointer and size, exists=false if text not found
      */
     TextContentMeta getTextContentMeta(std::uint32_t textId) const noexcept;
+    
+    struct TextEntityMeta {
+        std::uint32_t id;
+        TextBoxMode boxMode;
+        float constraintWidth;
+    };
+    
+    /**
+     * Get metadata for all text entities (id, boxMode, constraintWidth).
+     * Used for synchronizing JS state after loading a snapshot.
+     */
+    std::vector<TextEntityMeta> getAllTextMetas() const;
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);

@@ -328,16 +328,14 @@ const EngineInteractionLayer: React.FC = () => {
     if (engineTextEditState.active && textToolRef.current) {
       const world = toWorldPoint(evt, viewTransform);
       const activeTextId = engineTextEditState.textId;
-      if (activeTextId !== null && runtimeRef.current?.getEntityAabb) {
-        const aabb = runtimeRef.current.getEntityAabb(activeTextId);
-        if (aabb.valid) {
-          const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-          const minX = aabb.minX - tolerance;
-          const maxX = aabb.maxX + tolerance;
-          const minY = aabb.minY - tolerance;
-          const maxY = aabb.maxY + tolerance;
-          const inside = world.x >= minX && world.x <= maxX && world.y >= minY && world.y <= maxY;
-          if (inside) {
+      if (activeTextId !== null && runtimeRef.current && runtimeRef.current.pickEx && runtimeRef.current.getEntityAabb) {
+        const runtime = runtimeRef.current;
+        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+        const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF); // Full mask to ensure we hit the text on top
+        
+        if (res.id === activeTextId) {
+          const aabb = runtime.getEntityAabb(activeTextId);
+          if (aabb.valid) {
             const meta = textBoxMetaRef.current.get(activeTextId) ?? getTextMeta(activeTextId);
             const anchorX = aabb.minX;
             const anchorY = aabb.maxY;
@@ -527,20 +525,19 @@ const EngineInteractionLayer: React.FC = () => {
        if (textToolRef.current && engineTextEditState.textId !== null) {
           const activeTextId = engineTextEditState.textId;
           const runtime = runtimeRef.current;
-          if (runtime?.getEntityAabb) {
-            const aabb = runtime.getEntityAabb(activeTextId);
-            if (aabb.valid) {
-              const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-              const inside =
-                world.x >= aabb.minX - tolerance &&
-                world.x <= aabb.maxX + tolerance &&
-                world.y >= aabb.minY - tolerance &&
-                world.y <= aabb.maxY + tolerance;
-              setCursorOverride(inside ? 'text' : null);
-              const anchorX = aabb.minX;
-              const anchorY = aabb.maxY;
-              textToolRef.current.handlePointerMove(activeTextId, world.x - anchorX, world.y - anchorY);
-            }
+          if (runtime?.getEntityAabb && runtime.pickEx) {
+             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+             const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF);
+             const inside = res.id === activeTextId;
+             
+             setCursorOverride(inside ? 'text' : null);
+
+             const aabb = runtime.getEntityAabb(activeTextId);
+             if (aabb.valid) {
+               const anchorX = aabb.minX;
+               const anchorY = aabb.maxY;
+               textToolRef.current.handlePointerMove(activeTextId, world.x - anchorX, world.y - anchorY);
+             }
           }
        }
        return;

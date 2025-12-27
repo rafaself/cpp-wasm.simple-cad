@@ -1,4 +1,3 @@
-import { decodeEsnpSnapshot } from '@/persistence/esnpSnapshot';
 import { clearTextMappings, registerTextMapping, setTextMeta } from './textEngineSync';
 import { bumpDocumentSignal } from './engineDocumentSignals';
 import { syncHistoryMetaFromEngine } from './engineStateSync';
@@ -20,11 +19,12 @@ export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number
   clearTextMappings();
   runtime.loadSnapshotBytes(bytes);
 
-  const snapshot = decodeEsnpSnapshot(bytes);
-  for (const text of snapshot.texts) {
-    const shapeId = `entity-${text.id}`;
-    registerTextMapping(text.id, shapeId);
-    setTextMeta(text.id, text.boxMode, text.constraintWidth);
+  // Use engine-authoritative API instead of re-decoding snapshot
+  const textMetas = runtime.getAllTextMetas();
+  for (const meta of textMetas) {
+    const shapeId = `entity-${meta.id}`;
+    registerTextMapping(meta.id, shapeId);
+    setTextMeta(meta.id, meta.boxMode, meta.constraintWidth);
   }
 
   if (runtime.engine.getLayersSnapshot) {

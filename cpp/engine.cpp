@@ -4097,6 +4097,32 @@ CadEngine::TextContentMeta CadEngine::getTextContentMeta(std::uint32_t textId) c
     };
 }
 
+std::vector<CadEngine::TextEntityMeta> CadEngine::getAllTextMetas() const {
+    if (!textSystem_.initialized) {
+        return {};
+    }
+    
+    // We iterate the entity manager to find all Text entities
+    std::vector<TextEntityMeta> result;
+    // Estimate size to avoid reallocs (heuristic: 10% of entities are text? or just reserve 64)
+    result.reserve(64); 
+
+    for (const auto& kv : entityManager_.entities) {
+        if (kv.second.kind == EntityKind::Text) {
+            const std::uint32_t id = kv.first;
+            const auto* r = textSystem_.store.getText(id);
+            if (r) {
+                result.push_back(TextEntityMeta{
+                    id,
+                    r->boxMode,
+                    r->constraintWidth
+                });
+            }
+        }
+    }
+    return result;
+}
+
 std::vector<CadEngine::TextSelectionRect> CadEngine::getTextSelectionRects(std::uint32_t textId, std::uint32_t start, std::uint32_t end) const {
     if (!textSystem_.initialized) {
         return {};

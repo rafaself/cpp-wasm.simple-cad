@@ -42,6 +42,18 @@ type WasmLayerVector = {
   delete: () => void;
 };
 
+export type TextEntityMeta = {
+  id: number;
+  boxMode: number;
+  constraintWidth: number;
+};
+
+type WasmTextMetaVector = {
+  size: () => number;
+  get: (index: number) => TextEntityMeta;
+  delete: () => void;
+};
+
 export type SnapshotBufferMeta = {
   generation: number;
   byteCount: number;
@@ -124,6 +136,7 @@ export type CadEngineInstance = {
   getAtlasTextureMeta?: () => TextureBufferMeta;
   isAtlasDirty?: () => boolean;
   isTextQuadsDirty?: () => boolean;
+  getAllTextMetas?: () => WasmTextMetaVector;
 
   clearAtlasDirty?: () => void;
 
@@ -465,6 +478,18 @@ export class EngineRuntime {
       
       const bytes = this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
       return new TextDecoder().decode(bytes);
+  }
+
+  public getAllTextMetas(): TextEntityMeta[] {
+      if (!this.engine.getAllTextMetas) return [];
+      const vec = this.engine.getAllTextMetas();
+      const count = vec.size();
+      const result: TextEntityMeta[] = [];
+      for (let i = 0; i < count; i++) {
+          result.push(vec.get(i));
+      }
+      vec.delete();
+      return result;
   }
 
 
