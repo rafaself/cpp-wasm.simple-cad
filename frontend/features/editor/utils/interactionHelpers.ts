@@ -23,13 +23,7 @@ export const toWorldPoint = (
  */
 export const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 
-/**
- * Snap a point to the nearest grid intersection.
- */
-export const snapToGrid = (p: Point, gridSize: number): Point => {
-  if (!gridSize || gridSize <= 0) return p;
-  return { x: Math.round(p.x / gridSize) * gridSize, y: Math.round(p.y / gridSize) * gridSize };
-};
+
 
 /**
  * Determine if a movement qualifies as a drag (vs click).

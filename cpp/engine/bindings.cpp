@@ -129,6 +129,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("queryArea", &CadEngine::queryArea)
         .function("queryMarquee", &CadEngine::queryMarquee)
         .function("getStats", &CadEngine::getStats)
+        .function("setSnapOptions", &CadEngine::setSnapOptions)
+        .function("getSnappedPoint", emscripten::optional_override([](const CadEngine& self, float x, float y) {
+            auto p = self.getSnappedPoint(x, y);
+             return emscripten::val::array(std::vector<float>{p.first, p.second});
+        }))
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
         .function("loadFont", &CadEngine::loadFont)

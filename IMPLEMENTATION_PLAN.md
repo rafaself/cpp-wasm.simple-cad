@@ -51,30 +51,25 @@ Eliminar código morto, remover "dual writes" (fontes de verdade duplicadas) e m
 
 ---
 
-## 🚀 Fase 3: Engine-Native Constraints (Evolução)
+## 🚀 Fase 3: Engine-Native Constraints (Concluído)
 
 **Meta:** Mover lógica de Grid Snap (atualmente no TS) para o Engine, habilitando futuro Object Snap.
 
 ### 3.1 Implementar Snap System no C++
 
-- **Passo 3.1.1 (C++):**
-  - Criar struct `SnapOptions` em `engine.h` (enabled, gridSize).
-  - Adicionar `void setSnapOptions(...)` na API.
-- **Passo 3.1.2 (C++):**
-  - Criar método `PickResult getSnappedPoint(float x, float y)` que aplica grid snap (e futuramente vertex snap).
+- **Status:** ✅ Concluído.
+- **Passo 3.1.1 (C++):** `SnapOptions` struct criado e método `setSnapOptions` exposto.
+- **Passo 3.1.2 (C++):** Método `getSnappedPoint` implementado e exposto para o frontend (binding).
 
 ### 3.2 Atualizar Interaction Session (C++)
 
-- **Passo 3.2.1:**
-  - Em `CadEngine::updateTransform(x, y)`, aplicar o snap internamente antes de processar a transformação.
-  - Isso garante que `move`, `resize`, `vertex_drag` respeitem o grid autoritativamente.
+- **Status:** ✅ Concluído.
+- **Passo 3.2.1:** `CadEngine::updateTransform` atualizado para aplicar grid snap automaticamente quando habilitado.
 
 ### 3.3 Migrar Frontend
 
-- **Passo 3.3.1:**
-  - Remover `snapToGrid` de `interactionHelpers.ts`.
-  - No `EngineInteractionLayer.tsx`, enviar coordenadas RAW (`world.x`, `world.y`).
-  - Atualizar visualização de draft (fantasmas) para consultar `runtime.getSnappedPoint()` se necessário, ou confiar no update do engine.
+- **Status:** ✅ Concluído.
+- **Passo 3.3.1:** `snapToGrid` removido de `interactionHelpers.ts`. Lógica migrada para `EngineInteractionLayer` usando `runtime.setSnapOptions` e `runtime.getSnappedPoint`.
 
 ---
 

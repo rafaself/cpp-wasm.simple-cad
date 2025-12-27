@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Point } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { toWorldPoint, snapToGrid, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
+import { toWorldPoint, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
 import SelectionOverlay from './SelectionOverlay';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { getEngineRuntime } from '@/engine/core/singleton';
@@ -43,7 +43,11 @@ const EngineInteractionLayer: React.FC = () => {
   const gridSize = useSettingsStore((s) => s.grid.size);
   const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
   const engineCapabilitiesMask = useSettingsStore((s) => s.engineCapabilitiesMask);
+
   const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
+
+  // Sync snap options to engine
+
 
   const layerRef = useRef<HTMLDivElement | null>(null);
   const capturedPointerIdRef = useRef<number | null>(null);
@@ -56,6 +60,14 @@ const EngineInteractionLayer: React.FC = () => {
 
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(false);
+
+  // Sync snap options to engine
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (runtime && runtime.setSnapOptions) {
+        runtime.setSnapOptions(snapOptions.enabled, snapOptions.grid, gridSize);
+    }
+  }, [snapOptions.enabled, snapOptions.grid, gridSize, runtimeReady]);
 
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
@@ -362,7 +374,17 @@ const EngineInteractionLayer: React.FC = () => {
     if (evt.button !== 0) return;
 
     const world = toWorldPoint(evt, viewTransform);
-    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+    // Use engine snapping or raw world if not available (snapping for initial creation/draft)
+    let snapped = world;
+    if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
+         // If we are about to start an interaction, we might want the snapped point for the "start" reference
+         // But the engine handles snapping during updateTransform. 
+         // For 'creation' tools (like text, draft), we still want visual snapping.
+         const p = runtimeRef.current.getSnappedPoint(world.x, world.y);
+         snapped = { x: p.x, y: p.y };
+    } 
+    // Fallback removed: if engine not ready, we don't snap.
+
     pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
 
 	    if (activeTool === 'select') {
@@ -395,8 +417,16 @@ const EngineInteractionLayer: React.FC = () => {
 
                  if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0) {
                    setEngineSelection([entityId], SelectionMode.Replace);
-                   const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
                    setCursorOverride(cursor);
+                   // For Resize/VertexDrag, start with RAW world coordinates. Engine snaps the delta or result.
+                   // Actually for vertex drag we want to snap the target position.
+                   // If we pass snapped coords as start, then delta is relative to snapped.
+                   // Let's pass the snapped point as start to be consistent with previous behavior, 
+                   // BUT for updateTransform we now pass raw world coordinates if using engine snapping logic?
+                   // No, engine's updateTransform takes "worldX, worldY" (current mouse).
+                   // The engine calculates delta = world - start.
+                   // If we snap world inside engine, then delta is snapped(world) - start.
+                   // If start was snapped, it aligns better.
                    if (beginEngineSession([entityId], TransformMode.Resize, entityId, res.subIndex, snapped.x, snapped.y)) {
                      dragRef.current = { type: 'engine_session', startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
                      return;
@@ -471,14 +501,22 @@ const EngineInteractionLayer: React.FC = () => {
     }
 
     const world = toWorldPoint(evt, viewTransform);
-    const snapped = activeTool === 'select' ? world : (snapOptions.enabled && snapOptions.grid ? snapToGrid(world, gridSize) : world);
+    
+    // Calculate snapped point for drafting/hover loops
+    let snapped = world;
+    if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
+       const p = runtimeRef.current.getSnappedPoint(world.x, world.y);
+       snapped = { x: p.x, y: p.y };
+    }
 
     // ------------------------------------------------------------------
     // NEW: Handle Drag Modes
     // ------------------------------------------------------------------
     if (dragRef.current.type === 'engine_session') {
         if (runtimeRef.current) {
-            runtimeRef.current.updateTransform(snapped.x, snapped.y);
+            // Pass RAW coordinates to engine. 
+            // The engine now handles snapping internally in updateTransform.
+            runtimeRef.current.updateTransform(world.x, world.y);
         }
         return;
     }
@@ -577,7 +615,13 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (activeTool === 'text' && textDragStartRef.current) {
        // ... text creation logic
-      const snapped = snapOptions.enabled && snapOptions.grid ? snapToGrid(toWorldPoint(evt, viewTransform), gridSize) : toWorldPoint(evt, viewTransform);
+      let snapped = toWorldPoint(evt, viewTransform);
+      if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
+         const p = runtimeRef.current.getSnappedPoint(snapped.x, snapped.y);
+         snapped = { x: p.x, y: p.y };
+      }
+      // Legacy fallback removed intentionally to rely on engine or raw
+
       const start = textDragStartRef.current;
       textDragStartRef.current = null;
       if (textToolRef.current) {

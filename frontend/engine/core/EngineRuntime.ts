@@ -137,6 +137,10 @@ export type CadEngineInstance = {
   getCommitResultIdsPtr?: () => number;
   getCommitResultOpCodesPtr?: () => number;
   getCommitResultPayloadsPtr?: () => number;
+
+  // Snapping (Phase 3)
+  setSnapOptions?: (enabled: boolean, gridEnabled: boolean, gridSize: number) => void;
+  getSnappedPoint?: (x: number, y: number) => [number, number]; // Returns JS array
 };
 
 export type WasmModule = {
@@ -503,6 +507,24 @@ export class EngineRuntime {
 
   public isInteractionActive(): boolean {
       return !!this.engine.isInteractionActive?.();
+  }
+
+  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
+      this.engine.setSnapOptions?.(enabled, gridEnabled, gridSize);
+  }
+
+  public getSnappedPoint(x: number, y: number): { x: number, y: number } {
+      if (!this.engine.getSnappedPoint) return { x, y }; // Fallback
+      if (this.engine.getSnappedPoint) {
+         try {
+           const p = this.engine.getSnappedPoint(x, y);
+           return { x: p[0], y: p[1] };
+         } catch (e) {
+           // Fallback if binding fails (e.g. older WASM)
+           return { x, y };
+         }
+      }
+      return { x, y };
   }
 
   public commitTransform(): { ids: Uint32Array, opCodes: Uint8Array, payloads: Float32Array } | null {

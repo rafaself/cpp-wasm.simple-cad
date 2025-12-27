@@ -102,6 +102,12 @@ public:
         HistoryChanged = 9,
     };
 
+    struct SnapOptions {
+        bool enabled = false;
+        bool gridEnabled = false;
+        float gridSize = 10.0f;
+    };
+
     enum class ChangeMask : std::uint32_t {
         Geometry = 1 << 0,
         Style = 1 << 1,
@@ -638,11 +644,16 @@ public:
      * @param textId Text entity ID
      * @param outMinX Output min X
      * @param outMinY Output min Y
-     * @param outMaxX Output max X
-     * @param outMaxY Output max Y
-     * @return True if text exists
+     * @return True if valid
      */
     bool getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const;
+
+    // =================================================================*********
+    // Snapping System (Phase 3)
+    // =================================================================*********
+    
+    void setSnapOptions(bool enabled, bool gridEnabled, float gridSize);
+    std::pair<float, float> getSnappedPoint(float x, float y) const;
 
     /**
      * Get selection rectangles for a text range.
@@ -1309,6 +1320,7 @@ private:
     };
 
     InteractionSession session_;
+    SnapOptions snapOptions_;
 
 
 

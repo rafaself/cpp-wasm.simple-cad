@@ -4274,6 +4274,14 @@ void CadEngine::beginTransform(
 
 void CadEngine::updateTransform(float worldX, float worldY) {
     if (!session_.active) return;
+
+    // Apply Snapping (Phase 3)
+    if (snapOptions_.enabled && snapOptions_.gridEnabled && snapOptions_.gridSize > 0.0001f) {
+        float s = snapOptions_.gridSize;
+        worldX = std::round(worldX / s) * s;
+        worldY = std::round(worldY / s) * s;
+    }
+
     bool updated = false;
     
     float totalDx = worldX - session_.startX;
@@ -4801,3 +4809,20 @@ void CadEngine::cancelTransform() {
     renderDirty = true;
     session_ = InteractionSession{};
 }
+
+void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize) {
+    snapOptions_.enabled = enabled;
+    snapOptions_.gridEnabled = gridEnabled;
+    snapOptions_.gridSize = gridSize;
+}
+
+std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {
+    if (!snapOptions_.enabled || !snapOptions_.gridEnabled || snapOptions_.gridSize <= 0.0001f) {
+        return {x, y};
+    }
+    float s = snapOptions_.gridSize;
+    return {std::round(x / s) * s, std::round(y / s) * s};
+}
+
+
+
