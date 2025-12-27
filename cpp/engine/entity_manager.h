@@ -5,6 +5,45 @@
 #include <unordered_map>
 #include <cstdint>
 #include <algorithm>
+#include <string>
+
+enum class LayerFlags : std::uint32_t {
+    Visible = 1 << 0,
+    Locked = 1 << 1,
+};
+
+enum class EntityFlags : std::uint32_t {
+    Visible = 1 << 0,
+    Locked = 1 << 1,
+};
+
+struct LayerRecord {
+    std::uint32_t id;
+    std::uint32_t order;
+    std::uint32_t flags;
+};
+
+class LayerStore {
+public:
+    static constexpr std::uint32_t kDefaultLayerId = 1;
+    static constexpr std::uint32_t kDefaultFlags = static_cast<std::uint32_t>(LayerFlags::Visible);
+
+    void clear();
+    void ensureLayer(std::uint32_t id);
+    bool deleteLayer(std::uint32_t id);
+    void setLayerFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value);
+    void setLayerName(std::uint32_t id, const std::string& name);
+    std::uint32_t getLayerFlags(std::uint32_t id) const;
+    std::string getLayerName(std::uint32_t id) const;
+    std::vector<LayerRecord> snapshot() const;
+    bool isLayerVisible(std::uint32_t id) const;
+    bool isLayerLocked(std::uint32_t id) const;
+
+private:
+    std::unordered_map<std::uint32_t, LayerRecord> layers_;
+    std::unordered_map<std::uint32_t, std::string> names_;
+    std::vector<std::uint32_t> order_;
+};
 
 // Forward declaration if needed
 struct Point2;
@@ -25,6 +64,13 @@ public:
     
     // Draw order (list of IDs)
     std::vector<std::uint32_t> drawOrderIds;
+
+    // Layer store (engine-authoritative)
+    LayerStore layerStore;
+
+    // Entity metadata
+    std::unordered_map<std::uint32_t, std::uint32_t> entityFlags;
+    std::unordered_map<std::uint32_t, std::uint32_t> entityLayers;
 
     EntityManager();
 
@@ -49,7 +95,17 @@ public:
 
     // Text registration helper (called by CadEngine when text is added/updated)
     void registerTextEntity(std::uint32_t id);
-    
+
+    // Entity metadata helpers
+    void ensureEntityMetadata(std::uint32_t id);
+    void setEntityLayer(std::uint32_t id, std::uint32_t layerId);
+    std::uint32_t getEntityLayer(std::uint32_t id) const;
+    void setEntityFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value);
+    std::uint32_t getEntityFlags(std::uint32_t id) const;
+    bool isEntityVisible(std::uint32_t id) const;
+    bool isEntityLocked(std::uint32_t id) const;
+    bool isEntityPickable(std::uint32_t id) const;
+
     // Garbage collection for polyline points
     void compactPolylinePoints();
 

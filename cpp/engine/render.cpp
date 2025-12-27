@@ -491,7 +491,8 @@ void rebuildRenderBuffers(
     float viewScale,
     std::vector<float>& triangleVertices,
     std::vector<float>& lineVertices,
-    void* /*resolveCtx*/
+    void* resolveCtx,
+    EntityVisibilityFn isVisible
 ) {
     triangleVertices.clear();
     lineVertices.clear();
@@ -507,11 +508,15 @@ void rebuildRenderBuffers(
     auto isRenderable = [](EntityKind k) {
         return k == EntityKind::Rect || k == EntityKind::Line || k == EntityKind::Polyline || k == EntityKind::Circle || k == EntityKind::Polygon || k == EntityKind::Arrow;
     };
+    auto isEntityVisible = [&](std::uint32_t id) {
+        return isVisible == nullptr || isVisible(resolveCtx, id);
+    };
 
     for (const auto& id : drawOrderIds) {
         const auto it = entities.find(id);
         if (it == entities.end()) continue;
         if (!isRenderable(it->second.kind)) continue;
+        if (!isEntityVisible(id)) continue;
         if (seen.insert(id).second) ordered.push_back(id);
     }
 
@@ -521,6 +526,7 @@ void rebuildRenderBuffers(
         const std::uint32_t id = kv.first;
         if (seen.find(id) != seen.end()) continue;
         if (!isRenderable(kv.second.kind)) continue;
+        if (!isEntityVisible(id)) continue;
         missing.push_back(id);
     }
     std::sort(missing.begin(), missing.end());
@@ -534,6 +540,7 @@ void rebuildRenderBuffers(
     std::size_t triangleBudget = 0;
 
     for (const auto& r : rects) {
+        if (!isEntityVisible(r.id)) continue;
         triangleBudget += rectTriangleFloats;
         if (r.strokeEnabled > 0.5f && clamp01(r.sa) > 0.0f) {
             triangleBudget += 4 * quadFloats; // four sides
@@ -541,17 +548,20 @@ void rebuildRenderBuffers(
     }
 
     for (const auto& l : lines) {
+        if (!isEntityVisible(l.id)) continue;
         if (!(l.enabled > 0.5f) || !(clamp01(l.a) > 0.0f)) continue;
         triangleBudget += quadFloats;
     }
 
     for (const auto& pl : polylines) {
+        if (!isEntityVisible(pl.id)) continue;
         if (!(pl.enabled > 0.5f) || !(clamp01(pl.a) > 0.0f) || pl.count < 2) continue;
         const std::uint32_t segments = (pl.count > 0 ? pl.count - 1 : 0);
         triangleBudget += static_cast<std::size_t>(segments) * quadFloats;
     }
 
     for (const auto& c : circles) {
+        if (!isEntityVisible(c.id)) continue;
         if (c.a > 0.0f) {
             triangleBudget += circleSegments * triFloats; // fill: center + two outer verts per segment
         }
@@ -561,6 +571,7 @@ void rebuildRenderBuffers(
     }
 
     for (const auto& p : polygons) {
+        if (!isEntityVisible(p.id)) continue;
         const std::uint32_t sides = std::max<std::uint32_t>(3u, p.sides);
         if (p.a > 0.0f) {
             triangleBudget += static_cast<std::size_t>(sides) * triFloats;
@@ -571,6 +582,7 @@ void rebuildRenderBuffers(
     }
 
     for (const auto& a : arrows) {
+        if (!isEntityVisible(a.id)) continue;
         if (!(a.strokeEnabled > 0.5f) || !(clamp01(a.sa) > 0.0f)) continue;
         triangleBudget += quadFloats; // shaft quad
         triangleBudget += triFloats;  // head triangle
@@ -583,6 +595,7 @@ void rebuildRenderBuffers(
     std::vector<Point2> tmpVerts;
 
     for (const auto& id : ordered) {
+        if (!isEntityVisible(id)) continue;
         const auto it = entities.find(id);
         if (it == entities.end()) continue;
         const EntityRef ref = it->second;

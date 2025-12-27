@@ -26,7 +26,7 @@ export function snapBatch(queries: SnapQuery[], shapes: Shape[], opts: SnapBatch
 
   for (const shape of shapes) {
     const layer = layerMap.get(shape.layerId);
-    if (!layer || !layer.visible || layer.locked) continue;
+    if (!layer || !layer.visible) continue;
 
     if (shouldCheckEndpoints) candidates.push(...getEndpoints(shape));
     if (shouldCheckMidpoints) candidates.push(...getMidpoints(shape));

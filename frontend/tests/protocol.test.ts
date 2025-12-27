@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   EXPECTED_PROTOCOL_INFO,
+  EngineFeatureFlags,
   validateProtocolOrThrow,
 } from '@/engine/core/protocol';
 
@@ -22,6 +23,11 @@ describe('validateProtocolOrThrow', () => {
 
   it('throws on missing required feature flags', () => {
     const info = { ...EXPECTED_PROTOCOL_INFO, featureFlags: 0 };
+    expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
+  });
+
+  it('throws when layers feature flag is missing', () => {
+    const info = { ...EXPECTED_PROTOCOL_INFO, featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL };
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
 

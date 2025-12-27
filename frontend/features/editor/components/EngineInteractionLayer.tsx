@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Layer, Patch, Point, Shape } from '@/types';
+import type { Patch, Point, Shape } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDataStore } from '@/stores/useDataStore';
@@ -73,10 +73,8 @@ const EngineInteractionLayer: React.FC = () => {
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const isShapeSelectable = useCallback(
-    (shape: Shape | undefined, layers: Layer[]): boolean => {
+    (shape: Shape | undefined): boolean => {
       if (!shape) return false;
-      const layer = layers.find((l) => l.id === shape.layerId);
-      if (layer && (!layer.visible || layer.locked)) return false;
       return isShapeInteractable(shape, {
         activeFloorId: activeFloorId ?? 'terreo',
       });
@@ -134,7 +132,7 @@ const EngineInteractionLayer: React.FC = () => {
             const data = useDataStore.getState();
             const shapeId = getShapeIdFromRegistry(res.id);
             if (!shapeId) return null;
-            if (!isShapeSelectable(data.shapes[shapeId], data.layers)) return null;
+            if (!isShapeSelectable(data.shapes[shapeId])) return null;
             return res.id;
         }
     }
@@ -152,7 +150,6 @@ const EngineInteractionLayer: React.FC = () => {
   } = useSelectInteraction({
       viewTransform,
       shapes: useDataStore((s) => s.shapes),
-      layers: useDataStore((s) => s.layers),
       onSetSelectedEntityIds: setSelectedEntityIds,
       runtime: runtimeRef.current
   });
@@ -421,7 +418,7 @@ const EngineInteractionLayer: React.FC = () => {
                  const entityId = res.id;
                  const strId = getShapeIdFromRegistry(entityId);
                  const shape = strId ? data.shapes[strId] : undefined;
-                 if (strId && isShapeSelectable(shape, data.layers)) {
+                 if (strId && isShapeSelectable(shape)) {
 	                     // Ensure selection
 	                     const nextSelectionIds = selectedEntityIds.has(entityId) ? selectedEntityIds : new Set([entityId]);
 	                     if (nextSelectionIds !== selectedEntityIds) {
@@ -440,7 +437,7 @@ const EngineInteractionLayer: React.FC = () => {
 	                     const activeIds = Array.from(nextSelectionIds)
 	                        .filter((id) => {
 	                          const shapeId = getShapeIdFromRegistry(id);
-	                          return !!shapeId && isShapeSelectable(data.shapes[shapeId], data.layers);
+                          return !!shapeId && isShapeSelectable(data.shapes[shapeId]);
 	                        });
 
 	                     if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0 && shape) {
@@ -499,7 +496,7 @@ const EngineInteractionLayer: React.FC = () => {
 	                 const entityId = res.id;
 	                 const strId = getShapeIdFromRegistry(entityId);
 	                 const shape = strId ? data.shapes[strId] : undefined;
-	                 if (strId && isShapeSelectable(shape, data.layers)) {
+	                 if (strId && isShapeSelectable(shape)) {
 	                     const nextSelectionIds = selectedEntityIds.has(entityId) ? selectedEntityIds : new Set([entityId]);
 	                     if (nextSelectionIds !== selectedEntityIds) {
 	                         setSelectedEntityIds(nextSelectionIds);
@@ -507,7 +504,7 @@ const EngineInteractionLayer: React.FC = () => {
 		                     const activeIds = Array.from(nextSelectionIds)
 		                        .filter((id) => {
 		                          const shapeId = getShapeIdFromRegistry(id);
-		                          return !!shapeId && isShapeSelectable(data.shapes[shapeId], data.layers);
+		                          return !!shapeId && isShapeSelectable(data.shapes[shapeId]);
 		                        });
 		                     if (activeIds.length > 0) {
 		                         setCursorOverride('move');
@@ -535,18 +532,23 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (activeTool === 'move') {
       const data = useDataStore.getState();
-      const selected = Array.from(selectedEntityIds)
-        .map((id) => {
-          const shapeId = getShapeIdFromRegistry(id);
-          return shapeId ? data.shapes[shapeId] : null;
-        })
-        .filter(Boolean) as Shape[];
-      const movable = selected.filter((s) => {
-        const layer = data.layers.find((l) => l.id === s.layerId);
-        return !(layer?.locked);
+      const activeIds: EntityId[] = [];
+      const selectedShapes: Shape[] = [];
+      selectedEntityIds.forEach((entityId) => {
+        const shapeId = getShapeIdFromRegistry(entityId);
+        const shape = shapeId ? data.shapes[shapeId] : null;
+        if (!shape || !isShapeSelectable(shape)) return;
+        activeIds.push(entityId);
+        selectedShapes.push(shape);
       });
-      if (movable.length > 0) {
-        moveRef.current = { start: snapped, snapshot: new Map(movable.map((s) => [s.id, s])) };
+
+      if (activeIds.length > 0 && beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
+        dragRef.current = { type: 'engine_session', startWorld: snapped };
+        return;
+      }
+
+      if (selectedShapes.length > 0) {
+        moveRef.current = { start: snapped, snapshot: new Map(selectedShapes.map((s) => [s.id, s])) };
         setInteractionDragActive(true);
       } else {
         setInteractionDragActive(false);
@@ -638,7 +640,7 @@ const EngineInteractionLayer: React.FC = () => {
 	          const data = useDataStore.getState();
 	          const shapeId = getShapeIdFromRegistry(res.id);
 	          const shape = shapeId ? data.shapes[shapeId] : undefined;
-	          if (!isShapeSelectable(shape, data.layers)) {
+	          if (!isShapeSelectable(shape)) {
 	            setCursorOverride(null);
 	            return;
 	          }

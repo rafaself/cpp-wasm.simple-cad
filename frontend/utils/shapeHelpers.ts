@@ -6,19 +6,16 @@
 import { Shape, Layer } from '../types';
 
 /**
- * Gets a shape if it exists and is editable (not on a locked layer).
- * Returns null if shape doesn't exist or is on a locked layer.
+ * Gets a shape if it exists (engine handles locked state).
+ * Returns null if shape doesn't exist.
  */
 export const getEditableShape = (
   id: string,
   shapes: Record<string, Shape>,
-  layers: Layer[]
+  _layers: Layer[]
 ): Shape | null => {
   const shape = shapes[id];
   if (!shape) return null;
-
-  const layer = layers.find(l => l.id === shape.layerId);
-  if (layer?.locked) return null;
 
   return shape;
 };
@@ -39,11 +36,11 @@ export const getShapeWithLayer = (
 };
 
 /**
- * Checks if a shape is visible (layer is visible and not locked).
+ * Checks if a shape is visible (layer is visible).
  */
 export const isShapeVisible = (shape: Shape, layers: Layer[]): boolean => {
   const layer = layers.find(l => l.id === shape.layerId);
-  return layer ? layer.visible && !layer.locked : true;
+  return layer ? layer.visible : true;
 };
 
 /**

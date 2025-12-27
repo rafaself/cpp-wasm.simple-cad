@@ -9,6 +9,7 @@
 namespace engine {
 
 using ResolveNodeCallback = bool(*)(void* ctx, std::uint32_t nodeId, Point2& out);
+using EntityVisibilityFn = bool(*)(void* ctx, std::uint32_t entityId);
 
 // Rebuild triangle and line vertex buffers from world containers.
 void rebuildRenderBuffers(
@@ -24,7 +25,8 @@ void rebuildRenderBuffers(
     float viewScale,
     std::vector<float>& triangleVertices,
     std::vector<float>& lineVertices,
-    void* resolveCtx // Kept for signature compatibility if needed, or remove
+    void* resolveCtx,
+    EntityVisibilityFn isVisible
 );
 
 } // namespace engine

@@ -2,7 +2,30 @@ export type EntityId = number;
 
 export enum EngineFeatureFlags {
   FEATURE_PROTOCOL = 1 << 0,
+  FEATURE_LAYERS_FLAGS = 1 << 1,
 }
+
+export enum EngineLayerFlags {
+  Visible = 1 << 0,
+  Locked = 1 << 1,
+}
+
+export enum EngineEntityFlags {
+  Visible = 1 << 0,
+  Locked = 1 << 1,
+}
+
+export enum LayerPropMask {
+  Name = 1 << 0,
+  Visible = 1 << 1,
+  Locked = 1 << 2,
+}
+
+export type LayerRecord = {
+  id: number;
+  order: number;
+  flags: number;
+};
 
 export type ProtocolInfo = {
   protocolVersion: number;
@@ -18,7 +41,8 @@ export const COMMAND_VERSION = 2 as const;
 export const SNAPSHOT_VERSION = 3 as const;
 export const EVENT_STREAM_VERSION = 1 as const;
 
-export const REQUIRED_FEATURE_FLAGS = EngineFeatureFlags.FEATURE_PROTOCOL;
+export const REQUIRED_FEATURE_FLAGS =
+  EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_LAYERS_FLAGS;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -70,7 +94,16 @@ const computeAbiHash = (): number => {
 
   h = hashEnum(h, 0xE0000009, [0, 1]);
 
-  h = hashEnum(h, 0xE000000A, [EngineFeatureFlags.FEATURE_PROTOCOL]);
+  h = hashEnum(h, 0xE000000A, [
+    EngineFeatureFlags.FEATURE_PROTOCOL,
+    EngineFeatureFlags.FEATURE_LAYERS_FLAGS,
+  ]);
+
+  h = hashEnum(h, 0xE000000B, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);
+
+  h = hashEnum(h, 0xE000000C, [EngineEntityFlags.Visible, EngineEntityFlags.Locked]);
+
+  h = hashEnum(h, 0xE000000D, [LayerPropMask.Name, LayerPropMask.Visible, LayerPropMask.Locked]);
 
   h = hashStruct(h, 0x53000001, 24, [0, 4, 8, 12, 16, 20]);
 
@@ -133,6 +166,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x5300001B, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x5300001C, 20, [0, 4, 8, 12, 16]);
+
+  h = hashStruct(h, 0x5300001D, 12, [0, 4, 8]);
 
   return h >>> 0;
 };

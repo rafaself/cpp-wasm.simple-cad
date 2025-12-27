@@ -1,7 +1,90 @@
 #include "engine/entity_manager.h"
 #include <cmath>
 
-EntityManager::EntityManager() {}
+void LayerStore::clear() {
+    layers_.clear();
+    names_.clear();
+    order_.clear();
+    ensureLayer(kDefaultLayerId);
+    names_[kDefaultLayerId] = "Default";
+}
+
+void LayerStore::ensureLayer(std::uint32_t id) {
+    if (layers_.find(id) != layers_.end()) return;
+    const std::uint32_t order = static_cast<std::uint32_t>(order_.size());
+    layers_.emplace(id, LayerRecord{ id, order, kDefaultFlags });
+    order_.push_back(id);
+    if (names_.find(id) == names_.end()) {
+        names_.emplace(id, "Layer");
+    }
+}
+
+bool LayerStore::deleteLayer(std::uint32_t id) {
+    if (id == kDefaultLayerId) return false;
+    auto it = layers_.find(id);
+    if (it == layers_.end()) return false;
+    layers_.erase(it);
+    names_.erase(id);
+    for (std::size_t i = 0; i < order_.size(); ++i) {
+        if (order_[i] == id) {
+            order_.erase(order_.begin() + static_cast<std::ptrdiff_t>(i));
+            break;
+        }
+    }
+    return true;
+}
+
+void LayerStore::setLayerFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value) {
+    ensureLayer(id);
+    auto it = layers_.find(id);
+    if (it == layers_.end()) return;
+    const std::uint32_t prev = it->second.flags;
+    const std::uint32_t next = (prev & ~mask) | (value & mask);
+    it->second.flags = next;
+}
+
+void LayerStore::setLayerName(std::uint32_t id, const std::string& name) {
+    ensureLayer(id);
+    names_[id] = name;
+}
+
+std::uint32_t LayerStore::getLayerFlags(std::uint32_t id) const {
+    auto it = layers_.find(id);
+    if (it == layers_.end()) return kDefaultFlags;
+    return it->second.flags;
+}
+
+std::string LayerStore::getLayerName(std::uint32_t id) const {
+    auto it = names_.find(id);
+    if (it == names_.end()) return std::string();
+    return it->second;
+}
+
+std::vector<LayerRecord> LayerStore::snapshot() const {
+    std::vector<LayerRecord> out;
+    out.reserve(order_.size());
+    for (std::size_t i = 0; i < order_.size(); ++i) {
+        const std::uint32_t id = order_[i];
+        auto it = layers_.find(id);
+        if (it == layers_.end()) continue;
+        LayerRecord rec = it->second;
+        rec.order = static_cast<std::uint32_t>(i);
+        out.push_back(rec);
+    }
+    return out;
+}
+
+bool LayerStore::isLayerVisible(std::uint32_t id) const {
+    return (getLayerFlags(id) & static_cast<std::uint32_t>(LayerFlags::Visible)) != 0;
+}
+
+bool LayerStore::isLayerLocked(std::uint32_t id) const {
+    return (getLayerFlags(id) & static_cast<std::uint32_t>(LayerFlags::Locked)) != 0;
+}
+
+EntityManager::EntityManager() {
+    layerStore.clear();
+}
 
 void EntityManager::clear() noexcept {
     rects.clear();
@@ -13,6 +96,9 @@ void EntityManager::clear() noexcept {
     arrows.clear();
     entities.clear();
     drawOrderIds.clear();
+    entityFlags.clear();
+    entityLayers.clear();
+    layerStore.clear();
 }
 
 void EntityManager::reserve(std::uint32_t maxRects, std::uint32_t maxLines, std::uint32_t maxPolylines, std::uint32_t maxPoints) {
@@ -27,6 +113,8 @@ void EntityManager::deleteEntity(std::uint32_t id) noexcept {
     if (it == entities.end()) return;
     const EntityRef ref = it->second;
     entities.erase(it);
+    entityFlags.erase(id);
+    entityLayers.erase(id);
 
     if (!drawOrderIds.empty()) {
         for (std::size_t i = 0; i < drawOrderIds.size(); i++) {
@@ -119,12 +207,14 @@ void EntityManager::upsertRect(std::uint32_t id, float x, float y, float w, floa
         existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h;
         existingRect.r = r; existingRect.g = g; existingRect.b = b; existingRect.a = a;
         existingRect.sr = sr; existingRect.sg = sg; existingRect.sb = sb; existingRect.sa = sa; existingRect.strokeEnabled = strokeEnabled; existingRect.strokeWidthPx = strokeWidthPx;
+        ensureEntityMetadata(id);
         return;
     }
 
     rects.push_back(RectRec{id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
     drawOrderIds.push_back(id);
+    ensureEntityMetadata(id);
 }
 
 void EntityManager::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
@@ -138,12 +228,14 @@ void EntityManager::upsertLine(std::uint32_t id, float x0, float y0, float x1, f
         auto& l = lines[it2->second.index];
         l.x0 = x0; l.y0 = y0; l.x1 = x1; l.y1 = y1;
         l.r = r; l.g = g; l.b = b; l.a = a; l.enabled = enabled; l.strokeWidthPx = strokeWidthPx;
+        ensureEntityMetadata(id);
         return;
     }
 
     lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Line, static_cast<std::uint32_t>(lines.size() - 1)};
     drawOrderIds.push_back(id);
+    ensureEntityMetadata(id);
 }
 
 void EntityManager::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
@@ -159,12 +251,14 @@ void EntityManager::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::
         pl.count = count;
         pl.r = r; pl.g = g; pl.b = b; pl.a = a; pl.enabled = enabled; pl.strokeWidthPx = strokeWidthPx;
         pl.sr = r; pl.sg = g; pl.sb = b; pl.sa = a; pl.strokeEnabled = enabled;
+        ensureEntityMetadata(id);
         return;
     }
 
     polylines.push_back(PolyRec{id, offset, count, r, g, b, a, r, g, b, a, enabled, enabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
     drawOrderIds.push_back(id);
+    ensureEntityMetadata(id);
 }
 
 void EntityManager::upsertCircle(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx) {
@@ -180,12 +274,14 @@ void EntityManager::upsertCircle(std::uint32_t id, float cx, float cy, float rx,
         c.r = fillR; c.g = fillG; c.b = fillB; c.a = fillA;
         c.sr = strokeR; c.sg = strokeG; c.sb = strokeB; c.sa = strokeA;
         c.strokeEnabled = strokeEnabled; c.strokeWidthPx = strokeWidthPx;
+        ensureEntityMetadata(id);
         return;
     }
 
     circles.push_back(CircleRec{id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Circle, static_cast<std::uint32_t>(circles.size() - 1)};
     drawOrderIds.push_back(id);
+    ensureEntityMetadata(id);
 }
 
 void EntityManager::upsertPolygon(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, std::uint32_t sides, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx) {
@@ -202,12 +298,14 @@ void EntityManager::upsertPolygon(std::uint32_t id, float cx, float cy, float rx
         p.r = fillR; p.g = fillG; p.b = fillB; p.a = fillA;
         p.sr = strokeR; p.sg = strokeG; p.sb = strokeB; p.sa = strokeA;
         p.strokeEnabled = strokeEnabled; p.strokeWidthPx = strokeWidthPx;
+        ensureEntityMetadata(id);
         return;
     }
 
     polygons.push_back(PolygonRec{id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Polygon, static_cast<std::uint32_t>(polygons.size() - 1)};
     drawOrderIds.push_back(id);
+    ensureEntityMetadata(id);
 }
 
 void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, float by, float head, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx) {
@@ -222,12 +320,14 @@ void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, 
         a.ax = ax; a.ay = ay; a.bx = bx; a.by = by; a.head = head;
         a.sr = strokeR; a.sg = strokeG; a.sb = strokeB; a.sa = strokeA;
         a.strokeEnabled = strokeEnabled; a.strokeWidthPx = strokeWidthPx;
+        ensureEntityMetadata(id);
         return;
     }
 
     arrows.push_back(ArrowRec{id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Arrow, static_cast<std::uint32_t>(arrows.size() - 1)};
     drawOrderIds.push_back(id);
+    ensureEntityMetadata(id);
 }
 
 void EntityManager::registerTextEntity(std::uint32_t id) {
@@ -240,6 +340,56 @@ void EntityManager::registerTextEntity(std::uint32_t id) {
     // For text, index matches ID as per original engine.cpp convention
     entities[id] = EntityRef{EntityKind::Text, id};
     // No push_back to drawOrderIds as per original engine.cpp behavior for upsertText.
+    ensureEntityMetadata(id);
+}
+
+void EntityManager::ensureEntityMetadata(std::uint32_t id) {
+    layerStore.ensureLayer(LayerStore::kDefaultLayerId);
+    if (entityFlags.find(id) == entityFlags.end()) {
+        entityFlags[id] = static_cast<std::uint32_t>(EntityFlags::Visible);
+    }
+    if (entityLayers.find(id) == entityLayers.end()) {
+        entityLayers[id] = LayerStore::kDefaultLayerId;
+    }
+}
+
+void EntityManager::setEntityLayer(std::uint32_t id, std::uint32_t layerId) {
+    layerStore.ensureLayer(layerId);
+    entityLayers[id] = layerId;
+}
+
+std::uint32_t EntityManager::getEntityLayer(std::uint32_t id) const {
+    const auto it = entityLayers.find(id);
+    if (it != entityLayers.end()) return it->second;
+    return LayerStore::kDefaultLayerId;
+}
+
+void EntityManager::setEntityFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value) {
+    const std::uint32_t prev = getEntityFlags(id);
+    const std::uint32_t next = (prev & ~mask) | (value & mask);
+    entityFlags[id] = next;
+}
+
+std::uint32_t EntityManager::getEntityFlags(std::uint32_t id) const {
+    const auto it = entityFlags.find(id);
+    if (it != entityFlags.end()) return it->second;
+    return static_cast<std::uint32_t>(EntityFlags::Visible);
+}
+
+bool EntityManager::isEntityVisible(std::uint32_t id) const {
+    const std::uint32_t layerId = getEntityLayer(id);
+    if (!layerStore.isLayerVisible(layerId)) return false;
+    return (getEntityFlags(id) & static_cast<std::uint32_t>(EntityFlags::Visible)) != 0;
+}
+
+bool EntityManager::isEntityLocked(std::uint32_t id) const {
+    const std::uint32_t layerId = getEntityLayer(id);
+    if (layerStore.isLayerLocked(layerId)) return true;
+    return (getEntityFlags(id) & static_cast<std::uint32_t>(EntityFlags::Locked)) != 0;
+}
+
+bool EntityManager::isEntityPickable(std::uint32_t id) const {
+    return isEntityVisible(id) && !isEntityLocked(id);
 }
 
 void EntityManager::compactPolylinePoints() {

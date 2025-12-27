@@ -67,6 +67,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
         .function("getCapabilities", &CadEngine::getCapabilities)
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
+        .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
+        .function("getLayerName", &CadEngine::getLayerName)
+        .function("setLayerProps", &CadEngine::setLayerProps)
+        .function("deleteLayer", &CadEngine::deleteLayer)
+        .function("getEntityFlags", &CadEngine::getEntityFlags)
+        .function("setEntityFlags", &CadEngine::setEntityFlags)
+        .function("setEntityLayer", &CadEngine::setEntityLayer)
+        .function("getEntityLayer", &CadEngine::getEntityLayer)
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
         .function("queryArea", &CadEngine::queryArea)
@@ -135,6 +143,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("eventStreamVersion", &CadEngine::ProtocolInfo::eventStreamVersion)
         .field("abiHash", &CadEngine::ProtocolInfo::abiHash)
         .field("featureFlags", &CadEngine::ProtocolInfo::featureFlags);
+
+    emscripten::value_object<LayerRecord>("LayerRecord")
+        .field("id", &LayerRecord::id)
+        .field("order", &LayerRecord::order)
+        .field("flags", &LayerRecord::flags);
 
     emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
         .field("generation", &CadEngine::BufferMeta::generation)
@@ -216,5 +229,6 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
 
     emscripten::register_vector<std::uint32_t>("VectorUInt32");
     emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");
+    emscripten::register_vector<LayerRecord>("VectorLayerRecord");
 }
 #endif

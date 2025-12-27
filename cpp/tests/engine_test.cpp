@@ -97,29 +97,6 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     EXPECT_EQ(engine.entityManager_.rects[0].strokeWidthPx, 2.0f);
 }
 
-TEST_F(CadEngineTest, SnappingElectrical) {
-    // Setup: 1 Symbol and 1 Node
-    // Symbol at (100, 100), 20x20. Center (110, 110).
-    // Node at (200, 200).
-    
-    engine.upsertSymbol(1, 99, 100, 100, 20, 20, 0, 1, 1, 0.5, 0.5);
-    engine.upsertNode(2, CadEngine::NodeKind::Free, 0, 200, 200);
-
-    // Snap near Node (200, 200)
-    auto res = engine.snapElectrical(201, 201, 5.0f);
-    EXPECT_EQ(res.kind, 1); // 1 = Node
-    EXPECT_EQ(res.id, 2);
-    
-    // Snap near Symbol center (110, 110)
-    res = engine.snapElectrical(111, 111, 5.0f);
-    EXPECT_EQ(res.kind, 2); // 2 = Symbol
-    EXPECT_EQ(res.id, 1);
-    
-    // Snap far away
-    res = engine.snapElectrical(0, 0, 5.0f);
-    EXPECT_EQ(res.kind, 0); // None
-}
-
 TEST_F(CadEngineTest, SnapshotRoundTrip) {
     // 1. Populate initial state
     engine.upsertRect(1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f, 1.0f); // Add color

@@ -45,6 +45,13 @@ public:
     // Feature flags for build-time capabilities (protocol handshake).
     enum class EngineFeatureFlags : std::uint32_t {
         FEATURE_PROTOCOL = 1 << 0,
+        FEATURE_LAYERS_FLAGS = 1 << 1,
+    };
+
+    enum class LayerPropMask : std::uint32_t {
+        Name = 1 << 0,
+        Visible = 1 << 1,
+        Locked = 1 << 2,
     };
 
     // Handshake payload (POD): frontend validates version + abiHash + feature flags.
@@ -62,7 +69,9 @@ public:
     static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
     static constexpr std::uint32_t kSnapshotVersion = 3;      // Snapshot format version (EWC1 v3)
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
-    static constexpr std::uint32_t kFeatureFlags = static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL);
+    static constexpr std::uint32_t kFeatureFlags =
+        static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -87,6 +96,14 @@ public:
              | static_cast<std::uint32_t>(EngineCapability::HAS_RESIZE_HANDLES)
              | static_cast<std::uint32_t>(EngineCapability::HAS_TRANSFORM_RESIZE);
     }
+    std::vector<LayerRecord> getLayersSnapshot() const;
+    std::string getLayerName(std::uint32_t layerId) const;
+    void setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, std::uint32_t flagsValue, const std::string& name);
+    bool deleteLayer(std::uint32_t layerId);
+    std::uint32_t getEntityFlags(std::uint32_t entityId) const;
+    void setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, std::uint32_t flagsValue);
+    void setEntityLayer(std::uint32_t entityId, std::uint32_t layerId);
+    std::uint32_t getEntityLayer(std::uint32_t entityId) const;
     ProtocolInfo getProtocolInfo() const noexcept {
         return ProtocolInfo{
             kProtocolVersion,
@@ -140,18 +157,8 @@ public:
     // IMPORTANT: Since Emscripten value_object bindings work best with POD structs,
     // PickResult is defined in pick_system.h and bound in bindings.cpp
     PickResult pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept;
-    // Marquee query (returns IDs only; filtering happens in JS)
-    std::vector<std::uint32_t> queryArea(float minX, float minY, float maxX, float maxY) const {
-        AABB area{
-            std::min(minX, maxX),
-            std::min(minY, maxY),
-            std::max(minX, maxX),
-            std::max(minY, maxY)
-        };
-        std::vector<std::uint32_t> out;
-        pickSystem_.queryArea(area, out);
-        return out;
-    }
+    // Marquee query (returns IDs only)
+    std::vector<std::uint32_t> queryArea(float minX, float minY, float maxX, float maxY) const;
 
     // Marquee selection (returns final IDs based on WINDOW/CROSSING rules; filtering happens in JS)
     // mode: 0 = WINDOW, 1 = CROSSING
@@ -643,6 +650,23 @@ private:
 
         h = hashEnum(h, 0xE000000Au, {
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS),
+        });
+
+        h = hashEnum(h, 0xE000000Bu, {
+            static_cast<std::uint32_t>(LayerFlags::Visible),
+            static_cast<std::uint32_t>(LayerFlags::Locked),
+        });
+
+        h = hashEnum(h, 0xE000000Cu, {
+            static_cast<std::uint32_t>(EntityFlags::Visible),
+            static_cast<std::uint32_t>(EntityFlags::Locked),
+        });
+
+        h = hashEnum(h, 0xE000000Du, {
+            static_cast<std::uint32_t>(LayerPropMask::Name),
+            static_cast<std::uint32_t>(LayerPropMask::Visible),
+            static_cast<std::uint32_t>(LayerPropMask::Locked),
         });
 
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
@@ -898,6 +922,12 @@ private:
             static_cast<std::uint32_t>(offsetof(TextBoundsResult, maxX)),
             static_cast<std::uint32_t>(offsetof(TextBoundsResult, maxY)),
             static_cast<std::uint32_t>(offsetof(TextBoundsResult, valid)),
+        });
+
+        h = hashStruct(h, 0x5300001Du, sizeof(LayerRecord), {
+            static_cast<std::uint32_t>(offsetof(LayerRecord, id)),
+            static_cast<std::uint32_t>(offsetof(LayerRecord, order)),
+            static_cast<std::uint32_t>(offsetof(LayerRecord, flags)),
         });
 
         return h;

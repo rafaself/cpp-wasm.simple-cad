@@ -148,7 +148,7 @@ bool TextSystem::getBounds(std::uint32_t textId, float& minX, float& minY, float
     return true;
 }
 
-void TextSystem::rebuildQuadBuffer() {
+void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible) {
     if (!initialized) {
         if (!quadBuffer.empty()) quadBuffer.clear();
         return;
@@ -170,6 +170,9 @@ void TextSystem::rebuildQuadBuffer() {
     
     // For each text entity, generate quads for its glyphs
     for (std::uint32_t textId : textIds) {
+        if (isVisible && !isVisible(textId)) {
+            continue;
+        }
         const TextRec* text = store.getText(textId);
         if (!text) continue;
         

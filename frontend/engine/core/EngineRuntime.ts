@@ -1,8 +1,9 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { IdRegistry } from './IdRegistry';
+import { LayerRegistry } from './LayerRegistry';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
-import { validateProtocolOrThrow, type ProtocolInfo, type EntityId } from './protocol';
+import { validateProtocolOrThrow, type ProtocolInfo, type EntityId, type LayerRecord } from './protocol';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -18,6 +19,12 @@ export type BufferMeta = {
 type WasmU32Vector = {
   size: () => number;
   get: (index: number) => number;
+  delete: () => void;
+};
+
+type WasmLayerVector = {
+  size: () => number;
+  get: (index: number) => LayerRecord;
   delete: () => void;
 };
 
@@ -38,6 +45,14 @@ export type CadEngineInstance = {
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
   getCapabilities?: () => number;
   getProtocolInfo: () => ProtocolInfo;
+  getLayersSnapshot?: () => WasmLayerVector;
+  getLayerName?: (layerId: number) => string;
+  setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
+  deleteLayer?: (layerId: number) => boolean;
+  getEntityFlags?: (entityId: EntityId) => number;
+  setEntityFlags?: (entityId: EntityId, flagsMask: number, flagsValue: number) => void;
+  setEntityLayer?: (entityId: EntityId, layerId: number) => void;
+  getEntityLayer?: (entityId: EntityId) => number;
   pick: (x: number, y: number, tolerance: number) => EntityId;
 
   // New extended pick (optional during migration)
@@ -116,6 +131,7 @@ export class EngineRuntime {
 
   public resetIds(): void {
     IdRegistry.clear();
+    LayerRegistry.clear();
   }
 
   public hasCapability(capability: EngineCapability): boolean {
@@ -124,6 +140,7 @@ export class EngineRuntime {
 
   public clear(): void {
     IdRegistry.clear();
+    LayerRegistry.clear();
     this.engine.clear();
   }
 

@@ -6,6 +6,7 @@
 #include "engine/text/glyph_atlas.h"
 #include "engine/text/text_style_contract.h"
 #include <vector>
+#include <functional>
 
 class TextSystem {
 public:
@@ -39,7 +40,7 @@ public:
     bool getBounds(std::uint32_t textId, float& minX, float& minY, float& maxX, float& maxY);
     
     // Rendering
-    void rebuildQuadBuffer();
+    void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible = {});
     bool isAtlasDirty() const;
     void clearAtlasDirty();
     

@@ -48,7 +48,7 @@ export const StrokeOverlay: React.FC = () => {
       if (shape.floorId && activeFloorId && shape.floorId !== activeFloorId) continue;
 
       const layer = layerById.get(shape.layerId) as Layer | undefined;
-      if (layer && (!layer.visible || layer.locked)) continue;
+      if (layer && !layer.visible) continue;
       if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
 
       if (shape.type !== 'rect' && shape.type !== 'circle' && shape.type !== 'polygon') continue;

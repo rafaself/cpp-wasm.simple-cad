@@ -8,12 +8,9 @@ TEST(RenderTest, SimpleBuffers) {
     std::vector<LineRec> lines;
     std::vector<PolyRec> polylines;
     std::vector<Point2> points;
-    std::vector<ConduitRec> conduits;
     std::vector<CircleRec> circles;
     std::vector<PolygonRec> polygons;
     std::vector<ArrowRec> arrows;
-    std::vector<SymbolRec> symbols;
-    std::vector<NodeRec> nodes;
     std::unordered_map<std::uint32_t, EntityRef> entities;
     std::vector<std::uint32_t> drawOrderIds;
 
@@ -29,12 +26,9 @@ TEST(RenderTest, SimpleBuffers) {
         lines,
         polylines,
         points,
-        conduits,
         circles,
         polygons,
         arrows,
-        symbols,
-        nodes,
         entities,
         drawOrderIds,
         1.0f,

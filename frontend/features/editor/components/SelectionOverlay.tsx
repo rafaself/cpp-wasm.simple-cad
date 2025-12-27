@@ -140,7 +140,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
       const shape = shapesById[id];
       if (!shape) return;
       const layer = layers.find((l) => l.id === shape.layerId);
-      if (layer && (!layer.visible || layer.locked)) return;
+      if (layer && !layer.visible) return;
       if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) return;
 
       if (shape.type === 'line' || shape.type === 'arrow') {

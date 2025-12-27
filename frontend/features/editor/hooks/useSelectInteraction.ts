@@ -40,14 +40,12 @@ const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number })
 export function useSelectInteraction(params: {
   viewTransform: ViewTransform;
   shapes: Record<string, Shape>;
-  layers: any[]; // ImportedLayer[] or Layer[]
   onSetSelectedEntityIds: (ids: Set<EntityId>) => void;
   runtime?: any;
 }) {
   const {
     viewTransform,
     shapes,
-    layers,
     onSetSelectedEntityIds,
     runtime
   } = params;
@@ -125,8 +123,6 @@ export function useSelectInteraction(params: {
           const shape = idStr ? shapes[idStr] : null;
           if (!shape) continue;
 
-          const layer = layers.find((l) => l.id === shape.layerId);
-          if (layer && (!layer.visible || layer.locked)) continue;
           if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
           selected.add(idHash);
         }
@@ -151,8 +147,6 @@ export function useSelectInteraction(params: {
         }
 
         for (const shape of candidates) {
-          const layer = layers.find((l) => l.id === shape.layerId);
-          if (layer && (!layer.visible || layer.locked)) continue;
           if (!isShapeInteractable(shape, { activeFloorId: activeFloorId ?? 'terreo' })) continue;
           if (!isShapeInSelection(shape, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }, mode)) continue;
           selected.add(ensureId(shape.id));

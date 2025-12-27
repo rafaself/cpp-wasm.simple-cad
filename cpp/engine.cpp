@@ -50,6 +50,11 @@ namespace {
         const float ey = ay + t * (by - ay);
         return (px - ex) * (px - ex) + (py - ey) * (py - ey);
     }
+
+    bool isEntityVisibleForRender(void* ctx, std::uint32_t id) {
+        const auto* engine = static_cast<const CadEngine*>(ctx);
+        return engine ? engine->entityManager_.isEntityVisible(id) : true;
+    }
 }
 
 // Constructor
@@ -146,9 +151,21 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     entityManager_.drawOrderIds.clear();
     entityManager_.drawOrderIds.reserve(entityManager_.rects.size() + entityManager_.lines.size() + entityManager_.polylines.size());
     
-    for (std::uint32_t i = 0; i < entityManager_.rects.size(); i++) entityManager_.entities[entityManager_.rects[i].id] = EntityRef{EntityKind::Rect, i};
-    for (std::uint32_t i = 0; i < entityManager_.lines.size(); i++) entityManager_.entities[entityManager_.lines[i].id] = EntityRef{EntityKind::Line, i};
-    for (std::uint32_t i = 0; i < entityManager_.polylines.size(); i++) entityManager_.entities[entityManager_.polylines[i].id] = EntityRef{EntityKind::Polyline, i};
+    for (std::uint32_t i = 0; i < entityManager_.rects.size(); i++) {
+        const std::uint32_t id = entityManager_.rects[i].id;
+        entityManager_.entities[id] = EntityRef{EntityKind::Rect, i};
+        entityManager_.ensureEntityMetadata(id);
+    }
+    for (std::uint32_t i = 0; i < entityManager_.lines.size(); i++) {
+        const std::uint32_t id = entityManager_.lines[i].id;
+        entityManager_.entities[id] = EntityRef{EntityKind::Line, i};
+        entityManager_.ensureEntityMetadata(id);
+    }
+    for (std::uint32_t i = 0; i < entityManager_.polylines.size(); i++) {
+        const std::uint32_t id = entityManager_.polylines[i].id;
+        entityManager_.entities[id] = EntityRef{EntityKind::Polyline, i};
+        entityManager_.ensureEntityMetadata(id);
+    }
 
     // Draw order
     entityManager_.drawOrderIds.reserve(entityManager_.entities.size());
@@ -239,12 +256,118 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
     };
 }
 
+std::vector<LayerRecord> CadEngine::getLayersSnapshot() const {
+    return entityManager_.layerStore.snapshot();
+}
+
+std::string CadEngine::getLayerName(std::uint32_t layerId) const {
+    return entityManager_.layerStore.getLayerName(layerId);
+}
+
+void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, std::uint32_t flagsValue, const std::string& name) {
+    entityManager_.layerStore.ensureLayer(layerId);
+
+    const std::uint32_t visibleMask = static_cast<std::uint32_t>(LayerPropMask::Visible);
+    const std::uint32_t lockedMask = static_cast<std::uint32_t>(LayerPropMask::Locked);
+    const std::uint32_t nameMask = static_cast<std::uint32_t>(LayerPropMask::Name);
+    const std::uint32_t flagMask = (propsMask & (visibleMask | lockedMask));
+
+    bool visibilityChanged = false;
+    bool lockedChanged = false;
+    bool nameChanged = false;
+
+    if (flagMask != 0) {
+        const std::uint32_t prevFlags = entityManager_.layerStore.getLayerFlags(layerId);
+        entityManager_.layerStore.setLayerFlags(layerId, flagMask, flagsValue);
+        const std::uint32_t nextFlags = entityManager_.layerStore.getLayerFlags(layerId);
+        visibilityChanged = ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(LayerFlags::Visible)) != 0;
+        lockedChanged = ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(LayerFlags::Locked)) != 0;
+    }
+
+    if ((propsMask & nameMask) != 0) {
+        const std::string prevName = entityManager_.layerStore.getLayerName(layerId);
+        entityManager_.layerStore.setLayerName(layerId, name);
+        nameChanged = prevName != name;
+    }
+
+    if (visibilityChanged) {
+        renderDirty = true;
+        textQuadsDirty_ = true;
+    }
+
+    if (visibilityChanged || lockedChanged || nameChanged) {
+        generation++;
+    }
+}
+
+bool CadEngine::deleteLayer(std::uint32_t layerId) {
+    const bool deleted = entityManager_.layerStore.deleteLayer(layerId);
+    if (deleted) {
+        renderDirty = true;
+        textQuadsDirty_ = true;
+        generation++;
+    }
+    return deleted;
+}
+
+std::uint32_t CadEngine::getEntityFlags(std::uint32_t entityId) const {
+    return entityManager_.getEntityFlags(entityId);
+}
+
+void CadEngine::setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, std::uint32_t flagsValue) {
+    const std::uint32_t prevFlags = entityManager_.getEntityFlags(entityId);
+    entityManager_.setEntityFlags(entityId, flagsMask, flagsValue);
+    const std::uint32_t nextFlags = entityManager_.getEntityFlags(entityId);
+    if (((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(EntityFlags::Visible)) != 0) {
+        renderDirty = true;
+        textQuadsDirty_ = true;
+    }
+    if (prevFlags != nextFlags) {
+        generation++;
+    }
+}
+
+void CadEngine::setEntityLayer(std::uint32_t entityId, std::uint32_t layerId) {
+    const std::uint32_t prevLayer = entityManager_.getEntityLayer(entityId);
+    entityManager_.setEntityLayer(entityId, layerId);
+    if (prevLayer != layerId) {
+        renderDirty = true;
+        textQuadsDirty_ = true;
+        generation++;
+    }
+}
+
+std::uint32_t CadEngine::getEntityLayer(std::uint32_t entityId) const {
+    return entityManager_.getEntityLayer(entityId);
+}
+
 std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept {
     return pickSystem_.pick(x, y, tolerance, viewScale, entityManager_, textSystem_);
 }
 
 PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept {
     return pickSystem_.pickEx(x, y, tolerance, viewScale, pickMask, entityManager_, textSystem_);
+}
+
+std::vector<std::uint32_t> CadEngine::queryArea(float minX, float minY, float maxX, float maxY) const {
+    AABB area{
+        std::min(minX, maxX),
+        std::min(minY, maxY),
+        std::max(minX, maxX),
+        std::max(minY, maxY)
+    };
+    std::vector<std::uint32_t> out;
+    pickSystem_.queryArea(area, out);
+    if (out.empty()) return out;
+
+    std::vector<std::uint32_t> filtered;
+    filtered.reserve(out.size());
+    for (const std::uint32_t id : out) {
+        if (entityManager_.isEntityPickable(id)) {
+            filtered.push_back(id);
+        }
+    }
+    return filtered;
 }
 
 namespace {
@@ -355,6 +478,7 @@ std::vector<std::uint32_t> CadEngine::queryMarquee(float minX, float minY, float
     for (const std::uint32_t id : candidates) {
         const auto it = entityManager_.entities.find(id);
         if (it == entityManager_.entities.end()) continue;
+        if (!entityManager_.isEntityPickable(id)) continue;
 
         bool hit = false;
         switch (it->second.kind) {
@@ -1018,7 +1142,8 @@ void CadEngine::rebuildRenderBuffers() const {
         viewScale,
         triangleVertices,
         lineVertices,
-        const_cast<CadEngine*>(this) 
+        const_cast<CadEngine*>(this),
+        &isEntityVisibleForRender
     );
     renderDirty = false;
     
@@ -1267,7 +1392,9 @@ bool CadEngine::getTextBounds(std::uint32_t textId, float& outMinX, float& outMi
 }
 
 void CadEngine::rebuildTextQuadBuffer() {
-    textSystem_.rebuildQuadBuffer();
+    textSystem_.rebuildQuadBuffer([this](std::uint32_t textId) {
+        return entityManager_.isEntityVisible(textId);
+    });
 }
 
 CadEngine::BufferMeta CadEngine::getTextQuadBufferMeta() const noexcept {
@@ -1378,12 +1505,18 @@ void CadEngine::beginTransform(
     session_.startX = startX;
     session_.startY = startY;
 
+    if (mode != TransformMode::Move && specificId != 0 && !entityManager_.isEntityPickable(specificId)) {
+        session_.active = false;
+        return;
+    }
+
     // 2. Capture Snapshots
     session_.initialIds.reserve(idCount);
     session_.snapshots.reserve(idCount);
 
     for (std::uint32_t i = 0; i < idCount; i++) {
         std::uint32_t id = ids[i];
+        if (!entityManager_.isEntityPickable(id)) continue;
         session_.initialIds.push_back(id);
 
         auto it = entityManager_.entities.find(id);
@@ -1464,6 +1597,10 @@ void CadEngine::beginTransform(
         }
 
         session_.snapshots.push_back(std::move(snap));
+    }
+
+    if (session_.initialIds.empty()) {
+        session_.active = false;
     }
 }
 

@@ -229,6 +229,9 @@ bool PickSystem::checkCandidate(
     const TextSystem& textSystem,
     PickCandidate& outCandidate)
 {
+    if (!entities.isEntityPickable(id)) {
+        return false;
+    }
     // Retrieve entity from manager
     // We need to find which type it is. EntityManager stores vectors of structs.
     // PickSystem stores ID only. We need to query EntityManager by ID.

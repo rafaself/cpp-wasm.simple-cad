@@ -151,7 +151,7 @@ export const createShapeSlice: StateCreator<
   },
 
   deleteShapes: (ids) => {
-    const { layers, shapes, shapeOrder, saveToHistory } = get();
+    const { shapes, shapeOrder, saveToHistory } = get();
     if (ids.length === 0) return;
 
     const patches: Patch[] = [];
@@ -161,11 +161,6 @@ export const createShapeSlice: StateCreator<
     ids.forEach(id => {
         const s = shapes[id];
         if (!s) return;
-        const l = layers.find(lay => lay.id === s.layerId);
-        if (l && l.locked) {
-            // Keep selected if locked
-            return;
-        }
 
         delete newShapes[id];
         if (newShapeOrder.includes(id)) newShapeOrder = newShapeOrder.filter((sid) => sid !== id);

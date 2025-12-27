@@ -8,6 +8,9 @@ import { hexToRgb } from '@/utils/color';
 import { getEffectiveFillColor, getEffectiveStrokeColor, getShapeColorMode, isFillEffectivelyEnabled, isStrokeEffectivelyEnabled } from '@/utils/shapeColors';
 import { deleteTextByShapeId, moveTextByShapeId, getTrackedTextShapeIds } from './textEngineSync';
 import { ensureId, getEngineId, releaseId } from './IdRegistry';
+import { ensureLayerEngineId, ensureLayerIdFromEngine, getLayerEngineId } from './LayerRegistry';
+import { EngineLayerFlags, LayerPropMask } from './protocol';
+import { normalizeLayerStyle } from '@/utils/storeNormalization';
 
 export type StableIdCache = {
   lastRef: Record<string, unknown> | null;
@@ -37,6 +40,87 @@ export const getCachedSortedKeys = (obj: Record<string, unknown>, cache: StableI
   cache.lastKeys = sorted;
   cache.lastKeySet = new Set(sorted);
   return sorted;
+};
+
+type EngineLayerSnapshot = {
+  engineId: number;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  order: number;
+};
+
+const toEngineLayerFlags = (layer: Layer): number => {
+  let flags = 0;
+  if (layer.visible) flags |= EngineLayerFlags.Visible;
+  if (layer.locked) flags |= EngineLayerFlags.Locked;
+  return flags;
+};
+
+const readEngineLayerSnapshot = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): EngineLayerSnapshot[] | null => {
+  const getLayersSnapshot = runtime.engine.getLayersSnapshot;
+  const getLayerName = runtime.engine.getLayerName;
+  if (!getLayersSnapshot || !getLayerName) return null;
+
+  const vec = getLayersSnapshot();
+  const count = vec.size();
+  const out: EngineLayerSnapshot[] = [];
+  for (let i = 0; i < count; i++) {
+    const rec = vec.get(i);
+    out.push({
+      engineId: rec.id,
+      name: getLayerName(rec.id),
+      visible: (rec.flags & EngineLayerFlags.Visible) !== 0,
+      locked: (rec.flags & EngineLayerFlags.Locked) !== 0,
+      order: rec.order,
+    });
+  }
+  vec.delete();
+  return out;
+};
+
+const mergeEngineLayers = (snapshot: EngineLayerSnapshot[], prevLayers: readonly Layer[]): Layer[] => {
+  const prevById = new Map(prevLayers.map((l) => [l.id, l]));
+  const sorted = [...snapshot].sort((a, b) => a.order - b.order);
+
+  return sorted.map((rec) => {
+    const layerId = ensureLayerIdFromEngine(rec.engineId);
+    const prev = prevById.get(layerId);
+    const base: Layer = prev ?? {
+      id: layerId,
+      name: rec.name || 'Layer',
+      strokeColor: '#000000',
+      strokeEnabled: true,
+      fillColor: '#ffffff',
+      fillEnabled: true,
+      visible: rec.visible,
+      locked: rec.locked,
+    };
+    return normalizeLayerStyle({
+      ...base,
+      name: rec.name || base.name,
+      visible: rec.visible,
+      locked: rec.locked,
+    });
+  });
+};
+
+const layerStateEqual = (a: readonly Layer[], b: readonly Layer[]): boolean => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i];
+    const right = b[i];
+    if (!left || !right) return false;
+    if (
+      left.id !== right.id ||
+      left.name !== right.name ||
+      left.visible !== right.visible ||
+      left.locked !== right.locked
+    ) {
+      return false;
+    }
+  }
+  return true;
 };
 
 type SyncDebugSample = {
@@ -315,16 +399,93 @@ export const computeChangedLayerIds = (prevLayers: readonly Layer[], nextLayers:
     const prevL = prevById.get(l.id);
     if (!prevL) continue;
     if (
-        l.strokeColor !== prevL.strokeColor ||
-        l.fillColor !== prevL.fillColor ||
-        l.strokeEnabled !== prevL.strokeEnabled ||
-        l.fillEnabled !== prevL.fillEnabled ||
-        l.locked !== prevL.locked
+      l.strokeColor !== prevL.strokeColor ||
+      l.fillColor !== prevL.fillColor ||
+      l.strokeEnabled !== prevL.strokeEnabled ||
+      l.fillEnabled !== prevL.fillEnabled
     ) {
       changedLayerIds.add(l.id);
     }
   }
   return changedLayerIds;
+};
+
+type LayerPropUpdate = {
+  id: string;
+  mask: number;
+  flagsValue: number;
+  name: string;
+};
+
+export const computeLayerPropUpdates = (
+  prevLayers: readonly Layer[],
+  nextLayers: readonly Layer[],
+): { updates: LayerPropUpdate[]; deletedIds: string[] } => {
+  if (prevLayers === nextLayers) return { updates: [], deletedIds: [] };
+
+  const updates: LayerPropUpdate[] = [];
+  const prevById = new Map(prevLayers.map((l) => [l.id, l]));
+  const nextById = new Map(nextLayers.map((l) => [l.id, l]));
+
+  for (const layer of nextLayers) {
+    const prev = prevById.get(layer.id);
+    let mask = 0;
+    if (!prev) {
+      mask = LayerPropMask.Name | LayerPropMask.Visible | LayerPropMask.Locked;
+    } else {
+      if (layer.name !== prev.name) mask |= LayerPropMask.Name;
+      if (layer.visible !== prev.visible) mask |= LayerPropMask.Visible;
+      if (layer.locked !== prev.locked) mask |= LayerPropMask.Locked;
+    }
+
+    if (mask !== 0) {
+      updates.push({
+        id: layer.id,
+        mask,
+        flagsValue: toEngineLayerFlags(layer),
+        name: layer.name,
+      });
+    }
+  }
+
+  const deletedIds: string[] = [];
+  for (const prev of prevLayers) {
+    if (!nextById.has(prev.id)) deletedIds.push(prev.id);
+  }
+
+  return { updates, deletedIds };
+};
+
+type LayerPropRuntime = {
+  engine: {
+    setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
+    deleteLayer?: (layerId: number) => boolean;
+  };
+};
+
+export const applyLayerPropUpdates = (
+  runtime: LayerPropRuntime,
+  changes: { updates: LayerPropUpdate[]; deletedIds: string[] },
+): boolean => {
+  if (changes.updates.length === 0 && changes.deletedIds.length === 0) return false;
+
+  const setLayerProps = runtime.engine.setLayerProps;
+  if (setLayerProps) {
+    for (const update of changes.updates) {
+      const engineLayerId = ensureLayerEngineId(update.id);
+      setLayerProps(engineLayerId, update.mask, update.flagsValue, update.name);
+    }
+  }
+
+  const deleteLayer = runtime.engine.deleteLayer;
+  if (deleteLayer) {
+    for (const layerId of changes.deletedIds) {
+      const engineLayerId = getLayerEngineId(layerId);
+      if (engineLayerId !== null) deleteLayer(engineLayerId);
+    }
+  }
+
+  return true;
 };
 
 export const computeLayerDrivenReupsertCommands = (
@@ -352,9 +513,9 @@ export const computeLayerDrivenReupsertCommands = (
     const dependsOnLayerStroke = mode.stroke === 'layer';
 
     if (dependsOnLayerFill || dependsOnLayerStroke) {
-        const layer = layersById.get(s.layerId) ?? null;
-        const cmd = shapeToEngineCommand(s, layer, ensureId);
-        if (cmd) out.push(cmd);
+      const layer = layersById.get(s.layerId) ?? null;
+      const cmd = shapeToEngineCommand(s, layer, ensureId);
+      if (cmd) out.push(cmd);
     }
   }
 
@@ -366,7 +527,6 @@ const buildVisibleOrder = (
   ui: Pick<ReturnType<typeof useUIStore.getState>, 'activeFloorId'>,
   shapeIdCache: StableIdCache,
 ): { orderedIds: string[]; idSet: Set<string> } => {
-  const layerById = new Map(state.layers.map((l) => [l.id, l]));
   const orderedIds: string[] = [];
   const idSet = new Set<string>();
 
@@ -375,8 +535,6 @@ const buildVisibleOrder = (
     if (!s) return;
     if (!isSupportedShape(s)) return;
     if (s.floorId && ui.activeFloorId && s.floorId !== ui.activeFloorId) return;
-    const layer = layerById.get(s.layerId);
-    if (layer && !layer.visible) return;
     if (idSet.has(id)) return;
     idSet.add(id);
     orderedIds.push(id);
@@ -405,10 +563,28 @@ export const useEngineStoreSync = (): void => {
       let lastDrawOrderKey = '';
       let lastScale = lastUi.viewTransform.scale || 1;
       const shapeIdCache = createStableIdCache();
+      let isApplyingEngineLayerSnapshot = false;
+
+      const syncEngineLayersToStore = (snapshot: EngineLayerSnapshot[], baseData: typeof lastData): void => {
+        const merged = mergeEngineLayers(snapshot, baseData.layers);
+        if (layerStateEqual(merged, baseData.layers)) return;
+
+        const nextActive = merged.some((layer) => layer.id === baseData.activeLayerId)
+          ? baseData.activeLayerId
+          : (merged[0]?.id ?? baseData.activeLayerId);
+
+        isApplyingEngineLayerSnapshot = true;
+        useDataStore.setState({
+          layers: merged,
+          activeLayerId: nextActive,
+        });
+        isApplyingEngineLayerSnapshot = false;
+      };
 
       const applySync = (nextData: typeof lastData, nextUi: typeof lastUi, prevData: typeof lastData, prevUi: typeof lastUi) => {
         // Prevent sync during active engine interaction to avoid fighting with the engine's local state
         if (runtime.isInteractionActive && runtime.isInteractionActive()) return;
+        if (isApplyingEngineLayerSnapshot) return;
 
         const startedAt = nowMs();
         const commands: EngineCommand[] = [];
@@ -422,7 +598,10 @@ export const useEngineStoreSync = (): void => {
 
         const visibilityFilterChanged = nextUi.activeFloorId !== prevUi.activeFloorId;
         const shapesRefChanged = nextData.shapes !== prevData.shapes;
-        const layerStyleChanged = nextData.layers !== prevData.layers;
+        const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
+        const layerStyleChanged = changedLayerIds.size > 0;
+        const layerPropChanges = computeLayerPropUpdates(prevData.layers, nextData.layers);
+        const layerPropsChanged = layerPropChanges.updates.length > 0 || layerPropChanges.deletedIds.length > 0;
         const dirtyIds = nextData.dirtyShapeIds;
         const shapeOrderChanged = nextData.shapeOrder !== prevData.shapeOrder;
         const hasNewShape = Array.from(dirtyIds).some((id) => !prevData.shapes[id]);
@@ -431,10 +610,10 @@ export const useEngineStoreSync = (): void => {
           const prevShape = prevData.shapes[id];
           const nextShape = nextData.shapes[id];
           if (!prevShape || !nextShape) return false;
-          return prevShape.floorId !== nextShape.floorId || prevShape.layerId !== nextShape.layerId;
+          return prevShape.floorId !== nextShape.floorId;
         });
 
-        if (!shapesRefChanged && !visibilityFilterChanged && !layerStyleChanged && dirtyIds.size === 0) {
+        if (!shapesRefChanged && !visibilityFilterChanged && !layerStyleChanged && !layerPropsChanged && dirtyIds.size === 0) {
           if (commands.length) runtime.apply(commands);
           const durationMs = nowMs() - startedAt;
           recordSyncMetrics(commands, durationMs);
@@ -462,6 +641,10 @@ export const useEngineStoreSync = (): void => {
           );
           nextOrderedIds = built.orderedIds;
           nextVisibleSet = built.idSet;
+        }
+
+        if (layerPropsChanged) {
+          applyLayerPropUpdates(runtime, layerPropChanges);
         }
 
         // Deletes when shapes disappear or become invisible.
@@ -500,6 +683,20 @@ export const useEngineStoreSync = (): void => {
           }
         }
 
+        const setEntityLayer = runtime.engine.setEntityLayer;
+        if (setEntityLayer) {
+          const layerAssignments = isFullScanRequired ? Object.keys(nextData.shapes) : Array.from(dirtyIds);
+          for (const id of layerAssignments) {
+            const nextShape = nextData.shapes[id];
+            if (!nextShape) continue;
+            const prevShape = prevData.shapes[id];
+            if (!isFullScanRequired && prevShape && prevShape.layerId === nextShape.layerId) continue;
+            const engineId = ensureId(id);
+            const engineLayerId = ensureLayerEngineId(nextShape.layerId);
+            setEntityLayer(engineId, engineLayerId);
+          }
+        }
+
         const layersById = new Map(nextData.layers.map((l) => [l.id, l]));
 
         const idsToCheck = isFullScanRequired ? nextOrderedIds : Array.from(dirtyIds);
@@ -523,8 +720,16 @@ export const useEngineStoreSync = (): void => {
         }
 
         if (layerStyleChanged) {
-            const changedLayerIds = computeChangedLayerIds(prevData.layers, nextData.layers);
-            commands.push(...computeLayerDrivenReupsertCommands(nextData.shapes, nextVisibleSet, nextData.layers, changedLayerIds, ensureId, nextOrderedIds));
+          commands.push(
+            ...computeLayerDrivenReupsertCommands(
+              nextData.shapes,
+              nextVisibleSet,
+              nextData.layers,
+              changedLayerIds,
+              ensureId,
+              nextOrderedIds,
+            ),
+          );
         }
 
         if (!reuseVisibleOrder) {
@@ -538,8 +743,13 @@ export const useEngineStoreSync = (): void => {
 
         if (commands.length) runtime.apply(commands);
 
+        if (layerPropsChanged) {
+          const snapshot = readEngineLayerSnapshot(runtime);
+          if (snapshot) syncEngineLayersToStore(snapshot, nextData);
+        }
+
         if (dirtyIds.size > 0 && nextData.clearDirtyShapeIds) {
-            nextData.clearDirtyShapeIds();
+          nextData.clearDirtyShapeIds();
         }
 
         const durationMs = nowMs() - startedAt;
@@ -552,6 +762,20 @@ export const useEngineStoreSync = (): void => {
         const initStartedAt = nowMs();
         const initCommands: EngineCommand[] = [{ op: CommandOp.ClearAll }];
         initCommands.push({ op: CommandOp.SetViewScale, view: { scale: lastScale } });
+
+        const initialLayerProps = computeLayerPropUpdates([], lastData.layers);
+        applyLayerPropUpdates(runtime, initialLayerProps);
+
+        const setEntityLayer = runtime.engine.setEntityLayer;
+        if (setEntityLayer) {
+          for (const shapeId of Object.keys(lastData.shapes)) {
+            const shape = lastData.shapes[shapeId];
+            if (!shape) continue;
+            const engineId = ensureId(shapeId);
+            const engineLayerId = ensureLayerEngineId(shape.layerId);
+            setEntityLayer(engineId, engineLayerId);
+          }
+        }
 
         const { orderedIds } = buildVisibleOrder(
           lastData,
@@ -576,6 +800,12 @@ export const useEngineStoreSync = (): void => {
         recordSyncMetrics(initCommands, nowMs() - initStartedAt);
         lastVisibleIds = new Set(orderedIds);
         lastDrawOrderKey = drawOrderIds.join(',');
+
+        const initSnapshot = readEngineLayerSnapshot(runtime);
+        if (initSnapshot) {
+          syncEngineLayersToStore(initSnapshot, lastData);
+          lastData = useDataStore.getState();
+        }
       }
 
       unsubscribeData = useDataStore.subscribe((next, prev) => {
