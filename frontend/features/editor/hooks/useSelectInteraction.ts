@@ -1,14 +1,9 @@
 import { useRef, useState } from 'react';
-import type { Shape, ViewTransform } from '@/types';
+import type { ViewTransform } from '@/types';
 import { screenToWorld } from '@/utils/viewportMath';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { EngineCapability } from '@/engine/core/capabilities';
 import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/protocol';
-import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
-
-// --- Types extracted from EngineInteractionLayer ---
-
-export type MoveState = { start: { x: number; y: number }; snapshot: Map<string, Shape> };
 
 export type SelectInteraction =
   | { kind: 'none' }
@@ -20,8 +15,6 @@ export type SelectionBox = {
   direction: 'LTR' | 'RTL';
 };
 
-// --- Helper Functions extracted ---
-
 const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number }) => {
   const x0 = Math.min(a.x, b.x);
   const y0 = Math.min(a.y, b.y);
@@ -30,54 +23,57 @@ const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number })
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 };
 
-// --- Hook Implementation ---
-
 export function useSelectInteraction(params: {
   viewTransform: ViewTransform;
   runtime?: any;
 }) {
   const {
     viewTransform,
-    runtime
+    runtime,
   } = params;
 
   const selectInteractionRef = useRef<SelectInteraction>({ kind: 'none' });
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
 
-  const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>, world: {x:number, y:number}) => {
-      selectInteractionRef.current = { kind: 'marquee' };
-      setCursorOverride(null);
-      return;
+  const handlePointerDown = (_evt: React.PointerEvent<HTMLDivElement>, _world: { x: number; y: number }) => {
+    selectInteractionRef.current = { kind: 'marquee' };
+    setCursorOverride(null);
   };
 
-  const handlePointerMove = (evt: React.PointerEvent<HTMLDivElement>, down: {x:number, y:number, world: {x:number, y:number}} | null, snapped: {x:number, y:number}) => {
-      const interaction = selectInteractionRef.current;
+  const handlePointerMove = (
+    evt: React.PointerEvent<HTMLDivElement>,
+    down: { x: number; y: number; world: { x: number; y: number } } | null,
+    snapped: { x: number; y: number },
+  ) => {
+    const interaction = selectInteractionRef.current;
 
-      if (!down) {
-        return;
-      }
-
-      const dx = evt.clientX - down.x;
-      const dy = evt.clientY - down.y;
-      const dragged = isDrag(dx, dy);
-
-      if (interaction.kind !== 'marquee') {
-        if (selectionBox) setSelectionBox(null);
-        return;
-      }
-
-      if (!dragged) {
-        if (selectionBox) setSelectionBox(null);
-        return;
-      }
-
-      const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
-      setSelectionBox({ start: down.world, current: snapped, direction });
+    if (!down) {
       return;
+    }
+
+    const dx = evt.clientX - down.x;
+    const dy = evt.clientY - down.y;
+    const dragged = isDrag(dx, dy);
+
+    if (interaction.kind !== 'marquee') {
+      if (selectionBox) setSelectionBox(null);
+      return;
+    }
+
+    if (!dragged) {
+      if (selectionBox) setSelectionBox(null);
+      return;
+    }
+
+    const direction: 'LTR' | 'RTL' = evt.clientX >= down.x ? 'LTR' : 'RTL';
+    setSelectionBox({ start: down.world, current: snapped, direction });
   };
 
-  const handlePointerUp = (evt: React.PointerEvent<HTMLDivElement>, down: {x:number, y:number, world: {x:number, y:number}} | null) => {
+  const handlePointerUp = (
+    evt: React.PointerEvent<HTMLDivElement>,
+    down: { x: number; y: number; world: { x: number; y: number } } | null,
+  ) => {
     if (!down) return;
 
     const dx = evt.clientX - down.x;
@@ -110,7 +106,6 @@ export function useSelectInteraction(params: {
 
       if (runtime?.marqueeSelect) {
         runtime.marqueeSelect(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, mode, hitMode);
-        syncSelectionFromEngine(runtime);
       } else if (
         runtime?.hasCapability?.(EngineCapability.HasQueryMarquee) &&
         typeof runtime?.engine?.queryMarquee === 'function'
@@ -123,14 +118,12 @@ export function useSelectInteraction(params: {
         }
         selectedU32.delete();
         runtime.setSelection?.(selected, mode);
-        syncSelectionFromEngine(runtime);
       }
 
       setSelectionBox(null);
       return;
     }
     setSelectionBox(null);
-    return;
   };
 
   return {
@@ -141,6 +134,6 @@ export function useSelectInteraction(params: {
     setCursorOverride,
     handlePointerDown,
     handlePointerMove,
-    handlePointerUp
+    handlePointerUp,
   };
 }

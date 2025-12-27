@@ -26,29 +26,10 @@ describe('validateProtocolOrThrow', () => {
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
 
-  it('throws when overlay queries flag is missing', () => {
+  it('throws when engine document SoT flag is missing', () => {
     const info = {
       ...EXPECTED_PROTOCOL_INFO,
-      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM,
-    };
-    expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
-  });
-
-  it('throws when interactive transform flag is missing', () => {
-    const info = {
-      ...EXPECTED_PROTOCOL_INFO,
-      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_OVERLAY_QUERIES,
-    };
-    expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
-  });
-
-  it('throws when engine history flag is missing', () => {
-    const info = {
-      ...EXPECTED_PROTOCOL_INFO,
-      featureFlags:
-        EngineFeatureFlags.FEATURE_PROTOCOL |
-        EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
-        EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM,
+      featureFlags: EngineFeatureFlags.FEATURE_PROTOCOL,
     };
     expect(() => validateProtocolOrThrow(info)).toThrow(/featureFlags/);
   });
@@ -58,9 +39,7 @@ describe('validateProtocolOrThrow', () => {
       ...EXPECTED_PROTOCOL_INFO,
       featureFlags:
         EngineFeatureFlags.FEATURE_PROTOCOL |
-        EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
-        EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM |
-        EngineFeatureFlags.FEATURE_ENGINE_HISTORY,
+        EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT,
     };
     expect(() => validateProtocolOrThrow(info)).not.toThrow();
   });

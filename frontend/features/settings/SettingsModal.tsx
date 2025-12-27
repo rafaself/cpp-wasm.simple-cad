@@ -1,29 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { X, Grid3X3, Magnet, Ruler, Keyboard } from 'lucide-react';
+import { X, Grid3X3, Magnet, Keyboard } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import SettingsSidebar from './SettingsSidebar';
 import CanvasSettings from './sections/CanvasSettings';
 import SnappingSettings from './sections/SnappingSettings';
-import DocumentSettings from './sections/DocumentSettings';
 import { ShortcutsSettings } from './sections/ShortcutsSettings';
 
-export type SettingsSection = 'document' | 'canvas' | 'snapping' | 'shortcuts';
+export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts';
 
 const SettingsModal: React.FC = () => {
   const isOpen = useUIStore(s => s.isSettingsModalOpen);
   const setOpen = useUIStore(s => s.setSettingsModalOpen);
-  const [activeSection, setActiveSection] = useState<SettingsSection>('document');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('canvas');
 
   useEffect(() => {
     if (isOpen) {
-      setActiveSection('document');
+      setActiveSection('canvas');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const sections = [
-    { id: 'document' as const, label: 'Documento', icon: Ruler },
     { id: 'canvas' as const, label: 'Canvas', icon: Grid3X3 },
     { id: 'snapping' as const, label: 'Snapping', icon: Magnet },
     { id: 'shortcuts' as const, label: 'Atalhos', icon: Keyboard },
@@ -31,8 +29,6 @@ const SettingsModal: React.FC = () => {
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'document':
-        return <DocumentSettings />;
       case 'canvas':
         return <CanvasSettings />;
       case 'snapping':

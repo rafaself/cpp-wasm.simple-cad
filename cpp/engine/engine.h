@@ -53,6 +53,7 @@ public:
         FEATURE_OVERLAY_QUERIES = 1 << 5,
         FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
         FEATURE_ENGINE_HISTORY = 1 << 7,
+        FEATURE_ENGINE_DOCUMENT_SOT = 1 << 8,
     };
 
     enum class LayerPropMask : std::uint32_t {
@@ -133,7 +134,8 @@ public:
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY);
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -876,6 +878,7 @@ private:
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT),
         });
 
         h = hashEnum(h, 0xE000000Bu, {

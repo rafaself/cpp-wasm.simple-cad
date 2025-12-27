@@ -5,13 +5,13 @@
  * and provides synchronization utilities for text operations.
  * 
  * This module bridges the gap between:
- * - React/Zustand: Shape-based data model (useDataStore)
+ * - React UI state + tools
  * - WASM Engine: Text entity model (TextStore/TextLayout)
  * 
  * Architecture:
  * - Text is created via TextTool → TextBridge → Engine
  * - This manager tracks the ID mapping (now via IdRegistry)
- * - When shapes are deleted/moved, this manager syncs with engine
+ * - When text entities are deleted/moved, this manager syncs with engine
  */
 
 import type { TextTool } from '@/engine/tools/TextTool';

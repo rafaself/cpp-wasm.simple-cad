@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import { TextStyleSnapshot } from '../types/text';
 import { Point, ToolType, ViewTransform } from '../types';
-import type { EntityId, HistoryMeta } from '@/engine/core/protocol';
+import type { HistoryMeta } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
 export interface EditorTab {
   floorId: string;
@@ -13,7 +12,6 @@ export interface EditorTab {
 const clearEngineSelection = (): void => {
   void getEngineRuntime().then((runtime) => {
     runtime.clearSelection();
-    syncSelectionFromEngine(runtime);
   });
 };
 
@@ -22,6 +20,7 @@ interface UIState {
   activeTool: ToolType;
   sidebarTab: string;
   activeFloorId?: string;
+  activeLayerId: number | null;
   activeDiscipline: 'architecture';
   viewTransform: ViewTransform;
   mousePos: Point | null;
@@ -58,9 +57,6 @@ interface UIState {
   openTab: (tab: EditorTab) => void;
   closeTab: (tab: EditorTab) => void;
 
-  // Selection
-  selectedEntityIds: Set<EntityId>;
-
   // Setters
   setTool: (tool: ToolType) => void;
   setSidebarTab: (tab: string) => void;
@@ -88,8 +84,7 @@ interface UIState {
 
   setActiveFloorId: (id: string) => void;
   setActiveDiscipline: (discipline: 'architecture') => void;
-
-  setSelectedEntityIds: (ids: Set<EntityId> | ((prev: Set<EntityId>) => Set<EntityId>)) => void;
+  setActiveLayerId: (id: number | null) => void;
 
   // References
   referencedDisciplines: Map<string, Set<'architecture'>>; // Map<floorId, Set<discipline>>
@@ -130,6 +125,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   activeFloorId: 'terreo',
   activeDiscipline: 'architecture',
+  activeLayerId: null,
   
   openTabs: [{ floorId: 'terreo', discipline: 'architecture' }],
 
@@ -161,7 +157,6 @@ export const useUIStore = create<UIState>((set) => ({
     const updates = { 
         activeFloorId: tab.floorId, 
         activeDiscipline: tab.discipline,
-        selectedEntityIds: new Set<EntityId>() 
     };
 
     if (exists) {
@@ -188,8 +183,6 @@ export const useUIStore = create<UIState>((set) => ({
     }
     return updates;
   }),
-
-  selectedEntityIds: new Set<EntityId>(),
 
   setTool: (tool) => set({ activeTool: tool }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -259,14 +252,13 @@ export const useUIStore = create<UIState>((set) => ({
 
   setActiveFloorId: (id) => {
     clearEngineSelection();
-    set({ activeFloorId: id, selectedEntityIds: new Set() });
+    set({ activeFloorId: id });
   },
   setActiveDiscipline: (discipline) =>
     set((state) => {
       if (state.activeDiscipline === discipline) return state;
       clearEngineSelection();
-      return { activeDiscipline: discipline, selectedEntityIds: new Set() };
+      return { activeDiscipline: discipline };
     }),
-
-  setSelectedEntityIds: (ids) => set((state) => ({ selectedEntityIds: typeof ids === 'function' ? ids(state.selectedEntityIds) : ids })),
+  setActiveLayerId: (id) => set({ activeLayerId: id }),
 }));

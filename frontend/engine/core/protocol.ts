@@ -9,6 +9,7 @@ export enum EngineFeatureFlags {
   FEATURE_OVERLAY_QUERIES = 1 << 5,
   FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
   FEATURE_ENGINE_HISTORY = 1 << 7,
+  FEATURE_ENGINE_DOCUMENT_SOT = 1 << 8,
 }
 
 export enum EngineLayerFlags {
@@ -155,9 +156,7 @@ export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
   EngineFeatureFlags.FEATURE_PROTOCOL |
-  EngineFeatureFlags.FEATURE_OVERLAY_QUERIES |
-  EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM |
-  EngineFeatureFlags.FEATURE_ENGINE_HISTORY;
+  EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -218,6 +217,7 @@ const computeAbiHash = (): number => {
     EngineFeatureFlags.FEATURE_OVERLAY_QUERIES,
     EngineFeatureFlags.FEATURE_INTERACTIVE_TRANSFORM,
     EngineFeatureFlags.FEATURE_ENGINE_HISTORY,
+    EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT,
   ]);
 
   h = hashEnum(h, 0xE000000B, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);

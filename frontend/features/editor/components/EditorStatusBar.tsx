@@ -1,18 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
-import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from '../hooks/useEditorLogic';
-import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Calculator, Grid3x3, Crosshair } from 'lucide-react';
+import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Grid3x3, Crosshair } from 'lucide-react';
 import { SnapOptions } from '../../../types';
-import { getDistance } from '../../../utils/geometry';
 import EditableNumber from '../../../components/EditableNumber';
-import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
 import { getEngineRuntime } from '@/engine/core/singleton';
+import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
 
 const EditorStatusBar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
-  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
+  const selectionCount = useEngineSelectionCount();
   const mousePos = useUIStore((s) => s.mousePos);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
@@ -21,49 +19,7 @@ const EditorStatusBar: React.FC = () => {
   const snapSettings = useSettingsStore(s => s.snap);
   const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
   const setSnapOption = useSettingsStore(s => s.setSnapOption);
-  const dataStore = useDataStore();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
-  const [totalLength, setTotalLength] = useState<string | null>(null);
-  const selectedShapeIds = useMemo(() => {
-    const ids: string[] = [];
-    selectedEntityIds.forEach((entityId) => {
-      const shapeId = getShapeIdFromRegistry(entityId);
-      if (shapeId) ids.push(shapeId);
-    });
-    return ids;
-  }, [selectedEntityIds]);
-
-  useEffect(() => {
-    if (selectedShapeIds.length > 0) {
-        let total = 0;
-        let hasLines = false;
-        selectedShapeIds.forEach((id) => {
-            const s = dataStore.shapes[id];
-            if (!s) return;
-            if (s.type === 'line' || s.type === 'polyline' || s.type === 'measure') {
-                hasLines = true;
-                if (s.points && s.points.length >= 2) {
-                    if (s.type === 'line' || s.type === 'measure') {
-                       total += getDistance(s.points[0], s.points[1]);
-                    } else if (s.type === 'polyline') {
-                       for(let i=0; i<s.points.length-1; i++) {
-                          total += getDistance(s.points[i], s.points[i+1]);
-                       }
-                    }
-                }
-            }
-        });
-
-        if (hasLines) {
-            const meters = total / dataStore.worldScale;
-            setTotalLength(meters.toFixed(2) + 'm');
-        } else {
-            setTotalLength(null);
-        }
-    } else {
-        setTotalLength(null);
-    }
-  }, [selectedShapeIds, dataStore.shapes, dataStore.worldScale]);
   
   const toggleSnap = () => setSnapEnabled(!snapSettings.enabled);
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
@@ -84,14 +40,6 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        {totalLength && (
-            <div className="flex items-center gap-2 bg-blue-900/30 border border-blue-500/50 px-2 py-0.5 rounded text-blue-200" title="Comprimento total dos fios selecionados (POC)">
-                <Calculator size={14} />
-                <span className="font-bold">{totalLength}</span>
-                <span className="text-[10px] opacity-60">(Fio)</span>
-            </div>
-        )}
-
         <div className="relative">
            <div className="flex items-center bg-slate-800 rounded border border-slate-600">
               <button onClick={toggleSnap} className={`flex items-center gap-1 px-2 py-0.5 hover:bg-slate-700 ${snapSettings.enabled ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>
@@ -155,8 +103,8 @@ const EditorStatusBar: React.FC = () => {
          <button
            onClick={zoomToFit}
            className="p-1 hover:bg-slate-700 rounded"
-           title={selectedEntityIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
-           aria-label={selectedEntityIds.size > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+           title={selectionCount > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+           aria-label={selectionCount > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
          >
            <Scan size={14} />
          </button>

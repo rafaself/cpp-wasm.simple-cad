@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useUIStore } from '@/stores/useUIStore';
+import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 import { getEngineRuntime } from '@/engine/core/singleton';
@@ -11,7 +12,7 @@ import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 const HANDLE_SIZE_PX = 8;
 
 const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = false }) => {
-  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
+  const selectionCount = useEngineSelectionCount();
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
   const engineInteractionActive = useUIStore((s) => s.engineInteractionActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
@@ -35,7 +36,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   const selectedOverlaySvg = useMemo(() => {
     if (!runtime) return null;
     if (isEditingAppearance || engineInteractionActive) return null;
-    if (selectedEntityIds.size === 0) return null;
+    if (selectionCount === 0) return null;
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
 
     const outlineMeta = runtime.getSelectionOutlineMeta();
@@ -150,7 +151,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
     hideAnchors,
     isEditingAppearance,
     runtime,
-    selectedEntityIds,
+    selectionCount,
     viewTransform,
   ]);
 

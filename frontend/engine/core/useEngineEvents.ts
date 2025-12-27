@@ -1,104 +1,50 @@
 import { useEffect } from 'react';
-import type { Layer } from '@/types';
-import { normalizeLayerStyle } from '@/utils/storeNormalization';
-import { useDataStore } from '@/stores/useDataStore';
+
 import { useUIStore } from '@/stores/useUIStore';
 import { getEngineRuntime } from './singleton';
 import { ChangeMask, EventType } from './protocol';
-import { syncDrawOrderFromEngine, syncHistoryMetaFromEngine, syncSelectionFromEngine } from './engineStateSync';
-import { ensureLayerIdFromEngine } from './LayerRegistry';
+import { syncHistoryMetaFromEngine } from './engineStateSync';
 import { applyFullResync } from './engineEventResync';
+import { bumpDocumentSignal } from './engineDocumentSignals';
 
-type EngineLayerSnapshot = {
-  engineId: number;
-  name: string;
-  visible: boolean;
-  locked: boolean;
-  order: number;
-};
-
-const readEngineLayerSnapshot = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): EngineLayerSnapshot[] | null => {
+const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): number | null => {
   const getLayersSnapshot = runtime.engine.getLayersSnapshot;
-  const getLayerName = runtime.engine.getLayerName;
-  if (!getLayersSnapshot || !getLayerName) return null;
-
+  if (!getLayersSnapshot) return null;
   const vec = getLayersSnapshot();
   const count = vec.size();
-  const out: EngineLayerSnapshot[] = [];
+  let first: number | null = null;
+  let minOrder = Number.POSITIVE_INFINITY;
   for (let i = 0; i < count; i++) {
     const rec = vec.get(i);
-    out.push({
-      engineId: rec.id,
-      name: getLayerName(rec.id),
-      visible: (rec.flags & 1) !== 0,
-      locked: (rec.flags & 2) !== 0,
-      order: rec.order,
-    });
-  }
-  vec.delete();
-  return out;
-};
-
-const mergeEngineLayers = (snapshot: EngineLayerSnapshot[], prevLayers: readonly Layer[]): Layer[] => {
-  const prevById = new Map(prevLayers.map((layer) => [layer.id, layer]));
-  const sorted = [...snapshot].sort((a, b) => a.order - b.order);
-
-  return sorted.map((rec) => {
-    const layerId = ensureLayerIdFromEngine(rec.engineId);
-    const prev = prevById.get(layerId);
-    const base: Layer = prev ?? {
-      id: layerId,
-      name: rec.name || 'Layer',
-      strokeColor: '#000000',
-      strokeEnabled: true,
-      fillColor: '#ffffff',
-      fillEnabled: true,
-      visible: rec.visible,
-      locked: rec.locked,
-    };
-    return normalizeLayerStyle({
-      ...base,
-      name: rec.name || base.name,
-      visible: rec.visible,
-      locked: rec.locked,
-    });
-  });
-};
-
-const layerStateEqual = (a: readonly Layer[], b: readonly Layer[]): boolean => {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const left = a[i];
-    const right = b[i];
-    if (!left || !right) return false;
-    if (
-      left.id !== right.id ||
-      left.name !== right.name ||
-      left.visible !== right.visible ||
-      left.locked !== right.locked
-    ) {
-      return false;
+    if (rec.order < minOrder) {
+      first = rec.id;
+      minOrder = rec.order;
     }
   }
-  return true;
+  vec.delete();
+  return first;
 };
 
-const syncEngineLayersToStore = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): void => {
-  const snapshot = readEngineLayerSnapshot(runtime);
-  if (!snapshot) return;
+const ensureActiveLayer = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): void => {
+  const { activeLayerId, setActiveLayerId } = useUIStore.getState();
+  const layers = runtime.engine.getLayersSnapshot;
+  if (!layers) return;
+  const vec = layers();
+  const count = vec.size();
+  let hasActive = false;
+  for (let i = 0; i < count; i++) {
+    const rec = vec.get(i);
+    if (rec.id === activeLayerId) {
+      hasActive = true;
+      break;
+    }
+  }
+  vec.delete();
 
-  const data = useDataStore.getState();
-  const merged = mergeEngineLayers(snapshot, data.layers);
-  if (layerStateEqual(merged, data.layers)) return;
-
-  const nextActive = merged.some((layer) => layer.id === data.activeLayerId)
-    ? data.activeLayerId
-    : (merged[0]?.id ?? data.activeLayerId);
-
-  useDataStore.setState({
-    layers: merged,
-    activeLayerId: nextActive,
-  });
+  if (!hasActive) {
+    const first = readFirstLayerId(runtime);
+    if (first !== null) setActiveLayerId(first);
+  }
 };
 
 export const useEngineEvents = (): void => {
@@ -118,11 +64,13 @@ export const useEngineEvents = (): void => {
         useUIStore.getState().setDocumentSource('engine');
         sourceSet = true;
       }
+
       if (!bootstrapped) {
-        syncEngineLayersToStore(runtime);
-        syncSelectionFromEngine(runtime);
-        syncDrawOrderFromEngine(runtime);
+        bumpDocumentSignal('layers');
+        bumpDocumentSignal('selection');
+        bumpDocumentSignal('order');
         syncHistoryMetaFromEngine(runtime);
+        ensureActiveLayer(runtime);
         bootstrapped = true;
       }
 
@@ -173,9 +121,12 @@ export const useEngineEvents = (): void => {
         }
       }
 
-      if (needsLayers) syncEngineLayersToStore(runtime);
-      if (needsSelection) syncSelectionFromEngine(runtime);
-      if (needsOrder) syncDrawOrderFromEngine(runtime);
+      if (needsLayers) {
+        bumpDocumentSignal('layers');
+        ensureActiveLayer(runtime);
+      }
+      if (needsSelection) bumpDocumentSignal('selection');
+      if (needsOrder) bumpDocumentSignal('order');
       if (needsHistory) syncHistoryMetaFromEngine(runtime);
 
       rafId = requestAnimationFrame(tick);

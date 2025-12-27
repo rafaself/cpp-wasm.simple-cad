@@ -3,11 +3,8 @@
  * Pure functions extracted from EngineInteractionLayer for reusability.
  */
 
-import type { Shape, ViewTransform, Point } from '@/types';
+import type { ViewTransform, Point } from '@/types';
 import { screenToWorld } from '@/utils/viewportMath';
-import { useDataStore } from '@/stores/useDataStore';
-import { useUIStore } from '@/stores/useUIStore';
-import { isShapeInteractable } from '@/utils/visibility';
 
 /**
  * Convert pointer event to world coordinates.
