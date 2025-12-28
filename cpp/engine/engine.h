@@ -18,6 +18,10 @@
 #include "engine/text_system.h"
 #include "engine/pick_system.h"
 #include "engine/history_types.h"
+#include "engine/history_manager.h"
+#include "engine/selection_manager.h"
+#include "engine/interaction_session.h"
+
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -30,11 +34,10 @@
 #include <vector>
 #include <algorithm>
 
-// Public CadEngine API header. Implementation remains header-only for now
-// (methods are defined inline inside the class to preserve simplicity during
-// this refactor). Later we can move heavy method bodies into a .cpp file.
-
 class CadEngine {
+    friend class SelectionManager;
+    friend class HistoryManager;
+    friend class InteractionSession;
 public:
     // Expose legacy nested type names for backwards compatibility with existing callers/tests
     using CommandOp = ::CommandOp;
@@ -102,11 +105,7 @@ public:
         HistoryChanged = 9,
     };
 
-    struct SnapOptions {
-        bool enabled = false;
-        bool gridEnabled = false;
-        float gridSize = 10.0f;
-    };
+
 
     enum class ChangeMask : std::uint32_t {
         Geometry = 1 << 0,
@@ -315,7 +314,7 @@ public:
 
     // Selection state (engine-authoritative)
     std::vector<std::uint32_t> getSelectionIds() const;
-    std::uint32_t getSelectionGeneration() const noexcept { return selectionGeneration_; }
+    std::uint32_t getSelectionGeneration() const noexcept { return selectionManager_.getGeneration(); }
     void clearSelection();
     void setSelection(const std::uint32_t* ids, std::uint32_t idCount, SelectionMode mode);
     void selectByPick(const PickResult& pick, std::uint32_t modifiers);
@@ -367,16 +366,10 @@ public:
     mutable float lastLoadMs{0.0f};
     mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
-    std::unordered_set<std::uint32_t> selectionSet_{};
-    std::vector<std::uint32_t> selectionOrdered_{};
-    std::uint32_t selectionGeneration_{0};
+    SelectionManager selectionManager_;
     std::uint32_t nextEntityId_{1};
     std::uint32_t nextLayerId_{1};
-    std::vector<HistoryEntry> history_{};
-    std::size_t historyCursor_{0};
-    std::uint32_t historyGeneration_{0};
-    bool historySuppressed_{false};
-    HistoryTransaction historyTransaction_{};
+    HistoryManager historyManager_;
 
     static constexpr std::size_t kMaxEvents = 2048;
     std::vector<EngineEvent> eventQueue_{};
@@ -411,10 +404,9 @@ public:
     // read/write helpers moved to engine/util.h
 
     void clearWorld() noexcept;
-    void rebuildSelectionOrder();
-    bool pruneSelection();
 
     void trackNextEntityId(std::uint32_t id);
+    void setNextEntityId(std::uint32_t id) { nextEntityId_ = id; }
     void deleteEntity(std::uint32_t id) noexcept;
     void clearEventState();
     void recordDocChanged(std::uint32_t mask);
@@ -434,14 +426,25 @@ public:
     void markLayerChange();
     void markDrawOrderChange();
     void markSelectionChange();
-    void finalizeHistoryEntry(HistoryEntry& entry);
-    bool captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out) const;
+
+    // Snapshot methods delegated to HistoryManager or implemented via it
     EntitySnapshot buildSnapshotFromTransform(const TransformSnapshot& snap) const;
-    void applyEntitySnapshot(const EntitySnapshot& snap);
-    void applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers);
-    void applyDrawOrderSnapshot(const std::vector<std::uint32_t>& order);
-    void applySelectionSnapshot(const std::vector<std::uint32_t>& selection);
-    void applyHistoryEntry(const HistoryEntry& entry, bool useAfter);
+
+    // Helper methods that were private/internal now delegated
+    // encode/decode history bytes now on HistoryManager but exposed via CadEngine methods if needed
+    // or we just use historyManager directly in cpp file.
+    // We KEEP declarations of public API methods that were here?
+    // encodeHistoryBytes was private? No line 445 shows it public section?
+    // Actually lines 411+ seem public (CadEngine API).
+    
+    // We keep these signatures but they will delegate to HistoryManager in cpp.
+    // Removed specific history helper/internal methods from header:
+    // finalize, capture, apply*Snapshot (internal), applyHistoryEntry.
+    
+    // encodeHistoryBytes/decodeHistoryBytes were public?
+    // Let's check line 445 context.
+    // Yes, they are after line 334 public.
+    
     std::vector<std::uint8_t> encodeHistoryBytes() const;
     void decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCount);
     void flushPendingEvents();
@@ -786,18 +789,8 @@ public:
 // Interaction Session (Phase 4)
 // ==============================================================================
 public:
-    enum class TransformMode : uint8_t {
-        Move = 0,
-        VertexDrag = 1,
-        EdgeDrag = 2,
-        Resize = 3
-    };
-
-    enum class TransformOpCode : uint8_t {
-        MOVE = 1,
-        VERTEX_SET = 2,
-        RESIZE = 3
-    };
+    using TransformMode = ::TransformMode;
+    using TransformOpCode = ::TransformOpCode;
 
 private:
     static constexpr std::uint32_t hashU32(std::uint32_t h, std::uint32_t v) {
@@ -1337,44 +1330,13 @@ private:
 
 
 
-    struct InteractionSession {
-        bool active = false;
-        TransformMode mode = TransformMode::Move;
-        std::vector<std::uint32_t> initialIds;
-        std::uint32_t specificId = 0; // For vertex drag
-        int32_t vertexIndex = -1;     // For vertex drag
-        float startX = 0.0f;
-        float startY = 0.0f;
-        
-        // Snapshot for cancel/delta calculation
-        std::vector<TransformSnapshot> snapshots;
-    };
-
-    InteractionSession session_;
-    SnapOptions snapOptions_;
-
-    struct DraftState {
-        bool active = false;
-        std::uint32_t kind = 0;
-        float startX = 0, startY = 0;
-        float currentX = 0, currentY = 0;
-        float fillR = 0, fillG = 0, fillB = 0, fillA = 0;
-        float strokeR = 0, strokeG = 0, strokeB = 0, strokeA = 0;
-        float strokeEnabled = 0;
-        float strokeWidthPx = 1.0f;
-        float sides = 0;
-        float head = 0;
-        std::vector<Point2> points;
-    };
-    DraftState draft_;
+    InteractionSession interactionSession_;
 
 
 
     // Commit Result Buffers (Struct-of-Arrays)
     // We keep these alive between commits so WASM can read them safely immediately after commit.
-    std::vector<std::uint32_t> commitResultIds;
-    std::vector<std::uint8_t> commitResultOpCodes;
-    std::vector<float> commitResultPayloads; // Stride = 4
+
 
 public:
     /**
@@ -1419,11 +1381,11 @@ public:
     /**
      * Check if a session is currently active.
      */
-    bool isInteractionActive() const { return session_.active; }
+    bool isInteractionActive() const { return interactionSession_.isInteractionActive(); }
 
     // Accessors for Commit Results (WASM Bindings)
-    std::uint32_t getCommitResultCount() const { return static_cast<std::uint32_t>(commitResultIds.size()); }
-    std::uintptr_t getCommitResultIdsPtr() const { return reinterpret_cast<std::uintptr_t>(commitResultIds.data()); }
-    std::uintptr_t getCommitResultOpCodesPtr() const { return reinterpret_cast<std::uintptr_t>(commitResultOpCodes.data()); }
-    std::uintptr_t getCommitResultPayloadsPtr() const { return reinterpret_cast<std::uintptr_t>(commitResultPayloads.data()); }
+    std::uint32_t getCommitResultCount() const { return static_cast<std::uint32_t>(interactionSession_.getCommitResultIds().size()); }
+    std::uintptr_t getCommitResultIdsPtr() const { return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultIds().data()); }
+    std::uintptr_t getCommitResultOpCodesPtr() const { return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultOpCodes().data()); }
+    std::uintptr_t getCommitResultPayloadsPtr() const { return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultPayloads().data()); }
 };

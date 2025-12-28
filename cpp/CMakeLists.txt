@@ -92,6 +92,9 @@ set(ENGINE_SOURCES
   engine/pick_system.cpp
   engine/vector_tessellation.cpp
   engine/entity_manager.cpp
+  engine/history_manager.cpp
+  engine/selection_manager.cpp
+  engine/interaction_session.cpp
 )
 
 # Text module sources (conditional)

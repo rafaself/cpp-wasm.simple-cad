@@ -88,7 +88,11 @@ namespace {
 }
 
 // Constructor
-CadEngine::CadEngine() {
+CadEngine::CadEngine() : 
+    selectionManager_(entityManager_), 
+    historyManager_(entityManager_, textSystem_),
+    interactionSession_(*this, entityManager_, pickSystem_, textSystem_, historyManager_) 
+{
     triangleVertices.reserve(defaultCapacityFloats);
     lineVertices.reserve(defaultLineCapacityFloats);
     snapshotBytes.reserve(defaultSnapshotCapacityBytes);
@@ -302,19 +306,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     }
     pickSystem_.setDrawOrder(entityManager_.drawOrderIds);
 
-    selectionSet_.clear();
-    selectionOrdered_.clear();
-    for (const std::uint32_t id : sd.selection) {
-        if (entityManager_.entities.find(id) == entityManager_.entities.end()) continue;
-        if (!entityManager_.isEntityPickable(id)) continue;
-        selectionSet_.insert(id);
-    }
-    if (!selectionSet_.empty()) {
-        rebuildSelectionOrder();
-        selectionGeneration_ = 1;
-    } else {
-        selectionGeneration_ = 0;
-    }
+    selectionManager_.setSelection(sd.selection.data(), static_cast<std::uint32_t>(sd.selection.size()), SelectionManager::Mode::Replace, *this);
 
     std::uint32_t maxId = 0;
     for (const auto& kv : entityManager_.entities) {
@@ -627,8 +619,8 @@ CadEngine::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
         h = hashU32(h, id);
     }
 
-    h = hashU32(h, static_cast<std::uint32_t>(selectionOrdered_.size()));
-    for (const std::uint32_t id : selectionOrdered_) {
+    h = hashU32(h, static_cast<std::uint32_t>(selectionManager_.getOrdered().size()));
+    for (const std::uint32_t id : selectionManager_.getOrdered()) {
         h = hashU32(h, id);
     }
 
@@ -642,42 +634,26 @@ CadEngine::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
 
 CadEngine::HistoryMeta CadEngine::getHistoryMeta() const noexcept {
     return HistoryMeta{
-        static_cast<std::uint32_t>(history_.size()),
-        static_cast<std::uint32_t>(historyCursor_),
-        historyGeneration_,
+        static_cast<std::uint32_t>(historyManager_.getHistorySize()),
+        static_cast<std::uint32_t>(historyManager_.getCursor()),
+        historyManager_.getGeneration(),
     };
 }
 
 bool CadEngine::canUndo() const noexcept {
-    return historyCursor_ > 0;
+    return historyManager_.canUndo();
 }
 
 bool CadEngine::canRedo() const noexcept {
-    return historyCursor_ < history_.size();
+    return historyManager_.canRedo();
 }
 
 void CadEngine::undo() {
-    if (!canUndo()) return;
-    const HistoryEntry& entry = history_[historyCursor_ - 1];
-    const bool prevSuppressed = historySuppressed_;
-    historySuppressed_ = true;
-    applyHistoryEntry(entry, false);
-    historySuppressed_ = prevSuppressed;
-    historyCursor_ = historyCursor_ == 0 ? 0 : (historyCursor_ - 1);
-    historyGeneration_++;
-    recordHistoryChanged();
+    historyManager_.undo(*this);
 }
 
 void CadEngine::redo() {
-    if (!canRedo()) return;
-    const HistoryEntry& entry = history_[historyCursor_];
-    const bool prevSuppressed = historySuppressed_;
-    historySuppressed_ = true;
-    applyHistoryEntry(entry, true);
-    historySuppressed_ = prevSuppressed;
-    historyCursor_ = std::min(historyCursor_ + 1, history_.size());
-    historyGeneration_++;
-    recordHistoryChanged();
+    historyManager_.redo(*this);
 }
 
 std::vector<LayerRecord> CadEngine::getLayersSnapshot() const {
@@ -745,7 +721,7 @@ void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, st
     }
 
     if (visibilityChanged || lockedChanged) {
-        pruneSelection();
+        selectionManager_.prune(*this);
     }
 
     const std::uint32_t changedMask =
@@ -798,7 +774,7 @@ void CadEngine::setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, 
     }
     if (((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(EntityFlags::Locked)) != 0 ||
         ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(EntityFlags::Visible)) != 0) {
-        pruneSelection();
+        selectionManager_.prune(*this);
     }
     if (prevFlags != nextFlags) {
         recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Flags));
@@ -817,7 +793,7 @@ void CadEngine::setEntityLayer(std::uint32_t entityId, std::uint32_t layerId) {
     entityManager_.setEntityLayer(entityId, layerId);
     renderDirty = true;
     textQuadsDirty_ = true;
-    pruneSelection();
+    selectionManager_.prune(*this);
     recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Layer));
     generation++;
     if (historyStarted) commitHistoryEntry();
@@ -1120,7 +1096,7 @@ CadEngine::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
         });
     };
 
-    for (const std::uint32_t id : selectionOrdered_) {
+    for (const std::uint32_t id : selectionManager_.getOrdered()) {
         if (!entityManager_.isEntityPickable(id)) continue;
         const auto it = entityManager_.entities.find(id);
         if (it == entityManager_.entities.end()) continue;
@@ -1197,7 +1173,7 @@ CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
         });
     };
 
-    for (const std::uint32_t id : selectionOrdered_) {
+    for (const std::uint32_t id : selectionManager_.getOrdered()) {
         if (!entityManager_.isEntityPickable(id)) continue;
         const auto it = entityManager_.entities.find(id);
         if (it == entityManager_.entities.end()) continue;
@@ -1262,154 +1238,27 @@ CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
 }
 
 std::vector<std::uint32_t> CadEngine::getSelectionIds() const {
-    return selectionOrdered_;
+    return selectionManager_.getOrdered();
 }
 
-void CadEngine::rebuildSelectionOrder() {
-    markSelectionChange();
-    selectionOrdered_.clear();
-    if (selectionSet_.empty()) return;
 
-    selectionOrdered_.reserve(selectionSet_.size());
-    std::unordered_set<std::uint32_t> seen;
-    seen.reserve(selectionSet_.size());
 
-    for (const auto& id : entityManager_.drawOrderIds) {
-        if (selectionSet_.find(id) == selectionSet_.end()) continue;
-        if (seen.insert(id).second) selectionOrdered_.push_back(id);
-    }
 
-    std::vector<std::uint32_t> missing;
-    missing.reserve(selectionSet_.size());
-    for (const auto& id : selectionSet_) {
-        if (seen.find(id) == seen.end()) missing.push_back(id);
-    }
-    if (!missing.empty()) {
-        std::sort(missing.begin(), missing.end());
-        selectionOrdered_.insert(selectionOrdered_.end(), missing.begin(), missing.end());
-    }
-}
-
-bool CadEngine::pruneSelection() {
-    if (selectionSet_.empty()) return false;
-    markSelectionChange();
-    bool changed = false;
-    for (auto it = selectionSet_.begin(); it != selectionSet_.end(); ) {
-        const std::uint32_t id = *it;
-        if (entityManager_.entities.find(id) == entityManager_.entities.end() || !entityManager_.isEntityPickable(id)) {
-            it = selectionSet_.erase(it);
-            changed = true;
-            continue;
-        }
-        ++it;
-    }
-
-    if (changed) {
-        rebuildSelectionOrder();
-        selectionGeneration_++;
-        recordSelectionChanged();
-    }
-    return changed;
-}
 
 void CadEngine::clearSelection() {
-    if (selectionSet_.empty()) return;
-    markSelectionChange();
-    selectionSet_.clear();
-    selectionOrdered_.clear();
-    selectionGeneration_++;
-    recordSelectionChanged();
+    selectionManager_.clearSelection(*this);
 }
 
 void CadEngine::setSelection(const std::uint32_t* ids, std::uint32_t idCount, SelectionMode mode) {
-    bool changed = false;
-    if (idCount > 0 || !selectionSet_.empty()) {
-        markSelectionChange();
-    }
-
-    auto applyInsert = [&](std::uint32_t id) {
-        if (selectionSet_.find(id) == selectionSet_.end()) {
-            selectionSet_.insert(id);
-            changed = true;
-        }
-    };
-    auto applyErase = [&](std::uint32_t id) {
-        const auto it = selectionSet_.find(id);
-        if (it != selectionSet_.end()) {
-            selectionSet_.erase(it);
-            changed = true;
-        }
-    };
-
-    if (mode == SelectionMode::Replace) {
-        if (!selectionSet_.empty()) {
-            selectionSet_.clear();
-            changed = true;
-        }
-    }
-
-    for (std::uint32_t i = 0; i < idCount; i++) {
-        const std::uint32_t id = ids[i];
-        if (entityManager_.entities.find(id) == entityManager_.entities.end()) continue;
-        if (!entityManager_.isEntityPickable(id)) continue;
-
-        switch (mode) {
-            case SelectionMode::Replace:
-            case SelectionMode::Add:
-                applyInsert(id);
-                break;
-            case SelectionMode::Remove:
-                applyErase(id);
-                break;
-            case SelectionMode::Toggle:
-                if (selectionSet_.find(id) != selectionSet_.end()) {
-                    applyErase(id);
-                } else {
-                    applyInsert(id);
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    if (changed) {
-        rebuildSelectionOrder();
-        selectionGeneration_++;
-        recordSelectionChanged();
-    }
+    selectionManager_.setSelection(ids, idCount, static_cast<SelectionManager::Mode>(mode), *this);
 }
 
 void CadEngine::selectByPick(const PickResult& pick, std::uint32_t modifiers) {
-    SelectionMode mode = SelectionMode::Replace;
-    const std::uint32_t toggleMask =
-        static_cast<std::uint32_t>(SelectionModifier::Ctrl)
-        | static_cast<std::uint32_t>(SelectionModifier::Meta);
-    if ((modifiers & toggleMask) != 0) {
-        mode = SelectionMode::Toggle;
-    } else if ((modifiers & static_cast<std::uint32_t>(SelectionModifier::Shift)) != 0) {
-        mode = SelectionMode::Add;
-    }
-
-    if (pick.id == 0) {
-        if (mode == SelectionMode::Replace) clearSelection();
-        return;
-    }
-
-    const std::uint32_t id = pick.id;
-    if (entityManager_.entities.find(id) == entityManager_.entities.end()) return;
-    if (!entityManager_.isEntityPickable(id)) return;
-
-    setSelection(&id, 1, mode);
+    selectionManager_.selectByPick(pick, modifiers, *this);
 }
 
 void CadEngine::marqueeSelect(float minX, float minY, float maxX, float maxY, SelectionMode mode, int hitMode) {
-    const std::vector<std::uint32_t> ids = queryMarquee(minX, minY, maxX, maxY, hitMode);
-    if (ids.empty()) {
-        if (mode == SelectionMode::Replace) clearSelection();
-        return;
-    }
-    setSelection(ids.data(), static_cast<std::uint32_t>(ids.size()), mode);
+    selectionManager_.marqueeSelect(minX, minY, maxX, maxY, static_cast<SelectionManager::Mode>(mode), static_cast<SelectionManager::MarqueeMode>(hitMode), *this);
 }
 
 std::vector<std::uint32_t> CadEngine::getDrawOrderSnapshot() const {
@@ -1511,7 +1360,7 @@ void CadEngine::reorderEntities(const std::uint32_t* ids, std::uint32_t idCount,
     renderDirty = true;
     recordOrderChanged();
     generation++;
-    if (!selectionSet_.empty()) rebuildSelectionOrder();
+    if (!selectionManager_.isEmpty()) selectionManager_.rebuildOrder(entityManager_.drawOrderIds);
     if (historyStarted) commitHistoryEntry();
 }
 
@@ -1524,9 +1373,7 @@ void CadEngine::clearWorld() noexcept {
     lineVertices.clear();
     renderRanges_.clear();
     snapshotBytes.clear();
-    selectionSet_.clear();
-    selectionOrdered_.clear();
-    selectionGeneration_ = 0;
+    selectionManager_.clear();
     nextEntityId_ = 1;
     lastLoadMs = 0.0f;
     lastRebuildMs = 0.0f;
@@ -1632,162 +1479,43 @@ void CadEngine::recordHistoryChanged() {
 }
 
 void CadEngine::clearHistory() {
-    history_.clear();
-    historyCursor_ = 0;
-    historyTransaction_.active = false;
-    historyTransaction_.entry = HistoryEntry{};
-    historyTransaction_.entityIndex.clear();
-    historyGeneration_++;
+    historyManager_.clear();
     recordHistoryChanged();
 }
 
 bool CadEngine::beginHistoryEntry() {
-    if (historySuppressed_ || historyTransaction_.active) return false;
-    historyTransaction_.active = true;
-    historyTransaction_.entry = HistoryEntry{};
-    historyTransaction_.entry.nextIdBefore = nextEntityId_;
-    historyTransaction_.entry.nextIdAfter = nextEntityId_;
-    historyTransaction_.entityIndex.clear();
-    return true;
+    return historyManager_.beginEntry(nextEntityId_);
 }
 
 void CadEngine::discardHistoryEntry() {
-    historyTransaction_.active = false;
-    historyTransaction_.entry = HistoryEntry{};
-    historyTransaction_.entityIndex.clear();
+    historyManager_.discardEntry();
 }
 
 void CadEngine::pushHistoryEntry(HistoryEntry&& entry) {
-    if (historySuppressed_) return;
-    if (historyCursor_ < history_.size()) {
-        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(historyCursor_), history_.end());
-    }
-    history_.push_back(std::move(entry));
-    historyCursor_ = history_.size();
-    historyGeneration_++;
+    historyManager_.pushHistoryEntry(std::move(entry));
     recordHistoryChanged();
 }
 
 void CadEngine::markEntityChange(std::uint32_t id) {
-    if (!historyTransaction_.active || historySuppressed_) return;
-    auto& entry = historyTransaction_.entry;
-    auto [it, inserted] = historyTransaction_.entityIndex.emplace(id, entry.entities.size());
-    if (!inserted) return;
-
-    EntityChange change{};
-    change.id = id;
-    change.existedBefore = captureEntitySnapshot(id, change.before);
-    entry.entities.push_back(std::move(change));
+    historyManager_.markEntityChange(id);
 }
 
 void CadEngine::markLayerChange() {
-    if (!historyTransaction_.active || historySuppressed_) return;
-    auto& entry = historyTransaction_.entry;
-    if (entry.hasLayerChange) return;
-
-    const auto records = entityManager_.layerStore.snapshot();
-    entry.layersBefore.reserve(records.size());
-    for (const auto& layer : records) {
-        engine::LayerSnapshot snap{};
-        snap.id = layer.id;
-        snap.order = layer.order;
-        snap.flags = layer.flags;
-        snap.name = entityManager_.layerStore.getLayerName(layer.id);
-        entry.layersBefore.push_back(std::move(snap));
-    }
-    entry.hasLayerChange = true;
+    historyManager_.markLayerChange();
 }
 
 void CadEngine::markDrawOrderChange() {
-    if (!historyTransaction_.active || historySuppressed_) return;
-    auto& entry = historyTransaction_.entry;
-    if (entry.hasDrawOrderChange) return;
-    entry.drawOrderBefore = entityManager_.drawOrderIds;
-    entry.hasDrawOrderChange = true;
+    historyManager_.markDrawOrderChange();
 }
 
 void CadEngine::markSelectionChange() {
-    if (!historyTransaction_.active || historySuppressed_) return;
-    auto& entry = historyTransaction_.entry;
-    if (entry.hasSelectionChange) return;
-    entry.selectionBefore = selectionOrdered_;
-    entry.hasSelectionChange = true;
-}
-
-void CadEngine::finalizeHistoryEntry(HistoryEntry& entry) {
-    entry.nextIdAfter = nextEntityId_;
-    for (auto& change : entry.entities) {
-        change.existedAfter = captureEntitySnapshot(change.id, change.after);
-    }
-
-    if (entry.hasLayerChange) {
-        const auto records = entityManager_.layerStore.snapshot();
-        entry.layersAfter.reserve(records.size());
-        for (const auto& layer : records) {
-            engine::LayerSnapshot snap{};
-            snap.id = layer.id;
-            snap.order = layer.order;
-            snap.flags = layer.flags;
-            snap.name = entityManager_.layerStore.getLayerName(layer.id);
-            entry.layersAfter.push_back(std::move(snap));
-        }
-    }
-
-    if (entry.hasDrawOrderChange) {
-        entry.drawOrderAfter = entityManager_.drawOrderIds;
-    }
-
-    if (entry.hasSelectionChange) {
-        entry.selectionAfter = selectionOrdered_;
-    }
+    historyManager_.markSelectionChange(selectionManager_.getOrdered());
 }
 
 void CadEngine::commitHistoryEntry() {
-    if (!historyTransaction_.active) return;
-    HistoryEntry entry = std::move(historyTransaction_.entry);
-    historyTransaction_.active = false;
-    historyTransaction_.entityIndex.clear();
-
-    finalizeHistoryEntry(entry);
-
-    auto layersEqual = [](const std::vector<engine::LayerSnapshot>& a, const std::vector<engine::LayerSnapshot>& b) {
-        if (a.size() != b.size()) return false;
-        for (std::size_t i = 0; i < a.size(); ++i) {
-            if (a[i].id != b[i].id) return false;
-            if (a[i].order != b[i].order) return false;
-            if (a[i].flags != b[i].flags) return false;
-            if (a[i].name != b[i].name) return false;
-        }
-        return true;
-    };
-
-    if (entry.hasLayerChange && layersEqual(entry.layersBefore, entry.layersAfter)) {
-        entry.hasLayerChange = false;
-        entry.layersBefore.clear();
-        entry.layersAfter.clear();
+    if (historyManager_.commitEntry(nextEntityId_, generation, selectionManager_.getOrdered())) {
+        recordHistoryChanged();
     }
-
-    if (entry.hasDrawOrderChange && entry.drawOrderBefore == entry.drawOrderAfter) {
-        entry.hasDrawOrderChange = false;
-        entry.drawOrderBefore.clear();
-        entry.drawOrderAfter.clear();
-    }
-
-    if (entry.hasSelectionChange && entry.selectionBefore == entry.selectionAfter) {
-        entry.hasSelectionChange = false;
-        entry.selectionBefore.clear();
-        entry.selectionAfter.clear();
-    }
-
-    if (entry.entities.empty() && !entry.hasLayerChange && !entry.hasDrawOrderChange && !entry.hasSelectionChange) {
-        return;
-    }
-
-    std::sort(entry.entities.begin(), entry.entities.end(), [](const EntityChange& a, const EntityChange& b) {
-        return a.id < b.id;
-    });
-
-    pushHistoryEntry(std::move(entry));
 }
 
 bool CadEngine::pushEvent(const EngineEvent& ev) {
@@ -1938,8 +1666,8 @@ void CadEngine::flushPendingEvents() {
         if (!pushOrOverflow(EngineEvent{
                 static_cast<std::uint16_t>(EventType::SelectionChanged),
                 0,
-                selectionGeneration_,
-                static_cast<std::uint32_t>(selectionOrdered_.size()),
+                selectionManager_.getGeneration(),
+                static_cast<std::uint32_t>(selectionManager_.getOrdered().size()),
                 0,
                 0,
             })) {
@@ -2040,311 +1768,13 @@ void CadEngine::ackResync(std::uint32_t resyncGeneration) {
     pendingHistoryChanged_ = false;
 }
 
-bool CadEngine::captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out) const {
-    const auto it = entityManager_.entities.find(id);
-    if (it == entityManager_.entities.end()) return false;
+// captureEntitySnapshot removed, delegated to HistoryManager
 
-    out = EntitySnapshot{};
-    out.id = id;
-    out.kind = it->second.kind;
-    out.layerId = entityManager_.getEntityLayer(id);
-    out.flags = entityManager_.getEntityFlags(id);
 
-    switch (out.kind) {
-        case EntityKind::Rect: {
-            const RectRec* rec = entityManager_.getRect(id);
-            if (!rec) return false;
-            out.rect = *rec;
-            break;
-        }
-        case EntityKind::Line: {
-            const LineRec* rec = entityManager_.getLine(id);
-            if (!rec) return false;
-            out.line = *rec;
-            break;
-        }
-        case EntityKind::Polyline: {
-            const PolyRec* rec = entityManager_.getPolyline(id);
-            if (!rec) return false;
-            out.poly = *rec;
-            out.points.clear();
-            out.points.reserve(rec->count);
-            for (std::uint32_t i = 0; i < rec->count; ++i) {
-                const std::uint32_t idx = rec->offset + i;
-                if (idx >= entityManager_.points.size()) break;
-                out.points.push_back(entityManager_.points[idx]);
-            }
-            out.poly.count = static_cast<std::uint32_t>(out.points.size());
-            out.poly.offset = 0;
-            break;
-        }
-        case EntityKind::Circle: {
-            const CircleRec* rec = entityManager_.getCircle(id);
-            if (!rec) return false;
-            out.circle = *rec;
-            break;
-        }
-        case EntityKind::Polygon: {
-            const PolygonRec* rec = entityManager_.getPolygon(id);
-            if (!rec) return false;
-            out.polygon = *rec;
-            break;
-        }
-        case EntityKind::Arrow: {
-            const ArrowRec* rec = entityManager_.getArrow(id);
-            if (!rec) return false;
-            out.arrow = *rec;
-            break;
-        }
-        case EntityKind::Text: {
-            const TextRec* rec = textSystem_.store.getText(id);
-            if (!rec) return false;
-            out.textHeader.x = rec->x;
-            out.textHeader.y = rec->y;
-            out.textHeader.rotation = rec->rotation;
-            out.textHeader.boxMode = static_cast<std::uint8_t>(rec->boxMode);
-            out.textHeader.align = static_cast<std::uint8_t>(rec->align);
-            out.textHeader.reserved[0] = 0;
-            out.textHeader.reserved[1] = 0;
-            out.textHeader.constraintWidth = rec->constraintWidth;
 
-            const auto& runs = textSystem_.store.getRuns(id);
-            out.textRuns.clear();
-            out.textRuns.reserve(runs.size());
-            for (const auto& run : runs) {
-                TextRunPayload payload{};
-                payload.startIndex = run.startIndex;
-                payload.length = run.length;
-                payload.fontId = run.fontId;
-                payload.fontSize = run.fontSize;
-                payload.colorRGBA = run.colorRGBA;
-                payload.flags = static_cast<std::uint8_t>(run.flags);
-                payload.reserved[0] = 0;
-                payload.reserved[1] = 0;
-                payload.reserved[2] = 0;
-                out.textRuns.push_back(payload);
-            }
 
-            const std::string_view content = textSystem_.store.getContent(id);
-            out.textContent.assign(content.begin(), content.end());
-            out.textHeader.runCount = static_cast<std::uint32_t>(out.textRuns.size());
-            out.textHeader.contentLength = static_cast<std::uint32_t>(out.textContent.size());
-            break;
-        }
-        default:
-            return false;
-    }
+// apply*Snapshot methods and applyHistoryEntry delegated to HistoryManager
 
-    return true;
-}
-
-EntitySnapshot CadEngine::buildSnapshotFromTransform(const TransformSnapshot& snap) const {
-    EntitySnapshot out{};
-    if (!captureEntitySnapshot(snap.id, out)) {
-        return out;
-    }
-
-    switch (out.kind) {
-        case EntityKind::Rect:
-            out.rect.x = snap.x;
-            out.rect.y = snap.y;
-            out.rect.w = snap.w;
-            out.rect.h = snap.h;
-            break;
-        case EntityKind::Circle:
-            out.circle.cx = snap.x;
-            out.circle.cy = snap.y;
-            out.circle.rx = snap.w;
-            out.circle.ry = snap.h;
-            break;
-        case EntityKind::Polygon:
-            out.polygon.cx = snap.x;
-            out.polygon.cy = snap.y;
-            out.polygon.rx = snap.w;
-            out.polygon.ry = snap.h;
-            break;
-        case EntityKind::Text:
-            out.textHeader.x = snap.x;
-            out.textHeader.y = snap.y;
-            break;
-        case EntityKind::Line:
-            if (snap.points.size() >= 2) {
-                out.line.x0 = snap.points[0].x;
-                out.line.y0 = snap.points[0].y;
-                out.line.x1 = snap.points[1].x;
-                out.line.y1 = snap.points[1].y;
-            }
-            break;
-        case EntityKind::Arrow:
-            if (snap.points.size() >= 2) {
-                out.arrow.ax = snap.points[0].x;
-                out.arrow.ay = snap.points[0].y;
-                out.arrow.bx = snap.points[1].x;
-                out.arrow.by = snap.points[1].y;
-            }
-            break;
-        case EntityKind::Polyline:
-            out.points = snap.points;
-            out.poly.count = static_cast<std::uint32_t>(out.points.size());
-            out.poly.offset = 0;
-            break;
-        default:
-            break;
-    }
-
-    return out;
-}
-
-void CadEngine::applyEntitySnapshot(const EntitySnapshot& snap) {
-    const std::uint32_t id = snap.id;
-    if (id == 0) return;
-
-    switch (snap.kind) {
-        case EntityKind::Rect:
-            upsertRect(id, snap.rect.x, snap.rect.y, snap.rect.w, snap.rect.h,
-                snap.rect.r, snap.rect.g, snap.rect.b, snap.rect.a,
-                snap.rect.sr, snap.rect.sg, snap.rect.sb, snap.rect.sa,
-                snap.rect.strokeEnabled, snap.rect.strokeWidthPx);
-            break;
-        case EntityKind::Line:
-            upsertLine(id, snap.line.x0, snap.line.y0, snap.line.x1, snap.line.y1,
-                snap.line.r, snap.line.g, snap.line.b, snap.line.a,
-                snap.line.enabled, snap.line.strokeWidthPx);
-            break;
-        case EntityKind::Polyline: {
-            const std::uint32_t count = static_cast<std::uint32_t>(snap.points.size());
-            if (count < 2) {
-                deleteEntity(id);
-                return;
-            }
-            const std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
-            entityManager_.points.insert(entityManager_.points.end(), snap.points.begin(), snap.points.end());
-            upsertPolyline(id, offset, count, snap.poly.r, snap.poly.g, snap.poly.b, snap.poly.a, snap.poly.enabled, snap.poly.strokeWidthPx);
-            const auto it = entityManager_.entities.find(id);
-            if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Polyline) {
-                auto& pl = entityManager_.polylines[it->second.index];
-                pl.sr = snap.poly.sr;
-                pl.sg = snap.poly.sg;
-                pl.sb = snap.poly.sb;
-                pl.sa = snap.poly.sa;
-                pl.strokeEnabled = snap.poly.strokeEnabled;
-            }
-            break;
-        }
-        case EntityKind::Circle:
-            upsertCircle(id, snap.circle.cx, snap.circle.cy, snap.circle.rx, snap.circle.ry,
-                snap.circle.rot, snap.circle.sx, snap.circle.sy,
-                snap.circle.r, snap.circle.g, snap.circle.b, snap.circle.a,
-                snap.circle.sr, snap.circle.sg, snap.circle.sb, snap.circle.sa,
-                snap.circle.strokeEnabled, snap.circle.strokeWidthPx);
-            break;
-        case EntityKind::Polygon:
-            upsertPolygon(id, snap.polygon.cx, snap.polygon.cy, snap.polygon.rx, snap.polygon.ry,
-                snap.polygon.rot, snap.polygon.sx, snap.polygon.sy, snap.polygon.sides,
-                snap.polygon.r, snap.polygon.g, snap.polygon.b, snap.polygon.a,
-                snap.polygon.sr, snap.polygon.sg, snap.polygon.sb, snap.polygon.sa,
-                snap.polygon.strokeEnabled, snap.polygon.strokeWidthPx);
-            break;
-        case EntityKind::Arrow:
-            upsertArrow(id, snap.arrow.ax, snap.arrow.ay, snap.arrow.bx, snap.arrow.by, snap.arrow.head,
-                snap.arrow.sr, snap.arrow.sg, snap.arrow.sb, snap.arrow.sa,
-                snap.arrow.strokeEnabled, snap.arrow.strokeWidthPx);
-            break;
-        case EntityKind::Text: {
-            const std::uint32_t runCount = static_cast<std::uint32_t>(snap.textRuns.size());
-            const std::uint32_t contentLength = static_cast<std::uint32_t>(snap.textContent.size());
-            TextPayloadHeader header = snap.textHeader;
-            header.runCount = runCount;
-            header.contentLength = contentLength;
-            if (!upsertText(
-                    id,
-                    header,
-                    runCount == 0 ? nullptr : snap.textRuns.data(),
-                    runCount,
-                    contentLength == 0 ? "" : snap.textContent.data(),
-                    contentLength)) {
-                break;
-            }
-            break;
-        }
-        default:
-            return;
-    }
-
-    if (entityManager_.entities.find(id) == entityManager_.entities.end()) return;
-    if (entityManager_.getEntityLayer(id) != snap.layerId) {
-        setEntityLayer(id, snap.layerId);
-    }
-    const std::uint32_t flagsMask =
-        static_cast<std::uint32_t>(EntityFlags::Visible)
-        | static_cast<std::uint32_t>(EntityFlags::Locked);
-    if (entityManager_.getEntityFlags(id) != snap.flags) {
-        setEntityFlags(id, flagsMask, snap.flags);
-    }
-}
-
-void CadEngine::applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers) {
-    std::vector<LayerRecord> records;
-    std::vector<std::string> names;
-    records.reserve(layers.size());
-    names.reserve(layers.size());
-    for (const auto& layer : layers) {
-        records.push_back(LayerRecord{layer.id, layer.order, layer.flags});
-        names.push_back(layer.name);
-    }
-    entityManager_.layerStore.loadSnapshot(records, names);
-    renderDirty = true;
-    snapshotDirty = true;
-    textQuadsDirty_ = true;
-    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Layer));
-}
-
-void CadEngine::applyDrawOrderSnapshot(const std::vector<std::uint32_t>& order) {
-    entityManager_.drawOrderIds = order;
-    pickSystem_.setDrawOrder(order);
-    renderDirty = true;
-    snapshotDirty = true;
-    if (!selectionSet_.empty()) {
-        rebuildSelectionOrder();
-    }
-    recordOrderChanged();
-    generation++;
-}
-
-void CadEngine::applySelectionSnapshot(const std::vector<std::uint32_t>& selection) {
-    if (selection.empty()) {
-        clearSelection();
-        return;
-    }
-    setSelection(selection.data(), static_cast<std::uint32_t>(selection.size()), SelectionMode::Replace);
-}
-
-void CadEngine::applyHistoryEntry(const HistoryEntry& entry, bool useAfter) {
-    if (entry.hasLayerChange) {
-        applyLayerSnapshot(useAfter ? entry.layersAfter : entry.layersBefore);
-    }
-
-    for (const auto& change : entry.entities) {
-        const bool exists = useAfter ? change.existedAfter : change.existedBefore;
-        if (!exists) {
-            deleteEntity(change.id);
-            continue;
-        }
-        const EntitySnapshot& snap = useAfter ? change.after : change.before;
-        applyEntitySnapshot(snap);
-    }
-
-    if (entry.hasDrawOrderChange) {
-        applyDrawOrderSnapshot(useAfter ? entry.drawOrderAfter : entry.drawOrderBefore);
-    }
-
-    if (entry.hasSelectionChange) {
-        applySelectionSnapshot(useAfter ? entry.selectionAfter : entry.selectionBefore);
-    }
-
-    nextEntityId_ = useAfter ? entry.nextIdAfter : entry.nextIdBefore;
-    snapshotDirty = true;
-}
 
 void CadEngine::trackNextEntityId(std::uint32_t id) {
     if (id >= nextEntityId_) {
@@ -2378,7 +1808,7 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
     // Delegate to EntityManager for all geometry
     entityManager_.deleteEntity(id);
     recordEntityDeleted(id);
-    pruneSelection();
+    selectionManager_.prune(*this);
     if (historyStarted) commitHistoryEntry();
 }
 
@@ -2665,7 +2095,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             }
             self->renderDirty = true;
             self->pickSystem_.setDrawOrder(self->entityManager_.drawOrderIds);
-            if (!self->selectionSet_.empty()) self->rebuildSelectionOrder();
+            if (!self->selectionManager_.isEmpty()) self->selectionManager_.rebuildOrder(self->entityManager_.drawOrderIds);
             self->recordOrderChanged();
             break;
         }
@@ -3006,558 +2436,14 @@ void CadEngine::compactPolylinePoints() {
 }
 
 std::vector<std::uint8_t> CadEngine::encodeHistoryBytes() const {
-    if (history_.empty()) return {};
-
-    std::vector<std::uint8_t> out;
-    out.reserve(256);
-
-    auto appendU32 = [&](std::uint32_t v) {
-        const std::size_t o = out.size();
-        out.resize(o + 4);
-        writeU32LE(out.data(), o, v);
-    };
-    auto appendF32 = [&](float v) {
-        const std::size_t o = out.size();
-        out.resize(o + 4);
-        writeF32LE(out.data(), o, v);
-    };
-    auto appendByte = [&](std::uint8_t v) {
-        out.push_back(v);
-    };
-    auto appendU32Array = [&](const std::vector<std::uint32_t>& values) {
-        appendU32(static_cast<std::uint32_t>(values.size()));
-        for (const auto v : values) {
-            appendU32(v);
-        }
-    };
-    auto appendLayerSnapshot = [&](const std::vector<engine::LayerSnapshot>& layers) {
-        appendU32(static_cast<std::uint32_t>(layers.size()));
-        for (const auto& layer : layers) {
-            appendU32(layer.id);
-            appendU32(layer.order);
-            appendU32(layer.flags);
-            appendU32(static_cast<std::uint32_t>(layer.name.size()));
-            const std::size_t o = out.size();
-            out.resize(o + layer.name.size());
-            if (!layer.name.empty()) {
-                std::memcpy(out.data() + o, layer.name.data(), layer.name.size());
-            }
-        }
-    };
-    auto appendEntitySnapshot = [&](const EntitySnapshot& snap) {
-        appendU32(static_cast<std::uint32_t>(snap.kind));
-        appendU32(snap.layerId);
-        appendU32(snap.flags);
-
-        switch (snap.kind) {
-            case EntityKind::Rect:
-                appendF32(snap.rect.x);
-                appendF32(snap.rect.y);
-                appendF32(snap.rect.w);
-                appendF32(snap.rect.h);
-                appendF32(snap.rect.r);
-                appendF32(snap.rect.g);
-                appendF32(snap.rect.b);
-                appendF32(snap.rect.a);
-                appendF32(snap.rect.sr);
-                appendF32(snap.rect.sg);
-                appendF32(snap.rect.sb);
-                appendF32(snap.rect.sa);
-                appendF32(snap.rect.strokeEnabled);
-                appendF32(snap.rect.strokeWidthPx);
-                break;
-            case EntityKind::Line:
-                appendF32(snap.line.x0);
-                appendF32(snap.line.y0);
-                appendF32(snap.line.x1);
-                appendF32(snap.line.y1);
-                appendF32(snap.line.r);
-                appendF32(snap.line.g);
-                appendF32(snap.line.b);
-                appendF32(snap.line.a);
-                appendF32(snap.line.enabled);
-                appendF32(snap.line.strokeWidthPx);
-                break;
-            case EntityKind::Polyline:
-                appendU32(static_cast<std::uint32_t>(snap.points.size()));
-                appendF32(snap.poly.r);
-                appendF32(snap.poly.g);
-                appendF32(snap.poly.b);
-                appendF32(snap.poly.a);
-                appendF32(snap.poly.sr);
-                appendF32(snap.poly.sg);
-                appendF32(snap.poly.sb);
-                appendF32(snap.poly.sa);
-                appendF32(snap.poly.enabled);
-                appendF32(snap.poly.strokeEnabled);
-                appendF32(snap.poly.strokeWidthPx);
-                for (const auto& pt : snap.points) {
-                    appendF32(pt.x);
-                    appendF32(pt.y);
-                }
-                break;
-            case EntityKind::Circle:
-                appendF32(snap.circle.cx);
-                appendF32(snap.circle.cy);
-                appendF32(snap.circle.rx);
-                appendF32(snap.circle.ry);
-                appendF32(snap.circle.rot);
-                appendF32(snap.circle.sx);
-                appendF32(snap.circle.sy);
-                appendF32(snap.circle.r);
-                appendF32(snap.circle.g);
-                appendF32(snap.circle.b);
-                appendF32(snap.circle.a);
-                appendF32(snap.circle.sr);
-                appendF32(snap.circle.sg);
-                appendF32(snap.circle.sb);
-                appendF32(snap.circle.sa);
-                appendF32(snap.circle.strokeEnabled);
-                appendF32(snap.circle.strokeWidthPx);
-                break;
-            case EntityKind::Polygon:
-                appendF32(snap.polygon.cx);
-                appendF32(snap.polygon.cy);
-                appendF32(snap.polygon.rx);
-                appendF32(snap.polygon.ry);
-                appendF32(snap.polygon.rot);
-                appendF32(snap.polygon.sx);
-                appendF32(snap.polygon.sy);
-                appendU32(snap.polygon.sides);
-                appendF32(snap.polygon.r);
-                appendF32(snap.polygon.g);
-                appendF32(snap.polygon.b);
-                appendF32(snap.polygon.a);
-                appendF32(snap.polygon.sr);
-                appendF32(snap.polygon.sg);
-                appendF32(snap.polygon.sb);
-                appendF32(snap.polygon.sa);
-                appendF32(snap.polygon.strokeEnabled);
-                appendF32(snap.polygon.strokeWidthPx);
-                break;
-            case EntityKind::Arrow:
-                appendF32(snap.arrow.ax);
-                appendF32(snap.arrow.ay);
-                appendF32(snap.arrow.bx);
-                appendF32(snap.arrow.by);
-                appendF32(snap.arrow.head);
-                appendF32(snap.arrow.sr);
-                appendF32(snap.arrow.sg);
-                appendF32(snap.arrow.sb);
-                appendF32(snap.arrow.sa);
-                appendF32(snap.arrow.strokeEnabled);
-                appendF32(snap.arrow.strokeWidthPx);
-                break;
-            case EntityKind::Text: {
-                const std::uint32_t runCount = static_cast<std::uint32_t>(snap.textRuns.size());
-                const std::uint32_t contentLength = static_cast<std::uint32_t>(snap.textContent.size());
-
-                appendF32(snap.textHeader.x);
-                appendF32(snap.textHeader.y);
-                appendF32(snap.textHeader.rotation);
-                appendByte(snap.textHeader.boxMode);
-                appendByte(snap.textHeader.align);
-                appendByte(0);
-                appendByte(0);
-                appendF32(snap.textHeader.constraintWidth);
-                appendU32(runCount);
-                appendU32(contentLength);
-
-                for (const auto& run : snap.textRuns) {
-                    appendU32(run.startIndex);
-                    appendU32(run.length);
-                    appendU32(run.fontId);
-                    appendF32(run.fontSize);
-                    appendU32(run.colorRGBA);
-                    appendByte(run.flags);
-                    appendByte(0);
-                    appendByte(0);
-                    appendByte(0);
-                }
-
-                const std::size_t o = out.size();
-                out.resize(o + contentLength);
-                if (contentLength > 0) {
-                    std::memcpy(out.data() + o, snap.textContent.data(), contentLength);
-                }
-                break;
-            }
-            default:
-                break;
-        }
-    };
-
-    appendU32(1); // history version
-    appendU32(static_cast<std::uint32_t>(history_.size()));
-    appendU32(static_cast<std::uint32_t>(historyCursor_));
-    appendU32(0);
-
-    for (const auto& entry : history_) {
-        std::uint32_t flags = 0;
-        if (entry.hasLayerChange) flags |= 1u;
-        if (entry.hasDrawOrderChange) flags |= 2u;
-        if (entry.hasSelectionChange) flags |= 4u;
-
-        appendU32(flags);
-        appendU32(static_cast<std::uint32_t>(entry.entities.size()));
-        appendU32(entry.nextIdBefore);
-        appendU32(entry.nextIdAfter);
-
-        if (entry.hasLayerChange) {
-            appendLayerSnapshot(entry.layersBefore);
-            appendLayerSnapshot(entry.layersAfter);
-        }
-        if (entry.hasDrawOrderChange) {
-            appendU32Array(entry.drawOrderBefore);
-            appendU32Array(entry.drawOrderAfter);
-        }
-        if (entry.hasSelectionChange) {
-            appendU32Array(entry.selectionBefore);
-            appendU32Array(entry.selectionAfter);
-        }
-
-        for (const auto& change : entry.entities) {
-            appendU32(change.id);
-            std::uint32_t mask = 0;
-            if (change.existedBefore) mask |= 1u;
-            if (change.existedAfter) mask |= 2u;
-            appendU32(mask);
-            if (change.existedBefore) appendEntitySnapshot(change.before);
-            if (change.existedAfter) appendEntitySnapshot(change.after);
-        }
-    }
-
-    return out;
+    return historyManager_.encodeBytes();
 }
+
 
 void CadEngine::decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCount) {
-    history_.clear();
-    historyCursor_ = 0;
-    historyTransaction_.active = false;
-    historyTransaction_.entry = HistoryEntry{};
-    historyTransaction_.entityIndex.clear();
-
-    if (!bytes || byteCount == 0) {
-        historyGeneration_++;
-        recordHistoryChanged();
-        return;
-    }
-
-    auto requireBytes = [&](std::size_t offset, std::size_t size) {
-        return offset + size <= byteCount;
-    };
-    auto readU32At = [&](std::size_t offset) {
-        return readU32(bytes, offset);
-    };
-    auto readF32At = [&](std::size_t offset) {
-        return readF32(bytes, offset);
-    };
-
-    std::size_t o = 0;
-    if (!requireBytes(o, 16)) {
-        historyGeneration_++;
-        recordHistoryChanged();
-        return;
-    }
-
-    const std::uint32_t version = readU32At(o); o += 4;
-    if (version != 1) {
-        historyGeneration_++;
-        recordHistoryChanged();
-        return;
-    }
-    const std::uint32_t entryCount = readU32At(o); o += 4;
-    const std::uint32_t cursor = readU32At(o); o += 4;
-    o += 4; // reserved
-
-    history_.reserve(entryCount);
-
-    auto readLayerSnapshot = [&](std::vector<engine::LayerSnapshot>& outLayers) -> bool {
-        if (!requireBytes(o, 4)) return false;
-        const std::uint32_t count = readU32At(o); o += 4;
-        outLayers.clear();
-        outLayers.reserve(count);
-        for (std::uint32_t i = 0; i < count; ++i) {
-            if (!requireBytes(o, 16)) return false;
-            engine::LayerSnapshot snap{};
-            snap.id = readU32At(o); o += 4;
-            snap.order = readU32At(o); o += 4;
-            snap.flags = readU32At(o); o += 4;
-            const std::uint32_t nameLen = readU32At(o); o += 4;
-            if (!requireBytes(o, nameLen)) return false;
-            snap.name.assign(reinterpret_cast<const char*>(bytes + o), nameLen);
-            o += nameLen;
-            outLayers.push_back(std::move(snap));
-        }
-        return true;
-    };
-
-    auto readU32Array = [&](std::vector<std::uint32_t>& outValues) -> bool {
-        if (!requireBytes(o, 4)) return false;
-        const std::uint32_t count = readU32At(o); o += 4;
-        if (!requireBytes(o, static_cast<std::size_t>(count) * 4)) return false;
-        outValues.clear();
-        outValues.reserve(count);
-        for (std::uint32_t i = 0; i < count; ++i) {
-            outValues.push_back(readU32At(o));
-            o += 4;
-        }
-        return true;
-    };
-
-    auto readEntitySnapshot = [&](EntitySnapshot& snap) -> bool {
-        if (!requireBytes(o, 12)) return false;
-        snap.kind = static_cast<EntityKind>(readU32At(o)); o += 4;
-        snap.layerId = readU32At(o); o += 4;
-        snap.flags = readU32At(o); o += 4;
-
-        switch (snap.kind) {
-            case EntityKind::Rect:
-                if (!requireBytes(o, 14 * 4)) return false;
-                snap.rect.x = readF32At(o); o += 4;
-                snap.rect.y = readF32At(o); o += 4;
-                snap.rect.w = readF32At(o); o += 4;
-                snap.rect.h = readF32At(o); o += 4;
-                snap.rect.r = readF32At(o); o += 4;
-                snap.rect.g = readF32At(o); o += 4;
-                snap.rect.b = readF32At(o); o += 4;
-                snap.rect.a = readF32At(o); o += 4;
-                snap.rect.sr = readF32At(o); o += 4;
-                snap.rect.sg = readF32At(o); o += 4;
-                snap.rect.sb = readF32At(o); o += 4;
-                snap.rect.sa = readF32At(o); o += 4;
-                snap.rect.strokeEnabled = readF32At(o); o += 4;
-                snap.rect.strokeWidthPx = readF32At(o); o += 4;
-                break;
-            case EntityKind::Line:
-                if (!requireBytes(o, 10 * 4)) return false;
-                snap.line.x0 = readF32At(o); o += 4;
-                snap.line.y0 = readF32At(o); o += 4;
-                snap.line.x1 = readF32At(o); o += 4;
-                snap.line.y1 = readF32At(o); o += 4;
-                snap.line.r = readF32At(o); o += 4;
-                snap.line.g = readF32At(o); o += 4;
-                snap.line.b = readF32At(o); o += 4;
-                snap.line.a = readF32At(o); o += 4;
-                snap.line.enabled = readF32At(o); o += 4;
-                snap.line.strokeWidthPx = readF32At(o); o += 4;
-                break;
-            case EntityKind::Polyline: {
-                if (!requireBytes(o, 4)) return false;
-                const std::uint32_t count = readU32At(o); o += 4;
-                if (!requireBytes(o, 11 * 4 + static_cast<std::size_t>(count) * 8)) return false;
-                snap.poly.r = readF32At(o); o += 4;
-                snap.poly.g = readF32At(o); o += 4;
-                snap.poly.b = readF32At(o); o += 4;
-                snap.poly.a = readF32At(o); o += 4;
-                snap.poly.sr = readF32At(o); o += 4;
-                snap.poly.sg = readF32At(o); o += 4;
-                snap.poly.sb = readF32At(o); o += 4;
-                snap.poly.sa = readF32At(o); o += 4;
-                snap.poly.enabled = readF32At(o); o += 4;
-                snap.poly.strokeEnabled = readF32At(o); o += 4;
-                snap.poly.strokeWidthPx = readF32At(o); o += 4;
-                snap.points.clear();
-                snap.points.reserve(count);
-                for (std::uint32_t i = 0; i < count; ++i) {
-                    Point2 pt{};
-                    pt.x = readF32At(o); o += 4;
-                    pt.y = readF32At(o); o += 4;
-                    snap.points.push_back(pt);
-                }
-                snap.poly.count = static_cast<std::uint32_t>(snap.points.size());
-                snap.poly.offset = 0;
-                break;
-            }
-            case EntityKind::Circle:
-                if (!requireBytes(o, 17 * 4)) return false;
-                snap.circle.cx = readF32At(o); o += 4;
-                snap.circle.cy = readF32At(o); o += 4;
-                snap.circle.rx = readF32At(o); o += 4;
-                snap.circle.ry = readF32At(o); o += 4;
-                snap.circle.rot = readF32At(o); o += 4;
-                snap.circle.sx = readF32At(o); o += 4;
-                snap.circle.sy = readF32At(o); o += 4;
-                snap.circle.r = readF32At(o); o += 4;
-                snap.circle.g = readF32At(o); o += 4;
-                snap.circle.b = readF32At(o); o += 4;
-                snap.circle.a = readF32At(o); o += 4;
-                snap.circle.sr = readF32At(o); o += 4;
-                snap.circle.sg = readF32At(o); o += 4;
-                snap.circle.sb = readF32At(o); o += 4;
-                snap.circle.sa = readF32At(o); o += 4;
-                snap.circle.strokeEnabled = readF32At(o); o += 4;
-                snap.circle.strokeWidthPx = readF32At(o); o += 4;
-                break;
-            case EntityKind::Polygon:
-                if (!requireBytes(o, 17 * 4 + 4)) return false;
-                snap.polygon.cx = readF32At(o); o += 4;
-                snap.polygon.cy = readF32At(o); o += 4;
-                snap.polygon.rx = readF32At(o); o += 4;
-                snap.polygon.ry = readF32At(o); o += 4;
-                snap.polygon.rot = readF32At(o); o += 4;
-                snap.polygon.sx = readF32At(o); o += 4;
-                snap.polygon.sy = readF32At(o); o += 4;
-                snap.polygon.sides = readU32At(o); o += 4;
-                snap.polygon.r = readF32At(o); o += 4;
-                snap.polygon.g = readF32At(o); o += 4;
-                snap.polygon.b = readF32At(o); o += 4;
-                snap.polygon.a = readF32At(o); o += 4;
-                snap.polygon.sr = readF32At(o); o += 4;
-                snap.polygon.sg = readF32At(o); o += 4;
-                snap.polygon.sb = readF32At(o); o += 4;
-                snap.polygon.sa = readF32At(o); o += 4;
-                snap.polygon.strokeEnabled = readF32At(o); o += 4;
-                snap.polygon.strokeWidthPx = readF32At(o); o += 4;
-                break;
-            case EntityKind::Arrow:
-                if (!requireBytes(o, 11 * 4)) return false;
-                snap.arrow.ax = readF32At(o); o += 4;
-                snap.arrow.ay = readF32At(o); o += 4;
-                snap.arrow.bx = readF32At(o); o += 4;
-                snap.arrow.by = readF32At(o); o += 4;
-                snap.arrow.head = readF32At(o); o += 4;
-                snap.arrow.sr = readF32At(o); o += 4;
-                snap.arrow.sg = readF32At(o); o += 4;
-                snap.arrow.sb = readF32At(o); o += 4;
-                snap.arrow.sa = readF32At(o); o += 4;
-                snap.arrow.strokeEnabled = readF32At(o); o += 4;
-                snap.arrow.strokeWidthPx = readF32At(o); o += 4;
-                break;
-            case EntityKind::Text: {
-                if (!requireBytes(o, 28)) return false;
-                snap.textHeader.x = readF32At(o); o += 4;
-                snap.textHeader.y = readF32At(o); o += 4;
-                snap.textHeader.rotation = readF32At(o); o += 4;
-                snap.textHeader.boxMode = bytes[o++];
-                snap.textHeader.align = bytes[o++];
-                o += 2;
-                snap.textHeader.constraintWidth = readF32At(o); o += 4;
-                const std::uint32_t runCount = readU32At(o); o += 4;
-                const std::uint32_t contentLength = readU32At(o); o += 4;
-                snap.textRuns.clear();
-                snap.textRuns.reserve(runCount);
-                for (std::uint32_t i = 0; i < runCount; ++i) {
-                    if (!requireBytes(o, 24)) return false;
-                    TextRunPayload run{};
-                    run.startIndex = readU32At(o); o += 4;
-                    run.length = readU32At(o); o += 4;
-                    run.fontId = readU32At(o); o += 4;
-                    run.fontSize = readF32At(o); o += 4;
-                    run.colorRGBA = readU32At(o); o += 4;
-                    run.flags = bytes[o++];
-                    run.reserved[0] = 0;
-                    run.reserved[1] = 0;
-                    run.reserved[2] = 0;
-                    o += 3;
-                    snap.textRuns.push_back(run);
-                }
-                if (!requireBytes(o, contentLength)) return false;
-                snap.textContent.assign(reinterpret_cast<const char*>(bytes + o), contentLength);
-                o += contentLength;
-                snap.textHeader.runCount = runCount;
-                snap.textHeader.contentLength = contentLength;
-                break;
-            }
-            default:
-                return false;
-        }
-
-        return true;
-    };
-
-    for (std::uint32_t i = 0; i < entryCount; ++i) {
-        if (!requireBytes(o, 16)) {
-            history_.clear();
-            historyCursor_ = 0;
-            historyGeneration_++;
-            recordHistoryChanged();
-            return;
-        }
-        HistoryEntry entry{};
-        const std::uint32_t flags = readU32At(o); o += 4;
-        const std::uint32_t entityCount = readU32At(o); o += 4;
-        entry.nextIdBefore = readU32At(o); o += 4;
-        entry.nextIdAfter = readU32At(o); o += 4;
-
-        entry.hasLayerChange = (flags & 1u) != 0;
-        entry.hasDrawOrderChange = (flags & 2u) != 0;
-        entry.hasSelectionChange = (flags & 4u) != 0;
-
-        if (entry.hasLayerChange) {
-            if (!readLayerSnapshot(entry.layersBefore) || !readLayerSnapshot(entry.layersAfter)) {
-                history_.clear();
-                historyCursor_ = 0;
-                historyGeneration_++;
-                recordHistoryChanged();
-                return;
-            }
-        }
-        if (entry.hasDrawOrderChange) {
-            if (!readU32Array(entry.drawOrderBefore) || !readU32Array(entry.drawOrderAfter)) {
-                history_.clear();
-                historyCursor_ = 0;
-                historyGeneration_++;
-                recordHistoryChanged();
-                return;
-            }
-        }
-        if (entry.hasSelectionChange) {
-            if (!readU32Array(entry.selectionBefore) || !readU32Array(entry.selectionAfter)) {
-                history_.clear();
-                historyCursor_ = 0;
-                historyGeneration_++;
-                recordHistoryChanged();
-                return;
-            }
-        }
-
-        entry.entities.clear();
-        entry.entities.reserve(entityCount);
-        for (std::uint32_t j = 0; j < entityCount; ++j) {
-            if (!requireBytes(o, 8)) {
-                history_.clear();
-                historyCursor_ = 0;
-                historyGeneration_++;
-                recordHistoryChanged();
-                return;
-            }
-            EntityChange change{};
-            change.id = readU32At(o); o += 4;
-            const std::uint32_t mask = readU32At(o); o += 4;
-            change.existedBefore = (mask & 1u) != 0;
-            change.existedAfter = (mask & 2u) != 0;
-            if (change.existedBefore) {
-                if (!readEntitySnapshot(change.before)) {
-                    history_.clear();
-                    historyCursor_ = 0;
-                    historyGeneration_++;
-                    recordHistoryChanged();
-                    return;
-                }
-                change.before.id = change.id;
-            }
-            if (change.existedAfter) {
-                if (!readEntitySnapshot(change.after)) {
-                    history_.clear();
-                    historyCursor_ = 0;
-                    historyGeneration_++;
-                    recordHistoryChanged();
-                    return;
-                }
-                change.after.id = change.id;
-            }
-            entry.entities.push_back(std::move(change));
-        }
-
-        history_.push_back(std::move(entry));
-    }
-
-    historyCursor_ = std::min<std::size_t>(history_.size(), cursor);
-    historyGeneration_++;
+    historyManager_.decodeBytes(bytes, byteCount);
     recordHistoryChanged();
 }
-
 void CadEngine::rebuildSnapshotBytes() const {
     engine::SnapshotData sd;
     sd.rects.reserve(entityManager_.rects.size());
@@ -3628,7 +2514,7 @@ void CadEngine::rebuildSnapshotBytes() const {
     }
 
     sd.drawOrder = entityManager_.drawOrderIds;
-    sd.selection = selectionOrdered_;
+    sd.selection = selectionManager_.getOrdered();
 
     const auto textIds = textSystem_.store.getAllTextIds();
     sd.texts.reserve(textIds.size());
@@ -3728,7 +2614,7 @@ void CadEngine::addRectOutline(float x, float y, float w, float h) const {
 }
 
 void CadEngine::addGridToBuffers() const {
-    if (!snapOptions_.enabled || !snapOptions_.gridEnabled || snapOptions_.gridSize <= 0.001f) {
+    if (!interactionSession_.snapOptions.enabled || !interactionSession_.snapOptions.gridEnabled || interactionSession_.snapOptions.gridSize <= 0.001f) {
         return;
     }
     // Simple safeguard against invalid view
@@ -3742,9 +2628,9 @@ void CadEngine::addGridToBuffers() const {
     const float maxY = (viewHeight - viewY) / s;
 
     // Expand slightly to cover fully
-    const float margin = snapOptions_.gridSize;
-    const float startX = std::floor((minX - margin) / snapOptions_.gridSize) * snapOptions_.gridSize;
-    const float startY = std::floor((minY - margin) / snapOptions_.gridSize) * snapOptions_.gridSize;
+    const float margin = interactionSession_.snapOptions.gridSize;
+    const float startX = std::floor((minX - margin) / interactionSession_.snapOptions.gridSize) * interactionSession_.snapOptions.gridSize;
+    const float startY = std::floor((minY - margin) / interactionSession_.snapOptions.gridSize) * interactionSession_.snapOptions.gridSize;
     const float endX = maxX + margin;
     const float endY = maxY + margin;
 
@@ -3767,17 +2653,17 @@ void CadEngine::addGridToBuffers() const {
     // Limit grid lines to avoid freezing on massive zoom out
     const float width = endX - startX;
     const float height = endY - startY;
-    const float estLines = (width + height) / snapOptions_.gridSize;
+    const float estLines = (width + height) / interactionSession_.snapOptions.gridSize;
     
     // Draw grid
     if (estLines < 5000) {
         // Vertical lines
-        for (float x = startX; x <= endX; x += snapOptions_.gridSize) {
+        for (float x = startX; x <= endX; x += interactionSession_.snapOptions.gridSize) {
             pushV(x, startY);
             pushV(x, endY);
         }
         // Horizontal lines
-        for (float y = startY; y <= endY; y += snapOptions_.gridSize) {
+        for (float y = startY; y <= endY; y += interactionSession_.snapOptions.gridSize) {
             pushV(startX, y);
             pushV(endX, y);
         }
@@ -3969,7 +2855,7 @@ bool CadEngine::deleteText(std::uint32_t id) {
     generation++;
 
     pickSystem_.remove(id);
-    pruneSelection();
+    selectionManager_.prune(*this);
     recordEntityDeleted(id);
 
     if (historyStarted) commitHistoryEntry();
@@ -4294,124 +3180,7 @@ void CadEngine::beginTransform(
     float startX, 
     float startY
 ) {
-    if (renderDirty) {
-        rebuildRenderBuffers();
-    }
-
-    // 1. Reset Session
-    session_ = InteractionSession{};
-    session_.active = true;
-    session_.mode = mode;
-    session_.specificId = specificId;
-    session_.vertexIndex = vertexIndex;
-    session_.startX = startX;
-    session_.startY = startY;
-
-    std::vector<std::uint32_t> activeIds;
-
-    if (mode != TransformMode::Move && specificId != 0) {
-        if (!entityManager_.isEntityPickable(specificId)) {
-            session_.active = false;
-            return;
-        }
-        activeIds.push_back(specificId);
-    } else if (!selectionOrdered_.empty()) {
-        activeIds = selectionOrdered_;
-    } else if (ids && idCount > 0) {
-        activeIds.assign(ids, ids + idCount);
-    }
-
-    // 2. Capture Snapshots
-    session_.initialIds.reserve(activeIds.size());
-    session_.snapshots.reserve(activeIds.size());
-
-    for (const std::uint32_t id : activeIds) {
-        if (!entityManager_.isEntityPickable(id)) continue;
-        session_.initialIds.push_back(id);
-
-        auto it = entityManager_.entities.find(id);
-        if (it == entityManager_.entities.end()) continue; // Should not happen in valid flow
-
-	        TransformSnapshot snap;
-	        snap.id = id;
-	        snap.x = 0.0f;
-	        snap.y = 0.0f;
-	        snap.w = 0.0f;
-	        snap.h = 0.0f;
-	        
-	        // Capture based on entity type
-	        if (it->second.kind == EntityKind::Rect) {
-	            for (const auto& r : entityManager_.rects) {
-	                if (r.id == id) {
-	                    snap.x = r.x;
-	                    snap.y = r.y;
-	                    snap.w = r.w;
-	                    snap.h = r.h;
-	                    break;
-	                }
-	            }
-	        } else if (it->second.kind == EntityKind::Circle) {
-	             for (const auto& c : entityManager_.circles) {
-	                if (c.id == id) {
-	                    snap.x = c.cx;
-	                    snap.y = c.cy;
-	                    snap.w = c.rx;
-	                    snap.h = c.ry;
-	                    break;
-	                }
-	            }
-	        } else if (it->second.kind == EntityKind::Polygon) {
-	             for (const auto& p : entityManager_.polygons) {
-	                if (p.id == id) {
-	                    snap.x = p.cx;
-	                    snap.y = p.cy;
-	                    snap.w = p.rx;
-	                    snap.h = p.ry;
-	                    break;
-	                }
-	            }
-        } else if (it->second.kind == EntityKind::Text) {
-             // Text handled via TextStore
-             const TextRec* tr = textSystem_.store.getText(id);
-             if (tr) {
-                 snap.x = tr->x;
-                 snap.y = tr->y;
-             }
-        } else if (it->second.kind == EntityKind::Line) {
-            for (const auto& l : entityManager_.lines) {
-                 if (l.id == id) {
-                     snap.points.push_back({l.x0, l.y0});
-                     snap.points.push_back({l.x1, l.y1});
-                     break;
-                 }
-            }
-        } else if (it->second.kind == EntityKind::Polyline) {
-             for (const auto& pl : entityManager_.polylines) {
-                 if (pl.id == id) {
-                     for (std::uint32_t k = 0; k < pl.count; k++) {
-                         if (pl.offset + k < entityManager_.points.size()) {
-                             snap.points.push_back(entityManager_.points[pl.offset + k]);
-                         }
-                     }
-                     break;
-                 }
-             }
-        } else if (it->second.kind == EntityKind::Arrow) {
-             for (const auto& a : entityManager_.arrows) {
-                if (a.id == id) {
-                    snap.points.push_back({a.ax, a.ay});
-                    snap.points.push_back({a.bx, a.by});
-                    break;
-                }
-             }
-        }
-
-        session_.snapshots.push_back(std::move(snap));
-    }
-
-    if (session_.initialIds.empty()) {
-        session_.active = false;
-    }
+    interactionSession_.beginTransform(ids, idCount, mode, specificId, vertexIndex, startX, startY);
 }
 
 // ==============================================================================
@@ -4419,720 +3188,56 @@ void CadEngine::beginTransform(
 // ==============================================================================
 
 void CadEngine::beginDraft(const BeginDraftPayload& p) {
-    draft_.active = true;
-    draft_.kind = p.kind;
-    draft_.startX = p.x;
-    draft_.startY = p.y;
-    draft_.currentX = p.x;
-    draft_.currentY = p.y;
-    draft_.fillR = p.fillR; draft_.fillG = p.fillG; draft_.fillB = p.fillB; draft_.fillA = p.fillA;
-    draft_.strokeR = p.strokeR; draft_.strokeG = p.strokeG; draft_.strokeB = p.strokeB; draft_.strokeA = p.strokeA;
-    draft_.strokeEnabled = p.strokeEnabled;
-    draft_.strokeWidthPx = p.strokeWidthPx;
-    draft_.sides = p.sides;
-    draft_.head = p.head;
-    draft_.points.clear();
-    
-    if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
-        draft_.points.push_back({p.x, p.y});
-    }
-    renderDirty = true;
+    interactionSession_.beginDraft(p);
 }
 
 void CadEngine::updateDraft(float x, float y) {
-    if (!draft_.active) return;
-    draft_.currentX = x;
-    draft_.currentY = y;
-    renderDirty = true;
+    interactionSession_.updateDraft(x, y);
 }
 
 void CadEngine::appendDraftPoint(float x, float y) {
-    if (!draft_.active) return;
-    draft_.points.push_back({x, y});
-    draft_.currentX = x; 
-    draft_.currentY = y;
-    renderDirty = true;
+    interactionSession_.appendDraftPoint(x, y);
 }
 
 void CadEngine::cancelDraft() {
-    draft_.active = false;
-    draft_.points.clear();
-    renderDirty = true;
+    interactionSession_.cancelDraft();
 }
 
 std::uint32_t CadEngine::commitDraft() {
-    if (!draft_.active) return 0;
-    
-    const std::uint32_t id = allocateEntityId();
-    
-    switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Rect: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (w > 0.001f && h > 0.001f)
-                upsertRect(id, x0, y0, w, h, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
-        }
-        case EntityKind::Line:
-             upsertLine(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
-        case EntityKind::Circle: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (w > 0.001f && h > 0.001f)
-                upsertCircle(id, x0 + w/2, y0 + h/2, w/2, h/2, 0, 1, 1, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
-        }
-        case EntityKind::Polygon: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (w > 0.001f && h > 0.001f) {
-                // Determine rotation: if sides=3, rot=PI? (Legacy logic copied)
-                float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
-                upsertPolygon(id, x0 + w/2, y0 + h/2, w/2, h/2, rot, 1, 1, static_cast<std::uint32_t>(draft_.sides), draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             }
-             break;
-        }
-        case EntityKind::Polyline: {
-             if (draft_.points.size() < 2) break; // Need at least 2 points
-             std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
-             for (const auto& p : draft_.points) {
-                 entityManager_.points.push_back({p.x, p.y});
-             }
-             upsertPolyline(id, offset, static_cast<std::uint32_t>(draft_.points.size()), draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
-        }
-        case EntityKind::Arrow: {
-             upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
-        }
-           case EntityKind::Text: {
-               // Drafting text not supported in this path yet.
-               break;
-           }
-    }
-
-    draft_.active = false;
-    draft_.points.clear();
-    return id;
+    return interactionSession_.commitDraft();
 }
 
 void CadEngine::addDraftToBuffers() const {
-    if (!draft_.active) return;
-    
-    // Simple render logic for draft
-    // Override color/alpha for draft appearance if needed, or use draft state props
-    
-    // For Line/Arrow: just a line
-    // For Rect/Circle/Poly: Outline or filled based on props
-
-    // Helper for line
-    auto pushL = [&](float x0, float y0, float x1, float y1) {
-        lineVertices.push_back(x0); lineVertices.push_back(y0); lineVertices.push_back(0); 
-        lineVertices.push_back(draft_.strokeR); lineVertices.push_back(draft_.strokeG); lineVertices.push_back(draft_.strokeB); lineVertices.push_back(1.0f); // Always opaque draft
-    };
-    
-    switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Line:
-        case EntityKind::Arrow: // Draw simple line for arrow draft
-            pushL(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
-            break;
-        case EntityKind::Rect:
-        case EntityKind::Circle:
-        case EntityKind::Polygon: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             // Draw Rect outline for all shapes as preview box (simplification)
-             // Or draw true shape geometry? True shape is better.
-             // Rect:
-             if (static_cast<EntityKind>(draft_.kind) == EntityKind::Rect) {
-                  pushL(x0, y0, x0+w, y0);
-                  pushL(x0+w, y0, x0+w, y0+h);
-                  pushL(x0+w, y0+h, x0, y0+h);
-                  pushL(x0, y0+h, x0, y0);
-             } else {
-                 // For Circle/Polygon, just draw box outline for now to save complexity
-                  pushL(x0, y0, x0+w, y0);
-                  pushL(x0+w, y0, x0+w, y0+h);
-                  pushL(x0+w, y0+h, x0, y0+h);
-                  pushL(x0, y0+h, x0, y0);
-             }
-             break;
-        }
-        case EntityKind::Polyline: {
-             if (draft_.points.empty()) break;
-             for (size_t i = 0; i < draft_.points.size() - 1; ++i) {
-                 pushL(draft_.points[i].x, draft_.points[i].y, draft_.points[i+1].x, draft_.points[i+1].y);
-             }
-             // Ghost segment to cursor
-             if (!draft_.points.empty()) {
-                  pushL(draft_.points.back().x, draft_.points.back().y, draft_.currentX, draft_.currentY);
-             }
-             break;
-        }
-        case EntityKind::Text:
-            // No draft rendering for text yet.
-            break;
-    }
+    // Cast away constness if needed to call interactionSession methods?
+    // No, addDraftToBuffers can be const if interactionSession is mutable or methods are const.
+    // InteractionSession::addDraftToBuffers is NOT const because it calls pushL.
+    // engine_.lineVertices is mutable.
+    const_cast<InteractionSession&>(interactionSession_).addDraftToBuffers(const_cast<std::vector<float>&>(lineVertices));
 }
 
 void CadEngine::updateTransform(float worldX, float worldY) {
-    if (!session_.active) return;
-
-    // Apply Snapping (Phase 3)
-    if (snapOptions_.enabled && snapOptions_.gridEnabled && snapOptions_.gridSize > 0.0001f) {
-        float s = snapOptions_.gridSize;
-        worldX = std::round(worldX / s) * s;
-        worldY = std::round(worldY / s) * s;
-    }
-
-    bool updated = false;
-    
-    float totalDx = worldX - session_.startX;
-    float totalDy = worldY - session_.startY;
-    
-    if (session_.mode == TransformMode::Move) {
-        for (const auto& snap : session_.snapshots) {
-            std::uint32_t id = snap.id;
-            
-             auto it = entityManager_.entities.find(id);
-             if (it == entityManager_.entities.end()) continue;
-             
-             if (it->second.kind == EntityKind::Rect) {
-                  for (auto& r : entityManager_.rects) { 
-                      if (r.id == id) { 
-                          r.x = snap.x + totalDx; 
-                          r.y = snap.y + totalDy; 
-                          refreshEntityRenderRange(id);
-                          updated = true;
-                          break; 
-                      } 
-                  }
-             } else if (it->second.kind == EntityKind::Circle) {
-                  for (auto& c : entityManager_.circles) { 
-                      if (c.id == id) { 
-                          c.cx = snap.x + totalDx; 
-                          c.cy = snap.y + totalDy; 
-                          refreshEntityRenderRange(id);
-                          updated = true;
-                          break; 
-                      } 
-                  }
-             } else if (it->second.kind == EntityKind::Polygon) {
-                  for (auto& p : entityManager_.polygons) { 
-                      if (p.id == id) { 
-                          p.cx = snap.x + totalDx; 
-                          p.cy = snap.y + totalDy; 
-                          refreshEntityRenderRange(id);
-                          updated = true;
-                          break; 
-                      } 
-                  }
-             } else if (it->second.kind == EntityKind::Text) {
-                  TextRec* tr = textSystem_.store.getTextMutable(id); 
-                  if (tr) {
-                       tr->x = snap.x + totalDx;
-                       tr->y = snap.y + totalDy;
-                       textQuadsDirty_ = true;
-                       float minX, minY, maxX, maxY;
-                       if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
-                           pickSystem_.update(id, {minX, minY, maxX, maxY});
-                       }
-                       updated = true;
-                   }
-             } else if (it->second.kind == EntityKind::Line) {
-                 if (snap.points.size() >= 2) {
-                     for (auto& l : entityManager_.lines) { 
-                         if (l.id == id) { 
-                             l.x0 = snap.points[0].x + totalDx; 
-                             l.y0 = snap.points[0].y + totalDy; 
-                             l.x1 = snap.points[1].x + totalDx; 
-                             l.y1 = snap.points[1].y + totalDy; 
-                             refreshEntityRenderRange(id);
-                             updated = true;
-                             break; 
-                         } 
-                     }
-                 }
-             } else if (it->second.kind == EntityKind::Arrow) {
-                 if (snap.points.size() >= 2) {
-                    for (auto& a : entityManager_.arrows) {
-                        if (a.id == id) {
-                            a.ax = snap.points[0].x + totalDx;
-                            a.ay = snap.points[0].y + totalDy;
-                            a.bx = snap.points[1].x + totalDx;
-                            a.by = snap.points[1].y + totalDy;
-                            refreshEntityRenderRange(id);
-                            updated = true;
-                            break;
-                        }
-                    }
-                 }
-             } else if (it->second.kind == EntityKind::Polyline) {
-                 for (auto& pl : entityManager_.polylines) {
-                     if (pl.id == id) {
-                         for (std::uint32_t k = 0; k < pl.count && k < snap.points.size(); k++) {
-                             if (pl.offset + k < entityManager_.points.size()) {
-                                 entityManager_.points[pl.offset + k].x = snap.points[k].x + totalDx;
-                                 entityManager_.points[pl.offset + k].y = snap.points[k].y + totalDy;
-                             }
-                         }
-                         refreshEntityRenderRange(id);
-                         updated = true;
-                         break;
-                     }
-                 }
-             }
-        }
-	    } else if (session_.mode == TransformMode::VertexDrag) {
-	        std::uint32_t id = session_.specificId;
-	        int32_t idx = session_.vertexIndex;
-        
-        const TransformSnapshot* snap = nullptr;
-        for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
-        
-        if (snap && idx >= 0) {
-             auto it = entityManager_.entities.find(id);
-             if (it != entityManager_.entities.end()) {
-                 if (it->second.kind == EntityKind::Polyline) {
-                      for (auto& pl : entityManager_.polylines) {
-                          if (pl.id == id) {
-                              if (static_cast<std::uint32_t>(idx) < pl.count && static_cast<std::uint32_t>(idx) < snap->points.size()) {
-                                  float nx = snap->points[idx].x + totalDx;
-                                  float ny = snap->points[idx].y + totalDy;
-                                  entityManager_.points[pl.offset + idx].x = nx;
-                                  entityManager_.points[pl.offset + idx].y = ny;
-                                  refreshEntityRenderRange(id);
-                                  updated = true;
-                              }
-                              break;
-                          }
-                      }
-                 } else if (it->second.kind == EntityKind::Line) {
-                      for (auto& l : entityManager_.lines) {
-                          if (l.id == id) {
-                              if (idx == 0 && snap->points.size() > 0) {
-                                  l.x0 = snap->points[0].x + totalDx;
-                                  l.y0 = snap->points[0].y + totalDy;
-                                  refreshEntityRenderRange(id);
-                                  updated = true;
-                              } else if (idx == 1 && snap->points.size() > 1) {
-                                  l.x1 = snap->points[1].x + totalDx;
-                                  l.y1 = snap->points[1].y + totalDy;
-                                  refreshEntityRenderRange(id);
-                                  updated = true;
-                              }
-                              break;
-                          }
-                      }
-                 } else if (it->second.kind == EntityKind::Arrow) {
-                      for (auto& a : entityManager_.arrows) {
-                          if (a.id == id) {
-                              if (idx == 0 && snap->points.size() > 0) {
-                                  a.ax = snap->points[0].x + totalDx;
-                                  a.ay = snap->points[0].y + totalDy;
-                                  refreshEntityRenderRange(id);
-                                  updated = true;
-                              } else if (idx == 1 && snap->points.size() > 1) {
-                                  a.bx = snap->points[1].x + totalDx;
-                                  a.by = snap->points[1].y + totalDy;
-                                  refreshEntityRenderRange(id);
-                                  updated = true;
-                              }
-                              break;
-                          }
-                      }
-                 }
-	             }
-	        }
-	    }
-	    else if (session_.mode == TransformMode::Resize) {
-	        std::uint32_t id = session_.specificId;
-	        const int32_t handleIndex = session_.vertexIndex;
-
-	        const TransformSnapshot* snap = nullptr;
-	        for (const auto& s : session_.snapshots) {
-	            if (s.id == id) { snap = &s; break; }
-	        }
-
-        if (!snap || handleIndex < 0 || handleIndex > 3) {
-            return;
-        }
-
-	        auto it = entityManager_.entities.find(id);
-        if (it == entityManager_.entities.end()) {
-            return;
-        }
-
-	        // Compute original AABB from snapshot (in world space).
-	        float origMinX = 0.0f, origMinY = 0.0f, origMaxX = 0.0f, origMaxY = 0.0f;
-	        if (it->second.kind == EntityKind::Rect) {
-	            origMinX = snap->x;
-	            origMinY = snap->y;
-	            origMaxX = snap->x + snap->w;
-	            origMaxY = snap->y + snap->h;
-	        } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-	            // Snapshot stores rx/ry in w/h for circles/polygons.
-	            origMinX = snap->x - snap->w;
-	            origMaxX = snap->x + snap->w;
-	            origMinY = snap->y - snap->h;
-	            origMaxY = snap->y + snap->h;
-        } else {
-            return;
-        }
-
-	        // Handle index order matches frontend (geometry.ts): 0=BL, 1=BR, 2=TR, 3=TL
-	        float anchorX = 0.0f, anchorY = 0.0f;
-	        switch (handleIndex) {
-	            case 0: anchorX = origMaxX; anchorY = origMaxY; break; // BL -> anchor TR
-	            case 1: anchorX = origMinX; anchorY = origMaxY; break; // BR -> anchor TL
-	            case 2: anchorX = origMinX; anchorY = origMinY; break; // TR -> anchor BL
-	            case 3: anchorX = origMaxX; anchorY = origMinY; break; // TL -> anchor BR
-	            default: break;
-	        }
-
-	        const float minX = std::min(anchorX, worldX);
-	        const float maxX = std::max(anchorX, worldX);
-	        const float minY = std::min(anchorY, worldY);
-	        const float maxY = std::max(anchorY, worldY);
-
-	        const float w = std::max(1e-3f, maxX - minX);
-	        const float h = std::max(1e-3f, maxY - minY);
-
-        if (it->second.kind == EntityKind::Rect) {
-            for (auto& r : entityManager_.rects) {
-                if (r.id != id) continue;
-                r.x = minX;
-                r.y = minY;
-                r.w = w;
-                r.h = h;
-                pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                refreshEntityRenderRange(id);
-                updated = true;
-                break;
-            }
-        } else if (it->second.kind == EntityKind::Circle) {
-            for (auto& c : entityManager_.circles) {
-                if (c.id != id) continue;
-                c.cx = (minX + maxX) * 0.5f;
-                c.cy = (minY + maxY) * 0.5f;
-                c.rx = w * 0.5f;
-                c.ry = h * 0.5f;
-                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                refreshEntityRenderRange(id);
-                updated = true;
-                break;
-            }
-        } else if (it->second.kind == EntityKind::Polygon) {
-            for (auto& p : entityManager_.polygons) {
-                if (p.id != id) continue;
-                p.cx = (minX + maxX) * 0.5f;
-                p.cy = (minY + maxY) * 0.5f;
-                p.rx = w * 0.5f;
-                p.ry = h * 0.5f;
-                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                refreshEntityRenderRange(id);
-                updated = true;
-                break;
-            }
-        }
-    }
-
-    if (updated) {
-        generation++;
-    }
+    interactionSession_.updateTransform(worldX, worldY);
 }
 
 void CadEngine::commitTransform() {
-    if (!session_.active) return;
-    
-    commitResultIds.clear();
-    commitResultOpCodes.clear();
-    commitResultPayloads.clear();
-    
-    std::uint32_t n = static_cast<std::uint32_t>(session_.snapshots.size());
-    commitResultIds.reserve(n);
-    commitResultOpCodes.reserve(n);
-    commitResultPayloads.reserve(n * 4);
-    
-    if (session_.mode == TransformMode::Move) {
-        for (const auto& snap : session_.snapshots) {
-            std::uint32_t id = snap.id;
-            float curX = 0, curY = 0;
-            auto it = entityManager_.entities.find(id);
-             if (it == entityManager_.entities.end()) continue;
-             
-             if (it->second.kind == EntityKind::Rect) {
-                  for (auto& r : entityManager_.rects) { if (r.id == id) { curX = r.x; curY = r.y; break; } }
-             } else if (it->second.kind == EntityKind::Circle) {
-                  for (auto& c : entityManager_.circles) { if (c.id == id) { curX = c.cx; curY = c.cy; break; } }
-             } else if (it->second.kind == EntityKind::Text) {
-                  const TextRec* tr = textSystem_.store.getText(id); if (tr) { curX = tr->x; curY = tr->y; }
-             } else if (it->second.kind == EntityKind::Polygon) {
-                   for (auto& p : entityManager_.polygons) { if (p.id == id) { curX = p.cx; curY = p.cy; break; } }
-             } else if (it->second.kind == EntityKind::Line) {
-                 for (auto& l : entityManager_.lines) { if (l.id == id) { curX = l.x0; curY = l.y0; break; } }
-             } else if (it->second.kind == EntityKind::Arrow) {
-                  for (auto& a : entityManager_.arrows) { if (a.id == id) { curX = a.ax; curY = a.ay; break; } }
-             } else if (it->second.kind == EntityKind::Polyline) {
-                  for (auto& pl : entityManager_.polylines) { 
-                      if (pl.id == id && pl.count > 0) { 
-                          curX = entityManager_.points[pl.offset].x; 
-                          curY = entityManager_.points[pl.offset].y; 
-                          break; 
-                      } 
-                  }
-             }
-
-             float origX = 0, origY = 0;
-             if (snap.points.empty()) {
-                  origX = snap.x; origY = snap.y;
-             } else {
-                  origX = snap.points[0].x; origY = snap.points[0].y;
-             }
-             
-             float dx = curX - origX;
-             float dy = curY - origY;
-             
-             commitResultIds.push_back(id);
-             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::MOVE));
-             commitResultPayloads.push_back(dx);
-             commitResultPayloads.push_back(dy);
-             commitResultPayloads.push_back(0.0f);
-             commitResultPayloads.push_back(0.0f);
-        }
-    } else if (session_.mode == TransformMode::VertexDrag) {
-        std::uint32_t id = session_.specificId;
-        int32_t idx = session_.vertexIndex;
-        float cx = 0, cy = 0;
-        bool found = false;
-        
-         auto it = entityManager_.entities.find(id);
-         if (it != entityManager_.entities.end()) {
-             if (it->second.kind == EntityKind::Polyline) {
-                   for (const auto& pl : entityManager_.polylines) {
-                       if (pl.id == id) {
-                           if (idx >= 0 && static_cast<std::uint32_t>(idx) < pl.count) {
-                               cx = entityManager_.points[pl.offset + idx].x;
-                               cy = entityManager_.points[pl.offset + idx].y;
-                               found = true;
-                           }
-                           break;
-                       }
-                   }
-             } else if (it->second.kind == EntityKind::Line) {
-                  for (const auto& l : entityManager_.lines) {
-                      if (l.id == id) {
-                          if (idx == 0) { cx = l.x0; cy = l.y0; found = true; }
-                          else if (idx == 1) { cx = l.x1; cy = l.y1; found = true; }
-                          break;
-                      }
-                  }
-             } else if (it->second.kind == EntityKind::Arrow) {
-                   for (const auto& a : entityManager_.arrows) {
-                      if (a.id == id) {
-                          if (idx == 0) { cx = a.ax; cy = a.ay; found = true; }
-                          else if (idx == 1) { cx = a.bx; cy = a.by; found = true; }
-                          break;
-                      }
-                  }
-             }
-         }
-         
-	         if (found) {
-	             commitResultIds.push_back(id);
-	             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::VERTEX_SET));
-	             commitResultPayloads.push_back(static_cast<float>(idx));
-	             commitResultPayloads.push_back(cx);
-	             commitResultPayloads.push_back(cy);
-	             commitResultPayloads.push_back(0.0f);
-	         }
-    } else if (session_.mode == TransformMode::Resize) {
-        for (const auto& snap : session_.snapshots) {
-            const std::uint32_t id = snap.id;
-            auto it = entityManager_.entities.find(id);
-            if (it == entityManager_.entities.end()) continue;
-
-	            float outX = 0.0f;
-	            float outY = 0.0f;
-	            float outW = 0.0f;
-	            float outH = 0.0f;
-	            bool found = false;
-
-	            if (it->second.kind == EntityKind::Rect) {
-	                for (const auto& r : entityManager_.rects) {
-	                    if (r.id != id) continue;
-	                    outX = r.x;
-	                    outY = r.y;
-	                    outW = r.w;
-	                    outH = r.h;
-	                    found = true;
-	                    break;
-	                }
-	            } else if (it->second.kind == EntityKind::Circle) {
-	                for (const auto& c : entityManager_.circles) {
-	                    if (c.id != id) continue;
-	                    outX = c.cx;
-	                    outY = c.cy;
-	                    outW = c.rx * 2.0f;
-	                    outH = c.ry * 2.0f;
-	                    found = true;
-	                    break;
-	                }
-	            } else if (it->second.kind == EntityKind::Polygon) {
-	                for (const auto& p : entityManager_.polygons) {
-	                    if (p.id != id) continue;
-	                    outX = p.cx;
-	                    outY = p.cy;
-	                    outW = p.rx * 2.0f;
-	                    outH = p.ry * 2.0f;
-	                    found = true;
-	                    break;
-	                }
-	            }
-
-	            if (!found) continue;
-
-	            commitResultIds.push_back(id);
-	            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::RESIZE));
-	            commitResultPayloads.push_back(outX);
-	            commitResultPayloads.push_back(outY);
-            commitResultPayloads.push_back(outW);
-            commitResultPayloads.push_back(outH);
-        }
-    }
-
-    if (!historySuppressed_ && !session_.snapshots.empty() && !historyTransaction_.active) {
-        HistoryEntry entry{};
-        entry.nextIdBefore = nextEntityId_;
-        entry.nextIdAfter = nextEntityId_;
-        for (const auto& snap : session_.snapshots) {
-            EntityChange change{};
-            change.id = snap.id;
-            change.existedBefore = true;
-            change.before = buildSnapshotFromTransform(snap);
-            change.existedAfter = captureEntitySnapshot(snap.id, change.after);
-            if (!change.existedBefore && !change.existedAfter) continue;
-            entry.entities.push_back(std::move(change));
-        }
-        if (!entry.entities.empty()) {
-            std::sort(entry.entities.begin(), entry.entities.end(), [](const EntityChange& a, const EntityChange& b) {
-                return a.id < b.id;
-            });
-            pushHistoryEntry(std::move(entry));
-        }
-    }
-
-    session_ = InteractionSession{};
-    snapshotDirty = true;
-    if (pendingFullRebuild_) {
-        renderDirty = true;
-    }
+    interactionSession_.commitTransform();
 }
 
 void CadEngine::cancelTransform() {
-    if (!session_.active) return;
-    
-    for (const auto& snap : session_.snapshots) {
-        std::uint32_t id = snap.id;
-         auto it = entityManager_.entities.find(id);
-         if (it == entityManager_.entities.end()) continue;
-         
-         if (it->second.kind == EntityKind::Rect) {
-             for (auto& r : entityManager_.rects) {
-                 if (r.id == id) {
-                     r.x = snap.x;
-                     r.y = snap.y;
-                     r.w = snap.w;
-                     r.h = snap.h;
-                     pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                     break;
-                 }
-             }
-         } else if (it->second.kind == EntityKind::Circle) {
-              for (auto& c : entityManager_.circles) {
-                  if (c.id == id) {
-                      c.cx = snap.x;
-                      c.cy = snap.y;
-                      c.rx = snap.w;
-                      c.ry = snap.h;
-                      pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                      break;
-                  }
-              }
-         } else if (it->second.kind == EntityKind::Polygon) {
-              for (auto& p : entityManager_.polygons) {
-                  if (p.id == id) {
-                      p.cx = snap.x;
-                      p.cy = snap.y;
-                      p.rx = snap.w;
-                      p.ry = snap.h;
-                      pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                      break;
-                  }
-              }
-         } else if (it->second.kind == EntityKind::Text) {
-             TextRec* tr = textSystem_.store.getTextMutable(id);
-             if (tr) {
-                 tr->x = snap.x;
-                 tr->y = snap.y;
-                 textQuadsDirty_ = true;
-                 float minX, minY, maxX, maxY;
-                 if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
-                     pickSystem_.update(id, {minX, minY, maxX, maxY});
-                 }
-             }
-         } else if (it->second.kind == EntityKind::Polyline) {
-             for (auto& pl : entityManager_.polylines) {
-                 if (pl.id == id) {
-                     for (std::uint32_t k = 0; k < pl.count && k < snap.points.size(); k++) {
-                         entityManager_.points[pl.offset + k] = snap.points[k];
-                     }
-                     break;
-                 }
-             }
-         } else if (it->second.kind == EntityKind::Line) {
-               for (auto& l : entityManager_.lines) {
-                   if (l.id == id && snap.points.size() >= 2) {
-                       l.x0 = snap.points[0].x; l.y0 = snap.points[0].y;
-                       l.x1 = snap.points[1].x; l.y1 = snap.points[1].y;
-                       break;
-                   }
-               }
-          } else if (it->second.kind == EntityKind::Arrow) {
-               for (auto& a : entityManager_.arrows) {
-                   if (a.id == id && snap.points.size() >= 2) {
-                       a.ax = snap.points[0].x; a.ay = snap.points[0].y;
-                       a.bx = snap.points[1].x; a.by = snap.points[1].y;
-                       break;
-                   }
-               }
-          }
-    }
-    
-    renderDirty = true;
-    session_ = InteractionSession{};
+    interactionSession_.cancelTransform();
 }
 
 void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize) {
-    snapOptions_.enabled = enabled;
-    snapOptions_.gridEnabled = gridEnabled;
-    snapOptions_.gridSize = gridSize;
+    interactionSession_.snapOptions.enabled = enabled;
+    interactionSession_.snapOptions.gridEnabled = gridEnabled;
+    interactionSession_.snapOptions.gridSize = gridSize;
 }
 
 std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {
-    if (!snapOptions_.enabled || !snapOptions_.gridEnabled || snapOptions_.gridSize <= 0.0001f) {
+    if (!interactionSession_.snapOptions.enabled || !interactionSession_.snapOptions.gridEnabled || interactionSession_.snapOptions.gridSize <= 0.0001f) {
         return {x, y};
     }
-    float s = snapOptions_.gridSize;
+    float s = interactionSession_.snapOptions.gridSize;
     return {std::round(x / s) * s, std::round(y / s) * s};
 }
 

@@ -364,4 +364,10 @@ struct BeginDraftPayload {
 
 struct UpdateDraftPayload { float x, y; };
 
+struct SnapOptions {
+    bool enabled = false;
+    bool gridEnabled = false;
+    float gridSize = 10.0f;
+};
+
 #endif // ELETROCAD_ENGINE_TYPES_H
