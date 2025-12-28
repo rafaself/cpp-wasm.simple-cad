@@ -698,22 +698,26 @@ void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, st
     const std::uint32_t visiblePropMask = static_cast<std::uint32_t>(LayerPropMask::Visible);
     const std::uint32_t lockedPropMask = static_cast<std::uint32_t>(LayerPropMask::Locked);
     const std::uint32_t nameMask = static_cast<std::uint32_t>(LayerPropMask::Name);
-    
-    // Translate LayerPropMask to LayerFlags
-    // LayerPropMask::Visible (1<<1=2) -> LayerFlags::Visible (1<<0=1)
-    // LayerPropMask::Locked (1<<2=4) -> LayerFlags::Locked (1<<1=2)
+
+    // Translate incoming flag bits (EngineLayerFlags layout) to LayerFlags while tolerating
+    // the legacy LayerPropMask layout for backwards compatibility.
+    const std::uint32_t visibleFlag = static_cast<std::uint32_t>(LayerFlags::Visible);
+    const std::uint32_t lockedFlag = static_cast<std::uint32_t>(LayerFlags::Locked);
+    const std::uint32_t visibleIncomingMask = visibleFlag | visiblePropMask;
+    const std::uint32_t lockedIncomingMask = lockedFlag | lockedPropMask;
+
     std::uint32_t translatedMask = 0;
     std::uint32_t translatedValue = 0;
     if (propsMask & visiblePropMask) {
-        translatedMask |= static_cast<std::uint32_t>(LayerFlags::Visible);
-        if (flagsValue & visiblePropMask) {
-            translatedValue |= static_cast<std::uint32_t>(LayerFlags::Visible);
+        translatedMask |= visibleFlag;
+        if (flagsValue & visibleIncomingMask) {
+            translatedValue |= visibleFlag;
         }
     }
     if (propsMask & lockedPropMask) {
-        translatedMask |= static_cast<std::uint32_t>(LayerFlags::Locked);
-        if (flagsValue & lockedPropMask) {
-            translatedValue |= static_cast<std::uint32_t>(LayerFlags::Locked);
+        translatedMask |= lockedFlag;
+        if (flagsValue & lockedIncomingMask) {
+            translatedValue |= lockedFlag;
         }
     }
 
