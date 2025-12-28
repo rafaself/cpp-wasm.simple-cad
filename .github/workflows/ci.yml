@@ -7,6 +7,18 @@ on:
     branches: [ "**" ]
 
 jobs:
+  size-check:
+    name: Code Size Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check file sizes
+        run: |
+          chmod +x scripts/check-file-size.sh
+          ./scripts/check-file-size.sh
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

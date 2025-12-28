@@ -95,6 +95,7 @@ set(ENGINE_SOURCES
   engine/history_manager.cpp
   engine/selection_manager.cpp
   engine/interaction_session.cpp
+  engine/command_dispatch.cpp
 )
 
 # Text module sources (conditional)

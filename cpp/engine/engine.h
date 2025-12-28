@@ -34,10 +34,17 @@
 #include <vector>
 #include <algorithm>
 
+// Forward declaration for command dispatch
+class CadEngine;
+namespace engine {
+    EngineError dispatchCommand(CadEngine*, std::uint32_t, std::uint32_t, const std::uint8_t*, std::uint32_t);
+}
+
 class CadEngine {
     friend class SelectionManager;
     friend class HistoryManager;
     friend class InteractionSession;
+    friend EngineError engine::dispatchCommand(CadEngine*, std::uint32_t, std::uint32_t, const std::uint8_t*, std::uint32_t);
 public:
     // Expose legacy nested type names for backwards compatibility with existing callers/tests
     using CommandOp = ::CommandOp;
@@ -758,8 +765,7 @@ public:
      */
     std::vector<TextEntityMeta> getAllTextMetas() const;
 
-    // Implementation of the command callback which applies a single parsed command to the CadEngine.
-    static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);
+    // Command dispatch logic moved to engine/command_dispatch.cpp
 
     void compactPolylinePoints();
 
