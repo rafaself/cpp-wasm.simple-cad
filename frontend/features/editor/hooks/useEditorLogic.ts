@@ -9,7 +9,7 @@ export const useEditorLogic = () => {
     void getEngineRuntime().then((runtime) => {
       const ids = Array.from(runtime.getSelectionIds());
       if (ids.length === 0) return;
-      const commands: { op: CommandOp; id: EntityId }[] = [];
+      const commands: import('@/engine/core/commandBuffer').EngineCommand[] = [];
       for (const id of ids) {
         const meta = IdRegistry.getMeta(id);
         if (meta?.entityType === 'text') {

@@ -1,5 +1,38 @@
 import type { Shape } from '../../../types';
-import { getShapeBoundingBox } from '../../../utils/geometry';
+const getShapeBoundingBox = (shape: Shape): { x: number; y: number; width: number; height: number } => {
+  if (shape.type === 'rect') {
+    return {
+      x: shape.x ?? 0,
+      y: shape.y ?? 0,
+      width: shape.width ?? 0,
+      height: shape.height ?? 0
+    };
+  }
+  if (shape.type === 'circle' || shape.type === 'polygon') {
+      // PDF import typically produces paths/polylines, but handling basic primitives just in case
+      const cx = shape.x ?? 0;
+      const cy = shape.y ?? 0;
+      const w = shape.width ?? (shape.radius ?? 0) * 2;
+      const h = shape.height ?? (shape.radius ?? 0) * 2;
+      return { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
+  }
+  if (shape.points && shape.points.length > 0) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of shape.points) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+  }
+  return { x: 0, y: 0, width: 0, height: 0 };
+};
 
 export interface PdfBorderFilterOptions {
   /**

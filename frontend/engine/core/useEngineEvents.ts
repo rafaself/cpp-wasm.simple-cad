@@ -60,10 +60,7 @@ export const useEngineEvents = (): void => {
       const runtime = await getEngineRuntime();
       if (disposed) return;
 
-      if (!sourceSet) {
-        useUIStore.getState().setDocumentSource('engine');
-        sourceSet = true;
-      }
+
 
       if (!bootstrapped) {
         bumpDocumentSignal('layers');

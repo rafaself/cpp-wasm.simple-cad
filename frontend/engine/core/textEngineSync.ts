@@ -119,50 +119,9 @@ export function getTextMappings(): { textIdToShapeId: Map<number, string>; shape
   return { textIdToShapeId, shapeIdToTextId };
 }
 
-/**
- * Delete a text from the engine by its shape ID.
- * This should be called when a text shape is deleted from the JS store.
- */
-export function deleteTextByShapeId(shapeId: string): boolean {
-  const textId = getEngineId(shapeId);
-  if (textId === null) return false;
-  
-  // Check if it is text
-  const meta = IdRegistry.getMeta(textId);
-  if (meta?.entityType !== 'text') return false;
 
-  // Release mapping
-  trackedTextShapeIds.delete(shapeId);
-  releaseId(shapeId);
-  
-  // Delete from engine
-  if (textToolInstance) {
-    textToolInstance.deleteTextById(textId);
-  }
-  
-  return true;
-}
 
-/**
- * Move a text in the engine to match JS shape position.
- * @param shapeId JS Shape ID
- * @param anchorX New anchor X (top-left in Y-Up world)
- * @param anchorY New anchor Y (top-left in Y-Up world)
- */
-export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: number): boolean {
-  const textId = getEngineId(shapeId);
-  if (textId === null) return false;
-  
-  const meta = getTextMeta(textId);
-  const boxMode = meta?.boxMode ?? 0;
-  const constraintWidth = meta?.constraintWidth ?? 0;
 
-  if (textToolInstance) {
-    return textToolInstance.moveText(textId, anchorX, anchorY, boxMode, constraintWidth);
-  }
-
-  return false;
-}
 
 /**
  * Clear all mappings (e.g., on document reset).

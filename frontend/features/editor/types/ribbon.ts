@@ -41,7 +41,7 @@ export interface GridControlProps {
 // RIBBON COMMON PROPS
 // ============================================
 
-export interface RibbonComponentProps extends TextControlProps, GridControlProps {
+export interface RibbonComponentProps extends TextControlProps, Omit<GridControlProps, 'openColorPicker'> {
   // Combined props for ComponentRegistry
   activeLayer?: unknown;
   isLayerDropdownOpen?: boolean;

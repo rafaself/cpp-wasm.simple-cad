@@ -31,7 +31,7 @@ interface UIState {
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
-  documentSource: 'react' | 'engine';
+
   history: {
     canUndo: boolean;
     canRedo: boolean;
@@ -67,7 +67,7 @@ interface UIState {
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
-  setDocumentSource: (source: 'react' | 'engine') => void;
+
   setHistoryMeta: (meta: HistoryMeta) => void;
 
   // Engine text editing setters
@@ -99,7 +99,7 @@ export const useUIStore = create<UIState>((set) => ({
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
-  documentSource: 'engine',
+
   history: {
     canUndo: false,
     canRedo: false,
@@ -191,7 +191,7 @@ export const useUIStore = create<UIState>((set) => ({
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),
-  setDocumentSource: (source) => set({ documentSource: source }),
+
   setHistoryMeta: (meta) => set({
     history: {
       depth: meta.depth,

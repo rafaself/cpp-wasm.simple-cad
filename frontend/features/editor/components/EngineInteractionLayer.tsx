@@ -57,6 +57,9 @@ const EngineInteractionLayer: React.FC = () => {
   const dragRef = useRef<DragMode>({ type: "none" });
   const marqueeArmedRef = useRef(false);
   
+  // Track if we're dragging for FixedWidth text creation (Input State only)
+  const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  
   // Pan/Zoom hook
   const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
 
@@ -92,8 +95,7 @@ const EngineInteractionLayer: React.FC = () => {
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
   // NOTE: textBoxMetaRef removed — using getTextMeta() directly (Engine-First)
 
-  // Track if we're dragging for FixedWidth text creation
-  const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
+
 
   const beginEngineSession = useCallback(
     (ids: EntityId[], mode: TransformMode, specificId: EntityId, vertexIndex: number, startX: number, startY: number): boolean => {
@@ -495,9 +497,9 @@ const EngineInteractionLayer: React.FC = () => {
     // Tools logic
     if (activeTool === 'text') {
       textDragStartRef.current = snapped;
-      setDraft({ kind: 'text', start: snapped, current: snapped });
       return;
     }
+
 
     if (activeTool === 'move') {
       const activeIds = readSelectionIds();
@@ -563,12 +565,7 @@ const EngineInteractionLayer: React.FC = () => {
        return;
     }
 
-    if (activeTool === 'text') {
-      if (textDragStartRef.current) {
-        setDraft({ kind: 'text', start: textDragStartRef.current, current: snapped });
-      }
-      return;
-    }
+
 
 	    if (activeTool === 'select') {
 	      const down = pointerDownRef.current;
@@ -625,20 +622,13 @@ const EngineInteractionLayer: React.FC = () => {
         }
     }
 
-    if (engineTextEditState.active) {
-       textToolRef.current?.handlePointerUp();
-       return;
-    }
-
     if (activeTool === 'text' && textDragStartRef.current) {
-       // ... text creation logic
       let snapped = toWorldPoint(evt, viewTransform);
       if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
          const p = runtimeRef.current.getSnappedPoint(snapped.x, snapped.y);
          snapped = { x: p.x, y: p.y };
       }
-      // Legacy fallback removed intentionally to rely on engine or raw
-
+      
       const start = textDragStartRef.current;
       textDragStartRef.current = null;
       if (textToolRef.current) {
@@ -651,9 +641,15 @@ const EngineInteractionLayer: React.FC = () => {
         }
         requestAnimationFrame(() => textInputProxyRef.current?.focus());
       }
-      setDraft({ kind: 'none' });
       return;
     }
+
+    if (engineTextEditState.active) {
+       textToolRef.current?.handlePointerUp();
+       return;
+    }
+
+
 
     const down = pointerDownRef.current;
     pointerDownRef.current = null;
@@ -730,31 +726,7 @@ const EngineInteractionLayer: React.FC = () => {
     );
   }, [selectionBox, viewTransform, canvasSize]);
 
-  const draftSvg = useMemo(() => {
-    if (draft.kind === 'none') return null;
-    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
 
-    // Engine handles Line, Rect, Circle/Ellipse, Polygon, Arrow, Polyline drafts now.
-    // We only keep Text draft visualization here until it moves to engine.
-
-    if (draft.kind === 'text') {
-      const stroke = toolDefaults.strokeColor || '#22c55e';
-      const strokeWidth = Math.max(1, toolDefaults.strokeWidth ?? 2);
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      const x = Math.min(a.x, b.x);
-      const y = Math.min(a.y, b.y);
-      const w = Math.abs(a.x - b.x);
-      const h = Math.abs(a.y - b.y);
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray="6 4" opacity={0.9} />
-        </svg>
-      );
-    }
-
-    return null;
-  }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform]);
 
   return (
     <div
@@ -769,7 +741,7 @@ const EngineInteractionLayer: React.FC = () => {
       onLostPointerCapture={handleLostPointerCapture}
       ref={layerRef}
     >
-      {draftSvg}
+
       <SelectionOverlay hideAnchors={engineTextEditState.active} />
       {selectionSvg}
       <TextInputProxy

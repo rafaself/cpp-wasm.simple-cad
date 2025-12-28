@@ -61,7 +61,7 @@ const EditorRibbon: React.FC = () => {
       }
 
       const runtime = await getEngineRuntime();
-      useUIStore.getState().setDocumentSource('engine');
+
       runtime.resetIds();
       clearTextMappings();
       runtime.loadSnapshotBytes(payload.engineSnapshot);
