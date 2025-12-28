@@ -220,6 +220,10 @@ if(NOT EMSCRIPTEN)
       ${msdfgen_SOURCE_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen_config
     )
+    # Define path to HarfBuzz source dir for test fixtures
+    target_compile_definitions(engine_tests PRIVATE
+      HARFBUZZ_SOURCE_DIR="${harfbuzz_SOURCE_DIR}"
+    )
   endif()
 
   # Include engine implementation (as a library-like component)

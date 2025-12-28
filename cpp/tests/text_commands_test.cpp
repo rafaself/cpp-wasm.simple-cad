@@ -897,8 +897,8 @@ TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
 // =============================================================================
 
 TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
-    // Load font
-    std::string fontPath = "build_temp/_deps/harfbuzz-src/test/api/fonts/OpenSans-Regular.ttf";
+    // Load font - use CMake-provided path for portability
+    std::string fontPath = std::string(HARFBUZZ_SOURCE_DIR) + "/test/api/fonts/OpenSans-Regular.ttf";
     std::ifstream f(fontPath, std::ios::binary | std::ios::ate);
     ASSERT_TRUE(f.is_open()) << "Failed to open font file: " << fontPath;
     std::streamsize size = f.tellg();
