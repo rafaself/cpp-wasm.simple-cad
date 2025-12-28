@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import NumberSpinner from './NumberSpinner';
+import { LABELS } from '@/i18n/labels';
 
 interface EditableNumberProps {
     value: number;
@@ -44,7 +45,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
                 <div 
                     onClick={() => setIsEditing(true)}
                     className={`cursor-pointer hover:bg-slate-700 px-1 rounded hover:text-white transition-colors flex items-center justify-center w-full h-full select-none ${displayClassName}`}
-                    title="Clique para editar"
+                    title={LABELS.common.clickToEdit}
                 >
                     {Math.round(value)}{suffix}
                 </div>

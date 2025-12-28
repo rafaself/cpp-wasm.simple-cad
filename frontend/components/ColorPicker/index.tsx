@@ -6,6 +6,7 @@ import ColorArea from './ColorArea';
 import ColorSlider from './ColorSlider';
 import ColorInputs from './ColorInputs';
 import Swatches from './Swatches';
+import { LABELS } from '@/i18n/labels';
 
 interface ColorPickerProps {
   color?: string; // Hex
@@ -170,7 +171,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
       >
         <div className="flex items-center gap-2">
           <GripHorizontal size={14} className="text-slate-500" />
-          <span className="text-xs font-medium text-slate-300">Seletor de Cor</span>
+          <span className="text-xs font-medium text-slate-300">{LABELS.colorPicker.title}</span>
         </div>
         <X 
           size={16} 
@@ -188,7 +189,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
         {/* Row 1: Eyedropper + Hue Slider + Color Preview */}
         <div className="flex items-center gap-3 mb-2">
             {/* Eyedropper */}
-            <button className="text-slate-400 hover:text-white transition-colors shrink-0" title="Conta-gotas">
+            <button className="text-slate-400 hover:text-white transition-colors shrink-0" title={LABELS.colorPicker.eyedropper}>
                 <Pipette size={16} />
             </button>
 

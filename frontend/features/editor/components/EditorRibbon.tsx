@@ -51,12 +51,12 @@ const EditorRibbon: React.FC = () => {
         payload = decodeNextDocumentFile(new Uint8Array(buf));
       } catch (err) {
         console.error(err);
-        alert('Arquivo invalido ou corrompido.');
+        alert(LABELS.common.errorInvalidFile);
         return;
       }
 
       if (!payload.engineSnapshot || payload.engineSnapshot.byteLength === 0) {
-        alert('Arquivo sem snapshot ESNP. Abra apenas documentos vNext.');
+        alert(LABELS.common.errorNoSnapshot);
         return;
       }
 

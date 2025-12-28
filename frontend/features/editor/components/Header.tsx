@@ -112,7 +112,7 @@ const Header: React.FC = () => {
           activator={({ onClick }) => (
             <button
               className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-              title={isFullScreen ? `Sair da Tela Cheia (${fullscreenShortcut})` : `Tela Cheia (${fullscreenShortcut})`}
+              title={isFullScreen ? `${LABELS.common.fullScreenExit} (${fullscreenShortcut})` : `${LABELS.common.fullScreenEnter} (${fullscreenShortcut})`}
               onClick={onClick}
             >
               {isFullScreen ? <Minimize size={14} /> : <Maximize size={14} />}
@@ -121,7 +121,7 @@ const Header: React.FC = () => {
         >
           {({ close }) => (
             <DialogCard
-              title="Modo Tela Cheia"
+              title={LABELS.common.fullScreenToggle}
               actions={
                 <DialogButton variant="primary" onClick={close}>
                   {LABELS.common.ok}
@@ -131,15 +131,15 @@ const Header: React.FC = () => {
               <div className="flex flex-col items-center gap-4 py-2">
                 <p className="text-center text-slate-300">
                   {isFullScreen 
-                    ? "Você está no modo tela cheia. Para sair, pressione:"
-                    : "Para alternar o modo tela cheia, pressione:"
+                    ? LABELS.common.fullScreenMessageExit
+                    : LABELS.common.fullScreenMessageEnter
                   }
                 </p>
                 <kbd className="bg-slate-700 px-4 py-2 rounded-lg text-lg font-mono font-bold border border-slate-500 text-white shadow-lg">
                   {fullscreenShortcut}
                 </kbd>
                 <p className="text-center text-slate-400 text-sm">
-                  Use {fullscreenShortcutReadable} para entrar ou sair do modo tela cheia.
+                  {LABELS.common.fullScreenInstruction.replace('{shortcut}', fullscreenShortcutReadable)}
                 </p>
               </div>
             </DialogCard>
