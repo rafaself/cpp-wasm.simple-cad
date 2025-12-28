@@ -3,6 +3,7 @@ import { SnapOptions } from '../../../types';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { Section } from '../../../components/ui/Section';
 import { Toggle } from '../../../components/ui/Toggle';
+import { LABELS } from '@/i18n/labels';
 
 const SnappingSettings: React.FC = () => {
   const snapOptions = useSettingsStore(s => s.snap);
@@ -15,37 +16,37 @@ const SnappingSettings: React.FC = () => {
 
   return (
     <div className="flex flex-col">
-      <Section title="Geral">
+      <Section title={LABELS.settings.general}>
         <Toggle
-          label="Snap Ativo"
+          label={LABELS.settings.snapActive}
           checked={snapOptions.enabled}
           onChange={(v) => setSnapEnabled(v)}
         />
       </Section>
 
-      <Section title="Modos de Snap">
+      <Section title={LABELS.settings.snapping}>
         <Toggle
-          label="Extremidades (Endpoints)"
+          label={LABELS.settings.endpoints}
           checked={snapOptions.endpoint}
           onChange={(v) => updateOption('endpoint', v)}
         />
         <Toggle
-          label="Pontos Médios (Midpoints)"
+          label={LABELS.settings.midpoints}
           checked={snapOptions.midpoint}
           onChange={(v) => updateOption('midpoint', v)}
         />
         <Toggle
-          label="Centros"
+          label={LABELS.settings.centers}
           checked={snapOptions.center}
           onChange={(v) => updateOption('center', v)}
         />
         <Toggle
-          label="Grade (Grid)"
+          label={LABELS.settings.grid}
           checked={snapOptions.grid}
           onChange={(v) => updateOption('grid', v)}
         />
         <Toggle
-          label="Mais Próximo (Nearest)"
+          label={LABELS.settings.nearest}
           checked={snapOptions.nearest}
           onChange={(v) => updateOption('nearest', v)}
         />

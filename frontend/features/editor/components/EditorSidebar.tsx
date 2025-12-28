@@ -5,6 +5,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
+import { LABELS } from '@/i18n/labels';
 
 const EditorSidebar: React.FC = () => {
   const runtime = useEngineRuntime();
@@ -44,11 +45,11 @@ const EditorSidebar: React.FC = () => {
   return (
     <aside className="w-64 bg-slate-900 text-slate-100 border-l border-slate-800 flex flex-col">
       <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-        <span className="text-xs uppercase tracking-widest text-slate-400">Camadas</span>
+        <span className="text-xs uppercase tracking-widest text-slate-400">{LABELS.sidebar.layers}</span>
         <button
           onClick={handleAddLayer}
           className="h-6 w-6 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
-          title="Nova camada"
+          title={LABELS.sidebar.newLayer}
         >
           <Plus size={14} />
         </button>
@@ -73,7 +74,7 @@ const EditorSidebar: React.FC = () => {
                   updateLayerFlags(layer.id, !layer.visible, undefined);
                 }}
                 className="p-1 text-slate-400 hover:text-white"
-                title={layer.visible ? 'Ocultar' : 'Mostrar'}
+                title={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
               >
                 {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
@@ -83,7 +84,7 @@ const EditorSidebar: React.FC = () => {
                   updateLayerFlags(layer.id, undefined, !layer.locked);
                 }}
                 className="p-1 text-slate-400 hover:text-white"
-                title={layer.locked ? 'Desbloquear' : 'Bloquear'}
+                title={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
               >
                 {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
               </button>
@@ -91,7 +92,7 @@ const EditorSidebar: React.FC = () => {
           </div>
         ))}
         {layers.length === 0 && (
-          <div className="px-3 py-4 text-xs text-slate-500">Nenhuma camada encontrada.</div>
+          <div className="px-3 py-4 text-xs text-slate-500">{LABELS.common.none}</div>
         )}
       </div>
     </aside>

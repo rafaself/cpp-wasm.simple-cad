@@ -6,16 +6,17 @@ import { getEngineRuntime } from '@/engine/core/singleton';
 import { encodeNextDocumentFile, decodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
 import { clearTextMappings, registerTextMapping, setTextMeta } from '@/engine/core/textEngineSync';
 import { bumpDocumentSignal } from '@/engine/core/engineDocumentSignals';
+import { LABELS } from '@/i18n/labels';
 
 const DEFAULT_FRAME = { enabled: false, widthMm: 297, heightMm: 210, marginMm: 10 };
 
 const TOOL_BUTTONS = [
-  { id: 'select', label: 'Selecionar', icon: MousePointer2 },
-  { id: 'line', label: 'Linha', icon: Minus },
-  { id: 'rect', label: 'Retangulo', icon: Square },
-  { id: 'circle', label: 'Circulo', icon: Circle },
-  { id: 'polyline', label: 'Polilinha', icon: PenTool },
-  { id: 'text', label: 'Texto', icon: Type },
+  { id: 'select', label: LABELS.tools.select, icon: MousePointer2 },
+  { id: 'line', label: LABELS.tools.line, icon: Minus },
+  { id: 'rect', label: LABELS.tools.rect, icon: Square },
+  { id: 'circle', label: LABELS.tools.circle, icon: Circle },
+  { id: 'polyline', label: LABELS.tools.polyline, icon: PenTool },
+  { id: 'text', label: LABELS.tools.text, icon: Type },
 ];
 
 const EditorRibbon: React.FC = () => {
@@ -109,30 +110,30 @@ const EditorRibbon: React.FC = () => {
         <button
           onClick={handleOpen}
           className="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1"
-          title="Abrir"
+          title={LABELS.menu.openFile}
         >
           <FolderOpen size={14} />
-          Abrir
+          {LABELS.menu.openFile}
         </button>
         <button
           onClick={handleSave}
           className="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1"
-          title="Salvar"
+          title={LABELS.menu.saveFile}
         >
           <Save size={14} />
-          Salvar
+          {LABELS.menu.saveFile}
         </button>
         <button
           onClick={handleUndo}
           className="h-7 w-7 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
-          title="Desfazer"
+          title={LABELS.menu.undo}
         >
           <Undo2 size={14} />
         </button>
         <button
           onClick={handleRedo}
           className="h-7 w-7 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
-          title="Refazer"
+          title={LABELS.menu.redo}
         >
           <Redo2 size={14} />
         </button>

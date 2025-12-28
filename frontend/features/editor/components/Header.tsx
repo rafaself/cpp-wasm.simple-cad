@@ -12,6 +12,7 @@ import {
 import { useUIStore } from '@/stores/useUIStore';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
+import { LABELS } from '@/i18n/labels';
 
 const Header: React.FC = () => {
   const setSettingsModalOpen = useUIStore(s => s.setSettingsModalOpen);
@@ -59,21 +60,21 @@ const Header: React.FC = () => {
         <div className="flex items-center gap-0.5 text-slate-400">
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Novo Arquivo (Ctrl+N)"
+            title={`${LABELS.menu.newFile} (Ctrl+N)`}
             onClick={() => console.log('New File clicked')}
           >
             <FilePlus size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Abrir Arquivo (Ctrl+O)"
+            title={`${LABELS.menu.openFile} (Ctrl+O)`}
             onClick={() => console.log('Open File clicked')}
           >
             <FolderOpen size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Salvar (Ctrl+S)"
+            title={`${LABELS.menu.saveFile} (Ctrl+S)`}
             onClick={() => console.log('Save clicked')}
           >
             <Save size={14} />
@@ -81,14 +82,14 @@ const Header: React.FC = () => {
           <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Desfazer (Ctrl+Z)"
+            title={`${LABELS.menu.undo} (Ctrl+Z)`}
             onClick={handleUndo}
           >
             <Undo2 size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Refazer (Ctrl+Y)"
+            title={`${LABELS.menu.redo} (Ctrl+Y)`}
             onClick={handleRedo}
           >
             <Redo2 size={14} />
@@ -96,7 +97,7 @@ const Header: React.FC = () => {
           <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Configuracoes"
+            title={LABELS.menu.settings}
             onClick={() => setSettingsModalOpen(true)}
           >
             <Settings size={14} />
@@ -123,7 +124,7 @@ const Header: React.FC = () => {
               title="Modo Tela Cheia"
               actions={
                 <DialogButton variant="primary" onClick={close}>
-                  Entendi
+                  {LABELS.common.ok}
                 </DialogButton>
               }
             >
@@ -150,5 +151,6 @@ const Header: React.FC = () => {
 };
 
 export default Header;
+
 
 

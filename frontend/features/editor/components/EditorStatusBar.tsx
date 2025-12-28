@@ -7,6 +7,7 @@ import { SnapOptions } from '../../../types';
 import EditableNumber from '../../../components/EditableNumber';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
+import { LABELS } from '@/i18n/labels';
 
 const EditorStatusBar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
@@ -48,8 +49,8 @@ const EditorStatusBar: React.FC = () => {
               <button
                 onClick={() => setShowSnapMenu(!showSnapMenu)}
                 className="px-1 py-0.5 border-l border-slate-600 hover:bg-slate-700"
-                title="Opções de Snap"
-                aria-label="Opções de Snap"
+                title={LABELS.statusbar.snapOptions}
+                aria-label={LABELS.statusbar.snapOptions}
               >
                 <ChevronUp size={14} />
               </button>
@@ -57,21 +58,21 @@ const EditorStatusBar: React.FC = () => {
            
            {showSnapMenu && (
              <div className="absolute bottom-full mb-1 left-0 w-40 bg-slate-800 border border-slate-600 shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
-                <div className="text-[10px] text-slate-500 uppercase mb-1 font-bold">Snap ao Objeto</div>
+                <div className="text-[10px] text-slate-500 uppercase mb-1 font-bold">{LABELS.statusbar.snapToObject}</div>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.endpoint} onChange={() => toggleOption('endpoint')} /> <Square size={12} /> Extremidade
+                  <input type="checkbox" checked={snapSettings.endpoint} onChange={() => toggleOption('endpoint')} /> <Square size={12} /> {LABELS.settings.endpoints}
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.midpoint} onChange={() => toggleOption('midpoint')} /> <Target size={12} /> Ponto medio
+                  <input type="checkbox" checked={snapSettings.midpoint} onChange={() => toggleOption('midpoint')} /> <Target size={12} /> {LABELS.settings.midpoints}
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.center} onChange={() => toggleOption('center')} /> <CircleDot size={12} /> Centro
+                  <input type="checkbox" checked={snapSettings.center} onChange={() => toggleOption('center')} /> <CircleDot size={12} /> {LABELS.settings.centers}
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.nearest} onChange={() => toggleOption('nearest')} /> <Crosshair size={12} /> Mais proximo
+                  <input type="checkbox" checked={snapSettings.nearest} onChange={() => toggleOption('nearest')} /> <Crosshair size={12} /> {LABELS.settings.nearest}
                 </label>
                 <label className="flex items-center gap-2 hover:bg-slate-700 p-1 rounded cursor-pointer">
-                  <input type="checkbox" checked={snapSettings.grid} onChange={() => toggleOption('grid')} /> <Grid3x3 size={12} /> Grade
+                  <input type="checkbox" checked={snapSettings.grid} onChange={() => toggleOption('grid')} /> <Grid3x3 size={12} /> {LABELS.settings.grid}
                 </label>
              </div>
            )}
@@ -83,8 +84,8 @@ const EditorStatusBar: React.FC = () => {
            onClick={handleUndo}
            className={`p-1 hover:bg-slate-700 rounded ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
            disabled={!history.canUndo}
-           title="Desfazer (Ctrl+Z)"
-           aria-label="Desfazer"
+           title={`${LABELS.menu.undo} (Ctrl+Z)`}
+           aria-label={LABELS.menu.undo}
          >
            <Undo size={14} />
          </button>
@@ -92,8 +93,8 @@ const EditorStatusBar: React.FC = () => {
            onClick={handleRedo}
            className={`p-1 hover:bg-slate-700 rounded ${history.canRedo ? '' : 'opacity-50 cursor-not-allowed'}`}
            disabled={!history.canRedo}
-           title="Refazer (Ctrl+Y)"
-           aria-label="Refazer"
+           title={`${LABELS.menu.redo} (Ctrl+Y)`}
+           aria-label={LABELS.menu.redo}
          >
            <Redo size={14} />
          </button>
@@ -103,8 +104,8 @@ const EditorStatusBar: React.FC = () => {
          <button
            onClick={zoomToFit}
            className="p-1 hover:bg-slate-700 rounded"
-           title={selectionCount > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
-           aria-label={selectionCount > 0 ? 'Zoom na selecao' : 'Ajustar Zoom'}
+           title={LABELS.statusbar.zoomOut} // Using generic label or adding specific 'Adjust to Fit' in future
+           aria-label={LABELS.statusbar.zoomOut}
          >
            <Scan size={14} />
          </button>
@@ -126,16 +127,16 @@ const EditorStatusBar: React.FC = () => {
          <button
            onClick={handleZoomOut}
            className="p-1 hover:bg-slate-700 rounded"
-           title="Diminuir Zoom"
-           aria-label="Diminuir Zoom"
+           title={LABELS.statusbar.zoomOut}
+           aria-label={LABELS.statusbar.zoomOut}
          >
            <ZoomOut size={14} />
          </button>
          <button
            onClick={handleZoomIn}
            className="p-1 hover:bg-slate-700 rounded"
-           title="Aumentar Zoom"
-           aria-label="Aumentar Zoom"
+           title={LABELS.statusbar.zoomIn}
+           aria-label={LABELS.statusbar.zoomIn}
          >
            <ZoomIn size={14} />
          </button>
