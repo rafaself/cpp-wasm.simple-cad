@@ -8,9 +8,8 @@ import { applyFullResync } from './engineEventResync';
 import { bumpDocumentSignal } from './engineDocumentSignals';
 
 const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): number | null => {
-  const getLayersSnapshot = runtime.engine.getLayersSnapshot;
-  if (!getLayersSnapshot) return null;
-  const vec = getLayersSnapshot();
+  if (!runtime.engine.getLayersSnapshot) return null;
+  const vec = runtime.engine.getLayersSnapshot();
   const count = vec.size();
   let first: number | null = null;
   let minOrder = Number.POSITIVE_INFINITY;
@@ -27,9 +26,8 @@ const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>)
 
 const ensureActiveLayer = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): void => {
   const { activeLayerId, setActiveLayerId } = useUIStore.getState();
-  const layers = runtime.engine.getLayersSnapshot;
-  if (!layers) return;
-  const vec = layers();
+  if (!runtime.engine.getLayersSnapshot) return;
+  const vec = runtime.engine.getLayersSnapshot();
   const count = vec.size();
   let hasActive = false;
   for (let i = 0; i < count; i++) {

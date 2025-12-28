@@ -210,7 +210,7 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.DeleteText:
       return 0;
     case CommandOp.SetViewScale:
-      return 12; // 3 floats (x, y, scale)
+      return 20; // 5 floats (x, y, scale, width, height)
     case CommandOp.SetDrawOrder:
       return 8 + cmd.order.ids.length * 4; // u32 count + u32 reserved + u32 ids[]
     case CommandOp.UpsertRect:
