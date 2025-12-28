@@ -1,172 +1,320 @@
-# Text System
+# Text System (Engine-Native)
 
-> Documentação do sistema de texto do Engine.
-
----
-
-## 1. Visão Geral
-
-O sistema de texto é **Engine-native**:
-
-- Layout calculado no C++
-- Glyph atlas gerenciado pelo Engine
-- Rich text com múltiplos runs de estilo
-- Renderizado como quads via WebGL2
+> High-performance text system with layout in C++.
 
 ---
 
-## 2. Arquitetura
+## 1. Architecture
 
 ```
-cpp/engine/text/
-├── font_manager.*      # Carregamento de fontes (FreeType)
-├── glyph_atlas.*       # Atlas de texturas para glyphs
-├── text_layout.*       # Cálculo de layout e line breaking
-├── text_store.*        # Armazenamento de entidades de texto
-└── text_types.h        # Tipos compartilhados
+┌─────────────────────────────────────────────────────────────┐
+│                     TEXT PIPELINE                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Input (JS)          Engine (C++)              Output        │
+│  ─────────           ───────────               ──────        │
+│  TextTool      →     TextStore           →     TextQuads     │
+│  handleClick()       (entities, content)       (GPU buffer)  │
+│  handleDrag()                                                │
+│  handleInputDelta()  TextLayoutEngine    →     GlyphAtlas    │
+│                      (line breaking,           (texture)     │
+│                       glyph positioning)                     │
+│                                                              │
+│                      FontManager                             │
+│                      (FreeType integration)                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Modos de Texto
+## 2. Design Principles
 
-| Modo           | Descrição                        | Quando usar           |
-| -------------- | -------------------------------- | --------------------- |
-| **AutoWidth**  | Cresce horizontalmente, sem wrap | Click para criar      |
-| **FixedWidth** | Wrap no limite de largura        | Drag para criar caixa |
+| Principle                | Implementation                       |
+| ------------------------ | ------------------------------------ |
+| **Engine-Authoritative** | All text state lives in C++          |
+| **Rich Text First**      | Multiple style runs per entity       |
+| **Zero JS Layout**       | Line breaking and positioning in C++ |
+| **GPU-Ready Output**     | Quads ready for WebGL                |
 
 ---
 
-## 4. TextTool (Frontend)
+## 3. Text Modes
 
-Localização: `frontend/engine/tools/TextTool.ts`
-
-### Criar Texto
+| Mode           | Behavior                              | Creation |
+| -------------- | ------------------------------------- | -------- |
+| **AutoWidth**  | Grows horizontally, no automatic wrap | Click    |
+| **FixedWidth** | Word-wrap at width limit              | Drag     |
 
 ```typescript
-// Click → AutoWidth
+// AutoWidth
 textTool.handleClick(worldX, worldY);
 
-// Drag → FixedWidth com largura definida
-textTool.handleDrag(startX, startY, endX, endY);
+// FixedWidth
+textTool.handleDrag(x0, y0, x1, y1);
 ```
 
-### Editar Texto
+---
+
+## 4. Rich Text Model
+
+### TextRec (Entity)
+
+```cpp
+struct TextRec {
+    uint32_t id;
+    uint32_t drawOrder;
+    float x, y;           // Anchor (top-left, Y-Up)
+    float rotation;
+    float scaleX, scaleY;
+    TextBoxMode boxMode;
+    TextAlign align;
+    float constraintWidth; // For FixedWidth
+
+    // Layout results (computed)
+    float layoutWidth;
+    float layoutHeight;
+    uint32_t lineCount;
+
+    // Content references
+    uint32_t contentOffset;
+    uint32_t contentLength;
+    uint32_t runsOffset;
+    uint32_t runsCount;
+};
+```
+
+### TextRun (Style)
+
+```cpp
+struct TextRun {
+    uint32_t startIndex;  // UTF-8 byte offset
+    uint32_t length;      // UTF-8 byte length
+    uint32_t fontId;
+    float fontSize;
+    uint32_t colorRGBA;   // 0xRRGGBBAA
+    TextStyleFlags flags; // Bold, Italic, Underline, Strike
+};
+```
+
+---
+
+## 5. Commands
+
+| Command             | Payload              | Usage               |
+| ------------------- | -------------------- | ------------------- |
+| `UpsertText`        | Full text entity     | Create/replace text |
+| `DeleteText`        | textId               | Remove text         |
+| `InsertTextContent` | textId, index, utf8  | Insert characters   |
+| `DeleteTextContent` | textId, start, end   | Delete range        |
+| `SetTextCaret`      | textId, index        | Position caret      |
+| `SetTextSelection`  | textId, start, end   | Select range        |
+| `ApplyTextStyle`    | textId, range, style | Apply formatting    |
+| `SetTextAlign`      | textId, align        | Align text          |
+
+---
+
+## 6. Queries
+
+### Content
 
 ```typescript
-// Iniciar edição em texto existente
+const meta = runtime.getTextContentMeta(textId);
+// meta.ptr: WASM pointer to UTF-8
+// meta.byteCount: size
+// meta.exists: whether entity exists
+
+// Read string (when needed for UI)
+const bytes = new Uint8Array(
+  runtime.module.HEAPU8.buffer,
+  meta.ptr,
+  meta.byteCount
+);
+const content = new TextDecoder().decode(bytes);
+```
+
+### Bounds
+
+```typescript
+const bounds = runtime.getTextBounds(textId);
+// { minX, minY, maxX, maxY, valid }
+```
+
+### Caret Position
+
+```typescript
+const pos = runtime.getTextCaretPosition(textId, charIndex);
+// { x, y, height, lineIndex }
+// Coordinates in text local space
+```
+
+### Style Snapshot (for UI)
+
+```typescript
+const snapshot = runtime.getTextStyleSnapshot(textId);
+// {
+//   fontId, fontSize, bold, italic, underline, strike,
+//   align, boxMode, caretLogical, selectionStartLogical, selectionEndLogical,
+//   ...
+// }
+```
+
+### Hit Testing
+
+```typescript
+const hit = runtime.hitTestText(textId, localX, localY);
+// { charIndex, lineIndex, isLeadingEdge }
+```
+
+---
+
+## 7. TextTool (Frontend)
+
+Location: `frontend/engine/tools/TextTool.ts`
+
+### Lifecycle
+
+```typescript
+// Initialization
+textTool.initialize(runtime);
+textTool.loadFont(fontId, fontData);
+textTool.setStyleDefaults({ fontId, fontSize, colorRGBA, flags, align });
+
+// Create text
+textTool.handleClick(worldX, worldY);          // AutoWidth
+textTool.handleDrag(x0, y0, x1, y1);           // FixedWidth
+
+// Edit existing text
 textTool.handlePointerDown(textId, localX, localY, shiftKey, ...);
+textTool.handlePointerMove(textId, localX, localY);
+textTool.handlePointerUp();
 
-// Processar input do teclado
-textTool.handleInputDelta({
-  beforeSelection: '',
-  selection: '',
-  afterSelection: 'a',  // Caractere inserido
-  ...
-});
-
-// Navegação
+// Process input
+textTool.handleInputDelta(delta: TextInputDelta);
 textTool.handleSelectionChange(start, end);
-```
 
-### Aplicar Estilos
-
-```typescript
-textTool.applyTextAlign(TextAlign.Center);
-textTool.applyBoldStyle(textId, true);
+// Apply styles
+textTool.applyTextAlign(align);
+textTool.applyBoldStyle(textId, bold);
 textTool.applyFontIdToText(textId, fontId);
 ```
 
----
-
-## 5. Rich Text (Runs)
-
-Texto pode ter múltiplos **runs** com estilos diferentes:
+### TextInputDelta
 
 ```typescript
-interface TextRun {
-  startIndex: number; // Byte offset no conteúdo UTF-8
-  length: number; // Tamanho em bytes
-  fontId: number;
-  fontSize: number;
-  colorRGBA: number; // Packed 0xRRGGBBAA
-  flags: TextStyleFlags; // Bold, Italic, Underline, Strike
+interface TextInputDelta {
+  beforeSelection: string;
+  selection: string;
+  afterSelection: string;
+  caretBefore: number;
+  selectionStartBefore: number;
+  selectionEndBefore: number;
 }
 ```
 
 ---
 
-## 6. Commands de Texto
+## 8. Rendering Pipeline
 
-| Command             | Descrição                      |
-| ------------------- | ------------------------------ |
-| `UpsertText`        | Criar/atualizar texto completo |
-| `InsertTextContent` | Inserir texto em posição       |
-| `DeleteTextContent` | Deletar range de texto         |
-| `SetTextCaret`      | Definir posição do caret       |
-| `SetTextSelection`  | Definir range de seleção       |
-| `ApplyTextStyle`    | Aplicar estilo a range         |
-| `SetTextAlign`      | Definir alinhamento            |
-| `DeleteText`        | Remover entidade de texto      |
-
----
-
-## 7. Queries de Texto
-
-```typescript
-// Conteúdo
-const meta = runtime.getTextContentMeta(textId);
-// meta.ptr → ponteiro WASM para UTF-8
-// meta.byteCount → tamanho em bytes
-
-// Bounds
-const bounds = runtime.getTextBounds(textId);
-// { minX, minY, maxX, maxY, valid }
-
-// Posição do caret
-const caretPos = runtime.getTextCaretPosition(textId, charIndex);
-// { x, y, height, lineIndex }
-
-// Estado de estilo (para UI)
-const snapshot = runtime.getTextStyleSnapshot(textId);
-// { fontId, fontSize, bold, italic, align, ... }
+```
+1. Engine calculates layout (line breaking, glyph positions)
+2. Engine generates text quads (6 vertices per glyph)
+3. Engine updates glyph atlas (texture)
+4. Frontend reads buffers via WASM pointers
+5. WebGL renders quads with atlas texture
 ```
 
----
-
-## 8. Text Input Proxy
-
-Componente: `frontend/components/TextInputProxy.tsx`
-
-Bridge entre input nativo do browser e o Engine:
-
-1. Captura keydown/input events
-2. Calcula delta (inserção/deleção)
-3. Chama `textTool.handleInputDelta()`
-4. Engine processa e atualiza
-5. Frontend recebe posição do caret para overlay
-
----
-
-## 9. Rendering
-
-1. Engine calcula **text quads** (6 vértices por glyph)
-2. Frontend lê buffer via `getTextQuadBufferMeta()`
-3. WebGL2 renderiza usando atlas texture
+### Buffers
 
 ```typescript
+// Text quads - format: [x, y, z, u, v, r, g, b, a] per vertex
 const quadMeta = runtime.getTextQuadBufferMeta();
+
+// Atlas texture - single channel (SDF or grayscale)
 const atlasMeta = runtime.getAtlasTextureMeta();
-// Upload para GPU e render
+
+// Dirty flags
+if (runtime.isTextQuadsDirty()) {
+  runtime.rebuildTextQuadBuffer();
+}
+if (runtime.isAtlasDirty()) {
+  uploadAtlasTexture();
+  runtime.clearAtlasDirty();
+}
 ```
 
 ---
 
-## 10. Regras Importantes
+## 9. Caret/Selection Overlay
 
-| ✅ Faça                                      | ❌ Não Faça                      |
-| -------------------------------------------- | -------------------------------- |
-| Use `getTextContentMeta()` para ler conteúdo | Manter cópia de content no React |
-| Use `getTextCaretPosition()` para caret      | Calcular posição de caret no JS  |
-| Envie commands para modificar texto          | Manipular strings no frontend    |
-| Confie no Engine para layout                 | Fazer text wrapping no JS        |
+Caret and selection can be rendered:
+
+**Option A: Engine (preferred for performance)**
+
+- Engine includes caret/selection quads in buffer
+- Single render pass
+
+**Option B: React Overlay (current)**
+
+- Frontend reads caret position from Engine
+- Renders via CSS/SVG
+- More styling flexibility
+
+```typescript
+// Get caret position for overlay
+const caretPos = runtime.getTextCaretPosition(textId, caretIndex);
+// Convert to screen space and render
+```
+
+---
+
+## 10. Performance Considerations
+
+| Operation       | Complexity   | Notes                                  |
+| --------------- | ------------ | -------------------------------------- |
+| Layout          | O(n)         | n = characters, only when text changes |
+| Hit test        | O(log lines) | Binary search on lines                 |
+| Glyph lookup    | O(1)         | Hash map                               |
+| Quad generation | O(glyphs)    | Only when dirty                        |
+
+### Hot Paths
+
+- `hitTestText()` — called on pointermove during drag
+- `getTextCaretPosition()` — called for overlay update
+- `rebuildTextQuadBuffer()` — batch, not per glyph
+
+---
+
+## 11. Extensibility
+
+### Adding New Font
+
+```typescript
+// 1. Load font data
+const fontData = await fetch('/fonts/MyFont.ttf').then(r => r.arrayBuffer());
+
+// 2. Register in Engine
+const fontId = textTool.loadFont(MY_FONT_ID, new Uint8Array(fontData));
+
+// 3. Use
+textTool.setStyleDefaults({ fontId: MY_FONT_ID, ... });
+```
+
+### Adding New Style
+
+1. Add flag in `TextStyleFlags` (C++)
+2. Update `TextRun` struct
+3. Implement rendering in layout engine
+4. Expose via `ApplyTextStyle` command
+5. Add UI in frontend
+
+---
+
+## 12. Critical Rules
+
+| ✅ DO                                      | ❌ DON'T                                |
+| ------------------------------------------ | --------------------------------------- |
+| Use `getTextContentMeta()` to read content | Keep content string copy in React       |
+| Use commands to modify text                | Do string manipulation in JS            |
+| Trust Engine for layout                    | Calculate line breaks in frontend       |
+| Use `getTextCaretPosition()` for overlay   | Calculate glyph position in JS          |
+| Batch style changes when possible          | Multiple `ApplyTextStyle` per keystroke |

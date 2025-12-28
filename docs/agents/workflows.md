@@ -1,120 +1,168 @@
 # Development Workflows
 
-> Receitas práticas para tarefas comuns.
+> Practical recipes for high-quality development.
 
 ---
 
-## 1. Adicionar Nova Ferramenta de Desenho
+## 1. General Principles
 
-### Passos
-
-1. **C++ (se necessário)**
-
-   - Adicionar novo tipo em `cpp/engine/types.h`
-   - Adicionar CommandOp em `cpp/engine/commands.h`
-   - Implementar handler em `engine.cpp` (`cad_command_callback`)
-   - Expor via Embind em `cpp/engine/bindings.cpp`
-
-2. **Frontend Command**
-
-   - Adicionar CommandOp em `frontend/engine/core/commandBuffer.ts`
-   - Implementar payload e encoding
-
-3. **Tool/Hook**
-
-   - Adicionar lógica em `frontend/features/editor/hooks/useDraftHandler.ts`
-   - Ou criar novo hook se comportamento muito diferente
-
-4. **UI**
-   - Adicionar ToolType em `frontend/types/index.ts`
-   - Adicionar botão no toolbar (`frontend/features/editor/ribbon/`)
+| Principle                | Application                             |
+| ------------------------ | --------------------------------------- |
+| **Minimal Surface Area** | Smallest change that solves the problem |
+| **Engine-First**         | When in doubt, logic goes in C++        |
+| **Test Before Commit**   | C++ and Frontend tests must pass        |
+| **No Regressions**       | Performance cannot degrade              |
 
 ---
 
-## 2. Adicionar Propriedade a Shape Existente
+## 2. Adding New Drawing Primitive
 
-### Passos
+### Checklist
 
-1. **C++ Struct**
+1. **C++ Types** (`cpp/engine/types.h`)
 
-   - Modificar struct em `types.h` (ex: `RectRec`)
-   - Atualizar payload struct se necessário
+   ```cpp
+   struct FooRec {
+       uint32_t id;
+       // ... POD fields
+   };
+   ```
 
-2. **Snapshot**
+2. **C++ Command** (`cpp/engine/commands.h`)
 
-   - Se propriedade persistida, atualizar `snapshot.cpp`
-   - Considerar migração de formato
+   ```cpp
+   enum class CommandOp : uint8_t {
+       // ...
+       UpsertFoo = XX,
+   };
+   ```
 
-3. **Frontend**
+3. **C++ Storage** (`cpp/engine/engine.h`)
 
-   - Atualizar payload interface em `commandBuffer.ts`
-   - Atualizar encoding em `encodeCommandBuffer()`
+   ```cpp
+   std::vector<FooRec> foos_;
+   // ... CRUD methods
+   ```
 
-4. **UI**
-   - Adicionar controle no painel de propriedades
+4. **C++ Implementation** (`cpp/engine/entity_manager.cpp`)
+
+   - Implement upsert, delete
+   - Add to draw order
+
+5. **C++ Picking** (`cpp/engine/pick_system.cpp`)
+
+   - Add hit test for new primitive
+
+6. **C++ Snapshot** (`cpp/engine/snapshot.cpp`)
+
+   - Serialize/deserialize
+
+7. **C++ Bindings** (`cpp/engine/bindings.cpp`)
+
+   - Expose via Embind
+
+8. **C++ Tests** (`cpp/tests/`)
+
+   - Unit tests for CRUD and picking
+
+9. **Frontend Command** (`frontend/engine/core/commandBuffer.ts`)
+
+   ```typescript
+   export interface FooPayload { ... }
+   // Add case in payloadByteLength and encodeCommandBuffer
+   ```
+
+10. **Frontend Tool** (`frontend/features/editor/hooks/useDraftHandler.ts`)
+
+    - Add creation logic
+
+11. **Frontend UI**
+
+    - Add ToolType
+    - Add toolbar button
+
+12. **Frontend Tests**
+    - Vitest for new functionality
 
 ---
 
-## 3. Modificar Comportamento de Seleção
+## 3. Modifying Existing Entity Property
 
-### Localização
+### Checklist
 
-- Engine: `cpp/engine/entity_manager.cpp` (selectEntity, queryMarquee)
-- Frontend: `frontend/features/editor/components/EngineInteractionLayer.tsx`
+1. **C++ Struct** — Modify struct in `types.h`
+2. **C++ Payload** — If command, update payload struct
+3. **Snapshot Migration** — If persisted, migrate format
+4. **Frontend Encoding** — Update `commandBuffer.ts`
+5. **Tests** — Update C++ and Frontend tests
 
-### Pattern
+### ⚠️ Breaking Change?
+
+If modification changes snapshot format:
+
+- Increment snapshot version
+- Implement migration
+- Document in commit
+
+---
+
+## 4. Adding New Transform Mode
+
+### Steps
+
+1. **C++** (`cpp/engine/engine.h`)
+
+   ```cpp
+   enum class TransformMode : uint8_t {
+       // ...
+       NewMode = X,
+   };
+   ```
+
+2. **C++ Logic** (`cpp/engine/engine.cpp`)
+
+   - Implement in `updateTransform()`
+   - Implement in `commitTransform()`
+
+3. **Frontend Mapping** (`frontend/engine/core/interactionSession.ts`)
+
+   - Add constant
+
+4. **Frontend Trigger** (`EngineInteractionLayer.tsx`)
+
+   - Add condition to start
+
+5. **Tests**
+
+---
+
+## 5. Debug Workflow
+
+### Engine State
 
 ```typescript
-// Frontend captura input
-const modifiers = selectionModifiersFromEvent(evt);
-runtime.selectEntity(pick.id, SelectionMode.Toggle, modifiers);
-```
-
----
-
-## 4. Adicionar Nova Operação de Transformação
-
-### Passos
-
-1. **C++**
-
-   - Adicionar novo `TransformMode` em `engine.h`
-   - Implementar lógica em `updateTransform()`
-   - Adicionar `TransformOpCode` para commit result
-
-2. **Frontend**
-   - Mapear em `interactionSession.ts`
-   - Atualizar `EngineInteractionLayer.tsx` para iniciar a transformação
-
----
-
-## 5. Debug de Rendering
-
-### Verificar Estado do Engine
-
-```typescript
+// Stats
 const stats = runtime.getEngineStats();
-console.log("Rects:", stats.rectCount, "Lines:", stats.lineCount);
+console.log("Entities:", stats.rectCount, stats.lineCount, stats.polylineCount);
+
+// Buffers
+const triMeta = runtime.getTriangleBufferMeta();
+console.log("Triangle vertices:", triMeta.vertexCount);
 ```
 
-### Verificar Buffers
+### Picking Debug
 
 ```typescript
-const meta = runtime.getTriangleBufferMeta();
-console.log("Triangle vertices:", meta.vertexCount);
+const pick = runtime.pick(worldX, worldY, tolerance);
+console.log("Pick result:", {
+  id: pick.id,
+  kind: PickEntityKind[pick.kind],
+  subTarget: PickSubTarget[pick.subTarget],
+  distance: pick.distance,
+});
 ```
 
-### Forçar Rebuild
-
-```typescript
-runtime.rebuildRenderBuffers();
-```
-
----
-
-## 6. Debug de Texto
-
-### Verificar Conteúdo
+### Text Debug
 
 ```typescript
 const meta = runtime.getTextContentMeta(textId);
@@ -123,61 +171,199 @@ const bytes = new Uint8Array(
   meta.ptr,
   meta.byteCount
 );
-const content = new TextDecoder().decode(bytes);
-console.log("Content:", content);
+console.log("Text content:", new TextDecoder().decode(bytes));
+
+const caretPos = runtime.getTextCaretPosition(textId, index);
+console.log("Caret:", caretPos);
 ```
 
-### Verificar Caret
+### Performance
 
 ```typescript
-const caretPos = runtime.getTextCaretPosition(textId, charIndex);
-console.log("Caret at:", caretPos.x, caretPos.y);
+// Measure operation
+const t0 = performance.now();
+runtime.pick(x, y, tolerance);
+console.log("Pick time:", performance.now() - t0, "ms");
 ```
 
 ---
 
-## 7. Build e Teste
-
-### Build Completo
+## 6. Build Commands
 
 ```bash
+# Full build (WASM + Frontend)
 make fbuild
-```
 
-### Apenas Frontend (Dev)
-
-```bash
+# Frontend dev mode (hot reload)
 cd frontend && pnpm dev
-```
 
-### Rebuild WASM (Após alterações C++)
-
-```bash
+# Rebuild WASM after C++ changes
 cd frontend && pnpm build:wasm
+
+# Native WASM build for C++ tests
+cd cpp
+mkdir -p build_native && cd build_native
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
 ```
 
-### Testes C++
+---
+
+## 7. Test Commands
+
+### C++ (CTest)
 
 ```bash
 cd cpp/build_native
-cmake ..
-make
 ctest --output-on-failure
+
+# Specific
+ctest -R TextLayout --output-on-failure
+
+# Verbose
+ctest -V
 ```
 
-### Testes Frontend
+### Frontend (Vitest)
 
 ```bash
-cd frontend && npx vitest run
+cd frontend
+
+# Run all
+npx vitest run
+
+# Watch mode
+npx vitest
+
+# Specific file
+npx vitest run src/engine/core/commandBuffer.test.ts
+
+# Coverage
+npx vitest run --coverage
 ```
 
 ---
 
-## 8. Checklist Antes de Commit
+## 8. Pre-Commit Checklist
 
-- [ ] Testes C++ passando (`ctest`)
-- [ ] Testes Frontend passando (`npx vitest run`)
-- [ ] Build completo funciona (`make fbuild`)
-- [ ] Sem `console.log` de debug em produção
-- [ ] Sem `any` não justificado em TypeScript
-- [ ] Não introduziu shadow state no Zustand
+```bash
+# 1. Full build must pass
+make fbuild
+
+# 2. C++ tests must pass
+cd cpp/build_native && ctest --output-on-failure
+
+# 3. Frontend tests must pass
+cd frontend && npx vitest run
+
+# 4. TypeScript check
+cd frontend && npx tsc --noEmit
+
+# 5. Linting
+cd frontend && npx eslint src/
+```
+
+---
+
+## 9. Code Review Checklist
+
+### For C++ Changes
+
+- [ ] Memory: no leaks, no dangling pointers
+- [ ] Performance: no allocations in hot paths
+- [ ] POD: shared structs are POD
+- [ ] Bounds: array access validated
+- [ ] Thread safety: if applicable
+
+### For Frontend Changes
+
+- [ ] No shadow state of Engine data
+- [ ] Specific selectors (not entire object)
+- [ ] No unjustified `any`
+- [ ] No console.log in production
+- [ ] Callbacks memoized when necessary
+
+### For Both
+
+- [ ] Tests added/updated
+- [ ] No breaking changes without migration
+- [ ] Performance did not regress
+
+---
+
+## 10. Performance Profiling
+
+### C++ (Native)
+
+```bash
+# Build with debug symbols
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+# Profile with perf (Linux)
+perf record ./cad_engine_tests
+perf report
+```
+
+### Frontend
+
+```javascript
+// Chrome DevTools Performance tab
+// Record interaction and analyze flame chart
+
+// Specific
+performance.mark("operation-start");
+// ... operation
+performance.mark("operation-end");
+performance.measure("operation", "operation-start", "operation-end");
+```
+
+### WebGL
+
+- Chrome: `about:tracing`
+- Firefox: Shader debugger
+
+---
+
+## 11. Common Pitfalls
+
+| Pitfall             | How to Avoid                            |
+| ------------------- | --------------------------------------- |
+| Excessive re-render | Specific selectors, memoization         |
+| Memory leak in WASM | Manage Embind object lifecycle          |
+| Slow picking        | Use spatial index, don't iterate in JS  |
+| Transform jitter    | Don't update React state in pointermove |
+| Slow text layout    | Batch edits, dirty flag                 |
+
+---
+
+## 12. Troubleshooting
+
+### WASM Build Fails
+
+```bash
+# Clean and rebuild
+cd frontend
+rm -rf node_modules/.cache
+pnpm build:wasm
+```
+
+### C++ Tests Fail
+
+```bash
+# Clean rebuild
+cd cpp
+rm -rf build_native
+mkdir build_native && cd build_native
+cmake ..
+make -j$(nproc)
+ctest
+```
+
+### Frontend Not Reloading
+
+```bash
+# Clear Vite cache
+cd frontend
+rm -rf node_modules/.vite
+pnpm dev
+```
