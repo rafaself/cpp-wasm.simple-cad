@@ -65,6 +65,11 @@ public:
      */
     void shutdown();
     
+    /**
+     * Clear the entire atlas (for reset/rebuild).
+     */
+    void clearAtlas();
+    
     // =========================================================================
     // Glyph Operations
     // =========================================================================
@@ -196,10 +201,7 @@ private:
     void copyToTexture(const AtlasPacker::Rect& rect, const float* msdfData, 
                        std::uint32_t msdfWidth, std::uint32_t msdfHeight);
     
-    /**
-     * Clear the entire atlas (for reset/rebuild).
-     */
-    void clearAtlas();
+
     
     FontManager* fontManager_;
     Config config_;

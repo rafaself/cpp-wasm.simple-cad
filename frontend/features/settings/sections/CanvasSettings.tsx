@@ -6,6 +6,7 @@ import { Toggle } from "../../../components/ui/Toggle";
 import { UI } from "../../../design/tokens";
 import { RotateCcw } from "lucide-react";
 import { supportsEngineResize } from "../../../engine/core/capabilities";
+import { LABELS } from '@/i18n/labels';
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
@@ -124,9 +125,9 @@ const CanvasSettings: React.FC = () => {
 
   return (
     <div className="flex flex-col">
-      <Section title="Grade">
+      <Section title={LABELS.settings.grid}>
           <SliderField
-            label="Tamanho"
+            label={LABELS.settings.gridSize}
             value={settings.grid.size}
             min={10}
             max={200}
@@ -144,14 +145,14 @@ const CanvasSettings: React.FC = () => {
             onChange={settings.setGridShowDots}
           />
           <Toggle
-            label="Mostrar Linhas"
+            label={LABELS.settings.showGrid}
             checked={settings.grid.showLines}
             onChange={settings.setGridShowLines}
           />
       </Section>
 
-      <Section title="Eixos Centrais">
-          <Toggle label="Mostrar Eixos" checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
+      <Section title={LABELS.settings.showAxis}>
+          <Toggle label={LABELS.settings.showAxis} checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
           <ColorField label="Cor Eixo X" color={settings.display.centerAxes.xColor} pickerId="axisX" />
           <ColorField label="Cor Eixo Y" color={settings.display.centerAxes.yColor} pickerId="axisY" />
           <SelectField 

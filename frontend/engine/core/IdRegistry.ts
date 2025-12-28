@@ -7,21 +7,18 @@ import type { EntityId } from './protocol';
  * Single source of truth for all ID mappings in the application.
  */
 class IdRegistryImpl {
-  private nextEngineId: EntityId = 1;
   private shapeToEngine = new Map<string, EntityId>();
   private engineToShape = new Map<EntityId, string>();
   private entityMeta = new Map<EntityId, EntityMeta>();
 
   /**
-   * Allocate or retrieve an engine ID for a shape ID.
-   * If the shape already has an engine ID, returns the existing one.
+   * Retrieve an engine ID for a shape ID.
+   * Throws when the mapping is missing (engine-owned IDs only).
    */
   ensureEngineId(shapeId: string): EntityId {
-    let engineId = this.shapeToEngine.get(shapeId);
+    const engineId = this.shapeToEngine.get(shapeId);
     if (engineId === undefined) {
-      engineId = this.nextEngineId++;
-      this.shapeToEngine.set(shapeId, engineId);
-      this.engineToShape.set(engineId, shapeId);
+      throw new Error(`[IdRegistry] Missing engine ID for shape: ${shapeId}`);
     }
     return engineId;
   }
@@ -32,9 +29,6 @@ class IdRegistryImpl {
   registerEngineId(engineId: EntityId, shapeId: string): void {
     this.shapeToEngine.set(shapeId, engineId);
     this.engineToShape.set(engineId, shapeId);
-    if (engineId >= this.nextEngineId) {
-      this.nextEngineId = engineId + 1;
-    }
   }
 
   /**
@@ -93,15 +87,13 @@ class IdRegistryImpl {
     this.shapeToEngine.clear();
     this.engineToShape.clear();
     this.entityMeta.clear();
-    this.nextEngineId = 1;
   }
 
   /**
    * Override the next engine ID (used for snapshot hydration).
    */
   setNextEngineId(nextId: EntityId): void {
-    if (nextId <= 0) return;
-    this.nextEngineId = Math.max(this.nextEngineId, nextId);
+    void nextId;
   }
 
   /**

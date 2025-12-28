@@ -78,6 +78,7 @@ struct SnapshotData {
     std::vector<std::uint32_t> drawOrder;
     std::vector<std::uint32_t> selection;
     std::vector<TextSnapshot> texts;
+    std::vector<std::uint8_t> historyBytes;
     std::uint32_t nextId{1};
     std::uint32_t version{0};
 };

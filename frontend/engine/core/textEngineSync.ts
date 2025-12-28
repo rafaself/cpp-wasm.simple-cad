@@ -5,17 +5,17 @@
  * and provides synchronization utilities for text operations.
  * 
  * This module bridges the gap between:
- * - React/Zustand: Shape-based data model (useDataStore)
+ * - React UI state + tools
  * - WASM Engine: Text entity model (TextStore/TextLayout)
  * 
  * Architecture:
  * - Text is created via TextTool → TextBridge → Engine
  * - This manager tracks the ID mapping (now via IdRegistry)
- * - When shapes are deleted/moved, this manager syncs with engine
+ * - When text entities are deleted/moved, this manager syncs with engine
  */
 
 import type { TextTool } from '@/engine/tools/TextTool';
-import { IdRegistry, ensureId, getEngineId, getShapeId, releaseId } from './IdRegistry';
+import { IdRegistry, getEngineId, getShapeId, registerEngineId, releaseId } from './IdRegistry';
 
 let textToolInstance: TextTool | null = null;
 const trackedTextShapeIds = new Set<string>();
@@ -39,10 +39,10 @@ export function getTextTool(): TextTool | null {
  * Verifies consistency with IdRegistry.
  */
 export function registerTextMapping(textId: number, shapeId: string): void {
-  // Ensure consistency: The shapeId MUST map to this textId in the Registry.
-  // Since TextTool now calls ensureId(shapeId) to get textId, this should essentially be a no-op or verification.
-  const registeredId = ensureId(shapeId);
-  if (registeredId !== textId) {
+  const registeredId = getEngineId(shapeId);
+  if (registeredId === null) {
+    registerEngineId(textId, shapeId);
+  } else if (registeredId !== textId) {
     console.error(`[textEngineSync] ID Mismatch! Shape ${shapeId} maps to ${registeredId} but tried to register ${textId}`);
     return;
   }
@@ -119,50 +119,9 @@ export function getTextMappings(): { textIdToShapeId: Map<number, string>; shape
   return { textIdToShapeId, shapeIdToTextId };
 }
 
-/**
- * Delete a text from the engine by its shape ID.
- * This should be called when a text shape is deleted from the JS store.
- */
-export function deleteTextByShapeId(shapeId: string): boolean {
-  const textId = getEngineId(shapeId);
-  if (textId === null) return false;
-  
-  // Check if it is text
-  const meta = IdRegistry.getMeta(textId);
-  if (meta?.entityType !== 'text') return false;
 
-  // Release mapping
-  trackedTextShapeIds.delete(shapeId);
-  releaseId(shapeId);
-  
-  // Delete from engine
-  if (textToolInstance) {
-    textToolInstance.deleteTextById(textId);
-  }
-  
-  return true;
-}
 
-/**
- * Move a text in the engine to match JS shape position.
- * @param shapeId JS Shape ID
- * @param anchorX New anchor X (top-left in Y-Up world)
- * @param anchorY New anchor Y (top-left in Y-Up world)
- */
-export function moveTextByShapeId(shapeId: string, anchorX: number, anchorY: number): boolean {
-  const textId = getEngineId(shapeId);
-  if (textId === null) return false;
-  
-  const meta = getTextMeta(textId);
-  const boxMode = meta?.boxMode ?? 0;
-  const constraintWidth = meta?.constraintWidth ?? 0;
 
-  if (textToolInstance) {
-    return textToolInstance.moveText(textId, anchorX, anchorY, boxMode, constraintWidth);
-  }
-
-  return false;
-}
 
 /**
  * Clear all mappings (e.g., on document reset).

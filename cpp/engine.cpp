@@ -12,6 +12,8 @@
 
 // Helpers moved to text_system.cpp
 namespace {
+    using EntityChange = HistoryEntry::EntityChange;
+
     // Map logical index (grapheme/codepoint approximation) to UTF-8 byte offset.
     std::uint32_t logicalToByteIndex(std::string_view content, std::uint32_t logicalIndex) {
         std::uint32_t bytePos = 0;
@@ -51,9 +53,9 @@ namespace {
         return (px - ex) * (px - ex) + (py - ey) * (py - ey);
     }
 
-    bool isEntityVisibleForRender(void* ctx, std::uint32_t id) {
+    bool isEntityVisibleForRenderThunk(void* ctx, std::uint32_t id) {
         const auto* engine = static_cast<const CadEngine*>(ctx);
-        return engine ? engine->entityManager_.isEntityVisible(id) : true;
+        return engine ? engine->isEntityVisibleForRender(id) : true;
     }
 
     constexpr std::uint64_t kDigestOffset = 14695981039346656037ull;
@@ -90,6 +92,8 @@ CadEngine::CadEngine() {
     triangleVertices.reserve(defaultCapacityFloats);
     lineVertices.reserve(defaultLineCapacityFloats);
     snapshotBytes.reserve(defaultSnapshotCapacityBytes);
+    eventQueue_.resize(kMaxEvents);
+    eventBuffer_.reserve(kMaxEvents + 1);
     renderDirty = false;
     snapshotDirty = false;
     lastError = EngineError::Ok;
@@ -97,6 +101,7 @@ CadEngine::CadEngine() {
 
 void CadEngine::clear() noexcept {
     clearWorld();
+    clearHistory();
     generation++;
 }
 
@@ -107,6 +112,18 @@ std::uintptr_t CadEngine::allocBytes(std::uint32_t byteCount) {
 
 void CadEngine::freeBytes(std::uintptr_t ptr) {
     std::free(reinterpret_cast<void*>(ptr));
+}
+
+std::uint32_t CadEngine::allocateEntityId() {
+    const std::uint32_t id = nextEntityId_;
+    nextEntityId_ = (nextEntityId_ == std::numeric_limits<std::uint32_t>::max()) ? nextEntityId_ : (nextEntityId_ + 1);
+    return id;
+}
+
+std::uint32_t CadEngine::allocateLayerId() {
+    const std::uint32_t id = nextLayerId_;
+    nextLayerId_ = (nextLayerId_ == std::numeric_limits<std::uint32_t>::max()) ? nextLayerId_ : (nextLayerId_ + 1);
+    return id;
 }
 
 void CadEngine::reserveWorld(std::uint32_t maxRects, std::uint32_t maxLines, std::uint32_t maxPolylines, std::uint32_t maxPoints) {
@@ -138,10 +155,13 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     std::vector<std::string> layerNames;
     layerRecords.reserve(sd.layers.size());
     layerNames.reserve(sd.layers.size());
+    std::uint32_t maxLayerId = 0;
     for (const auto& layer : sd.layers) {
+        if (layer.id > maxLayerId) maxLayerId = layer.id;
         layerRecords.push_back(LayerRecord{layer.id, layer.order, layer.flags});
         layerNames.push_back(layer.name);
     }
+    nextLayerId_ = maxLayerId + 1;
     entityManager_.layerStore.loadSnapshot(layerRecords, layerNames);
 
     entityManager_.points = sd.points;
@@ -307,6 +327,12 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         if (nextEntityId_ <= maxId) nextEntityId_ = maxId + 1;
     }
 
+    if (!sd.historyBytes.empty()) {
+        decodeHistoryBytes(sd.historyBytes.data(), sd.historyBytes.size());
+    } else {
+        clearHistory();
+    }
+
     const double t1 = emscripten_get_now();
     
     // Lazy rebuild
@@ -325,13 +351,16 @@ void CadEngine::applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) 
     clearError();
     const double t0 = emscripten_get_now();
     const std::uint8_t* src = reinterpret_cast<const std::uint8_t*>(ptr);
+    beginHistoryEntry();
     EngineError err = engine::parseCommandBuffer(src, byteCount, &CadEngine::cad_command_callback, this);
     if (err != EngineError::Ok) {
         setError(err);
+        discardHistoryEntry();
         return;
     }
 
     compactPolylinePoints();
+    commitHistoryEntry();
     
     // Lazy rebuild
     renderDirty = true;
@@ -389,6 +418,7 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
         static_cast<std::uint32_t>(entityManager_.points.size()),
         static_cast<std::uint32_t>(triangleVertices.size() / 7),
         static_cast<std::uint32_t>(lineVertices.size() / 7),
+        rebuildAllGeometryCount_,
         lastLoadMs,
         lastRebuildMs,
         lastApplyMs
@@ -610,6 +640,46 @@ CadEngine::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
     };
 }
 
+CadEngine::HistoryMeta CadEngine::getHistoryMeta() const noexcept {
+    return HistoryMeta{
+        static_cast<std::uint32_t>(history_.size()),
+        static_cast<std::uint32_t>(historyCursor_),
+        historyGeneration_,
+    };
+}
+
+bool CadEngine::canUndo() const noexcept {
+    return historyCursor_ > 0;
+}
+
+bool CadEngine::canRedo() const noexcept {
+    return historyCursor_ < history_.size();
+}
+
+void CadEngine::undo() {
+    if (!canUndo()) return;
+    const HistoryEntry& entry = history_[historyCursor_ - 1];
+    const bool prevSuppressed = historySuppressed_;
+    historySuppressed_ = true;
+    applyHistoryEntry(entry, false);
+    historySuppressed_ = prevSuppressed;
+    historyCursor_ = historyCursor_ == 0 ? 0 : (historyCursor_ - 1);
+    historyGeneration_++;
+    recordHistoryChanged();
+}
+
+void CadEngine::redo() {
+    if (!canRedo()) return;
+    const HistoryEntry& entry = history_[historyCursor_];
+    const bool prevSuppressed = historySuppressed_;
+    historySuppressed_ = true;
+    applyHistoryEntry(entry, true);
+    historySuppressed_ = prevSuppressed;
+    historyCursor_ = std::min(historyCursor_ + 1, history_.size());
+    historyGeneration_++;
+    recordHistoryChanged();
+}
+
 std::vector<LayerRecord> CadEngine::getLayersSnapshot() const {
     return entityManager_.layerStore.snapshot();
 }
@@ -619,20 +689,45 @@ std::string CadEngine::getLayerName(std::uint32_t layerId) const {
 }
 
 void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, std::uint32_t flagsValue, const std::string& name) {
+    const bool historyStarted = beginHistoryEntry();
+    if (propsMask != 0) {
+        markLayerChange();
+    }
     entityManager_.layerStore.ensureLayer(layerId);
 
-    const std::uint32_t visibleMask = static_cast<std::uint32_t>(LayerPropMask::Visible);
-    const std::uint32_t lockedMask = static_cast<std::uint32_t>(LayerPropMask::Locked);
+    const std::uint32_t visiblePropMask = static_cast<std::uint32_t>(LayerPropMask::Visible);
+    const std::uint32_t lockedPropMask = static_cast<std::uint32_t>(LayerPropMask::Locked);
     const std::uint32_t nameMask = static_cast<std::uint32_t>(LayerPropMask::Name);
-    const std::uint32_t flagMask = (propsMask & (visibleMask | lockedMask));
+
+    // Translate incoming flag bits (EngineLayerFlags layout) to LayerFlags while tolerating
+    // the legacy LayerPropMask layout for backwards compatibility.
+    const std::uint32_t visibleFlag = static_cast<std::uint32_t>(LayerFlags::Visible);
+    const std::uint32_t lockedFlag = static_cast<std::uint32_t>(LayerFlags::Locked);
+    const std::uint32_t visibleIncomingMask = visibleFlag | visiblePropMask;
+    const std::uint32_t lockedIncomingMask = lockedFlag | lockedPropMask;
+
+    std::uint32_t translatedMask = 0;
+    std::uint32_t translatedValue = 0;
+    if (propsMask & visiblePropMask) {
+        translatedMask |= visibleFlag;
+        if (flagsValue & visibleIncomingMask) {
+            translatedValue |= visibleFlag;
+        }
+    }
+    if (propsMask & lockedPropMask) {
+        translatedMask |= lockedFlag;
+        if (flagsValue & lockedIncomingMask) {
+            translatedValue |= lockedFlag;
+        }
+    }
 
     bool visibilityChanged = false;
     bool lockedChanged = false;
     bool nameChanged = false;
 
-    if (flagMask != 0) {
+    if (translatedMask != 0) {
         const std::uint32_t prevFlags = entityManager_.layerStore.getLayerFlags(layerId);
-        entityManager_.layerStore.setLayerFlags(layerId, flagMask, flagsValue);
+        entityManager_.layerStore.setLayerFlags(layerId, translatedMask, translatedValue);
         const std::uint32_t nextFlags = entityManager_.layerStore.getLayerFlags(layerId);
         visibilityChanged = ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(LayerFlags::Visible)) != 0;
         lockedChanged = ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(LayerFlags::Locked)) != 0;
@@ -653,18 +748,34 @@ void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, st
         pruneSelection();
     }
 
-    if (visibilityChanged || lockedChanged || nameChanged) {
+    const std::uint32_t changedMask =
+        (visibilityChanged ? visiblePropMask : 0)
+        | (lockedChanged ? lockedPropMask : 0)
+        | (nameChanged ? nameMask : 0);
+
+    if (changedMask != 0) {
+        recordLayerChanged(layerId, changedMask);
         generation++;
     }
+    if (historyStarted) commitHistoryEntry();
 }
 
 bool CadEngine::deleteLayer(std::uint32_t layerId) {
+    const bool historyStarted = beginHistoryEntry();
+    markLayerChange();
     const bool deleted = entityManager_.layerStore.deleteLayer(layerId);
     if (deleted) {
         renderDirty = true;
         textQuadsDirty_ = true;
+        recordLayerChanged(
+            layerId,
+            static_cast<std::uint32_t>(LayerPropMask::Name)
+            | static_cast<std::uint32_t>(LayerPropMask::Visible)
+            | static_cast<std::uint32_t>(LayerPropMask::Locked)
+        );
         generation++;
     }
+    if (historyStarted) commitHistoryEntry();
     return deleted;
 }
 
@@ -674,8 +785,13 @@ std::uint32_t CadEngine::getEntityFlags(std::uint32_t entityId) const {
 
 void CadEngine::setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, std::uint32_t flagsValue) {
     const std::uint32_t prevFlags = entityManager_.getEntityFlags(entityId);
+    const std::uint32_t nextFlags = (prevFlags & ~flagsMask) | (flagsValue & flagsMask);
+    if (prevFlags == nextFlags) {
+        return;
+    }
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(entityId);
     entityManager_.setEntityFlags(entityId, flagsMask, flagsValue);
-    const std::uint32_t nextFlags = entityManager_.getEntityFlags(entityId);
     if (((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(EntityFlags::Visible)) != 0) {
         renderDirty = true;
         textQuadsDirty_ = true;
@@ -685,19 +801,26 @@ void CadEngine::setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, 
         pruneSelection();
     }
     if (prevFlags != nextFlags) {
+        recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Flags));
         generation++;
     }
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::setEntityLayer(std::uint32_t entityId, std::uint32_t layerId) {
     const std::uint32_t prevLayer = entityManager_.getEntityLayer(entityId);
-    entityManager_.setEntityLayer(entityId, layerId);
-    if (prevLayer != layerId) {
-        renderDirty = true;
-        textQuadsDirty_ = true;
-        pruneSelection();
-        generation++;
+    if (prevLayer == layerId) {
+        return;
     }
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(entityId);
+    entityManager_.setEntityLayer(entityId, layerId);
+    renderDirty = true;
+    textQuadsDirty_ = true;
+    pruneSelection();
+    recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Layer));
+    generation++;
+    if (historyStarted) commitHistoryEntry();
 }
 
 std::uint32_t CadEngine::getEntityLayer(std::uint32_t entityId) const {
@@ -927,11 +1050,223 @@ std::vector<std::uint32_t> CadEngine::queryMarquee(float minX, float minY, float
     return out;
 }
 
+CadEngine::EntityAabb CadEngine::getEntityAabb(std::uint32_t entityId) const {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return EntityAabb{0, 0, 0, 0, 0};
+
+    switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            const RectRec& r = entityManager_.rects[it->second.index];
+            // Use actual rect bounds, not the conservative PickSystem AABB
+            return EntityAabb{r.x, r.y, r.x + r.w, r.y + r.h, 1};
+        }
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            const CircleRec& c = entityManager_.circles[it->second.index];
+            const AABB aabb = PickSystem::computeCircleAABB(c);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            const PolygonRec& p = entityManager_.polygons[it->second.index];
+            const AABB aabb = PickSystem::computePolygonAABB(p);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Line: {
+            if (it->second.index >= entityManager_.lines.size()) break;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            const AABB aabb = PickSystem::computeLineAABB(l);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Polyline: {
+            if (it->second.index >= entityManager_.polylines.size()) break;
+            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 2) break;
+            const AABB aabb = PickSystem::computePolylineAABB(pl, entityManager_.points);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Arrow: {
+            if (it->second.index >= entityManager_.arrows.size()) break;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            const AABB aabb = PickSystem::computeArrowAABB(a);
+            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+        }
+        case EntityKind::Text: {
+            float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+            if (textSystem_.getBounds(entityId, minX, minY, maxX, maxY)) {
+                return EntityAabb{minX, minY, maxX, maxY, 1};
+            }
+            return EntityAabb{0, 0, 0, 0, 0};
+        }
+        default:
+            break;
+    }
+
+    return EntityAabb{0, 0, 0, 0, 0};
+}
+
+CadEngine::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
+    selectionOutlinePrimitives_.clear();
+    selectionOutlineData_.clear();
+
+    auto pushPrimitive = [&](OverlayKind kind, std::uint32_t count) {
+        const std::uint32_t offset = static_cast<std::uint32_t>(selectionOutlineData_.size());
+        selectionOutlinePrimitives_.push_back(OverlayPrimitive{
+            static_cast<std::uint16_t>(kind),
+            0,
+            count,
+            offset
+        });
+    };
+
+    for (const std::uint32_t id : selectionOrdered_) {
+        if (!entityManager_.isEntityPickable(id)) continue;
+        const auto it = entityManager_.entities.find(id);
+        if (it == entityManager_.entities.end()) continue;
+
+        if (it->second.kind == EntityKind::Line) {
+            if (it->second.index >= entityManager_.lines.size()) continue;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            pushPrimitive(OverlayKind::Segment, 2);
+            selectionOutlineData_.push_back(l.x0);
+            selectionOutlineData_.push_back(l.y0);
+            selectionOutlineData_.push_back(l.x1);
+            selectionOutlineData_.push_back(l.y1);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Arrow) {
+            if (it->second.index >= entityManager_.arrows.size()) continue;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            pushPrimitive(OverlayKind::Segment, 2);
+            selectionOutlineData_.push_back(a.ax);
+            selectionOutlineData_.push_back(a.ay);
+            selectionOutlineData_.push_back(a.bx);
+            selectionOutlineData_.push_back(a.by);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Polyline) {
+            if (it->second.index >= entityManager_.polylines.size()) continue;
+            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 2) continue;
+            if (pl.offset + pl.count > entityManager_.points.size()) continue;
+            pushPrimitive(OverlayKind::Polyline, pl.count);
+            for (std::uint32_t k = 0; k < pl.count; ++k) {
+                const Point2& pt = entityManager_.points[pl.offset + k];
+                selectionOutlineData_.push_back(pt.x);
+                selectionOutlineData_.push_back(pt.y);
+            }
+            continue;
+        }
+
+        const EntityAabb aabb = getEntityAabb(id);
+        if (!aabb.valid) continue;
+        pushPrimitive(OverlayKind::Polygon, 4);
+        selectionOutlineData_.push_back(aabb.minX);
+        selectionOutlineData_.push_back(aabb.minY);
+        selectionOutlineData_.push_back(aabb.maxX);
+        selectionOutlineData_.push_back(aabb.minY);
+        selectionOutlineData_.push_back(aabb.maxX);
+        selectionOutlineData_.push_back(aabb.maxY);
+        selectionOutlineData_.push_back(aabb.minX);
+        selectionOutlineData_.push_back(aabb.maxY);
+    }
+
+    return OverlayBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(selectionOutlinePrimitives_.size()),
+        static_cast<std::uint32_t>(selectionOutlineData_.size()),
+        reinterpret_cast<std::uintptr_t>(selectionOutlinePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(selectionOutlineData_.data()),
+    };
+}
+
+CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
+    selectionHandlePrimitives_.clear();
+    selectionHandleData_.clear();
+
+    auto pushPrimitive = [&](std::uint32_t count) {
+        const std::uint32_t offset = static_cast<std::uint32_t>(selectionHandleData_.size());
+        selectionHandlePrimitives_.push_back(OverlayPrimitive{
+            static_cast<std::uint16_t>(OverlayKind::Point),
+            0,
+            count,
+            offset
+        });
+    };
+
+    for (const std::uint32_t id : selectionOrdered_) {
+        if (!entityManager_.isEntityPickable(id)) continue;
+        const auto it = entityManager_.entities.find(id);
+        if (it == entityManager_.entities.end()) continue;
+
+        if (it->second.kind == EntityKind::Line) {
+            if (it->second.index >= entityManager_.lines.size()) continue;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            pushPrimitive(2);
+            selectionHandleData_.push_back(l.x0);
+            selectionHandleData_.push_back(l.y0);
+            selectionHandleData_.push_back(l.x1);
+            selectionHandleData_.push_back(l.y1);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Arrow) {
+            if (it->second.index >= entityManager_.arrows.size()) continue;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            pushPrimitive(2);
+            selectionHandleData_.push_back(a.ax);
+            selectionHandleData_.push_back(a.ay);
+            selectionHandleData_.push_back(a.bx);
+            selectionHandleData_.push_back(a.by);
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Polyline) {
+            if (it->second.index >= entityManager_.polylines.size()) continue;
+            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 2) continue;
+            if (pl.offset + pl.count > entityManager_.points.size()) continue;
+            pushPrimitive(pl.count);
+            for (std::uint32_t k = 0; k < pl.count; ++k) {
+                const Point2& pt = entityManager_.points[pl.offset + k];
+                selectionHandleData_.push_back(pt.x);
+                selectionHandleData_.push_back(pt.y);
+            }
+            continue;
+        }
+
+        const EntityAabb aabb = getEntityAabb(id);
+        if (!aabb.valid) continue;
+        pushPrimitive(4);
+        // Handle order must match pick_system.cpp: 0=BL, 1=BR, 2=TR, 3=TL
+        selectionHandleData_.push_back(aabb.minX);
+        selectionHandleData_.push_back(aabb.minY);
+        selectionHandleData_.push_back(aabb.maxX);
+        selectionHandleData_.push_back(aabb.minY);
+        selectionHandleData_.push_back(aabb.maxX);
+        selectionHandleData_.push_back(aabb.maxY);
+        selectionHandleData_.push_back(aabb.minX);
+        selectionHandleData_.push_back(aabb.maxY);
+    }
+
+    return OverlayBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(selectionHandlePrimitives_.size()),
+        static_cast<std::uint32_t>(selectionHandleData_.size()),
+        reinterpret_cast<std::uintptr_t>(selectionHandlePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(selectionHandleData_.data()),
+    };
+}
+
 std::vector<std::uint32_t> CadEngine::getSelectionIds() const {
     return selectionOrdered_;
 }
 
 void CadEngine::rebuildSelectionOrder() {
+    markSelectionChange();
     selectionOrdered_.clear();
     if (selectionSet_.empty()) return;
 
@@ -957,6 +1292,7 @@ void CadEngine::rebuildSelectionOrder() {
 
 bool CadEngine::pruneSelection() {
     if (selectionSet_.empty()) return false;
+    markSelectionChange();
     bool changed = false;
     for (auto it = selectionSet_.begin(); it != selectionSet_.end(); ) {
         const std::uint32_t id = *it;
@@ -971,19 +1307,25 @@ bool CadEngine::pruneSelection() {
     if (changed) {
         rebuildSelectionOrder();
         selectionGeneration_++;
+        recordSelectionChanged();
     }
     return changed;
 }
 
 void CadEngine::clearSelection() {
     if (selectionSet_.empty()) return;
+    markSelectionChange();
     selectionSet_.clear();
     selectionOrdered_.clear();
     selectionGeneration_++;
+    recordSelectionChanged();
 }
 
 void CadEngine::setSelection(const std::uint32_t* ids, std::uint32_t idCount, SelectionMode mode) {
     bool changed = false;
+    if (idCount > 0 || !selectionSet_.empty()) {
+        markSelectionChange();
+    }
 
     auto applyInsert = [&](std::uint32_t id) {
         if (selectionSet_.find(id) == selectionSet_.end()) {
@@ -1034,6 +1376,7 @@ void CadEngine::setSelection(const std::uint32_t* ids, std::uint32_t idCount, Se
     if (changed) {
         rebuildSelectionOrder();
         selectionGeneration_++;
+        recordSelectionChanged();
     }
 }
 
@@ -1089,6 +1432,8 @@ void CadEngine::reorderEntities(const std::uint32_t* ids, std::uint32_t idCount,
     }
     if (moveSet.empty()) return;
 
+    const bool historyStarted = beginHistoryEntry();
+    markDrawOrderChange();
     bool changed = false;
 
     switch (action) {
@@ -1158,11 +1503,16 @@ void CadEngine::reorderEntities(const std::uint32_t* ids, std::uint32_t idCount,
             break;
     }
 
-    if (!changed) return;
+    if (!changed) {
+        if (historyStarted) commitHistoryEntry();
+        return;
+    }
     pickSystem_.setDrawOrder(order);
     renderDirty = true;
+    recordOrderChanged();
     generation++;
     if (!selectionSet_.empty()) rebuildSelectionOrder();
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::clearWorld() noexcept {
@@ -1172,6 +1522,7 @@ void CadEngine::clearWorld() noexcept {
     viewScale = 1.0f;
     triangleVertices.clear();
     lineVertices.clear();
+    renderRanges_.clear();
     snapshotBytes.clear();
     selectionSet_.clear();
     selectionOrdered_.clear();
@@ -1180,9 +1531,819 @@ void CadEngine::clearWorld() noexcept {
     lastLoadMs = 0.0f;
     lastRebuildMs = 0.0f;
     lastApplyMs = 0.0f;
+    rebuildAllGeometryCount_ = 0;
+    pendingFullRebuild_ = false;
     renderDirty = true;
     snapshotDirty = true;
     textQuadsDirty_ = true;
+    clearEventState();
+    recordDocChanged(
+        static_cast<std::uint32_t>(ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(ChangeMask::Style)
+        | static_cast<std::uint32_t>(ChangeMask::Flags)
+        | static_cast<std::uint32_t>(ChangeMask::Layer)
+        | static_cast<std::uint32_t>(ChangeMask::Order)
+        | static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+    );
+    recordSelectionChanged();
+    recordOrderChanged();
+}
+
+void CadEngine::clearEventState() {
+    eventHead_ = 0;
+    eventTail_ = 0;
+    eventCount_ = 0;
+    eventOverflowed_ = false;
+    eventOverflowGeneration_ = 0;
+    pendingEntityChanges_.clear();
+    pendingEntityCreates_.clear();
+    pendingEntityDeletes_.clear();
+    pendingLayerChanges_.clear();
+    pendingDocMask_ = 0;
+    pendingSelectionChanged_ = false;
+    pendingOrderChanged_ = false;
+    pendingHistoryChanged_ = false;
+}
+
+void CadEngine::recordDocChanged(std::uint32_t mask) {
+    if (eventOverflowed_) return;
+    pendingDocMask_ |= mask;
+}
+
+void CadEngine::recordEntityChanged(std::uint32_t id, std::uint32_t mask) {
+    if (eventOverflowed_) return;
+    if (pendingEntityDeletes_.find(id) != pendingEntityDeletes_.end()) return;
+    pendingEntityChanges_[id] |= mask;
+    recordDocChanged(mask);
+}
+
+void CadEngine::recordEntityCreated(std::uint32_t id, std::uint32_t kind) {
+    if (eventOverflowed_) return;
+    pendingEntityDeletes_.erase(id);
+    pendingEntityChanges_.erase(id);
+    pendingEntityCreates_[id] = kind;
+    std::uint32_t docMask =
+        static_cast<std::uint32_t>(ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(ChangeMask::Style)
+        | static_cast<std::uint32_t>(ChangeMask::Layer)
+        | static_cast<std::uint32_t>(ChangeMask::Flags)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds);
+    if (kind == static_cast<std::uint32_t>(EntityKind::Text)) {
+        docMask |= static_cast<std::uint32_t>(ChangeMask::Text);
+    }
+    recordDocChanged(docMask);
+    recordOrderChanged();
+}
+
+void CadEngine::recordEntityDeleted(std::uint32_t id) {
+    if (eventOverflowed_) return;
+    pendingEntityDeletes_.insert(id);
+    pendingEntityChanges_.erase(id);
+    pendingEntityCreates_.erase(id);
+    recordDocChanged(
+        static_cast<std::uint32_t>(ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(ChangeMask::Layer)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+    );
+    recordOrderChanged();
+}
+
+void CadEngine::recordLayerChanged(std::uint32_t layerId, std::uint32_t mask) {
+    if (eventOverflowed_) return;
+    pendingLayerChanges_[layerId] |= mask;
+    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Layer));
+}
+
+void CadEngine::recordSelectionChanged() {
+    if (eventOverflowed_) return;
+    pendingSelectionChanged_ = true;
+}
+
+void CadEngine::recordOrderChanged() {
+    if (eventOverflowed_) return;
+    pendingOrderChanged_ = true;
+    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Order));
+}
+
+void CadEngine::recordHistoryChanged() {
+    if (eventOverflowed_) return;
+    pendingHistoryChanged_ = true;
+}
+
+void CadEngine::clearHistory() {
+    history_.clear();
+    historyCursor_ = 0;
+    historyTransaction_.active = false;
+    historyTransaction_.entry = HistoryEntry{};
+    historyTransaction_.entityIndex.clear();
+    historyGeneration_++;
+    recordHistoryChanged();
+}
+
+bool CadEngine::beginHistoryEntry() {
+    if (historySuppressed_ || historyTransaction_.active) return false;
+    historyTransaction_.active = true;
+    historyTransaction_.entry = HistoryEntry{};
+    historyTransaction_.entry.nextIdBefore = nextEntityId_;
+    historyTransaction_.entry.nextIdAfter = nextEntityId_;
+    historyTransaction_.entityIndex.clear();
+    return true;
+}
+
+void CadEngine::discardHistoryEntry() {
+    historyTransaction_.active = false;
+    historyTransaction_.entry = HistoryEntry{};
+    historyTransaction_.entityIndex.clear();
+}
+
+void CadEngine::pushHistoryEntry(HistoryEntry&& entry) {
+    if (historySuppressed_) return;
+    if (historyCursor_ < history_.size()) {
+        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(historyCursor_), history_.end());
+    }
+    history_.push_back(std::move(entry));
+    historyCursor_ = history_.size();
+    historyGeneration_++;
+    recordHistoryChanged();
+}
+
+void CadEngine::markEntityChange(std::uint32_t id) {
+    if (!historyTransaction_.active || historySuppressed_) return;
+    auto& entry = historyTransaction_.entry;
+    auto [it, inserted] = historyTransaction_.entityIndex.emplace(id, entry.entities.size());
+    if (!inserted) return;
+
+    EntityChange change{};
+    change.id = id;
+    change.existedBefore = captureEntitySnapshot(id, change.before);
+    entry.entities.push_back(std::move(change));
+}
+
+void CadEngine::markLayerChange() {
+    if (!historyTransaction_.active || historySuppressed_) return;
+    auto& entry = historyTransaction_.entry;
+    if (entry.hasLayerChange) return;
+
+    const auto records = entityManager_.layerStore.snapshot();
+    entry.layersBefore.reserve(records.size());
+    for (const auto& layer : records) {
+        engine::LayerSnapshot snap{};
+        snap.id = layer.id;
+        snap.order = layer.order;
+        snap.flags = layer.flags;
+        snap.name = entityManager_.layerStore.getLayerName(layer.id);
+        entry.layersBefore.push_back(std::move(snap));
+    }
+    entry.hasLayerChange = true;
+}
+
+void CadEngine::markDrawOrderChange() {
+    if (!historyTransaction_.active || historySuppressed_) return;
+    auto& entry = historyTransaction_.entry;
+    if (entry.hasDrawOrderChange) return;
+    entry.drawOrderBefore = entityManager_.drawOrderIds;
+    entry.hasDrawOrderChange = true;
+}
+
+void CadEngine::markSelectionChange() {
+    if (!historyTransaction_.active || historySuppressed_) return;
+    auto& entry = historyTransaction_.entry;
+    if (entry.hasSelectionChange) return;
+    entry.selectionBefore = selectionOrdered_;
+    entry.hasSelectionChange = true;
+}
+
+void CadEngine::finalizeHistoryEntry(HistoryEntry& entry) {
+    entry.nextIdAfter = nextEntityId_;
+    for (auto& change : entry.entities) {
+        change.existedAfter = captureEntitySnapshot(change.id, change.after);
+    }
+
+    if (entry.hasLayerChange) {
+        const auto records = entityManager_.layerStore.snapshot();
+        entry.layersAfter.reserve(records.size());
+        for (const auto& layer : records) {
+            engine::LayerSnapshot snap{};
+            snap.id = layer.id;
+            snap.order = layer.order;
+            snap.flags = layer.flags;
+            snap.name = entityManager_.layerStore.getLayerName(layer.id);
+            entry.layersAfter.push_back(std::move(snap));
+        }
+    }
+
+    if (entry.hasDrawOrderChange) {
+        entry.drawOrderAfter = entityManager_.drawOrderIds;
+    }
+
+    if (entry.hasSelectionChange) {
+        entry.selectionAfter = selectionOrdered_;
+    }
+}
+
+void CadEngine::commitHistoryEntry() {
+    if (!historyTransaction_.active) return;
+    HistoryEntry entry = std::move(historyTransaction_.entry);
+    historyTransaction_.active = false;
+    historyTransaction_.entityIndex.clear();
+
+    finalizeHistoryEntry(entry);
+
+    auto layersEqual = [](const std::vector<engine::LayerSnapshot>& a, const std::vector<engine::LayerSnapshot>& b) {
+        if (a.size() != b.size()) return false;
+        for (std::size_t i = 0; i < a.size(); ++i) {
+            if (a[i].id != b[i].id) return false;
+            if (a[i].order != b[i].order) return false;
+            if (a[i].flags != b[i].flags) return false;
+            if (a[i].name != b[i].name) return false;
+        }
+        return true;
+    };
+
+    if (entry.hasLayerChange && layersEqual(entry.layersBefore, entry.layersAfter)) {
+        entry.hasLayerChange = false;
+        entry.layersBefore.clear();
+        entry.layersAfter.clear();
+    }
+
+    if (entry.hasDrawOrderChange && entry.drawOrderBefore == entry.drawOrderAfter) {
+        entry.hasDrawOrderChange = false;
+        entry.drawOrderBefore.clear();
+        entry.drawOrderAfter.clear();
+    }
+
+    if (entry.hasSelectionChange && entry.selectionBefore == entry.selectionAfter) {
+        entry.hasSelectionChange = false;
+        entry.selectionBefore.clear();
+        entry.selectionAfter.clear();
+    }
+
+    if (entry.entities.empty() && !entry.hasLayerChange && !entry.hasDrawOrderChange && !entry.hasSelectionChange) {
+        return;
+    }
+
+    std::sort(entry.entities.begin(), entry.entities.end(), [](const EntityChange& a, const EntityChange& b) {
+        return a.id < b.id;
+    });
+
+    pushHistoryEntry(std::move(entry));
+}
+
+bool CadEngine::pushEvent(const EngineEvent& ev) {
+    if (eventOverflowed_) return false;
+    if (eventCount_ >= kMaxEvents) {
+        eventOverflowed_ = true;
+        eventOverflowGeneration_ = generation;
+        eventHead_ = 0;
+        eventTail_ = 0;
+        eventCount_ = 0;
+        return false;
+    }
+    eventQueue_[eventTail_] = ev;
+    eventTail_ = (eventTail_ + 1) % kMaxEvents;
+    eventCount_++;
+    return true;
+}
+
+void CadEngine::flushPendingEvents() {
+    if (eventOverflowed_) {
+        pendingEntityChanges_.clear();
+        pendingEntityCreates_.clear();
+        pendingEntityDeletes_.clear();
+        pendingLayerChanges_.clear();
+        pendingDocMask_ = 0;
+        pendingSelectionChanged_ = false;
+        pendingOrderChanged_ = false;
+        pendingHistoryChanged_ = false;
+        return;
+    }
+
+    if (pendingDocMask_ == 0 &&
+        pendingEntityChanges_.empty() &&
+        pendingEntityCreates_.empty() &&
+        pendingEntityDeletes_.empty() &&
+        pendingLayerChanges_.empty() &&
+        !pendingSelectionChanged_ &&
+        !pendingOrderChanged_ &&
+        !pendingHistoryChanged_) {
+        return;
+    }
+
+    auto pushOrOverflow = [&](const EngineEvent& ev) -> bool {
+        if (!pushEvent(ev)) {
+            pendingEntityChanges_.clear();
+            pendingEntityCreates_.clear();
+            pendingEntityDeletes_.clear();
+            pendingLayerChanges_.clear();
+            pendingDocMask_ = 0;
+            pendingSelectionChanged_ = false;
+            pendingOrderChanged_ = false;
+            pendingHistoryChanged_ = false;
+            return false;
+        }
+        return true;
+    };
+
+    if (pendingDocMask_ != 0) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::DocChanged),
+                0,
+                pendingDocMask_,
+                0,
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    if (!pendingLayerChanges_.empty()) {
+        std::vector<std::uint32_t> layerIds;
+        layerIds.reserve(pendingLayerChanges_.size());
+        for (const auto& kv : pendingLayerChanges_) layerIds.push_back(kv.first);
+        std::sort(layerIds.begin(), layerIds.end());
+        for (const std::uint32_t id : layerIds) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::LayerChanged),
+                    0,
+                    id,
+                    pendingLayerChanges_[id],
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (!pendingEntityCreates_.empty()) {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(pendingEntityCreates_.size());
+        for (const auto& kv : pendingEntityCreates_) ids.push_back(kv.first);
+        std::sort(ids.begin(), ids.end());
+        for (const std::uint32_t id : ids) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::EntityCreated),
+                    0,
+                    id,
+                    pendingEntityCreates_[id],
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (!pendingEntityChanges_.empty()) {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(pendingEntityChanges_.size());
+        for (const auto& kv : pendingEntityChanges_) ids.push_back(kv.first);
+        std::sort(ids.begin(), ids.end());
+        for (const std::uint32_t id : ids) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::EntityChanged),
+                    0,
+                    id,
+                    pendingEntityChanges_[id],
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (!pendingEntityDeletes_.empty()) {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(pendingEntityDeletes_.size());
+        for (const auto& id : pendingEntityDeletes_) ids.push_back(id);
+        std::sort(ids.begin(), ids.end());
+        for (const std::uint32_t id : ids) {
+            if (!pushOrOverflow(EngineEvent{
+                    static_cast<std::uint16_t>(EventType::EntityDeleted),
+                    0,
+                    id,
+                    0,
+                    0,
+                    0,
+                })) {
+                return;
+            }
+        }
+    }
+
+    if (pendingSelectionChanged_) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::SelectionChanged),
+                0,
+                selectionGeneration_,
+                static_cast<std::uint32_t>(selectionOrdered_.size()),
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    if (pendingOrderChanged_) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::OrderChanged),
+                0,
+                generation,
+                static_cast<std::uint32_t>(entityManager_.drawOrderIds.size()),
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    if (pendingHistoryChanged_) {
+        if (!pushOrOverflow(EngineEvent{
+                static_cast<std::uint16_t>(EventType::HistoryChanged),
+                0,
+                generation,
+                0,
+                0,
+                0,
+            })) {
+            return;
+        }
+    }
+
+    pendingEntityChanges_.clear();
+    pendingEntityCreates_.clear();
+    pendingEntityDeletes_.clear();
+    pendingLayerChanges_.clear();
+    pendingDocMask_ = 0;
+    pendingSelectionChanged_ = false;
+    pendingOrderChanged_ = false;
+    pendingHistoryChanged_ = false;
+}
+
+CadEngine::EventBufferMeta CadEngine::pollEvents(std::uint32_t maxEvents) {
+    flushPendingEvents();
+
+    eventBuffer_.clear();
+    if (eventOverflowed_) {
+        eventBuffer_.push_back(EngineEvent{
+            static_cast<std::uint16_t>(EventType::Overflow),
+            0,
+            eventOverflowGeneration_,
+            0,
+            0,
+            0,
+        });
+        return EventBufferMeta{
+            generation,
+            static_cast<std::uint32_t>(eventBuffer_.size()),
+            reinterpret_cast<std::uintptr_t>(eventBuffer_.data()),
+        };
+    }
+
+    if (eventCount_ == 0 || maxEvents == 0) {
+        return EventBufferMeta{generation, 0, 0};
+    }
+
+    const std::size_t count = std::min<std::size_t>(maxEvents, eventCount_);
+    eventBuffer_.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        eventBuffer_.push_back(eventQueue_[eventHead_]);
+        eventHead_ = (eventHead_ + 1) % kMaxEvents;
+        eventCount_--;
+    }
+
+    return EventBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(eventBuffer_.size()),
+        reinterpret_cast<std::uintptr_t>(eventBuffer_.data()),
+    };
+}
+
+void CadEngine::ackResync(std::uint32_t resyncGeneration) {
+    if (!eventOverflowed_) return;
+    if (resyncGeneration < eventOverflowGeneration_) return;
+    eventOverflowed_ = false;
+    eventOverflowGeneration_ = 0;
+    eventHead_ = 0;
+    eventTail_ = 0;
+    eventCount_ = 0;
+    pendingEntityChanges_.clear();
+    pendingEntityCreates_.clear();
+    pendingEntityDeletes_.clear();
+    pendingLayerChanges_.clear();
+    pendingDocMask_ = 0;
+    pendingSelectionChanged_ = false;
+    pendingOrderChanged_ = false;
+    pendingHistoryChanged_ = false;
+}
+
+bool CadEngine::captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out) const {
+    const auto it = entityManager_.entities.find(id);
+    if (it == entityManager_.entities.end()) return false;
+
+    out = EntitySnapshot{};
+    out.id = id;
+    out.kind = it->second.kind;
+    out.layerId = entityManager_.getEntityLayer(id);
+    out.flags = entityManager_.getEntityFlags(id);
+
+    switch (out.kind) {
+        case EntityKind::Rect: {
+            const RectRec* rec = entityManager_.getRect(id);
+            if (!rec) return false;
+            out.rect = *rec;
+            break;
+        }
+        case EntityKind::Line: {
+            const LineRec* rec = entityManager_.getLine(id);
+            if (!rec) return false;
+            out.line = *rec;
+            break;
+        }
+        case EntityKind::Polyline: {
+            const PolyRec* rec = entityManager_.getPolyline(id);
+            if (!rec) return false;
+            out.poly = *rec;
+            out.points.clear();
+            out.points.reserve(rec->count);
+            for (std::uint32_t i = 0; i < rec->count; ++i) {
+                const std::uint32_t idx = rec->offset + i;
+                if (idx >= entityManager_.points.size()) break;
+                out.points.push_back(entityManager_.points[idx]);
+            }
+            out.poly.count = static_cast<std::uint32_t>(out.points.size());
+            out.poly.offset = 0;
+            break;
+        }
+        case EntityKind::Circle: {
+            const CircleRec* rec = entityManager_.getCircle(id);
+            if (!rec) return false;
+            out.circle = *rec;
+            break;
+        }
+        case EntityKind::Polygon: {
+            const PolygonRec* rec = entityManager_.getPolygon(id);
+            if (!rec) return false;
+            out.polygon = *rec;
+            break;
+        }
+        case EntityKind::Arrow: {
+            const ArrowRec* rec = entityManager_.getArrow(id);
+            if (!rec) return false;
+            out.arrow = *rec;
+            break;
+        }
+        case EntityKind::Text: {
+            const TextRec* rec = textSystem_.store.getText(id);
+            if (!rec) return false;
+            out.textHeader.x = rec->x;
+            out.textHeader.y = rec->y;
+            out.textHeader.rotation = rec->rotation;
+            out.textHeader.boxMode = static_cast<std::uint8_t>(rec->boxMode);
+            out.textHeader.align = static_cast<std::uint8_t>(rec->align);
+            out.textHeader.reserved[0] = 0;
+            out.textHeader.reserved[1] = 0;
+            out.textHeader.constraintWidth = rec->constraintWidth;
+
+            const auto& runs = textSystem_.store.getRuns(id);
+            out.textRuns.clear();
+            out.textRuns.reserve(runs.size());
+            for (const auto& run : runs) {
+                TextRunPayload payload{};
+                payload.startIndex = run.startIndex;
+                payload.length = run.length;
+                payload.fontId = run.fontId;
+                payload.fontSize = run.fontSize;
+                payload.colorRGBA = run.colorRGBA;
+                payload.flags = static_cast<std::uint8_t>(run.flags);
+                payload.reserved[0] = 0;
+                payload.reserved[1] = 0;
+                payload.reserved[2] = 0;
+                out.textRuns.push_back(payload);
+            }
+
+            const std::string_view content = textSystem_.store.getContent(id);
+            out.textContent.assign(content.begin(), content.end());
+            out.textHeader.runCount = static_cast<std::uint32_t>(out.textRuns.size());
+            out.textHeader.contentLength = static_cast<std::uint32_t>(out.textContent.size());
+            break;
+        }
+        default:
+            return false;
+    }
+
+    return true;
+}
+
+EntitySnapshot CadEngine::buildSnapshotFromTransform(const TransformSnapshot& snap) const {
+    EntitySnapshot out{};
+    if (!captureEntitySnapshot(snap.id, out)) {
+        return out;
+    }
+
+    switch (out.kind) {
+        case EntityKind::Rect:
+            out.rect.x = snap.x;
+            out.rect.y = snap.y;
+            out.rect.w = snap.w;
+            out.rect.h = snap.h;
+            break;
+        case EntityKind::Circle:
+            out.circle.cx = snap.x;
+            out.circle.cy = snap.y;
+            out.circle.rx = snap.w;
+            out.circle.ry = snap.h;
+            break;
+        case EntityKind::Polygon:
+            out.polygon.cx = snap.x;
+            out.polygon.cy = snap.y;
+            out.polygon.rx = snap.w;
+            out.polygon.ry = snap.h;
+            break;
+        case EntityKind::Text:
+            out.textHeader.x = snap.x;
+            out.textHeader.y = snap.y;
+            break;
+        case EntityKind::Line:
+            if (snap.points.size() >= 2) {
+                out.line.x0 = snap.points[0].x;
+                out.line.y0 = snap.points[0].y;
+                out.line.x1 = snap.points[1].x;
+                out.line.y1 = snap.points[1].y;
+            }
+            break;
+        case EntityKind::Arrow:
+            if (snap.points.size() >= 2) {
+                out.arrow.ax = snap.points[0].x;
+                out.arrow.ay = snap.points[0].y;
+                out.arrow.bx = snap.points[1].x;
+                out.arrow.by = snap.points[1].y;
+            }
+            break;
+        case EntityKind::Polyline:
+            out.points = snap.points;
+            out.poly.count = static_cast<std::uint32_t>(out.points.size());
+            out.poly.offset = 0;
+            break;
+        default:
+            break;
+    }
+
+    return out;
+}
+
+void CadEngine::applyEntitySnapshot(const EntitySnapshot& snap) {
+    const std::uint32_t id = snap.id;
+    if (id == 0) return;
+
+    switch (snap.kind) {
+        case EntityKind::Rect:
+            upsertRect(id, snap.rect.x, snap.rect.y, snap.rect.w, snap.rect.h,
+                snap.rect.r, snap.rect.g, snap.rect.b, snap.rect.a,
+                snap.rect.sr, snap.rect.sg, snap.rect.sb, snap.rect.sa,
+                snap.rect.strokeEnabled, snap.rect.strokeWidthPx);
+            break;
+        case EntityKind::Line:
+            upsertLine(id, snap.line.x0, snap.line.y0, snap.line.x1, snap.line.y1,
+                snap.line.r, snap.line.g, snap.line.b, snap.line.a,
+                snap.line.enabled, snap.line.strokeWidthPx);
+            break;
+        case EntityKind::Polyline: {
+            const std::uint32_t count = static_cast<std::uint32_t>(snap.points.size());
+            if (count < 2) {
+                deleteEntity(id);
+                return;
+            }
+            const std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
+            entityManager_.points.insert(entityManager_.points.end(), snap.points.begin(), snap.points.end());
+            upsertPolyline(id, offset, count, snap.poly.r, snap.poly.g, snap.poly.b, snap.poly.a, snap.poly.enabled, snap.poly.strokeWidthPx);
+            const auto it = entityManager_.entities.find(id);
+            if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Polyline) {
+                auto& pl = entityManager_.polylines[it->second.index];
+                pl.sr = snap.poly.sr;
+                pl.sg = snap.poly.sg;
+                pl.sb = snap.poly.sb;
+                pl.sa = snap.poly.sa;
+                pl.strokeEnabled = snap.poly.strokeEnabled;
+            }
+            break;
+        }
+        case EntityKind::Circle:
+            upsertCircle(id, snap.circle.cx, snap.circle.cy, snap.circle.rx, snap.circle.ry,
+                snap.circle.rot, snap.circle.sx, snap.circle.sy,
+                snap.circle.r, snap.circle.g, snap.circle.b, snap.circle.a,
+                snap.circle.sr, snap.circle.sg, snap.circle.sb, snap.circle.sa,
+                snap.circle.strokeEnabled, snap.circle.strokeWidthPx);
+            break;
+        case EntityKind::Polygon:
+            upsertPolygon(id, snap.polygon.cx, snap.polygon.cy, snap.polygon.rx, snap.polygon.ry,
+                snap.polygon.rot, snap.polygon.sx, snap.polygon.sy, snap.polygon.sides,
+                snap.polygon.r, snap.polygon.g, snap.polygon.b, snap.polygon.a,
+                snap.polygon.sr, snap.polygon.sg, snap.polygon.sb, snap.polygon.sa,
+                snap.polygon.strokeEnabled, snap.polygon.strokeWidthPx);
+            break;
+        case EntityKind::Arrow:
+            upsertArrow(id, snap.arrow.ax, snap.arrow.ay, snap.arrow.bx, snap.arrow.by, snap.arrow.head,
+                snap.arrow.sr, snap.arrow.sg, snap.arrow.sb, snap.arrow.sa,
+                snap.arrow.strokeEnabled, snap.arrow.strokeWidthPx);
+            break;
+        case EntityKind::Text: {
+            const std::uint32_t runCount = static_cast<std::uint32_t>(snap.textRuns.size());
+            const std::uint32_t contentLength = static_cast<std::uint32_t>(snap.textContent.size());
+            TextPayloadHeader header = snap.textHeader;
+            header.runCount = runCount;
+            header.contentLength = contentLength;
+            if (!upsertText(
+                    id,
+                    header,
+                    runCount == 0 ? nullptr : snap.textRuns.data(),
+                    runCount,
+                    contentLength == 0 ? "" : snap.textContent.data(),
+                    contentLength)) {
+                break;
+            }
+            break;
+        }
+        default:
+            return;
+    }
+
+    if (entityManager_.entities.find(id) == entityManager_.entities.end()) return;
+    if (entityManager_.getEntityLayer(id) != snap.layerId) {
+        setEntityLayer(id, snap.layerId);
+    }
+    const std::uint32_t flagsMask =
+        static_cast<std::uint32_t>(EntityFlags::Visible)
+        | static_cast<std::uint32_t>(EntityFlags::Locked);
+    if (entityManager_.getEntityFlags(id) != snap.flags) {
+        setEntityFlags(id, flagsMask, snap.flags);
+    }
+}
+
+void CadEngine::applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers) {
+    std::vector<LayerRecord> records;
+    std::vector<std::string> names;
+    records.reserve(layers.size());
+    names.reserve(layers.size());
+    for (const auto& layer : layers) {
+        records.push_back(LayerRecord{layer.id, layer.order, layer.flags});
+        names.push_back(layer.name);
+    }
+    entityManager_.layerStore.loadSnapshot(records, names);
+    renderDirty = true;
+    snapshotDirty = true;
+    textQuadsDirty_ = true;
+    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Layer));
+}
+
+void CadEngine::applyDrawOrderSnapshot(const std::vector<std::uint32_t>& order) {
+    entityManager_.drawOrderIds = order;
+    pickSystem_.setDrawOrder(order);
+    renderDirty = true;
+    snapshotDirty = true;
+    if (!selectionSet_.empty()) {
+        rebuildSelectionOrder();
+    }
+    recordOrderChanged();
+    generation++;
+}
+
+void CadEngine::applySelectionSnapshot(const std::vector<std::uint32_t>& selection) {
+    if (selection.empty()) {
+        clearSelection();
+        return;
+    }
+    setSelection(selection.data(), static_cast<std::uint32_t>(selection.size()), SelectionMode::Replace);
+}
+
+void CadEngine::applyHistoryEntry(const HistoryEntry& entry, bool useAfter) {
+    if (entry.hasLayerChange) {
+        applyLayerSnapshot(useAfter ? entry.layersAfter : entry.layersBefore);
+    }
+
+    for (const auto& change : entry.entities) {
+        const bool exists = useAfter ? change.existedAfter : change.existedBefore;
+        if (!exists) {
+            deleteEntity(change.id);
+            continue;
+        }
+        const EntitySnapshot& snap = useAfter ? change.after : change.before;
+        applyEntitySnapshot(snap);
+    }
+
+    if (entry.hasDrawOrderChange) {
+        applyDrawOrderSnapshot(useAfter ? entry.drawOrderAfter : entry.drawOrderBefore);
+    }
+
+    if (entry.hasSelectionChange) {
+        applySelectionSnapshot(useAfter ? entry.selectionAfter : entry.selectionBefore);
+    }
+
+    nextEntityId_ = useAfter ? entry.nextIdAfter : entry.nextIdBefore;
+    snapshotDirty = true;
 }
 
 void CadEngine::trackNextEntityId(std::uint32_t id) {
@@ -1192,6 +2353,7 @@ void CadEngine::trackNextEntityId(std::uint32_t id) {
 }
 
 void CadEngine::deleteEntity(std::uint32_t id) noexcept {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     
@@ -1199,14 +2361,25 @@ void CadEngine::deleteEntity(std::uint32_t id) noexcept {
 
     // Check if it's text first, as text is managed by CadEngine/TextStore logic
     auto it = entityManager_.entities.find(id);
-    if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Text) {
+    if (it == entityManager_.entities.end()) {
+        if (historyStarted) commitHistoryEntry();
+        return;
+    }
+
+    markEntityChange(id);
+    markDrawOrderChange();
+
+    if (it->second.kind == EntityKind::Text) {
          deleteText(id);
+         if (historyStarted) commitHistoryEntry();
          return;
     }
 
     // Delegate to EntityManager for all geometry
     entityManager_.deleteEntity(id);
+    recordEntityDeleted(id);
     pruneSelection();
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
@@ -1214,15 +2387,31 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
 }
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx) {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     trackNextEntityId(id);
-    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
+    const auto it = entityManager_.entities.find(id);
+    const bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Rect);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx);
 
     RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
     pickSystem_.update(id, PickSystem::computeRectAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Rect));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1) {
@@ -1230,15 +2419,31 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
 }
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     trackNextEntityId(id);
-    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
+    const auto it = entityManager_.entities.find(id);
+    const bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Line);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx);
 
     LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
     pickSystem_.update(id, PickSystem::computeLineAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Line));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count) {
@@ -1246,15 +2451,31 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
 }
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     trackNextEntityId(id);
-    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
+    const auto it = entityManager_.entities.find(id);
+    const bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Polyline);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
 
     PolyRec rec; rec.offset = offset; rec.count = count;
     pickSystem_.update(id, PickSystem::computePolylineAABB(rec, entityManager_.points));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Polyline));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::upsertCircle(
@@ -1277,15 +2498,31 @@ void CadEngine::upsertCircle(
     float strokeEnabled,
     float strokeWidthPx
 ) {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     trackNextEntityId(id);
-    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
+    const auto it = entityManager_.entities.find(id);
+    const bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Circle);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
 
     CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry;
     pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Circle));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::upsertPolygon(
@@ -1309,15 +2546,31 @@ void CadEngine::upsertPolygon(
     float strokeEnabled,
     float strokeWidthPx
 ) {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     trackNextEntityId(id);
-    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
+    const auto it = entityManager_.entities.find(id);
+    const bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Polygon);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
 
     PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot;
     pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Polygon));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
+    if (historyStarted) commitHistoryEntry();
 }
 
 void CadEngine::upsertArrow(
@@ -1334,15 +2587,31 @@ void CadEngine::upsertArrow(
     float strokeEnabled,
     float strokeWidthPx
 ) {
+    const bool historyStarted = beginHistoryEntry();
     renderDirty = true;
     snapshotDirty = true;
     trackNextEntityId(id);
-    bool isNew = (entityManager_.entities.find(id) == entityManager_.entities.end());
+    const auto it = entityManager_.entities.find(id);
+    const bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Arrow);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
 
     ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
     pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Arrow));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(ChangeMask::Style)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+    }
+    if (historyStarted) commitHistoryEntry();
 }
 
 // Static member callback implementation
@@ -1350,6 +2619,12 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
     CadEngine* self = reinterpret_cast<CadEngine*>(ctx);
     switch (op) {
         case static_cast<std::uint32_t>(CommandOp::ClearAll): {
+            self->markLayerChange();
+            self->markDrawOrderChange();
+            self->markSelectionChange();
+            for (const auto& kv : self->entityManager_.entities) {
+                self->markEntityChange(kv.first);
+            }
             self->clearWorld();
             break;
         }
@@ -1359,15 +2634,21 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
         }
         case static_cast<std::uint32_t>(CommandOp::SetViewScale): {
             if (payloadByteCount != sizeof(ViewScalePayload)) return EngineError::InvalidPayloadSize;
-            ViewScalePayload p;
-            std::memcpy(&p, payload, sizeof(ViewScalePayload));
-            const float s = (p.scale > 1e-6f && std::isfinite(p.scale)) ? p.scale : 1.0f;
-            self->viewScale = s;
-            self->renderDirty = true;
-            break;
+                ViewScalePayload p;
+                std::memcpy(&p, payload, sizeof(ViewScalePayload));
+                // Basic validation
+                const float s = (p.scale > 1e-6f && std::isfinite(p.scale)) ? p.scale : 1.0f;
+                self->viewScale = s;
+                self->viewX = p.x;
+                self->viewY = p.y;
+                self->viewWidth = p.width;
+                self->viewHeight = p.height;
+                self->renderDirty = true;
+                break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetDrawOrder): {
             if (payloadByteCount < sizeof(DrawOrderPayloadHeader)) return EngineError::InvalidPayloadSize;
+            self->markDrawOrderChange();
             DrawOrderPayloadHeader hdr;
             std::memcpy(&hdr, payload, sizeof(DrawOrderPayloadHeader));
             const std::uint32_t count = hdr.count;
@@ -1385,6 +2666,7 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->renderDirty = true;
             self->pickSystem_.setDrawOrder(self->entityManager_.drawOrderIds);
             if (!self->selectionSet_.empty()) self->rebuildSelectionOrder();
+            self->recordOrderChanged();
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertRect): {
@@ -1552,12 +2834,44 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
         }
         default:
             return EngineError::UnknownCommand;
+        case static_cast<std::uint32_t>(CommandOp::BeginDraft): {
+            if (payloadByteCount != sizeof(BeginDraftPayload)) return EngineError::InvalidPayloadSize;
+            BeginDraftPayload p;
+            std::memcpy(&p, payload, sizeof(BeginDraftPayload));
+            self->beginDraft(p);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::UpdateDraft): {
+            if (payloadByteCount != sizeof(UpdateDraftPayload)) return EngineError::InvalidPayloadSize;
+            UpdateDraftPayload p;
+            std::memcpy(&p, payload, sizeof(UpdateDraftPayload));
+            self->updateDraft(p.x, p.y);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::AppendDraftPoint): {
+            if (payloadByteCount != sizeof(UpdateDraftPayload)) return EngineError::InvalidPayloadSize;
+            UpdateDraftPayload p;
+            std::memcpy(&p, payload, sizeof(UpdateDraftPayload));
+            self->appendDraftPoint(p.x, p.y);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::CommitDraft): {
+            self->commitDraft();
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::CancelDraft): {
+            self->cancelDraft();
+            break;
+        }
     }
     return EngineError::Ok;
 }
 
 bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen) {
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(payload.textId);
     if (!textSystem_.applyTextStyle(payload, params, paramsLen)) {
+        if (historyStarted) discardHistoryEntry();
         return false;
     }
     
@@ -1572,6 +2886,7 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
         pickSystem_.update(payload.textId, {minX, minY, maxX, maxY});
     }
     
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
@@ -1688,6 +3003,559 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
 }
 void CadEngine::compactPolylinePoints() {
     entityManager_.compactPolylinePoints();
+}
+
+std::vector<std::uint8_t> CadEngine::encodeHistoryBytes() const {
+    if (history_.empty()) return {};
+
+    std::vector<std::uint8_t> out;
+    out.reserve(256);
+
+    auto appendU32 = [&](std::uint32_t v) {
+        const std::size_t o = out.size();
+        out.resize(o + 4);
+        writeU32LE(out.data(), o, v);
+    };
+    auto appendF32 = [&](float v) {
+        const std::size_t o = out.size();
+        out.resize(o + 4);
+        writeF32LE(out.data(), o, v);
+    };
+    auto appendByte = [&](std::uint8_t v) {
+        out.push_back(v);
+    };
+    auto appendU32Array = [&](const std::vector<std::uint32_t>& values) {
+        appendU32(static_cast<std::uint32_t>(values.size()));
+        for (const auto v : values) {
+            appendU32(v);
+        }
+    };
+    auto appendLayerSnapshot = [&](const std::vector<engine::LayerSnapshot>& layers) {
+        appendU32(static_cast<std::uint32_t>(layers.size()));
+        for (const auto& layer : layers) {
+            appendU32(layer.id);
+            appendU32(layer.order);
+            appendU32(layer.flags);
+            appendU32(static_cast<std::uint32_t>(layer.name.size()));
+            const std::size_t o = out.size();
+            out.resize(o + layer.name.size());
+            if (!layer.name.empty()) {
+                std::memcpy(out.data() + o, layer.name.data(), layer.name.size());
+            }
+        }
+    };
+    auto appendEntitySnapshot = [&](const EntitySnapshot& snap) {
+        appendU32(static_cast<std::uint32_t>(snap.kind));
+        appendU32(snap.layerId);
+        appendU32(snap.flags);
+
+        switch (snap.kind) {
+            case EntityKind::Rect:
+                appendF32(snap.rect.x);
+                appendF32(snap.rect.y);
+                appendF32(snap.rect.w);
+                appendF32(snap.rect.h);
+                appendF32(snap.rect.r);
+                appendF32(snap.rect.g);
+                appendF32(snap.rect.b);
+                appendF32(snap.rect.a);
+                appendF32(snap.rect.sr);
+                appendF32(snap.rect.sg);
+                appendF32(snap.rect.sb);
+                appendF32(snap.rect.sa);
+                appendF32(snap.rect.strokeEnabled);
+                appendF32(snap.rect.strokeWidthPx);
+                break;
+            case EntityKind::Line:
+                appendF32(snap.line.x0);
+                appendF32(snap.line.y0);
+                appendF32(snap.line.x1);
+                appendF32(snap.line.y1);
+                appendF32(snap.line.r);
+                appendF32(snap.line.g);
+                appendF32(snap.line.b);
+                appendF32(snap.line.a);
+                appendF32(snap.line.enabled);
+                appendF32(snap.line.strokeWidthPx);
+                break;
+            case EntityKind::Polyline:
+                appendU32(static_cast<std::uint32_t>(snap.points.size()));
+                appendF32(snap.poly.r);
+                appendF32(snap.poly.g);
+                appendF32(snap.poly.b);
+                appendF32(snap.poly.a);
+                appendF32(snap.poly.sr);
+                appendF32(snap.poly.sg);
+                appendF32(snap.poly.sb);
+                appendF32(snap.poly.sa);
+                appendF32(snap.poly.enabled);
+                appendF32(snap.poly.strokeEnabled);
+                appendF32(snap.poly.strokeWidthPx);
+                for (const auto& pt : snap.points) {
+                    appendF32(pt.x);
+                    appendF32(pt.y);
+                }
+                break;
+            case EntityKind::Circle:
+                appendF32(snap.circle.cx);
+                appendF32(snap.circle.cy);
+                appendF32(snap.circle.rx);
+                appendF32(snap.circle.ry);
+                appendF32(snap.circle.rot);
+                appendF32(snap.circle.sx);
+                appendF32(snap.circle.sy);
+                appendF32(snap.circle.r);
+                appendF32(snap.circle.g);
+                appendF32(snap.circle.b);
+                appendF32(snap.circle.a);
+                appendF32(snap.circle.sr);
+                appendF32(snap.circle.sg);
+                appendF32(snap.circle.sb);
+                appendF32(snap.circle.sa);
+                appendF32(snap.circle.strokeEnabled);
+                appendF32(snap.circle.strokeWidthPx);
+                break;
+            case EntityKind::Polygon:
+                appendF32(snap.polygon.cx);
+                appendF32(snap.polygon.cy);
+                appendF32(snap.polygon.rx);
+                appendF32(snap.polygon.ry);
+                appendF32(snap.polygon.rot);
+                appendF32(snap.polygon.sx);
+                appendF32(snap.polygon.sy);
+                appendU32(snap.polygon.sides);
+                appendF32(snap.polygon.r);
+                appendF32(snap.polygon.g);
+                appendF32(snap.polygon.b);
+                appendF32(snap.polygon.a);
+                appendF32(snap.polygon.sr);
+                appendF32(snap.polygon.sg);
+                appendF32(snap.polygon.sb);
+                appendF32(snap.polygon.sa);
+                appendF32(snap.polygon.strokeEnabled);
+                appendF32(snap.polygon.strokeWidthPx);
+                break;
+            case EntityKind::Arrow:
+                appendF32(snap.arrow.ax);
+                appendF32(snap.arrow.ay);
+                appendF32(snap.arrow.bx);
+                appendF32(snap.arrow.by);
+                appendF32(snap.arrow.head);
+                appendF32(snap.arrow.sr);
+                appendF32(snap.arrow.sg);
+                appendF32(snap.arrow.sb);
+                appendF32(snap.arrow.sa);
+                appendF32(snap.arrow.strokeEnabled);
+                appendF32(snap.arrow.strokeWidthPx);
+                break;
+            case EntityKind::Text: {
+                const std::uint32_t runCount = static_cast<std::uint32_t>(snap.textRuns.size());
+                const std::uint32_t contentLength = static_cast<std::uint32_t>(snap.textContent.size());
+
+                appendF32(snap.textHeader.x);
+                appendF32(snap.textHeader.y);
+                appendF32(snap.textHeader.rotation);
+                appendByte(snap.textHeader.boxMode);
+                appendByte(snap.textHeader.align);
+                appendByte(0);
+                appendByte(0);
+                appendF32(snap.textHeader.constraintWidth);
+                appendU32(runCount);
+                appendU32(contentLength);
+
+                for (const auto& run : snap.textRuns) {
+                    appendU32(run.startIndex);
+                    appendU32(run.length);
+                    appendU32(run.fontId);
+                    appendF32(run.fontSize);
+                    appendU32(run.colorRGBA);
+                    appendByte(run.flags);
+                    appendByte(0);
+                    appendByte(0);
+                    appendByte(0);
+                }
+
+                const std::size_t o = out.size();
+                out.resize(o + contentLength);
+                if (contentLength > 0) {
+                    std::memcpy(out.data() + o, snap.textContent.data(), contentLength);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    };
+
+    appendU32(1); // history version
+    appendU32(static_cast<std::uint32_t>(history_.size()));
+    appendU32(static_cast<std::uint32_t>(historyCursor_));
+    appendU32(0);
+
+    for (const auto& entry : history_) {
+        std::uint32_t flags = 0;
+        if (entry.hasLayerChange) flags |= 1u;
+        if (entry.hasDrawOrderChange) flags |= 2u;
+        if (entry.hasSelectionChange) flags |= 4u;
+
+        appendU32(flags);
+        appendU32(static_cast<std::uint32_t>(entry.entities.size()));
+        appendU32(entry.nextIdBefore);
+        appendU32(entry.nextIdAfter);
+
+        if (entry.hasLayerChange) {
+            appendLayerSnapshot(entry.layersBefore);
+            appendLayerSnapshot(entry.layersAfter);
+        }
+        if (entry.hasDrawOrderChange) {
+            appendU32Array(entry.drawOrderBefore);
+            appendU32Array(entry.drawOrderAfter);
+        }
+        if (entry.hasSelectionChange) {
+            appendU32Array(entry.selectionBefore);
+            appendU32Array(entry.selectionAfter);
+        }
+
+        for (const auto& change : entry.entities) {
+            appendU32(change.id);
+            std::uint32_t mask = 0;
+            if (change.existedBefore) mask |= 1u;
+            if (change.existedAfter) mask |= 2u;
+            appendU32(mask);
+            if (change.existedBefore) appendEntitySnapshot(change.before);
+            if (change.existedAfter) appendEntitySnapshot(change.after);
+        }
+    }
+
+    return out;
+}
+
+void CadEngine::decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCount) {
+    history_.clear();
+    historyCursor_ = 0;
+    historyTransaction_.active = false;
+    historyTransaction_.entry = HistoryEntry{};
+    historyTransaction_.entityIndex.clear();
+
+    if (!bytes || byteCount == 0) {
+        historyGeneration_++;
+        recordHistoryChanged();
+        return;
+    }
+
+    auto requireBytes = [&](std::size_t offset, std::size_t size) {
+        return offset + size <= byteCount;
+    };
+    auto readU32At = [&](std::size_t offset) {
+        return readU32(bytes, offset);
+    };
+    auto readF32At = [&](std::size_t offset) {
+        return readF32(bytes, offset);
+    };
+
+    std::size_t o = 0;
+    if (!requireBytes(o, 16)) {
+        historyGeneration_++;
+        recordHistoryChanged();
+        return;
+    }
+
+    const std::uint32_t version = readU32At(o); o += 4;
+    if (version != 1) {
+        historyGeneration_++;
+        recordHistoryChanged();
+        return;
+    }
+    const std::uint32_t entryCount = readU32At(o); o += 4;
+    const std::uint32_t cursor = readU32At(o); o += 4;
+    o += 4; // reserved
+
+    history_.reserve(entryCount);
+
+    auto readLayerSnapshot = [&](std::vector<engine::LayerSnapshot>& outLayers) -> bool {
+        if (!requireBytes(o, 4)) return false;
+        const std::uint32_t count = readU32At(o); o += 4;
+        outLayers.clear();
+        outLayers.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            if (!requireBytes(o, 16)) return false;
+            engine::LayerSnapshot snap{};
+            snap.id = readU32At(o); o += 4;
+            snap.order = readU32At(o); o += 4;
+            snap.flags = readU32At(o); o += 4;
+            const std::uint32_t nameLen = readU32At(o); o += 4;
+            if (!requireBytes(o, nameLen)) return false;
+            snap.name.assign(reinterpret_cast<const char*>(bytes + o), nameLen);
+            o += nameLen;
+            outLayers.push_back(std::move(snap));
+        }
+        return true;
+    };
+
+    auto readU32Array = [&](std::vector<std::uint32_t>& outValues) -> bool {
+        if (!requireBytes(o, 4)) return false;
+        const std::uint32_t count = readU32At(o); o += 4;
+        if (!requireBytes(o, static_cast<std::size_t>(count) * 4)) return false;
+        outValues.clear();
+        outValues.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            outValues.push_back(readU32At(o));
+            o += 4;
+        }
+        return true;
+    };
+
+    auto readEntitySnapshot = [&](EntitySnapshot& snap) -> bool {
+        if (!requireBytes(o, 12)) return false;
+        snap.kind = static_cast<EntityKind>(readU32At(o)); o += 4;
+        snap.layerId = readU32At(o); o += 4;
+        snap.flags = readU32At(o); o += 4;
+
+        switch (snap.kind) {
+            case EntityKind::Rect:
+                if (!requireBytes(o, 14 * 4)) return false;
+                snap.rect.x = readF32At(o); o += 4;
+                snap.rect.y = readF32At(o); o += 4;
+                snap.rect.w = readF32At(o); o += 4;
+                snap.rect.h = readF32At(o); o += 4;
+                snap.rect.r = readF32At(o); o += 4;
+                snap.rect.g = readF32At(o); o += 4;
+                snap.rect.b = readF32At(o); o += 4;
+                snap.rect.a = readF32At(o); o += 4;
+                snap.rect.sr = readF32At(o); o += 4;
+                snap.rect.sg = readF32At(o); o += 4;
+                snap.rect.sb = readF32At(o); o += 4;
+                snap.rect.sa = readF32At(o); o += 4;
+                snap.rect.strokeEnabled = readF32At(o); o += 4;
+                snap.rect.strokeWidthPx = readF32At(o); o += 4;
+                break;
+            case EntityKind::Line:
+                if (!requireBytes(o, 10 * 4)) return false;
+                snap.line.x0 = readF32At(o); o += 4;
+                snap.line.y0 = readF32At(o); o += 4;
+                snap.line.x1 = readF32At(o); o += 4;
+                snap.line.y1 = readF32At(o); o += 4;
+                snap.line.r = readF32At(o); o += 4;
+                snap.line.g = readF32At(o); o += 4;
+                snap.line.b = readF32At(o); o += 4;
+                snap.line.a = readF32At(o); o += 4;
+                snap.line.enabled = readF32At(o); o += 4;
+                snap.line.strokeWidthPx = readF32At(o); o += 4;
+                break;
+            case EntityKind::Polyline: {
+                if (!requireBytes(o, 4)) return false;
+                const std::uint32_t count = readU32At(o); o += 4;
+                if (!requireBytes(o, 11 * 4 + static_cast<std::size_t>(count) * 8)) return false;
+                snap.poly.r = readF32At(o); o += 4;
+                snap.poly.g = readF32At(o); o += 4;
+                snap.poly.b = readF32At(o); o += 4;
+                snap.poly.a = readF32At(o); o += 4;
+                snap.poly.sr = readF32At(o); o += 4;
+                snap.poly.sg = readF32At(o); o += 4;
+                snap.poly.sb = readF32At(o); o += 4;
+                snap.poly.sa = readF32At(o); o += 4;
+                snap.poly.enabled = readF32At(o); o += 4;
+                snap.poly.strokeEnabled = readF32At(o); o += 4;
+                snap.poly.strokeWidthPx = readF32At(o); o += 4;
+                snap.points.clear();
+                snap.points.reserve(count);
+                for (std::uint32_t i = 0; i < count; ++i) {
+                    Point2 pt{};
+                    pt.x = readF32At(o); o += 4;
+                    pt.y = readF32At(o); o += 4;
+                    snap.points.push_back(pt);
+                }
+                snap.poly.count = static_cast<std::uint32_t>(snap.points.size());
+                snap.poly.offset = 0;
+                break;
+            }
+            case EntityKind::Circle:
+                if (!requireBytes(o, 17 * 4)) return false;
+                snap.circle.cx = readF32At(o); o += 4;
+                snap.circle.cy = readF32At(o); o += 4;
+                snap.circle.rx = readF32At(o); o += 4;
+                snap.circle.ry = readF32At(o); o += 4;
+                snap.circle.rot = readF32At(o); o += 4;
+                snap.circle.sx = readF32At(o); o += 4;
+                snap.circle.sy = readF32At(o); o += 4;
+                snap.circle.r = readF32At(o); o += 4;
+                snap.circle.g = readF32At(o); o += 4;
+                snap.circle.b = readF32At(o); o += 4;
+                snap.circle.a = readF32At(o); o += 4;
+                snap.circle.sr = readF32At(o); o += 4;
+                snap.circle.sg = readF32At(o); o += 4;
+                snap.circle.sb = readF32At(o); o += 4;
+                snap.circle.sa = readF32At(o); o += 4;
+                snap.circle.strokeEnabled = readF32At(o); o += 4;
+                snap.circle.strokeWidthPx = readF32At(o); o += 4;
+                break;
+            case EntityKind::Polygon:
+                if (!requireBytes(o, 17 * 4 + 4)) return false;
+                snap.polygon.cx = readF32At(o); o += 4;
+                snap.polygon.cy = readF32At(o); o += 4;
+                snap.polygon.rx = readF32At(o); o += 4;
+                snap.polygon.ry = readF32At(o); o += 4;
+                snap.polygon.rot = readF32At(o); o += 4;
+                snap.polygon.sx = readF32At(o); o += 4;
+                snap.polygon.sy = readF32At(o); o += 4;
+                snap.polygon.sides = readU32At(o); o += 4;
+                snap.polygon.r = readF32At(o); o += 4;
+                snap.polygon.g = readF32At(o); o += 4;
+                snap.polygon.b = readF32At(o); o += 4;
+                snap.polygon.a = readF32At(o); o += 4;
+                snap.polygon.sr = readF32At(o); o += 4;
+                snap.polygon.sg = readF32At(o); o += 4;
+                snap.polygon.sb = readF32At(o); o += 4;
+                snap.polygon.sa = readF32At(o); o += 4;
+                snap.polygon.strokeEnabled = readF32At(o); o += 4;
+                snap.polygon.strokeWidthPx = readF32At(o); o += 4;
+                break;
+            case EntityKind::Arrow:
+                if (!requireBytes(o, 11 * 4)) return false;
+                snap.arrow.ax = readF32At(o); o += 4;
+                snap.arrow.ay = readF32At(o); o += 4;
+                snap.arrow.bx = readF32At(o); o += 4;
+                snap.arrow.by = readF32At(o); o += 4;
+                snap.arrow.head = readF32At(o); o += 4;
+                snap.arrow.sr = readF32At(o); o += 4;
+                snap.arrow.sg = readF32At(o); o += 4;
+                snap.arrow.sb = readF32At(o); o += 4;
+                snap.arrow.sa = readF32At(o); o += 4;
+                snap.arrow.strokeEnabled = readF32At(o); o += 4;
+                snap.arrow.strokeWidthPx = readF32At(o); o += 4;
+                break;
+            case EntityKind::Text: {
+                if (!requireBytes(o, 28)) return false;
+                snap.textHeader.x = readF32At(o); o += 4;
+                snap.textHeader.y = readF32At(o); o += 4;
+                snap.textHeader.rotation = readF32At(o); o += 4;
+                snap.textHeader.boxMode = bytes[o++];
+                snap.textHeader.align = bytes[o++];
+                o += 2;
+                snap.textHeader.constraintWidth = readF32At(o); o += 4;
+                const std::uint32_t runCount = readU32At(o); o += 4;
+                const std::uint32_t contentLength = readU32At(o); o += 4;
+                snap.textRuns.clear();
+                snap.textRuns.reserve(runCount);
+                for (std::uint32_t i = 0; i < runCount; ++i) {
+                    if (!requireBytes(o, 24)) return false;
+                    TextRunPayload run{};
+                    run.startIndex = readU32At(o); o += 4;
+                    run.length = readU32At(o); o += 4;
+                    run.fontId = readU32At(o); o += 4;
+                    run.fontSize = readF32At(o); o += 4;
+                    run.colorRGBA = readU32At(o); o += 4;
+                    run.flags = bytes[o++];
+                    run.reserved[0] = 0;
+                    run.reserved[1] = 0;
+                    run.reserved[2] = 0;
+                    o += 3;
+                    snap.textRuns.push_back(run);
+                }
+                if (!requireBytes(o, contentLength)) return false;
+                snap.textContent.assign(reinterpret_cast<const char*>(bytes + o), contentLength);
+                o += contentLength;
+                snap.textHeader.runCount = runCount;
+                snap.textHeader.contentLength = contentLength;
+                break;
+            }
+            default:
+                return false;
+        }
+
+        return true;
+    };
+
+    for (std::uint32_t i = 0; i < entryCount; ++i) {
+        if (!requireBytes(o, 16)) {
+            history_.clear();
+            historyCursor_ = 0;
+            historyGeneration_++;
+            recordHistoryChanged();
+            return;
+        }
+        HistoryEntry entry{};
+        const std::uint32_t flags = readU32At(o); o += 4;
+        const std::uint32_t entityCount = readU32At(o); o += 4;
+        entry.nextIdBefore = readU32At(o); o += 4;
+        entry.nextIdAfter = readU32At(o); o += 4;
+
+        entry.hasLayerChange = (flags & 1u) != 0;
+        entry.hasDrawOrderChange = (flags & 2u) != 0;
+        entry.hasSelectionChange = (flags & 4u) != 0;
+
+        if (entry.hasLayerChange) {
+            if (!readLayerSnapshot(entry.layersBefore) || !readLayerSnapshot(entry.layersAfter)) {
+                history_.clear();
+                historyCursor_ = 0;
+                historyGeneration_++;
+                recordHistoryChanged();
+                return;
+            }
+        }
+        if (entry.hasDrawOrderChange) {
+            if (!readU32Array(entry.drawOrderBefore) || !readU32Array(entry.drawOrderAfter)) {
+                history_.clear();
+                historyCursor_ = 0;
+                historyGeneration_++;
+                recordHistoryChanged();
+                return;
+            }
+        }
+        if (entry.hasSelectionChange) {
+            if (!readU32Array(entry.selectionBefore) || !readU32Array(entry.selectionAfter)) {
+                history_.clear();
+                historyCursor_ = 0;
+                historyGeneration_++;
+                recordHistoryChanged();
+                return;
+            }
+        }
+
+        entry.entities.clear();
+        entry.entities.reserve(entityCount);
+        for (std::uint32_t j = 0; j < entityCount; ++j) {
+            if (!requireBytes(o, 8)) {
+                history_.clear();
+                historyCursor_ = 0;
+                historyGeneration_++;
+                recordHistoryChanged();
+                return;
+            }
+            EntityChange change{};
+            change.id = readU32At(o); o += 4;
+            const std::uint32_t mask = readU32At(o); o += 4;
+            change.existedBefore = (mask & 1u) != 0;
+            change.existedAfter = (mask & 2u) != 0;
+            if (change.existedBefore) {
+                if (!readEntitySnapshot(change.before)) {
+                    history_.clear();
+                    historyCursor_ = 0;
+                    historyGeneration_++;
+                    recordHistoryChanged();
+                    return;
+                }
+                change.before.id = change.id;
+            }
+            if (change.existedAfter) {
+                if (!readEntitySnapshot(change.after)) {
+                    history_.clear();
+                    historyCursor_ = 0;
+                    historyGeneration_++;
+                    recordHistoryChanged();
+                    return;
+                }
+                change.after.id = change.id;
+            }
+            entry.entities.push_back(std::move(change));
+        }
+
+        history_.push_back(std::move(entry));
+    }
+
+    historyCursor_ = std::min<std::size_t>(history_.size(), cursor);
+    historyGeneration_++;
+    recordHistoryChanged();
 }
 
 void CadEngine::rebuildSnapshotBytes() const {
@@ -1811,6 +3679,7 @@ void CadEngine::rebuildSnapshotBytes() const {
     }
 
     sd.nextId = nextEntityId_;
+    sd.historyBytes = encodeHistoryBytes();
 
     snapshotBytes = engine::buildSnapshotBytes(sd);
     snapshotDirty = false;
@@ -1855,6 +3724,64 @@ void CadEngine::addRectOutline(float x, float y, float w, float h) const {
     addLineSegment(x1, y0, x1, y1, z);
     addLineSegment(x1, y1, x0, y1, z);
     addLineSegment(x0, y1, x0, y0, z);
+    addLineSegment(x0, y1, x0, y0, z);
+}
+
+void CadEngine::addGridToBuffers() const {
+    if (!snapOptions_.enabled || !snapOptions_.gridEnabled || snapOptions_.gridSize <= 0.001f) {
+        return;
+    }
+    // Simple safeguard against invalid view
+    if (viewScale <= 1e-6f || viewWidth <= 0.0f || viewHeight <= 0.0f) return;
+
+    const float s = viewScale;
+    // Visible world area
+    const float minX = -viewX / s;
+    const float minY = -viewY / s;
+    const float maxX = (viewWidth - viewX) / s;
+    const float maxY = (viewHeight - viewY) / s;
+
+    // Expand slightly to cover fully
+    const float margin = snapOptions_.gridSize;
+    const float startX = std::floor((minX - margin) / snapOptions_.gridSize) * snapOptions_.gridSize;
+    const float startY = std::floor((minY - margin) / snapOptions_.gridSize) * snapOptions_.gridSize;
+    const float endX = maxX + margin;
+    const float endY = maxY + margin;
+
+    // Grid Color: Light Gray, modest alpha
+    const float r = 0.5f;
+    const float g = 0.5f;
+    const float b = 0.5f;
+    const float a = 0.3f; 
+
+    auto pushV = [&](float x, float y) {
+        lineVertices.push_back(x);
+        lineVertices.push_back(y);
+        lineVertices.push_back(0.0f); // z
+        lineVertices.push_back(r);
+        lineVertices.push_back(g);
+        lineVertices.push_back(b);
+        lineVertices.push_back(a);
+    };
+
+    // Limit grid lines to avoid freezing on massive zoom out
+    const float width = endX - startX;
+    const float height = endY - startY;
+    const float estLines = (width + height) / snapOptions_.gridSize;
+    
+    // Draw grid
+    if (estLines < 5000) {
+        // Vertical lines
+        for (float x = startX; x <= endX; x += snapOptions_.gridSize) {
+            pushV(x, startY);
+            pushV(x, endY);
+        }
+        // Horizontal lines
+        for (float y = startY; y <= endY; y += snapOptions_.gridSize) {
+            pushV(startX, y);
+            pushV(endX, y);
+        }
+    }
 }
 
 void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) const {
@@ -1864,6 +3791,7 @@ void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) 
 
 void CadEngine::rebuildRenderBuffers() const {
     const double t0 = emscripten_get_now();
+    rebuildAllGeometryCount_++;
     
     engine::rebuildRenderBuffers(
         entityManager_.rects,
@@ -1879,12 +3807,57 @@ void CadEngine::rebuildRenderBuffers() const {
         triangleVertices,
         lineVertices,
         const_cast<CadEngine*>(this),
-        &isEntityVisibleForRender
+        &isEntityVisibleForRenderThunk,
+        &renderRanges_
     );
+    
+    addGridToBuffers();
+    addDraftToBuffers();
     renderDirty = false;
+    pendingFullRebuild_ = false;
     
     const double t1 = emscripten_get_now();
     lastRebuildMs = static_cast<float>(t1 - t0);
+}
+
+bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
+    if (renderDirty) return false;
+    const auto rangeIt = renderRanges_.find(id);
+    if (rangeIt == renderRanges_.end()) return false;
+    const auto entIt = entityManager_.entities.find(id);
+    if (entIt == entityManager_.entities.end()) return false;
+
+    std::vector<float> temp;
+    temp.reserve(rangeIt->second.count);
+    const bool appended = engine::buildEntityRenderData(
+        id,
+        entIt->second,
+        entityManager_.rects,
+        entityManager_.lines,
+        entityManager_.polylines,
+        entityManager_.points,
+        entityManager_.circles,
+        entityManager_.polygons,
+        entityManager_.arrows,
+        viewScale,
+        temp,
+        const_cast<CadEngine*>(this),
+        &isEntityVisibleForRenderThunk
+    );
+
+    if (!appended) return false;
+    if (temp.size() != rangeIt->second.count) {
+        pendingFullRebuild_ = true;
+        return false;
+    }
+    const std::size_t start = rangeIt->second.offset;
+    if (start + temp.size() > triangleVertices.size()) {
+        pendingFullRebuild_ = true;
+        return false;
+    }
+
+    std::copy(temp.begin(), temp.end(), triangleVertices.begin() + static_cast<std::ptrdiff_t>(start));
+    return true;
 }
 
 // =============================================================================
@@ -1918,9 +3891,11 @@ bool CadEngine::upsertText(
     const char* content,
     std::uint32_t contentLength
 ) {
+    const bool historyStarted = beginHistoryEntry();
     trackNextEntityId(id);
     if (!textSystem_.initialized) {
         if (!initializeTextSystem()) {
+            if (historyStarted) discardHistoryEntry();
             return false;
         }
     }
@@ -1928,6 +3903,11 @@ bool CadEngine::upsertText(
     // Register in entity map if new or replacing non-text
     auto it = entityManager_.entities.find(id);
     bool isNew = (it == entityManager_.entities.end());
+    const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Text);
+    if (willChangeOrder) {
+        markDrawOrderChange();
+    }
+    markEntityChange(id);
     if (!isNew && it->second.kind != EntityKind::Text) {
         deleteEntity(id);
         isNew = true;
@@ -1935,6 +3915,7 @@ bool CadEngine::upsertText(
     
     // Use TextSystem to upsert
     if (!textSystem_.upsertText(id, header, runs, runCount, content, contentLength)) {
+        if (historyStarted) discardHistoryEntry();
         return false;
     }
     
@@ -1954,19 +3935,32 @@ bool CadEngine::upsertText(
         pickSystem_.update(id, {minX, minY, maxX, maxY});
     }
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
-    
+    if (isNew) {
+        recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Text));
+    } else {
+        recordEntityChanged(id,
+            static_cast<std::uint32_t>(ChangeMask::Text)
+            | static_cast<std::uint32_t>(ChangeMask::Bounds)
+            | static_cast<std::uint32_t>(ChangeMask::Style));
+    }
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
 bool CadEngine::deleteText(std::uint32_t id) {
+    const bool historyStarted = beginHistoryEntry();
     auto it = entityManager_.entities.find(id);
     if (it == entityManager_.entities.end() || it->second.kind != EntityKind::Text) {
+        if (historyStarted) commitHistoryEntry();
         return false;
     }
+
+    markEntityChange(id);
+    markDrawOrderChange();
     
     // Use TextSystem to delete
     textSystem_.deleteText(id);
-
+    
     entityManager_.deleteEntity(id);
     
     renderDirty = true;
@@ -1976,7 +3970,9 @@ bool CadEngine::deleteText(std::uint32_t id) {
 
     pickSystem_.remove(id);
     pruneSelection();
+    recordEntityDeleted(id);
 
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
@@ -1994,7 +3990,10 @@ bool CadEngine::insertTextContent(
     const char* content,
     std::uint32_t byteLength
 ) {
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(textId);
     if (!textSystem_.insertContent(textId, insertIndex, content, byteLength)) {
+        if (historyStarted) discardHistoryEntry();
         return false;
     }
     
@@ -2007,12 +4006,19 @@ bool CadEngine::insertTextContent(
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
 
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
 bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex) {
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(textId);
     if (!textSystem_.deleteContent(textId, startIndex, endIndex)) {
+        if (historyStarted) discardHistoryEntry();
         return false;
     }
     
@@ -2025,12 +4031,19 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
     
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
 bool CadEngine::setTextAlign(std::uint32_t textId, TextAlign align) {
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(textId);
     if (!textSystem_.setTextAlign(textId, align)) {
+        if (historyStarted) discardHistoryEntry();
         return false;
     }
 
@@ -2043,14 +4056,22 @@ bool CadEngine::setTextAlign(std::uint32_t textId, TextAlign align) {
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+        | static_cast<std::uint32_t>(ChangeMask::Style));
 
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
 bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
     if (!textSystem_.initialized) return false;
 
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(textId);
     if (!textSystem_.store.setConstraintWidth(textId, width)) {
+        if (historyStarted) discardHistoryEntry();
         return false;
     }
 
@@ -2066,7 +4087,11 @@ bool CadEngine::setTextConstraintWidth(std::uint32_t textId, float width) {
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
 
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
@@ -2077,6 +4102,9 @@ bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxM
     if (!rec) {
         return false;
     }
+
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(textId);
 
     rec->x = x;
     rec->y = y;
@@ -2097,7 +4125,11 @@ bool CadEngine::setTextPosition(std::uint32_t textId, float x, float y, TextBoxM
     if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(textId, {minX, minY, maxX, maxY});
     }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
 
+    if (historyStarted) commitHistoryEntry();
     return true;
 }
 
@@ -2181,6 +4213,32 @@ CadEngine::TextContentMeta CadEngine::getTextContentMeta(std::uint32_t textId) c
     };
 }
 
+std::vector<CadEngine::TextEntityMeta> CadEngine::getAllTextMetas() const {
+    if (!textSystem_.initialized) {
+        return {};
+    }
+    
+    // We iterate the entity manager to find all Text entities
+    std::vector<TextEntityMeta> result;
+    // Estimate size to avoid reallocs (heuristic: 10% of entities are text? or just reserve 64)
+    result.reserve(64); 
+
+    for (const auto& kv : entityManager_.entities) {
+        if (kv.second.kind == EntityKind::Text) {
+            const std::uint32_t id = kv.first;
+            const auto* r = textSystem_.store.getText(id);
+            if (r) {
+                result.push_back(TextEntityMeta{
+                    id,
+                    r->boxMode,
+                    r->constraintWidth
+                });
+            }
+        }
+    }
+    return result;
+}
+
 std::vector<CadEngine::TextSelectionRect> CadEngine::getTextSelectionRects(std::uint32_t textId, std::uint32_t start, std::uint32_t end) const {
     if (!textSystem_.initialized) {
         return {};
@@ -2236,6 +4294,10 @@ void CadEngine::beginTransform(
     float startX, 
     float startY
 ) {
+    if (renderDirty) {
+        rebuildRenderBuffers();
+    }
+
     // 1. Reset Session
     session_ = InteractionSession{};
     session_.active = true;
@@ -2352,8 +4414,187 @@ void CadEngine::beginTransform(
     }
 }
 
+// ==============================================================================
+// Draft System Implementation
+// ==============================================================================
+
+void CadEngine::beginDraft(const BeginDraftPayload& p) {
+    draft_.active = true;
+    draft_.kind = p.kind;
+    draft_.startX = p.x;
+    draft_.startY = p.y;
+    draft_.currentX = p.x;
+    draft_.currentY = p.y;
+    draft_.fillR = p.fillR; draft_.fillG = p.fillG; draft_.fillB = p.fillB; draft_.fillA = p.fillA;
+    draft_.strokeR = p.strokeR; draft_.strokeG = p.strokeG; draft_.strokeB = p.strokeB; draft_.strokeA = p.strokeA;
+    draft_.strokeEnabled = p.strokeEnabled;
+    draft_.strokeWidthPx = p.strokeWidthPx;
+    draft_.sides = p.sides;
+    draft_.head = p.head;
+    draft_.points.clear();
+    
+    if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
+        draft_.points.push_back({p.x, p.y});
+    }
+    renderDirty = true;
+}
+
+void CadEngine::updateDraft(float x, float y) {
+    if (!draft_.active) return;
+    draft_.currentX = x;
+    draft_.currentY = y;
+    renderDirty = true;
+}
+
+void CadEngine::appendDraftPoint(float x, float y) {
+    if (!draft_.active) return;
+    draft_.points.push_back({x, y});
+    draft_.currentX = x; 
+    draft_.currentY = y;
+    renderDirty = true;
+}
+
+void CadEngine::cancelDraft() {
+    draft_.active = false;
+    draft_.points.clear();
+    renderDirty = true;
+}
+
+std::uint32_t CadEngine::commitDraft() {
+    if (!draft_.active) return 0;
+    
+    const std::uint32_t id = allocateEntityId();
+    
+    switch (static_cast<EntityKind>(draft_.kind)) {
+        case EntityKind::Rect: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             if (w > 0.001f && h > 0.001f)
+                upsertRect(id, x0, y0, w, h, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+        case EntityKind::Line:
+             upsertLine(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        case EntityKind::Circle: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             if (w > 0.001f && h > 0.001f)
+                upsertCircle(id, x0 + w/2, y0 + h/2, w/2, h/2, 0, 1, 1, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+        case EntityKind::Polygon: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             if (w > 0.001f && h > 0.001f) {
+                // Determine rotation: if sides=3, rot=PI? (Legacy logic copied)
+                float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
+                upsertPolygon(id, x0 + w/2, y0 + h/2, w/2, h/2, rot, 1, 1, static_cast<std::uint32_t>(draft_.sides), draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             }
+             break;
+        }
+        case EntityKind::Polyline: {
+             if (draft_.points.size() < 2) break; // Need at least 2 points
+             std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
+             for (const auto& p : draft_.points) {
+                 entityManager_.points.push_back({p.x, p.y});
+             }
+             upsertPolyline(id, offset, static_cast<std::uint32_t>(draft_.points.size()), draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+        case EntityKind::Arrow: {
+             upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+           case EntityKind::Text: {
+               // Drafting text not supported in this path yet.
+               break;
+           }
+    }
+
+    draft_.active = false;
+    draft_.points.clear();
+    return id;
+}
+
+void CadEngine::addDraftToBuffers() const {
+    if (!draft_.active) return;
+    
+    // Simple render logic for draft
+    // Override color/alpha for draft appearance if needed, or use draft state props
+    
+    // For Line/Arrow: just a line
+    // For Rect/Circle/Poly: Outline or filled based on props
+
+    // Helper for line
+    auto pushL = [&](float x0, float y0, float x1, float y1) {
+        lineVertices.push_back(x0); lineVertices.push_back(y0); lineVertices.push_back(0); 
+        lineVertices.push_back(draft_.strokeR); lineVertices.push_back(draft_.strokeG); lineVertices.push_back(draft_.strokeB); lineVertices.push_back(1.0f); // Always opaque draft
+    };
+    
+    switch (static_cast<EntityKind>(draft_.kind)) {
+        case EntityKind::Line:
+        case EntityKind::Arrow: // Draw simple line for arrow draft
+            pushL(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            break;
+        case EntityKind::Rect:
+        case EntityKind::Circle:
+        case EntityKind::Polygon: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             // Draw Rect outline for all shapes as preview box (simplification)
+             // Or draw true shape geometry? True shape is better.
+             // Rect:
+             if (static_cast<EntityKind>(draft_.kind) == EntityKind::Rect) {
+                  pushL(x0, y0, x0+w, y0);
+                  pushL(x0+w, y0, x0+w, y0+h);
+                  pushL(x0+w, y0+h, x0, y0+h);
+                  pushL(x0, y0+h, x0, y0);
+             } else {
+                 // For Circle/Polygon, just draw box outline for now to save complexity
+                  pushL(x0, y0, x0+w, y0);
+                  pushL(x0+w, y0, x0+w, y0+h);
+                  pushL(x0+w, y0+h, x0, y0+h);
+                  pushL(x0, y0+h, x0, y0);
+             }
+             break;
+        }
+        case EntityKind::Polyline: {
+             if (draft_.points.empty()) break;
+             for (size_t i = 0; i < draft_.points.size() - 1; ++i) {
+                 pushL(draft_.points[i].x, draft_.points[i].y, draft_.points[i+1].x, draft_.points[i+1].y);
+             }
+             // Ghost segment to cursor
+             if (!draft_.points.empty()) {
+                  pushL(draft_.points.back().x, draft_.points.back().y, draft_.currentX, draft_.currentY);
+             }
+             break;
+        }
+        case EntityKind::Text:
+            // No draft rendering for text yet.
+            break;
+    }
+}
+
 void CadEngine::updateTransform(float worldX, float worldY) {
     if (!session_.active) return;
+
+    // Apply Snapping (Phase 3)
+    if (snapOptions_.enabled && snapOptions_.gridEnabled && snapOptions_.gridSize > 0.0001f) {
+        float s = snapOptions_.gridSize;
+        worldX = std::round(worldX / s) * s;
+        worldY = std::round(worldY / s) * s;
+    }
+
+    bool updated = false;
     
     float totalDx = worldX - session_.startX;
     float totalDy = worldY - session_.startY;
@@ -2366,11 +4607,35 @@ void CadEngine::updateTransform(float worldX, float worldY) {
              if (it == entityManager_.entities.end()) continue;
              
              if (it->second.kind == EntityKind::Rect) {
-                  for (auto& r : entityManager_.rects) { if (r.id == id) { r.x = snap.x + totalDx; r.y = snap.y + totalDy; break; } }
+                  for (auto& r : entityManager_.rects) { 
+                      if (r.id == id) { 
+                          r.x = snap.x + totalDx; 
+                          r.y = snap.y + totalDy; 
+                          refreshEntityRenderRange(id);
+                          updated = true;
+                          break; 
+                      } 
+                  }
              } else if (it->second.kind == EntityKind::Circle) {
-                  for (auto& c : entityManager_.circles) { if (c.id == id) { c.cx = snap.x + totalDx; c.cy = snap.y + totalDy; break; } }
+                  for (auto& c : entityManager_.circles) { 
+                      if (c.id == id) { 
+                          c.cx = snap.x + totalDx; 
+                          c.cy = snap.y + totalDy; 
+                          refreshEntityRenderRange(id);
+                          updated = true;
+                          break; 
+                      } 
+                  }
              } else if (it->second.kind == EntityKind::Polygon) {
-                  for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x + totalDx; p.cy = snap.y + totalDy; break; } }
+                  for (auto& p : entityManager_.polygons) { 
+                      if (p.id == id) { 
+                          p.cx = snap.x + totalDx; 
+                          p.cy = snap.y + totalDy; 
+                          refreshEntityRenderRange(id);
+                          updated = true;
+                          break; 
+                      } 
+                  }
              } else if (it->second.kind == EntityKind::Text) {
                   TextRec* tr = textSystem_.store.getTextMutable(id); 
                   if (tr) {
@@ -2381,6 +4646,7 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                        if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
                            pickSystem_.update(id, {minX, minY, maxX, maxY});
                        }
+                       updated = true;
                    }
              } else if (it->second.kind == EntityKind::Line) {
                  if (snap.points.size() >= 2) {
@@ -2390,6 +4656,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                              l.y0 = snap.points[0].y + totalDy; 
                              l.x1 = snap.points[1].x + totalDx; 
                              l.y1 = snap.points[1].y + totalDy; 
+                             refreshEntityRenderRange(id);
+                             updated = true;
                              break; 
                          } 
                      }
@@ -2402,6 +4670,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                             a.ay = snap.points[0].y + totalDy;
                             a.bx = snap.points[1].x + totalDx;
                             a.by = snap.points[1].y + totalDy;
+                            refreshEntityRenderRange(id);
+                            updated = true;
                             break;
                         }
                     }
@@ -2415,6 +4685,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                                  entityManager_.points[pl.offset + k].y = snap.points[k].y + totalDy;
                              }
                          }
+                         refreshEntityRenderRange(id);
+                         updated = true;
                          break;
                      }
                  }
@@ -2438,6 +4710,8 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                                   float ny = snap->points[idx].y + totalDy;
                                   entityManager_.points[pl.offset + idx].x = nx;
                                   entityManager_.points[pl.offset + idx].y = ny;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               }
                               break;
                           }
@@ -2448,9 +4722,13 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                               if (idx == 0 && snap->points.size() > 0) {
                                   l.x0 = snap->points[0].x + totalDx;
                                   l.y0 = snap->points[0].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               } else if (idx == 1 && snap->points.size() > 1) {
                                   l.x1 = snap->points[1].x + totalDx;
                                   l.y1 = snap->points[1].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               }
                               break;
                           }
@@ -2461,9 +4739,13 @@ void CadEngine::updateTransform(float worldX, float worldY) {
                               if (idx == 0 && snap->points.size() > 0) {
                                   a.ax = snap->points[0].x + totalDx;
                                   a.ay = snap->points[0].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               } else if (idx == 1 && snap->points.size() > 1) {
                                   a.bx = snap->points[1].x + totalDx;
                                   a.by = snap->points[1].y + totalDy;
+                                  refreshEntityRenderRange(id);
+                                  updated = true;
                               }
                               break;
                           }
@@ -2481,18 +4763,14 @@ void CadEngine::updateTransform(float worldX, float worldY) {
 	            if (s.id == id) { snap = &s; break; }
 	        }
 
-	        if (!snap || handleIndex < 0 || handleIndex > 3) {
-	            renderDirty = true;
-	            snapshotDirty = true;
-	            return;
-	        }
+        if (!snap || handleIndex < 0 || handleIndex > 3) {
+            return;
+        }
 
 	        auto it = entityManager_.entities.find(id);
-	        if (it == entityManager_.entities.end()) {
-	            renderDirty = true;
-	            snapshotDirty = true;
-	            return;
-	        }
+        if (it == entityManager_.entities.end()) {
+            return;
+        }
 
 	        // Compute original AABB from snapshot (in world space).
 	        float origMinX = 0.0f, origMinY = 0.0f, origMaxX = 0.0f, origMaxY = 0.0f;
@@ -2507,11 +4785,9 @@ void CadEngine::updateTransform(float worldX, float worldY) {
 	            origMaxX = snap->x + snap->w;
 	            origMinY = snap->y - snap->h;
 	            origMaxY = snap->y + snap->h;
-	        } else {
-	            renderDirty = true;
-	            snapshotDirty = true;
-	            return;
-	        }
+        } else {
+            return;
+        }
 
 	        // Handle index order matches frontend (geometry.ts): 0=BL, 1=BR, 2=TR, 3=TL
 	        float anchorX = 0.0f, anchorY = 0.0f;
@@ -2531,42 +4807,49 @@ void CadEngine::updateTransform(float worldX, float worldY) {
 	        const float w = std::max(1e-3f, maxX - minX);
 	        const float h = std::max(1e-3f, maxY - minY);
 
-	        if (it->second.kind == EntityKind::Rect) {
-	            for (auto& r : entityManager_.rects) {
-	                if (r.id != id) continue;
-	                r.x = minX;
-	                r.y = minY;
-	                r.w = w;
-	                r.h = h;
-	                pickSystem_.update(id, PickSystem::computeRectAABB(r));
-	                break;
-	            }
-	        } else if (it->second.kind == EntityKind::Circle) {
-	            for (auto& c : entityManager_.circles) {
-	                if (c.id != id) continue;
-	                c.cx = (minX + maxX) * 0.5f;
-	                c.cy = (minY + maxY) * 0.5f;
-	                c.rx = w * 0.5f;
-	                c.ry = h * 0.5f;
-	                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-	                break;
-	            }
-	        } else if (it->second.kind == EntityKind::Polygon) {
-	            for (auto& p : entityManager_.polygons) {
-	                if (p.id != id) continue;
-	                p.cx = (minX + maxX) * 0.5f;
-	                p.cy = (minY + maxY) * 0.5f;
-	                p.rx = w * 0.5f;
-	                p.ry = h * 0.5f;
-	                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-	                break;
-	            }
-	        }
-	    }
+        if (it->second.kind == EntityKind::Rect) {
+            for (auto& r : entityManager_.rects) {
+                if (r.id != id) continue;
+                r.x = minX;
+                r.y = minY;
+                r.w = w;
+                r.h = h;
+                pickSystem_.update(id, PickSystem::computeRectAABB(r));
+                refreshEntityRenderRange(id);
+                updated = true;
+                break;
+            }
+        } else if (it->second.kind == EntityKind::Circle) {
+            for (auto& c : entityManager_.circles) {
+                if (c.id != id) continue;
+                c.cx = (minX + maxX) * 0.5f;
+                c.cy = (minY + maxY) * 0.5f;
+                c.rx = w * 0.5f;
+                c.ry = h * 0.5f;
+                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
+                refreshEntityRenderRange(id);
+                updated = true;
+                break;
+            }
+        } else if (it->second.kind == EntityKind::Polygon) {
+            for (auto& p : entityManager_.polygons) {
+                if (p.id != id) continue;
+                p.cx = (minX + maxX) * 0.5f;
+                p.cy = (minY + maxY) * 0.5f;
+                p.rx = w * 0.5f;
+                p.ry = h * 0.5f;
+                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
+                refreshEntityRenderRange(id);
+                updated = true;
+                break;
+            }
+        }
+    }
 
-	    renderDirty = true;
-	    snapshotDirty = true;
-	}
+    if (updated) {
+        generation++;
+    }
+}
 
 void CadEngine::commitTransform() {
     if (!session_.active) return;
@@ -2672,11 +4955,11 @@ void CadEngine::commitTransform() {
 	             commitResultPayloads.push_back(cy);
 	             commitResultPayloads.push_back(0.0f);
 	         }
-	    } else if (session_.mode == TransformMode::Resize) {
-	        for (const auto& snap : session_.snapshots) {
-	            const std::uint32_t id = snap.id;
-	            auto it = entityManager_.entities.find(id);
-	            if (it == entityManager_.entities.end()) continue;
+    } else if (session_.mode == TransformMode::Resize) {
+        for (const auto& snap : session_.snapshots) {
+            const std::uint32_t id = snap.id;
+            auto it = entityManager_.entities.find(id);
+            if (it == entityManager_.entities.end()) continue;
 
 	            float outX = 0.0f;
 	            float outY = 0.0f;
@@ -2722,13 +5005,38 @@ void CadEngine::commitTransform() {
 	            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::RESIZE));
 	            commitResultPayloads.push_back(outX);
 	            commitResultPayloads.push_back(outY);
-	            commitResultPayloads.push_back(outW);
-	            commitResultPayloads.push_back(outH);
-	        }
-	    }
+            commitResultPayloads.push_back(outW);
+            commitResultPayloads.push_back(outH);
+        }
+    }
 
-	    session_ = InteractionSession{};
-	}
+    if (!historySuppressed_ && !session_.snapshots.empty() && !historyTransaction_.active) {
+        HistoryEntry entry{};
+        entry.nextIdBefore = nextEntityId_;
+        entry.nextIdAfter = nextEntityId_;
+        for (const auto& snap : session_.snapshots) {
+            EntityChange change{};
+            change.id = snap.id;
+            change.existedBefore = true;
+            change.before = buildSnapshotFromTransform(snap);
+            change.existedAfter = captureEntitySnapshot(snap.id, change.after);
+            if (!change.existedBefore && !change.existedAfter) continue;
+            entry.entities.push_back(std::move(change));
+        }
+        if (!entry.entities.empty()) {
+            std::sort(entry.entities.begin(), entry.entities.end(), [](const EntityChange& a, const EntityChange& b) {
+                return a.id < b.id;
+            });
+            pushHistoryEntry(std::move(entry));
+        }
+    }
+
+    session_ = InteractionSession{};
+    snapshotDirty = true;
+    if (pendingFullRebuild_) {
+        renderDirty = true;
+    }
+}
 
 void CadEngine::cancelTransform() {
     if (!session_.active) return;
@@ -2813,3 +5121,20 @@ void CadEngine::cancelTransform() {
     renderDirty = true;
     session_ = InteractionSession{};
 }
+
+void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize) {
+    snapOptions_.enabled = enabled;
+    snapOptions_.gridEnabled = gridEnabled;
+    snapOptions_.gridSize = gridSize;
+}
+
+std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {
+    if (!snapOptions_.enabled || !snapOptions_.gridEnabled || snapOptions_.gridSize <= 0.0001f) {
+        return {x, y};
+    }
+    float s = snapOptions_.gridSize;
+    return {std::round(x / s) * s, std::round(y / s) * s};
+}
+
+
+

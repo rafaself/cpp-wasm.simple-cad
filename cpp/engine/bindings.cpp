@@ -88,9 +88,22 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getLineBufferMeta", &CadEngine::getLineBufferMeta)
         .function("saveSnapshot", &CadEngine::saveSnapshot)
         .function("getSnapshotBufferMeta", &CadEngine::getSnapshotBufferMeta)
+        .function("getFullSnapshotMeta", &CadEngine::getFullSnapshotMeta)
         .function("getCapabilities", &CadEngine::getCapabilities)
         .function("getProtocolInfo", &CadEngine::getProtocolInfo)
+        .function("allocateEntityId", &CadEngine::allocateEntityId)
+        .function("allocateLayerId", &CadEngine::allocateLayerId)
         .function("getDocumentDigest", &CadEngine::getDocumentDigest)
+        .function("getHistoryMeta", &CadEngine::getHistoryMeta)
+        .function("canUndo", &CadEngine::canUndo)
+        .function("canRedo", &CadEngine::canRedo)
+        .function("undo", &CadEngine::undo)
+        .function("redo", &CadEngine::redo)
+        .function("pollEvents", &CadEngine::pollEvents)
+        .function("ackResync", &CadEngine::ackResync)
+        .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
+        .function("getSelectionHandleMeta", &CadEngine::getSelectionHandleMeta)
+        .function("getEntityAabb", &CadEngine::getEntityAabb)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("setLayerProps", &CadEngine::setLayerProps)
@@ -116,6 +129,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("queryArea", &CadEngine::queryArea)
         .function("queryMarquee", &CadEngine::queryMarquee)
         .function("getStats", &CadEngine::getStats)
+        .function("setSnapOptions", &CadEngine::setSnapOptions)
+        .function("getSnappedPoint", emscripten::optional_override([](const CadEngine& self, float x, float y) {
+            auto p = self.getSnappedPoint(x, y);
+             return emscripten::val::array(std::vector<float>{p.first, p.second});
+        }))
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
         .function("loadFont", &CadEngine::loadFont)
@@ -129,6 +147,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("isTextQuadsDirty", &CadEngine::isTextQuadsDirty)
         .function("getTextContentMeta", &CadEngine::getTextContentMeta)
         .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
+        .function("getAllTextMetas", &CadEngine::getAllTextMetas)
         .function("getTextStyleSnapshot", &CadEngine::getTextStyleSnapshot)
         .function("setTextConstraintWidth", &CadEngine::setTextConstraintWidth)
         .function("setTextPosition", &CadEngine::setTextPosition)
@@ -197,9 +216,27 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("byteCount", &CadEngine::ByteBufferMeta::byteCount)
         .field("ptr", &CadEngine::ByteBufferMeta::ptr);
 
+    emscripten::value_object<CadEngine::EngineEvent>("EngineEvent")
+        .field("type", &CadEngine::EngineEvent::type)
+        .field("flags", &CadEngine::EngineEvent::flags)
+        .field("a", &CadEngine::EngineEvent::a)
+        .field("b", &CadEngine::EngineEvent::b)
+        .field("c", &CadEngine::EngineEvent::c)
+        .field("d", &CadEngine::EngineEvent::d);
+
+    emscripten::value_object<CadEngine::EventBufferMeta>("EventBufferMeta")
+        .field("generation", &CadEngine::EventBufferMeta::generation)
+        .field("count", &CadEngine::EventBufferMeta::count)
+        .field("ptr", &CadEngine::EventBufferMeta::ptr);
+
     emscripten::value_object<CadEngine::DocumentDigest>("DocumentDigest")
         .field("lo", &CadEngine::DocumentDigest::lo)
         .field("hi", &CadEngine::DocumentDigest::hi);
+
+    emscripten::value_object<CadEngine::HistoryMeta>("HistoryMeta")
+        .field("depth", &CadEngine::HistoryMeta::depth)
+        .field("cursor", &CadEngine::HistoryMeta::cursor)
+        .field("generation", &CadEngine::HistoryMeta::generation);
 
     emscripten::value_object<CadEngine::EngineStats>("EngineStats")
         .field("generation", &CadEngine::EngineStats::generation)
@@ -209,9 +246,24 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("pointCount", &CadEngine::EngineStats::pointCount)
         .field("triangleVertexCount", &CadEngine::EngineStats::triangleVertexCount)
         .field("lineVertexCount", &CadEngine::EngineStats::lineVertexCount)
+        .field("rebuildAllGeometryCount", &CadEngine::EngineStats::rebuildAllGeometryCount)
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
         .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
         .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
+
+    emscripten::value_object<CadEngine::OverlayBufferMeta>("OverlayBufferMeta")
+        .field("generation", &CadEngine::OverlayBufferMeta::generation)
+        .field("primitiveCount", &CadEngine::OverlayBufferMeta::primitiveCount)
+        .field("floatCount", &CadEngine::OverlayBufferMeta::floatCount)
+        .field("primitivesPtr", &CadEngine::OverlayBufferMeta::primitivesPtr)
+        .field("dataPtr", &CadEngine::OverlayBufferMeta::dataPtr);
+
+    emscripten::value_object<CadEngine::EntityAabb>("EntityAabb")
+        .field("minX", &CadEngine::EntityAabb::minX)
+        .field("minY", &CadEngine::EntityAabb::minY)
+        .field("maxX", &CadEngine::EntityAabb::maxX)
+        .field("maxY", &CadEngine::EntityAabb::maxY)
+        .field("valid", &CadEngine::EntityAabb::valid);
 
     // Text-related value objects
     emscripten::value_object<TextHitResult>("TextHitResult")
@@ -267,8 +319,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("height", &CadEngine::TextSelectionRect::height)
         .field("lineIndex", &CadEngine::TextSelectionRect::lineIndex);
 
+    emscripten::value_object<CadEngine::TextEntityMeta>("TextEntityMeta")
+        .field("id", &CadEngine::TextEntityMeta::id)
+        .field("boxMode", &CadEngine::TextEntityMeta::boxMode)
+        .field("constraintWidth", &CadEngine::TextEntityMeta::constraintWidth);
+
     emscripten::register_vector<std::uint32_t>("VectorUInt32");
     emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");
+    emscripten::register_vector<CadEngine::TextEntityMeta>("VectorTextEntityMeta");
     emscripten::register_vector<LayerRecord>("VectorLayerRecord");
 }
 #endif

@@ -48,25 +48,24 @@ export class TextStateManager {
   /** Enter editing mode for a text entity. */
   setActiveText(
     textId: number,
-    content: string,
     anchorX: number,
     anchorY: number,
     rotation: number,
     boxMode: TextBoxMode,
-    constraintWidth: number
+    constraintWidth: number,
+    initialCaretIndex: number = 0
   ): void {
     this.updateState({
       mode: 'editing',
       activeTextId: textId,
-      content,
       anchorX,
       anchorY,
       rotation,
       boxMode,
       constraintWidth,
-      caretIndex: content.length,
-      selectionStart: content.length,
-      selectionEnd: content.length,
+      caretIndex: initialCaretIndex,
+      selectionStart: initialCaretIndex,
+      selectionEnd: initialCaretIndex,
     });
   }
 
@@ -79,10 +78,7 @@ export class TextStateManager {
     });
   }
 
-  /** Update content. */
-  updateContent(content: string): void {
-    this.updateState({ content });
-  }
+  // NOTE: updateContent removed — content is now read from engine
 
   /** Update anchor position. */
   updateAnchor(anchorX: number, anchorY: number): void {
@@ -116,7 +112,6 @@ export class TextStateManager {
       anchorX: 0,
       anchorY: 0,
       rotation: 0,
-      content: '',
     };
   }
 

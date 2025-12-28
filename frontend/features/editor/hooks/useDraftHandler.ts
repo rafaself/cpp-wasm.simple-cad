@@ -1,454 +1,220 @@
 import { useRef, useState, useEffect } from 'react';
-import type { Shape, ViewTransform } from '@/types';
+import type { ViewTransform } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { useDataStore } from '@/stores/useDataStore';
-import { generateId } from '@/utils/uuid';
-import { getDefaultColorMode } from '@/utils/shapeColors';
+import { CommandOp, type EngineCommand, type BeginDraftPayload } from '@/engine/core/commandBuffer';
+import { hexToRgb } from '@/utils/color';
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
+import type { EntityId } from '@/engine/core/protocol';
+import { EntityKind } from '../../../engine/types';
 
-export type Draft =
+// Legacy Draft type kept for compatibility and UI state tracking
+export type Draft = 
   | { kind: 'none' }
-  | { kind: 'line'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'rect'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'ellipse'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'polyline'; points: { x: number; y: number }[]; current: { x: number; y: number } | null }
-  | { kind: 'arrow'; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: 'text'; start: { x: number; y: number }; current: { x: number; y: number } };
+  | { kind: 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'polyline'; points: { x: number; y: number }[]; current?: { x: number; y: number } };
 
 const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 
-const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-  const x0 = Math.min(a.x, b.x);
-  const y0 = Math.min(a.y, b.y);
-  const x1 = Math.max(a.x, b.x);
-  const y1 = Math.max(a.y, b.y);
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+const colorToRgb01 = (hex: string): { r: number; g: number; b: number } => {
+  const rgb = hexToRgb(hex) ?? { r: 255, g: 255, b: 255 };
+  return { r: rgb.r / 255, g: rgb.g / 255, b: rgb.b / 255 };
 };
 
 export function useDraftHandler(params: {
-    activeTool: any;
-    viewTransform: ViewTransform;
-    snapSettings: any;
-    onAddShape: (shape: Shape) => void;
-    onFinalizeDraw: (id: string) => void;
-    activeFloorId: string | null;
-    activeDiscipline: 'architecture';
-    runtime: any;
+  activeTool: any;
+  viewTransform: ViewTransform;
+  snapSettings: any;
+  onFinalizeDraw: (entityId: EntityId) => void;
+  activeLayerId: number | null;
+  runtime: EngineRuntime | null;
 }) {
-    const { activeTool, onAddShape, onFinalizeDraw, activeFloorId, activeDiscipline } = params;
+  const { activeTool, onFinalizeDraw, activeLayerId, runtime } = params;
 
-    const [draft, setDraft] = useState<Draft>({ kind: 'none' });
-    const draftRef = useRef<Draft>({ kind: 'none' });
-    const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
-    const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
+  // Track draft geometry for UI state
+  const [draft, setDraft] = useState<Draft>({ kind: 'none' });
+  const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
+  const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
 
-    const toolDefaults = useSettingsStore((s) => s.toolDefaults);
+  const toolDefaults = useSettingsStore((s) => s.toolDefaults);
 
-    // Reset transient drawing state when switching tools
-    useEffect(() => {
-        setDraft({ kind: 'none' });
-        draftRef.current = { kind: 'none' };
-    }, [activeTool]);
+  // Helper to build draft styling
+  const buildDraftStyle = (): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> => {
+      const stroke = colorToRgb01(toolDefaults.strokeColor ?? '#FFFFFF');
+      const fill = colorToRgb01(toolDefaults.fillColor ?? '#D9D9D9');
+      return {
+          fillR: fill.r, fillG: fill.g, fillB: fill.b, fillA: toolDefaults.fillEnabled !== false ? 1.0 : 0.0,
+          strokeR: stroke.r, strokeG: stroke.g, strokeB: stroke.b, strokeA: 1.0,
+          strokeEnabled: toolDefaults.strokeEnabled !== false ? 1.0 : 0.0,
+          strokeWidthPx: Math.max(1, Math.min(100, toolDefaults.strokeWidth ?? 1)),
+      };
+  };
 
-    useEffect(() => {
-        draftRef.current = draft;
-    }, [draft]);
+  const cancelDraft = () => {
+      if (runtime) {
+          runtime.apply([{ op: CommandOp.CancelDraft }]);
+      }
+      setDraft({ kind: 'none' });
+  };
 
-    const commitLine = (start: { x: number; y: number }, end: { x: number; y: number }) => {
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        if (Math.hypot(dx, dy) < 1e-3) return;
+  // Reset transient drawing state when switching tools
+  useEffect(() => {
+    cancelDraft();
+  }, [activeTool]);
 
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
+  const handlePointerDown = (snapped: { x: number; y: number }, button: number, altKey: boolean) => {
+    if (button !== 0 || !runtime) return;
 
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'line',
-            points: [
-                { x: clampTiny(start.x), y: clampTiny(start.y) },
-                { x: clampTiny(end.x), y: clampTiny(end.y) },
-            ],
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor: toolDefaults.fillColor ?? '#D9D9D9',
-            fillEnabled: false,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
+    let kind = 0;
+    let sides = 0;
+    let head = 0;
 
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
+    if (activeTool === 'line') kind = EntityKind.Line;
+    else if (activeTool === 'rect') kind = EntityKind.Rect;
+    else if (activeTool === 'circle') kind = EntityKind.Circle;
+    else if (activeTool === 'polygon') {
+        kind = EntityKind.Polygon;
+        sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+    }
+    else if (activeTool === 'polyline') kind = EntityKind.Polyline;
+    else if (activeTool === 'arrow') {
+        kind = EntityKind.Arrow;
+        head = Math.round(Math.max(16, (toolDefaults.strokeWidth ?? 2) * 10) * 1.1);
+    }
+    else return;
 
-    const commitRect = (start: { x: number; y: number }, end: { x: number; y: number }) => {
-        const r = normalizeRect(start, end);
-        if (r.w < 1e-3 || r.h < 1e-3) return;
+    // Polyline multi-segment logic: don't restart if active
+    if (activeTool === 'polyline' && draft.kind === 'polyline') {
+        return;
+    }
 
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const fillEnabled = toolDefaults.fillEnabled !== false;
+    const style = buildDraftStyle();
 
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'rect',
-            points: [],
-            x: clampTiny(r.x),
-            y: clampTiny(r.y),
-            width: clampTiny(r.w),
-            height: clampTiny(r.h),
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor,
-            fillEnabled,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const commitDefaultRectAt = (center: { x: number; y: number }) => {
-        const half = 50;
-        commitRect({ x: center.x - half, y: center.y - half }, { x: center.x + half, y: center.y + half });
-    };
-
-    const commitEllipse = (start: { x: number; y: number }, end: { x: number; y: number }) => {
-        const r = normalizeRect(start, end);
-        if (r.w < 1e-3 || r.h < 1e-3) return;
-
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const fillEnabled = toolDefaults.fillEnabled !== false;
-
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'circle',
-            points: [],
-            x: clampTiny(r.x + r.w / 2),
-            y: clampTiny(r.y + r.h / 2),
-            width: clampTiny(r.w),
-            height: clampTiny(r.h),
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor,
-            fillEnabled,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const commitDefaultEllipseAt = (center: { x: number; y: number }) => {
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const fillEnabled = toolDefaults.fillEnabled !== false;
-
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'circle',
-            points: [],
-            x: clampTiny(center.x),
-            y: clampTiny(center.y),
-            width: 100,
-            height: 100,
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor,
-            fillEnabled,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const commitPolygon = (start: { x: number; y: number }, end: { x: number; y: number }) => {
-        const r = normalizeRect(start, end);
-        if (r.w < 1e-3 || r.h < 1e-3) return;
-
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const fillEnabled = toolDefaults.fillEnabled !== false;
-        const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
-        const rotation = clampedSides === 3 ? Math.PI : 0;
-
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'polygon',
-            points: [],
-            x: clampTiny(r.x + r.w / 2),
-            y: clampTiny(r.y + r.h / 2),
-            width: clampTiny(r.w),
-            height: clampTiny(r.h),
-            sides: clampedSides,
-            rotation,
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor,
-            fillEnabled,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const fillColor = toolDefaults.fillColor ?? '#D9D9D9';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const fillEnabled = toolDefaults.fillEnabled !== false;
-        const clampedSides = Math.max(3, Math.min(24, Math.floor(sides)));
-        const rotation = clampedSides === 3 ? Math.PI : 0;
-
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'polygon',
-            points: [],
-            x: clampTiny(center.x),
-            y: clampTiny(center.y),
-            width: 100,
-            height: 100,
-            sides: clampedSides,
-            rotation,
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor,
-            fillEnabled,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const commitPolyline = (points: { x: number; y: number }[]) => {
-        if (points.length < 2) return;
-
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'polyline',
-            points: points.map((p) => ({ x: clampTiny(p.x), y: clampTiny(p.y) })),
-            strokeColor,
-            strokeWidth: toolDefaults.strokeWidth,
-            strokeEnabled,
-            fillColor: toolDefaults.fillColor ?? '#D9D9D9',
-            fillEnabled: false,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const commitArrow = (start: { x: number; y: number }, end: { x: number; y: number }) => {
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        if (Math.hypot(dx, dy) < 1e-3) return;
-
-        const id = generateId();
-        const data = useDataStore.getState();
-        const layerId = data.activeLayerId;
-        const strokeColor = toolDefaults.strokeColor ?? '#FFFFFF';
-        const strokeEnabled = toolDefaults.strokeEnabled !== false;
-        const strokeWidth = toolDefaults.strokeWidth ?? 2;
-
-        const s: Shape = {
-            id,
-            layerId,
-            type: 'arrow',
-            points: [
-                { x: clampTiny(start.x), y: clampTiny(start.y) },
-                { x: clampTiny(end.x), y: clampTiny(end.y) },
-            ],
-            arrowHeadSize: Math.round(Math.max(16, strokeWidth * 10) * 1.1),
-            strokeColor,
-            strokeWidth,
-            strokeEnabled,
-            fillColor: toolDefaults.fillColor ?? '#D9D9D9',
-            fillEnabled: false,
-            colorMode: getDefaultColorMode(),
-            floorId: activeFloorId ?? undefined,
-            discipline: activeDiscipline,
-        };
-
-        onAddShape(s);
-        onFinalizeDraw(id);
-    };
-
-    const handlePointerDown = (snapped: { x: number; y: number }, button: number, altKey: boolean) => {
-        if (button !== 0) return;
-
-        // Logic for tools
-        if (activeTool === 'line') {
-            setDraft({ kind: 'line', start: snapped, current: snapped });
-            return;
+    // Start draft in Engine
+    runtime.apply([{
+        op: CommandOp.BeginDraft,
+        draft: {
+            kind,
+            x: snapped.x,
+            y: snapped.y,
+            sides,
+            head,
+            ...style
         }
+    }]);
 
-        if (activeTool === 'rect') {
-            setDraft({ kind: 'rect', start: snapped, current: snapped });
-            return;
-        }
+    // Update local state
+    if (activeTool === 'polyline') {
+        setDraft({ kind: 'polyline', points: [snapped], current: snapped });
+    } else if (activeTool === 'text') {
+        // Text handled externally usually, but if we are here...
+    } else if (kind !== 0) {
+        // Map activeTool to draft kind where possible
+        // Simple fallback for visual state tracking
+        const k = activeTool === 'circle' ? 'ellipse' : activeTool;
+        setDraft({ kind: k, start: snapped, current: snapped } as any);
+    }
+  };
 
-        if (activeTool === 'circle') {
-            setDraft({ kind: 'ellipse', start: snapped, current: snapped });
-            return;
-        }
+  const handlePointerMove = (snapped: { x: number; y: number }, shiftKey: boolean) => {
+    if (!runtime) return;
+    // We send UpdateDraft constantly. 
+    // Optimization: we could throttle this, but for now 60fps cmd buffer is fine.
+    
+    runtime.apply([{
+        op: CommandOp.UpdateDraft,
+        pos: { x: snapped.x, y: snapped.y }
+    }]);
 
-        if (activeTool === 'polygon') {
-            setDraft({ kind: 'polygon', start: snapped, current: snapped });
-            return;
-        }
-
-        if (activeTool === 'polyline') {
-            setDraft((prev) => {
-                if (prev.kind !== 'polyline') return { kind: 'polyline', points: [snapped], current: snapped };
-                return { kind: 'polyline', points: [...prev.points, snapped], current: snapped };
-            });
-            return;
-        }
-
-        if (activeTool === 'arrow') {
-            setDraft({ kind: 'arrow', start: snapped, current: snapped });
-            return;
-        }
-    };
-
-    const handlePointerMove = (snapped: { x: number; y: number }, shiftKey: boolean) => {
+    // Update local state for tracking
+    if (draft.kind !== 'none') {
         setDraft((prev) => {
-            if (prev.kind === 'line') return { ...prev, current: snapped };
-            if (prev.kind === 'arrow') return { ...prev, current: snapped };
-            if (prev.kind === 'rect' || prev.kind === 'ellipse' || prev.kind === 'polygon') {
-                if (!shiftKey) return { ...prev, current: snapped };
-                const dx = snapped.x - prev.start.x;
-                const dy = snapped.y - prev.start.y;
-                const size = Math.max(Math.abs(dx), Math.abs(dy));
-                const sx = dx === 0 ? 1 : Math.sign(dx);
-                const sy = dy === 0 ? 1 : Math.sign(dy);
-                return { ...prev, current: { x: prev.start.x + sx * size, y: prev.start.y + sy * size } };
-            }
-            if (prev.kind === 'polyline') return { ...prev, current: snapped };
-            return prev;
+           if (prev.kind === 'none') return prev;
+           if (prev.kind === 'polyline') return { ...prev, current: snapped };
+           return { ...prev, current: snapped };
         });
-    };
+    }
+  };
 
-    const handlePointerUp = (snapped: { x: number; y: number }, clickNoDrag: boolean) => {
-        if (activeTool === 'line') {
-            const prev = draftRef.current;
-            setDraft({ kind: 'none' });
-            if (prev.kind === 'line') commitLine(prev.start, prev.current);
-            return;
-        }
+  const handlePointerUp = (snapped: { x: number; y: number }, clickNoDrag: boolean) => {
+    if (!runtime) return;
 
-        if (activeTool === 'rect') {
-            const prev = draftRef.current;
-            setDraft({ kind: 'none' });
-            if (prev.kind === 'rect') {
-                if (clickNoDrag) commitDefaultRectAt(prev.start);
-                else commitRect(prev.start, prev.current);
-            }
-            return;
-        }
+    if (activeTool === 'polyline') {
+        // Polyline: Click adds point
+        runtime.apply([{
+            op: CommandOp.AppendDraftPoint,
+            pos: { x: snapped.x, y: snapped.y }
+        }]);
+        
+        // Update local state
+        setDraft(prev => {
+             if (prev.kind !== 'polyline') return prev; 
+             return { ...prev, points: [...prev.points, snapped] };
+        });
+        return;
+    }
 
-        if (activeTool === 'circle') {
-            const prev = draftRef.current;
-            setDraft({ kind: 'none' });
-            if (prev.kind === 'ellipse') {
-                if (clickNoDrag) commitDefaultEllipseAt(prev.start);
-                else commitEllipse(prev.start, prev.current);
-            }
-            return;
-        }
+    if (activeTool === 'polygon' && clickNoDrag) {
+        // Special case: Open modal
+        cancelDraft(); // Cancel the drag-start
+        const sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+        setPolygonSidesValue(sides);
+        setPolygonSidesModal({ center: snapped });
+        return;
+    }
+    
+    // For other tools, pointer up means commit
+    if (clickNoDrag) {
+        // Create default shape
+        runtime.apply([
+            { op: CommandOp.UpdateDraft, pos: { x: snapped.x + 50, y: snapped.y + 50 } },
+            { op: CommandOp.CommitDraft }
+        ]);
+    } else {
+        runtime.apply([{ op: CommandOp.CommitDraft }]);
+    }
+    setDraft({ kind: 'none' });
+  };
 
-        if (activeTool === 'polygon') {
-            const prev = draftRef.current;
-            setDraft({ kind: 'none' });
-            if (prev.kind === 'polygon') {
-                if (clickNoDrag) {
-                    const clampedSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
-                    setPolygonSidesValue(clampedSides);
-                    setPolygonSidesModal({ center: prev.start });
-                } else {
-                    commitPolygon(prev.start, prev.current);
-                }
-            }
-            return;
-        }
+  // Helper for Polyline finish (e.g. on Enter key)
+  const commitPolyline = (points: {x:number, y:number}[]) => {
+      // If we are in engine draft mode, we just commit.
+      // Ignoring arguments for legacy compat if called from outside.
+      if (runtime) runtime.apply([{ op: CommandOp.CommitDraft }]);
+      setDraft({ kind: 'none' });
+  };
 
-        if (activeTool === 'arrow') {
-            const prev = draftRef.current;
-            setDraft({ kind: 'none' });
-            if (prev.kind === 'arrow') commitArrow(prev.start, prev.current);
-            return;
-        }
-    };
+  const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
+      if (!runtime) return;
+      const r = 50;
+      // Use direct upsert for one-shot creation
+      const engineId = runtime.allocateEntityId();
+      const style = buildDraftStyle();
+      runtime.apply([
+          { 
+            op: CommandOp.BeginDraft, 
+            draft: { 
+                kind: EntityKind.Polygon,
+                x: center.x - r, y: center.y - r, 
+                sides, head: 0, 
+                ...style 
+            } 
+          },
+          { op: CommandOp.UpdateDraft, pos: { x: center.x + r, y: center.y + r } },
+          { op: CommandOp.CommitDraft }
+      ]);
+  };
 
-    return {
-        draft,
-        setDraft,
-        handlePointerDown,
-        handlePointerMove,
-        handlePointerUp,
-        commitPolyline,
-        commitDefaultPolygonAt,
-        polygonSidesModal,
-        setPolygonSidesModal,
-        polygonSidesValue,
-        setPolygonSidesValue
-    };
+  return {
+    draft,
+    setDraft,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    commitPolyline,
+    commitDefaultPolygonAt,
+    polygonSidesModal,
+    setPolygonSidesModal,
+    polygonSidesValue,
+    setPolygonSidesValue,
+  };
 }

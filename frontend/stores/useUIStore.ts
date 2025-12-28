@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import { TextStyleSnapshot } from '../types/text';
 import { Point, ToolType, ViewTransform } from '../types';
-import type { EntityId } from '@/engine/core/protocol';
+import type { HistoryMeta } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { syncSelectionFromEngine } from '@/engine/core/engineStateSync';
 
 export interface EditorTab {
   floorId: string;
@@ -13,7 +12,6 @@ export interface EditorTab {
 const clearEngineSelection = (): void => {
   void getEngineRuntime().then((runtime) => {
     runtime.clearSelection();
-    syncSelectionFromEngine(runtime);
   });
 };
 
@@ -22,6 +20,7 @@ interface UIState {
   activeTool: ToolType;
   sidebarTab: string;
   activeFloorId?: string;
+  activeLayerId: number | null;
   activeDiscipline: 'architecture';
   viewTransform: ViewTransform;
   mousePos: Point | null;
@@ -32,16 +31,20 @@ interface UIState {
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
-  documentSource: 'react' | 'engine';
+
+  history: {
+    canUndo: boolean;
+    canRedo: boolean;
+    depth: number;
+    cursor: number;
+    generation: number;
+  };
 
   // Engine-native text editing state
   engineTextEditState: {
     active: boolean;
     textId: number | null;
-    content: string;
-    caretIndex: number;
-    selectionStart: number;
-    selectionEnd: number;
+    editGeneration: number; // Generational counter for cache invalidation
     caretPosition: { x: number; y: number; height: number } | null;
   };
   engineTextStyleSnapshot: { textId: number; snapshot: TextStyleSnapshot } | null;
@@ -50,9 +53,6 @@ interface UIState {
   openTabs: EditorTab[];
   openTab: (tab: EditorTab) => void;
   closeTab: (tab: EditorTab) => void;
-
-  // Selection
-  selectedEntityIds: Set<EntityId>;
 
   // Setters
   setTool: (tool: ToolType) => void;
@@ -67,12 +67,12 @@ interface UIState {
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
-  setDocumentSource: (source: 'react' | 'engine') => void;
+
+  setHistoryMeta: (meta: HistoryMeta) => void;
 
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
-  setEngineTextEditContent: (content: string) => void;
-  setEngineTextEditCaret: (caretIndex: number, selectionStart?: number, selectionEnd?: number) => void;
+  bumpEngineTextEditGeneration: () => void;
   setEngineTextEditCaretPosition: (position: { x: number; y: number; height: number } | null) => void;
   clearEngineTextEdit: () => void;
   setEngineTextStyleSnapshot: (textId: number, snapshot: TextStyleSnapshot) => void;
@@ -80,8 +80,7 @@ interface UIState {
 
   setActiveFloorId: (id: string) => void;
   setActiveDiscipline: (discipline: 'architecture') => void;
-
-  setSelectedEntityIds: (ids: Set<EntityId> | ((prev: Set<EntityId>) => Set<EntityId>)) => void;
+  setActiveLayerId: (id: number | null) => void;
 
   // References
   referencedDisciplines: Map<string, Set<'architecture'>>; // Map<floorId, Set<discipline>>
@@ -100,21 +99,26 @@ export const useUIStore = create<UIState>((set) => ({
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
-  documentSource: 'react',
+
+  history: {
+    canUndo: false,
+    canRedo: false,
+    depth: 0,
+    cursor: 0,
+    generation: 0,
+  },
 
   engineTextEditState: {
     active: false,
     textId: null,
-    content: '',
-    caretIndex: 0,
-    selectionStart: 0,
-    selectionEnd: 0,
+    editGeneration: 0,
     caretPosition: null,
   },
   engineTextStyleSnapshot: null,
 
   activeFloorId: 'terreo',
   activeDiscipline: 'architecture',
+  activeLayerId: null,
   
   openTabs: [{ floorId: 'terreo', discipline: 'architecture' }],
 
@@ -146,7 +150,6 @@ export const useUIStore = create<UIState>((set) => ({
     const updates = { 
         activeFloorId: tab.floorId, 
         activeDiscipline: tab.discipline,
-        selectedEntityIds: new Set<EntityId>() 
     };
 
     if (exists) {
@@ -174,8 +177,6 @@ export const useUIStore = create<UIState>((set) => ({
     return updates;
   }),
 
-  selectedEntityIds: new Set<EntityId>(),
-
   setTool: (tool) => set({ activeTool: tool }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setViewTransform: (transform) => set((state) => ({
@@ -190,7 +191,16 @@ export const useUIStore = create<UIState>((set) => ({
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),
-  setDocumentSource: (source) => set({ documentSource: source }),
+
+  setHistoryMeta: (meta) => set({
+    history: {
+      depth: meta.depth,
+      cursor: meta.cursor,
+      generation: meta.generation,
+      canUndo: meta.cursor > 0,
+      canRedo: meta.cursor < meta.depth,
+    },
+  }),
 
   // Engine text editing setters
   setEngineTextEditActive: (active, textId = null) => set((state) => ({
@@ -198,22 +208,14 @@ export const useUIStore = create<UIState>((set) => ({
       ...state.engineTextEditState,
       active,
       textId: active ? (textId ?? state.engineTextEditState.textId) : null,
-      content: active ? state.engineTextEditState.content : '',
-      caretIndex: active ? state.engineTextEditState.caretIndex : 0,
-      selectionStart: active ? state.engineTextEditState.selectionStart : 0,
-      selectionEnd: active ? state.engineTextEditState.selectionEnd : 0,
+      editGeneration: active ? state.engineTextEditState.editGeneration + 1 : 0,
     },
   })),
-  setEngineTextEditContent: (content) => set((state) => ({
-    engineTextEditState: { ...state.engineTextEditState, content },
-  })),
-  setEngineTextEditCaret: (caretIndex, selectionStart, selectionEnd) => set((state) => ({
+  bumpEngineTextEditGeneration: () => set((state) => ({
     engineTextEditState: {
       ...state.engineTextEditState,
-      caretIndex,
-      selectionStart: selectionStart ?? caretIndex,
-      selectionEnd: selectionEnd ?? caretIndex,
-    },
+      editGeneration: state.engineTextEditState.editGeneration + 1,
+    }
   })),
   setEngineTextEditCaretPosition: (position) => set((state) => ({
     engineTextEditState: { ...state.engineTextEditState, caretPosition: position },
@@ -222,10 +224,7 @@ export const useUIStore = create<UIState>((set) => ({
     engineTextEditState: {
       active: false,
       textId: null,
-      content: '',
-      caretIndex: 0,
-      selectionStart: 0,
-      selectionEnd: 0,
+      editGeneration: 0,
       caretPosition: null,
     },
     engineTextStyleSnapshot: null,
@@ -235,14 +234,13 @@ export const useUIStore = create<UIState>((set) => ({
 
   setActiveFloorId: (id) => {
     clearEngineSelection();
-    set({ activeFloorId: id, selectedEntityIds: new Set() });
+    set({ activeFloorId: id });
   },
   setActiveDiscipline: (discipline) =>
     set((state) => {
       if (state.activeDiscipline === discipline) return state;
       clearEngineSelection();
-      return { activeDiscipline: discipline, selectedEntityIds: new Set() };
+      return { activeDiscipline: discipline };
     }),
-
-  setSelectedEntityIds: (ids) => set((state) => ({ selectedEntityIds: typeof ids === 'function' ? ids(state.selectedEntityIds) : ids })),
+  setActiveLayerId: (id) => set({ activeLayerId: id }),
 }));

@@ -35,6 +35,7 @@ TEST(RenderTest, SimpleBuffers) {
         tri,
         linev,
         nullptr,
+        nullptr,
         nullptr
     );
 

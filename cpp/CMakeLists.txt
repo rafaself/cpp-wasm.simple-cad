@@ -184,6 +184,10 @@ if(NOT EMSCRIPTEN)
     tests/selection_order_test.cpp
     tests/vector_tessellation_test.cpp
     tests/protocol_info_test.cpp
+    tests/event_stream_test.cpp
+    tests/overlay_query_test.cpp
+    tests/interactive_transform_perf_test.cpp
+    tests/history_test.cpp
   )
   
   # Add text tests if enabled
@@ -215,6 +219,10 @@ if(NOT EMSCRIPTEN)
       ${harfbuzz_SOURCE_DIR}/src
       ${msdfgen_SOURCE_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen_config
+    )
+    # Define path to HarfBuzz source dir for test fixtures
+    target_compile_definitions(engine_tests PRIVATE
+      HARFBUZZ_SOURCE_DIR="${harfbuzz_SOURCE_DIR}"
     )
   endif()
 

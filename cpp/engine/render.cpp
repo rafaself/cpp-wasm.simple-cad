@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace engine {
 
@@ -478,6 +479,60 @@ static void addArrow(const ArrowRec& ar, float viewScale, std::vector<float>& tr
     pushVertexColored(rightX, rightY, z, ar.sr, ar.sg, ar.sb, a, triangleVertices);
 }
 
+bool buildEntityRenderData(
+    std::uint32_t entityId,
+    const EntityRef& ref,
+    const std::vector<RectRec>& rects,
+    const std::vector<LineRec>& lines,
+    const std::vector<PolyRec>& polylines,
+    const std::vector<Point2>& points,
+    const std::vector<CircleRec>& circles,
+    const std::vector<PolygonRec>& polygons,
+    const std::vector<ArrowRec>& arrows,
+    float viewScale,
+    std::vector<float>& triangleVertices,
+    void* resolveCtx,
+    EntityVisibilityFn isVisible
+) {
+    if (isVisible && !isVisible(resolveCtx, entityId)) return false;
+
+    const std::size_t start = triangleVertices.size();
+    std::vector<Point2> tmpVerts;
+
+    if (ref.kind == EntityKind::Rect) {
+        const RectRec& r = rects[ref.index];
+        addRectFill(r, triangleVertices);
+        addRectStroke(r, viewScale, triangleVertices);
+    } else if (ref.kind == EntityKind::Line) {
+        const LineRec& l = lines[ref.index];
+        if (l.enabled > 0.5f) {
+            const float a = clamp01(l.a);
+            if (a > 0.0f) {
+                const float widthWorld = strokeWidthWorld(l.strokeWidthPx);
+                addSegmentQuad(l.x0, l.y0, l.x1, l.y1, widthWorld, l.r, l.g, l.b, a, triangleVertices);
+            }
+        }
+    } else if (ref.kind == EntityKind::Polyline) {
+        const PolyRec& pl = polylines[ref.index];
+        if (pl.count >= 2 && pl.enabled > 0.5f) {
+            addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
+        }
+    } else if (ref.kind == EntityKind::Circle) {
+        const CircleRec& c = circles[ref.index];
+        addCircleFill(c, triangleVertices);
+        addCircleStroke(c, viewScale, triangleVertices);
+    } else if (ref.kind == EntityKind::Polygon) {
+        const PolygonRec& p = polygons[ref.index];
+        addPolygonFill(p, tmpVerts, triangleVertices);
+        addPolygonStroke(p, viewScale, tmpVerts, triangleVertices);
+    } else if (ref.kind == EntityKind::Arrow) {
+        const ArrowRec& a = arrows[ref.index];
+        addArrow(a, viewScale, triangleVertices);
+    }
+
+    return triangleVertices.size() > start;
+}
+
 void rebuildRenderBuffers(
     const std::vector<RectRec>& rects,
     const std::vector<LineRec>& lines,
@@ -492,10 +547,12 @@ void rebuildRenderBuffers(
     std::vector<float>& triangleVertices,
     std::vector<float>& lineVertices,
     void* resolveCtx,
-    EntityVisibilityFn isVisible
+    EntityVisibilityFn isVisible,
+    std::unordered_map<std::uint32_t, RenderRange>* outRanges
 ) {
     triangleVertices.clear();
     lineVertices.clear();
+    if (outRanges) outRanges->clear();
 
     (void)viewScale; // Stroke widths now live in world space, so view scale is unused.
 
@@ -592,52 +649,33 @@ void rebuildRenderBuffers(
         triangleVertices.reserve(triangleBudget);
     }
 
-    std::vector<Point2> tmpVerts;
-
     for (const auto& id : ordered) {
         if (!isEntityVisible(id)) continue;
         const auto it = entities.find(id);
         if (it == entities.end()) continue;
         const EntityRef ref = it->second;
-
-        if (ref.kind == EntityKind::Rect) {
-            const RectRec& r = rects[ref.index];
-            addRectFill(r, triangleVertices);
-            addRectStroke(r, viewScale, triangleVertices);
-            continue;
-        }
-        if (ref.kind == EntityKind::Line) {
-            const LineRec& l = lines[ref.index];
-            if (!(l.enabled > 0.5f)) continue;
-            const float a = clamp01(l.a);
-            if (!(a > 0.0f)) continue;
-            const float widthWorld = strokeWidthWorld(l.strokeWidthPx);
-            addSegmentQuad(l.x0, l.y0, l.x1, l.y1, widthWorld, l.r, l.g, l.b, a, triangleVertices);
-            continue;
-        }
-        if (ref.kind == EntityKind::Polyline) {
-            const PolyRec& pl = polylines[ref.index];
-            if (pl.count < 2) continue;
-            if (!(pl.enabled > 0.5f)) continue;
-            addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
-            continue;
-        }
-        if (ref.kind == EntityKind::Circle) {
-            const CircleRec& c = circles[ref.index];
-            addCircleFill(c, triangleVertices);
-            addCircleStroke(c, viewScale, triangleVertices);
-            continue;
-        }
-        if (ref.kind == EntityKind::Polygon) {
-            const PolygonRec& p = polygons[ref.index];
-            addPolygonFill(p, tmpVerts, triangleVertices);
-            addPolygonStroke(p, viewScale, tmpVerts, triangleVertices);
-            continue;
-        }
-        if (ref.kind == EntityKind::Arrow) {
-            const ArrowRec& a = arrows[ref.index];
-            addArrow(a, viewScale, triangleVertices);
-            continue;
+        const std::size_t start = triangleVertices.size();
+        const bool appended = buildEntityRenderData(
+            id,
+            ref,
+            rects,
+            lines,
+            polylines,
+            points,
+            circles,
+            polygons,
+            arrows,
+            viewScale,
+            triangleVertices,
+            resolveCtx,
+            isVisible
+        );
+        if (outRanges && appended) {
+            const std::size_t end = triangleVertices.size();
+            outRanges->emplace(id, RenderRange{
+                static_cast<std::uint32_t>(start),
+                static_cast<std::uint32_t>(end - start),
+            });
         }
     }
 }

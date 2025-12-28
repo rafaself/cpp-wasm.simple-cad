@@ -2,6 +2,7 @@ import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
 import { IdRegistry } from './IdRegistry';
 import { LayerRegistry } from './LayerRegistry';
+import { decodeEngineEvents } from './engineEventDecoder';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
 import {
   validateProtocolOrThrow,
@@ -11,8 +12,13 @@ import {
   type SelectionMode,
   type ReorderAction,
   type DocumentDigest,
+  type EngineEvent,
+  type EventBufferMeta,
+  type OverlayBufferMeta,
+  type EntityAabb,
+  type HistoryMeta,
 } from './protocol';
-import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
+import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta, TextContentMeta } from '@/types/text';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
@@ -36,6 +42,18 @@ type WasmLayerVector = {
   delete: () => void;
 };
 
+export type TextEntityMeta = {
+  id: number;
+  boxMode: number;
+  constraintWidth: number;
+};
+
+type WasmTextMetaVector = {
+  size: () => number;
+  get: (index: number) => TextEntityMeta;
+  delete: () => void;
+};
+
 export type SnapshotBufferMeta = {
   generation: number;
   byteCount: number;
@@ -52,9 +70,23 @@ export type CadEngineInstance = {
   getLineBufferMeta: () => BufferMeta;
   saveSnapshot?: () => SnapshotBufferMeta;
   getSnapshotBufferMeta: () => SnapshotBufferMeta;
+  getFullSnapshotMeta: () => SnapshotBufferMeta;
   getCapabilities?: () => number;
   getProtocolInfo: () => ProtocolInfo;
+  getTextContentMeta?: (textId: number) => TextContentMeta; // Add this to type
+  allocateEntityId?: () => EntityId;
+  allocateLayerId?: () => number;
   getDocumentDigest?: () => DocumentDigest;
+  getHistoryMeta?: () => HistoryMeta;
+  canUndo?: () => boolean;
+  canRedo?: () => boolean;
+  undo?: () => void;
+  redo?: () => void;
+  pollEvents: (maxEvents: number) => EventBufferMeta;
+  ackResync: (resyncGeneration: number) => void;
+  getSelectionOutlineMeta?: () => OverlayBufferMeta;
+  getSelectionHandleMeta?: () => OverlayBufferMeta;
+  getEntityAabb?: (entityId: EntityId) => EntityAabb;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
@@ -86,6 +118,7 @@ export type CadEngineInstance = {
     pointCount: number;
     triangleVertexCount: number;
     lineVertexCount: number;
+    rebuildAllGeometryCount?: number;
     lastLoadMs: number;
     lastRebuildMs: number;
     lastApplyMs?: number;
@@ -103,6 +136,7 @@ export type CadEngineInstance = {
   getAtlasTextureMeta?: () => TextureBufferMeta;
   isAtlasDirty?: () => boolean;
   isTextQuadsDirty?: () => boolean;
+  getAllTextMetas?: () => WasmTextMetaVector;
 
   clearAtlasDirty?: () => void;
 
@@ -116,6 +150,10 @@ export type CadEngineInstance = {
   getCommitResultIdsPtr?: () => number;
   getCommitResultOpCodesPtr?: () => number;
   getCommitResultPayloadsPtr?: () => number;
+
+  // Snapping (Phase 3)
+  setSnapOptions?: (enabled: boolean, gridEnabled: boolean, gridSize: number) => void;
+  getSnappedPoint?: (x: number, y: number) => [number, number]; // Returns JS array
 };
 
 export type WasmModule = {
@@ -133,6 +171,30 @@ export class EngineRuntime {
     }
     const protocolInfo = engine.getProtocolInfo();
     validateProtocolOrThrow(protocolInfo);
+    if (typeof engine.pollEvents !== 'function' || typeof engine.ackResync !== 'function') {
+      throw new Error('[EngineRuntime] Missing event stream APIs in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.getFullSnapshotMeta !== 'function') {
+      throw new Error('[EngineRuntime] Missing getFullSnapshotMeta() in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.allocateEntityId !== 'function') {
+      throw new Error('[EngineRuntime] Missing allocateEntityId() in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.getSelectionOutlineMeta !== 'function' || typeof engine.getSelectionHandleMeta !== 'function') {
+      throw new Error('[EngineRuntime] Missing overlay query APIs in WASM. Rebuild engine to match frontend.');
+    }
+    if (typeof engine.getEntityAabb !== 'function') {
+      throw new Error('[EngineRuntime] Missing getEntityAabb() in WASM. Rebuild engine to match frontend.');
+    }
+    if (
+      typeof engine.getHistoryMeta !== 'function' ||
+      typeof engine.canUndo !== 'function' ||
+      typeof engine.canRedo !== 'function' ||
+      typeof engine.undo !== 'function' ||
+      typeof engine.redo !== 'function'
+    ) {
+      throw new Error('[EngineRuntime] Missing history APIs in WASM. Rebuild engine to match frontend.');
+    }
     const runtime = new EngineRuntime(module, engine);
     runtime.applyCapabilityGuards();
     return runtime;
@@ -162,6 +224,20 @@ export class EngineRuntime {
     this.engine.clear();
   }
 
+  public allocateEntityId(): EntityId {
+    if (!this.engine.allocateEntityId) {
+      throw new Error('[EngineRuntime] allocateEntityId() missing in WASM build.');
+    }
+    return this.engine.allocateEntityId();
+  }
+
+  public allocateLayerId(): number {
+    if (!this.engine.allocateLayerId) {
+      throw new Error('[EngineRuntime] allocateLayerId() missing in WASM build.');
+    }
+    return this.engine.allocateLayerId();
+  }
+
   public loadSnapshotBytes(bytes: Uint8Array): void {
     const ptr = this.engine.allocBytes(bytes.byteLength);
     try {
@@ -180,9 +256,50 @@ export class EngineRuntime {
     return new Uint8Array(this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
   }
 
+  public getFullSnapshotBytes(): Uint8Array {
+    const meta = this.engine.getFullSnapshotMeta();
+    if (!meta || meta.byteCount === 0) return new Uint8Array();
+    return new Uint8Array(this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
+  }
+
   public getDocumentDigest(): DocumentDigest | null {
     if (typeof this.engine.getDocumentDigest !== 'function') return null;
     return this.engine.getDocumentDigest();
+  }
+
+  public getHistoryMeta(): HistoryMeta {
+    if (!this.engine.getHistoryMeta) {
+      throw new Error('[EngineRuntime] getHistoryMeta() missing in WASM build.');
+    }
+    return this.engine.getHistoryMeta();
+  }
+
+  public canUndo(): boolean {
+    if (!this.engine.canUndo) {
+      throw new Error('[EngineRuntime] canUndo() missing in WASM build.');
+    }
+    return this.engine.canUndo();
+  }
+
+  public canRedo(): boolean {
+    if (!this.engine.canRedo) {
+      throw new Error('[EngineRuntime] canRedo() missing in WASM build.');
+    }
+    return this.engine.canRedo();
+  }
+
+  public undo(): void {
+    if (!this.engine.undo) {
+      throw new Error('[EngineRuntime] undo() missing in WASM build.');
+    }
+    this.engine.undo();
+  }
+
+  public redo(): void {
+    if (!this.engine.redo) {
+      throw new Error('[EngineRuntime] redo() missing in WASM build.');
+    }
+    this.engine.redo();
   }
 
   public apply(commands: readonly EngineCommand[]): void {
@@ -206,6 +323,39 @@ export class EngineRuntime {
     }
     vec.delete();
     return out;
+  }
+
+  public pollEvents(maxEvents: number): { generation: number; events: EngineEvent[] } {
+    const meta = this.engine.pollEvents(maxEvents);
+    return {
+      generation: meta.generation,
+      events: decodeEngineEvents(this.module.HEAPU8, meta.ptr, meta.count),
+    };
+  }
+
+  public getSelectionOutlineMeta(): OverlayBufferMeta {
+    if (!this.engine.getSelectionOutlineMeta) {
+      throw new Error('[EngineRuntime] getSelectionOutlineMeta() missing in WASM build.');
+    }
+    return this.engine.getSelectionOutlineMeta();
+  }
+
+  public getSelectionHandleMeta(): OverlayBufferMeta {
+    if (!this.engine.getSelectionHandleMeta) {
+      throw new Error('[EngineRuntime] getSelectionHandleMeta() missing in WASM build.');
+    }
+    return this.engine.getSelectionHandleMeta();
+  }
+
+  public getEntityAabb(entityId: EntityId): EntityAabb {
+    if (!this.engine.getEntityAabb) {
+      throw new Error('[EngineRuntime] getEntityAabb() missing in WASM build.');
+    }
+    return this.engine.getEntityAabb(entityId);
+  }
+
+  public ackResync(resyncGeneration: number): void {
+    this.engine.ackResync(resyncGeneration);
   }
 
   private static readCapabilities(engine: CadEngineInstance): number {
@@ -320,6 +470,28 @@ export class EngineRuntime {
     }
   }
 
+  public getTextContent(textId: number): string | null {
+      if (!this.engine.getTextContentMeta) return null;
+      const meta = this.engine.getTextContentMeta(textId);
+      if (!meta.exists) return null;
+      if (meta.byteCount === 0) return '';
+      
+      const bytes = this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
+      return new TextDecoder().decode(bytes);
+  }
+
+  public getAllTextMetas(): TextEntityMeta[] {
+      if (!this.engine.getAllTextMetas) return [];
+      const vec = this.engine.getAllTextMetas();
+      const count = vec.size();
+      const result: TextEntityMeta[] = [];
+      for (let i = 0; i < count; i++) {
+          result.push(vec.get(i));
+      }
+      vec.delete();
+      return result;
+  }
+
 
   // ========================================================================
   // Interaction Session wrappers
@@ -360,6 +532,24 @@ export class EngineRuntime {
 
   public isInteractionActive(): boolean {
       return !!this.engine.isInteractionActive?.();
+  }
+
+  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
+      this.engine.setSnapOptions?.(enabled, gridEnabled, gridSize);
+  }
+
+  public getSnappedPoint(x: number, y: number): { x: number, y: number } {
+      if (!this.engine.getSnappedPoint) return { x, y }; // Fallback
+      if (this.engine.getSnappedPoint) {
+         try {
+           const p = this.engine.getSnappedPoint(x, y);
+           return { x: p[0], y: p[1] };
+         } catch (e) {
+           // Fallback if binding fails (e.g. older WASM)
+           return { x, y };
+         }
+      }
+      return { x, y };
   }
 
   public commitTransform(): { ids: Uint32Array, opCodes: Uint8Array, payloads: Float32Array } | null {

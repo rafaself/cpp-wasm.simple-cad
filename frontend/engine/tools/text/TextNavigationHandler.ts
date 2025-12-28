@@ -37,7 +37,8 @@ export class TextNavigationHandler {
 
     const textId = state.activeTextId;
     const currentCaret = state.caretIndex;
-    const currentContent = state.content;
+    // Get content from engine instead of state (Engine-First)
+    const currentContent = this.bridge.getTextContent(textId) ?? '';
     let newCaret = currentCaret;
     let handled = false;
 
@@ -105,11 +106,12 @@ export class TextNavigationHandler {
 
     // Sync to engine
     const updatedState = this.stateManager.getState();
-    const caretByte = charIndexToByteIndex(updatedState.content, updatedState.caretIndex);
+    const afterNavContent = this.bridge.getTextContent(textId) ?? '';
+    const caretByte = charIndexToByteIndex(afterNavContent, updatedState.caretIndex);
 
     if (updatedState.selectionStart !== updatedState.selectionEnd) {
-      const sByte = charIndexToByteIndex(updatedState.content, updatedState.selectionStart);
-      const eByte = charIndexToByteIndex(updatedState.content, updatedState.selectionEnd);
+      const sByte = charIndexToByteIndex(afterNavContent, updatedState.selectionStart);
+      const eByte = charIndexToByteIndex(afterNavContent, updatedState.selectionEnd);
       this.bridge.setSelectionByteIndex(textId, sByte, eByte);
     } else {
       this.bridge.setCaretByteIndex(textId, caretByte);

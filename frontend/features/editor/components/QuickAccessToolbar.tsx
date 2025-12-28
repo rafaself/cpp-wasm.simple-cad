@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
-import { useDataStore } from '../../../stores/useDataStore';
 import { getIcon } from '../../../utils/iconMap';
 import { LayoutPanelLeft } from 'lucide-react';
+import { getEngineRuntime } from '@/engine/core/singleton';
 
 const TOOLS = [
   { id: 'select', icon: 'Select', label: 'Selecionar' },
@@ -15,8 +15,14 @@ const TOOLS = [
 
 const QuickAccessToolbar: React.FC = () => {
   const uiStore = useUIStore();
-  const dataStore = useDataStore();
+  const history = useUIStore((s) => s.history);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
+  const handleUndo = () => {
+    void getEngineRuntime().then((runtime) => runtime.undo());
+  };
+  const handleRedo = () => {
+    void getEngineRuntime().then((runtime) => runtime.redo());
+  };
 
   const containerClasses = orientation === 'vertical'
     ? 'flex-col left-2 top-1/2 -translate-y-1/2'
@@ -64,8 +70,8 @@ const QuickAccessToolbar: React.FC = () => {
       <div className={`bg-slate-700/50 ${orientation === 'vertical' ? 'h-px w-full my-0.5' : 'w-px h-full mx-0.5'}`} />
       
       <button
-        onClick={() => dataStore.undo()}
-        disabled={dataStore.past.length === 0}
+        onClick={handleUndo}
+        disabled={!history.canUndo}
         className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
         title="Desfazer"
         aria-label="Desfazer"
@@ -75,8 +81,8 @@ const QuickAccessToolbar: React.FC = () => {
         </div>
       </button>
        <button
-        onClick={() => dataStore.redo()}
-        disabled={dataStore.future.length === 0}
+        onClick={handleRedo}
+        disabled={!history.canRedo}
         className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
         title="Refazer"
         aria-label="Refazer"

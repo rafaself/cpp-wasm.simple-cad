@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
-import { useDataStore } from '../../../stores/useDataStore';
 import { useEditorLogic } from './useEditorLogic';
 import { KEYBINDINGS } from '../../../config/keybindings';
+import { getEngineRuntime } from '@/engine/core/singleton';
 
 export const useKeyboardShortcuts = () => {
   const uiStore = useUIStore();
-  const dataStore = useDataStore();
   const { deleteSelected } = useEditorLogic();
   const prevToolRef = useRef<string | null>(null);
 
@@ -50,12 +49,12 @@ export const useKeyboardShortcuts = () => {
       // Undo / Redo
       if (checkKey('editor.undo')) {
            e.preventDefault();
-           dataStore.undo();
+           void getEngineRuntime().then((runtime) => runtime.undo());
            return;
       }
       if (checkKey('editor.redo')) {
            e.preventDefault();
-           dataStore.redo();
+           void getEngineRuntime().then((runtime) => runtime.redo());
            return;
       }
 
@@ -96,5 +95,5 @@ export const useKeyboardShortcuts = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [uiStore, dataStore, deleteSelected]);
+  }, [uiStore, deleteSelected]);
 };

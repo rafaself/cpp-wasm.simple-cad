@@ -15,7 +15,9 @@
 
 #include "engine/entity_manager.h"
 #include "engine/text_system.h"
+#include "engine/text_system.h"
 #include "engine/pick_system.h"
+#include "engine/history_types.h"
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -49,6 +51,11 @@ public:
         FEATURE_LAYERS_FLAGS = 1 << 1,
         FEATURE_SELECTION_ORDER = 1 << 2,
         FEATURE_SNAPSHOT_VNEXT = 1 << 3,
+        FEATURE_EVENT_STREAM = 1 << 4,
+        FEATURE_OVERLAY_QUERIES = 1 << 5,
+        FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
+        FEATURE_ENGINE_HISTORY = 1 << 7,
+        FEATURE_ENGINE_DOCUMENT_SOT = 1 << 8,
     };
 
     enum class LayerPropMask : std::uint32_t {
@@ -83,6 +90,35 @@ public:
         SendBackward = 4,
     };
 
+    enum class EventType : std::uint16_t {
+        Overflow = 1,
+        DocChanged = 2,
+        EntityChanged = 3,
+        EntityCreated = 4,
+        EntityDeleted = 5,
+        LayerChanged = 6,
+        SelectionChanged = 7,
+        OrderChanged = 8,
+        HistoryChanged = 9,
+    };
+
+    struct SnapOptions {
+        bool enabled = false;
+        bool gridEnabled = false;
+        float gridSize = 10.0f;
+    };
+
+    enum class ChangeMask : std::uint32_t {
+        Geometry = 1 << 0,
+        Style = 1 << 1,
+        Flags = 1 << 2,
+        Layer = 1 << 3,
+        Order = 1 << 4,
+        Text = 1 << 5,
+        Bounds = 1 << 6,
+        RenderData = 1 << 7,
+    };
+
     // Handshake payload (POD): frontend validates version + abiHash + feature flags.
     struct ProtocolInfo {
         std::uint32_t protocolVersion;
@@ -102,7 +138,12 @@ public:
         static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS)
         | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT);
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY)
+        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -146,6 +187,9 @@ public:
         };
     }
 
+    std::uint32_t allocateEntityId();
+    std::uint32_t allocateLayerId();
+
     struct BufferMeta {
         std::uint32_t generation;
         std::uint32_t vertexCount;
@@ -166,12 +210,78 @@ public:
 
     ByteBufferMeta saveSnapshot() const noexcept;
     ByteBufferMeta getSnapshotBufferMeta() const noexcept;
+    ByteBufferMeta getFullSnapshotMeta() const noexcept { return saveSnapshot(); }
 
     struct DocumentDigest {
         std::uint32_t lo;
         std::uint32_t hi;
     };
     DocumentDigest getDocumentDigest() const noexcept;
+
+    struct HistoryMeta {
+        std::uint32_t depth;
+        std::uint32_t cursor;
+        std::uint32_t generation;
+    };
+
+    HistoryMeta getHistoryMeta() const noexcept;
+    bool canUndo() const noexcept;
+    bool canRedo() const noexcept;
+    void undo();
+    void redo();
+
+    struct EngineEvent {
+        std::uint16_t type;
+        std::uint16_t flags;
+        std::uint32_t a;
+        std::uint32_t b;
+        std::uint32_t c;
+        std::uint32_t d;
+    };
+
+    struct EventBufferMeta {
+        std::uint32_t generation;
+        std::uint32_t count;
+        std::uintptr_t ptr;
+    };
+
+    EventBufferMeta pollEvents(std::uint32_t maxEvents);
+    void ackResync(std::uint32_t resyncGeneration);
+
+    enum class OverlayKind : std::uint16_t {
+        Polyline = 1,
+        Polygon = 2,
+        Segment = 3,
+        Rect = 4,
+        Point = 5,
+    };
+
+    struct OverlayPrimitive {
+        std::uint16_t kind;
+        std::uint16_t flags;
+        std::uint32_t count;  // number of points
+        std::uint32_t offset; // float offset into data buffer
+    };
+
+    struct OverlayBufferMeta {
+        std::uint32_t generation;
+        std::uint32_t primitiveCount;
+        std::uint32_t floatCount;
+        std::uintptr_t primitivesPtr;
+        std::uintptr_t dataPtr;
+    };
+
+    struct EntityAabb {
+        float minX;
+        float minY;
+        float maxX;
+        float maxY;
+        std::uint32_t valid;
+    };
+
+    OverlayBufferMeta getSelectionOutlineMeta() const;
+    OverlayBufferMeta getSelectionHandleMeta() const;
+    EntityAabb getEntityAabb(std::uint32_t entityId) const;
 
     struct EngineStats {
         std::uint32_t generation;
@@ -181,6 +291,7 @@ public:
         std::uint32_t pointCount;
         std::uint32_t triangleVertexCount;
         std::uint32_t lineVertexCount;
+        std::uint32_t rebuildAllGeometryCount;
         float lastLoadMs;
         float lastRebuildMs;
         float lastApplyMs;
@@ -210,6 +321,9 @@ public:
     void selectByPick(const PickResult& pick, std::uint32_t modifiers);
     void marqueeSelect(float minX, float minY, float maxX, float maxY, SelectionMode mode, int hitMode);
 
+    // Visibility helper used by render callbacks
+    bool isEntityVisibleForRender(std::uint32_t id) const noexcept { return entityManager_.isEntityVisible(id); }
+
     // Draw order (engine-authoritative)
     std::vector<std::uint32_t> getDrawOrderSnapshot() const;
     void reorderEntities(const std::uint32_t* ids, std::uint32_t idCount, ReorderAction action, std::uint32_t refId);
@@ -229,20 +343,27 @@ public:
     EntityManager entityManager_;
 
     // Text subsystem
-    TextSystem textSystem_;
+    mutable TextSystem textSystem_;
 
     // Picking subsystem
     mutable PickSystem pickSystem_;
 
     float viewScale{1.0f};
+    float viewX{0.0f};
+    float viewY{0.0f};
+    float viewWidth{0.0f};
+    float viewHeight{0.0f};
 
     mutable std::vector<float> triangleVertices;
     mutable std::vector<float> lineVertices;
+    mutable std::unordered_map<std::uint32_t, engine::RenderRange> renderRanges_{};
     mutable std::vector<std::uint8_t> snapshotBytes;
     mutable bool textQuadsDirty_{true};
     mutable bool renderDirty{false};
     mutable bool snapshotDirty{false};
     std::uint32_t generation{0};
+    mutable std::uint32_t rebuildAllGeometryCount_{0};
+    mutable bool pendingFullRebuild_{false};
     mutable float lastLoadMs{0.0f};
     mutable float lastRebuildMs{0.0f};
     float lastApplyMs{0.0f};
@@ -250,6 +371,35 @@ public:
     std::vector<std::uint32_t> selectionOrdered_{};
     std::uint32_t selectionGeneration_{0};
     std::uint32_t nextEntityId_{1};
+    std::uint32_t nextLayerId_{1};
+    std::vector<HistoryEntry> history_{};
+    std::size_t historyCursor_{0};
+    std::uint32_t historyGeneration_{0};
+    bool historySuppressed_{false};
+    HistoryTransaction historyTransaction_{};
+
+    static constexpr std::size_t kMaxEvents = 2048;
+    std::vector<EngineEvent> eventQueue_{};
+    std::size_t eventHead_{0};
+    std::size_t eventTail_{0};
+    std::size_t eventCount_{0};
+    bool eventOverflowed_{false};
+    std::uint32_t eventOverflowGeneration_{0};
+    std::vector<EngineEvent> eventBuffer_{};
+
+    std::unordered_map<std::uint32_t, std::uint32_t> pendingEntityChanges_{};
+    std::unordered_map<std::uint32_t, std::uint32_t> pendingEntityCreates_{};
+    std::unordered_set<std::uint32_t> pendingEntityDeletes_{};
+    std::unordered_map<std::uint32_t, std::uint32_t> pendingLayerChanges_{};
+    std::uint32_t pendingDocMask_{0};
+    bool pendingSelectionChanged_{false};
+    bool pendingOrderChanged_{false};
+    bool pendingHistoryChanged_{false};
+
+    mutable std::vector<OverlayPrimitive> selectionOutlinePrimitives_{};
+    mutable std::vector<float> selectionOutlineData_{};
+    mutable std::vector<OverlayPrimitive> selectionHandlePrimitives_{};
+    mutable std::vector<float> selectionHandleData_{};
 
 
     // Error handling
@@ -266,6 +416,36 @@ public:
 
     void trackNextEntityId(std::uint32_t id);
     void deleteEntity(std::uint32_t id) noexcept;
+    void clearEventState();
+    void recordDocChanged(std::uint32_t mask);
+    void recordEntityChanged(std::uint32_t id, std::uint32_t mask);
+    void recordEntityCreated(std::uint32_t id, std::uint32_t kind);
+    void recordEntityDeleted(std::uint32_t id);
+    void recordLayerChanged(std::uint32_t layerId, std::uint32_t mask);
+    void recordSelectionChanged();
+    void recordOrderChanged();
+    void recordHistoryChanged();
+    void clearHistory();
+    bool beginHistoryEntry();
+    void commitHistoryEntry();
+    void discardHistoryEntry();
+    void pushHistoryEntry(HistoryEntry&& entry);
+    void markEntityChange(std::uint32_t id);
+    void markLayerChange();
+    void markDrawOrderChange();
+    void markSelectionChange();
+    void finalizeHistoryEntry(HistoryEntry& entry);
+    bool captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out) const;
+    EntitySnapshot buildSnapshotFromTransform(const TransformSnapshot& snap) const;
+    void applyEntitySnapshot(const EntitySnapshot& snap);
+    void applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers);
+    void applyDrawOrderSnapshot(const std::vector<std::uint32_t>& order);
+    void applySelectionSnapshot(const std::vector<std::uint32_t>& selection);
+    void applyHistoryEntry(const HistoryEntry& entry, bool useAfter);
+    std::vector<std::uint8_t> encodeHistoryBytes() const;
+    void decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCount);
+    void flushPendingEvents();
+    bool pushEvent(const EngineEvent& ev);
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx);
@@ -471,11 +651,16 @@ public:
      * @param textId Text entity ID
      * @param outMinX Output min X
      * @param outMinY Output min Y
-     * @param outMaxX Output max X
-     * @param outMaxY Output max Y
-     * @return True if text exists
+     * @return True if valid
      */
     bool getTextBounds(std::uint32_t textId, float& outMinX, float& outMinY, float& outMaxX, float& outMaxY) const;
+
+    // =================================================================*********
+    // Snapping System (Phase 3)
+    // =================================================================*********
+    
+    void setSnapOptions(bool enabled, bool gridEnabled, float gridSize);
+    std::pair<float, float> getSnappedPoint(float x, float y) const;
 
     /**
      * Get selection rectangles for a text range.
@@ -557,6 +742,18 @@ public:
      * @return Metadata with pointer and size, exists=false if text not found
      */
     TextContentMeta getTextContentMeta(std::uint32_t textId) const noexcept;
+    
+    struct TextEntityMeta {
+        std::uint32_t id;
+        TextBoxMode boxMode;
+        float constraintWidth;
+    };
+    
+    /**
+     * Get metadata for all text entities (id, boxMode, constraintWidth).
+     * Used for synchronizing JS state after loading a snapshot.
+     */
+    std::vector<TextEntityMeta> getAllTextMetas() const;
 
     // Implementation of the command callback which applies a single parsed command to the CadEngine.
     static EngineError cad_command_callback(void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount);
@@ -575,6 +772,15 @@ public:
     void addLineSegment(float x0, float y0, float x1, float y1, float z = 0.0f) const;
 
     void rebuildRenderBuffers() const;
+    void addGridToBuffers() const;
+    void addDraftToBuffers() const;
+    void beginDraft(const BeginDraftPayload& p);
+    void updateDraft(float x, float y);
+    void appendDraftPoint(float x, float y);
+    std::uint32_t commitDraft();
+    void cancelDraft();
+
+    bool refreshEntityRenderRange(std::uint32_t id) const;
 
 // ==============================================================================
 // Interaction Session (Phase 4)
@@ -606,11 +812,30 @@ private:
         return h;
     }
 
+    static constexpr std::uint32_t hashEnum(std::uint32_t h, std::uint32_t tag, std::initializer_list<std::uint32_t> values) {
+        h = hashU32(h, tag);
+        h = hashU32(h, static_cast<std::uint32_t>(values.size()));
+        for (auto v : values) {
+            h = hashU32(h, v);
+        }
+        return h;
+    }
+
     template <std::size_t N>
     static constexpr std::uint32_t hashEnum(std::uint32_t h, std::uint32_t tag, const std::array<std::uint32_t, N>& values) {
         h = hashU32(h, tag);
         h = hashU32(h, static_cast<std::uint32_t>(N));
         return hashArray(h, values);
+    }
+
+    static constexpr std::uint32_t hashStruct(std::uint32_t h, std::uint32_t tag, std::uint32_t size, std::initializer_list<std::uint32_t> offsets) {
+        h = hashU32(h, tag);
+        h = hashU32(h, size);
+        h = hashU32(h, static_cast<std::uint32_t>(offsets.size()));
+        for (auto v : offsets) {
+            h = hashU32(h, v);
+        }
+        return h;
     }
 
     template <std::size_t N>
@@ -710,6 +935,11 @@ private:
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER),
             static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY),
+            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT),
         });
 
         h = hashEnum(h, 0xE000000Bu, {
@@ -754,6 +984,37 @@ private:
             static_cast<std::uint32_t>(ReorderAction::SendBackward),
         });
 
+        h = hashEnum(h, 0xE0000012u, {
+            static_cast<std::uint32_t>(EventType::Overflow),
+            static_cast<std::uint32_t>(EventType::DocChanged),
+            static_cast<std::uint32_t>(EventType::EntityChanged),
+            static_cast<std::uint32_t>(EventType::EntityCreated),
+            static_cast<std::uint32_t>(EventType::EntityDeleted),
+            static_cast<std::uint32_t>(EventType::LayerChanged),
+            static_cast<std::uint32_t>(EventType::SelectionChanged),
+            static_cast<std::uint32_t>(EventType::OrderChanged),
+            static_cast<std::uint32_t>(EventType::HistoryChanged),
+        });
+
+        h = hashEnum(h, 0xE0000013u, {
+            static_cast<std::uint32_t>(ChangeMask::Geometry),
+            static_cast<std::uint32_t>(ChangeMask::Style),
+            static_cast<std::uint32_t>(ChangeMask::Flags),
+            static_cast<std::uint32_t>(ChangeMask::Layer),
+            static_cast<std::uint32_t>(ChangeMask::Order),
+            static_cast<std::uint32_t>(ChangeMask::Text),
+            static_cast<std::uint32_t>(ChangeMask::Bounds),
+            static_cast<std::uint32_t>(ChangeMask::RenderData),
+        });
+
+        h = hashEnum(h, 0xE0000014u, {
+            static_cast<std::uint32_t>(OverlayKind::Polyline),
+            static_cast<std::uint32_t>(OverlayKind::Polygon),
+            static_cast<std::uint32_t>(OverlayKind::Segment),
+            static_cast<std::uint32_t>(OverlayKind::Rect),
+            static_cast<std::uint32_t>(OverlayKind::Point),
+        });
+
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, protocolVersion)),
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, commandVersion)),
@@ -785,6 +1046,7 @@ private:
             static_cast<std::uint32_t>(offsetof(EngineStats, pointCount)),
             static_cast<std::uint32_t>(offsetof(EngineStats, triangleVertexCount)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lineVertexCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, rebuildAllGeometryCount)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastLoadMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastRebuildMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastApplyMs)),
@@ -1020,17 +1282,60 @@ private:
             static_cast<std::uint32_t>(offsetof(DocumentDigest, hi)),
         });
 
+        h = hashStruct(h, 0x5300001Fu, sizeof(EngineEvent), {
+            static_cast<std::uint32_t>(offsetof(EngineEvent, type)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, flags)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, a)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, b)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, c)),
+            static_cast<std::uint32_t>(offsetof(EngineEvent, d)),
+        });
+
+        h = hashStruct(h, 0x53000020u, sizeof(EventBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(EventBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(EventBufferMeta, count)),
+            static_cast<std::uint32_t>(offsetof(EventBufferMeta, ptr)),
+        });
+
+        h = hashStruct(h, 0x53000021u, sizeof(OverlayPrimitive), {
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, kind)),
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, flags)),
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, count)),
+            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, offset)),
+        });
+
+        h = hashStruct(h, 0x53000022u, sizeof(OverlayBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, primitiveCount)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, floatCount)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, primitivesPtr)),
+            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, dataPtr)),
+        });
+
+        h = hashStruct(h, 0x53000023u, sizeof(EntityAabb), {
+            static_cast<std::uint32_t>(offsetof(EntityAabb, minX)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, minY)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, maxX)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, maxY)),
+            static_cast<std::uint32_t>(offsetof(EntityAabb, valid)),
+        });
+
+        h = hashStruct(h, 0x53000024u, sizeof(HistoryMeta), {
+            static_cast<std::uint32_t>(offsetof(HistoryMeta, depth)),
+            static_cast<std::uint32_t>(offsetof(HistoryMeta, cursor)),
+            static_cast<std::uint32_t>(offsetof(HistoryMeta, generation)),
+        });
+
         return h;
     }
 
-    static constexpr std::uint32_t kAbiHash = computeAbiHash();
+    // ABI Hash matches frontend/engine/core/protocol.ts EXPECTED_ABI_HASH.
+    // We hardcode it here because dynamic computation via constexpr std::initializer_list 
+    // is failing on the current Emscripten compiler environment.
+    // If you change the ABI (structs, enums), update this hash or fix computeAbiHash().
+    static constexpr std::uint32_t kAbiHash = 0x96ec015d;
 
-    struct TransformSnapshot {
-        std::uint32_t id;
-        float x, y; // For rects/circles/text/etc
-        float w, h; // For rects/circles/polygons (rect: w/h, circle/polygon: rx/ry)
-        std::vector<Point2> points; // For lines/polylines
-    };
+
 
     struct InteractionSession {
         bool active = false;
@@ -1046,6 +1351,24 @@ private:
     };
 
     InteractionSession session_;
+    SnapOptions snapOptions_;
+
+    struct DraftState {
+        bool active = false;
+        std::uint32_t kind = 0;
+        float startX = 0, startY = 0;
+        float currentX = 0, currentY = 0;
+        float fillR = 0, fillG = 0, fillB = 0, fillA = 0;
+        float strokeR = 0, strokeG = 0, strokeB = 0, strokeA = 0;
+        float strokeEnabled = 0;
+        float strokeWidthPx = 1.0f;
+        float sides = 0;
+        float head = 0;
+        std::vector<Point2> points;
+    };
+    DraftState draft_;
+
+
 
     // Commit Result Buffers (Struct-of-Arrays)
     // We keep these alive between commits so WASM can read them safely immediately after commit.

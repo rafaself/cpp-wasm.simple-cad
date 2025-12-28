@@ -9,14 +9,20 @@ import {
   Maximize,
   Minimize
 } from 'lucide-react';
-import { useDataStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { getEngineRuntime } from '@/engine/core/singleton';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
+import { LABELS } from '@/i18n/labels';
 
 const Header: React.FC = () => {
-  const { undo, redo } = useDataStore();
   const setSettingsModalOpen = useUIStore(s => s.setSettingsModalOpen);
   const [isFullScreen, setIsFullScreen] = React.useState(false);
+  const handleUndo = () => {
+    void getEngineRuntime().then((runtime) => runtime.undo());
+  };
+  const handleRedo = () => {
+    void getEngineRuntime().then((runtime) => runtime.redo());
+  };
 
   // Detect OS for correct fullscreen shortcut
   const isMac = React.useMemo(() => {
@@ -54,21 +60,21 @@ const Header: React.FC = () => {
         <div className="flex items-center gap-0.5 text-slate-400">
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Novo Arquivo (Ctrl+N)"
+            title={`${LABELS.menu.newFile} (Ctrl+N)`}
             onClick={() => console.log('New File clicked')}
           >
             <FilePlus size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Abrir Arquivo (Ctrl+O)"
+            title={`${LABELS.menu.openFile} (Ctrl+O)`}
             onClick={() => console.log('Open File clicked')}
           >
             <FolderOpen size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Salvar (Ctrl+S)"
+            title={`${LABELS.menu.saveFile} (Ctrl+S)`}
             onClick={() => console.log('Save clicked')}
           >
             <Save size={14} />
@@ -76,22 +82,22 @@ const Header: React.FC = () => {
           <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Desfazer (Ctrl+Z)"
-            onClick={undo}
+            title={`${LABELS.menu.undo} (Ctrl+Z)`}
+            onClick={handleUndo}
           >
             <Undo2 size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Refazer (Ctrl+Y)"
-            onClick={redo}
+            title={`${LABELS.menu.redo} (Ctrl+Y)`}
+            onClick={handleRedo}
           >
             <Redo2 size={14} />
           </button>
           <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-            title="Configuracoes"
+            title={LABELS.menu.settings}
             onClick={() => setSettingsModalOpen(true)}
           >
             <Settings size={14} />
@@ -106,7 +112,7 @@ const Header: React.FC = () => {
           activator={({ onClick }) => (
             <button
               className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
-              title={isFullScreen ? `Sair da Tela Cheia (${fullscreenShortcut})` : `Tela Cheia (${fullscreenShortcut})`}
+              title={isFullScreen ? `${LABELS.common.fullScreenExit} (${fullscreenShortcut})` : `${LABELS.common.fullScreenEnter} (${fullscreenShortcut})`}
               onClick={onClick}
             >
               {isFullScreen ? <Minimize size={14} /> : <Maximize size={14} />}
@@ -115,25 +121,25 @@ const Header: React.FC = () => {
         >
           {({ close }) => (
             <DialogCard
-              title="Modo Tela Cheia"
+              title={LABELS.common.fullScreenToggle}
               actions={
                 <DialogButton variant="primary" onClick={close}>
-                  Entendi
+                  {LABELS.common.ok}
                 </DialogButton>
               }
             >
               <div className="flex flex-col items-center gap-4 py-2">
                 <p className="text-center text-slate-300">
                   {isFullScreen 
-                    ? "Você está no modo tela cheia. Para sair, pressione:"
-                    : "Para alternar o modo tela cheia, pressione:"
+                    ? LABELS.common.fullScreenMessageExit
+                    : LABELS.common.fullScreenMessageEnter
                   }
                 </p>
                 <kbd className="bg-slate-700 px-4 py-2 rounded-lg text-lg font-mono font-bold border border-slate-500 text-white shadow-lg">
                   {fullscreenShortcut}
                 </kbd>
                 <p className="text-center text-slate-400 text-sm">
-                  Use {fullscreenShortcutReadable} para entrar ou sair do modo tela cheia.
+                  {LABELS.common.fullScreenInstruction.replace('{shortcut}', fullscreenShortcutReadable)}
                 </p>
               </div>
             </DialogCard>

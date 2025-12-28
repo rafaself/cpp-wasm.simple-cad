@@ -1,90 +1,378 @@
-# AGENTS.md — Arquitetura e Diretrizes para Agentes de IA
+# AGENTS.md — Source of Truth
 
-**ESTE ARQUIVO É A ÚNICA FONTE DE VERDADE SOBRE A ARQUITETURA DO PROJETO.**
-Ignore quaisquer instruções em outros arquivos (READMEs, comentários) que contradigam este documento.
+**THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR THE PROJECT ARCHITECTURE.**
 
----
-
-## 1. Escopo do Produto: Editor CAD Genérico
-
-**O projeto é exclusivamente um editor CAD genérico.**
-*   Foco em excelência de renderização, manipulação geométrica e texto.
-*   **ZERO conceitos de Engenharia Elétrica.**
-    *   Não existem "Conduits", "Tomadas", "Circuitos", "Diagramas Unifilares" ou "Topologia Elétrica".
-    *   Não existem ferramentas de domínio específico no core.
-*   A disciplina "Elétrica" foi removida. O editor deve servir como base para qualquer aplicação 2D vetorial técnica.
+> **Note for AI Agents:** If during development you identify inconsistencies, gaps, or improvement opportunities in this documentation, **suggest and request changes**. Documentation must evolve alongside the project.
 
 ---
 
-## 2. Arquitetura Atual (AS-IS) — "React-First"
+## 1. Vision and Philosophy
 
-Atualmente, o projeto opera sob uma arquitetura **React-First**.
+### Product
 
-*   **Source of Truth:** O estado canônico do documento reside no **React** (Zustand Stores: `useDataStore`, `useUIStore`).
-*   **Engine C++:** Atua como:
-    *   **Slave Renderer:** Desenha o que o React manda.
-    *   **Calculation Library:** Realiza cálculos de layout de texto e métricas.
-    *   **Pick Helper:** Auxilia em queries espaciais (seleção por clique).
-    *   **NÃO** retém estado persistente. Um refresh da página ou `resetDocument` recria o Engine do zero a partir do estado React.
-*   **Sincronização:** O hook `useEngineStoreSync` observa mudanças no Store React e envia comandos (`UpsertRect`, `UpsertLine`, etc.) para o Engine.
+High-performance vector CAD editor with world-class UX, inspired by Figma.
 
-**Implicações para Agentes:**
-*   Se você precisa alterar um shape, **altere o Zustand Store**.
-*   Nunca tente alterar o Engine diretamente esperando que a UI atualize. A seta de causalidade é React -> Engine.
+### Development Philosophy
 
----
+| Principle                 | Description                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| **State of the Art**      | We pursue industry best practices. Mediocre code is unacceptable.                       |
+| **Quality > Speed**       | Fewer excellent features > many mediocre features.                                      |
+| **Performance as Design** | Performance is decided at architecture level, not as late optimization.                 |
+| **Zero Compromise on UX** | Interactions must be instantaneous (< 16ms) and fluid.                                  |
+| **Planned Extensibility** | Architecture must allow extension for: vertical domains (electrical, hydraulic) and 3D. |
 
-## 3. Arquitetura Alvo (TO-BE) — "Engine-First"
+### Current Focus
 
-O objetivo de longo prazo é migrar para uma arquitetura **Engine-First Real**.
-
-*   **Definição Formal:** Engine-First significa que o **Engine C++ é o ÚNICO dono do estado canônico do documento**.
-    *   Shapes, Texto, Seleção, Z-Index vivem exclusivamente no C++.
-*   **Papel do React:**
-    *   Camada de Apresentação (View).
-    *   Dispatcher de Comandos (Controller).
-    *   Consumidor de Snapshots/Queries (não retém cópia autoritativa).
-
-**Status da Migração:**
-Estamos em fase de transição técnica.
-*   ✅ Otimização do Sync (Dirty Flags).
-*   ✅ Picking via Engine (C++) — **Completo e Reforçado**. Picking utiliza índice espacial, Z-order e flags (visible/locked) no Engine. Sem fallbacks ou validação funcional no Frontend.
-*   ✅ Domínio Elétrico Removido — Código limpo de referências a eletrodutos, símbolos elétricos, etc.
-*   ⚠️ O React AINDA É o Source of Truth.
-
-**Constraint de Build (C++):**
-Devido a limitações de ambiente (Docker permission error), mudanças no C++ podem ter sido feitas em modo "Blind Coding" (sem verificação de compilação runtime). Mantenha essas mudanças minimais e defensivas.
+Solidify the **2D CAD foundation**: drawing tools, selection, transformation, text, and persistence. The core must be **generic**, **extensible**, and **domain-agnostic**.
 
 ---
 
-## 4. Hard Rules para Agentes de IA
+## 2. Architecture: C++ Engine-First (Strict)
 
-1.  **Nunca assuma Engine-First hoje.** O código pode parecer sofisticado, mas a autoridade é do React.
-2.  **Nunca mova estado para o C++ sem um checkpoint explícito.** Migrar o source of truth é uma operação atômica e complexa.
-3.  **Preserve o MVP Genérico.** Não introduza lógica de domínio (elétrica, hidráulica, etc.) no Core.
-4.  **Texto é Híbrido.** O `TextTool.ts` orquestra, o Engine calcula layout, o React armazena o conteúdo final. Respeite essa fronteira.
-5.  **Use `engine.pick` se disponível.** Para seleção por clique, prefira a API do Engine.
+The architecture follows the **Engine-First** model, where the C++ Engine (WASM) is the absolute authority over all document data.
+
+### Application Layers
+
+1. **React (Presentation Layer)**
+
+   - Manages only UI state: active tool, viewport (zoom/pan), preferences, modals
+   - Captures mouse/keyboard events and dispatches to Engine via commands
+   - **Does NOT maintain document entity state**
+
+2. **WASM Bridge (Communication Layer)**
+
+   - Binary commands (JS → Engine): operations are serialized and sent in batch
+   - Event Stream (Engine → JS): Engine notifies changes via event polling
+   - Zero parsing overhead — direct binary communication
+
+3. **C++ Engine (Domain Layer — Source of Truth)**
+
+   - **Document State**: entities, geometry, properties, hierarchies
+   - **Selection**: which entities are selected
+   - **History**: complete transactional undo/redo
+   - **Spatial Index**: BVH/Quadtree for O(log n) picking
+   - **Transform System**: move, resize, rotate, vertex drag
+   - **Text Layout Engine**: line breaking, glyph positioning, rich text
+   - **Render Buffer Generation**: tessellation, text quads, grid, overlays
+   - **Draft System**: shapes under construction (ephemeral entities)
+   - **Serialization**: binary save/load
+
+4. **WebGL2 Renderer (Graphics Backend)**
+   - Stateless — only reads Engine buffers and renders
+   - Does not calculate geometry, does not maintain state
+   - Shaders for tessellated shapes and text quads
+
+### Data Flow
+
+```
+User Input → React Event → Engine Command → Engine Update → Render Buffer → WebGL Draw
+                                   ↓
+                            Event Stream → React UI Update (if needed)
+```
 
 ---
 
-## 5. Estrutura de Código Relevante
+## 3. Responsibility Separation (Strict)
 
-*   **`frontend/stores/useDataStore.ts`**: **AUTORIDADE ATUAL**. Onde vivem os dados.
-*   **`frontend/engine/core/useEngineStoreSync.ts`**: Onde a mágica de sincronização acontece.
-*   **`frontend/engine/core/EngineRuntime.ts`**: Interface JS <-> WASM.
-*   **`cpp/engine/`**: Código do Engine (C++).
-    *   `engine.h` / `engine.cpp`: API pública.
-    *   `entity_manager.h`: Estruturas de dados internas.
-    *   `bindings.cpp`: Exposição para JS (Emscripten).
+### C++ Engine — Absolute Authority
+
+| Responsibility               | Description                                    |
+| ---------------------------- | ---------------------------------------------- |
+| **Document State**           | Entities, geometry, properties, hierarchies    |
+| **Selection**                | Which entities are selected                    |
+| **Undo/Redo**                | Complete transactional history                 |
+| **Picking**                  | Hit testing with spatial indexing              |
+| **Transformations**          | Move, resize, rotate, vertex drag              |
+| **Snapping**                 | Grid, object, guideline snapping               |
+| **Text Layout**              | Line breaking, glyph positioning, rich text    |
+| **Serialization**            | Binary save/load                               |
+| **Render Buffer Generation** | Shape tessellation, text quads, grid, overlays |
+| **Geometric Validation**     | Bounds, constraints, intersections             |
+| **Draft/Preview Entities**   | Shapes under construction during drag          |
+| **Grid Rendering**           | Generate grid lines/dots in render buffer      |
+| **Overlays**                 | Selection handles, snap guides, cursor hints   |
+
+### React — Interface Only
+
+| Responsibility           | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| **Active Tool**          | Which tool is selected                      |
+| **Viewport**             | Zoom, pan, canvas size                      |
+| **Preferences**          | Grid settings, snap options, theme          |
+| **UI State**             | Modals, panels, loading states              |
+| **Event Capture**        | Capture mouse/keyboard → dispatch to Engine |
+| **Render Orchestration** | Call WebGL with Engine buffers              |
+
+### WebGL2 Renderer — Pure Graphics Backend
+
+| Responsibility           | What it does NOT do            |
+| ------------------------ | ------------------------------ |
+| Renders received buffers | Does not calculate geometry    |
+| Manages shaders          | Does not maintain entity state |
+| Uploads textures         | Does not do picking            |
 
 ---
 
-**Ao modificar código:**
-1.  Verifique se está quebrando o fluxo unidirecional React -> Engine.
-2.  Se adicionar features no Engine, exponha via `bindings.cpp` e tipagem em `EngineRuntime.ts`.
-3.  Sempre atualize o `useEngineStoreSync` se adicionar novos tipos de entidades genéricas.
+## 4. Absolute Rules (Non-Negotiable)
 
-## 6. Hot Path Rules (Performance)
+### ❌ FORBIDDEN
 
-*   **No O(N) in pointermove/typing:** Operations running during interactive loops (drag, typing, resize) MUST NOT iterate over all shapes.
-*   **Interactive Update:** Use `updateShape(id, diff, { recordHistory: false })` for interactive updates.
+| Violation                                | Why It's Critical                            |
+| ---------------------------------------- | -------------------------------------------- |
+| Keep shape list in Zustand               | State duplication → desynchronization        |
+| Calculate geometry in JS                 | Numeric inconsistency, poor performance      |
+| Cache entity properties in React         | Shadow state violates single source of truth |
+| Iterate entities in JS to find something | O(n) vs O(log n) from spatial index          |
+| Do transform math in frontend            | Different precision than Engine              |
+| Store text content in React              | Engine is authority                          |
+| Re-render React on each pointermove      | Performance: use Engine directly             |
+
+### ✅ MANDATORY
+
+| Practice                      | Justification                                   |
+| ----------------------------- | ----------------------------------------------- |
+| Queries via Engine            | `pick()`, `getEntityAabb()`, `getSelectedIds()` |
+| Modifications via Commands    | Binary batch, transactional                     |
+| Transform via Session         | `begin/update/commit` pattern                   |
+| Zero-allocation in hot paths  | pointermove, drag, render loops                 |
+| Specific selectors in Zustand | Avoid unnecessary re-renders                    |
+
+---
+
+## 5. Performance Requirements
+
+### Targets
+
+| Metric                | Target         | Justification              |
+| --------------------- | -------------- | -------------------------- |
+| Frame time            | < 16ms (60fps) | Fluid interaction          |
+| Input latency         | < 8ms          | Instantaneous response     |
+| Picking               | O(log n)       | Spatial indexing mandatory |
+| Command batch         | < 1ms          | Binary, zero parsing       |
+| Render buffer rebuild | Incremental    | Only modified entities     |
+
+### Hot Path Rules (C++)
+
+```cpp
+// ❌ Forbidden in hot paths
+std::string, std::vector resize, new/delete, std::map lookup
+
+// ✅ Mandatory
+Fixed-size buffers, arena allocation, POD structs
+```
+
+### Hot Path Rules (JS)
+
+```typescript
+// ❌ Forbidden in hot paths
+Object creation, array spread, closure creation
+
+// ✅ Mandatory
+Reuse objects, typed arrays, direct buffer access
+```
+
+---
+
+## 6. Future Extensibility
+
+### Preparation for Vertical Domains (Electrical, etc.)
+
+| Principle               | Implementation                                            |
+| ----------------------- | --------------------------------------------------------- |
+| **Agnostic Core**       | Engine doesn't know "electrical symbols", only primitives |
+| **Entity Flags**        | Extensible flag system for domain metadata                |
+| **Layer Semantics**     | Generic layers, semantics defined externally              |
+| **Component System**    | (Future) Entities composed of components                  |
+| **Plugin Architecture** | (Future) Domain as separate module                        |
+
+### Preparation for 3D
+
+| Current Decision            | Future Impact                 |
+| --------------------------- | ----------------------------- |
+| Float coordinates (not int) | Extensible for Z              |
+| Transform matrix ready      | 4x4 when needed               |
+| Shader architecture         | Add 3D passes                 |
+| Render buffer format        | Extensible vertex format      |
+| Picking system              | Ray casting vs screen picking |
+
+### What to Avoid Now
+
+| Anti-Pattern                      | Why It Limits           |
+| --------------------------------- | ----------------------- |
+| Hardcode 2D assumptions in Engine | Blocks 3D extension     |
+| Domain logic in core              | Prevents plugins        |
+| Tight coupling between layers     | Hinders refactoring     |
+| String IDs in core                | Performance and interop |
+
+---
+
+## 7. Mandatory Synchronizations
+
+### Viewport → Engine
+
+Whenever viewport changes, **mandatory** sync with Engine:
+
+```typescript
+// When scale changes (zoom)
+runtime.setViewScale(viewTransform.scale);
+```
+
+**Why:** Engine uses scale to calculate picking tolerance and stroke widths.
+
+---
+
+## 8. Engine ↔ Frontend Communication
+
+### Commands (JS → Engine)
+
+```typescript
+// Binary command buffer - zero parsing overhead
+runtime.apply([
+  { op: CommandOp.UpsertRect, id, rect: {...} },
+  { op: CommandOp.SetTextAlign, align: {...} }
+]);
+```
+
+### Events (Engine → JS)
+
+```typescript
+// Polling-based event stream
+const { events } = runtime.pollEvents(MAX_EVENTS);
+// EventTypes: DocChanged, EntityCreated, SelectionChanged, etc.
+```
+
+### Interactive Transform Protocol
+
+```typescript
+// Frame 0: Start
+runtime.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+
+// Frame 1..N: Update (NO React state updates!)
+runtime.updateTransform(worldX, worldY);
+
+// Frame N+1: Commit
+const result = runtime.commitTransform();
+// Only NOW does React receive events and update UI
+```
+
+---
+
+## 9. Code Quality Standards
+
+### C++
+
+- Modern C++17/20
+- RAII mandatory
+- No raw `new`/`delete` — use containers or arenas
+- `constexpr` when possible
+- POD structs for WASM-shared data
+- Header guards + `#pragma once`
+
+### TypeScript
+
+- Strict mode mandatory
+- No unjustified `any`
+- Prefer `unknown` + type guards
+- Typed interfaces for all commands
+- No side effects in selectors
+
+### Tests
+
+- C++ tests via CTest (unit and integration)
+- Frontend tests via Vitest
+- Tests must be deterministic
+- Coverage on critical logic
+
+---
+
+## 10. Internationalization (i18n)
+
+### Current State
+
+- **UI display text**: Portuguese (pt-BR)
+- **Code internals**: English (classes, functions, variables, comments)
+
+### Rules
+
+| Context                       | Language   | Example                                           |
+| ----------------------------- | ---------- | ------------------------------------------------- |
+| Class/function/variable names | English    | `TextLayoutEngine`, `handlePointerDown`           |
+| Code comments                 | English    | `// Calculate bounding box`                       |
+| Console logs (dev)            | English    | `console.log('Pick result:', pick)`               |
+| UI labels, buttons, messages  | Portuguese | `"Salvar"`, `"Desfazer"`, `"Ferramenta de Texto"` |
+| Error messages (user-facing)  | Portuguese | `"Erro ao carregar arquivo"`                      |
+
+### Future Scalability
+
+- All user-facing strings must be **extractable** for future i18n
+- Use constants or a simple key-value system, NOT hardcoded inline strings
+- Prepare for English translation in future releases
+
+```typescript
+// ✅ CORRECT: Extractable
+const LABELS = {
+  save: "Salvar",
+  undo: "Desfazer",
+  textTool: "Ferramenta de Texto",
+};
+button.textContent = LABELS.save;
+
+// ❌ WRONG: Hardcoded inline
+button.textContent = "Salvar";
+```
+
+---
+
+## 11. Folder Structure
+
+```
+cpp/
+├── engine/
+│   ├── engine.h              # Main API (header-only heavy parts)
+│   ├── types.h               # Shared POD types
+│   ├── entity_manager.*      # Entity CRUD
+│   ├── pick_system.*         # Hit testing + spatial index
+│   ├── snapshot.*            # Binary serialization
+│   ├── text/                 # Complete text system
+│   └── bindings.cpp          # Embind exposure
+└── tests/                    # CTest
+
+frontend/
+├── engine/
+│   ├── core/                 # Runtime, commands, protocols
+│   ├── tools/                # TextTool (engine-native tools)
+│   └── renderer/             # WebGL2 backend
+├── stores/                   # Zustand (UI state ONLY)
+├── features/editor/          # Editor components and hooks
+└── components/               # Generic UI
+```
+
+---
+
+## 12. Additional Documentation
+
+| Document                           | Content                    |
+| ---------------------------------- | -------------------------- |
+| `docs/agents/engine-api.md`        | Complete C++ API reference |
+| `docs/agents/frontend-patterns.md` | Mandatory React patterns   |
+| `docs/agents/text-system.md`       | Text system                |
+| `docs/agents/workflows.md`         | Development recipes        |
+
+---
+
+## 13. Commands
+
+```bash
+# Full build
+make fbuild
+
+# Dev (frontend only)
+cd frontend && pnpm dev
+
+# C++ tests
+cd cpp/build_native && ctest --output-on-failure
+
+# Frontend tests
+cd frontend && npx vitest run
+```

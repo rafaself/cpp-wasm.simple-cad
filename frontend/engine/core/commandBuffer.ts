@@ -14,12 +14,18 @@ export const enum CommandOp {
   UpsertPolygon = 12,
   UpsertArrow = 13,
   // Text commands (Engine-Native Text Pipeline)
+  // Text commands (Engine-Native Text Pipeline)
   UpsertText = 14,
   DeleteText = 15,
   SetTextCaret = 16,
   SetTextSelection = 17,
   InsertTextContent = 18,
   DeleteTextContent = 19,
+  BeginDraft = 20,
+  UpdateDraft = 21,
+  CommitDraft = 22,
+  CancelDraft = 23,
+  AppendDraftPoint = 24,
   ApplyTextStyle = 42, // 0x2A
   SetTextAlign = 43, // 0x2B
 }
@@ -43,7 +49,11 @@ export type RectPayload = {
 export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
 export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
 
-export type SetViewScalePayload = { scale: number };
+export type SetViewScalePayload = { x: number; y: number; scale: number; width: number; height: number };
+
+// ... (omitted)
+
+
 export type SetDrawOrderPayload = { ids: readonly EntityId[] };
 
 export type CirclePayload = {
@@ -129,6 +139,19 @@ export type TextAlignmentPayload = {
   align: number; // TextAlign enum
 };
 
+export type BeginDraftPayload = {
+  kind: number;
+  x: number;
+  y: number;
+  fillR: number; fillG: number; fillB: number; fillA: number;
+  strokeR: number; strokeG: number; strokeB: number; strokeA: number;
+  strokeEnabled: number;
+  strokeWidthPx: number;
+  sides: number;
+  head: number;
+};
+export type UpdateDraftPayload = { x: number; y: number };
+
 // Text style apply payload (logical indices; engine maps to UTF-8 internally)
 export type ApplyTextStylePayload = {
   textId: EntityId;
@@ -160,7 +183,12 @@ export type EngineCommand =
   | { op: CommandOp.InsertTextContent; insert: TextInsertPayload }
   | { op: CommandOp.DeleteTextContent; del: TextDeletePayload }
   | { op: CommandOp.ApplyTextStyle; id: EntityId; style: ApplyTextStylePayload }
-  | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload };
+  | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload }
+  | { op: CommandOp.BeginDraft; draft: BeginDraftPayload }
+  | { op: CommandOp.UpdateDraft; pos: UpdateDraftPayload }
+  | { op: CommandOp.AppendDraftPoint; pos: UpdateDraftPayload }
+  | { op: CommandOp.CommitDraft }
+  | { op: CommandOp.CancelDraft };
 
 // UTF-8 encoder for text content
 const textEncoder = new TextEncoder();
@@ -182,7 +210,7 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.DeleteText:
       return 0;
     case CommandOp.SetViewScale:
-      return 4; // 1 float
+      return 20; // 5 floats (x, y, scale, width, height)
     case CommandOp.SetDrawOrder:
       return 8 + cmd.order.ids.length * 4; // u32 count + u32 reserved + u32 ids[]
     case CommandOp.UpsertRect:
@@ -220,6 +248,14 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     }
     case CommandOp.SetTextAlign:
       return 8; // textId (u32) + align (u8) + reserved (3 bytes)
+    case CommandOp.BeginDraft:
+      return 60; // 15 floats (x,y, fills, strokes, params) * 4
+    case CommandOp.UpdateDraft:
+    case CommandOp.AppendDraftPoint:
+      return 8; // x, y
+    case CommandOp.CommitDraft:
+    case CommandOp.CancelDraft:
+      return 0;
   }
 };
 
@@ -251,9 +287,15 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
       case CommandOp.ClearAll:
       case CommandOp.DeleteEntity:
       case CommandOp.DeleteText:
+      case CommandOp.CommitDraft:
+      case CommandOp.CancelDraft:
         break;
       case CommandOp.SetViewScale:
+        o = writeF32(view, o, cmd.view.x);
+        o = writeF32(view, o, cmd.view.y);
         o = writeF32(view, o, cmd.view.scale);
+        o = writeF32(view, o, cmd.view.width);
+        o = writeF32(view, o, cmd.view.height);
         break;
       case CommandOp.SetDrawOrder:
         o = writeU32(view, o, cmd.order.ids.length);
@@ -435,6 +477,28 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         view.setUint8(o++, 0); // reserved
         view.setUint8(o++, 0); // reserved
         view.setUint8(o++, 0); // reserved
+        break;
+      case CommandOp.BeginDraft:
+        o = writeU32(view, o, cmd.draft.kind);
+        o = writeF32(view, o, cmd.draft.x);
+        o = writeF32(view, o, cmd.draft.y);
+        o = writeF32(view, o, cmd.draft.fillR);
+        o = writeF32(view, o, cmd.draft.fillG);
+        o = writeF32(view, o, cmd.draft.fillB);
+        o = writeF32(view, o, cmd.draft.fillA);
+        o = writeF32(view, o, cmd.draft.strokeR);
+        o = writeF32(view, o, cmd.draft.strokeG);
+        o = writeF32(view, o, cmd.draft.strokeB);
+        o = writeF32(view, o, cmd.draft.strokeA);
+        o = writeF32(view, o, cmd.draft.strokeEnabled);
+        o = writeF32(view, o, cmd.draft.strokeWidthPx);
+        o = writeF32(view, o, cmd.draft.sides);
+        o = writeF32(view, o, cmd.draft.head);
+        break;
+      case CommandOp.UpdateDraft:
+      case CommandOp.AppendDraftPoint:
+        o = writeF32(view, o, cmd.pos.x);
+        o = writeF32(view, o, cmd.pos.y);
         break;
     }
   }

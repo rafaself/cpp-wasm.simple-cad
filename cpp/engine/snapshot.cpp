@@ -20,6 +20,7 @@ constexpr std::uint32_t TAG_ORDR = fourCC('O', 'R', 'D', 'R');
 constexpr std::uint32_t TAG_SELC = fourCC('S', 'E', 'L', 'C');
 constexpr std::uint32_t TAG_TEXT = fourCC('T', 'E', 'X', 'T');
 constexpr std::uint32_t TAG_NIDX = fourCC('N', 'I', 'D', 'X');
+constexpr std::uint32_t TAG_HIST = fourCC('H', 'I', 'S', 'T');
 
 constexpr std::size_t rectSnapshotBytes = 12 + 14 * 4;
 constexpr std::size_t lineSnapshotBytes = 12 + 10 * 4;
@@ -117,9 +118,15 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
     const SectionView* selc = findSection(TAG_SELC);
     const SectionView* text = findSection(TAG_TEXT);
     const SectionView* nidx = findSection(TAG_NIDX);
+    const SectionView* hist = findSection(TAG_HIST);
 
     if (!ents || !layr || !ordr || !selc || !text || !nidx) {
         return EngineError::InvalidPayloadSize;
+    }
+
+    out.historyBytes.clear();
+    if (hist && hist->data && hist->size > 0) {
+        out.historyBytes.assign(hist->data, hist->data + hist->size);
     }
 
     // ENTS
@@ -426,7 +433,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
     };
 
     std::vector<SectionBytes> sections;
-    sections.reserve(6);
+    sections.reserve(7);
 
     // ENTS
     {
@@ -763,6 +770,12 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
         SectionBytes sec{TAG_NIDX, {}};
         sec.bytes.resize(4);
         writeU32LE(sec.bytes.data(), 0, data.nextId);
+        sections.push_back(std::move(sec));
+    }
+
+    // HIST (optional)
+    if (!data.historyBytes.empty()) {
+        SectionBytes sec{TAG_HIST, data.historyBytes};
         sections.push_back(std::move(sec));
     }
 

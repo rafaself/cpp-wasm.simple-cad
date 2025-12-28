@@ -1,372 +1,101 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  Building2, Plus, SlidersHorizontal, PenTool, FolderOpen, LayoutDashboard,
-  Layers, Settings, MousePointer2, Workflow
-} from 'lucide-react';
+import React from 'react';
+import { Eye, EyeOff, Lock, Unlock, Plus } from 'lucide-react';
+
 import { useUIStore } from '../../../stores/useUIStore';
-import { useDataStore } from '../../../stores/useDataStore';
-import { PositionProperties } from './properties/PositionProperties';
-import { DimensionProperties } from './properties/DimensionProperties';
-import { StyleProperties } from './properties/StyleProperties';
-import { PlanProperties } from './properties/PlanProperties';
-import { ImportPlanModal } from '../../import/ImportPlanModal';
-import { usePlanImport } from '../../import/usePlanImport';
-import DisciplineContextMenu from './DisciplineContextMenu';
-import PlanLayerControls from './properties/PlanLayerControls';
-import { getShapeId as getShapeIdFromRegistry } from '@/engine/core/IdRegistry';
+import { useEngineLayers } from '@/engine/core/useEngineLayers';
+import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
+import { LABELS } from '@/i18n/labels';
 
 const EditorSidebar: React.FC = () => {
-  const sidebarTab = useUIStore((s) => s.sidebarTab);
-  const setSidebarTab = useUIStore((s) => s.setSidebarTab);
-  const setActiveDiscipline = useUIStore((s) => s.setActiveDiscipline);
-  const selectedEntityIds = useUIStore((s) => s.selectedEntityIds);
-  const dataStore = useDataStore();
+  const runtime = useEngineRuntime();
+  const layers = useEngineLayers();
+  const activeLayerId = useUIStore((s) => s.activeLayerId);
+  const setActiveLayerId = useUIStore((s) => s.setActiveLayerId);
 
-  const activeFloorId = useUIStore((s) => s.activeFloorId);
-  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
-  const openTab = useUIStore((s) => s.openTab);
+  const updateLayerFlags = (layerId: number, nextVisible?: boolean, nextLocked?: boolean) => {
+    if (!runtime?.engine.setLayerProps) return;
+    const layer = layers.find((entry) => entry.id === layerId);
+    if (!layer) return;
 
-  const { isImportModalOpen, isLoading, importMode, openImportPdfModal, openImportDxfModal, closeImportModal, handleFileImport } = usePlanImport();
+    let mask = 0;
+    let flags = 0;
 
-  const activeTab = sidebarTab;
-  const setActiveTab = setSidebarTab;
+    const visible = nextVisible ?? layer.visible;
+    const locked = nextLocked ?? layer.locked;
 
-  useEffect(() => {
-    if (sidebarTab === 'edificacao' || sidebarTab === 'desenho' || sidebarTab === 'propriedades') {
-      setActiveDiscipline('architecture');
-    }
-  }, [sidebarTab, setActiveDiscipline]);
-  
-  // Context Menu State
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    discipline: 'architecture';
-    floorId: string;
-  } | null>(null);
+    if (nextVisible !== undefined) mask |= LayerPropMask.Visible;
+    if (nextLocked !== undefined) mask |= LayerPropMask.Locked;
 
-  // Draggable Scroll State
-  const navScrollRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const isDownRef = useRef(false);
-  const dragStartRef = useRef<{x: number, scrollLeft: number} | null>(null);
+    if (visible) flags |= EngineLayerFlags.Visible;
+    if (locked) flags |= EngineLayerFlags.Locked;
 
-  // Helper to get selected shape
-  const selectedEntityId = selectedEntityIds.values().next().value;
-  const selectedShapeId = selectedEntityId ? getShapeIdFromRegistry(selectedEntityId) : null;
-  const selectedShape = selectedShapeId ? dataStore.shapes[selectedShapeId] : undefined;
-
-  // --- Project Structure Definition ---
-  interface Floor {
-    id: string;
-    name: string;
-    disciplines: 'architecture'[];
-  }
-
-  const projectStructure: Floor[] = [
-    { id: 'terreo', name: 'Térreo', disciplines: ['architecture'] },
-    // Add more floors here as needed
-  ];
-
-  // --- Header Configuration ---
-  const getHeaderConfig = () => {
-      switch(activeTab) {
-          case 'edificacao': return { title: 'Edificacoes', icon: <Building2 className="text-blue-600" size={16} /> };
-          case 'desenho': return { title: 'Desenho', icon: <PenTool className="text-blue-600" size={16} /> };
-          case 'propriedades': return { title: 'Propriedades', icon: <SlidersHorizontal className="text-blue-600" size={16} /> };
-          case 'projeto': return { title: 'Projeto', icon: <FolderOpen className="text-blue-600" size={16} /> };
-          case 'camadas': return { title: 'Camadas', icon: <Layers className="text-blue-600" size={16} /> };
-          case 'ajustes': return { title: 'Ajustes', icon: <Settings className="text-blue-600" size={16} /> };
-          default: return { title: 'Menu', icon: <LayoutDashboard className="text-blue-600" size={16} /> };
-      }
+    runtime.engine.setLayerProps(layerId, mask, flags, layer.name);
   };
 
-  const headerConfig = getHeaderConfig();
-
-  // --- Scroll Handlers (Global for robust drag) ---
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!navScrollRef.current) return;
-    isDownRef.current = true;
-    dragStartRef.current = {
-        x: e.pageX,
-        scrollLeft: navScrollRef.current.scrollLeft
-    };
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    if (navScrollRef.current) {
-      navScrollRef.current.scrollLeft += e.deltaY;
-    }
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!isDownRef.current || !dragStartRef.current || !navScrollRef.current) return;
-        e.preventDefault();
-        const dx = e.pageX - dragStartRef.current.x;
-        
-        if (Math.abs(dx) > 5) {
-            if (!isDragging) setIsDragging(true);
-            navScrollRef.current.scrollLeft = dragStartRef.current.scrollLeft - dx * 1.5; 
-        }
-    };
-
-    const handleMouseUp = () => {
-        isDownRef.current = false;
-        dragStartRef.current = null;
-        if (isDragging) {
-            setTimeout(() => setIsDragging(false), 0);
-        }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    
-    if (isDragging) {
-        document.body.style.setProperty('cursor', 'grabbing', 'important');
-    }
-
-    return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-        if (isDragging) {
-            document.body.style.removeProperty('cursor');
-        }
-    };
-  }, [isDragging]);
-
-  // --- Render Functions for Tabs ---
-
-  const renderEdificacao = () => (
-    <div className="flex-grow overflow-y-auto p-3 flex flex-col gap-2 bg-white text-slate-700">
-        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1 cursor-default">
-            Plantas e Disciplinas
-        </h3>
-
-        {projectStructure.map((floor) => (
-            <div key={floor.id} className="flex flex-col gap-1">
-                {/* Floor Header */}
-                <div
-                    className={`flex items-center gap-2 p-2 rounded-md transition-colors cursor-default
-                                ${activeFloorId === floor.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}`}
-                >
-                    <Building2 size={16} />
-                    <span className="font-semibold text-xs">{floor.name}</span>
-                </div>
-
-                {/* Disciplines for the Floor */}
-                <div className="ml-4 border-l border-slate-300">
-                    {floor.disciplines.map((discipline) => (
-                        <div
-                            key={`${floor.id}-${discipline}`}
-                            className={`flex items-center gap-2 p-2 pl-3 text-xs rounded-r-md transition-colors cursor-pointer
-                                        ${activeFloorId === floor.id && activeDiscipline === discipline
-                                            ? 'bg-blue-100 text-blue-700 font-medium'
-                                            : 'hover:bg-slate-100'
-                                        }`}
-                            onClick={(e) => {
-                                openTab({ floorId: floor.id, discipline });
-                            }}
-                            onContextMenu={(e) => {
-                                e.preventDefault();
-                                setContextMenu({
-                                    visible: true,
-                                    x: e.clientX - 200,
-                                    y: e.clientY,
-                                    discipline,
-                                    floorId: floor.id
-                                });
-                            }}
-                        >
-                            <Workflow size={14} />
-                            <span>Arquitetura</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        ))}
-        
-        {contextMenu && contextMenu.visible && (
-            <DisciplineContextMenu
-                discipline={contextMenu.discipline}
-                floorId={contextMenu.floorId}
-                position={{ x: contextMenu.x, y: contextMenu.y }}
-                onClose={() => setContextMenu(null)}
-                onImportPdf={openImportPdfModal}
-                onImportDxf={openImportDxfModal}
-            />
-        )}
-
-        <button 
-            disabled 
-            className="w-full mt-2 border-2 border-dashed border-slate-200 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-300 cursor-not-allowed opacity-60"
-        >
-           <Plus size={14} />
-           <span className="text-xs font-medium">Adicionar Andar</span>
-        </button>
-
-        {isImportModalOpen && (
-            <ImportPlanModal
-                isOpen={isImportModalOpen}
-                mode={importMode}
-                isLoading={isLoading}
-                onClose={closeImportModal}
-                onImport={handleFileImport}
-                title={importMode === 'pdf' ? "Importar Planta (PDF/SVG)" : "Importar Planta (DXF)"}
-                accept={importMode === 'pdf' ? ".pdf,.svg" : ".dxf"}
-            />
-        )}
-    </div>
-  );
-
-  const renderDesenho = () => {
-    if (!selectedShape) {
-        return (
-            <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-                <MousePointer2 size={32} className="mb-4 opacity-20 shrink-0" />
-                <p className="text-xs">Selecione um objeto para editar.</p>
-            </div>
-        );
-    }
-
-    return (
-      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
-        <PositionProperties selectedShape={selectedShape} />
-        <DimensionProperties selectedShape={selectedShape} />
-        <StyleProperties selectedShape={selectedShape} />
-        {selectedShape.svgRaw && <PlanLayerControls shape={selectedShape} />}
-      </div>
-    );
-  };
-
-  const renderPropriedades = () => {
-    if (!selectedShape) {
-      return (
-        <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-          <SlidersHorizontal size={32} className="mb-4 opacity-20 shrink-0" />
-          <p className="text-xs">Selecione um objeto para ver suas propriedades.</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex-grow overflow-y-auto bg-white custom-scrollbar min-h-0">
-        <PositionProperties selectedShape={selectedShape} />
-        
-        {/* Plan / Reference Properties */}
-        {(selectedShape.svgRaw || selectedShape.discipline === 'architecture') && (
-            <PlanProperties selectedShape={selectedShape} />
-        )}
-
-        {/* Standard shapes (not imported plans/symbols) - show style/dimensions */}
-        {!selectedShape.svgRaw && (
-            <>
-                <DimensionProperties selectedShape={selectedShape} />
-                <StyleProperties selectedShape={selectedShape} />
-            </>
-        )}
-      </div>
-    );
+  const handleAddLayer = () => {
+    if (!runtime?.engine.setLayerProps) return;
+    const maxId = layers.reduce((max, layer) => Math.max(max, layer.id), 0);
+    const nextId = maxId + 1;
+    const flags = EngineLayerFlags.Visible;
+    runtime.engine.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
+    setActiveLayerId(nextId);
   };
 
   return (
-    <div className="w-64 min-w-[16rem] shrink-0 h-full bg-white border-l border-slate-300 flex flex-col shadow-sm text-slate-800 z-40 overflow-hidden select-none">
-      {/* Header */}
-      <div className="h-10 border-b border-slate-200 flex items-center px-3 gap-2 bg-slate-50 shrink-0 cursor-default">
-        {headerConfig.icon}
-        <span className="font-bold text-xs tracking-wide text-slate-700 uppercase">{headerConfig.title}</span>
-      </div>
-
-      {/* Conditional Content Area */}
-      <div key={activeTab} className="flex-grow flex flex-col overflow-hidden min-h-0">
-          {activeTab === 'edificacao' && renderEdificacao()}
-          {activeTab === 'desenho' && renderDesenho()}
-          {/* Other sections with proper icons */}
-          {activeTab === 'propriedades' && renderPropriedades()}
-          {activeTab === 'projeto' && (
-              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-                  <FolderOpen size={32} className="mb-4 opacity-20 shrink-0" />
-                  <p className="text-xs">Arquivos do projeto aparecerao aqui.</p>
-              </div>
-          )}
-          {activeTab === 'camadas' && (
-              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-                  <Layers size={32} className="mb-4 opacity-20 shrink-0" />
-                  <p className="text-xs">Use o gerenciador de camadas no ribbon.</p>
-              </div>
-          )}
-          {activeTab === 'ajustes' && (
-              <div className="flex-grow flex flex-col items-center justify-center text-slate-400 p-4 text-center min-h-0 overflow-hidden">
-                  <Settings size={32} className="mb-4 opacity-20 shrink-0" />
-                  <p className="text-xs">Configuracoes gerais do projeto.</p>
-              </div>
-          )}
-      </div>
-
-      {/* Bottom Navigation Tabs - Drag to Scroll Container */}
-      <div 
-        ref={navScrollRef}
-        onMouseDown={handleMouseDown}
-        onWheel={handleWheel}
-        className={`h-12 border-t border-slate-200 flex bg-white shrink-0 overflow-x-auto no-scrollbar ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
-        style={{ scrollBehavior: isDragging ? 'auto' : 'smooth' }}
-      >
-        <button 
-          onClick={() => !isDragging && setActiveTab('propriedades')}
-          title="Propriedades"
-          aria-label="Propriedades"
-          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'propriedades' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <SlidersHorizontal size={18} />
-        </button>
-        
-        <button 
-          onClick={() => !isDragging && setActiveTab('desenho')}
-          title="Desenho"
-          aria-label="Desenho"
-          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'desenho' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <PenTool size={18} />
-        </button>
-
-        <button 
-          onClick={() => !isDragging && setActiveTab('projeto')}
-          title="Projeto"
-          aria-label="Projeto"
-          className={`flex-none w-12 flex items-center justify-center hover:bg-slate-50 relative transition-colors duration-200 ${activeTab === 'projeto' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <FolderOpen size={18} />
-        </button>
-
-        <button 
-          onClick={() => !isDragging && setActiveTab('edificacao')}
-          title="Edificacao"
-          aria-label="Edificacao"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'edificacao' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <Building2 size={18} />
-        </button>
-
+    <aside className="w-64 bg-slate-900 text-slate-100 border-l border-slate-800 flex flex-col">
+      <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+        <span className="text-xs uppercase tracking-widest text-slate-400">{LABELS.sidebar.layers}</span>
         <button
-          onClick={() => !isDragging && setActiveTab('camadas')}
-          title="Camadas"
-          aria-label="Camadas"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'camadas' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
+          onClick={handleAddLayer}
+          className="h-6 w-6 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
+          title={LABELS.sidebar.newLayer}
         >
-          <Layers size={18} />
-        </button>
-
-        <button 
-          onClick={() => !isDragging && setActiveTab('ajustes')}
-          title="Ajustes"
-          aria-label="Ajustes"
-          className={`flex-none w-12 flex items-center justify-center relative hover:bg-slate-50 transition-colors duration-200 ${activeTab === 'ajustes' ? 'text-blue-600 bg-blue-50/50 sidebar-tab-active' : 'text-slate-500'} ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <Settings size={18} />
+          <Plus size={14} />
         </button>
       </div>
-    </div>
+      <div className="flex-1 overflow-y-auto">
+        {layers.map((layer) => (
+          <div
+            key={layer.id}
+            className={`flex items-center justify-between px-3 py-2 text-xs border-b border-slate-800 cursor-pointer ${
+              layer.id === activeLayerId ? 'bg-slate-800' : 'hover:bg-slate-800/60'
+            }`}
+            onClick={() => setActiveLayerId(layer.id)}
+          >
+            <div className="flex flex-col">
+              <span className="font-semibold">{layer.name || `Layer ${layer.id}`}</span>
+              <span className="text-[10px] text-slate-500">ID {layer.id}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateLayerFlags(layer.id, !layer.visible, undefined);
+                }}
+                className="p-1 text-slate-400 hover:text-white"
+                title={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
+              >
+                {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateLayerFlags(layer.id, undefined, !layer.locked);
+                }}
+                className="p-1 text-slate-400 hover:text-white"
+                title={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
+              >
+                {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
+              </button>
+            </div>
+          </div>
+        ))}
+        {layers.length === 0 && (
+          <div className="px-3 py-4 text-xs text-slate-500">{LABELS.common.none}</div>
+        )}
+      </div>
+    </aside>
   );
 };
 

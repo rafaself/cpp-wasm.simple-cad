@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Workflow, Lightbulb } from 'lucide-react';
-import { useUIStore, EditorTab } from '../../../stores/useUIStore';
+import { useUIStore } from '../../../stores/useUIStore';
+import { LABELS } from '@/i18n/labels';
 
 const EditorTabs: React.FC = () => {
   const openTabs = useUIStore(s => s.openTabs);
@@ -36,7 +37,7 @@ const EditorTabs: React.FC = () => {
             {tab.discipline === 'architecture' ? <Workflow size={12} /> : <Lightbulb size={12} />}
             <span>{floorName}</span>
             <span className="opacity-50 mx-1">|</span>
-            <span className="uppercase tracking-wider text-[10px]">{tab.discipline === 'architecture' ? 'Arq' : 'Elé'}</span>
+            <span className="uppercase tracking-wider text-[10px]">{tab.discipline === 'architecture' ? LABELS.disciplines.shortArchitecture : 'Elé'}</span>
             
             <button
               onClick={(e) => {

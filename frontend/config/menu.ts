@@ -87,13 +87,6 @@ export const MENU_CONFIG: MenuTab[] = [
       },
 
       {
-          title: 'Camadas',
-          layout: 'column',
-          items: [
-              { id: 'layer-control', label: 'Camadas', icon: 'Layers', type: 'component', componentName: 'LayerControl' }
-          ]
-      },
-      {
           title: 'Grid',
           layout: 'row',
           items: [

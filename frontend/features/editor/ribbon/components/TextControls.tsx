@@ -8,6 +8,7 @@ import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { getTextTool } from '../../../../engine/core/textEngineSync';
 import { TextStyleFlags } from '../../../../types/text';
+import { LABELS } from '@/i18n/labels';
 
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
@@ -71,9 +72,9 @@ export const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, a
 };
 
 const alignOptions = [
-  { align: 'left' as const, icon: <AlignLeft size={16} /> },
-  { align: 'center' as const, icon: <AlignCenterHorizontal size={16} /> },
-  { align: 'right' as const, icon: <AlignRight size={16} /> },
+  { align: 'left' as const, icon: <AlignLeft size={16} />, label: LABELS.text.alignLeft },
+  { align: 'center' as const, icon: <AlignCenterHorizontal size={16} />, label: LABELS.text.alignCenter },
+  { align: 'right' as const, icon: <AlignRight size={16} />, label: LABELS.text.alignRight },
 ];
 
 export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
@@ -106,13 +107,13 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   return (
     <InputWrapper className="items-center">
       <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
-        {alignOptions.map(({ align, icon }) => (
+        {alignOptions.map(({ align, icon, label }) => (
           <button
             key={align}
             onClick={() => handleClick(align)}
             onMouseDown={(e) => e.preventDefault()}
             className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
-            title={align}
+            title={label}
           >
             {icon}
           </button>
@@ -159,11 +160,11 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   const styleStates = engineStyles ?? fallbackStyles;
   const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
 
-  const options: Array<{ key: StyleKey; icon: React.ReactNode; state: StyleState; setter: (v: boolean) => void; recalc: boolean; mask: TextStyleFlags }> = [
-    { key: 'bold', icon: <Bold size={16} />, state: styleStates.bold, setter: setBold, recalc: true, mask: TextStyleFlags.Bold },
-    { key: 'italic', icon: <Italic size={16} />, state: styleStates.italic, setter: setItalic, recalc: true, mask: TextStyleFlags.Italic },
-    { key: 'underline', icon: <Underline size={16} />, state: styleStates.underline, setter: setUnderline, recalc: false, mask: TextStyleFlags.Underline },
-    { key: 'strike', icon: <Strikethrough size={16} />, state: styleStates.strike, setter: setStrike, recalc: false, mask: TextStyleFlags.Strikethrough },
+  const options: Array<{ key: StyleKey; icon: React.ReactNode; state: StyleState; setter: (v: boolean) => void; recalc: boolean; mask: TextStyleFlags; label: string }> = [
+    { key: 'bold', icon: <Bold size={16} />, state: styleStates.bold, setter: setBold, recalc: true, mask: TextStyleFlags.Bold, label: LABELS.text.bold },
+    { key: 'italic', icon: <Italic size={16} />, state: styleStates.italic, setter: setItalic, recalc: true, mask: TextStyleFlags.Italic, label: LABELS.text.italic },
+    { key: 'underline', icon: <Underline size={16} />, state: styleStates.underline, setter: setUnderline, recalc: false, mask: TextStyleFlags.Underline, label: LABELS.text.underline },
+    { key: 'strike', icon: <Strikethrough size={16} />, state: styleStates.strike, setter: setStrike, recalc: false, mask: TextStyleFlags.Strikethrough, label: LABELS.text.strike },
   ];
 
   const handleClick = (option: typeof options[number]) => {
@@ -206,7 +207,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
             onClick={() => handleClick(option)}
             onMouseDown={(e) => e.preventDefault()}
             className={`w-8 h-full ${BUTTON_STYLES.centered} ${stateClass}`}
-            title={option.key}
+            title={option.label}
           >
             {option.icon}
           </button>

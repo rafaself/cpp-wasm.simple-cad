@@ -3,11 +3,8 @@
  * Pure functions extracted from EngineInteractionLayer for reusability.
  */
 
-import type { Shape, ViewTransform, Point } from '@/types';
-import { screenToWorld, isPointInShape } from '@/utils/geometry';
-import { useDataStore } from '@/stores/useDataStore';
-import { useUIStore } from '@/stores/useUIStore';
-import { isShapeInteractable } from '@/utils/visibility';
+import type { ViewTransform, Point } from '@/types';
+import { screenToWorld } from '@/utils/viewportMath';
 
 /**
  * Convert pointer event to world coordinates.
@@ -26,13 +23,7 @@ export const toWorldPoint = (
  */
 export const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 
-/**
- * Snap a point to the nearest grid intersection.
- */
-export const snapToGrid = (p: Point, gridSize: number): Point => {
-  if (!gridSize || gridSize <= 0) return p;
-  return { x: Math.round(p.x / gridSize) * gridSize, y: Math.round(p.y / gridSize) * gridSize };
-};
+
 
 /**
  * Determine if a movement qualifies as a drag (vs click).
