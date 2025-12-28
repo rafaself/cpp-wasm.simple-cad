@@ -1,1 +1,1 @@
-Ignore this folder /resources.
+Ignore this folder /prompts and /plans.

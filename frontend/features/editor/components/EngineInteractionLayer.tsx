@@ -823,16 +823,20 @@ const EngineInteractionLayer: React.FC = () => {
       );
     }
 
-    const pts = draft.points;
-    const pathPts = [...pts, ...(draft.current ? [draft.current] : [])].map((p) => worldToScreen(p, viewTransform));
-    const d = pathPts
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
-      .join(' ');
-    return (
-      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-      </svg>
-    );
+    if (draft.kind === 'polyline') {
+      const pts = draft.points;
+      const pathPts = [...pts, ...(draft.current ? [draft.current] : [])].map((p) => worldToScreen(p, viewTransform));
+      const d = pathPts
+        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+        .join(' ');
+      return (
+        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
+        </svg>
+      );
+    }
+
+    return null;
   }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform, toolDefaults.polygonSides]);
 
   return (

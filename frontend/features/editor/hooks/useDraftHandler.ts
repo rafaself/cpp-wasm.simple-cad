@@ -5,10 +5,13 @@ import { CommandOp, type EngineCommand, type BeginDraftPayload } from '@/engine/
 import { hexToRgb } from '@/utils/color';
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { EntityId } from '@/engine/core/protocol';
-import { EntityKind } from '@/engine/types'; // Assuming this maps to C++ EntityKind
+import { EntityKind } from '../../../engine/types';
 
-// Legacy Draft type kept for compatibility but effectively unused for rendering
-export type Draft = { kind: 'none' }; // Reduced to minimal
+// Legacy Draft type kept for compatibility and UI state tracking
+export type Draft = 
+  | { kind: 'none' }
+  | { kind: 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
+  | { kind: 'polyline'; points: { x: number; y: number }[]; current?: { x: number; y: number } };
 
 const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 
@@ -27,7 +30,7 @@ export function useDraftHandler(params: {
 }) {
   const { activeTool, onFinalizeDraw, activeLayerId, runtime } = params;
 
-  // We no longer track draft geometry in React. Engine handles it.
+  // Track draft geometry for UI state
   const [draft, setDraft] = useState<Draft>({ kind: 'none' });
   const [polygonSidesModal, setPolygonSidesModal] = useState<{ center: { x: number; y: number } } | null>(null);
   const [polygonSidesValue, setPolygonSidesValue] = useState<number>(3);
@@ -50,6 +53,7 @@ export function useDraftHandler(params: {
       if (runtime) {
           runtime.apply([{ op: CommandOp.CancelDraft }]);
       }
+      setDraft({ kind: 'none' });
   };
 
   // Reset transient drawing state when switching tools
@@ -64,19 +68,24 @@ export function useDraftHandler(params: {
     let sides = 0;
     let head = 0;
 
-    if (activeTool === 'line') kind = 2; // EntityKind::Line
-    else if (activeTool === 'rect') kind = 1; // EntityKind::Rect
-    else if (activeTool === 'circle') kind = 7; // EntityKind::Circle
+    if (activeTool === 'line') kind = EntityKind.Line;
+    else if (activeTool === 'rect') kind = EntityKind.Rect;
+    else if (activeTool === 'circle') kind = EntityKind.Circle;
     else if (activeTool === 'polygon') {
-        kind = 8; // EntityKind::Polygon
+        kind = EntityKind.Polygon;
         sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
     }
-    else if (activeTool === 'polyline') kind = 3; // EntityKind::Polyline
+    else if (activeTool === 'polyline') kind = EntityKind.Polyline;
     else if (activeTool === 'arrow') {
-        kind = 9; // EntityKind::Arrow
+        kind = EntityKind.Arrow;
         head = Math.round(Math.max(16, (toolDefaults.strokeWidth ?? 2) * 10) * 1.1);
     }
     else return;
+
+    // Polyline multi-segment logic: don't restart if active
+    if (activeTool === 'polyline' && draft.kind === 'polyline') {
+        return;
+    }
 
     const style = buildDraftStyle();
 
@@ -92,25 +101,38 @@ export function useDraftHandler(params: {
             ...style
         }
     }]);
+
+    // Update local state
+    if (activeTool === 'polyline') {
+        setDraft({ kind: 'polyline', points: [snapped], current: snapped });
+    } else if (activeTool === 'text') {
+        // Text handled externally usually, but if we are here...
+    } else if (kind !== 0) {
+        // Map activeTool to draft kind where possible
+        // Simple fallback for visual state tracking
+        const k = activeTool === 'circle' ? 'ellipse' : activeTool;
+        setDraft({ kind: k, start: snapped, current: snapped } as any);
+    }
   };
 
   const handlePointerMove = (snapped: { x: number; y: number }, shiftKey: boolean) => {
     if (!runtime) return;
     // We send UpdateDraft constantly. 
     // Optimization: we could throttle this, but for now 60fps cmd buffer is fine.
-    // Logic for "Shift key" (square/circle) inside engine is missing.
-    // For Phase 2, we accept losing Shift-constrain OR we calculate constrained pos here.
-    
-    // TODO: Implement Shift-constrain logic in JS and send constrained coord to UpdateDraft.
-    // Or send Shift flag to Engine? CommandOp doesn't support modifiers yet.
-    // We'll calculate here (simple). But "start" position is hidden in Engine. 
-    // We can't robustly constrain without knowing start. 
-    // We'll skip Shift-constrain for now or rely on a future "UpdateInput" command.
     
     runtime.apply([{
         op: CommandOp.UpdateDraft,
         pos: { x: snapped.x, y: snapped.y }
     }]);
+
+    // Update local state for tracking
+    if (draft.kind !== 'none') {
+        setDraft((prev) => {
+           if (prev.kind === 'none') return prev;
+           if (prev.kind === 'polyline') return { ...prev, current: snapped };
+           return { ...prev, current: snapped };
+        });
+    }
   };
 
   const handlePointerUp = (snapped: { x: number; y: number }, clickNoDrag: boolean) => {
@@ -122,9 +144,12 @@ export function useDraftHandler(params: {
             op: CommandOp.AppendDraftPoint,
             pos: { x: snapped.x, y: snapped.y }
         }]);
-        // TODO: detecting "finish" (e.g. double click or Enter) is handled outside this hook usually?
-        // Or if clicked on start point?
-        // For now, let's assume external "Enter" key commits.
+        
+        // Update local state
+        setDraft(prev => {
+             if (prev.kind !== 'polyline') return prev; 
+             return { ...prev, points: [...prev.points, snapped] };
+        });
         return;
     }
 
@@ -140,8 +165,6 @@ export function useDraftHandler(params: {
     // For other tools, pointer up means commit
     if (clickNoDrag) {
         // Create default shape
-        // We already started draft at P, updated at P.
-        // We need to update at P + 50.
         runtime.apply([
             { op: CommandOp.UpdateDraft, pos: { x: snapped.x + 50, y: snapped.y + 50 } },
             { op: CommandOp.CommitDraft }
@@ -149,6 +172,7 @@ export function useDraftHandler(params: {
     } else {
         runtime.apply([{ op: CommandOp.CommitDraft }]);
     }
+    setDraft({ kind: 'none' });
   };
 
   // Helper for Polyline finish (e.g. on Enter key)
@@ -156,6 +180,7 @@ export function useDraftHandler(params: {
       // If we are in engine draft mode, we just commit.
       // Ignoring arguments for legacy compat if called from outside.
       if (runtime) runtime.apply([{ op: CommandOp.CommitDraft }]);
+      setDraft({ kind: 'none' });
   };
 
   const commitDefaultPolygonAt = (center: { x: number; y: number }, sides: number) => {
@@ -164,14 +189,11 @@ export function useDraftHandler(params: {
       // Use direct upsert for one-shot creation
       const engineId = runtime.allocateEntityId();
       const style = buildDraftStyle();
-      // Need construct PolygonPayload... it's verbose. 
-      // Reuse BeginDraft logic? 
-      // runtime.apply([Begin -> Update -> Commit])
       runtime.apply([
           { 
             op: CommandOp.BeginDraft, 
             draft: { 
-                kind: 8, // Polygon
+                kind: EntityKind.Polygon,
                 x: center.x - r, y: center.y - r, 
                 sides, head: 0, 
                 ...style 
@@ -183,8 +205,8 @@ export function useDraftHandler(params: {
   };
 
   return {
-    draft, // Always none
-    setDraft, // No-op
+    draft,
+    setDraft,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
