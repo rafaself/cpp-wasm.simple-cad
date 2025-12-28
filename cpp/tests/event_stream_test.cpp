@@ -44,10 +44,11 @@ TEST(EventStreamTest, PollRespectsMaxEvents) {
     EXPECT_EQ(eventsA[1].type, static_cast<std::uint16_t>(CadEngine::EventType::EntityCreated));
 
     auto metaB = engine.pollEvents(2);
-    ASSERT_EQ(metaB.count, 1u);
+    ASSERT_EQ(metaB.count, 2u);
     const auto* eventsB = reinterpret_cast<const CadEngine::EngineEvent*>(metaB.ptr);
     ASSERT_NE(eventsB, nullptr);
     EXPECT_EQ(eventsB[0].type, static_cast<std::uint16_t>(CadEngine::EventType::OrderChanged));
+    EXPECT_EQ(eventsB[1].type, static_cast<std::uint16_t>(CadEngine::EventType::HistoryChanged));
 }
 
 TEST(EventStreamTest, OverflowTriggersResyncAck) {

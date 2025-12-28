@@ -55,7 +55,7 @@ namespace {
 
     bool isEntityVisibleForRender(void* ctx, std::uint32_t id) {
         const auto* engine = static_cast<const CadEngine*>(ctx);
-        return engine ? (engine->getEntityFlags(id) & static_cast<std::uint32_t>(EntityFlags::Visible)) : true;
+        return engine ? engine->entityManager_.isEntityVisible(id) : true;
     }
 
     constexpr std::uint64_t kDigestOffset = 14695981039346656037ull;
@@ -695,18 +695,35 @@ void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, st
     }
     entityManager_.layerStore.ensureLayer(layerId);
 
-    const std::uint32_t visibleMask = static_cast<std::uint32_t>(LayerPropMask::Visible);
-    const std::uint32_t lockedMask = static_cast<std::uint32_t>(LayerPropMask::Locked);
+    const std::uint32_t visiblePropMask = static_cast<std::uint32_t>(LayerPropMask::Visible);
+    const std::uint32_t lockedPropMask = static_cast<std::uint32_t>(LayerPropMask::Locked);
     const std::uint32_t nameMask = static_cast<std::uint32_t>(LayerPropMask::Name);
-    const std::uint32_t flagMask = (propsMask & (visibleMask | lockedMask));
+    
+    // Translate LayerPropMask to LayerFlags
+    // LayerPropMask::Visible (1<<1=2) -> LayerFlags::Visible (1<<0=1)
+    // LayerPropMask::Locked (1<<2=4) -> LayerFlags::Locked (1<<1=2)
+    std::uint32_t translatedMask = 0;
+    std::uint32_t translatedValue = 0;
+    if (propsMask & visiblePropMask) {
+        translatedMask |= static_cast<std::uint32_t>(LayerFlags::Visible);
+        if (flagsValue & visiblePropMask) {
+            translatedValue |= static_cast<std::uint32_t>(LayerFlags::Visible);
+        }
+    }
+    if (propsMask & lockedPropMask) {
+        translatedMask |= static_cast<std::uint32_t>(LayerFlags::Locked);
+        if (flagsValue & lockedPropMask) {
+            translatedValue |= static_cast<std::uint32_t>(LayerFlags::Locked);
+        }
+    }
 
     bool visibilityChanged = false;
     bool lockedChanged = false;
     bool nameChanged = false;
 
-    if (flagMask != 0) {
+    if (translatedMask != 0) {
         const std::uint32_t prevFlags = entityManager_.layerStore.getLayerFlags(layerId);
-        entityManager_.layerStore.setLayerFlags(layerId, flagMask, flagsValue);
+        entityManager_.layerStore.setLayerFlags(layerId, translatedMask, translatedValue);
         const std::uint32_t nextFlags = entityManager_.layerStore.getLayerFlags(layerId);
         visibilityChanged = ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(LayerFlags::Visible)) != 0;
         lockedChanged = ((prevFlags ^ nextFlags) & static_cast<std::uint32_t>(LayerFlags::Locked)) != 0;
@@ -728,8 +745,8 @@ void CadEngine::setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, st
     }
 
     const std::uint32_t changedMask =
-        (visibilityChanged ? visibleMask : 0)
-        | (lockedChanged ? lockedMask : 0)
+        (visibilityChanged ? visiblePropMask : 0)
+        | (lockedChanged ? lockedPropMask : 0)
         | (nameChanged ? nameMask : 0);
 
     if (changedMask != 0) {
@@ -1037,8 +1054,8 @@ CadEngine::EntityAabb CadEngine::getEntityAabb(std::uint32_t entityId) const {
         case EntityKind::Rect: {
             if (it->second.index >= entityManager_.rects.size()) break;
             const RectRec& r = entityManager_.rects[it->second.index];
-            const AABB aabb = PickSystem::computeRectAABB(r);
-            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+            // Use actual rect bounds, not the conservative PickSystem AABB
+            return EntityAabb{r.x, r.y, r.x + r.w, r.y + r.h, 1};
         }
         case EntityKind::Circle: {
             if (it->second.index >= entityManager_.circles.size()) break;
