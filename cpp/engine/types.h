@@ -222,6 +222,8 @@ enum class CommandOp : std::uint32_t {
     SetTextSelection = 17,
     InsertTextContent = 18,   // Insert text at caret position
     DeleteTextContent = 19,   // Delete text range
+    BeginDraft = 20,
+    UpdateDraft = 21,
     CommitDraft = 22,
     CancelDraft = 23,
     AppendDraftPoint = 24,

@@ -734,44 +734,12 @@ const EngineInteractionLayer: React.FC = () => {
     if (draft.kind === 'none') return null;
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
 
-    const stroke = toolDefaults.strokeColor || '#22c55e';
-    const strokeWidth = Math.max(1, toolDefaults.strokeWidth ?? 2);
-
-    if (draft.kind === 'line') {
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
-
-    if (draft.kind === 'arrow') {
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
-
-    if (draft.kind === 'rect') {
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      const x = Math.min(a.x, b.x);
-      const y = Math.min(a.y, b.y);
-      const w = Math.abs(a.x - b.x);
-      const h = Math.abs(a.y - b.y);
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <rect x={x} y={y} width={w} height={h} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
+    // Engine handles Line, Rect, Circle/Ellipse, Polygon, Arrow, Polyline drafts now.
+    // We only keep Text draft visualization here until it moves to engine.
 
     if (draft.kind === 'text') {
+      const stroke = toolDefaults.strokeColor || '#22c55e';
+      const strokeWidth = Math.max(1, toolDefaults.strokeWidth ?? 2);
       const a = worldToScreen(draft.start, viewTransform);
       const b = worldToScreen(draft.current, viewTransform);
       const x = Math.min(a.x, b.x);
@@ -785,59 +753,8 @@ const EngineInteractionLayer: React.FC = () => {
       );
     }
 
-    if (draft.kind === 'ellipse') {
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      const x = Math.min(a.x, b.x);
-      const y = Math.min(a.y, b.y);
-      const w = Math.abs(a.x - b.x);
-      const h = Math.abs(a.y - b.y);
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
-
-    if (draft.kind === 'polygon') {
-      const sides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
-      const a = worldToScreen(draft.start, viewTransform);
-      const b = worldToScreen(draft.current, viewTransform);
-      const x = Math.min(a.x, b.x);
-      const y = Math.min(a.y, b.y);
-      const w = Math.abs(a.x - b.x);
-      const h = Math.abs(a.y - b.y);
-      const cx = x + w / 2;
-      const cy = y + h / 2;
-      const rx = w / 2;
-      const ry = h / 2;
-      const pts = Array.from({ length: sides }, (_, i) => {
-        const t = (i / sides) * Math.PI * 2 - Math.PI / 2;
-        return { x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry };
-      });
-      const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <polygon points={pointsAttr} fill="transparent" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
-
-    if (draft.kind === 'polyline') {
-      const pts = draft.points;
-      const pathPts = [...pts, ...(draft.current ? [draft.current] : [])].map((p) => worldToScreen(p, viewTransform));
-      const d = pathPts
-        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
-        .join(' ');
-      return (
-        <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} opacity={0.9} />
-        </svg>
-      );
-    }
-
     return null;
-  }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform, toolDefaults.polygonSides]);
+  }, [canvasSize.height, canvasSize.width, draft, toolDefaults.strokeColor, toolDefaults.strokeWidth, viewTransform]);
 
   return (
     <div

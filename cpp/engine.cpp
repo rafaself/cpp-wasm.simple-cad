@@ -2611,7 +2611,8 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->deleteEntity(id);
             break;
         }
-        case static_cast<std::uint32_t>(CommandOp::SetViewScale):                if (payloadByteCount != sizeof(ViewScalePayload)) return EngineError::InvalidPayloadSize;
+        case static_cast<std::uint32_t>(CommandOp::SetViewScale): {
+            if (payloadByteCount != sizeof(ViewScalePayload)) return EngineError::InvalidPayloadSize;
                 ViewScalePayload p;
                 std::memcpy(&p, payload, sizeof(ViewScalePayload));
                 // Basic validation
@@ -3771,12 +3772,6 @@ void CadEngine::rebuildRenderBuffers() const {
     const double t0 = emscripten_get_now();
     rebuildAllGeometryCount_++;
     
-    addGridToBuffers();
-    addDraftToBuffers(); // Render draft on top of grid, but below entities? Or on top of entities?
-    // Usually draft is on top. If we call it HERE, it's BEFORE entities rebuild. 
-    // Wait, rebuildRenderBuffers CLEARS vectors first?
-    // engine::rebuildRenderBuffers clears them. So we should call AFTER.
-    
     engine::rebuildRenderBuffers(
         entityManager_.rects,
         entityManager_.lines,
@@ -3794,6 +3789,9 @@ void CadEngine::rebuildRenderBuffers() const {
         &isEntityVisibleForRender,
         &renderRanges_
     );
+    
+    addGridToBuffers();
+    addDraftToBuffers();
     renderDirty = false;
     pendingFullRebuild_ = false;
     
