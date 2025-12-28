@@ -222,6 +222,9 @@ enum class CommandOp : std::uint32_t {
     SetTextSelection = 17,
     InsertTextContent = 18,   // Insert text at caret position
     DeleteTextContent = 19,   // Delete text range
+    CommitDraft = 22,
+    CancelDraft = 23,
+    AppendDraftPoint = 24,
     ApplyTextStyle = 42,      // TEXT_APPLY_STYLE (0x2A)
     SetTextAlign = 43,        // TEXT_SET_ALIGN (0x2B)
 };
@@ -247,7 +250,7 @@ struct DrawOrderPayloadHeader {
     std::uint32_t reserved;
 };
 
-struct ViewScalePayload { float scale; };
+struct ViewScalePayload { float x, y, scale, width, height; };
 
 struct CirclePayload {
     float cx, cy;
@@ -345,5 +348,18 @@ struct TextAlignmentPayload {
     std::uint8_t align;         // TextAlign enum
     std::uint8_t reserved[3];
 };
+
+struct BeginDraftPayload {
+    std::uint32_t kind;
+    float x, y;
+    float fillR, fillG, fillB, fillA;
+    float strokeR, strokeG, strokeB, strokeA;
+    float strokeEnabled;
+    float strokeWidthPx;
+    float sides;
+    float head;
+};
+
+struct UpdateDraftPayload { float x, y; };
 
 #endif // ELETROCAD_ENGINE_TYPES_H

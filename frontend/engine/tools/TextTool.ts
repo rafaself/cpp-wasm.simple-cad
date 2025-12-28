@@ -79,7 +79,6 @@ export interface TextToolCallbacks {
   /** Called when text content/bounds are updated */
   onTextUpdated?: (
     textId: number,
-    content: string,
     bounds: { width: number; height: number },
     boxMode: TextBoxMode,
     constraintWidth: number,
@@ -656,7 +655,6 @@ export class TextTool {
 
     this.callbacks.onTextUpdated?.(
       textId,
-      contentAfterEdit,
       { width: estimatedWidth, height: estimatedHeight },
       this.state.boxMode,
       this.state.constraintWidth
@@ -770,7 +768,6 @@ export class TextTool {
     if (bounds && bounds.valid) {
       this.callbacks.onTextUpdated?.(
         textId,
-        currentContent,
         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
         this.state.boxMode,
         this.state.constraintWidth
@@ -950,7 +947,6 @@ export class TextTool {
        
        this.callbacks.onTextUpdated?.(
          textId,
-         content,
          { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
          boxMode,
          constraint

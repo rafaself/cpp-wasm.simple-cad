@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ViewTransform } from '@/types';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -9,41 +9,37 @@ import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/t
 import { registerTextTool, registerTextMapping, unregisterTextMappingByShapeId, setTextMeta } from '@/engine/core/textEngineSync';
 import { SelectionMode } from '@/engine/core/protocol';
 
-// NOTE: TextBoxMeta type removed — now using getTextMeta() from textEngineSync.ts directly
-
 export function useTextEditHandler(params: {
   viewTransform: ViewTransform;
   runtime: any;
   textInputProxyRef: React.RefObject<TextInputProxyRef>;
   textToolRef: React.MutableRefObject<TextTool | null>;
 }) {
-  const { runtime, textInputProxyRef, textToolRef } = params;
+  const { runtime, textToolRef, textInputProxyRef } = params;
 
   const { caret, selectionRects, anchor, rotation, setCaret: setCaretPosition, hideCaret, clearSelection, setSelection } = useTextCaret();
+  
   const engineTextEditState = useUIStore((s) => s.engineTextEditState);
   const setEngineTextEditActive = useUIStore((s) => s.setEngineTextEditActive);
-  const setEngineTextEditContent = useUIStore((s) => s.setEngineTextEditContent);
-  const setEngineTextEditCaret = useUIStore((s) => s.setEngineTextEditCaret);
+  const bumpEngineTextEditGeneration = useUIStore((s) => s.bumpEngineTextEditGeneration);
   const setEngineTextEditCaretPosition = useUIStore((s) => s.setEngineTextEditCaretPosition);
   const clearEngineTextEdit = useUIStore((s) => s.clearEngineTextEdit);
   const setEngineTextStyleSnapshot = useUIStore((s) => s.setEngineTextStyleSnapshot);
   const clearEngineTextStyleSnapshot = useUIStore((s) => s.clearEngineTextStyleSnapshot);
+  
   const ribbonTextDefaults = useSettingsStore((s) => s.toolDefaults.text);
 
   // Initialize TextTool
   useEffect(() => {
     if (!runtime) return;
 
-    // Store tool reference for callbacks to access content via engine
-    let toolInstance: TextTool | null = null;
-
     const callbacks: TextToolCallbacks = {
       onStateChange: (state: TextToolState) => {
         setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
-        // Get content from engine via tool instead of state.content (removed for Engine-First)
-        const content = toolInstance?.getContent() ?? '';
-        setEngineTextEditContent(content);
-        setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
+        
+        // Signal content update to consumers (e.g. TextInputProxy)
+        bumpEngineTextEditGeneration();
+
         if (state.mode === 'idle') {
           clearEngineTextStyleSnapshot();
         }
@@ -65,10 +61,9 @@ export function useTextEditHandler(params: {
         clearSelection();
         useUIStore.getState().setTool('select');
       },
-      onTextCreated: (shapeId: string, textId: number, _x: number, _y: number, boxMode: TextBoxMode, constraintWidth: number, _initialWidth: number, _initialHeight: number) => {
+      onTextCreated: (shapeId: string, textId: number, _x: number, _y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
         registerTextMapping(textId, shapeId);
         setTextMeta(textId, boxMode, constraintWidth);
-        // NOTE: textBoxMetaRef removed — using setTextMeta/getTextMeta (Engine-First)
 
         const currentLayerId = useUIStore.getState().activeLayerId;
         if (currentLayerId !== null && runtime?.engine?.setEntityLayer) {
@@ -79,29 +74,25 @@ export function useTextEditHandler(params: {
           runtime.setSelection([textId], SelectionMode.Replace);
         }
       },
-      onTextUpdated: (textId: number, _content: string, _bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
-        // Just update the meta in IdRegistry — no more duplicate cache
+      onTextUpdated: (textId: number, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
         setTextMeta(textId, boxMode, constraintWidth);
       },
       onTextDeleted: (textId: number) => {
-        // Unregister will also clear meta from IdRegistry
         unregisterTextMappingByShapeId(`entity-${textId}`);
       },
     };
 
     const tool = createTextTool(callbacks);
-    toolInstance = tool;  // Set closure reference for callbacks
     if (tool.initialize(runtime)) {
       textToolRef.current = tool;
       registerTextTool(tool);
 
+      // Load fonts
       void (async () => {
         const loadFromUrl = async (fontId: number, url: string) => {
           try {
             const res = await fetch(url);
-            if (!res.ok) {
-              return;
-            }
+            if (!res.ok) return;
             const buf = await res.arrayBuffer();
             tool.loadFont(fontId, new Uint8Array(buf));
           } catch {
@@ -111,7 +102,6 @@ export function useTextEditHandler(params: {
 
         const baseUrl = import.meta.env.BASE_URL || '/';
         const publicUrl = (path: string) => `${baseUrl}${path.replace(/^\//, '')}`;
-
         const sansTtf = publicUrl('/fonts/DejaVuSans.ttf');
         const serifTtf = publicUrl('/fonts/DejaVuSerif.ttf');
 
@@ -126,8 +116,22 @@ export function useTextEditHandler(params: {
       registerTextTool(null);
       textToolRef.current = null;
     };
-  }, [runtime, setEngineTextEditActive, setEngineTextEditContent, setEngineTextEditCaret, setCaretPosition, setEngineTextEditCaretPosition, clearEngineTextEdit, hideCaret, clearSelection, clearEngineTextStyleSnapshot, setSelection, setEngineTextStyleSnapshot]);
+  }, [
+    runtime, 
+    setEngineTextEditActive, 
+    bumpEngineTextEditGeneration, 
+    setCaretPosition, 
+    setEngineTextEditCaretPosition, 
+    clearEngineTextEdit, 
+    hideCaret, 
+    clearSelection, 
+    clearEngineTextStyleSnapshot, 
+    setSelection, 
+    setEngineTextStyleSnapshot,
+    textToolRef
+  ]);
 
+  // Sync tool defaults
   useEffect(() => {
     const tool = textToolRef.current;
     if (!tool) return;
@@ -159,8 +163,9 @@ export function useTextEditHandler(params: {
       align,
       colorRGBA: packColorRGBA(1, 1, 1, 1),
     });
-  }, [ribbonTextDefaults]);
+  }, [ribbonTextDefaults, textToolRef]);
 
+  // Focus helper
   useEffect(() => {
     if (!engineTextEditState.active) return;
     requestAnimationFrame(() => {

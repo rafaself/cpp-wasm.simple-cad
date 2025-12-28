@@ -2611,14 +2611,18 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
             self->deleteEntity(id);
             break;
         }
-        case static_cast<std::uint32_t>(CommandOp::SetViewScale): {
-            if (payloadByteCount != sizeof(ViewScalePayload)) return EngineError::InvalidPayloadSize;
-            ViewScalePayload p;
-            std::memcpy(&p, payload, sizeof(ViewScalePayload));
-            const float s = (p.scale > 1e-6f && std::isfinite(p.scale)) ? p.scale : 1.0f;
-            self->viewScale = s;
-            self->renderDirty = true;
-            break;
+        case static_cast<std::uint32_t>(CommandOp::SetViewScale):                if (payloadByteCount != sizeof(ViewScalePayload)) return EngineError::InvalidPayloadSize;
+                ViewScalePayload p;
+                std::memcpy(&p, payload, sizeof(ViewScalePayload));
+                // Basic validation
+                const float s = (p.scale > 1e-6f && std::isfinite(p.scale)) ? p.scale : 1.0f;
+                self->viewScale = s;
+                self->viewX = p.x;
+                self->viewY = p.y;
+                self->viewWidth = p.width;
+                self->viewHeight = p.height;
+                self->renderDirty = true;
+                break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetDrawOrder): {
             if (payloadByteCount < sizeof(DrawOrderPayloadHeader)) return EngineError::InvalidPayloadSize;
@@ -2808,6 +2812,35 @@ EngineError CadEngine::cad_command_callback(void* ctx, std::uint32_t op, std::ui
         }
         default:
             return EngineError::UnknownCommand;
+        case static_cast<std::uint32_t>(CommandOp::BeginDraft): {
+            if (payloadByteCount != sizeof(BeginDraftPayload)) return EngineError::InvalidPayloadSize;
+            BeginDraftPayload p;
+            std::memcpy(&p, payload, sizeof(BeginDraftPayload));
+            self->beginDraft(p);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::UpdateDraft): {
+            if (payloadByteCount != sizeof(UpdateDraftPayload)) return EngineError::InvalidPayloadSize;
+            UpdateDraftPayload p;
+            std::memcpy(&p, payload, sizeof(UpdateDraftPayload));
+            self->updateDraft(p.x, p.y);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::AppendDraftPoint): {
+            if (payloadByteCount != sizeof(UpdateDraftPayload)) return EngineError::InvalidPayloadSize;
+            UpdateDraftPayload p;
+            std::memcpy(&p, payload, sizeof(UpdateDraftPayload));
+            self->appendDraftPoint(p.x, p.y);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::CommitDraft): {
+            self->commitDraft();
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::CancelDraft): {
+            self->cancelDraft();
+            break;
+        }
     }
     return EngineError::Ok;
 }
@@ -3669,6 +3702,64 @@ void CadEngine::addRectOutline(float x, float y, float w, float h) const {
     addLineSegment(x1, y0, x1, y1, z);
     addLineSegment(x1, y1, x0, y1, z);
     addLineSegment(x0, y1, x0, y0, z);
+    addLineSegment(x0, y1, x0, y0, z);
+}
+
+void CadEngine::addGridToBuffers() const {
+    if (!snapOptions_.enabled || !snapOptions_.gridEnabled || snapOptions_.gridSize <= 0.001f) {
+        return;
+    }
+    // Simple safeguard against invalid view
+    if (viewScale <= 1e-6f || viewWidth <= 0.0f || viewHeight <= 0.0f) return;
+
+    const float s = viewScale;
+    // Visible world area
+    const float minX = -viewX / s;
+    const float minY = -viewY / s;
+    const float maxX = (viewWidth - viewX) / s;
+    const float maxY = (viewHeight - viewY) / s;
+
+    // Expand slightly to cover fully
+    const float margin = snapOptions_.gridSize;
+    const float startX = std::floor((minX - margin) / snapOptions_.gridSize) * snapOptions_.gridSize;
+    const float startY = std::floor((minY - margin) / snapOptions_.gridSize) * snapOptions_.gridSize;
+    const float endX = maxX + margin;
+    const float endY = maxY + margin;
+
+    // Grid Color: Light Gray, modest alpha
+    const float r = 0.5f;
+    const float g = 0.5f;
+    const float b = 0.5f;
+    const float a = 0.3f; 
+
+    auto pushV = [&](float x, float y) {
+        lineVertices.push_back(x);
+        lineVertices.push_back(y);
+        lineVertices.push_back(0.0f); // z
+        lineVertices.push_back(r);
+        lineVertices.push_back(g);
+        lineVertices.push_back(b);
+        lineVertices.push_back(a);
+    };
+
+    // Limit grid lines to avoid freezing on massive zoom out
+    const float width = endX - startX;
+    const float height = endY - startY;
+    const float estLines = (width + height) / snapOptions_.gridSize;
+    
+    // Draw grid
+    if (estLines < 5000) {
+        // Vertical lines
+        for (float x = startX; x <= endX; x += snapOptions_.gridSize) {
+            pushV(x, startY);
+            pushV(x, endY);
+        }
+        // Horizontal lines
+        for (float y = startY; y <= endY; y += snapOptions_.gridSize) {
+            pushV(startX, y);
+            pushV(endX, y);
+        }
+    }
 }
 
 void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) const {
@@ -3679,6 +3770,12 @@ void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) 
 void CadEngine::rebuildRenderBuffers() const {
     const double t0 = emscripten_get_now();
     rebuildAllGeometryCount_++;
+    
+    addGridToBuffers();
+    addDraftToBuffers(); // Render draft on top of grid, but below entities? Or on top of entities?
+    // Usually draft is on top. If we call it HERE, it's BEFORE entities rebuild. 
+    // Wait, rebuildRenderBuffers CLEARS vectors first?
+    // engine::rebuildRenderBuffers clears them. So we should call AFTER.
     
     engine::rebuildRenderBuffers(
         entityManager_.rects,
@@ -4295,6 +4392,169 @@ void CadEngine::beginTransform(
 
     if (session_.initialIds.empty()) {
         session_.active = false;
+    }
+}
+
+// ==============================================================================
+// Draft System Implementation
+// ==============================================================================
+
+void CadEngine::beginDraft(const BeginDraftPayload& p) {
+    draft_.active = true;
+    draft_.kind = p.kind;
+    draft_.startX = p.x;
+    draft_.startY = p.y;
+    draft_.currentX = p.x;
+    draft_.currentY = p.y;
+    draft_.fillR = p.fillR; draft_.fillG = p.fillG; draft_.fillB = p.fillB; draft_.fillA = p.fillA;
+    draft_.strokeR = p.strokeR; draft_.strokeG = p.strokeG; draft_.strokeB = p.strokeB; draft_.strokeA = p.strokeA;
+    draft_.strokeEnabled = p.strokeEnabled;
+    draft_.strokeWidthPx = p.strokeWidthPx;
+    draft_.sides = p.sides;
+    draft_.head = p.head;
+    draft_.points.clear();
+    
+    if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
+        draft_.points.push_back({p.x, p.y});
+    }
+    renderDirty = true;
+}
+
+void CadEngine::updateDraft(float x, float y) {
+    if (!draft_.active) return;
+    draft_.currentX = x;
+    draft_.currentY = y;
+    renderDirty = true;
+}
+
+void CadEngine::appendDraftPoint(float x, float y) {
+    if (!draft_.active) return;
+    draft_.points.push_back({x, y});
+    draft_.currentX = x; 
+    draft_.currentY = y;
+    renderDirty = true;
+}
+
+void CadEngine::cancelDraft() {
+    draft_.active = false;
+    draft_.points.clear();
+    renderDirty = true;
+}
+
+std::uint32_t CadEngine::commitDraft() {
+    if (!draft_.active) return 0;
+    
+    const std::uint32_t id = allocateEntityId();
+    
+    switch (static_cast<EntityKind>(draft_.kind)) {
+        case EntityKind::Rect: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             if (w > 0.001f && h > 0.001f)
+                upsertRect(id, x0, y0, w, h, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+        case EntityKind::Line:
+             upsertLine(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        case EntityKind::Circle: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             if (w > 0.001f && h > 0.001f)
+                upsertCircle(id, x0 + w/2, y0 + h/2, w/2, h/2, 0, 1, 1, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+        case EntityKind::Polygon: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             if (w > 0.001f && h > 0.001f) {
+                // Determine rotation: if sides=3, rot=PI? (Legacy logic copied)
+                float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
+                upsertPolygon(id, x0 + w/2, y0 + h/2, w/2, h/2, rot, 1, 1, static_cast<std::uint32_t>(draft_.sides), draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             }
+             break;
+        }
+        case EntityKind::Polyline: {
+             if (draft_.points.size() < 2) break; // Need at least 2 points
+             std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
+             for (const auto& p : draft_.points) {
+                 entityManager_.points.push_back({p.x, p.y});
+             }
+             upsertPolyline(id, offset, static_cast<std::uint32_t>(draft_.points.size()), draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+        case EntityKind::Arrow: {
+             upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+             break;
+        }
+    }
+
+    draft_.active = false;
+    draft_.points.clear();
+    return id;
+}
+
+void CadEngine::addDraftToBuffers() const {
+    if (!draft_.active) return;
+    
+    // Simple render logic for draft
+    // Override color/alpha for draft appearance if needed, or use draft state props
+    
+    // For Line/Arrow: just a line
+    // For Rect/Circle/Poly: Outline or filled based on props
+
+    // Helper for line
+    auto pushL = [&](float x0, float y0, float x1, float y1) {
+        lineVertices.push_back(x0); lineVertices.push_back(y0); lineVertices.push_back(0); 
+        lineVertices.push_back(draft_.strokeR); lineVertices.push_back(draft_.strokeG); lineVertices.push_back(draft_.strokeB); lineVertices.push_back(1.0f); // Always opaque draft
+    };
+    
+    switch (static_cast<EntityKind>(draft_.kind)) {
+        case EntityKind::Line:
+        case EntityKind::Arrow: // Draw simple line for arrow draft
+            pushL(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            break;
+        case EntityKind::Rect:
+        case EntityKind::Circle:
+        case EntityKind::Polygon: {
+             float x0 = std::min(draft_.startX, draft_.currentX);
+             float y0 = std::min(draft_.startY, draft_.currentY);
+             float w = std::abs(draft_.currentX - draft_.startX);
+             float h = std::abs(draft_.currentY - draft_.startY);
+             // Draw Rect outline for all shapes as preview box (simplification)
+             // Or draw true shape geometry? True shape is better.
+             // Rect:
+             if (static_cast<EntityKind>(draft_.kind) == EntityKind::Rect) {
+                  pushL(x0, y0, x0+w, y0);
+                  pushL(x0+w, y0, x0+w, y0+h);
+                  pushL(x0+w, y0+h, x0, y0+h);
+                  pushL(x0, y0+h, x0, y0);
+             } else {
+                 // For Circle/Polygon, just draw box outline for now to save complexity
+                  pushL(x0, y0, x0+w, y0);
+                  pushL(x0+w, y0, x0+w, y0+h);
+                  pushL(x0+w, y0+h, x0, y0+h);
+                  pushL(x0, y0+h, x0, y0);
+             }
+             break;
+        }
+        case EntityKind::Polyline: {
+             if (draft_.points.empty()) break;
+             for (size_t i = 0; i < draft_.points.size() - 1; ++i) {
+                 pushL(draft_.points[i].x, draft_.points[i].y, draft_.points[i+1].x, draft_.points[i+1].y);
+             }
+             // Ghost segment to cursor
+             if (!draft_.points.empty()) {
+                  pushL(draft_.points.back().x, draft_.points.back().y, draft_.currentX, draft_.currentY);
+             }
+             break;
+        }
     }
 }
 

@@ -16,6 +16,7 @@ import { worldToScreen } from '@/utils/viewportMath';
 import { PickSubTarget } from '@/types/picking';
 import { getTextMeta } from '@/engine/core/textEngineSync';
 import { SelectionMode, SelectionModifier, type EntityId } from '@/engine/core/protocol';
+import { CommandOp } from '@/engine/core/commandBuffer';
 import { PickEntityKind } from '@/types/picking';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 
@@ -23,6 +24,7 @@ import { supportsEngineResize } from '@/engine/core/capabilities';
 import { useSelectInteraction } from '@/features/editor/hooks/useSelectInteraction';
 import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
 import { useTextEditHandler } from '@/features/editor/hooks/useTextEditHandler';
+import { useEngineTextEditState } from '@/features/editor/hooks/useEngineTextEditState';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 
 // Minimal internal drag state for engine-first interaction
@@ -68,6 +70,23 @@ const EngineInteractionLayer: React.FC = () => {
         runtime.setSnapOptions(snapOptions.enabled, snapOptions.grid, gridSize);
     }
   }, [snapOptions.enabled, snapOptions.grid, gridSize, runtimeReady]);
+
+  // Sync viewport scale to engine
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (runtime) {
+        runtime.apply([{
+            op: CommandOp.SetViewScale,
+            view: {
+                x: viewTransform.x,
+                y: viewTransform.y,
+                scale: viewTransform.scale,
+                width: canvasSize.width,
+                height: canvasSize.height
+            }
+        }]);
+    }
+  }, [viewTransform, canvasSize, runtimeReady]);
 
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
@@ -143,6 +162,8 @@ const EngineInteractionLayer: React.FC = () => {
       textInputProxyRef,
       textToolRef
   });
+
+  const activeTextData = useEngineTextEditState(runtimeReady ? runtimeRef.current : null);
 
   const {
       selectionBox,
@@ -833,10 +854,10 @@ const EngineInteractionLayer: React.FC = () => {
       <TextInputProxy
         ref={textInputProxyRef}
         active={engineTextEditState.active}
-        content={engineTextEditState.content}
-        caretIndex={engineTextEditState.caretIndex}
-        selectionStart={engineTextEditState.selectionStart}
-        selectionEnd={engineTextEditState.selectionEnd}
+        content={activeTextData.content}
+        caretIndex={activeTextData.caretIndex}
+        selectionStart={activeTextData.selectionStart}
+        selectionEnd={activeTextData.selectionEnd}
         positionHint={engineTextEditState.caretPosition ?? undefined}
         onInput={(delta: TextInputDelta) => {
           textToolRef.current?.handleInputDelta(delta);

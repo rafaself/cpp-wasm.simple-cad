@@ -44,10 +44,7 @@ interface UIState {
   engineTextEditState: {
     active: boolean;
     textId: number | null;
-    content: string;
-    caretIndex: number;
-    selectionStart: number;
-    selectionEnd: number;
+    editGeneration: number; // Generational counter for cache invalidation
     caretPosition: { x: number; y: number; height: number } | null;
   };
   engineTextStyleSnapshot: { textId: number; snapshot: TextStyleSnapshot } | null;
@@ -75,8 +72,7 @@ interface UIState {
 
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
-  setEngineTextEditContent: (content: string) => void;
-  setEngineTextEditCaret: (caretIndex: number, selectionStart?: number, selectionEnd?: number) => void;
+  bumpEngineTextEditGeneration: () => void;
   setEngineTextEditCaretPosition: (position: { x: number; y: number; height: number } | null) => void;
   clearEngineTextEdit: () => void;
   setEngineTextStyleSnapshot: (textId: number, snapshot: TextStyleSnapshot) => void;
@@ -115,10 +111,7 @@ export const useUIStore = create<UIState>((set) => ({
   engineTextEditState: {
     active: false,
     textId: null,
-    content: '',
-    caretIndex: 0,
-    selectionStart: 0,
-    selectionEnd: 0,
+    editGeneration: 0,
     caretPosition: null,
   },
   engineTextStyleSnapshot: null,
@@ -215,22 +208,14 @@ export const useUIStore = create<UIState>((set) => ({
       ...state.engineTextEditState,
       active,
       textId: active ? (textId ?? state.engineTextEditState.textId) : null,
-      content: active ? state.engineTextEditState.content : '',
-      caretIndex: active ? state.engineTextEditState.caretIndex : 0,
-      selectionStart: active ? state.engineTextEditState.selectionStart : 0,
-      selectionEnd: active ? state.engineTextEditState.selectionEnd : 0,
+      editGeneration: active ? state.engineTextEditState.editGeneration + 1 : 0,
     },
   })),
-  setEngineTextEditContent: (content) => set((state) => ({
-    engineTextEditState: { ...state.engineTextEditState, content },
-  })),
-  setEngineTextEditCaret: (caretIndex, selectionStart, selectionEnd) => set((state) => ({
+  bumpEngineTextEditGeneration: () => set((state) => ({
     engineTextEditState: {
       ...state.engineTextEditState,
-      caretIndex,
-      selectionStart: selectionStart ?? caretIndex,
-      selectionEnd: selectionEnd ?? caretIndex,
-    },
+      editGeneration: state.engineTextEditState.editGeneration + 1,
+    }
   })),
   setEngineTextEditCaretPosition: (position) => set((state) => ({
     engineTextEditState: { ...state.engineTextEditState, caretPosition: position },
@@ -239,10 +224,7 @@ export const useUIStore = create<UIState>((set) => ({
     engineTextEditState: {
       active: false,
       textId: null,
-      content: '',
-      caretIndex: 0,
-      selectionStart: 0,
-      selectionEnd: 0,
+      editGeneration: 0,
       caretPosition: null,
     },
     engineTextStyleSnapshot: null,

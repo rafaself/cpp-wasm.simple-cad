@@ -346,6 +346,10 @@ public:
     mutable PickSystem pickSystem_;
 
     float viewScale{1.0f};
+    float viewX{0.0f};
+    float viewY{0.0f};
+    float viewWidth{0.0f};
+    float viewHeight{0.0f};
 
     mutable std::vector<float> triangleVertices;
     mutable std::vector<float> lineVertices;
@@ -765,6 +769,14 @@ public:
     void addLineSegment(float x0, float y0, float x1, float y1, float z = 0.0f) const;
 
     void rebuildRenderBuffers() const;
+    void addGridToBuffers() const;
+    void addDraftToBuffers() const;
+    void beginDraft(const BeginDraftPayload& p);
+    void updateDraft(float x, float y);
+    void appendDraftPoint(float x, float y);
+    std::uint32_t commitDraft();
+    void cancelDraft();
+
     bool refreshEntityRenderRange(std::uint32_t id) const;
 
 // ==============================================================================
@@ -1333,6 +1345,21 @@ private:
 
     InteractionSession session_;
     SnapOptions snapOptions_;
+
+    struct DraftState {
+        bool active = false;
+        std::uint32_t kind = 0;
+        float startX = 0, startY = 0;
+        float currentX = 0, currentY = 0;
+        float fillR = 0, fillG = 0, fillB = 0, fillA = 0;
+        float strokeR = 0, strokeG = 0, strokeB = 0, strokeA = 0;
+        float strokeEnabled = 0;
+        float strokeWidthPx = 1.0f;
+        float sides = 0;
+        float head = 0;
+        std::vector<Point2> points;
+    };
+    DraftState draft_;
 
 
 
