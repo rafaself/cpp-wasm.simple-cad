@@ -52,8 +52,7 @@ export interface TextToolState {
   anchorX: number;
   anchorY: number;
   rotation: number;
-  /** Current text content (for TextInputProxy sync) */
-  content: string;
+  // NOTE: `content` removed — use getPooledContent() to read from engine
 }
 
 export interface TextStyleDefaults {
@@ -127,7 +126,6 @@ export class TextTool {
       anchorX: 0,
       anchorY: 0,
       rotation: 0,
-      content: '', // Will be updated from engine
     };
   }
 
@@ -230,7 +228,6 @@ export class TextTool {
       anchorX: worldX,
       anchorY: worldY,
       rotation: 0,
-      content: '',
     };
 
     // Create empty text entity in engine
@@ -284,7 +281,6 @@ export class TextTool {
       anchorX: x,
       anchorY: y,
       rotation: 0,
-      content: '',
     };
 
     // Create empty text entity in engine
@@ -384,7 +380,6 @@ export class TextTool {
         anchorX,
         anchorY,
         rotation,
-        content,
       };
     } else {
       // Already editing
@@ -471,7 +466,8 @@ export class TextTool {
     // If hitResult is null, ignore? Or clamp?
     if (!hitResult) return;
 
-    const charIndex = byteIndexToCharIndex(this.state.content, hitResult.byteIndex);
+    const currentContent = this.getPooledContent();
+    const charIndex = byteIndexToCharIndex(currentContent, hitResult.byteIndex);
     const anchor = this.selectionDragAnchor ?? charIndex;
 
     const start = Math.min(anchor, charIndex);
@@ -587,15 +583,14 @@ export class TextTool {
     switch (delta.type) {
       case 'insert': {
         // Convert character index to byte index for engine
-        const byteIndex = charIndexToByteIndex(this.state.content, delta.at);
+        const currentContent = this.getPooledContent();
+        const byteIndex = charIndexToByteIndex(currentContent, delta.at);
         this.bridge.insertContentByteIndex(textId, byteIndex, delta.text);
 
-        const newContent = this.getPooledContent();
         const newCaretIndex = delta.at + delta.text.length;
 
         this.state = {
           ...this.state,
-          content: newContent,
           caretIndex: newCaretIndex,
           selectionStart: newCaretIndex,
           selectionEnd: newCaretIndex,
@@ -604,15 +599,13 @@ export class TextTool {
       }
 
       case 'delete': {
-        const startByte = charIndexToByteIndex(this.state.content, delta.start);
-        const endByte = charIndexToByteIndex(this.state.content, delta.end);
+        const currentContent = this.getPooledContent();
+        const startByte = charIndexToByteIndex(currentContent, delta.start);
+        const endByte = charIndexToByteIndex(currentContent, delta.end);
         this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-
-        const newContent = this.getPooledContent();
 
         this.state = {
           ...this.state,
-          content: newContent,
           caretIndex: delta.start,
           selectionStart: delta.start,
           selectionEnd: delta.start,
@@ -621,19 +614,18 @@ export class TextTool {
       }
 
       case 'replace': {
-        const startByte = charIndexToByteIndex(this.state.content, delta.start);
-        const endByte = charIndexToByteIndex(this.state.content, delta.end);
+        const currentContent = this.getPooledContent();
+        const startByte = charIndexToByteIndex(currentContent, delta.start);
+        const endByte = charIndexToByteIndex(currentContent, delta.end);
 
         // Delete then insert
         this.bridge.deleteContentByteIndex(textId, startByte, endByte);
         this.bridge.insertContentByteIndex(textId, startByte, delta.text);
 
-        const newContent = this.getPooledContent();
         const newCaretIndex = delta.start + delta.text.length;
 
         this.state = {
           ...this.state,
-          content: newContent,
           caretIndex: newCaretIndex,
           selectionStart: newCaretIndex,
           selectionEnd: newCaretIndex,
@@ -643,7 +635,8 @@ export class TextTool {
     }
 
     // Update caret in engine
-    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+    const contentAfterEdit = this.getPooledContent();
+    const caretByte = charIndexToByteIndex(contentAfterEdit, this.state.caretIndex);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
     // Notify JS side of text update (for bounds sync)
@@ -663,7 +656,7 @@ export class TextTool {
 
     this.callbacks.onTextUpdated?.(
       textId,
-      this.state.content,
+      contentAfterEdit,
       { width: estimatedWidth, height: estimatedHeight },
       this.state.boxMode,
       this.state.constraintWidth
@@ -680,10 +673,11 @@ export class TextTool {
     if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return;
 
     const textId = this.state.activeTextId;
+    const currentContent = this.getPooledContent();
 
     // Convert to byte indices
-    const startByte = charIndexToByteIndex(this.state.content, start);
-    const endByte = charIndexToByteIndex(this.state.content, end);
+    const startByte = charIndexToByteIndex(currentContent, start);
+    const endByte = charIndexToByteIndex(currentContent, end);
 
     // Update engine
     if (start === end) {
@@ -714,7 +708,8 @@ export class TextTool {
     }
 
     const textId = this.state.activeTextId;
-    const contentLength = this.state.content.length;
+    const currentContent = this.getPooledContent();
+    const contentLength = currentContent.length;
 
     let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
     let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
@@ -748,8 +743,8 @@ export class TextTool {
     this.bridge.applyTextStyle(textId, payload);
 
     // Sync caret to engine to ensure typing style run is found on next insert
-    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
-    this.bridge.setCaretByteIndex(textId, caretByte);
+    const caretByteAfterStyle = charIndexToByteIndex(currentContent, this.state.caretIndex);
+    this.bridge.setCaretByteIndex(textId, caretByteAfterStyle);
 
     // Update tool defaults to reflect the new state...
     const snapshot = this.bridge.getTextStyleSnapshot(textId);
@@ -775,7 +770,7 @@ export class TextTool {
     if (bounds && bounds.valid) {
       this.callbacks.onTextUpdated?.(
         textId,
-        this.state.content,
+        currentContent,
         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
         this.state.boxMode,
         this.state.constraintWidth
@@ -821,7 +816,8 @@ export class TextTool {
   private applyStyleWithParams(params: Uint8Array): boolean {
     if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
     const textId = this.state.activeTextId;
-    const contentLength = this.state.content.length;
+    const currentContent = this.getPooledContent();
+    const contentLength = currentContent.length;
     let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
     let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
     rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
@@ -848,8 +844,8 @@ export class TextTool {
     this.bridge.applyTextStyle(textId, payload);
 
     // Sync caret to engine to ensure typing style run is found on next insert
-    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
-    this.bridge.setCaretByteIndex(textId, caretByte);
+    const caretByteForStyle = charIndexToByteIndex(currentContent, this.state.caretIndex);
+    this.bridge.setCaretByteIndex(textId, caretByteForStyle);
 
     return true;
   }
@@ -983,7 +979,7 @@ export class TextTool {
     if (this.isEditing() && this.bridge && this.state.activeTextId !== null && event) {
         const textId = this.state.activeTextId;
         const currentCaret = this.state.caretIndex;
-        const currentContent = this.state.content;
+        const currentContent = this.getPooledContent();
         let newCaret = currentCaret;
         let handled = false;
 
@@ -1094,12 +1090,13 @@ export class TextTool {
             }
 
             // Sync to Engine (and TextInputProxy via state update loop -> TextInteractionLayer -> Props)
-            const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+            const navContent = this.getPooledContent();
+            const caretByte = charIndexToByteIndex(navContent, this.state.caretIndex);
             
             // Sync selection if needed
             if (this.state.selectionStart !== this.state.selectionEnd) {
-                const sByte = charIndexToByteIndex(this.state.content, this.state.selectionStart);
-                const eByte = charIndexToByteIndex(this.state.content, this.state.selectionEnd);
+                const sByte = charIndexToByteIndex(navContent, this.state.selectionStart);
+                const eByte = charIndexToByteIndex(navContent, this.state.selectionEnd);
                 this.bridge.setSelectionByteIndex(textId, sByte, eByte);
             } else {
                 this.bridge.setCaretByteIndex(textId, caretByte);
@@ -1120,7 +1117,8 @@ export class TextTool {
    */
   commitAndExit(): void {
     const textId = this.state.activeTextId;
-    if (textId !== null && this.state.content.trim() === '') {
+    const commitContent = textId !== null ? this.getPooledContent() : '';
+    if (textId !== null && commitContent.trim() === '') {
       // Delete empty text
       this.bridge?.deleteText(textId);
       this.callbacks.onTextDeleted?.(textId);
@@ -1170,6 +1168,14 @@ export class TextTool {
    */
   getActiveTextId(): number | null {
     return this.state.activeTextId;
+  }
+
+  /**
+   * Get current text content from the engine.
+   * Use this to read content instead of relying on state.
+   */
+  getContent(): string {
+    return this.getPooledContent();
   }
 
   /**
@@ -1232,7 +1238,8 @@ export class TextTool {
   private updateCaretPosition(): void {
     if (!this.bridge || this.state.activeTextId === null) return;
 
-    const caretByte = charIndexToByteIndex(this.state.content, this.state.caretIndex);
+    const updateContent = this.getPooledContent();
+    const caretByte = charIndexToByteIndex(updateContent, this.state.caretIndex);
     const caretPos = this.bridge.getCaretPosition(this.state.activeTextId, caretByte);
 
     if (caretPos) {
@@ -1252,7 +1259,7 @@ export class TextTool {
         this.state.activeTextId,
         start,
         end,
-        this.state.content
+        updateContent
       );
 
       // Pass local rects directly

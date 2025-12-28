@@ -9,21 +9,15 @@ import { TextAlign, TextStyleFlags, TextBoxMode, packColorRGBA } from '@/types/t
 import { registerTextTool, registerTextMapping, unregisterTextMappingByShapeId, setTextMeta } from '@/engine/core/textEngineSync';
 import { SelectionMode } from '@/engine/core/protocol';
 
-export type TextBoxMeta = {
-  boxMode: TextBoxMode;
-  constraintWidth: number;
-  fixedHeight?: number;
-  maxAutoWidth: number;
-};
+// NOTE: TextBoxMeta type removed — now using getTextMeta() from textEngineSync.ts directly
 
 export function useTextEditHandler(params: {
   viewTransform: ViewTransform;
   runtime: any;
   textInputProxyRef: React.RefObject<TextInputProxyRef>;
-  textBoxMetaRef: React.MutableRefObject<Map<number, TextBoxMeta>>;
   textToolRef: React.MutableRefObject<TextTool | null>;
 }) {
-  const { runtime, textInputProxyRef, textBoxMetaRef, textToolRef } = params;
+  const { runtime, textInputProxyRef, textToolRef } = params;
 
   const { caret, selectionRects, anchor, rotation, setCaret: setCaretPosition, hideCaret, clearSelection, setSelection } = useTextCaret();
   const engineTextEditState = useUIStore((s) => s.engineTextEditState);
@@ -40,10 +34,15 @@ export function useTextEditHandler(params: {
   useEffect(() => {
     if (!runtime) return;
 
+    // Store tool reference for callbacks to access content via engine
+    let toolInstance: TextTool | null = null;
+
     const callbacks: TextToolCallbacks = {
       onStateChange: (state: TextToolState) => {
         setEngineTextEditActive(state.mode !== 'idle', state.activeTextId);
-        setEngineTextEditContent(state.content);
+        // Get content from engine via tool instead of state.content (removed for Engine-First)
+        const content = toolInstance?.getContent() ?? '';
+        setEngineTextEditContent(content);
         setEngineTextEditCaret(state.caretIndex, state.selectionStart, state.selectionEnd);
         if (state.mode === 'idle') {
           clearEngineTextStyleSnapshot();
@@ -66,16 +65,10 @@ export function useTextEditHandler(params: {
         clearSelection();
         useUIStore.getState().setTool('select');
       },
-      onTextCreated: (shapeId: string, textId: number, _x: number, _y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
+      onTextCreated: (shapeId: string, textId: number, _x: number, _y: number, boxMode: TextBoxMode, constraintWidth: number, _initialWidth: number, _initialHeight: number) => {
         registerTextMapping(textId, shapeId);
         setTextMeta(textId, boxMode, constraintWidth);
-
-        textBoxMetaRef.current.set(textId, {
-          boxMode,
-          constraintWidth: boxMode === TextBoxMode.FixedWidth ? constraintWidth : 0,
-          fixedHeight: boxMode === TextBoxMode.FixedWidth ? initialHeight : undefined,
-          maxAutoWidth: Math.max(initialWidth, constraintWidth, 0),
-        });
+        // NOTE: textBoxMetaRef removed — using setTextMeta/getTextMeta (Engine-First)
 
         const currentLayerId = useUIStore.getState().activeLayerId;
         if (currentLayerId !== null && runtime?.engine?.setEntityLayer) {
@@ -86,23 +79,18 @@ export function useTextEditHandler(params: {
           runtime.setSelection([textId], SelectionMode.Replace);
         }
       },
-      onTextUpdated: (textId: number, _content: string, bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
-        const freshMeta: TextBoxMeta = {
-          boxMode,
-          constraintWidth: boxMode === TextBoxMode.FixedWidth ? constraintWidth : 0,
-          fixedHeight: boxMode === TextBoxMode.FixedWidth ? bounds.height : undefined,
-          maxAutoWidth: bounds.width,
-        };
-        textBoxMetaRef.current.set(textId, freshMeta);
+      onTextUpdated: (textId: number, _content: string, _bounds: { width: number; height: number }, boxMode: TextBoxMode, constraintWidth: number) => {
+        // Just update the meta in IdRegistry — no more duplicate cache
         setTextMeta(textId, boxMode, constraintWidth);
       },
       onTextDeleted: (textId: number) => {
-        textBoxMetaRef.current.delete(textId);
+        // Unregister will also clear meta from IdRegistry
         unregisterTextMappingByShapeId(`entity-${textId}`);
       },
     };
 
     const tool = createTextTool(callbacks);
+    toolInstance = tool;  // Set closure reference for callbacks
     if (tool.initialize(runtime)) {
       textToolRef.current = tool;
       registerTextTool(tool);

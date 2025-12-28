@@ -41,7 +41,9 @@ export class TextStyleHandler {
     }
 
     const textId = state.activeTextId;
-    const contentLength = state.content.length;
+    // Get content from engine instead of state (Engine-First)
+    const currentContent = this.bridge.getTextContent(textId) ?? '';
+    const contentLength = currentContent.length;
 
     let rangeStart = Math.min(state.selectionStart, state.selectionEnd);
     let rangeEnd = Math.max(state.selectionStart, state.selectionEnd);
@@ -71,7 +73,7 @@ export class TextStyleHandler {
     this.bridge.applyTextStyle(textId, payload);
 
     // Sync caret to engine
-    const caretByte = charIndexToByteIndex(state.content, state.caretIndex);
+    const caretByte = charIndexToByteIndex(currentContent, state.caretIndex);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
     // Update style defaults based on snapshot
@@ -95,7 +97,7 @@ export class TextStyleHandler {
       this.stateManager.setStyleDefaults(defaults);
     }
 
-    this.syncBoundsAndNotify(textId, state.content, state.boxMode, state.constraintWidth);
+    this.syncBoundsAndNotify(textId, currentContent, state.boxMode, state.constraintWidth);
     this.callbacks.onCaretUpdate?.();
     return true;
   }
@@ -220,7 +222,9 @@ export class TextStyleHandler {
     if (state.activeTextId === null) return false;
 
     const textId = state.activeTextId;
-    const contentLength = state.content.length;
+    // Get content from engine instead of state (Engine-First)
+    const styleContent = this.bridge.getTextContent(textId) ?? '';
+    const contentLength = styleContent.length;
     let rangeStart = Math.min(state.selectionStart, state.selectionEnd);
     let rangeEnd = Math.max(state.selectionStart, state.selectionEnd);
     rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
@@ -245,7 +249,7 @@ export class TextStyleHandler {
 
     this.bridge.applyTextStyle(textId, payload);
 
-    const caretByte = charIndexToByteIndex(state.content, state.caretIndex);
+    const caretByte = charIndexToByteIndex(styleContent, state.caretIndex);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
     return true;

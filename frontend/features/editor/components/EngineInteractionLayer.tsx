@@ -22,7 +22,7 @@ import { supportsEngineResize } from '@/engine/core/capabilities';
 // New hooks
 import { useSelectInteraction } from '@/features/editor/hooks/useSelectInteraction';
 import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
-import { useTextEditHandler, type TextBoxMeta } from '@/features/editor/hooks/useTextEditHandler';
+import { useTextEditHandler } from '@/features/editor/hooks/useTextEditHandler';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 
 // Minimal internal drag state for engine-first interaction
@@ -71,7 +71,7 @@ const EngineInteractionLayer: React.FC = () => {
 
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
-  const textBoxMetaRef = useRef<Map<number, TextBoxMeta>>(new Map());
+  // NOTE: textBoxMetaRef removed — using getTextMeta() directly (Engine-First)
 
   // Track if we're dragging for FixedWidth text creation
   const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -141,7 +141,6 @@ const EngineInteractionLayer: React.FC = () => {
       viewTransform,
       runtime: runtimeReady ? runtimeRef.current : null,
       textInputProxyRef,
-      textBoxMetaRef,
       textToolRef
   });
 
@@ -336,7 +335,7 @@ const EngineInteractionLayer: React.FC = () => {
         if (res.id === activeTextId) {
           const aabb = runtime.getEntityAabb(activeTextId);
           if (aabb.valid) {
-            const meta = textBoxMetaRef.current.get(activeTextId) ?? getTextMeta(activeTextId);
+            const meta = getTextMeta(activeTextId);
             const anchorX = aabb.minX;
             const anchorY = aabb.maxY;
             const localX = world.x - anchorX;
@@ -673,7 +672,7 @@ const EngineInteractionLayer: React.FC = () => {
         if (!aabb.valid) return;
         const anchorX = aabb.minX;
         const anchorY = aabb.maxY;
-        const meta = textBoxMetaRef.current.get(res.id) ?? getTextMeta(res.id);
+        const meta = getTextMeta(res.id);
         const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
         const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
         textToolRef.current.handlePointerDown(res.id, world.x - anchorX, world.y - anchorY, evt.shiftKey, anchorX, anchorY, 0, boxMode, constraintWidth, false);

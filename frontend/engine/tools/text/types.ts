@@ -24,8 +24,7 @@ export interface TextToolState {
   anchorX: number;
   anchorY: number;
   rotation: number;
-  /** Current text content (for TextInputProxy sync) */
-  content: string;
+  // NOTE: `content` removed — use getContent() from the engine via TextTool or TextBridge
 }
 
 export interface TextStyleDefaults {
