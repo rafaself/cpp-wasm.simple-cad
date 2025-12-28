@@ -321,6 +321,9 @@ public:
     void selectByPick(const PickResult& pick, std::uint32_t modifiers);
     void marqueeSelect(float minX, float minY, float maxX, float maxY, SelectionMode mode, int hitMode);
 
+    // Visibility helper used by render callbacks
+    bool isEntityVisibleForRender(std::uint32_t id) const noexcept { return entityManager_.isEntityVisible(id); }
+
     // Draw order (engine-authoritative)
     std::vector<std::uint32_t> getDrawOrderSnapshot() const;
     void reorderEntities(const std::uint32_t* ids, std::uint32_t idCount, ReorderAction action, std::uint32_t refId);

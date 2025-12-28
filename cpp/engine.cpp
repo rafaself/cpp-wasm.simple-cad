@@ -53,9 +53,9 @@ namespace {
         return (px - ex) * (px - ex) + (py - ey) * (py - ey);
     }
 
-    bool isEntityVisibleForRender(void* ctx, std::uint32_t id) {
+    bool isEntityVisibleForRenderThunk(void* ctx, std::uint32_t id) {
         const auto* engine = static_cast<const CadEngine*>(ctx);
-        return engine ? engine->entityManager_.isEntityVisible(id) : true;
+        return engine ? engine->isEntityVisibleForRender(id) : true;
     }
 
     constexpr std::uint64_t kDigestOffset = 14695981039346656037ull;
@@ -3807,7 +3807,7 @@ void CadEngine::rebuildRenderBuffers() const {
         triangleVertices,
         lineVertices,
         const_cast<CadEngine*>(this),
-        &isEntityVisibleForRender,
+        &isEntityVisibleForRenderThunk,
         &renderRanges_
     );
     
@@ -3842,7 +3842,7 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
         viewScale,
         temp,
         const_cast<CadEngine*>(this),
-        &isEntityVisibleForRender
+        &isEntityVisibleForRenderThunk
     );
 
     if (!appended) return false;
@@ -4512,6 +4512,10 @@ std::uint32_t CadEngine::commitDraft() {
              upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
              break;
         }
+           case EntityKind::Text: {
+               // Drafting text not supported in this path yet.
+               break;
+           }
     }
 
     draft_.active = false;
@@ -4574,6 +4578,9 @@ void CadEngine::addDraftToBuffers() const {
              }
              break;
         }
+        case EntityKind::Text:
+            // No draft rendering for text yet.
+            break;
     }
 }
 
