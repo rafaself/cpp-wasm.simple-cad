@@ -1,0 +1,131 @@
+================================================================================
+                         CODE SIZE REPORT
+                         2025-12-28 12:41:16
+================================================================================
+
+=== C++ Engine Files (Top 20) ===
+ 11336 total
+  1429 cpp/engine/engine.h
+  1291 cpp/engine/text/text_layout.cpp
+   820 cpp/engine/vector_tessellation.cpp
+   811 cpp/engine/snapshot.cpp
+   683 cpp/engine/render.cpp
+   653 cpp/engine/pick_system.cpp
+   632 cpp/engine/text_system.cpp
+   533 cpp/engine/text/glyph_atlas.cpp
+   522 cpp/engine/text/text_store.cpp
+   503 cpp/engine/entity_manager.cpp
+   415 cpp/engine/text/font_manager.cpp
+   367 cpp/engine/types.h
+   332 cpp/engine/bindings.cpp
+   295 cpp/engine/text/text_layout.h
+   261 cpp/engine/text/text_store.h
+   237 cpp/engine/text/font_manager.h
+   221 cpp/engine/text/glyph_atlas.h
+   154 cpp/engine/vector_ir.h
+   153 cpp/engine/pick_system.h
+
+=== C++ Root Files ===
+5140 cpp/engine.cpp
+
+=== Frontend Engine Files (Top 20) ===
+  6752 total
+  1285 frontend/engine/tools/TextTool.ts
+   686 frontend/engine/bridge/textBridge.ts
+   584 frontend/engine/core/EngineRuntime.ts
+   507 frontend/engine/core/commandBuffer.ts
+   402 frontend/engine/core/protocol.ts
+   371 frontend/engine/renderer/webgl2/passes/TextRenderPass.ts
+   287 frontend/engine/tools/text/TextStyleHandler.ts
+   270 frontend/engine/renderer/webgl2/webgl2TessellatedRenderer.ts
+   212 frontend/engine/vector/vectorDrawIndex.ts
+   196 frontend/engine/renderer/webgl2/passes/GeometryPass.ts
+   157 frontend/engine/tools/text/TextNavigationHandler.ts
+   156 frontend/engine/renderer/webgl2/shaders/textMsdf.ts
+   154 frontend/engine/core/textEngineSync.ts
+   137 frontend/engine/core/useEngineEvents.ts
+   131 frontend/engine/core/IdRegistry.ts
+   127 frontend/engine/tools/text/TextStateManager.ts
+   127 frontend/engine/core/interactionSession.ts
+   104 frontend/engine/vector/vectorLod.ts
+    96 frontend/engine/vector/vectorCadOptimizations.test.ts
+
+=== Editor Components (Top 15) ===
+  3503 total
+   814 frontend/features/editor/components/EngineInteractionLayer.tsx
+   232 frontend/features/editor/ribbon/components/TextControls.tsx
+   220 frontend/features/editor/hooks/useDraftHandler.ts
+   183 frontend/features/editor/hooks/useTextEditHandler.ts
+   167 frontend/features/editor/components/EditorRibbon.tsx
+   161 frontend/features/editor/components/SelectionOverlay.tsx
+   156 frontend/features/editor/components/Header.tsx
+   148 frontend/features/editor/components/EditorStatusBar.tsx
+   139 frontend/features/editor/hooks/useSelectInteraction.ts
+   113 frontend/features/editor/components/LayerManagerModal.tsx
+   102 frontend/features/editor/components/EditorSidebar.tsx
+    99 frontend/features/editor/hooks/useKeyboardShortcuts.ts
+    99 frontend/features/editor/components/QuickAccessToolbar.tsx
+    97 frontend/features/editor/hooks/useEditorLogic.ts
+
+=== Import Utils ===
+  7380 total
+   781 frontend/features/import/utils/dxf/dxfToShapes.ts
+   776 frontend/features/import/utils/pdfToShapes.ts
+   663 frontend/features/import/utils/pdfToVectorDocument.ts
+   574 frontend/features/import/utils/dxf/dxfToSvg.ts
+   397 frontend/features/import/utils/dxf/dxfToShapes.test.ts
+   380 frontend/features/import/utils/pdfToShapes.test.ts
+   379 frontend/features/import/utils/svg/svgToVectorDocument.ts
+   287 frontend/features/import/utils/dxf/dxfRawExtras.ts
+   274 frontend/features/import/utils/svg/pathData.ts
+
+================================================================================
+                    FILES EXCEEDING THRESHOLDS
+================================================================================
+
+C++ Files > 800 LOC (MANDATORY REFACTOR):
+  ❌ cpp/engine/text/text_layout.cpp: 1291 LOC
+  ❌ cpp/engine/snapshot.cpp: 811 LOC
+  ❌ cpp/engine/vector_tessellation.cpp: 820 LOC
+  ❌ cpp/engine.cpp: 5140 LOC
+  ❌ cpp/tests/text_commands_test.cpp: 992 LOC
+
+C++ Files > 450 LOC (REVIEW RECOMMENDED):
+  ⚠️  cpp/engine/text/glyph_atlas.cpp: 533 LOC
+  ⚠️  cpp/engine/text/text_store.cpp: 522 LOC
+  ⚠️  cpp/engine/render.cpp: 683 LOC
+  ⚠️  cpp/engine/pick_system.cpp: 653 LOC
+  ⚠️  cpp/engine/text_system.cpp: 632 LOC
+  ⚠️  cpp/engine/entity_manager.cpp: 503 LOC
+
+TS/TSX Files > 600 LOC (MANDATORY REFACTOR):
+  ❌ frontend/engine/tools/TextTool.ts: 1285 LOC
+  ❌ frontend/engine/bridge/textBridge.ts: 686 LOC
+  ❌ frontend/features/import/utils/pdfToShapes.ts: 776 LOC
+  ❌ frontend/features/import/utils/dxf/dxfToShapes.ts: 781 LOC
+  ❌ frontend/features/import/utils/pdfToVectorDocument.ts: 663 LOC
+  ❌ frontend/features/editor/components/EngineInteractionLayer.tsx: 814 LOC
+
+TS/TSX Files > 350 LOC (REVIEW RECOMMENDED):
+  ⚠️  frontend/engine/renderer/webgl2/passes/TextRenderPass.ts: 371 LOC
+  ⚠️  frontend/engine/core/EngineRuntime.ts: 584 LOC
+  ⚠️  frontend/engine/core/commandBuffer.ts: 507 LOC
+  ⚠️  frontend/engine/core/protocol.ts: 402 LOC
+  ⚠️  frontend/types/text.ts: 365 LOC
+  ⚠️  frontend/features/import/utils/dxf/dxfToSvg.ts: 574 LOC
+  ⚠️  frontend/features/import/utils/dxf/dxfToShapes.test.ts: 397 LOC
+  ⚠️  frontend/features/import/utils/pdfToShapes.test.ts: 380 LOC
+  ⚠️  frontend/features/import/utils/svg/svgToVectorDocument.ts: 379 LOC
+  ⚠️  frontend/components/TextInputProxy.tsx: 464 LOC
+
+================================================================================
+                           SUMMARY
+================================================================================
+
+Total mandatory refactor violations: 11
+
+Thresholds:
+  C++:    Review > 450 LOC | Mandatory > 800 LOC
+  TS/TSX: Review > 350 LOC | Mandatory > 600 LOC
+
+See docs/agents/srp-refactor-plan.md for refactoring guidance.
