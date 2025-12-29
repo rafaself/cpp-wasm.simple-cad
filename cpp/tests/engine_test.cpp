@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "../engine/engine.h"
-#include "../engine/entity_manager.h"
+#include "engine/engine.h"
+#include "engine/entity/entity_manager.h"
 #include <vector>
 
 class CadEngineTest : public ::testing::Test {

@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { toWorldPoint, isDrag, getCursorForTool } from '@/features/editor/utils/interactionHelpers';
 import SelectionOverlay from './SelectionOverlay';
+import { MarqueeOverlay } from './MarqueeOverlay';
 import { HIT_TOLERANCE } from '@/config/constants';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { TransformMode } from '@/engine/core/interactionSession';
@@ -12,30 +13,26 @@ import { TextInputProxy, type TextInputProxyRef } from '@/components/TextInputPr
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import type { TextInputDelta } from '@/types/text';
 import { TextBoxMode } from '@/types/text';
-import { worldToScreen } from '@/utils/viewportMath';
-import { PickSubTarget } from '@/types/picking';
 import { getTextMeta } from '@/engine/core/textEngineSync';
-import { SelectionMode, SelectionModifier, type EntityId } from '@/engine/core/protocol';
+import { SelectionMode, type EntityId } from '@/engine/core/protocol';
 import { CommandOp } from '@/engine/core/commandBuffer';
 import { PickEntityKind } from '@/types/picking';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 
-// New hooks
+// Hooks
 import { useSelectInteraction } from '@/features/editor/hooks/useSelectInteraction';
 import { useDraftHandler } from '@/features/editor/hooks/useDraftHandler';
 import { useTextEditHandler } from '@/features/editor/hooks/useTextEditHandler';
 import { useEngineTextEditState } from '@/features/editor/hooks/useEngineTextEditState';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
-
-// Minimal internal drag state for engine-first interaction
-type DragMode =
-  | { type: "none" }
-  | { type: "engine_session"; startWorld: Point; vertexIndex?: number; activeId?: EntityId };
+import { useEngineSession } from '@/features/editor/hooks/interaction/useEngineSession';
+import { useSelectToolHandler } from '@/features/editor/hooks/interaction/useSelectToolHandler';
+import { useKeyboardEffects } from '@/features/editor/hooks/interaction/useKeyboardEffects';
 
 const EngineInteractionLayer: React.FC = () => {
+  // ─── Store State ───
   const viewTransform = useUIStore((s) => s.viewTransform);
   const activeTool = useUIStore((s) => s.activeTool);
-  const setEngineInteractionActive = useUIStore((s) => s.setEngineInteractionActive);
   const setInteractionDragActive = useUIStore((s) => s.setInteractionDragActive);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const activeLayerId = useUIStore((s) => s.activeLayerId);
@@ -48,275 +45,116 @@ const EngineInteractionLayer: React.FC = () => {
 
   const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
 
-  // Sync snap options to engine
-
-
+  // ─── Refs ───
   const layerRef = useRef<HTMLDivElement | null>(null);
   const capturedPointerIdRef = useRef<number | null>(null);
-  const pointerDownRef = useRef<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
-  const dragRef = useRef<DragMode>({ type: "none" });
-  const marqueeArmedRef = useRef(false);
-  
-  // Track if we're dragging for FixedWidth text creation (Input State only)
-  const textDragStartRef = useRef<{ x: number; y: number } | null>(null);
-  
-  // Pan/Zoom hook
-  const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
-
+  const pointerDownRef = useRef<{ x: number; y: number; world: Point } | null>(null);
+  const textDragStartRef = useRef<Point | null>(null);
   const runtimeRef = useRef<Awaited<ReturnType<typeof getEngineRuntime>> | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(false);
-
-  // Sync snap options to engine
-  useEffect(() => {
-    const runtime = runtimeRef.current;
-    if (runtime && runtime.setSnapOptions) {
-        runtime.setSnapOptions(snapOptions.enabled, snapOptions.grid, gridSize);
-    }
-  }, [snapOptions.enabled, snapOptions.grid, gridSize, runtimeReady]);
-
-  // Sync viewport scale to engine
-  useEffect(() => {
-    const runtime = runtimeRef.current;
-    if (runtime) {
-        runtime.apply([{
-            op: CommandOp.SetViewScale,
-            view: {
-                x: viewTransform.x,
-                y: viewTransform.y,
-                scale: viewTransform.scale,
-                width: canvasSize.width,
-                height: canvasSize.height
-            }
-        }]);
-    }
-  }, [viewTransform, canvasSize, runtimeReady]);
-
   const textToolRef = useRef<TextTool | null>(null);
   const textInputProxyRef = useRef<TextInputProxyRef>(null);
-  // NOTE: textBoxMetaRef removed — using getTextMeta() directly (Engine-First)
 
-
-
-  const beginEngineSession = useCallback(
-    (ids: EntityId[], mode: TransformMode, specificId: EntityId, vertexIndex: number, startX: number, startY: number): boolean => {
-      const runtime = runtimeRef.current;
-      if (!runtime) return false;
-      if (typeof runtime.engine?.beginTransform !== 'function') return false;
-      setEngineInteractionActive(true);
-      runtime.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
-      return true;
-    },
-    [setEngineInteractionActive],
-  );
-
-  const readSelectionIds = useCallback((): EntityId[] => {
-    const runtime = runtimeRef.current;
-    if (!runtime) return [];
-    return Array.from(runtime.getSelectionIds());
-  }, []);
-
-  const setEngineSelection = useCallback(
-    (ids: EntityId[], mode: SelectionMode) => {
-      const runtime = runtimeRef.current;
-      if (!runtime) return [];
-      runtime.setSelection(ids, mode);
-      return readSelectionIds();
-    },
-    [readSelectionIds],
-  );
-
-  const clearEngineSelection = useCallback(() => {
-    const runtime = runtimeRef.current;
-    if (!runtime) return [];
-    runtime.clearSelection();
-    return readSelectionIds();
-  }, [readSelectionIds]);
-
-  const selectionModifiersFromEvent = (evt: React.PointerEvent): number => (
-    (evt.shiftKey ? SelectionModifier.Shift : 0) |
-    (evt.ctrlKey ? SelectionModifier.Ctrl : 0) |
-    (evt.metaKey ? SelectionModifier.Meta : 0)
-  );
-
-  useEffect(() => {
-    let disposed = false;
-    (async () => {
-      const runtime = await getEngineRuntime();
-      if (!disposed) {
-        runtimeRef.current = runtime;
-        setRuntimeReady(true);
-      }
-    })();
-    return () => {
-      disposed = true;
-    };
-  }, []);
+  // ─── Core Hooks ───
+  const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
 
   const {
-      caret,
-      selectionRects,
-      anchor,
-      rotation,
-      engineTextEditState
-  } = useTextEditHandler({
-      viewTransform,
-      runtime: runtimeReady ? runtimeRef.current : null,
-      textInputProxyRef,
-      textToolRef
+    selectionBox, setSelectionBox,
+    cursorOverride, setCursorOverride,
+    handlePointerDown: selectHandlePointerDown,
+    handlePointerMove: selectHandlePointerMove,
+    handlePointerUp: selectHandlePointerUp,
+  } = useSelectInteraction({ viewTransform, runtime: runtimeRef.current });
+
+  const {
+    dragRef, marqueeArmedRef,
+    beginEngineSession, cancelActiveEngineSession, commitEngineSession,
+  } = useEngineSession({
+    runtime: runtimeRef.current, layerRef, capturedPointerIdRef, pointerDownRef,
+    setSelectionBox, setCursorOverride,
+  });
+
+  const { caret, selectionRects, anchor, rotation, engineTextEditState } = useTextEditHandler({
+    viewTransform, runtime: runtimeReady ? runtimeRef.current : null, textInputProxyRef, textToolRef,
   });
 
   const activeTextData = useEngineTextEditState(runtimeReady ? runtimeRef.current : null);
 
   const {
-      selectionBox,
-      setSelectionBox,
-      cursorOverride,
-      setCursorOverride,
-      handlePointerDown: selectHandlePointerDown,
-      handlePointerMove: selectHandlePointerMove,
-      handlePointerUp: selectHandlePointerUp
-  } = useSelectInteraction({
-      viewTransform,
-      runtime: runtimeRef.current
-  });
-
-  const cancelActiveEngineSession = useCallback(
-    (reason: string): boolean => {
-      const runtime = runtimeRef.current;
-      const interactionActive = !!runtime?.isInteractionActive?.() || dragRef.current.type === 'engine_session';
-      if (!interactionActive) return false;
-
-      if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_INTERACTION") === "1") {
-        console.log(`[EngineInteractionLayer] cancelActiveEngineSession reason=${reason}`);
-      }
-
-      runtime?.cancelTransform?.();
-
-      // Best-effort: release pointer capture if we still hold it.
-      try {
-        const el = layerRef.current;
-        const pid = capturedPointerIdRef.current;
-        if (el && pid !== null) {
-          el.releasePointerCapture(pid);
-        }
-      } catch {
-        // ignore
-      }
-
-      capturedPointerIdRef.current = null;
-      pointerDownRef.current = null;
-      dragRef.current = { type: "none" };
-      marqueeArmedRef.current = false;
-      setSelectionBox(null);
-      setCursorOverride(null);
-      setEngineInteractionActive(false);
-      return true;
-    },
-    [setCursorOverride, setEngineInteractionActive, setSelectionBox],
-  );
-
-
-  const {
-      draft,
-      setDraft,
-      handlePointerDown: draftHandlePointerDown,
-      handlePointerMove: draftHandlePointerMove,
-      handlePointerUp: draftHandlePointerUp,
-      commitPolyline,
-      commitDefaultPolygonAt,
-      polygonSidesModal,
-      setPolygonSidesModal,
-      polygonSidesValue,
-      setPolygonSidesValue
+    draft, setDraft,
+    handlePointerDown: draftHandlePointerDown,
+    handlePointerMove: draftHandlePointerMove,
+    handlePointerUp: draftHandlePointerUp,
+    commitPolyline, commitDefaultPolygonAt,
+    polygonSidesModal, setPolygonSidesModal, polygonSidesValue, setPolygonSidesValue,
   } = useDraftHandler({
-      activeTool,
-      viewTransform,
-      snapSettings: snapOptions,
-      onFinalizeDraw: (entityId: EntityId) => {
-        setEngineSelection([entityId], SelectionMode.Replace);
-        const ui = useUIStore.getState();
-        ui.setSidebarTab('desenho');
-        ui.setTool('select');
-      },
-      activeLayerId,
-      runtime: runtimeRef.current,
+    activeTool, viewTransform, snapSettings: snapOptions, activeLayerId, runtime: runtimeRef.current,
+    onFinalizeDraw: (entityId: EntityId) => {
+      setEngineSelection([entityId], SelectionMode.Replace);
+      useUIStore.getState().setSidebarTab('desenho');
+      useUIStore.getState().setTool('select');
+    },
   });
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+  // ─── Selection Helpers ───
+  const readSelectionIds = useCallback((): EntityId[] => {
+    return runtimeRef.current ? Array.from(runtimeRef.current.getSelectionIds()) : [];
+  }, []);
 
-      if (polygonSidesModal && e.key === 'Escape') {
-        e.preventDefault();
-        setPolygonSidesModal(null);
-        return;
-      }
+  const setEngineSelection = useCallback((ids: EntityId[], mode: SelectionMode) => {
+    runtimeRef.current?.setSelection(ids, mode);
+    return readSelectionIds();
+  }, [readSelectionIds]);
 
-      if (activeTool !== 'polyline') return;
+  const clearEngineSelection = useCallback(() => {
+    runtimeRef.current?.clearSelection();
+    return readSelectionIds();
+  }, [readSelectionIds]);
 
-      if (e.key === 'Escape') {
-        if (draft.kind === 'polyline') {
-          e.preventDefault();
-          setDraft({ kind: 'none' });
-        }
-        return;
-      }
-
-      if (e.key === 'Enter') {
-        if (draft.kind === 'polyline') {
-          e.preventDefault();
-          commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
-          setDraft({ kind: 'none' });
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool, polygonSidesModal, draft, commitPolyline, setDraft]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (engineTextEditState.active) return;
-      const canceled = cancelActiveEngineSession('escape');
-      if (canceled) {
-        e.preventDefault();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cancelActiveEngineSession, engineTextEditState.active]);
-
-  useEffect(() => {
-    const handleBlur = () => {
-      if (engineTextEditState.active) return;
-      cancelActiveEngineSession('blur');
-    };
-
-    const handleVisibilityChange = () => {
-      if (engineTextEditState.active) return;
-      if (document.visibilityState === 'hidden') {
-        cancelActiveEngineSession('visibilitychange:hidden');
-      }
-    };
-
-    window.addEventListener('blur', handleBlur);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [cancelActiveEngineSession, engineTextEditState.active]);
-
+  // ─── Cursor ───
   const cursor = useMemo(() => {
     if (engineTextEditState.active) return 'text';
-    return cursorOverride ? cursorOverride : getCursorForTool(activeTool);
+    return cursorOverride ?? getCursorForTool(activeTool);
   }, [activeTool, cursorOverride, engineTextEditState.active]);
 
-  const handlePointerCancel = (evt: React.PointerEvent<HTMLDivElement>) => {
+  // ─── Select Tool Handler ───
+  const { handleSelectPointerDown, handleSelectPointerMove, handleSelectPointerUp } = useSelectToolHandler({
+    runtime: runtimeRef.current, viewTransform, engineResizeEnabled,
+    dragRef, marqueeArmedRef, beginEngineSession,
+    setSelectionBox, setCursorOverride, setEngineSelection, readSelectionIds,
+    selectHandlePointerDown, selectHandlePointerMove, selectHandlePointerUp, clearEngineSelection, cursor,
+  });
+
+  // ─── Keyboard Effects ───
+  useKeyboardEffects({
+    activeTool, engineTextEditActive: engineTextEditState.active,
+    polygonSidesModal, draft, setPolygonSidesModal, setDraft, commitPolyline, cancelActiveEngineSession,
+  });
+
+  // ─── Runtime Init ───
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      const runtime = await getEngineRuntime();
+      if (!disposed) { runtimeRef.current = runtime; setRuntimeReady(true); }
+    })();
+    return () => { disposed = true; };
+  }, []);
+
+  // ─── Engine Sync ───
+  useEffect(() => {
+    runtimeRef.current?.setSnapOptions?.(snapOptions.enabled, snapOptions.grid, gridSize);
+  }, [snapOptions.enabled, snapOptions.grid, gridSize, runtimeReady]);
+
+  useEffect(() => {
+    runtimeRef.current?.apply([{
+      op: CommandOp.SetViewScale,
+      view: { x: viewTransform.x, y: viewTransform.y, scale: viewTransform.scale, width: canvasSize.width, height: canvasSize.height },
+    }]);
+  }, [viewTransform, canvasSize, runtimeReady]);
+
+  // ─── Pointer Handlers ───
+  const handlePointerCancel = () => {
     cancelActiveEngineSession('pointercancel');
     capturedPointerIdRef.current = null;
     pointerDownRef.current = null;
@@ -337,8 +175,6 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
-    // If the engine reports an active interaction but the local drag state is not tracking it,
-    // we are likely in a stuck state (lost pointer events). Cancel defensively to unblock sync.
     if (runtimeRef.current?.isInteractionActive?.() && dragRef.current.type !== 'engine_session') {
       cancelActiveEngineSession('stale_before_pointerdown');
     }
@@ -346,26 +182,21 @@ const EngineInteractionLayer: React.FC = () => {
     (evt.currentTarget as HTMLDivElement).setPointerCapture(evt.pointerId);
     capturedPointerIdRef.current = evt.pointerId;
 
-    // Text Edit Logic Priority
+    // Text Edit Priority
     if (engineTextEditState.active && textToolRef.current) {
       const world = toWorldPoint(evt, viewTransform);
       const activeTextId = engineTextEditState.textId;
-      if (activeTextId !== null && runtimeRef.current && runtimeRef.current.pickEx && runtimeRef.current.getEntityAabb) {
+      if (activeTextId !== null && runtimeRef.current?.pickEx && runtimeRef.current?.getEntityAabb) {
         const runtime = runtimeRef.current;
         const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-        const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF); // Full mask to ensure we hit the text on top
-        
+        const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF);
         if (res.id === activeTextId) {
           const aabb = runtime.getEntityAabb(activeTextId);
           if (aabb.valid) {
             const meta = getTextMeta(activeTextId);
-            const anchorX = aabb.minX;
-            const anchorY = aabb.maxY;
-            const localX = world.x - anchorX;
-            const localY = world.y - anchorY;
             const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
             const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
-            textToolRef.current.handlePointerDown(activeTextId, localX, localY, evt.shiftKey, anchorX, anchorY, 0, boxMode, constraintWidth);
+            textToolRef.current.handlePointerDown(activeTextId, world.x - aabb.minX, world.y - aabb.maxY, evt.shiftKey, aabb.minX, aabb.maxY, 0, boxMode, constraintWidth);
             textInputProxyRef.current?.focus();
             evt.preventDefault();
             evt.stopPropagation();
@@ -376,14 +207,12 @@ const EngineInteractionLayer: React.FC = () => {
       textToolRef.current.commitAndExit();
     }
 
-    // Pan/Zoom/Polyline right-click logic
-    if (evt.button === 2 && activeTool === 'polyline') {
-      if (draft.kind === 'polyline') {
-        evt.preventDefault();
-        commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
-        setDraft({ kind: 'none' });
-        return;
-      }
+    // Pan/Polyline right-click
+    if (evt.button === 2 && activeTool === 'polyline' && draft.kind === 'polyline') {
+      evt.preventDefault();
+      commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
+      setDraft({ kind: 'none' });
+      return;
     }
 
     if (evt.button === 1 || evt.button === 2 || evt.altKey || activeTool === 'pan') {
@@ -394,247 +223,75 @@ const EngineInteractionLayer: React.FC = () => {
     if (evt.button !== 0) return;
 
     const world = toWorldPoint(evt, viewTransform);
-    // Use engine snapping or raw world if not available (snapping for initial creation/draft)
     let snapped = world;
-    if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
-         // If we are about to start an interaction, we might want the snapped point for the "start" reference
-         // But the engine handles snapping during updateTransform. 
-         // For 'creation' tools (like text, draft), we still want visual snapping.
-         const p = runtimeRef.current.getSnappedPoint(world.x, world.y);
-         snapped = { x: p.x, y: p.y };
-    } 
-    // Fallback removed: if engine not ready, we don't snap.
-
+    if (runtimeRef.current?.getSnappedPoint) {
+      const p = runtimeRef.current.getSnappedPoint(world.x, world.y);
+      snapped = { x: p.x, y: p.y };
+    }
     pointerDownRef.current = { x: evt.clientX, y: evt.clientY, world: snapped };
 
-	    if (activeTool === 'select') {
-	        setSelectionBox(null);
-	        marqueeArmedRef.current = false;
-
-	        // ------------------------------------------------------------------
-	        // NEW: Engine-First Picking Logic
-	        // ------------------------------------------------------------------
-        if (runtimeRef.current) {
-            const runtime = runtimeRef.current;
-            const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-            // Mask: Body | Edge | Vertex (+ Handles behind feature flag)
-            const pickMask = engineResizeEnabled ? 15 : 7; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
-            // PickSubTarget: None=0, Body=1, Edge=2, Vertex=3, ResizeHandle=4, RotateHandle=5, TextBody=6, TextCaret=7
-            // PickMask in pick_system.cpp: PICK_BODY=1, PICK_EDGE=2, PICK_VERTEX=4, PICK_HANDLES=8
-
-            const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
-
-            if (import.meta.env.DEV && localStorage.getItem("DEV_TRACE_PICK") === "1") {
-                 console.log(`[EngineInteractionLayer] pickEx input: x=${world.x.toFixed(2)} y=${world.y.toFixed(2)} tol=${tolerance.toFixed(2)} mask=${pickMask}`);
-                 console.log("[EngineInteractionLayer] pickEx result:", res);
-            }
-
-            if (res.id !== 0 && res.subTarget !== PickSubTarget.None) {
-                 const entityId = res.id;
-                 const modifiers = selectionModifiersFromEvent(evt);
-                 runtime.selectByPick(res, modifiers);
-                 const activeIds = readSelectionIds();
-
-                 if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle && res.subIndex >= 0) {
-                   setEngineSelection([entityId], SelectionMode.Replace);
-                   setCursorOverride(cursor);
-                   // For Resize/VertexDrag, start with RAW world coordinates. Engine snaps the delta or result.
-                   // Actually for vertex drag we want to snap the target position.
-                   // If we pass snapped coords as start, then delta is relative to snapped.
-                   // Let's pass the snapped point as start to be consistent with previous behavior, 
-                   // BUT for updateTransform we now pass raw world coordinates if using engine snapping logic?
-                   // No, engine's updateTransform takes "worldX, worldY" (current mouse).
-                   // The engine calculates delta = world - start.
-                   // If we snap world inside engine, then delta is snapped(world) - start.
-                   // If start was snapped, it aligns better.
-                   if (beginEngineSession([entityId], TransformMode.Resize, entityId, res.subIndex, snapped.x, snapped.y)) {
-                     dragRef.current = { type: 'engine_session', startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
-                     return;
-                   }
-                 }
-
-                 if (res.subTarget === PickSubTarget.Vertex && res.subIndex >= 0) {
-                   setEngineSelection([entityId], SelectionMode.Replace);
-                   setCursorOverride('move');
-                   if (beginEngineSession([entityId], TransformMode.VertexDrag, entityId, res.subIndex, snapped.x, snapped.y)) {
-                     dragRef.current = { type: 'engine_session', startWorld: snapped, vertexIndex: res.subIndex, activeId: entityId };
-                     return;
-                   }
-                 } else if (
-                   res.subTarget === PickSubTarget.Edge ||
-                   res.subTarget === PickSubTarget.Body ||
-                   res.subTarget === PickSubTarget.TextBody
-                 ) {
-                   if (activeIds.length > 0) {
-                     setCursorOverride('move');
-                     if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
-                       dragRef.current = { type: 'engine_session', startWorld: snapped };
-                       return;
-                     }
-                   }
-                 }
-            } else if (res.id !== 0 && res.subTarget === PickSubTarget.None) {
-                 // Legacy fallback: treat as a body hit.
-                 const modifiers = selectionModifiersFromEvent(evt);
-                 runtime.selectByPick?.(res, modifiers);
-                 const activeIds = readSelectionIds();
-                 if (activeIds.length > 0) {
-                     setCursorOverride('move');
-                     if (beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
-                       dragRef.current = { type: "engine_session", startWorld: snapped };
-                       return;
-                     }
-                 }
-            }
-	            // Miss → marquee selection (handled by useSelectInteraction).
-	        }
-
-	        marqueeArmedRef.current = true;
-	        selectHandlePointerDown(evt, world);
-	        return;
-	    }
-
-    // Tools logic
-    if (activeTool === 'text') {
-      textDragStartRef.current = snapped;
-      return;
-    }
-
-
+    if (activeTool === 'select') { handleSelectPointerDown(evt, world, snapped); return; }
+    if (activeTool === 'text') { textDragStartRef.current = snapped; return; }
     if (activeTool === 'move') {
       const activeIds = readSelectionIds();
       if (activeIds.length > 0 && beginEngineSession(activeIds, TransformMode.Move, 0, -1, snapped.x, snapped.y)) {
         dragRef.current = { type: 'engine_session', startWorld: snapped };
-        return;
       }
       return;
     }
-
-    // Delegate to draft handler
     draftHandlePointerDown(snapped, evt.button, evt.altKey);
   };
 
   const handlePointerMove = (evt: React.PointerEvent<HTMLDivElement>) => {
-    if (isPanningRef.current) {
-      updatePan(evt);
+    if (isPanningRef.current) { updatePan(evt); return; }
+
+    const world = toWorldPoint(evt, viewTransform);
+    let snapped = world;
+    if (runtimeRef.current?.getSnappedPoint) {
+      const p = runtimeRef.current.getSnappedPoint(world.x, world.y);
+      snapped = { x: p.x, y: p.y };
+    }
+
+    if (dragRef.current.type === 'engine_session') {
+      runtimeRef.current?.updateTransform(world.x, world.y);
       return;
     }
 
-    const world = toWorldPoint(evt, viewTransform);
-    
-    // Calculate snapped point for drafting/hover loops
-    let snapped = world;
-    if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
-       const p = runtimeRef.current.getSnappedPoint(world.x, world.y);
-       snapped = { x: p.x, y: p.y };
+    // Text Edit Hover
+    if (engineTextEditState.active && textToolRef.current && engineTextEditState.textId !== null) {
+      const runtime = runtimeRef.current;
+      if (runtime?.getEntityAabb && runtime.pickEx) {
+        const activeTextId = engineTextEditState.textId;
+        const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+        const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF);
+        setCursorOverride(res.id === activeTextId ? 'text' : null);
+        const aabb = runtime.getEntityAabb(activeTextId);
+        if (aabb.valid) textToolRef.current.handlePointerMove(activeTextId, world.x - aabb.minX, world.y - aabb.maxY);
+      }
+      return;
     }
 
-    // ------------------------------------------------------------------
-    // NEW: Handle Drag Modes
-    // ------------------------------------------------------------------
-    if (dragRef.current.type === 'engine_session') {
-        if (runtimeRef.current) {
-            // Pass RAW coordinates to engine. 
-            // The engine now handles snapping internally in updateTransform.
-            runtimeRef.current.updateTransform(world.x, world.y);
-        }
-        return;
-    }
-
-    // Text edit logic
-    if (engineTextEditState.active) {
-       // ... (existing hover logic)
-       if (textToolRef.current && engineTextEditState.textId !== null) {
-          const activeTextId = engineTextEditState.textId;
-          const runtime = runtimeRef.current;
-          if (runtime?.getEntityAabb && runtime.pickEx) {
-             const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-             const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF);
-             const inside = res.id === activeTextId;
-             
-             setCursorOverride(inside ? 'text' : null);
-
-             const aabb = runtime.getEntityAabb(activeTextId);
-             if (aabb.valid) {
-               const anchorX = aabb.minX;
-               const anchorY = aabb.maxY;
-               textToolRef.current.handlePointerMove(activeTextId, world.x - anchorX, world.y - anchorY);
-             }
-          }
-       }
-       return;
-    }
-
-
-
-	    if (activeTool === 'select') {
-	      const down = pointerDownRef.current;
-	        if (!down) {
-	          const runtime = runtimeRef.current;
-	          if (!runtime) {
-	            setCursorOverride(null);
-	            return;
-	          }
-
-	          const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
-	          const pickMask = engineResizeEnabled ? 15 : 3; // Body(1) | Edge(2) | Vertex(4) | Handle(8)
-	          const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
-	          if (res.id !== 0) {
-	          if (engineResizeEnabled && res.subTarget === PickSubTarget.ResizeHandle) {
-	            const cursor = res.subIndex === 0 || res.subIndex === 2 ? 'nesw-resize' : 'nwse-resize';
-	            setCursorOverride(cursor);
-	            return;
-	          }
-	          setCursorOverride('move');
-	          return;
-	        }
-	        setCursorOverride(null);
-	        return;
-	      }
-
-	      selectHandlePointerMove(evt, down, snapped);
-	      return;
-	    }
-
+    if (activeTool === 'select') { handleSelectPointerMove(world, snapped, pointerDownRef.current); return; }
     draftHandlePointerMove(snapped, evt.shiftKey);
   };
 
   const handlePointerUp = (evt: React.PointerEvent<HTMLDivElement>) => {
-    if (isPanningRef.current) {
-      endPan();
-      return;
-    }
-
+    if (isPanningRef.current) { endPan(); return; }
     if (evt.button !== 0) return;
 
-    // ------------------------------------------------------------------
-    // NEW: Cleanup Drag Modes
-    // ------------------------------------------------------------------
-    if (dragRef.current.type !== 'none') {
-        const mode = dragRef.current;
-        dragRef.current = { type: 'none' };
+    if (dragRef.current.type !== 'none') { commitEngineSession(); return; }
 
-	        if (mode.type === 'engine_session') {
-	            runtimeRef.current?.commitTransform();
-            pointerDownRef.current = null;
-            setEngineInteractionActive(false);
-            return;
-        }
-    }
-
+    // Text Tool
     if (activeTool === 'text' && textDragStartRef.current) {
       let snapped = toWorldPoint(evt, viewTransform);
-      if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
-         const p = runtimeRef.current.getSnappedPoint(snapped.x, snapped.y);
-         snapped = { x: p.x, y: p.y };
+      if (runtimeRef.current?.getSnappedPoint) {
+        const p = runtimeRef.current.getSnappedPoint(snapped.x, snapped.y);
+        snapped = { x: p.x, y: p.y };
       }
-      
       const start = textDragStartRef.current;
       textDragStartRef.current = null;
       if (textToolRef.current) {
-        const dx = snapped.x - start.x;
-        const dy = snapped.y - start.y;
-        if (Math.hypot(dx, dy) > 10) {
+        if (Math.hypot(snapped.x - start.x, snapped.y - start.y) > 10) {
           textToolRef.current.handleDrag(start.x, start.y, snapped.x, snapped.y);
         } else {
           textToolRef.current.handleClick(start.x, start.y);
@@ -644,90 +301,39 @@ const EngineInteractionLayer: React.FC = () => {
       return;
     }
 
-    if (engineTextEditState.active) {
-       textToolRef.current?.handlePointerUp();
-       return;
-    }
-
-
+    if (engineTextEditState.active) { textToolRef.current?.handlePointerUp(); return; }
 
     const down = pointerDownRef.current;
     pointerDownRef.current = null;
     const clickNoDrag = !!down && !isDrag(evt.clientX - down.x, evt.clientY - down.y);
 
-	    if (activeTool === 'select') {
-	        selectHandlePointerUp(evt, down);
-	        if (clickNoDrag && marqueeArmedRef.current) {
-	          clearEngineSelection();
-	        }
-	        marqueeArmedRef.current = false;
-	        return;
-	    }
-
-    draftHandlePointerUp(down ? down.world : {x:0, y:0}, clickNoDrag);
+    if (activeTool === 'select') { handleSelectPointerUp(evt, down, clickNoDrag); return; }
+    draftHandlePointerUp(down ? down.world : { x: 0, y: 0 }, clickNoDrag);
   };
 
   const handleDoubleClick = (evt: React.MouseEvent<HTMLDivElement>) => {
-    // ... existing double click logic
     if (activeTool === 'select') {
-      const world = toWorldPoint({
-        currentTarget: evt.currentTarget,
-        clientX: evt.clientX,
-        clientY: evt.clientY
-      } as React.PointerEvent<HTMLDivElement>, viewTransform);
-
-      const tolerance = HIT_TOLERANCE / (viewTransform.scale || 1);
+      const world = toWorldPoint({ currentTarget: evt.currentTarget, clientX: evt.clientX, clientY: evt.clientY } as React.PointerEvent<HTMLDivElement>, viewTransform);
       const runtime = runtimeRef.current;
       if (!runtime) return;
-      const pickMask = 3;
-      const res = runtime.pickEx(world.x, world.y, tolerance, pickMask);
-
+      const res = runtime.pickEx(world.x, world.y, HIT_TOLERANCE / (viewTransform.scale || 1), 3);
       if (res.id !== 0 && res.kind === PickEntityKind.Text && textToolRef.current) {
         useUIStore.getState().setTool('text');
-        if (!runtime.getEntityAabb) return;
-        const aabb = runtime.getEntityAabb(res.id);
-        if (!aabb.valid) return;
-        const anchorX = aabb.minX;
-        const anchorY = aabb.maxY;
+        const aabb = runtime.getEntityAabb?.(res.id);
+        if (!aabb?.valid) return;
         const meta = getTextMeta(res.id);
         const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
         const constraintWidth = boxMode === TextBoxMode.FixedWidth ? (meta?.constraintWidth ?? 0) : 0;
-        textToolRef.current.handlePointerDown(res.id, world.x - anchorX, world.y - anchorY, evt.shiftKey, anchorX, anchorY, 0, boxMode, constraintWidth, false);
+        textToolRef.current.handlePointerDown(res.id, world.x - aabb.minX, world.y - aabb.maxY, evt.shiftKey, aabb.minX, aabb.maxY, 0, boxMode, constraintWidth, false);
         requestAnimationFrame(() => textInputProxyRef.current?.focus());
-        return;
       }
-    }
-    if (activeTool === 'polyline') {
-        evt.preventDefault();
-        if (draft.kind === 'polyline') commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
-        return;
+    } else if (activeTool === 'polyline' && draft.kind === 'polyline') {
+      evt.preventDefault();
+      commitPolyline(draft.current ? [...draft.points, draft.current] : draft.points);
     }
   };
 
-  const selectionSvg = useMemo(() => {
-    if (!selectionBox) return null;
-    if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
-
-    const a = worldToScreen(selectionBox.start, viewTransform);
-    const b = worldToScreen(selectionBox.current, viewTransform);
-    const x = Math.min(a.x, b.x);
-    const y = Math.min(a.y, b.y);
-    const w = Math.abs(a.x - b.x);
-    const h = Math.abs(a.y - b.y);
-
-    const stroke = '#3b82f6';
-    const fill = 'rgba(59, 130, 246, 0.2)';
-    const strokeDash = selectionBox.direction === 'RTL' ? '5 5' : undefined; // Crossing (RTL) vs Window (LTR)
-
-    return (
-      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 25 }}>
-        <rect x={x} y={y} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1} strokeDasharray={strokeDash} />
-      </svg>
-    );
-  }, [selectionBox, viewTransform, canvasSize]);
-
-
-
+  // ─── Render ───
   return (
     <div
       style={{ position: 'absolute', inset: 0, zIndex: 20, touchAction: 'none', cursor }}
@@ -741,9 +347,8 @@ const EngineInteractionLayer: React.FC = () => {
       onLostPointerCapture={handleLostPointerCapture}
       ref={layerRef}
     >
-
       <SelectionOverlay hideAnchors={engineTextEditState.active} />
-      {selectionSvg}
+      <MarqueeOverlay selectionBox={selectionBox} viewTransform={viewTransform} canvasSize={canvasSize} />
       <TextInputProxy
         ref={textInputProxyRef}
         active={engineTextEditState.active}
@@ -752,61 +357,26 @@ const EngineInteractionLayer: React.FC = () => {
         selectionStart={activeTextData.selectionStart}
         selectionEnd={activeTextData.selectionEnd}
         positionHint={engineTextEditState.caretPosition ?? undefined}
-        onInput={(delta: TextInputDelta) => {
-          textToolRef.current?.handleInputDelta(delta);
-        }}
-        onSelectionChange={(start, end) => {
-          textToolRef.current?.handleSelectionChange(start, end);
-        }}
-        onSpecialKey={(key, e) => {
-          textToolRef.current?.handleSpecialKey(key, e);
-        }}
+        onInput={(delta: TextInputDelta) => textToolRef.current?.handleInputDelta(delta)}
+        onSelectionChange={(start, end) => textToolRef.current?.handleSelectionChange(start, end)}
+        onSpecialKey={(key, e) => textToolRef.current?.handleSpecialKey(key, e)}
       />
-
-      <TextCaretOverlay
-        caret={caret}
-        selectionRects={selectionRects}
-        viewTransform={viewTransform}
-        anchor={anchor}
-        rotation={rotation}
-      />
-      {polygonSidesModal ? (
+      <TextCaretOverlay caret={caret} selectionRects={selectionRects} viewTransform={viewTransform} anchor={anchor} rotation={rotation} />
+      {polygonSidesModal && (
         <>
           <div className="absolute inset-0 z-[60]" onPointerDown={() => setPolygonSidesModal(null)} />
-          <div
-            className="absolute left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[280px]"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
+          <div className="absolute left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[280px]" onPointerDown={(e) => e.stopPropagation()}>
             <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-3 text-slate-100">
               <div className="text-xs font-semibold mb-2">Lados do polígono</div>
               <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={3}
-                  max={24}
-                  value={polygonSidesValue}
-                  onChange={(e) => setPolygonSidesValue(Number.parseInt(e.target.value, 10))}
-                  className="w-full h-8 bg-slate-800 border border-slate-700 rounded px-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
-                  onClick={() => {
-                    const defaultSides = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
-                    const sides = Number.isFinite(polygonSidesValue) ? polygonSidesValue : defaultSides;
-                    commitDefaultPolygonAt(polygonSidesModal.center, sides);
-                    setPolygonSidesModal(null);
-                  }}
-                >
-                  OK
-                </button>
+                <input type="number" min={3} max={24} value={polygonSidesValue} onChange={(e) => setPolygonSidesValue(Number.parseInt(e.target.value, 10))} className="w-full h-8 bg-slate-800 border border-slate-700 rounded px-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500" autoFocus />
+                <button type="button" className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium" onClick={() => { commitDefaultPolygonAt(polygonSidesModal.center, Math.max(3, Math.min(24, polygonSidesValue || toolDefaults.polygonSides || 6))); setPolygonSidesModal(null); }}>OK</button>
               </div>
               <div className="mt-2 text-[11px] text-slate-400">Min 3, max 24. Tamanho inicial 100×100.</div>
             </div>
           </div>
         </>
-      ) : null}
+      )}
     </div>
   );
 };

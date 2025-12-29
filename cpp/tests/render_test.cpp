@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "engine/render.h"
-#include "engine/types.h"
+#include "engine/render/render.h"
+#include "engine/core/types.h"
 
 TEST(RenderTest, SimpleBuffers) {
     using namespace engine;

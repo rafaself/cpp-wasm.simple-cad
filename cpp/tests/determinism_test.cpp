@@ -12,8 +12,8 @@
 
 #include <gtest/gtest.h>
 #include "engine/engine.h"
-#include "engine/snapshot.h"
-#include "engine/commands.h"
+#include "engine/persistence/snapshot.h"
+#include "engine/command/commands.h"
 #include <vector>
 #include <cstring>
 

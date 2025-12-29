@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "engine/commands.h"
+#include "engine/command/commands.h"
 
 struct Ctx { int count = 0; };
 

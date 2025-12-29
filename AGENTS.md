@@ -352,12 +352,14 @@ frontend/
 
 ## 12. Additional Documentation
 
-| Document                           | Content                    |
-| ---------------------------------- | -------------------------- |
-| `docs/agents/engine-api.md`        | Complete C++ API reference |
-| `docs/agents/frontend-patterns.md` | Mandatory React patterns   |
-| `docs/agents/text-system.md`       | Text system                |
-| `docs/agents/workflows.md`         | Development recipes        |
+| Document                              | Content                           |
+| ------------------------------------- | --------------------------------- |
+| `docs/agents/engine-api.md`           | Complete C++ API reference        |
+| `docs/agents/frontend-patterns.md`    | Mandatory React patterns          |
+| `docs/agents/text-system.md`          | Text system                       |
+| `docs/agents/workflows.md`            | Development recipes               |
+| `docs/agents/srp-refactor-plan.md`    | SRP refactoring plan & guidelines |
+| `docs/agents/srp-refactor-action-plan.md` | Execution action plan         |
 
 ---
 
@@ -375,4 +377,54 @@ cd cpp/build_native && ctest --output-on-failure
 
 # Frontend tests
 cd frontend && npx vitest run
+
+# Code size report
+./scripts/loc-report.sh
 ```
+
+---
+
+## 14. Code Size Governance (SRP)
+
+To maintain code quality and prevent monolithic files, the following size limits are enforced.
+
+### File Size Thresholds
+
+| Area | Review Threshold | Mandatory Refactor |
+| ---- | ---------------- | ------------------ |
+| C++ engine (`cpp/engine/**`) | > 450 LOC | > 800 LOC |
+| C++ tests (`cpp/tests/**`) | > 600 LOC | > 1000 LOC |
+| TS/TSX (`frontend/**`) | > 350 LOC | > 600 LOC |
+| TS tests | > 400 LOC | > 700 LOC |
+
+### Function Length Guardrails
+
+- **Review**: Any function > 80 LOC
+- **Mandatory refactor**: Any function > 120 LOC
+- **Exception**: Data-heavy switch statements with clear 1:1 case mapping
+
+### Responsibility Limits
+
+- **2 responsibilities max** for hot-path files (input handlers, render loops)
+- **3 responsibilities max** for orchestrators
+- **1 responsibility** for domain logic (pure algorithms, data structures)
+
+### Forbidden Patterns
+
+| Pattern | Why Forbidden |
+| ------- | ------------- |
+| `utils.ts` > 200 LOC | Becomes god-file dumping ground |
+| Manager class > 500 LOC | Hidden monolith |
+| Cross-layer imports | Engine-First violation |
+| Document state in Zustand | Engine owns document, not React |
+
+### Enforcement
+
+```bash
+# Run size check (also runs in CI)
+./scripts/loc-report.sh
+```
+
+### Documentation
+
+See `docs/agents/srp-refactor-plan.md` for the full refactoring plan and detailed guidelines.

@@ -7,8 +7,9 @@
 
 #include <gtest/gtest.h>
 #include "engine/engine.h"
-#include "engine/commands.h"
-#include "engine/types.h"
+#include "engine/command/commands.h"
+#include "engine/command/command_dispatch.h"
+#include "engine/core/types.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -72,10 +73,13 @@ protected:
     
     // Apply a command buffer to the engine
     EngineError applyCommands(const CommandBufferBuilder& builder) {
+        auto commandCallback = [](void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount) -> EngineError {
+            return engine::dispatchCommand(reinterpret_cast<CadEngine*>(ctx), op, id, payload, payloadByteCount);
+        };
         return engine::parseCommandBuffer(
             builder.data(),
             builder.size(),
-            &CadEngine::cad_command_callback,
+            commandCallback,
             engine_.get()
         );
     }

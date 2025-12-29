@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "engine/vector_tessellation.h"
+#include "engine/render/vector_tessellation.h"
 
 #include <cmath>
 #include <cstddef>

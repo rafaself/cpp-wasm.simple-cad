@@ -1,11 +1,13 @@
 import type { VectorClipEntry, VectorDocumentV1, VectorDraw, VectorFillRule, VectorPath, VectorSegment, VectorStyle, VectorStrokeStyle } from '../../../types';
 import * as pdfjs from 'pdfjs-dist';
 import { applyColorScheme, resolveColorScheme, type DxfColorScheme } from './dxf/colorScheme';
-
-// Basic Matrix [a, b, c, d, e, f]
-// x' = ax + cy + e
-// y' = bx + dy + f
-type Matrix = [number, number, number, number, number, number];
+import {
+  Matrix, IDENTITY_MATRIX, multiplyMatrix, applyMatrix, scaleFromMatrix,
+  formatColor, isNearWhiteHex, clamp01,
+} from './pdfMatrixUtils';
+import {
+  keyForSegments, boundsFromSegments, normalizeSegments, isTransparent,
+} from './pdfPathUtils';
 
 type PdfPageProxyLike = {
   getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[] }>;
@@ -15,10 +17,7 @@ type PdfPageProxyLike = {
 export interface PdfVectorImportOptions {
   colorScheme?: DxfColorScheme;
   customColor?: string;
-  /**
-   * When enabled, removes a single likely page/frame border draw (stroke-only) that matches
-   * overall extents, mirroring `removePdfBorderShapes` behavior.
-   */
+  /** When enabled, removes a single likely page/frame border draw (stroke-only). */
   removeBorder?: boolean;
 }
 
@@ -26,102 +25,6 @@ export type PdfVectorDocumentResult = {
   document: VectorDocumentV1;
   width: number;
   height: number;
-};
-
-const IDENTITY_MATRIX: Matrix = [1, 0, 0, 1, 0, 0];
-
-const multiplyMatrix = (m1: Matrix, m2: Matrix): Matrix => {
-  const [a1, b1, c1, d1, e1, f1] = m1;
-  const [a2, b2, c2, d2, e2, f2] = m2;
-  return [
-    a1 * a2 + b1 * c2,
-    a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2,
-    c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2,
-    e1 * b2 + f1 * d2 + f2,
-  ];
-};
-
-const applyMatrix = (p: { x: number; y: number }, m: Matrix): { x: number; y: number } => ({
-  x: m[0] * p.x + m[2] * p.y + m[4],
-  y: m[1] * p.x + m[3] * p.y + m[5],
-});
-
-const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
-
-const toHex2From01 = (v01: number): string =>
-  Math.round(clamp01(v01) * 255)
-    .toString(16)
-    .padStart(2, '0');
-
-const formatColor = (args: number[]): string => {
-  if (args.length === 1) {
-    const h = toHex2From01(args[0]);
-    return `#${h}${h}${h}`;
-  }
-  if (args.length === 3) {
-    return `#${toHex2From01(args[0])}${toHex2From01(args[1])}${toHex2From01(args[2])}`;
-  }
-  if (args.length === 4) {
-    const c = clamp01(args[0]);
-    const m = clamp01(args[1]);
-    const y = clamp01(args[2]);
-    const k = clamp01(args[3]);
-    const r = Math.round(255 * (1 - c) * (1 - k));
-    const g = Math.round(255 * (1 - m) * (1 - k));
-    const b = Math.round(255 * (1 - y) * (1 - k));
-    const rh = Math.min(255, Math.max(0, r)).toString(16).padStart(2, '0');
-    const gh = Math.min(255, Math.max(0, g)).toString(16).padStart(2, '0');
-    const bh = Math.min(255, Math.max(0, b)).toString(16).padStart(2, '0');
-    return `#${rh}${gh}${bh}`;
-  }
-  return '#000000';
-};
-
-const isNearWhiteHex = (hex: string): boolean => {
-  if (!hex.startsWith('#') || hex.length < 7) return false;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return r >= 242 && g >= 242 && b >= 242;
-};
-
-const round4 = (v: number): number => {
-  const s = 10_000;
-  return Math.round(v * s) / s;
-};
-
-const keyForSegments = (segs: readonly VectorSegment[], closed: boolean): string => {
-  const norm = segs.map((s) => {
-    switch (s.kind) {
-      case 'move':
-      case 'line':
-        return { k: s.kind, to: { x: round4(s.to.x), y: round4(s.to.y) } };
-      case 'quad':
-        return { k: s.kind, c: { x: round4(s.c.x), y: round4(s.c.y) }, to: { x: round4(s.to.x), y: round4(s.to.y) } };
-      case 'cubic':
-        return {
-          k: s.kind,
-          c1: { x: round4(s.c1.x), y: round4(s.c1.y) },
-          c2: { x: round4(s.c2.x), y: round4(s.c2.y) },
-          to: { x: round4(s.to.x), y: round4(s.to.y) },
-        };
-      case 'arc':
-        return {
-          k: s.kind,
-          center: { x: round4(s.center.x), y: round4(s.center.y) },
-          radius: { x: round4(s.radius.x), y: round4(s.radius.y) },
-          rotation: round4(s.rotation),
-          startAngle: round4(s.startAngle),
-          endAngle: round4(s.endAngle),
-          ccw: !!s.ccw,
-        };
-      case 'close':
-        return { k: 'close' };
-    }
-  });
-  return JSON.stringify({ closed, norm });
 };
 
 type PendingPath = { segments: VectorSegment[]; closed: boolean };
@@ -149,86 +52,6 @@ const cloneState = (s: GraphicsState): GraphicsState => ({
   dash: [...s.dash],
   clipStack: [...s.clipStack],
 });
-
-const scaleFromMatrix = (m: Matrix): number => {
-  const sx = Math.hypot(m[0], m[1]);
-  const sy = Math.hypot(m[2], m[3]);
-  if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return 1;
-  return (sx + sy) / 2;
-};
-
-const isTransparent = (hex: string | undefined): boolean => !hex || hex === 'transparent' || hex === 'none';
-
-const boundsFromSegments = (segments: readonly VectorSegment[]): { minX: number; minY: number; maxX: number; maxY: number } => {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  const add = (p: { x: number; y: number }) => {
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
-  };
-
-  for (const s of segments) {
-    switch (s.kind) {
-      case 'move':
-      case 'line':
-        add(s.to);
-        break;
-      case 'quad':
-        add(s.c);
-        add(s.to);
-        break;
-      case 'cubic':
-        add(s.c1);
-        add(s.c2);
-        add(s.to);
-        break;
-      case 'arc':
-        add({ x: s.center.x - s.radius.x, y: s.center.y - s.radius.y });
-        add({ x: s.center.x + s.radius.x, y: s.center.y + s.radius.y });
-        break;
-      case 'close':
-        break;
-    }
-  }
-
-  return { minX, minY, maxX, maxY };
-};
-
-const normalizePoint = (p: { x: number; y: number }, minX: number, minY: number, height: number): { x: number; y: number } => ({
-  x: p.x - minX,
-  y: height - (p.y - minY),
-});
-
-const normalizeSegments = (segments: VectorSegment[], minX: number, minY: number, height: number): VectorSegment[] =>
-  segments.map((s) => {
-    switch (s.kind) {
-      case 'move':
-      case 'line':
-        return { ...s, to: normalizePoint(s.to, minX, minY, height) };
-      case 'quad':
-        return { ...s, c: normalizePoint(s.c, minX, minY, height), to: normalizePoint(s.to, minX, minY, height) };
-      case 'cubic':
-        return {
-          ...s,
-          c1: normalizePoint(s.c1, minX, minY, height),
-          c2: normalizePoint(s.c2, minX, minY, height),
-          to: normalizePoint(s.to, minX, minY, height),
-        };
-      case 'arc':
-        return {
-          ...s,
-          center: normalizePoint(s.center, minX, minY, height),
-          radius: { ...s.radius },
-        };
-      case 'close':
-        return s;
-    }
-  });
 
 const removeLikelyBorderDraw = (draws: readonly PendingDraw[]): PendingDraw[] => {
   if (draws.length === 0) return [];

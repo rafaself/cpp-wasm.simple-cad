@@ -1,36 +1,24 @@
 /**
- * TextTool - Engine-Native Text Tool Integration
- *
- * This module handles text creation and editing workflows:
- * - AutoWidth mode: Click to create text that grows horizontally
- * - FixedWidth mode: Drag to create a text box with word wrapping
- *
- * The tool coordinates between:
- * - TextBridge: Sends commands to the WASM engine
- * - TextInputProxy: Captures keyboard/IME input
- * - TextCaretOverlay: Renders caret and selection visuals
+ * TextTool - Text creation/editing orchestrator.
+ * Coordinates TextBridge, TextInputCoordinator, NavigationHandler, StyleHandler.
  */
-
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
-import type { ApplyTextStylePayload } from '@/engine/core/commandBuffer';
 import { TextBridge } from '@/engine/bridge/textBridge';
 import {
   TextBoxMode,
   TextAlign,
   TextStyleFlags,
-  packColorRGBA,
   charIndexToByteIndex,
-  byteIndexToCharIndex,
   type TextPayload,
   type TextInputDelta,
   type TextStyleSnapshot,
 } from '@/types/text';
-import { getTextMeta } from '@/engine/core/textEngineSync';
-import { registerEngineId } from '@/engine/core/IdRegistry';
+import { TextInputCoordinator } from '@/engine/tools/text/TextInputCoordinator';
+import { TextNavigationHandler } from '@/engine/tools/text/TextNavigationHandler';
+import { TextStateManager } from '@/engine/tools/text/TextStateManager';
+import { TextStyleHandler } from '@/engine/tools/text/TextStyleHandler';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type TextToolMode = 'idle' | 'creating' | 'editing';
 
@@ -96,41 +84,68 @@ export interface TextToolCallbacks {
 export class TextTool {
   private runtime: EngineRuntime | null = null;
   private bridge: TextBridge | null = null;
-  private state: TextToolState;
-  private styleDefaults: TextStyleDefaults;
   private callbacks: TextToolCallbacks;
   private initialized = false;
 
+  // Delegated handlers
+  private stateManager: TextStateManager;
+  private navigationHandler: TextNavigationHandler | null = null;
+  private styleHandler: TextStyleHandler | null = null;
+  private inputCoordinator: TextInputCoordinator;
+
   constructor(callbacks: TextToolCallbacks) {
     this.callbacks = callbacks;
-    this.state = this.createInitialState();
-    this.styleDefaults = {
-      fontId: 4, // Use fontId=4 (Inter/DejaVu Sans) as default - fontId=0 is reserved but has no font loaded
-      fontSize: 16,
-      colorRGBA: packColorRGBA(1, 1, 1, 1), // White (default canvas background is dark)
-      flags: TextStyleFlags.None,
-      align: TextAlign.Left,
-    };
+    
+    // Create state manager with state change callback
+    this.stateManager = new TextStateManager((state) => {
+      this.callbacks.onStateChange(state);
+    });
+
+    // Create input coordinator with callbacks that sync state with TextTool
+    this.inputCoordinator = new TextInputCoordinator(
+      {
+        onStateChange: (coordState) => {
+          // Sync coordinator state to TextTool state via stateManager
+          this.stateManager.updateState({
+            mode: coordState.mode,
+            activeTextId: coordState.activeTextId,
+            boxMode: coordState.boxMode,
+            constraintWidth: coordState.constraintWidth,
+            caretIndex: coordState.caretIndex,
+            selectionStart: coordState.selectionStart,
+            selectionEnd: coordState.selectionEnd,
+            anchorX: coordState.anchorX,
+            anchorY: coordState.anchorY,
+            rotation: coordState.rotation,
+          });
+        },
+        onTextCreated: callbacks.onTextCreated,
+        onTextUpdated: callbacks.onTextUpdated,
+        updateCaretPosition: () => this.updateCaretPosition(),
+      },
+      {
+        fontId: this.stateManager.getStyleDefaults().fontId,
+        fontSize: this.stateManager.getStyleDefaults().fontSize,
+        colorRGBA: this.stateManager.getStyleDefaults().colorRGBA,
+        flags: this.stateManager.getStyleDefaults().flags,
+      }
+    );
   }
 
-  private createInitialState(): TextToolState {
-    return {
-      mode: 'idle',
-      activeTextId: null,
-      boxMode: TextBoxMode.AutoWidth,
-      constraintWidth: 0,
-      caretIndex: 0,
-      selectionStart: 0,
-      selectionEnd: 0,
-      anchorX: 0,
-      anchorY: 0,
-      rotation: 0,
-    };
+  /** Get current state (delegated to stateManager). */
+  private get state(): TextToolState {
+    return this.stateManager.getState();
+  }
+
+  /** Get style defaults (delegated to stateManager). */
+  private get styleDefaults(): TextStyleDefaults {
+    return this.stateManager.getStyleDefaults();
   }
 
   private getPooledContent(): string {
-     if (!this.bridge || this.state.activeTextId === null) return '';
-     return this.bridge.getTextContent(this.state.activeTextId) ?? '';
+     const state = this.stateManager.getState();
+     if (!this.bridge || state.activeTextId === null) return '';
+     return this.bridge.getTextContent(state.activeTextId) ?? '';
    }
 
   // ===========================================================================
@@ -151,6 +166,29 @@ export class TextTool {
       console.warn('TextTool: Failed to initialize text system');
       return false;
     }
+
+    // Initialize navigation handler
+    this.navigationHandler = new TextNavigationHandler(
+      this.bridge,
+      this.stateManager,
+      { onCaretUpdate: () => this.updateCaretPosition() }
+    );
+
+    // Initialize style handler with adapted callback (ignore content param)
+    this.styleHandler = new TextStyleHandler(
+      this.bridge,
+      this.stateManager,
+      {
+        onTextUpdated: this.callbacks.onTextUpdated
+          ? (textId, _content, bounds, boxMode, constraintWidth) =>
+              this.callbacks.onTextUpdated!(textId, bounds, boxMode, constraintWidth)
+          : undefined,
+        onCaretUpdate: () => this.updateCaretPosition(),
+      }
+    );
+
+    // Initialize the input coordinator
+    this.inputCoordinator.initialize(runtime, this.bridge);
 
     this.initialized = true;
     return true;
@@ -179,14 +217,14 @@ export class TextTool {
    * Set default text style for new text.
    */
   setStyleDefaults(defaults: Partial<TextStyleDefaults>): void {
-    this.styleDefaults = { ...this.styleDefaults, ...defaults };
+    this.stateManager.setStyleDefaults(defaults);
   }
 
   /**
    * Get current style defaults.
    */
   getStyleDefaults(): TextStyleDefaults {
-    return { ...this.styleDefaults };
+    return this.stateManager.getStyleDefaults();
   }
 
   // ===========================================================================
@@ -208,320 +246,55 @@ export class TextTool {
       });
       return;
     }
-
-    if (!this.runtime) return;
-
-    // Create new text entity with AutoWidth mode
-    const textId = this.runtime.allocateEntityId();
-    const shapeId = `entity-${textId}`;
-    registerEngineId(textId, shapeId);
-
-    this.state = {
-      mode: 'creating',
-      activeTextId: textId,
-      boxMode: TextBoxMode.AutoWidth,
-      constraintWidth: 0,
-      caretIndex: 0,
-      selectionStart: 0,
-      selectionEnd: 0,
-      anchorX: worldX,
-      anchorY: worldY,
-      rotation: 0,
-    };
-
-    // Create empty text entity in engine
-    this.createTextEntity(textId, worldX, worldY, TextBoxMode.AutoWidth, 0);
-
-    // Notify for JS shape creation with real bounds
-    const bounds = this.bridge?.getTextBounds(textId);
-    // Initial empty text has 0 width but non-zero height (line height)
-    const w = bounds && bounds.valid ? bounds.maxX - bounds.minX : 0;
-    const h = bounds && bounds.valid ? bounds.maxY - bounds.minY : this.styleDefaults.fontSize * 1.2;
-
-    this.callbacks.onTextCreated?.(shapeId, textId, worldX, worldY, TextBoxMode.AutoWidth, 0, w, h);
-
-    this.callbacks.onStateChange(this.state);
-    this.updateCaretPosition();
+    this.inputCoordinator.handleClick(worldX, worldY,
+      (textId, x, y, boxMode, constraintWidth) => this.createTextEntity(textId, x, y, boxMode, constraintWidth)
+    );
   }
 
-  /**
-   * Handle drag on canvas - creates FixedWidth text box.
-   * @param startX Start X coordinate (world)
-   * @param startY Start Y coordinate (world)
-   * @param endX End X coordinate (world)
-   * @param endY End Y coordinate (world)
-   */
+  /** Handle drag on canvas - creates FixedWidth text box. */
   handleDrag(startX: number, startY: number, endX: number, endY: number): void {
     if (!this.isReady()) return;
-    if (!this.runtime) return;
-
-    // Calculate box dimensions
-    const x = Math.min(startX, endX);
-    const y = Math.max(startY, endY); // Y-Up: Top is Max Y
-    const width = Math.abs(endX - startX);
-    const height = Math.max(Math.abs(endY - startY), this.styleDefaults.fontSize * 1.2);
-
-    // Minimum width for fixed-width text
-    const constraintWidth = Math.max(width, 50);
-
-    // Create new text entity with FixedWidth mode
-    const textId = this.runtime.allocateEntityId();
-    const shapeId = `entity-${textId}`;
-    registerEngineId(textId, shapeId);
-
-    this.state = {
-      mode: 'creating',
-      activeTextId: textId,
-      boxMode: TextBoxMode.FixedWidth,
-      constraintWidth,
-      caretIndex: 0,
-      selectionStart: 0,
-      selectionEnd: 0,
-      anchorX: x,
-      anchorY: y,
-      rotation: 0,
-    };
-
-    // Create empty text entity in engine
-    this.createTextEntity(textId, x, y, TextBoxMode.FixedWidth, constraintWidth);
-
-    // Notify for JS shape creation with the user-drawn box dimensions.
-    const w = constraintWidth;
-    // Preserve the user-drawn height so the box remains fixed like Figma area text.
-    const h = height;
-
-    this.callbacks.onTextCreated?.(shapeId, textId, x, y, TextBoxMode.FixedWidth, constraintWidth, w, h);
-
-    this.callbacks.onStateChange(this.state);
-    this.updateCaretPosition();
+    this.inputCoordinator.handleDrag(startX, startY, endX, endY,
+      (textId, x, y, boxMode, constraintWidth) => this.createTextEntity(textId, x, y, boxMode, constraintWidth)
+    );
   }
 
-  /**
-   * Handle click on existing text to edit it.
-   * @param textId Engine text ID
-   * @param localX Local X coordinate (within text bounds)
-   * @param localY Local Y coordinate (within text bounds)
-   */
-  private selectionDragAnchor: number | null = null;
-  private isDragging = false;
-  private lastClickInfo: { textId: number | null; time: number; x: number; y: number; count: number } = {
-    textId: null,
-    time: 0,
-    x: 0,
-    y: 0,
-    count: 0,
-  };
-
-  /**
-   * Handle pointer down on text.
-   * @param textId Target text entity ID
-   * @param localX Click X in text-local space
-   * @param localY Click Y in text-local space
-   * @param shiftKey Whether shift is held (selection extension)
-   * @param anchorX World X of text anchor (top-left)
-   * @param anchorY World Y of text anchor (top-left)
-   */
+  /** Handle pointer down on text. */
   handlePointerDown(
-    textId: number,
-    localX: number,
-    localY: number,
-    shiftKey: boolean,
-    anchorX: number,
-    anchorY: number,
-    rotation: number,
-    boxMode?: TextBoxMode,
-    constraintWidth?: number,
-    startDrag = true
+    textId: number, localX: number, localY: number, shiftKey: boolean,
+    anchorX: number, anchorY: number, rotation: number,
+    boxMode?: TextBoxMode, constraintWidth?: number, startDrag = true
   ): void {
-    if (!this.isReady() || !this.bridge) return;
-
-    const resolvedBoxMode = boxMode ?? this.state.boxMode ?? TextBoxMode.AutoWidth;
-    const resolvedConstraint = constraintWidth ?? (resolvedBoxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 0);
-
-    // 1. Hit test
-    const hitResult = this.bridge.hitTest(textId, localX, localY);
-    let charIndex = 0;
-    
-    // Get content
-    // Get content
-    const content = this.bridge.getTextContent(textId) || '';
-
-    if (hitResult) {
-      charIndex = byteIndexToCharIndex(content, hitResult.byteIndex);
-    }
-
-    // Multi-click detection (word / all selection)
-    const now = performance.now();
-    const CLICK_THRESHOLD_MS = 500;
-    const CLICK_DIST_THRESH = 4; // local space
-    let clickCount = 1;
-
-    if (
-      this.lastClickInfo.textId === textId &&
-      now - this.lastClickInfo.time <= CLICK_THRESHOLD_MS &&
-      Math.hypot(localX - this.lastClickInfo.x, localY - this.lastClickInfo.y) <= CLICK_DIST_THRESH
-    ) {
-      clickCount = Math.min(3, this.lastClickInfo.count + 1);
-    }
-
-    this.lastClickInfo = { textId, time: now, x: localX, y: localY, count: clickCount };
-
-    if (this.state.activeTextId !== textId) {
-      // Start editing new text
-      this.state = {
-        mode: 'editing',
-        activeTextId: textId,
-        boxMode: resolvedBoxMode,
-        constraintWidth: resolvedConstraint,
-        caretIndex: charIndex,
-        selectionStart: charIndex,
-        selectionEnd: charIndex,
-        anchorX,
-        anchorY,
-        rotation,
-      };
-    } else {
-      // Already editing
-      
-      // Update anchor/rotation in case they changed (e.g. alignment shift, though unlikely for same ID)
-      this.state = {
-        ...this.state,
-        anchorX,
-        anchorY,
-        rotation,
-        boxMode: resolvedBoxMode,
-        constraintWidth: resolvedConstraint,
-      };
-
-      // If selection is collapsed, the anchor should be the current caret (handles case where typing moved caret)
-      if (this.state.selectionStart === this.state.selectionEnd) {
-         this.selectionDragAnchor = this.state.caretIndex;
-      }
-
-      if (shiftKey && this.selectionDragAnchor !== null) {
-        // Shift-click extend
-        const start = Math.min(this.selectionDragAnchor, charIndex);
-        const end = Math.max(this.selectionDragAnchor, charIndex);
-        this.state = {
-          ...this.state,
-          caretIndex: charIndex,
-          selectionStart: start,
-          selectionEnd: end,
-        };
-      } else {
-        // Reset selection
-        this.state = {
-          ...this.state,
-          caretIndex: charIndex,
-          selectionStart: charIndex,
-          selectionEnd: charIndex,
-        };
-        this.selectionDragAnchor = charIndex;
-      }
-    }
-
-      this.isDragging = startDrag;
-      if (!shiftKey) {
-          this.selectionDragAnchor = charIndex;
-      }
-
-      // Apply word / all selection for multi-clicks (Figma-like)
-      if (clickCount === 2 && this.bridge) {
-        const wordStart = this.bridge.getWordLeft(textId, charIndex, content);
-        const wordEnd = this.bridge.getWordRight(textId, charIndex, content);
-        this.state = {
-          ...this.state,
-          caretIndex: wordEnd,
-          selectionStart: Math.min(wordStart, wordEnd),
-          selectionEnd: Math.max(wordStart, wordEnd),
-        };
-        this.selectionDragAnchor = wordStart;
-        this.isDragging = false;
-      } else if (clickCount >= 3) {
-        const endIdx = content.length;
-        this.state = {
-          ...this.state,
-          caretIndex: endIdx,
-          selectionStart: 0,
-          selectionEnd: endIdx,
-        };
-        this.selectionDragAnchor = 0;
-        this.isDragging = false;
-      }
-
-    // Update engine
-    this.bridge.setCaretByteIndex(textId, charIndexToByteIndex(content, this.state.caretIndex));
-
-    this.callbacks.onStateChange(this.state);
-    this.updateCaretPosition();
+    if (!this.isReady()) return;
+    this.inputCoordinator.handlePointerDown(
+      textId, localX, localY, shiftKey, anchorX, anchorY, rotation, boxMode, constraintWidth, startDrag
+    );
   }
 
   handlePointerMove(textId: number, localX: number, localY: number): void {
-    if (!this.isDragging || !this.bridge || this.state.activeTextId !== textId) return;
-
-    const hitResult = this.bridge.hitTest(textId, localX, localY);
-    // If no hit, we might be dragging outside. 
-    // Ideally calculate nearest char. Engine hitTest usually returns nearest?
-    // If hitResult is null, ignore? Or clamp?
-    if (!hitResult) return;
-
-    const currentContent = this.getPooledContent();
-    const charIndex = byteIndexToCharIndex(currentContent, hitResult.byteIndex);
-    const anchor = this.selectionDragAnchor ?? charIndex;
-
-    const start = Math.min(anchor, charIndex);
-    const end = Math.max(anchor, charIndex);
-
-    this.state = {
-      ...this.state,
-      caretIndex: charIndex,
-      selectionStart: start,
-      selectionEnd: end,
-    };
-
-    // We do NOT update engine selection continuously here to avoid perf spam, 
-    // only caret for consistency? 
-    // Actually selection is visualized via onSelectionUpdate in updateCaretPosition.
-    
-    this.callbacks.onStateChange(this.state);
-    this.updateCaretPosition();
+    this.inputCoordinator.handlePointerMove(textId, localX, localY);
   }
 
   handlePointerUp(): void {
-    this.isDragging = false;
+    this.inputCoordinator.handlePointerUp();
   }
 
-  /**
-   * Resize text entity (updates constraint width).
-   * @param textId Text Entity ID
-   * @param width New width constraint
-   * @return New bounds { width, height } or null if failed
-   */
+  /** Resize text entity (updates constraint width). */
   resizeText(textId: number, width: number): { width: number; height: number } | null {
     if (!this.isReady() || !this.bridge) return null;
-
     if (!this.bridge.setTextConstraintWidth(textId, width)) return null;
 
     const bounds = this.bridge.getTextBounds(textId);
     if (!bounds.valid) return null;
 
     // Update local state if we are currently editing this text
-    if (this.state.activeTextId === textId) {
-        this.state = {
-            ...this.state,
-            constraintWidth: width,
-            boxMode: TextBoxMode.FixedWidth,
-        };
-        // Trigger generic update?
+    const state = this.stateManager.getState();
+    if (state.activeTextId === textId) {
+      this.stateManager.updateState({
+        constraintWidth: width,
+        boxMode: TextBoxMode.FixedWidth,
+      });
     }
-
-    // Engine bounds are relative to text origin (0,0 typically minX/minY?)
-    // Actually getTextBounds returns World Bounds relative to Anchor?
-    // Let's check engine.cpp/getTextBounds. 
-    // It usually returns minX, minY, maxX, maxY relative to text anchor (0,0).
-    // So width = maxX - minX, height = maxY - minY.
-    // If text is top-left aligned, minX=0, minY=0 (or ascent?).
-    // We assume the shape bounding box matches these text bounds.
 
     return {
       width: bounds.maxX - bounds.minX,
@@ -549,12 +322,9 @@ export class TextTool {
     const success = this.bridge.updateTextPosition(textId, anchorX, anchorY, boxMode, constraintWidth);
     
     // Update local state if we are currently editing this text
-    if (success && this.state.activeTextId === textId) {
-      this.state = {
-        ...this.state,
-        anchorX,
-        anchorY,
-      };
+    const state = this.stateManager.getState();
+    if (success && state.activeTextId === textId) {
+      this.stateManager.updateState({ anchorX, anchorY });
       // Update caret position to reflect new anchor
       this.updateCaretPosition();
     }
@@ -570,537 +340,81 @@ export class TextTool {
    * Handle text input delta from TextInputProxy.
    */
   handleInputDelta(delta: TextInputDelta): void {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
-      console.warn('[DEBUG] TextTool: handleInputDelta skipped', { ready: this.isReady(), bridge: !!this.bridge, activeTextId: this.state.activeTextId });
-      return;
-    }
-
-    console.log('[DEBUG] TextTool: handleInputDelta', delta);
-
-    const textId = this.state.activeTextId;
-
-    switch (delta.type) {
-      case 'insert': {
-        // Convert character index to byte index for engine
-        const currentContent = this.getPooledContent();
-        const byteIndex = charIndexToByteIndex(currentContent, delta.at);
-        this.bridge.insertContentByteIndex(textId, byteIndex, delta.text);
-
-        const newCaretIndex = delta.at + delta.text.length;
-
-        this.state = {
-          ...this.state,
-          caretIndex: newCaretIndex,
-          selectionStart: newCaretIndex,
-          selectionEnd: newCaretIndex,
-        };
-        break;
-      }
-
-      case 'delete': {
-        const currentContent = this.getPooledContent();
-        const startByte = charIndexToByteIndex(currentContent, delta.start);
-        const endByte = charIndexToByteIndex(currentContent, delta.end);
-        this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-
-        this.state = {
-          ...this.state,
-          caretIndex: delta.start,
-          selectionStart: delta.start,
-          selectionEnd: delta.start,
-        };
-        break;
-      }
-
-      case 'replace': {
-        const currentContent = this.getPooledContent();
-        const startByte = charIndexToByteIndex(currentContent, delta.start);
-        const endByte = charIndexToByteIndex(currentContent, delta.end);
-
-        // Delete then insert
-        this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-        this.bridge.insertContentByteIndex(textId, startByte, delta.text);
-
-        const newCaretIndex = delta.start + delta.text.length;
-
-        this.state = {
-          ...this.state,
-          caretIndex: newCaretIndex,
-          selectionStart: newCaretIndex,
-          selectionEnd: newCaretIndex,
-        };
-        break;
-      }
-    }
-
-    // Update caret in engine
-    const contentAfterEdit = this.getPooledContent();
-    const caretByte = charIndexToByteIndex(contentAfterEdit, this.state.caretIndex);
-    this.bridge.setCaretByteIndex(textId, caretByte);
-
-    // Notify JS side of text update (for bounds sync)
-    const bounds = this.bridge.getTextBounds(textId);
-    let estimatedWidth = 100;
-    let estimatedHeight = 16;
-    
-    if (bounds && bounds.valid) {
-      estimatedWidth = bounds.maxX - bounds.minX;
-      estimatedHeight = bounds.maxY - bounds.minY;
-    } else {
-       // Should not happen if engine is healthy, but soft fallback to preserve crash-safety
-       // without complex estimation logic.
-       estimatedWidth = this.state.boxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 50;
-       estimatedHeight = this.styleDefaults.fontSize;
-    }
-
-    this.callbacks.onTextUpdated?.(
-      textId,
-      { width: estimatedWidth, height: estimatedHeight },
-      this.state.boxMode,
-      this.state.constraintWidth
-    );
-
-    this.callbacks.onStateChange(this.state);
-    this.updateCaretPosition();
+    // Delegate to input coordinator
+    this.inputCoordinator.handleInputDelta(delta);
   }
 
   /**
    * Handle selection change from TextInputProxy.
    */
   handleSelectionChange(start: number, end: number): void {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return;
-
-    const textId = this.state.activeTextId;
-    const currentContent = this.getPooledContent();
-
-    // Convert to byte indices
-    const startByte = charIndexToByteIndex(currentContent, start);
-    const endByte = charIndexToByteIndex(currentContent, end);
-
-    // Update engine
-    if (start === end) {
-      this.bridge.setCaretByteIndex(textId, startByte);
-    } else {
-      this.bridge.setSelectionByteIndex(textId, startByte, endByte);
-    }
-
-    this.state = {
-      ...this.state,
-      caretIndex: end,
-      selectionStart: start,
-      selectionEnd: end,
-    };
-
-    this.callbacks.onStateChange(this.state);
-    this.updateCaretPosition();
+    // Delegate to input coordinator
+    this.inputCoordinator.handleSelectionChange(start, end);
   }
 
   // ==========================================================================
-  // Style Commands
+  // Style Commands (delegated to TextStyleHandler)
   // ==========================================================================
 
   applyStyle(flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
-      console.warn('[TextTool] applyStyle: Not ready or no active text', { ready: this.isReady(), active: this.state.activeTextId });
-      return false;
-    }
-
-    const textId = this.state.activeTextId;
-    const currentContent = this.getPooledContent();
-    const contentLength = currentContent.length;
-
-    let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
-    let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
-
-    // Keep ranges in bounds
-    rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
-    rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
-
-    // Handle collapsed selection: use caret for both start and end to signal 
-    // engine to apply typing attributes (via zero-length run).
-    if (rangeStart === rangeEnd) {
-      // Ensure we use the exact caret position
-      const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
-      rangeStart = caret;
-      rangeEnd = caret;
-    }
-    
-    console.log('[TextTool] applyStyle', { textId, rangeStart, rangeEnd, flagsMask, intent });
-
-    const payload: ApplyTextStylePayload = {
-      textId,
-      rangeStartLogical: rangeStart,
-      rangeEndLogical: rangeEnd,
-      flagsMask,
-      flagsValue: intent === 'set' ? flagsMask : 0,
-      mode: intent === 'toggle' ? 2 : intent === 'set' ? 0 : 1,
-      styleParamsVersion: 0,
-      styleParams: new Uint8Array(),
-    };
-
-    this.bridge.applyTextStyle(textId, payload);
-
-    // Sync caret to engine to ensure typing style run is found on next insert
-    const caretByteAfterStyle = charIndexToByteIndex(currentContent, this.state.caretIndex);
-    this.bridge.setCaretByteIndex(textId, caretByteAfterStyle);
-
-    // Update tool defaults to reflect the new state...
-    const snapshot = this.bridge.getTextStyleSnapshot(textId);
-    if (snapshot) {
-      // Snapshot format: 2 bits per attr in styleTriStateFlags
-      // Bit 0-1: Bold, Bit 2-3: Italic, Bit 4-5: Underline, Bit 6-7: Strikethrough
-      const updateDefault = (mask: TextStyleFlags, shift: number) => {
-        const val = (snapshot.styleTriStateFlags >> shift) & 0b11;
-        if (val === 1) { // On
-          this.styleDefaults.flags |= mask;
-        } else if (val === 0) { // Off
-          this.styleDefaults.flags &= ~mask;
-        }
-      };
-
-      updateDefault(TextStyleFlags.Bold, 0);
-      updateDefault(TextStyleFlags.Italic, 2);
-      updateDefault(TextStyleFlags.Underline, 4);
-      updateDefault(TextStyleFlags.Strikethrough, 6);
-    }
-
-    const bounds = this.bridge.getTextBounds(textId);
-    if (bounds && bounds.valid) {
-      this.callbacks.onTextUpdated?.(
-        textId,
-        { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
-        this.state.boxMode,
-        this.state.constraintWidth
-      );
-    }
-
-    this.updateCaretPosition();
-    return true;
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyStyle(flagsMask, intent);
   }
 
   applyFontSize(fontSize: number): boolean {
-    const buf = new Uint8Array(5);
-    const view = new DataView(buf.buffer);
-    view.setUint8(0, 0x03); // textStyleTagFontSize
-    view.setFloat32(1, fontSize, true);
-    return this.applyStyleWithParams(buf);
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyFontSize(fontSize);
   }
 
   applyTextAlign(align: TextAlign): boolean {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
-    const textId = this.state.activeTextId;
-    const success = this.bridge.setTextAlign(textId, align);
-    if (success) {
-      this.styleDefaults.align = align;
-      this.updateCaretPosition();
-    }
-    return success;
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyTextAlign(align);
   }
 
   applyTextAlignToText(textId: number, align: TextAlign): boolean {
-    if (!this.isReady() || !this.bridge) return false;
-    return this.bridge.setTextAlign(textId, align);
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyTextAlignToText(textId, align);
   }
 
   applyFontId(fontId: number): boolean {
-    const buf = new Uint8Array(5);
-    const view = new DataView(buf.buffer);
-    view.setUint8(0, 0x04); // textStyleTagFontId
-    view.setUint32(1, fontId, true);
-    return this.applyStyleWithParams(buf);
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyFontId(fontId);
   }
 
-  private applyStyleWithParams(params: Uint8Array): boolean {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return false;
-    const textId = this.state.activeTextId;
-    const currentContent = this.getPooledContent();
-    const contentLength = currentContent.length;
-    let rangeStart = Math.min(this.state.selectionStart, this.state.selectionEnd);
-    let rangeEnd = Math.max(this.state.selectionStart, this.state.selectionEnd);
-    rangeStart = Math.max(0, Math.min(rangeStart, contentLength));
-    rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
-    
-    // Handle collapsed selection
-    if (rangeStart === rangeEnd) {
-      const caret = Math.max(0, Math.min(this.state.caretIndex, contentLength));
-      rangeStart = caret;
-      rangeEnd = caret;
-    }
-
-    const payload: ApplyTextStylePayload = {
-      textId,
-      rangeStartLogical: rangeStart,
-      rangeEndLogical: rangeEnd,
-      flagsMask: 0,
-      flagsValue: 0,
-      mode: 0, 
-      styleParamsVersion: 1,
-      styleParams: params,
-    };
-    
-    this.bridge.applyTextStyle(textId, payload);
-
-    // Sync caret to engine to ensure typing style run is found on next insert
-    const caretByteForStyle = charIndexToByteIndex(currentContent, this.state.caretIndex);
-    this.bridge.setCaretByteIndex(textId, caretByteForStyle);
-
-    return true;
-  }
-
-  // ===========================================================================
-  // Manual Style Application (Object Selection Support)
-  // ===========================================================================
-
-  /**
-   * Apply style flags to an arbitrary text entity (e.g. object selection).
-   * Updates the engine and triggers a sync back to the JS store.
-   */
   applyStyleToText(textId: number, flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
-    if (!this.isReady() || !this.bridge) return false;
-
-    const content = this.bridge.getTextContent(textId);
-    if (content === null) return false;
-
-    // Apply to entire text
-    const rangeStart = 0;
-    const rangeEnd = content.length;
-
-    const payload: ApplyTextStylePayload = {
-      textId,
-      rangeStartLogical: rangeStart,
-      rangeEndLogical: rangeEnd,
-      flagsMask,
-      flagsValue: intent === 'set' ? flagsMask : 0,
-      mode: intent === 'toggle' ? 2 : intent === 'set' ? 0 : 1,
-      styleParamsVersion: 0,
-      styleParams: new Uint8Array(),
-    };
-
-    console.log('[TextTool] applyStyleToText', { textId, flagsMask, intent });
-    this.bridge.applyTextStyle(textId, payload);
-
-    // Sync bounds back to JS store
-    this.syncTextToBounds(textId, content);
-    return true;
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyStyleToText(textId, flagsMask, intent);
   }
 
-  /**
-   * Apply font size to an arbitrary text entity.
-   */
   applyFontSizeToText(textId: number, fontSize: number): boolean {
-    if (!this.isReady() || !this.bridge) return false;
-    
-    // Validate font size (clamp 4-512)
-    const size = Math.max(4, Math.min(512, fontSize));
-
-    const buf = new Uint8Array(5);
-    const view = new DataView(buf.buffer);
-    view.setUint8(0, 0x03); // textStyleTagFontSize
-    view.setFloat32(1, size, true);
-
-    return this.applyStyleParamsToText(textId, buf);
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyFontSizeToText(textId, fontSize);
   }
 
-  /**
-   * Apply font ID to an arbitrary text entity.
-   */
   applyFontIdToText(textId: number, fontId: number): boolean {
-    if (!this.isReady() || !this.bridge) return false;
-
-    const buf = new Uint8Array(5);
-    const view = new DataView(buf.buffer);
-    view.setUint8(0, 0x04); // textStyleTagFontId
-    view.setUint32(1, fontId, true);
-
-    return this.applyStyleParamsToText(textId, buf);
+    if (!this.styleHandler) return false;
+    return this.styleHandler.applyFontIdToText(textId, fontId);
   }
 
-  private applyStyleParamsToText(textId: number, params: Uint8Array): boolean {
-    if (!this.isReady() || !this.bridge) return false;
+  // ===========================================================================
+  // Special Key Handling (delegated to TextNavigationHandler)
+  // ===========================================================================
 
-    const content = this.bridge.getTextContent(textId);
-    if (content === null) return false;
-    
-    const payload: ApplyTextStylePayload = {
-      textId,
-      rangeStartLogical: 0,
-      rangeEndLogical: content.length,
-      flagsMask: 0,
-      flagsValue: 0,
-      mode: 0, 
-      styleParamsVersion: 1,
-      styleParams: params,
-    };
-    
-    this.bridge.applyTextStyle(textId, payload);
-    this.syncTextToBounds(textId, content);
-    return true;
-  }
-
-  private syncTextToBounds(textId: number, content: string): void {
-     if (!this.bridge) return;
-     const bounds = this.bridge.getTextBounds(textId);
-     if (bounds && bounds.valid) {
-       const meta = getTextMeta(textId);
-       const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
-       const constraint = meta?.constraintWidth ?? 0;
-       
-       this.callbacks.onTextUpdated?.(
-         textId,
-         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
-         boxMode,
-         constraint
-       );
-     }
-  }
-
-  /**
-   * Handle special key press (Enter, Escape, Tab).
-   */
-  /**
-   * Handle special key press (Enter, Escape, Tab, Arrows).
-   */
   handleSpecialKey(key: string, event?: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; preventDefault: () => void }): void {
+    // Handle Escape/Enter first
     if (key === 'Escape') {
       this.commitAndExit();
       event?.preventDefault();
       return;
-    } else if (key === 'Enter') {
-      // Insert newline - let fall through to TextInputProxy?
-      // Usually Enter inserts newline char.
+    }
+    if (key === 'Enter') {
+      // Let TextInputProxy handle newline insertion
       return;
     }
 
-    // Navigation
-    if (this.isEditing() && this.bridge && this.state.activeTextId !== null && event) {
-        const textId = this.state.activeTextId;
-        const currentCaret = this.state.caretIndex;
-        const currentContent = this.getPooledContent();
-        let newCaret = currentCaret;
-        let handled = false;
-
-        const isWordMod = event.ctrlKey || event.altKey;
-
-        if (key === 'ArrowLeft') {
-            if (isWordMod) {
-                newCaret = this.bridge.getWordLeft(textId, currentCaret, currentContent);
-            } else {
-                newCaret = this.bridge.getVisualPrev(textId, currentCaret, currentContent);
-            }
-            handled = true;
-        } else if (key === 'ArrowRight') {
-            if (isWordMod) {
-                newCaret = this.bridge.getWordRight(textId, currentCaret, currentContent);
-            } else {
-                newCaret = this.bridge.getVisualNext(textId, currentCaret, currentContent);
-            }
-            handled = true;
-        } else if (key === 'Home') {
-            newCaret = this.bridge.getLineStart(textId, currentCaret, currentContent);
-            handled = true;
-        } else if (key === 'End') {
-            newCaret = this.bridge.getLineEnd(textId, currentCaret, currentContent);
-            handled = true;
-        }
-        else if (key === 'ArrowUp') {
-            newCaret = this.bridge.getLineUp(textId, currentCaret, currentContent);
-            handled = true;
-        } else if (key === 'ArrowDown') {
-            newCaret = this.bridge.getLineDown(textId, currentCaret, currentContent);
-            handled = true;
-        }
-
-        if (handled) {
-            event.preventDefault(); // Stop browser caret movement
-
-            // Update state
-            let newStart = this.state.selectionStart;
-            let newEnd = this.state.selectionEnd;
-
-            if (event.shiftKey) {
-                // Expanding selection
-                // If we don't have a pivot, current selection start/end logic implies:
-                // Caret is usually at 'end' if we moved 'end'.
-                // Ideally track 'anchor' and 'focus' of selection.
-                // TextToolState has selectionStart/End (min/max usually?).
-                // Let's assume selectionEnd follows caret if shift was held?
-                
-                // We need to know which end is the "active" end (caret).
-                // `caretIndex` tracks the active end.
-                // `selectionStart` usually tracks the anchor?
-                // Actually TextToolState defines start/end as standard range.
-                // But caretIndex is the "cursor".
-                
-                if (this.state.selectionStart === this.state.selectionEnd) {
-                    // Start selecting
-                    // Anchor is old caret.
-                    // New caret is focus.
-                    newEnd = newCaret;
-                    // Sort start/end? No, state.selectionStart/End usually implies indices.
-                    // But for rendering we might normalize.
-                    // Let's keep start/end as anchor/focus or min/max?
-                    // TextCaretOverlay expects start/end probably ordered?
-                    // Engine API expects start/end ordered?
-                    // Byte conversion doesn't care. selection rects uses min/max usually.
-                    // Let's update `caretIndex` to new location.
-                    // And update selection range to cover [anchor, newCaret].
-                    
-                    // We need to persist the anchor. 
-                    // Use `selectionStart` as anchor if we were collapsed?
-                    // Or standard logic: 
-                    // If collapsed, Anchor = OldCaret.
-                    // If expanded, Anchor is the end *opposite* to caret.
-                }
-                
-                // Determine Anchor
-                let anchor = this.state.selectionStart;
-                if (anchor === this.state.caretIndex) anchor = this.state.selectionEnd;
-                // If start==end==caret, anchor is caret.
-                
-                // Wait, if start != end.
-                // if caret == start, anchor is end.
-                // if caret == end, anchor is start.
-                
-                // Update selection range
-                // We don't normalize start/end in state?
-                // TextInputProxy expects normalized? `inputRef.current.setSelectionRange` expects start, end, direction.
-                // TextToolState comments say "Selection start... Selection end".
-                // Usually means min/max.
-                // But `caretIndex` tracks the visual caret.
-                // So we can compute min/max for the State.
-                
-                this.state = {
-                    ...this.state,
-                    caretIndex: newCaret,
-                    selectionStart: Math.min(anchor, newCaret),
-                    selectionEnd: Math.max(anchor, newCaret),
-                };
-            } else {
-                // Determine new selection (collapsed)
-                this.state = {
-                    ...this.state,
-                    caretIndex: newCaret,
-                    selectionStart: newCaret,
-                    selectionEnd: newCaret,
-                };
-            }
-
-            // Sync to Engine (and TextInputProxy via state update loop -> TextInteractionLayer -> Props)
-            const navContent = this.getPooledContent();
-            const caretByte = charIndexToByteIndex(navContent, this.state.caretIndex);
-            
-            // Sync selection if needed
-            if (this.state.selectionStart !== this.state.selectionEnd) {
-                const sByte = charIndexToByteIndex(navContent, this.state.selectionStart);
-                const eByte = charIndexToByteIndex(navContent, this.state.selectionEnd);
-                this.bridge.setSelectionByteIndex(textId, sByte, eByte);
-            } else {
-                this.bridge.setCaretByteIndex(textId, caretByte);
-            }
-
-            this.callbacks.onStateChange(this.state);
-            this.updateCaretPosition();
-        }
+    // Delegate navigation keys to handler
+    if (this.isEditing() && this.navigationHandler && event) {
+      this.navigationHandler.handleNavigationKey(key, event);
     }
   }
 
@@ -1112,16 +426,17 @@ export class TextTool {
    * Commit current text and exit editing mode.
    */
   commitAndExit(): void {
-    const textId = this.state.activeTextId;
-    const commitContent = textId !== null ? this.getPooledContent() : '';
-    if (textId !== null && commitContent.trim() === '') {
+    const state = this.stateManager.getState();
+    const textId = state.activeTextId;
+    const content = textId !== null && this.bridge ? this.bridge.getTextContent(textId) ?? '' : '';
+    
+    if (textId !== null && content.trim() === '') {
       // Delete empty text
       this.bridge?.deleteText(textId);
       this.callbacks.onTextDeleted?.(textId);
     }
 
-    this.state = this.createInitialState();
-    this.callbacks.onStateChange(this.state);
+    this.stateManager.clearActiveText();
     this.callbacks.onEditEnd();
   }
 
@@ -1129,15 +444,14 @@ export class TextTool {
    * Cancel editing without committing.
    */
   cancel(): void {
-    const textId = this.state.activeTextId;
-    if (this.state.mode === 'creating' && textId !== null) {
+    const state = this.stateManager.getState();
+    if (state.mode === 'creating' && state.activeTextId !== null) {
       // Delete the text we were creating
-      this.bridge?.deleteText(textId);
-      this.callbacks.onTextDeleted?.(textId);
+      this.bridge?.deleteText(state.activeTextId);
+      this.callbacks.onTextDeleted?.(state.activeTextId);
     }
 
-    this.state = this.createInitialState();
-    this.callbacks.onStateChange(this.state);
+    this.stateManager.clearActiveText();
     this.callbacks.onEditEnd();
   }
 
@@ -1149,21 +463,22 @@ export class TextTool {
    * Get current tool state.
    */
   getState(): TextToolState {
-    return { ...this.state };
+    return this.stateManager.getState();
   }
 
   /**
    * Check if currently editing text.
    */
   isEditing(): boolean {
-    return this.state.mode === 'creating' || this.state.mode === 'editing';
+    const state = this.stateManager.getState();
+    return state.mode === 'creating' || state.mode === 'editing';
   }
 
   /**
    * Get the active text ID.
    */
   getActiveTextId(): number | null {
-    return this.state.activeTextId;
+    return this.stateManager.getState().activeTextId;
   }
 
   /**
@@ -1183,10 +498,9 @@ export class TextTool {
   deleteTextById(textId: number): boolean {
     if (!this.isReady() || !this.bridge) return false;
     
-    // If we're currently editing this text, cancel first
-    if (this.state.activeTextId === textId) {
-      this.state = this.createInitialState();
-      this.callbacks.onStateChange(this.state);
+    const state = this.stateManager.getState();
+    if (state.activeTextId === textId) {
+      this.stateManager.clearActiveText();
       this.callbacks.onEditEnd();
     }
     

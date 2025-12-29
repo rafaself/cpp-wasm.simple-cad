@@ -22,26 +22,19 @@ import {
   TextQuadBufferMeta,
   TextureBufferMeta,
   TextContentMeta,
-  TextLayoutResult,
   TextBoundsResult,
   TextSelectionRect,
   TextBoxMode,
   TextStyleSnapshot,
 } from '@/types/text';
-import { utf8ByteLength } from '@/types/text';
+import { TextNavigator, charToByteIndex, byteToCharIndex } from './textNavigation';
 
-/**
- * Extended CadEngine instance with text methods.
- * These methods are exposed via Embind from the C++ engine.
- */
+/** Extended CadEngine instance with text methods exposed via Embind. */
 export interface TextEnabledCadEngine {
-  // Existing methods from CadEngineInstance...
   clear: () => void;
   allocBytes: (byteCount: number) => number;
   freeBytes: (ptr: number) => void;
   applyCommandBuffer: (ptr: number, byteCount: number) => void;
-
-  // Text-specific methods
   initializeTextSystem: () => boolean;
   loadFont: (fontId: number, fontDataPtr: number, dataSize: number) => boolean;
   hitTestText: (textId: number, localX: number, localY: number) => TextHitResult;
@@ -67,14 +60,12 @@ export interface TextEnabledCadEngine {
   getLineDownIndex: (textId: number, charIndex: number) => number;
 }
 
-/**
- * TextBridge provides high-level text operations.
- */
+/** TextBridge provides high-level text operations. */
 export class TextBridge {
   private runtime: EngineRuntime;
   private textEngine: TextEnabledCadEngine;
   private initialized = false;
-
+  private navigator: TextNavigator;
 
   /**
    * Get engine-authoritative style snapshot (selection, caret, tri-state flags).
@@ -86,6 +77,7 @@ export class TextBridge {
     this.runtime = runtime;
     // Cast to text-enabled engine (methods may not exist until WASM is built with text)
     this.textEngine = runtime.engine as unknown as TextEnabledCadEngine;
+    this.navigator = new TextNavigator(this.textEngine, () => this.isAvailable());
   }
 
   /**
@@ -140,8 +132,6 @@ export class TextBridge {
    * @param payload Text payload with properties, runs, and content
    */
   upsertText(id: number, payload: TextPayload): void {
-    console.log('[DEBUG] TextBridge: upsertText', { id, x: payload.x, y: payload.y, runCount: payload.runs.length });
-    
     // Convert to command buffer format
     const runs: TextRunPayload[] = payload.runs.map((run) => ({
       startIndex: run.startIndex,
@@ -185,7 +175,7 @@ export class TextBridge {
    * @param content The text content (needed for char-to-byte conversion)
    */
   setCaret(textId: number, charIndex: number, content: string): void {
-    const byteIndex = this.charToByteIndex(content, charIndex);
+    const byteIndex = charToByteIndex(content, charIndex);
     this.runtime.apply([
       {
         op: CommandOp.SetTextCaret,
@@ -219,8 +209,8 @@ export class TextBridge {
     endChar: number,
     content: string
   ): void {
-    const startByte = this.charToByteIndex(content, startChar);
-    const endByte = this.charToByteIndex(content, endChar);
+    const startByte = charToByteIndex(content, startChar);
+    const endByte = charToByteIndex(content, endChar);
     this.runtime.apply([
       {
         op: CommandOp.SetTextSelection,
@@ -293,7 +283,7 @@ export class TextBridge {
     text: string,
     currentContent: string
   ): void {
-    const byteIndex = this.charToByteIndex(currentContent, charIndex);
+    const byteIndex = charToByteIndex(currentContent, charIndex);
     this.runtime.apply([
       {
         op: CommandOp.InsertTextContent,
@@ -336,8 +326,8 @@ export class TextBridge {
     endChar: number,
     currentContent: string
   ): void {
-    const startByte = this.charToByteIndex(currentContent, startChar);
-    const endByte = this.charToByteIndex(currentContent, endChar);
+    const startByte = charToByteIndex(currentContent, startChar);
+    const endByte = charToByteIndex(currentContent, endChar);
     this.runtime.apply([
       {
         op: CommandOp.DeleteTextContent,
@@ -434,8 +424,8 @@ export class TextBridge {
   ): TextSelectionRect[] {
     if (!this.isAvailable()) return [];
 
-    const startByte = this.charToByteIndex(content, startChar);
-    const endByte = this.charToByteIndex(content, endChar);
+    const startByte = charToByteIndex(content, startChar);
+    const endByte = charToByteIndex(content, endChar);
     
     // Engine returns a C++ vector wrapper
     const vector = this.textEngine.getTextSelectionRects(textId, startByte, endByte);
@@ -555,126 +545,44 @@ export class TextBridge {
     );
   }
 
-  /**
-   * Get visual previous caret position.
-   */
+  /** Get visual previous caret position. */
   getVisualPrev(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return charIndex;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const prevByte = this.textEngine.getVisualPrevCharIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, prevByte);
+    return this.navigator.getVisualPrev(textId, charIndex, content);
   }
 
-  /**
-   * Get visual next caret position.
-   */
+  /** Get visual next caret position. */
   getVisualNext(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return charIndex;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const nextByte = this.textEngine.getVisualNextCharIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, nextByte);
+    return this.navigator.getVisualNext(textId, charIndex, content);
   }
 
-  /**
-   * Get word left boundary.
-   */
+  /** Get word left boundary. */
   getWordLeft(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return 0;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const prevByte = this.textEngine.getWordLeftIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, prevByte);
+    return this.navigator.getWordLeft(textId, charIndex, content);
   }
 
-  /**
-   * Get word right boundary.
-   */
+  /** Get word right boundary. */
   getWordRight(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return charIndex;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const nextByte = this.textEngine.getWordRightIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, nextByte);
+    return this.navigator.getWordRight(textId, charIndex, content);
   }
 
-  /**
-   * Get line start boundary.
-   */
+  /** Get line start boundary. */
   getLineStart(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return 0;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const prevByte = this.textEngine.getLineStartIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, prevByte);
+    return this.navigator.getLineStart(textId, charIndex, content);
   }
 
-  /**
-   * Get line end boundary.
-   */
+  /** Get line end boundary. */
   getLineEnd(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return charIndex;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const nextByte = this.textEngine.getLineEndIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, nextByte);
+    return this.navigator.getLineEnd(textId, charIndex, content);
   }
 
-  /**
-   * Get line up boundary.
-   */
+  /** Get line up boundary. */
   getLineUp(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return charIndex;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const resultByte = this.textEngine.getLineUpIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, resultByte);
+    return this.navigator.getLineUp(textId, charIndex, content);
   }
 
-  /**
-   * Get line down boundary.
-   */
+  /** Get line down boundary. */
   getLineDown(textId: number, charIndex: number, content: string): number {
-    if (!this.isAvailable()) return charIndex;
-    const byteIndex = this.charToByteIndex(content, charIndex);
-    const resultByte = this.textEngine.getLineDownIndex(textId, byteIndex);
-    return this.byteToCharIndex(content, resultByte);
-  }
-
-  // =========================================================================
-  // Private Helpers
-  // =========================================================================
-
-  /**
-   * Convert character index to UTF-8 byte index.
-   */
-  private charToByteIndex(content: string, charIndex: number): number {
-    const prefix = content.slice(0, charIndex);
-    return utf8ByteLength(prefix);
-  }
-
-  /**
-   * Convert UTF-8 byte index to character index.
-   */
-  private byteToCharIndex(content: string, byteIndex: number): number {
-    // Fast path for ASCII
-    if (byteIndex < content.length && /^[\x00-\x7F]*$/.test(content)) {
-        return byteIndex;
-    }
-
-    let currentByte = 0;
-    const len = content.length;
-    for (let i = 0; i < len; i++) {
-        if (currentByte >= byteIndex) return i;
-        const code = content.charCodeAt(i);
-        // High surrogate
-        if (code >= 0xD800 && code <= 0xDBFF) {
-             // 4 bytes in UTF-8
-             currentByte += 4;
-             i++; // Skip low surrogate
-        } else if (code >= 0x80) {
-             // 2 or 3 bytes
-             if (code < 0x800) currentByte += 2;
-             else currentByte += 3;
-        } else {
-             currentByte += 1;
-        }
-    }
-    return len;
+    return this.navigator.getLineDown(textId, charIndex, content);
   }
 }
 

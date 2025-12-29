@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../engine/engine.h"
+#include "engine/engine.h"
 
 TEST(InteractiveTransformPerfTest, UpdateTransformDoesNotRebuildAll) {
     CadEngine engine;
