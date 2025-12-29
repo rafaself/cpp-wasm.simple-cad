@@ -2,6 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 #include "engine/text/text_types.h"
 
 bool CadEngine::initializeTextSystem() {
@@ -415,3 +416,5 @@ std::uint32_t CadEngine::getLineDownIndex(std::uint32_t textId, std::uint32_t ch
 TextHitResult CadEngine::hitTestText(std::uint32_t textId, float localX, float localY) const {
     return textSystem_.hitTest(textId, localX, localY);
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

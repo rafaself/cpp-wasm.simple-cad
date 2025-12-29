@@ -3,6 +3,7 @@
 // Separated from main engine.cpp to reduce file size per SRP guidelines.
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 #include "engine/core/string_utils.h"
 
 using engine::kDigestOffset;
@@ -224,3 +225,5 @@ CadEngine::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
         static_cast<std::uint32_t>((h >> 32) & 0xFFFFFFFFu)
     };
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

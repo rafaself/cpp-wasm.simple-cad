@@ -1,5 +1,6 @@
 #include "engine/interaction/interaction_session.h"
 #include "engine/engine.h"
+#include "engine/internal/engine_state.h"
 #include "engine/history/history_manager.h"
 #include "engine/text_system.h"
 #include <cmath>
@@ -102,8 +103,8 @@ void InteractionSession::beginTransform(
             return;
         }
         activeIds.push_back(specificId);
-    } else if (!engine_.selectionManager_.isEmpty()) {
-        activeIds = engine_.selectionManager_.getOrdered();
+    } else if (!engine_.state().selectionManager_.isEmpty()) {
+        activeIds = engine_.state().selectionManager_.getOrdered();
     } else if (ids && idCount > 0) {
         activeIds.assign(ids, ids + idCount);
     }
@@ -219,7 +220,7 @@ void InteractionSession::updateTransform(float worldX, float worldY) {
                   TextRec* tr = textSystem_.store.getTextMutable(id); 
                   if (tr) {
                        tr->x = snap.x + totalDx; tr->y = snap.y + totalDy;
-                       engine_.textQuadsDirty_ = true;
+                      engine_.state().textQuadsDirty_ = true;
                        float minX, minY, maxX, maxY;
                        if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
                            pickSystem_.update(id, {minX, minY, maxX, maxY});
@@ -379,7 +380,7 @@ void InteractionSession::updateTransform(float worldX, float worldY) {
     }
 
     if (updated) {
-        engine_.generation++;
+        engine_.state().generation++;
     }
 }
 
@@ -461,8 +462,8 @@ void InteractionSession::commitTransform() {
 
     if (!historyManager_.isSuppressed() && !session_.snapshots.empty() && !historyManager_.isTransactionActive()) {
         HistoryEntry entry{};
-        entry.nextIdBefore = engine_.nextEntityId_;
-        entry.nextIdAfter = engine_.nextEntityId_;
+        entry.nextIdBefore = engine_.state().nextEntityId_;
+        entry.nextIdAfter = engine_.state().nextEntityId_;
         for (const auto& snap : session_.snapshots) {
             HistoryEntry::EntityChange change{};
             change.id = snap.id;
@@ -481,9 +482,9 @@ void InteractionSession::commitTransform() {
     }
 
     session_ = SessionState{};
-    engine_.snapshotDirty = true;
-    if (engine_.pendingFullRebuild_) {
-        engine_.renderDirty = true;
+    engine_.state().snapshotDirty = true;
+    if (engine_.state().pendingFullRebuild_) {
+        engine_.state().renderDirty = true;
     }
 }
 
@@ -503,7 +504,7 @@ void InteractionSession::cancelTransform() {
              for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x; p.cy = snap.y; p.rx = snap.w; p.ry = snap.h; pickSystem_.update(id, PickSystem::computePolygonAABB(p)); break; } }
         } else if (it->second.kind == EntityKind::Text) {
              TextRec* tr = textSystem_.store.getTextMutable(id);
-             if (tr) { tr->x = snap.x; tr->y = snap.y; engine_.textQuadsDirty_ = true;
+             if (tr) { tr->x = snap.x; tr->y = snap.y; engine_.state().textQuadsDirty_ = true;
                  float minX, minY, maxX, maxY;
                  if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) { pickSystem_.update(id, {minX, minY, maxX, maxY}); }
              }
@@ -527,7 +528,7 @@ void InteractionSession::cancelTransform() {
     }
 
     session_ = SessionState{};
-    engine_.renderDirty = true;
+    engine_.state().renderDirty = true;
 }
 
 // Draft Implementation
@@ -550,14 +551,14 @@ void InteractionSession::beginDraft(const BeginDraftPayload& p) {
     if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
         draft_.points.push_back({p.x, p.y});
     }
-    engine_.renderDirty = true;
+    engine_.state().renderDirty = true;
 }
 
 void InteractionSession::updateDraft(float x, float y) {
     if (!draft_.active) return;
     draft_.currentX = x;
     draft_.currentY = y;
-    engine_.renderDirty = true;
+    engine_.state().renderDirty = true;
 }
 
 void InteractionSession::appendDraftPoint(float x, float y) {
@@ -565,7 +566,7 @@ void InteractionSession::appendDraftPoint(float x, float y) {
     draft_.points.push_back({x, y});
     draft_.currentX = x; 
     draft_.currentY = y;
-    engine_.renderDirty = true;
+    engine_.state().renderDirty = true;
 }
 
 std::uint32_t InteractionSession::commitDraft() {
@@ -634,7 +635,7 @@ std::uint32_t InteractionSession::commitDraft() {
 void InteractionSession::cancelDraft() {
     draft_.active = false;
     draft_.points.clear();
-    engine_.renderDirty = true;
+    engine_.state().renderDirty = true;
 }
 
 void InteractionSession::addDraftToBuffers(std::vector<float>& lineVertices) {

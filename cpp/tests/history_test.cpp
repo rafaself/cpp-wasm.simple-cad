@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
+#include "tests/test_accessors.h"
 
 namespace {
 const RectRec* findRect(const CadEngine& engine, std::uint32_t id) {
-    return engine.entityManager_.getRect(id);
+    return CadEngineTestAccessor::entityManager(engine).getRect(id);
 }
 } // namespace
 
@@ -11,7 +12,7 @@ TEST(HistoryTest, UndoRedoSequence) {
     CadEngine engine;
     engine.clear();
 
-    engine.upsertRect(1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
     const auto digestAfterCreate = engine.getDocumentDigest();
 
     std::uint32_t ids[] = {1};
@@ -23,7 +24,7 @@ TEST(HistoryTest, UndoRedoSequence) {
     ASSERT_NE(rect, nullptr);
     EXPECT_FLOAT_EQ(rect->x, 5.0f);
 
-    engine.deleteEntity(1);
+    CadEngineTestAccessor::deleteEntity(engine, 1);
     EXPECT_EQ(findRect(engine, 1), nullptr);
 
     engine.undo();
@@ -53,14 +54,14 @@ TEST(HistoryTest, SnapshotRoundTripUndoRedo) {
     CadEngine engine;
     engine.clear();
 
-    engine.upsertRect(1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
 
     std::uint32_t ids[] = {1};
     engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1, 0.0f, 0.0f);
     engine.updateTransform(3.0f, 0.0f);
     engine.commitTransform();
 
-    engine.deleteEntity(1);
+    CadEngineTestAccessor::deleteEntity(engine, 1);
 
     const auto meta = engine.saveSnapshot();
     ASSERT_GT(meta.byteCount, 0u);

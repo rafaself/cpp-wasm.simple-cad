@@ -1,17 +1,18 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
+#include "tests/test_accessors.h"
 
 TEST(EventStreamTest, CoalescesEntityChanges) {
     CadEngine engine;
 
-    engine.upsertRect(1, 0.0f, 0.0f, 10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 1.0f);
     engine.pollEvents(256); // drain creation events
 
     engine.setEntityFlags(1,
                           static_cast<std::uint32_t>(EntityFlags::Locked),
                           static_cast<std::uint32_t>(EntityFlags::Locked));
     engine.setEntityLayer(1, 2);
-    engine.upsertRect(1, 1.0f, 2.0f, 11.0f, 21.0f, 0.5f, 0.5f, 0.5f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 1.0f, 2.0f, 11.0f, 21.0f, 0.5f, 0.5f, 0.5f, 1.0f);
 
     auto meta = engine.pollEvents(256);
     ASSERT_GE(meta.count, 2u);
@@ -34,7 +35,7 @@ TEST(EventStreamTest, CoalescesEntityChanges) {
 
 TEST(EventStreamTest, PollRespectsMaxEvents) {
     CadEngine engine;
-    engine.upsertRect(1, 0.0f, 0.0f, 10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 1.0f);
 
     auto metaA = engine.pollEvents(2);
     ASSERT_EQ(metaA.count, 2u);
@@ -55,7 +56,7 @@ TEST(EventStreamTest, OverflowTriggersResyncAck) {
     CadEngine engine;
 
     for (std::uint32_t i = 1; i <= 3000; i++) {
-        engine.upsertRect(i, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+        CadEngineTestAccessor::upsertRect(engine, i, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
     auto meta = engine.pollEvents(1024);

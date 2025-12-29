@@ -2,6 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 #include "engine/render/render.h"
 
 namespace {
@@ -192,3 +193,5 @@ void CadEngine::addDraftToBuffers() const {
     // engine_.lineVertices is mutable.
     const_cast<InteractionSession&>(interactionSession_).addDraftToBuffers(const_cast<std::vector<float>&>(lineVertices));
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

@@ -1,5 +1,6 @@
 #include "engine/command/command_dispatch.h"
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 #include "engine/text/text_style_contract.h"
 #include <cstring>
 #include <cstdio>
@@ -254,3 +255,5 @@ EngineError dispatchCommand(
 }
 
 } // namespace engine
+
+#include "engine/internal/engine_state_aliases_undef.h"

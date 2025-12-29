@@ -1,5 +1,6 @@
 #include "engine/history/history_manager.h"
 #include "engine/engine.h"
+#include "engine/internal/engine_state.h"
 #include "engine/entity/entity_manager.h"
 #include "engine/text_system.h"
 #include "engine/core/util.h"
@@ -127,6 +128,7 @@ void HistoryManager::finalizeHistoryEntry(HistoryEntry& entry, std::uint32_t nex
     }
 }
 
+
 bool HistoryManager::commitEntry(std::uint32_t nextEntityId, std::uint32_t currentGeneration, const std::vector<std::uint32_t>& currentSelection) {
     if (!transaction_.active) return false;
     HistoryEntry entry = std::move(transaction_.entry);
@@ -225,9 +227,9 @@ void HistoryManager::applyHistoryEntry(const HistoryEntry& entry, bool useAfter,
 
     if (entry.hasLayerChange) {
         applyLayerSnapshot(useAfter ? entry.layersAfter : entry.layersBefore);
-        engine.renderDirty = true;
-        engine.snapshotDirty = true;
-        engine.textQuadsDirty_ = true;
+        engine.state().renderDirty = true;
+        engine.state().snapshotDirty = true;
+        engine.state().textQuadsDirty_ = true;
         engine.recordDocChanged(static_cast<std::uint32_t>(CadEngine::ChangeMask::Layer));
     }
 
@@ -243,11 +245,11 @@ void HistoryManager::applyHistoryEntry(const HistoryEntry& entry, bool useAfter,
 
     if (entry.hasDrawOrderChange) {
         applyDrawOrderSnapshot(useAfter ? entry.drawOrderAfter : entry.drawOrderBefore);
-        engine.pickSystem_.setDrawOrder(entityManager_.drawOrderIds);
-        engine.renderDirty = true;
-        engine.snapshotDirty = true;
-        if (!engine.selectionManager_.isEmpty()) {
-            engine.selectionManager_.rebuildOrder(entityManager_.drawOrderIds);
+        engine.state().pickSystem_.setDrawOrder(entityManager_.drawOrderIds);
+        engine.state().renderDirty = true;
+        engine.state().snapshotDirty = true;
+        if (!engine.state().selectionManager_.isEmpty()) {
+            engine.state().selectionManager_.rebuildOrder(entityManager_.drawOrderIds);
         }
         engine.recordOrderChanged();
     }
@@ -257,7 +259,7 @@ void HistoryManager::applyHistoryEntry(const HistoryEntry& entry, bool useAfter,
     }
 
     engine.setNextEntityId(useAfter ? entry.nextIdAfter : entry.nextIdBefore);
-    engine.snapshotDirty = true;
+    engine.state().snapshotDirty = true;
     suppressed_ = wasSuppressed;
 }
 

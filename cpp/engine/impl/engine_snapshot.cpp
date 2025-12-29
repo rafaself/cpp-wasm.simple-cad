@@ -2,6 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 #include "engine/persistence/snapshot.h"
 #include "engine/core/string_utils.h"
 #include <unordered_set>
@@ -441,3 +442,5 @@ void CadEngine::rebuildSnapshotBytes() const {
     snapshotBytes = engine::buildSnapshotBytes(sd);
     snapshotDirty = false;
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

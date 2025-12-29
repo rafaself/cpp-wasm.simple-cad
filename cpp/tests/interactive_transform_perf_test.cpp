@@ -1,11 +1,12 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
+#include "tests/test_accessors.h"
 
 TEST(InteractiveTransformPerfTest, UpdateTransformDoesNotRebuildAll) {
     CadEngine engine;
     engine.clear();
 
-    engine.upsertRect(1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
     engine.getPositionBufferMeta(); // Ensure buffers are built.
 
     const auto before = engine.getStats().rebuildAllGeometryCount;

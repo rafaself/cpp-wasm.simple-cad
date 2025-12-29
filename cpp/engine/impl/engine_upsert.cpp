@@ -3,6 +3,7 @@
 // Separated from main engine.cpp to reduce file size per SRP guidelines.
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
     upsertRect(id, x, y, w, h, r, g, b, a, r, g, b, 1.0f, 1.0f, 1.0f);
@@ -235,3 +236,5 @@ void CadEngine::upsertArrow(
     }
     if (historyStarted) commitHistoryEntry();
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

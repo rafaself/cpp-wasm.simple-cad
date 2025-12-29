@@ -2,6 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 
 CadEngine::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
     selectionOutlinePrimitives_.clear();
@@ -157,3 +158,5 @@ CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
         reinterpret_cast<std::uintptr_t>(selectionHandleData_.data()),
     };
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

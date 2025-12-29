@@ -10,6 +10,7 @@
 #include "engine/command/commands.h"
 #include "engine/command/command_dispatch.h"
 #include "engine/core/types.h"
+#include "tests/test_accessors.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -103,7 +104,8 @@ protected:
         run.colorRGBA = 0xFFFFFFFFu;
         run.flags = static_cast<std::uint8_t>(flags);
 
-        return engine_->textSystem_.store.upsertText(id, header, &run, 1, content.data(), header.contentLength);
+        auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+        return textSystem.store.upsertText(id, header, &run, 1, content.data(), header.contentLength);
     }
     
     std::unique_ptr<CadEngine> engine_;
@@ -149,7 +151,8 @@ TEST_F(TextCommandsTest, UpsertText_Simple) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify text was stored
-    const TextRec* text = engine_->textSystem_.store.getText(1);
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    const TextRec* text = textSystem.store.getText(1);
     ASSERT_NE(text, nullptr);
     EXPECT_FLOAT_EQ(text->x, 100.0f);
     EXPECT_FLOAT_EQ(text->y, 200.0f);
@@ -199,11 +202,12 @@ TEST_F(TextCommandsTest, UpsertText_MultipleRuns) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify text was stored with two runs
-    const TextRec* text = engine_->textSystem_.store.getText(2);
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    const TextRec* text = textSystem.store.getText(2);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->runsCount, 2u);
     
-    const auto& storedRuns = engine_->textSystem_.store.getRuns(2);
+    const auto& storedRuns = textSystem.store.getRuns(2);
     EXPECT_EQ(storedRuns.size(), 2u);
     EXPECT_EQ(storedRuns[0].colorRGBA, 0xFF0000FFu);
     EXPECT_EQ(storedRuns[1].colorRGBA, 0x0000FFFFu);
@@ -250,7 +254,8 @@ TEST_F(TextCommandsTest, DeleteText_Existing) {
     builder.pushBytes(content, 4);
     
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
-    EXPECT_NE(engine_->textSystem_.store.getText(10), nullptr);
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    EXPECT_NE(textSystem.store.getText(10), nullptr);
     
     // Now delete it
     builder.clear();
@@ -258,7 +263,7 @@ TEST_F(TextCommandsTest, DeleteText_Existing) {
     builder.writeCommandHeader(CommandOp::DeleteText, 10, 0);
     
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
-    EXPECT_EQ(engine_->textSystem_.store.getText(10), nullptr);
+    EXPECT_EQ(textSystem.store.getText(10), nullptr);
 }
 
 TEST_F(TextCommandsTest, DeleteText_NonExisting) {
@@ -310,7 +315,7 @@ TEST_F(TextCommandsTest, SetTextCaret) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify caret was set
-    const auto caretState = engine_->textSystem_.store.getCaretState(1);
+    const auto caretState = CadEngineTestAccessor::textSystem(*engine_).store.getCaretState(1);
     ASSERT_TRUE(caretState.has_value());
     EXPECT_EQ(caretState->caretIndex, 3u);
 }
@@ -366,7 +371,7 @@ TEST_F(TextCommandsTest, SetTextSelection) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify selection was set
-    const auto caretState = engine_->textSystem_.store.getCaretState(5);
+    const auto caretState = CadEngineTestAccessor::textSystem(*engine_).store.getCaretState(5);
     ASSERT_TRUE(caretState.has_value());
     EXPECT_EQ(caretState->selectionStart, 0u);
     EXPECT_EQ(caretState->selectionEnd, 5u);
@@ -414,7 +419,8 @@ TEST_F(TextCommandsTest, InsertTextContent) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify content changed
-    std::string_view storedContent = engine_->textSystem_.store.getContent(1);
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    std::string_view storedContent = textSystem.store.getContent(1);
     EXPECT_EQ(storedContent, "Hello World");
 }
 
@@ -469,7 +475,8 @@ TEST_F(TextCommandsTest, DeleteTextContent) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify content changed
-    std::string_view storedContent = engine_->textSystem_.store.getContent(1);
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    std::string_view storedContent = textSystem.store.getContent(1);
     EXPECT_EQ(storedContent, "Hello");
 }
 
@@ -530,10 +537,11 @@ TEST_F(TextCommandsTest, MultipleTextCommands) {
     EXPECT_EQ(err, EngineError::Ok);
     
     // Verify all texts were created
-    EXPECT_NE(engine_->textSystem_.store.getText(1), nullptr);
-    EXPECT_NE(engine_->textSystem_.store.getText(2), nullptr);
-    EXPECT_NE(engine_->textSystem_.store.getText(3), nullptr);
-    EXPECT_EQ(engine_->textSystem_.store.getTextCount(), 3u);
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    EXPECT_NE(textSystem.store.getText(1), nullptr);
+    EXPECT_NE(textSystem.store.getText(2), nullptr);
+    EXPECT_NE(textSystem.store.getText(3), nullptr);
+    EXPECT_EQ(textSystem.store.getTextCount(), 3u);
 }
 
 // =============================================================================
@@ -560,8 +568,9 @@ TEST_F(TextCommandsTest, TextEntityInEntityMap) {
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
     
     // Verify entity is in the map
-    auto it = engine_->entityManager_.entities.find(42);
-    ASSERT_NE(it, engine_->entityManager_.entities.end());
+    const auto& em = CadEngineTestAccessor::entityManager(*engine_);
+    auto it = em.entities.find(42);
+    ASSERT_NE(it, em.entities.end());
     EXPECT_EQ(it->second.kind, EntityKind::Text);
 }
 
@@ -591,8 +600,9 @@ TEST_F(TextCommandsTest, DeleteTextRemovesFromEntityMap) {
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
     
     // Verify removed from entity map
-    auto it = engine_->entityManager_.entities.find(42);
-    EXPECT_EQ(it, engine_->entityManager_.entities.end());
+    const auto& emAfter = CadEngineTestAccessor::entityManager(*engine_);
+    auto it = emAfter.entities.find(42);
+    EXPECT_EQ(it, emAfter.entities.end());
 }
 
 // =============================================================================
@@ -614,7 +624,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_MidRunInsertsZeroLengthRun) {
 
     EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
 
-    const auto& runs = engine_->textSystem_.store.getRuns(100);
+    const auto& runs = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(100);
     ASSERT_EQ(runs.size(), 3u);
     EXPECT_EQ(runs[0].startIndex, 0u);
     EXPECT_EQ(runs[0].length, 2u);
@@ -657,7 +667,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
     runs[1].colorRGBA = 0xFFFFFFFFu;
     runs[1].flags = static_cast<std::uint8_t>(TextStyleFlags::Italic);
 
-    ASSERT_TRUE(engine_->textSystem_.store.upsertText(101, header, runs, 2, content.data(), header.contentLength));
+    ASSERT_TRUE(CadEngineTestAccessor::textSystem(*engine_).store.upsertText(101, header, runs, 2, content.data(), header.contentLength));
 
     engine::text::ApplyTextStylePayload payload{};
     payload.textId = 101;
@@ -671,7 +681,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
 
     EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
 
-    const auto& storedRuns = engine_->textSystem_.store.getRuns(101);
+    const auto& storedRuns = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(101);
     ASSERT_EQ(storedRuns.size(), 3u);
 
     EXPECT_EQ(storedRuns[0].startIndex, 0u);
@@ -702,7 +712,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtContentEnd) {
 
     EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
 
-    const auto& runs = engine_->textSystem_.store.getRuns(102);
+    const auto& runs = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(102);
     ASSERT_EQ(runs.size(), 2u);
     EXPECT_EQ(runs[0].startIndex, 0u);
     EXPECT_EQ(runs[0].length, 5u);
@@ -728,7 +738,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_OnEmptyContent) {
 
     EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
 
-    const auto& runs = engine_->textSystem_.store.getRuns(103);
+    const auto& runs = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(103);
     ASSERT_EQ(runs.size(), 1u);
     EXPECT_EQ(runs[0].startIndex, 0u);
     EXPECT_EQ(runs[0].length, 0u);
@@ -740,7 +750,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_OnEmptyContent) {
 // =============================================================================
 
 TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
-    std::uint32_t genBefore = engine_->generation;
+    std::uint32_t genBefore = CadEngineTestAccessor::generation(*engine_);
     
     CommandBufferBuilder builder;
     builder.writeHeader(1);
@@ -759,7 +769,7 @@ TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
     builder.pushBytes(content, 4);
     
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
-    EXPECT_GT(engine_->generation, genBefore);
+    EXPECT_GT(CadEngineTestAccessor::generation(*engine_), genBefore);
 }
 
 // =============================================================================
@@ -789,7 +799,7 @@ TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
     EXPECT_TRUE(engine_->applyTextStyle(payload, nullptr, 0));
     
     // Verify intermediate state: 0-length run at 2
-    auto runs = engine_->textSystem_.store.getRuns(200);
+    auto runs = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(200);
     ASSERT_EQ(runs.size(), 3u);
     EXPECT_EQ(runs[1].startIndex, 2u);
     EXPECT_EQ(runs[1].length, 0u);
@@ -801,11 +811,11 @@ TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
     
     // 3. Verify final state
     // Content should be "heXllo"
-    std::string_view content = engine_->textSystem_.store.getContent(200);
+    std::string_view content = CadEngineTestAccessor::textSystem(*engine_).store.getContent(200);
     EXPECT_EQ(content, "heXllo");
     
     // Runs should be: "he" (regular), "X" (Bold), "llo" (regular)
-    runs = engine_->textSystem_.store.getRuns(200);
+    runs = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(200);
     ASSERT_EQ(runs.size(), 3u);
     
     // "he"
@@ -832,7 +842,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
     ASSERT_TRUE(upsertSimpleText(300, "hello"));
     
     // Set caret at position 5 (end of "hello")
-    engine_->textSystem_.store.setCaret(300, 5);
+    CadEngineTestAccessor::textSystem(*engine_).store.setCaret(300, 5);
     
     // Toggle Bold at caret position 5
     engine::text::ApplyTextStylePayload p1{};
@@ -859,7 +869,7 @@ TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
     EXPECT_TRUE(engine_->applyTextStyle(p3, nullptr, 0));
     
     // Should have exactly ONE zero-length run at position 5, with Bold+Italic+Underline
-    const auto& runsBeforeInsert = engine_->textSystem_.store.getRuns(300);
+    const auto& runsBeforeInsert = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(300);
     int zeroLengthCount = 0;
     for (const auto& r : runsBeforeInsert) {
         if (r.length == 0 && r.startIndex == 5) {
@@ -876,11 +886,11 @@ TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
     EXPECT_TRUE(engine_->insertTextContent(300, 5, "X", 1));
     
     // Content should be "helloX", NOT "helloXXX" (no duplication)
-    std::string_view content = engine_->textSystem_.store.getContent(300);
+    std::string_view content = CadEngineTestAccessor::textSystem(*engine_).store.getContent(300);
     EXPECT_EQ(content, "helloX");
     
     // Verify runs: "hello" (no style), "X" (Bold+Italic+Underline)
-    const auto& runs = engine_->textSystem_.store.getRuns(300);
+    const auto& runs = CadEngineTestAccessor::textSystem(*engine_).store.getRuns(300);
     ASSERT_EQ(runs.size(), 2u);
     
     // "hello"
@@ -941,10 +951,10 @@ TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
     engine_->upsertText(300, header, &run, 1, content, header.contentLength);
     
     // Force layout to get metrics
-    engine_->textSystem_.layoutEngine.layoutText(300);
+    CadEngineTestAccessor::textSystem(*engine_).layoutEngine.layoutText(300);
     
-    const TextRec* text1 = engine_->textSystem_.store.getText(300);
-    const engine::text::TextLayout* layout1 = engine_->textSystem_.layoutEngine.getLayout(300);
+    const TextRec* text1 = CadEngineTestAccessor::textSystem(*engine_).store.getText(300);
+    const engine::text::TextLayout* layout1 = CadEngineTestAccessor::textSystem(*engine_).layoutEngine.getLayout(300);
     ASSERT_NE(text1, nullptr);
     ASSERT_NE(layout1, nullptr);
     ASSERT_FALSE(layout1->lines.empty());
@@ -978,8 +988,8 @@ TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
     
     // Force layout again (applyTextStyle does it, but just to be sure)
     
-    const TextRec* text2 = engine_->textSystem_.store.getText(300);
-    const engine::text::TextLayout* layout2 = engine_->textSystem_.layoutEngine.getLayout(300);
+    const TextRec* text2 = CadEngineTestAccessor::textSystem(*engine_).store.getText(300);
+    const engine::text::TextLayout* layout2 = CadEngineTestAccessor::textSystem(*engine_).layoutEngine.getLayout(300);
     ASSERT_NE(text2, nullptr);
     ASSERT_NE(layout2, nullptr);
     

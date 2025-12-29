@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
+#include "tests/test_accessors.h"
 
 TEST(LayerFlagsTest, InvisibleLayerNotRendered) {
     CadEngine engine;
     engine.clear();
-    engine.upsertRect(1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
     engine.setEntityLayer(1, 1);
 
     engine.setLayerProps(
@@ -31,7 +32,7 @@ TEST(LayerFlagsTest, InvisibleLayerNotRendered) {
 TEST(LayerFlagsTest, LayerVisibilityAndLockAffectPick) {
     CadEngine engine;
     engine.clear();
-    engine.upsertRect(1, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
     engine.setEntityLayer(1, 1);
 
     EXPECT_EQ(engine.pick(5.0f, 5.0f, 0.5f), 1u);

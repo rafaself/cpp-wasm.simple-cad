@@ -2,6 +2,7 @@
 #include "engine/engine.h"
 #include "engine/command/command_dispatch.h"
 #include "engine/core/string_utils.h"
+#include "engine/internal/engine_state_aliases.h"
 
 // Implement CadEngine methods moved out of the header to keep the header small.
 
@@ -31,20 +32,68 @@ namespace {
     }
 }
 
-// Constructor
-CadEngine::CadEngine() : 
-    selectionManager_(entityManager_), 
-    historyManager_(entityManager_, textSystem_),
-    interactionSession_(*this, entityManager_, pickSystem_, textSystem_, historyManager_) 
-{
-    triangleVertices.reserve(defaultCapacityFloats);
-    lineVertices.reserve(defaultLineCapacityFloats);
-    snapshotBytes.reserve(defaultSnapshotCapacityBytes);
-    eventQueue_.resize(kMaxEvents);
-    eventBuffer_.reserve(kMaxEvents + 1);
-    renderDirty = false;
-    snapshotDirty = false;
+// Constructor / destructor
+CadEngine::CadEngine() : state_(std::make_unique<EngineState>(*this)) {}
+CadEngine::~CadEngine() = default;
+
+EngineState& CadEngine::state() noexcept {
+    return *state_;
+}
+
+const EngineState& CadEngine::state() const noexcept {
+    return *state_;
+}
+
+void CadEngine::clearError() const {
     lastError = EngineError::Ok;
+}
+
+void CadEngine::setError(EngineError err) const {
+    lastError = err;
+}
+
+void CadEngine::setNextEntityId(std::uint32_t id) {
+    nextEntityId_ = id;
+}
+
+std::uint32_t CadEngine::getSelectionGeneration() const noexcept {
+    return selectionManager_.getGeneration();
+}
+
+bool CadEngine::isEntityVisibleForRender(std::uint32_t id) const noexcept {
+    return entityManager_.isEntityVisible(id);
+}
+
+bool CadEngine::hasPendingEvents() const noexcept {
+    return eventCount_ > 0;
+}
+
+bool CadEngine::isTextQuadsDirty() const {
+    return textQuadsDirty_;
+}
+
+void CadEngine::markTextQuadsDirty() const {
+    textQuadsDirty_ = true;
+}
+
+bool CadEngine::isInteractionActive() const {
+    return interactionSession_.isInteractionActive();
+}
+
+std::uint32_t CadEngine::getCommitResultCount() const {
+    return static_cast<std::uint32_t>(interactionSession_.getCommitResultIds().size());
+}
+
+std::uintptr_t CadEngine::getCommitResultIdsPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultIds().data());
+}
+
+std::uintptr_t CadEngine::getCommitResultOpCodesPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultOpCodes().data());
+}
+
+std::uintptr_t CadEngine::getCommitResultPayloadsPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultPayloads().data());
 }
 
 void CadEngine::clear() noexcept {
@@ -676,5 +725,4 @@ std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {
     return {std::round(x / s) * s, std::round(y / s) * s};
 }
 
-
-
+#include "engine/internal/engine_state_aliases_undef.h"

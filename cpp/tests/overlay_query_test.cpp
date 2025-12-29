@@ -1,12 +1,13 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
+#include "tests/test_accessors.h"
 
 TEST(OverlayQueryTest, SelectionOutlineAndHandles) {
     CadEngine engine;
     engine.clear();
 
     // Create a simple rect and select it.
-    engine.upsertRect(1, 0.0f, 0.0f, 10.0f, 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 5.0f, 1.0f, 1.0f, 1.0f, 1.0f);
     const std::uint32_t id = 1;
     engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
 

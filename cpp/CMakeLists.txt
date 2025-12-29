@@ -86,6 +86,7 @@ endif()
 set(ENGINE_SOURCES
   engine/bindings.cpp
   engine.cpp
+  engine/internal/engine_state.cpp
   # Command processing
   engine/command/commands.cpp
   engine/command/command_dispatch.cpp
@@ -113,12 +114,15 @@ set(ENGINE_SOURCES
   engine/impl/engine_event.cpp
 )
 
-# Text module sources (conditional)
+  # Text module sources (conditional)
 if(ENGINE_ENABLE_TEXT)
   list(APPEND ENGINE_SOURCES
     engine/text/text_store.cpp
     engine/text/font_manager.cpp
     engine/text/text_layout.cpp
+    engine/text/text_shaping.cpp
+    engine/text/text_caret.cpp
+    engine/text/text_selection_rects.cpp
     engine/text/text_navigation.cpp
     engine/text/atlas_packer.cpp
     engine/text/glyph_atlas.cpp

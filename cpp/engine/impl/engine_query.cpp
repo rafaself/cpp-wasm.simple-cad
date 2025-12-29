@@ -3,6 +3,7 @@
 // Separated from main engine.cpp to reduce file size per SRP guidelines.
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 #include <cmath>
 #include <limits>
 
@@ -276,3 +277,5 @@ CadEngine::EntityAabb CadEngine::getEntityAabb(std::uint32_t entityId) const {
 
     return EntityAabb{0, 0, 0, 0, 0};
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

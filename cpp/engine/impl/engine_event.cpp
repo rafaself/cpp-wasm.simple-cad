@@ -2,6 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
+#include "engine/internal/engine_state_aliases.h"
 
 void CadEngine::clearEventState() {
     eventHead_ = 0;
@@ -373,3 +374,5 @@ void CadEngine::ackResync(std::uint32_t resyncGeneration) {
     pendingOrderChanged_ = false;
     pendingHistoryChanged_ = false;
 }
+
+#include "engine/internal/engine_state_aliases_undef.h"

@@ -1,11 +1,12 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
+#include "tests/test_accessors.h"
 
 TEST(SelectionStateTest, FiltersLockedAndInvisible) {
     CadEngine engine;
     engine.clear();
-    engine.upsertRect(1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
-    engine.upsertRect(2, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
 
     engine.setEntityFlags(
         2,
@@ -32,9 +33,9 @@ TEST(SelectionStateTest, FiltersLockedAndInvisible) {
 TEST(SelectionStateTest, SelectionOrderFollowsDrawOrder) {
     CadEngine engine;
     engine.clear();
-    engine.upsertRect(1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
-    engine.upsertRect(2, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
-    engine.upsertRect(3, 0, 0, 10, 10, 0.0f, 0.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 3, 0, 0, 10, 10, 0.0f, 0.0f, 1.0f, 1.0f);
 
     const std::uint32_t ids[] = {1, 3};
     engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
@@ -62,8 +63,8 @@ TEST(SelectionStateTest, SelectionOrderFollowsDrawOrder) {
 TEST(SelectionStateTest, PickRespectsDrawOrder) {
     CadEngine engine;
     engine.clear();
-    engine.upsertRect(1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
-    engine.upsertRect(2, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0, 0, 10, 10, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 0, 0, 10, 10, 0.0f, 1.0f, 0.0f, 1.0f);
 
     EXPECT_EQ(engine.pick(5.0f, 5.0f, 0.5f), 2u);
 

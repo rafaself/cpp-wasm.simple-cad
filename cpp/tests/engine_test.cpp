@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
 #include "engine/entity/entity_manager.h"
+#include "tests/test_accessors.h"
 #include <vector>
 
 class CadEngineTest : public ::testing::Test {
@@ -20,17 +21,17 @@ TEST_F(CadEngineTest, InitialState) {
 
 TEST_F(CadEngineTest, EntityManagement) {
     // Direct API usage updates the logical state, but not the render buffers
-    engine.upsertRect(100, 10, 20, 30, 40, 1.0f, 0.0f, 0.0f, 1.0f); // Add color
+    CadEngineTestAccessor::upsertRect(engine, 100, 10, 20, 30, 40, 1.0f, 0.0f, 0.0f, 1.0f); // Add color
     auto stats = engine.getStats();
     EXPECT_EQ(stats.rectCount, 1);
     
     // Update
-    engine.upsertRect(100, 15, 25, 35, 45, 0.0f, 1.0f, 0.0f, 1.0f); // Add color
+    CadEngineTestAccessor::upsertRect(engine, 100, 15, 25, 35, 45, 0.0f, 1.0f, 0.0f, 1.0f); // Add color
     stats = engine.getStats();
     EXPECT_EQ(stats.rectCount, 1); // ID mismatch would create new, same ID updates
     
     // Delete
-    engine.deleteEntity(100);
+    CadEngineTestAccessor::deleteEntity(engine, 100);
     stats = engine.getStats();
     EXPECT_EQ(stats.rectCount, 0);
 }
@@ -89,19 +90,21 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     EXPECT_EQ(stats.lineVertexCount, 0);
 
     // Also check color property
-    EXPECT_EQ(engine.entityManager_.rects[0].r, 1.0f);
-    EXPECT_EQ(engine.entityManager_.rects[0].g, 0.5f);
-    EXPECT_EQ(engine.entityManager_.rects[0].b, 0.0f);
-    EXPECT_EQ(engine.entityManager_.rects[0].sr, 0.0f);
-    EXPECT_EQ(engine.entityManager_.rects[0].sg, 1.0f);
-    EXPECT_EQ(engine.entityManager_.rects[0].sb, 0.0f);
-    EXPECT_EQ(engine.entityManager_.rects[0].strokeWidthPx, 2.0f);
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    ASSERT_FALSE(em.rects.empty());
+    EXPECT_EQ(em.rects[0].r, 1.0f);
+    EXPECT_EQ(em.rects[0].g, 0.5f);
+    EXPECT_EQ(em.rects[0].b, 0.0f);
+    EXPECT_EQ(em.rects[0].sr, 0.0f);
+    EXPECT_EQ(em.rects[0].sg, 1.0f);
+    EXPECT_EQ(em.rects[0].sb, 0.0f);
+    EXPECT_EQ(em.rects[0].strokeWidthPx, 2.0f);
 }
 
 TEST_F(CadEngineTest, SnapshotRoundTrip) {
     // 1. Populate initial state
-    engine.upsertRect(1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f, 1.0f); // Add color
-    engine.upsertLine(2, 0, 0, 50, 50);
+    CadEngineTestAccessor::upsertRect(engine, 1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f, 1.0f); // Add color
+    CadEngineTestAccessor::upsertLine(engine, 2, 0, 0, 50, 50);
     const std::uint32_t selectId = 1;
     engine.setSelection(&selectId, 1, CadEngine::SelectionMode::Replace);
 
@@ -128,14 +131,16 @@ TEST_F(CadEngineTest, SnapshotRoundTrip) {
     EXPECT_EQ(stats2.lineVertexCount, stats1.lineVertexCount);
 
     // Verify color
-    EXPECT_EQ(engine2.entityManager_.rects[0].r, 0.0f);
-    EXPECT_EQ(engine2.entityManager_.rects[0].g, 0.0f);
-    EXPECT_EQ(engine2.entityManager_.rects[0].b, 1.0f);
+    const auto& em2 = CadEngineTestAccessor::entityManager(engine2);
+    ASSERT_FALSE(em2.rects.empty());
+    EXPECT_EQ(em2.rects[0].r, 0.0f);
+    EXPECT_EQ(em2.rects[0].g, 0.0f);
+    EXPECT_EQ(em2.rects[0].b, 1.0f);
 }
 
 TEST_F(CadEngineTest, DocumentDigestDeterministicSaveLoad) {
-    engine.upsertRect(1, 0, 0, 10, 10, 0.2f, 0.3f, 0.4f, 1.0f);
-    engine.upsertLine(2, 5, 5, 15, 15);
+    CadEngineTestAccessor::upsertRect(engine, 1, 0, 0, 10, 10, 0.2f, 0.3f, 0.4f, 1.0f);
+    CadEngineTestAccessor::upsertLine(engine, 2, 5, 5, 15, 15);
 
     const std::uint32_t layer2 = 2;
     const std::uint32_t props =
@@ -181,7 +186,7 @@ TEST_F(CadEngineTest, CommandBufferError) {
     engine.applyCommandBuffer(ptr, buffer.size());
 
     // Verify error is set
-    EXPECT_NE(engine.lastError, EngineError::Ok);
+    EXPECT_NE(CadEngineTestAccessor::lastError(engine), EngineError::Ok);
     
     // Verify state did not change
     auto finalStats = engine.getStats();
