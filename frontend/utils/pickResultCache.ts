@@ -82,7 +82,7 @@ export class PickResultCache {
     };
 
     // Subscribe to document changes for cache invalidation
-    const stats = this.runtime.engine?.getStats ? this.runtime.engine.getStats() : null;
+    const stats = this.runtime.getStats();
     this.lastDocumentGeneration = stats ? stats.generation : 0;
     this.setupInvalidation();
   }
@@ -262,8 +262,8 @@ export class PickResultCache {
   private setupInvalidation(): void {
     // Check document generation periodically
     this.intervalId = window.setInterval(() => {
-      if (!this.runtime || !this.runtime.engine || !this.runtime.engine.getStats) return;
-      const stats = this.runtime.engine.getStats();
+      if (!this.runtime) return;
+      const stats = this.runtime.getStats();
       if (!stats) return;
 
       const currentGen = stats.generation;

@@ -24,7 +24,7 @@ export const useEditorLogic = () => {
 
   const deleteLayer = (layerId: number) => {
     void getEngineRuntime().then((runtime) => {
-      runtime.engine.deleteLayer?.(layerId);
+      runtime.deleteLayer(layerId);
     });
   };
 

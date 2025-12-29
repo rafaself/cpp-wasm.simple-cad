@@ -110,7 +110,8 @@ describe('EngineRuntime', () => {
   it('initializes correctly', async () => {
     const runtime = await EngineRuntime.create();
     expect(initCadEngineModule).toHaveBeenCalled();
-    expect(runtime.engine).toBe(mockEngine);
+    mockEngine.getStats = vi.fn(() => ({ generation: 1 } as any));
+    expect(runtime.getStats()).toEqual({ generation: 1 });
   });
 
   it('clears the engine', async () => {

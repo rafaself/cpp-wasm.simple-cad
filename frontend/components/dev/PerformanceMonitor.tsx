@@ -88,8 +88,8 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
 
       // Get entity count
       let entityCount = 0;
-      if (runtime.engine?.getStats) {
-        const stats = runtime.engine.getStats();
+      const stats = runtime.getStats();
+      if (stats) {
         entityCount = stats.rectCount + stats.lineCount + stats.polylineCount + stats.pointCount;
       }
 

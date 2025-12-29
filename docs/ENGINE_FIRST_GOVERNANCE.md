@@ -16,6 +16,7 @@ The C++ engine is the only source of truth. Governance keeps the boundaries and 
 - No `runtime.engine.*` usage outside `frontend/engine/**` unless explicitly allowlisted in `scripts/boundary_rules.json`.
 - `frontend/features/**` must not import engine internals directly; they must go through the EngineRuntime facade or an approved transitional allowlist entry in `scripts/boundary_rules.json`.
 - Any new violation without an allowlist entry fails CI.
+- `EngineRuntime.engine` is private: consume typed subsystems (`runtime.text`, `runtime.render`, `runtime.layers`, etc.) or facade methods instead of touching the native instance.
 
 ## Engine API Manifest
 - `scripts/generate_engine_api_manifest.js` parses all `cpp/**/bindings*.cpp` exports and writes:

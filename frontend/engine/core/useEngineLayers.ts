@@ -17,24 +17,16 @@ export const useEngineLayers = (): EngineLayerSnapshot[] => {
   const generation = useDocumentSignal('layers');
 
   return useMemo(() => {
-    if (!runtime || !runtime.engine.getLayersSnapshot || !runtime.engine.getLayerName) return [];
+    if (!runtime) return [];
 
-    const vec = runtime.engine.getLayersSnapshot();
-    const count = vec.size();
-    const out: EngineLayerSnapshot[] = [];
-
-    for (let i = 0; i < count; i++) {
-      const rec = vec.get(i);
-      out.push({
-        id: rec.id,
-        name: runtime.engine.getLayerName(rec.id),
-        visible: (rec.flags & EngineLayerFlags.Visible) !== 0,
-        locked: (rec.flags & EngineLayerFlags.Locked) !== 0,
-        order: rec.order,
-      });
-    }
-    vec.delete();
-    out.sort((a, b) => a.order - b.order);
-    return out;
+    const layers = runtime.getLayersSnapshot();
+    const out: EngineLayerSnapshot[] = layers.map((rec) => ({
+      id: rec.id,
+      name: runtime.getLayerName(rec.id),
+      visible: (rec.flags & EngineLayerFlags.Visible) !== 0,
+      locked: (rec.flags & EngineLayerFlags.Locked) !== 0,
+      order: rec.order,
+    }));
+    return out.sort((a, b) => a.order - b.order);
   }, [runtime, generation]);
 };

@@ -238,11 +238,7 @@ async function setupTestDocument(runtime: EngineRuntime, entityCount: number): P
   
   try {
     // Clear existing document
-    if (runtime.engine?.clear) {
-      runtime.engine.clear();
-    } else {
-      console.warn('[Setup] engine.clear() not available, skipping clear');
-    }
+    runtime.clear();
     
     if (entityCount === 0) return;
 

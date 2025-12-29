@@ -67,15 +67,15 @@ export class CanvasController {
 
     const runtime = await getEngineRuntime();
 
-    const meta = runtime.engine.getPositionBufferMeta();
+    const meta = runtime.getPositionBufferMeta();
 
     // Engine-native text: rebuild quad buffer (if supported) and feed meta to renderer.
-    if (runtime.engine.isTextQuadsDirty?.() !== false) { // Default to true if missing
-       runtime.engine.rebuildTextQuadBuffer?.();
+    if (runtime.isTextQuadsDirty() !== false) { // Default to true if missing
+       runtime.rebuildTextQuadBuffer();
     }
 
-    const textQuadMeta = runtime.engine.getTextQuadBufferMeta?.();
-    const textAtlasMeta = runtime.engine.getAtlasTextureMeta?.();
+    const textQuadMeta = runtime.getTextQuadBufferMeta();
+    const textAtlasMeta = runtime.getAtlasTextureMeta();
 
     this.renderer.render({
       module: runtime.module,

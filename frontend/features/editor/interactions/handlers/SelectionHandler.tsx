@@ -140,14 +140,9 @@ export class SelectionHandler extends BaseInteractionHandler {
 
             if (runtime.marqueeSelect) {
                 runtime.marqueeSelect(x1, y1, x2, y2, mode, hitMode);
-            } else if (runtime.engine?.queryMarquee) {
-                // Fallback manual query
-                 const selectedU32 = runtime.engine.queryMarquee(x1, y1, x2, y2, hitMode);
-                 const selected: number[] = [];
-                 const count = selectedU32.size();
-                 for (let i = 0; i < count; ++i) selected.push(selectedU32.get(i));
-                 selectedU32.delete();
-                 runtime.setSelection?.(selected, mode);
+            } else {
+                const selected = runtime.queryMarquee(x1, y1, x2, y2, hitMode);
+                runtime.setSelection?.(selected, mode);
             }
         } else {
             // Was a Click (No drag)

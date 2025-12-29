@@ -37,10 +37,20 @@ import { TextSystem } from './runtime/TextSystem';
 import { LayerSystem } from './runtime/LayerSystem';
 import { EntitySystem } from './runtime/EntitySystem';
 import { DraftSystem } from './runtime/DraftSystem';
+import { RenderSystem } from './runtime/RenderSystem';
+import { StatsSystem } from './runtime/StatsSystem';
 import { EngineCommand } from './commandBuffer';
 
 export class EngineRuntime {
   // Subsystems
+  public readonly text: TextSystem;
+  public readonly pick: PickSystem;
+  public readonly draft: DraftSystem;
+  public readonly transform: TransformSystem;
+  public readonly io: SnapshotSystem;
+  public readonly render: RenderSystem;
+  public readonly stats: StatsSystem;
+  #engine: CadEngineInstance;
   private commandSystem: CommandSystem;
   private eventSystem: EventSystem;
   private pickSystem: PickSystem;
@@ -52,6 +62,8 @@ export class EngineRuntime {
   private layerSystem: LayerSystem;
   private entitySystem: EntitySystem;
   private draftSystem: DraftSystem;
+  private renderSystem: RenderSystem;
+  private statsSystem: StatsSystem;
 
   public readonly capabilitiesMask: number;
 
@@ -85,8 +97,9 @@ export class EngineRuntime {
 
   private constructor(
     public readonly module: WasmModule,
-    public readonly engine: CadEngineInstance,
+    engine: CadEngineInstance,
   ) {
+    this.#engine = engine;
     this.capabilitiesMask = EngineRuntime.readCapabilities(engine);
 
     // Initialize subsystems
@@ -101,6 +114,17 @@ export class EngineRuntime {
     this.layerSystem = new LayerSystem(module, engine);
     this.entitySystem = new EntitySystem(module, engine);
     this.draftSystem = new DraftSystem(module, engine);
+    this.renderSystem = new RenderSystem(engine);
+    this.statsSystem = new StatsSystem(engine);
+
+    // Public facades (typed subsystems)
+    this.text = this.textSystem;
+    this.pick = this.pickSystem;
+    this.draft = this.draftSystem;
+    this.transform = this.transformSystem;
+    this.io = this.snapshotSystem;
+    this.render = this.renderSystem;
+    this.stats = this.statsSystem;
   }
 
   public resetIds(): void {
@@ -112,7 +136,7 @@ export class EngineRuntime {
   }
 
   public clear(): void {
-    this.engine.clear();
+    this.#engine.clear();
   }
 
   public dispose(): void {
@@ -241,6 +265,10 @@ export class EngineRuntime {
     this.selectionSystem.marqueeSelect(minX, minY, maxX, maxY, mode, hitMode);
   }
 
+  public queryMarquee(minX: number, minY: number, maxX: number, maxY: number, hitMode: number): number[] {
+    return this.selectionSystem.queryMarquee(minX, minY, maxX, maxY, hitMode);
+  }
+
   public getSelectionOutlineMeta(): OverlayBufferMeta {
     return this.selectionSystem.getSelectionOutlineMeta();
   }
@@ -276,6 +304,36 @@ export class EngineRuntime {
 
   public getSnappedPoint(x: number, y: number): { x: number, y: number } {
     return this.transformSystem.getSnappedPoint(x, y);
+  }
+
+  // --- Render System ---
+  public getPositionBufferMeta() {
+    return this.renderSystem.getPositionBufferMeta();
+  }
+
+  public getLineBufferMeta() {
+    return this.renderSystem.getLineBufferMeta();
+  }
+
+  public isTextQuadsDirty(): boolean {
+    return this.renderSystem.isTextQuadsDirty();
+  }
+
+  public rebuildTextQuadBuffer(): void {
+    this.renderSystem.rebuildTextQuadBuffer();
+  }
+
+  public getTextQuadBufferMeta() {
+    return this.renderSystem.getTextQuadBufferMeta();
+  }
+
+  public getAtlasTextureMeta() {
+    return this.renderSystem.getAtlasTextureMeta();
+  }
+
+  // --- Stats System ---
+  public getStats() {
+    return this.statsSystem.getStats();
   }
 
   // --- Text System ---

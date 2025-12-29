@@ -1,17 +1,5 @@
 {
-  "runtimeEngineAllowlist": [
-    { "path": "frontend/tests/engineRuntime.test.ts", "reason": "Unit test inspects runtime.engine directly." },
-    { "path": "frontend/components/dev/PerformanceMonitor.tsx", "reason": "Dev-only performance overlay reads engine stats." },
-    { "path": "frontend/hooks/usePickThrottle.ts", "reason": "Legacy pick throttling still probes engine stats; pending facade." },
-    { "path": "frontend/features/editor/hooks/useEditorLogic.ts", "reason": "Editor layer deletions still call engine directly; slated for command helper extraction." },
-    { "path": "frontend/features/editor/hooks/useEngineTextEditState.ts", "reason": "Text editing bridge still casts runtime.engine; will move behind text facade." },
-    { "path": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx", "reason": "Selection marquee calls engine directly; refactor to interaction helper pending." },
-    { "path": "frontend/features/editor/components/EditorRibbon.tsx", "reason": "Layer snapshot read still pulls directly from runtime.engine." },
-    { "path": "frontend/features/editor/components/LayerManagerModal.tsx", "reason": "Layer mutations currently call engine directly; needs facade." },
-    { "path": "frontend/features/editor/components/EditorSidebar.tsx", "reason": "Sidebar layer actions still invoke engine until façade is in place." },
-    { "path": "frontend/utils/benchmarks/pickBenchmarks.ts", "reason": "Benchmark harness calls engine for setup/teardown." },
-    { "path": "frontend/utils/pickResultCache.ts", "reason": "Diagnostics cache uses engine stats for logging thresholds." }
-  ],
+  "runtimeEngineAllowlist": [],
   "featureImportEntrypoints": [
     "frontend/engine/core/EngineRuntime",
     "frontend/engine/core/singleton",
@@ -37,7 +25,6 @@
     { "path": "frontend/features/editor/components/EngineInteractionLayer.tsx", "import": "frontend/engine/core/commandBuffer", "reason": "Interaction layer builds command buffer directly; should delegate to runtime helper." },
     { "path": "frontend/features/editor/hooks/useEditorLogic.ts", "import": "frontend/engine/core/commandBuffer", "reason": "Editor logic builds command lists manually; needs facade." },
     { "path": "frontend/features/editor/hooks/useEditorLogic.ts", "import": "frontend/engine/core/protocol", "reason": "Protocol types still imported directly." },
-    { "path": "frontend/features/editor/hooks/useEngineTextEditState.ts", "import": "frontend/engine/bridge/textBridge", "reason": "Text editing hook still uses bridge types directly." },
     { "path": "frontend/features/editor/components/NextSurface.tsx", "import": "frontend/engine/renderer/TessellatedWasmLayer", "reason": "Renderer is consumed directly until a facade exists." }
   ]
 }

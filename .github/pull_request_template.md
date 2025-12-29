@@ -1,5 +1,6 @@
 - [ ] Governance: `pnpm governance:budgets` (no new hard-cap violations; soft-cap warnings acknowledged or waived in exceptions).
 - [ ] Governance: `pnpm governance:boundaries` (no new `runtime.engine.*` leaks or direct engine imports from `frontend/features/**`).
 - [ ] Governance: `pnpm governance:manifest` (bindings drift check passes, or manifest regenerated).
+- [ ] EngineRuntime API respected: no direct `runtime.engine.*`; use facades (`runtime.text/render/layers/...`) and update API snapshot if surface changes.
 - [ ] Engine-first discipline held: no document state or geometry outside the C++ engine; React remains UI-only.
 - [ ] Added/updated docs where governance rules or exceptions changed.

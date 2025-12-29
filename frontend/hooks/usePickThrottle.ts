@@ -176,8 +176,8 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
       lastPosRef.current = { x, y, time: now };
 
       // Update entity count periodically
-      if (runtime.engine?.getStats) {
-        const stats = runtime.engine.getStats();
+      const stats = runtime.getStats();
+      if (stats) {
         metricsRef.current.entityCount = 
           stats.rectCount + stats.lineCount + stats.polylineCount;
       }

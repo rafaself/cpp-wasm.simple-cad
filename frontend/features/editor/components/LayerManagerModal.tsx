@@ -15,7 +15,7 @@ const LayerManagerModal: React.FC = () => {
   const layers = useEngineLayers();
 
   const updateLayerFlags = (layerId: number, nextVisible?: boolean, nextLocked?: boolean) => {
-    if (!runtime?.engine.setLayerProps) return;
+    if (!runtime) return;
     const layer = layers.find((entry) => entry.id === layerId);
     if (!layer) return;
 
@@ -31,14 +31,14 @@ const LayerManagerModal: React.FC = () => {
     if (visible) flags |= EngineLayerFlags.Visible;
     if (locked) flags |= EngineLayerFlags.Locked;
 
-    runtime.engine.setLayerProps(layerId, mask, flags, layer.name);
+    runtime.setLayerProps(layerId, mask, flags, layer.name);
   };
 
   const handleAddLayer = () => {
-    if (!runtime?.engine.setLayerProps || !runtime.allocateLayerId) return;
+    if (!runtime || !runtime.allocateLayerId) return;
     const nextId = runtime.allocateLayerId();
     const flags = EngineLayerFlags.Visible;
-    runtime.engine.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
+    runtime.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
     setActiveLayerId(nextId);
   };
 

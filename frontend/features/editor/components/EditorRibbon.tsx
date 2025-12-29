@@ -70,20 +70,13 @@ const EditorRibbon: React.FC = () => {
 
       // Text metadata is already loaded into engine by loadSnapshotBytes
 
-      if (runtime.engine.getLayersSnapshot) {
-        const vec = runtime.engine.getLayersSnapshot();
-        const count = vec.size();
-        let firstId: number | null = null;
-        let minOrder = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < count; i++) {
-          const rec = vec.get(i);
-          if (rec.order < minOrder) {
-            minOrder = rec.order;
-            firstId = rec.id;
-          }
-        }
-        vec.delete();
-        if (firstId !== null) useUIStore.getState().setActiveLayerId(firstId);
+      const layers = runtime.getLayersSnapshot();
+      if (layers.length > 0) {
+        const first = layers.reduce<{ id: number; order: number } | null>((acc, rec) => {
+          if (!acc || rec.order < acc.order) return { id: rec.id, order: rec.order };
+          return acc;
+        }, null);
+        if (first) useUIStore.getState().setActiveLayerId(first.id);
       }
 
       bumpDocumentSignal('layers');

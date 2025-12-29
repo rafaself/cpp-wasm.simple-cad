@@ -75,8 +75,8 @@ export class TextBridge {
   }
   constructor(runtime: EngineRuntime) {
     this.runtime = runtime;
-    // Cast to text-enabled engine (methods may not exist until WASM is built with text)
-    this.textEngine = runtime.engine as unknown as TextEnabledCadEngine;
+    // Text system facade implements the native bindings we need
+    this.textEngine = runtime.text as unknown as TextEnabledCadEngine;
     this.navigator = new TextNavigator(this.textEngine, () => this.isAvailable());
   }
 

@@ -8,36 +8,19 @@ import { applyFullResync } from './engineEventResync';
 import { bumpDocumentSignal } from './engineDocumentSignals';
 
 const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): number | null => {
-  if (!runtime.engine.getLayersSnapshot) return null;
-  const vec = runtime.engine.getLayersSnapshot();
-  const count = vec.size();
-  let first: number | null = null;
-  let minOrder = Number.POSITIVE_INFINITY;
-  for (let i = 0; i < count; i++) {
-    const rec = vec.get(i);
-    if (rec.order < minOrder) {
-      first = rec.id;
-      minOrder = rec.order;
-    }
-  }
-  vec.delete();
-  return first;
+  const layers = runtime.getLayersSnapshot();
+  if (!layers.length) return null;
+  const first = layers.reduce<{ id: number; order: number } | null>((acc, rec) => {
+    if (!acc || rec.order < acc.order) return { id: rec.id, order: rec.order };
+    return acc;
+  }, null);
+  return first ? first.id : null;
 };
 
 const ensureActiveLayer = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): void => {
   const { activeLayerId, setActiveLayerId } = useUIStore.getState();
-  if (!runtime.engine.getLayersSnapshot) return;
-  const vec = runtime.engine.getLayersSnapshot();
-  const count = vec.size();
-  let hasActive = false;
-  for (let i = 0; i < count; i++) {
-    const rec = vec.get(i);
-    if (rec.id === activeLayerId) {
-      hasActive = true;
-      break;
-    }
-  }
-  vec.delete();
+  const layers = runtime.getLayersSnapshot();
+  const hasActive = layers.some((rec) => rec.id === activeLayerId);
 
   if (!hasActive) {
     const first = readFirstLayerId(runtime);

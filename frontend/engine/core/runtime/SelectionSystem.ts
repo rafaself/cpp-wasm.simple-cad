@@ -54,6 +54,18 @@ export class SelectionSystem {
     this.engine.marqueeSelect?.(minX, minY, maxX, maxY, mode, hitMode);
   }
 
+  public queryMarquee(minX: number, minY: number, maxX: number, maxY: number, hitMode: number): number[] {
+    if (!this.engine.queryMarquee) return [];
+    const vec = this.engine.queryMarquee(minX, minY, maxX, maxY, hitMode);
+    const count = vec.size();
+    const out: number[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(vec.get(i));
+    }
+    vec.delete();
+    return out;
+  }
+
   public getSelectionOutlineMeta(): OverlayBufferMeta {
     if (!this.engine.getSelectionOutlineMeta) {
       throw new Error('[EngineRuntime] getSelectionOutlineMeta() missing in WASM build.');
