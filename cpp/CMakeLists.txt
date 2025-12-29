@@ -96,6 +96,14 @@ set(ENGINE_SOURCES
   engine/selection_manager.cpp
   engine/interaction_session.cpp
   engine/command_dispatch.cpp
+  engine/engine_upsert.cpp
+  engine/engine_digest.cpp
+  engine/engine_query.cpp
+  engine/engine_overlay.cpp
+  engine/engine_text.cpp
+  engine/engine_snapshot.cpp
+  engine/engine_render.cpp
+  engine/engine_event.cpp
 )
 
 # Text module sources (conditional)
@@ -104,6 +112,7 @@ if(ENGINE_ENABLE_TEXT)
     engine/text/text_store.cpp
     engine/text/font_manager.cpp
     engine/text/text_layout.cpp
+    engine/text/text_navigation.cpp
     engine/text/atlas_packer.cpp
     engine/text/glyph_atlas.cpp
     engine/text_system.cpp

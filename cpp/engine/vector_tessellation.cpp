@@ -6,7 +6,6 @@
 #include <limits>
 
 namespace engine::vector {
-
 namespace {
 
 static constexpr float zPlane = 0.0f;
@@ -52,6 +51,16 @@ inline Point2 normalizeOrZero(const Point2& v) noexcept {
 
 inline Point2 perp(const Point2& v) noexcept { return Point2{-v.y, v.x}; }
 
+inline Point2 arcPointAt(const Point2& center, const Point2& radius, float rotation, float angle) noexcept {
+    const float rx = std::max(0.0f, std::abs(radius.x));
+    const float ry = std::max(0.0f, std::abs(radius.y));
+    const float cosR = rotation ? std::cos(rotation) : 1.0f;
+    const float sinR = rotation ? std::sin(rotation) : 0.0f;
+    const float xLocal = std::cos(angle) * rx;
+    const float yLocal = std::sin(angle) * ry;
+    return Point2{center.x + xLocal * cosR - yLocal * sinR, center.y + xLocal * sinR + yLocal * cosR};
+}
+
 static void pushUniquePoint(const Point2& p, std::vector<Point2>& out, float minDist2) {
     if (out.empty()) {
         out.push_back(p);
@@ -73,15 +82,10 @@ static float pointLineDistance(const Point2& p, const Point2& a, const Point2& b
 }
 
 static void flattenQuadratic(
-    const Point2& p0,
-    const Point2& c,
-    const Point2& p1,
-    float tolWorld,
-    std::vector<QuadWork>& stack,
-    std::vector<Point2>& out
+    const Point2& p0, const Point2& c, const Point2& p1,
+    float tolWorld, std::vector<QuadWork>& stack, std::vector<Point2>& out
 ) {
-    // Iterative subdivision (stack) to avoid recursion in hot path.
-    stack.clear();
+    stack.clear(); // Iterative subdivision
     stack.push_back(QuadWork{p0, c, p1});
 
     const float minDist2 = tolWorld * tolWorld * 0.25f;
@@ -106,13 +110,8 @@ static void flattenQuadratic(
 }
 
 static void flattenCubic(
-    const Point2& p0,
-    const Point2& c1,
-    const Point2& c2,
-    const Point2& p1,
-    float tolWorld,
-    std::vector<CubicWork>& stack,
-    std::vector<Point2>& out
+    const Point2& p0, const Point2& c1, const Point2& c2, const Point2& p1,
+    float tolWorld, std::vector<CubicWork>& stack, std::vector<Point2>& out
 ) {
     stack.clear();
     stack.push_back(CubicWork{p0, c1, c2, p1});
@@ -130,7 +129,7 @@ static void flattenCubic(
             continue;
         }
 
-        // De Casteljau subdivision at t=0.5
+        // De Casteljau at t=0.5
         const Point2 p01 = mul(add(w.p0, w.c1), 0.5f);
         const Point2 p12 = mul(add(w.c1, w.c2), 0.5f);
         const Point2 p23 = mul(add(w.c2, w.p1), 0.5f);
@@ -143,8 +142,7 @@ static void flattenCubic(
     }
 }
 
-static float normalizeAngle01(float a) noexcept {
-    // Wrap to [-pi, pi] range for stable stepping.
+static float normalizeAngle01(float a) noexcept { // [-pi, pi] range
     constexpr float twoPi = 2.0f * static_cast<float>(M_PI);
     float x = std::fmod(a, twoPi);
     if (x > static_cast<float>(M_PI)) x -= twoPi;
@@ -246,9 +244,7 @@ static void flattenPathToContours(
     for (const Segment& seg : path.segments) {
         switch (seg.kind) {
             case SegmentKind::Move: {
-                if (contourOpen && outPoints.size() - outStarts.back() >= 2) {
-                    // Finalize previous contour; if it has only one point, keep it but it won't render.
-                }
+                // Note: previous contour with 1 point is kept but won't render.
                 curr = xform(seg.to);
                 start = curr;
                 hasCurr = true;
@@ -297,37 +293,22 @@ static void flattenPathToContours(
                 break;
             }
             case SegmentKind::Arc: {
-                // Arcs are absolute.
                 const Point2 center = xform(seg.center);
                 const Point2 radius = seg.radius;
                 float rotation = seg.rotation;
                 if (transform) {
-                    // Basic handling: apply linear part to rotation only when transform is pure rotation+scale.
-                    // General affine with shear isn't supported in PR4 core.
+                    // Apply linear part to rotation for rotation+scale transforms.
                     const float det = transform->a * transform->d - transform->b * transform->c;
                     if (std::abs(det) > eps) rotation += std::atan2(transform->b, transform->a);
                 }
                 if (!contourOpen) {
-                    const float rx = std::max(0.0f, std::abs(radius.x));
-                    const float ry = std::max(0.0f, std::abs(radius.y));
-                    const float cosR = rotation ? std::cos(rotation) : 1.0f;
-                    const float sinR = rotation ? std::sin(rotation) : 0.0f;
-                    const float xLocal = std::cos(seg.startAngle) * rx;
-                    const float yLocal = std::sin(seg.startAngle) * ry;
-                    curr = Point2{center.x + xLocal * cosR - yLocal * sinR, center.y + xLocal * sinR + yLocal * cosR};
+                    curr = arcPointAt(center, radius, rotation, seg.startAngle);
                     start = curr;
                     hasCurr = true;
                     startContour(curr);
                 }
                 flattenArc(center, radius, rotation, seg.startAngle, seg.endAngle, seg.ccw, tolWorld, outPoints);
-                // Update current point to arc end.
-                const float rx = std::max(0.0f, std::abs(radius.x));
-                const float ry = std::max(0.0f, std::abs(radius.y));
-                const float cosR = rotation ? std::cos(rotation) : 1.0f;
-                const float sinR = rotation ? std::sin(rotation) : 0.0f;
-                const float xLocal = std::cos(seg.endAngle) * rx;
-                const float yLocal = std::sin(seg.endAngle) * ry;
-                curr = Point2{center.x + xLocal * cosR - yLocal * sinR, center.y + xLocal * sinR + yLocal * cosR};
+                curr = arcPointAt(center, radius, rotation, seg.endAngle);
                 hasCurr = true;
                 break;
             }
@@ -390,7 +371,7 @@ static void triangulateSimplePolygonEarClip(
         return ccw ? (z > eps) : (z < -eps);
     };
 
-    // O(n^2) ear clip; intended for small-ish paths in PR4.
+    // O(n^2) ear clip
     std::size_t guard = 0;
     while (work.size() > 3 && guard++ < n * n) {
         bool earFound = false;
@@ -500,9 +481,8 @@ static bool applyDash(
             if (on) {
                 if (out.empty()) out.push_back(p);
                 out.push_back(q);
-            } else {
-                // gap: ensure new "on" segment starts clean
             }
+            // else: gap - new "on" segment starts clean
 
             p = q;
             if (dashRemainingPx <= eps) {

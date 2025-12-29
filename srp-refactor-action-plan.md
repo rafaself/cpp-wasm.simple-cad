@@ -841,18 +841,18 @@ git reset --hard HEAD~1  # destructive, use carefully
 
 ## Tracking
 
-| PR                       | Status         | Started    | Completed  | Notes                               |
-| ------------------------ | -------------- | ---------- | ---------- | ----------------------------------- |
-| 0.1 Governance           | ✅ Complete    | 2025-12-28 | 2025-12-28 | Script created, AGENTS.md confirmed |
-| 0.2 Test Baseline        | ✅ Complete    | 2025-12-28 | 2025-12-28 | Fixed C++ tests, all green          |
-| 1.1 History Manager      | ✅ Complete    | 2025-12-28 | 2025-12-28 | Extracted, tests passed             |
-| 1.2 Selection Manager    | ✅ Complete    | 2025-12-28 | 2025-12-28 | Extracted, tests passed             |
-| 1.3 TextTool Split       | ⬜ Not Started |            |            |                                     |
-| 1.4 Import Utils         | ⬜ Not Started |            |            |                                     |
-| 2.1 Interaction Session  | ✅ Complete    | 2025-12-28 | 2025-12-28 | 685 LOC extracted, all tests pass   |
-| 2.2 Command Dispatch     | ✅ Complete    | 2025-12-28 | 2025-12-28 | 261 LOC extracted, all tests pass   |
-| 2.3 TextInputCoordinator | ✅ Complete    | 2025-12-28 | 2025-12-28 | 608 LOC, integrated in TextTool     |
-| 3.1 Interaction Hooks    | ✅ Complete    | 2025-12-28 | 2025-12-28 | useEngineSession + MarqueeOverlay   |
-| 3.2 CI Enforcement       | ⬜ Not Started |            |            |                                     |
+| PR                       | Status         | Started    | Completed  | Notes                                    |
+| ------------------------ | -------------- | ---------- | ---------- | ---------------------------------------- |
+| 0.1 Governance           | ✅ Complete    | 2025-12-28 | 2025-12-28 | Script created, AGENTS.md confirmed      |
+| 0.2 Test Baseline        | ✅ Complete    | 2025-12-28 | 2025-12-28 | Fixed C++ tests, all green               |
+| 1.1 History Manager      | ✅ Complete    | 2025-12-28 | 2025-12-28 | Extracted, tests passed                  |
+| 1.2 Selection Manager    | ✅ Complete    | 2025-12-28 | 2025-12-28 | Extracted, tests passed                  |
+| 1.3 TextTool Split       | ⬜ Not Started |            |            |                                          |
+| 1.4 Import Utils         | ⬜ Not Started |            |            |                                          |
+| 2.1 Interaction Session  | ✅ Complete    | 2025-12-28 | 2025-12-28 | 685 LOC extracted, all tests pass        |
+| 2.2 Command Dispatch     | ✅ Complete    | 2025-12-28 | 2025-12-28 | 261 LOC extracted, all tests pass        |
+| 2.3 TextInputCoordinator | ✅ Complete    | 2025-12-28 | 2025-12-28 | 608 LOC, integrated in TextTool          |
+| 3.1 Interaction Hooks    | ✅ Complete    | 2025-12-28 | 2025-12-28 | 815→384 LOC, 4 hooks + MarqueeOverlay    |
+| 3.2 CI Enforcement       | ✅ Complete    | 2025-12-28 | 2025-12-28 | check-file-size.sh + CI workflow updated |
 
 **Legend**: ⬜ Not Started | 🟡 In Progress | ✅ Complete | ❌ Blocked

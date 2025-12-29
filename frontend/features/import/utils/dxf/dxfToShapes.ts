@@ -6,6 +6,8 @@ import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, from
 import { resolveColor, resolveLineweight, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
 import { applyColorScheme, resolveColorScheme, usesCustomColorMode } from './colorScheme';
 import { parseMTextContent, getDxfTextAlignment, getDxfTextShift, ParsedMText } from './textUtils';
+import { resolveUnitScale } from './unitResolver';
+import { calculateBounds, normalizeShapesToOrigin, normalizeTextScaling } from './shapeNormalization';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -17,28 +19,6 @@ export interface DxfImportResult {
 
 const dist = (p1: DxfVector, p2: DxfVector) => Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
 
-// DXF Unit Codes to Centimeters (CM) Conversion Factors
-const DXF_UNITS: Record<number, number> = {
-    1: 2.54,      // Inches
-    2: 30.48,     // Feet
-    3: 160934.4,  // Miles
-    4: 0.1,       // Millimeters
-    5: 1.0,       // Centimeters
-    6: 100.0,     // Meters
-    7: 100000.0,  // Kilometers
-    8: 0.00000254, // Microinches
-    9: 0.00254,   // Mils
-    10: 91.44,    // Yards
-    11: 1.0e-8,   // Angstroms
-    12: 1.0e-7,   // Nanometers
-    13: 0.0001,   // Microns
-    14: 10.0,     // Decimeters
-    15: 1000.0,   // Decameters
-    16: 10000.0,  // Hectometers
-    17: 1.0e11,   // Gigameters
-};
-
-// Hardcoded fallbacks if table missing
 const STANDARD_LINETYPES: Record<string, number[]> = {
     'DASHED': [10, 5],
     'HIDDEN': [5, 5],
@@ -52,8 +32,6 @@ const MIN_TEXT_SIZE = 0.001;
 const DXF_CURVE_TOLERANCE_DEG = 2.5;
 
 const toRadiansIfNeeded = (angle: number): number => {
-    // dxf-parser typically returns ARC angles in radians.
-    // If we detect degrees (values beyond ~2π), convert to radians.
     if (!isFinite(angle)) return 0;
     const abs = Math.abs(angle);
     return abs > Math.PI * 2 + 0.5 ? (angle * Math.PI) / 180 : angle;
@@ -71,13 +49,7 @@ const isSimilarityTransform = (m: Mat2D): { ok: boolean; scale: number } => {
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
 
-  // Only count entities we plan to import (filter by space)
-  const shouldImportEntity = (e: DxfEntity) => {
-      // If includePaperSpace is true, import everything.
-      // If false (default), skip entities marked as inPaperSpace.
-      // Entities without inPaperSpace property are assumed to be Model Space.
-      return options.includePaperSpace || !e.inPaperSpace;
-  };
+  const shouldImportEntity = (e: DxfEntity) => options.includePaperSpace || !e.inPaperSpace;
 
   let entityCount = 0;
   if (data.entities) {
@@ -92,87 +64,10 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   const buildCustomColorMode = (): ShapeColorMode | undefined =>
     usesCustomColorMode(colorScheme.scheme) ? { fill: 'custom', stroke: 'custom' } : undefined;
 
-  // 1. Determine Scale Factor based on Units & Overrides
-  const insUnits = data.header?.$INSUNITS;
-  let globalScale = 1;
+  const { globalScale } = resolveUnitScale(data, options, shouldImportEntity);
 
-  // Determine Source Unit to Meters factor
-  let sourceToMeters = 1.0;
-
-  // If override provided
-  if (options.sourceUnits && options.sourceUnits !== 'auto') {
-      switch (options.sourceUnits) {
-          case 'meters': sourceToMeters = 1.0; break;
-          case 'cm': sourceToMeters = 0.01; break;
-          case 'mm': sourceToMeters = 0.001; break;
-          case 'feet': sourceToMeters = 0.3048; break;
-          case 'inches': sourceToMeters = 0.0254; break;
-      }
-      // Global scale (to Pixels) = Source(m) * 100
-      globalScale = sourceToMeters * 100;
-      console.log(`DXF Import: Override Units (${options.sourceUnits}). Scale: ${globalScale}`);
-  } else {
-      // Auto-Detect
-      if (insUnits !== undefined && DXF_UNITS[insUnits]) {
-          // DXF_UNITS maps to CM.
-          // We want Meters * 100 = CM.
-          // So DXF_UNITS[insUnits] IS the scale factor to Pixels (CM = px).
-          globalScale = DXF_UNITS[insUnits];
-      } else {
-          // Heuristic for Unitless
-          let minX = Infinity, maxX = -Infinity;
-          let minY = Infinity, maxY = -Infinity;
-          let sampleCount = 0;
-
-          const updateBounds = (v: DxfVector) => {
-              if (v.x < minX) minX = v.x;
-              if (v.x > maxX) maxX = v.x;
-              if (v.y < minY) minY = v.y;
-              if (v.y > maxY) maxY = v.y;
-          };
-
-          if (data.entities) {
-              for (const e of data.entities) {
-                  if (!shouldImportEntity(e)) continue;
-                  if (sampleCount > 1000) break;
-                  if (e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
-                      e.vertices?.forEach(updateBounds);
-                      sampleCount++;
-                  } else if (e.type === 'INSERT' && e.position) {
-                      updateBounds(e.position);
-                      sampleCount++;
-                  } else if (e.type === 'CIRCLE' && e.center && typeof e.radius === 'number') {
-                      updateBounds({ x: e.center.x - e.radius, y: e.center.y - e.radius });
-                      updateBounds({ x: e.center.x + e.radius, y: e.center.y + e.radius });
-                      sampleCount++;
-                  } else if (e.type === 'ARC' && e.center && typeof e.radius === 'number') {
-                      updateBounds({ x: e.center.x - e.radius, y: e.center.y - e.radius });
-                      updateBounds({ x: e.center.x + e.radius, y: e.center.y + e.radius });
-                      sampleCount++;
-                  }
-              }
-          }
-          const extent = Math.max(maxX - minX, maxY - minY);
-          if (extent > 0 && extent < 2000) {
-              // Heuristic: Small numbers -> Likely Meters.
-              globalScale = 100; // 1 unit = 1 meter = 100px
-              console.log(`DXF Import: Auto-detected unitless file with small extents (${extent.toFixed(2)}). Assuming Meters. Scale: 100`);
-          } else {
-              // Default to Millimeters?? Or just 1?
-              // Existing logic defaulted to 1 (Centimeters / Unitless).
-              // If extent is huge (e.g. 50000), likely Millimeters.
-              // 50000 mm = 50 m.
-              // If we use scale 1 (CM), 50000 units = 50000 cm = 500 m.
-              // Safe bet: Assume CM (Scale 1) or let user override.
-              globalScale = 1;
-          }
-      }
-  }
-
-  // 2. Prepare Layers and Styles
   const shapes: Shape[] = [];
   const layersMap: Map<string, Layer> = new Map();
-  // Normalize layer keys to uppercase for case-insensitive lookup
   const dxfLayers: Record<string, DxfLayer> = {};
   if (data.tables?.layer?.layers) {
       Object.entries(data.tables.layer.layers).forEach(([k, v]) => {
@@ -180,21 +75,16 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       });
   }
 
-  // Prepare Styles
   const dxfStyles: Record<string, DxfStyle> = {};
   if (data.tables?.style?.styles) {
-      // @ts-ignore
       Object.entries(data.tables.style.styles).forEach(([k, v]) => {
           dxfStyles[k.toUpperCase()] = v as any;
       });
   }
 
   const dxfLinetypes = data.tables?.ltype?.linetypes || {};
-
-  // Global Linetype Scale
   const ltScale = data.header?.$LTSCALE || 1.0;
 
-  // Process Layers
   Object.values(data.tables?.layer?.layers || {}).forEach(l => {
       const layerId = generateId('layer');
       let strokeColor = resolveColor(
@@ -228,7 +118,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
   const getLayerObject = (layerName: string) => dxfLayers[layerName?.toUpperCase()];
 
-  // Helper to resolve dash array
   const resolveStrokeDash = (entity: DxfEntity, layerName: string): number[] | 'BYBLOCK' => {
       let ltype = entity.lineType;
 
@@ -246,7 +135,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
       let pattern: number[] = [];
 
-      // Check DXF Linetype Table
       const tableDef = Object.values(dxfLinetypes).find(lt => lt.name.toUpperCase() === ltypeName);
       if (tableDef && tableDef.pattern && tableDef.pattern.length > 0) {
           const converted: number[] = [];
@@ -274,7 +162,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
   };
 
 
-  // Block Cache
   const blockCache: Map<string, Shape[]> = new Map();
   const processingBlocks: Set<string> = new Set();
 
@@ -286,7 +173,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     parentLinetype?: number[], // Resolved dash array from parent
     targetShapes?: Shape[]
   ) => {
-    // If not processing recursively (i.e. top level), enforce space filter
     if (!targetShapes) {
        if (!shouldImportEntity(entity)) return;
     }
@@ -294,23 +180,18 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
     const outputShapes = targetShapes || shapes;
     if (shapes.length > ENTITY_LIMIT) return;
 
-    // Layer Inheritance
     const rawLayer = entity.layer || '0';
     const effectiveLayer = (rawLayer === '0' && parentLayer) ? parentLayer : rawLayer;
     const layerId = resolveLayerId(effectiveLayer);
-
     const dxfLayer = getLayerObject(effectiveLayer);
 
-    // Resolve Color
     let color = resolveColor(entity, dxfLayer, parentColor, false, 'original');
     if (color !== BYBLOCK_COLOR_PLACEHOLDER) {
         color = applyColorScheme(color, colorScheme.scheme, colorScheme.customColor);
     }
 
-    // Resolve Lineweight
     const strokeWidth = resolveLineweight(entity, dxfLayer);
 
-    // Resolve Linetype
     let strokeDash: number[] = [];
     const dashResult = resolveStrokeDash(entity, effectiveLayer);
 
@@ -326,7 +207,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
     const trans = (p: DxfVector): Point => applyToPoint(matrix, p);
 
-    // Common properties for shape creation
     const colorModeOverride = buildCustomColorMode();
     const shapeProps = {
         strokeColor: color,
@@ -361,8 +241,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const vs = entity.vertices;
           const isClosed = (entity as any).closed === true || (entity as any).shape === true || (entity.closed === true);
 
-          // Special case: closed 2-vertex bulge circle (common in diagram markers).
-          // When closed with 2 vertices, segment v0->v1 and v1->v0 form a full circle.
           if (
               sim.ok &&
               isClosed &&
@@ -452,7 +330,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
                   ...shapeProps
               });
           } else {
-              // Non-uniform/sheared transforms can turn circles into rotated ellipses; fall back to polyline for fidelity.
               const localPts = tessellateCircle(entity.center, entity.radius, DXF_CURVE_TOLERANCE_DEG);
               const pts = localPts.map(p => trans(p));
               outputShapes.push({
@@ -556,7 +433,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
            h = h || data.header?.$TEXTSIZE || 1;
            h = Math.max(h, MIN_TEXT_SIZE);
 
-           // Resolve Font
            let fontFile: string | undefined;
            let styleWidthFactor = 1.0;
            let styleOblique = 0;
@@ -572,17 +448,12 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
            const fontFamily = resolveFontFamily(fontFile);
 
-           // Combine Width Factors: Style * Entity * MTextOverride
            let finalWidthFactor = styleWidthFactor;
            if ((entity as any).widthFactor) finalWidthFactor *= (entity as any).widthFactor;
            if (parsed.widthFactor) finalWidthFactor *= parsed.widthFactor;
 
-           // Combine Oblique: Style + Entity(N/A) + MTextOverride
            let finalOblique = styleOblique;
            if (parsed.oblique) finalOblique += parsed.oblique;
-           // TODO: Apply oblique skew to matrix or use css font-style?
-           // Currently Shape renderer doesn't support skew property easily.
-           // We'll leave it for now or assume italics if oblique > 0.
 
            const textAlign = getDxfTextAlignment(halign, valign);
            const vShift = getDxfTextShift(valign, h);
@@ -599,7 +470,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
             textContent: textContent,
             fontSize: h,
             fontFamily: fontFamily,
-            // If oblique > 10, treat as italic
             italic: (finalOblique > 10),
             rotation: newRot,
             align: textAlign,
@@ -615,18 +485,12 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const blockName = entity.name;
           if (processingBlocks.has(blockName)) return;
 
-          // 1. Prepare Local Shapes (Cache)
           if (!blockCache.has(blockName)) {
             processingBlocks.add(blockName);
             const block = data.blocks[blockName];
             const localShapes: Shape[] = [];
 
             block.entities?.forEach(child => {
-                // Pass undefined as parentLayer/Color/Type to treat block definition as standalone
-                // But recursively it works.
-                // NOTE: Entities INSIDE a block definition do not have 'inPaperSpace' set usually,
-                // or it is irrelevant because the INSERT determines where it appears.
-                // We do NOT filter inside block definitions.
                 processEntity(child, identity(), undefined, undefined, undefined, localShapes);
             });
             blockCache.set(blockName, localShapes);
@@ -636,7 +500,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const cachedShapes = blockCache.get(blockName);
           if (!cachedShapes) return;
 
-          // 3. Transform Matrix
           const insPos = entity.position || { x: 0, y: 0 };
           const scaleX = entity.xScale || 1;
           const scaleY = entity.yScale || 1;
@@ -654,11 +517,8 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           const parentSign = det < 0 ? -1 : 1;
           const sim = isSimilarityTransform(M_final);
 
-          // 4. Instantiate and Fix Colors
            cachedShapes.forEach(s => {
               const clone = { ...s, id: generateId(s.type) };
-
-              // Resolve ByBlock colors
               if (clone.strokeColor === BYBLOCK_COLOR_PLACEHOLDER) {
                   clone.strokeColor = color;
               }
@@ -678,8 +538,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
                  if (typeof s.radius === 'number' && sim.ok) {
                      clone.radius = s.radius * sim.scale;
                  } else {
-                     // If we can't safely preserve it as a circle under transform, approximate it as a polyline.
-                     // This keeps existing behavior for non-similarity transforms.
                      if (typeof s.radius === 'number') {
                          const localPts = tessellateCircle({ x: s.x, y: s.y }, s.radius, DXF_CURVE_TOLERANCE_DEG);
                          clone.type = 'polyline';
@@ -717,59 +575,15 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
 
   const globalMatrix = fromScaling(globalScale, globalScale);
   if (data.entities) {
-      // Loop over entities. The filter logic is now inside processEntity's guard for top-level.
       data.entities.forEach(e => processEntity(e, globalMatrix));
   }
 
-  // Calculate Extents
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  shapes.forEach(s => {
-      if (s.points && s.points.length > 0) {
-          s.points.forEach(p => {
-              minX = Math.min(minX, p.x);
-              minY = Math.min(minY, p.y);
-              maxX = Math.max(maxX, p.x);
-              maxY = Math.max(maxY, p.y);
-          });
-      } else if (s.x !== undefined && s.y !== undefined) {
-           minX = Math.min(minX, s.x);
-           minY = Math.min(minY, s.y);
-                maxX = Math.max(maxX, s.x);
-                maxY = Math.max(maxY, s.y);
-      }
-  });
-
-  if (minX !== Infinity) {
-      shapes.forEach(s => {
-          if (s.points && s.points.length > 0) {
-              s.points = s.points.map(p => ({ x: p.x - minX, y: p.y - minY }));
-          } else if (s.x !== undefined && s.y !== undefined) {
-              s.x -= minX;
-              s.y -= minY;
-          }
-      });
-  } else {
-      minX = 0;
-      minY = 0;
-      maxX = 0;
-      maxY = 0;
-  }
-
-  // Normalize text scaling: bake magnitude into fontSize and keep scaleY sign-only.
-  // This prevents subpixel font sizes and aligns text bounds with visual size.
-  shapes.forEach(s => {
-      if (s.type !== 'text') return;
-      if (!s.fontSize) return;
-
-      const rawScaleY = s.scaleY ?? -1;
-      const scaleYAbs = Math.abs(rawScaleY);
-      if (!isFinite(scaleYAbs) || scaleYAbs === 0) return;
-
-      const rawScaleX = s.scaleX ?? scaleYAbs;
-      s.fontSize *= scaleYAbs;
-      s.scaleX = rawScaleX / scaleYAbs;
-      s.scaleY = rawScaleY < 0 ? -1 : 1;
-  });
+  const bounds = calculateBounds(shapes);
+  normalizeShapesToOrigin(shapes, bounds);
+  const { minX, minY, maxX, maxY } = bounds.minX === Infinity 
+    ? { minX: 0, minY: 0, maxX: 0, maxY: 0 } 
+    : bounds;
+  normalizeTextScaling(shapes);
 
   return {
       shapes,

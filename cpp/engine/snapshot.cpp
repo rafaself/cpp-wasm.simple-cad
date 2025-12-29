@@ -61,7 +61,6 @@ bool requireBytes(std::size_t offset, std::size_t size, std::size_t total) {
 }
 
 } // namespace
-
 namespace engine {
 
 EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, SnapshotData& out) {
@@ -119,16 +118,13 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
     const SectionView* text = findSection(TAG_TEXT);
     const SectionView* nidx = findSection(TAG_NIDX);
     const SectionView* hist = findSection(TAG_HIST);
-
     if (!ents || !layr || !ordr || !selc || !text || !nidx) {
         return EngineError::InvalidPayloadSize;
     }
-
     out.historyBytes.clear();
     if (hist && hist->data && hist->size > 0) {
         out.historyBytes.assign(hist->data, hist->data + hist->size);
     }
-
     // ENTS
     {
         std::size_t o = 0;
@@ -166,7 +162,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
             out.rects.push_back(rec);
         }
-
         out.lines.clear();
         out.lines.reserve(lineCount);
         for (std::uint32_t i = 0; i < lineCount; ++i) {
@@ -187,7 +182,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
             out.lines.push_back(rec);
         }
-
         out.polylines.clear();
         out.polylines.reserve(polyCount);
         for (std::uint32_t i = 0; i < polyCount; ++i) {
@@ -211,7 +205,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
             out.polylines.push_back(rec);
         }
-
         out.points.clear();
         out.points.reserve(pointCount);
         for (std::uint32_t i = 0; i < pointCount; ++i) {
@@ -221,7 +214,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             p.y = readF32(ents->data, o); o += 4;
             out.points.push_back(p);
         }
-
         out.circles.clear();
         out.circles.reserve(circleCount);
         for (std::uint32_t i = 0; i < circleCount; ++i) {
@@ -249,7 +241,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
             out.circles.push_back(rec);
         }
-
         out.polygons.clear();
         out.polygons.reserve(polygonCount);
         for (std::uint32_t i = 0; i < polygonCount; ++i) {
@@ -278,7 +269,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
             out.polygons.push_back(rec);
         }
-
         out.arrows.clear();
         out.arrows.reserve(arrowCount);
         for (std::uint32_t i = 0; i < arrowCount; ++i) {
@@ -300,7 +290,6 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
             out.arrows.push_back(rec);
         }
-
         if (o > ents->size) return EngineError::BufferTruncated;
     }
 
