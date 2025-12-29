@@ -66,3 +66,44 @@ jobs:
       - name: Test
         run: |
           ctest --test-dir cpp/build_native --output-on-failure
+
+  governance-deadcode-check:
+    name: Governance Deadcode Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Generate TS dead code report
+        run: node scripts/deadcode_ts_report.js
+
+      - name: Configure C++ (for symbol analysis)
+        run: cmake -S cpp -B cpp/build_native -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build C++ (for symbol analysis)
+        run: cmake --build cpp/build_native --config Release
+
+      - name: Generate C++ dead code report
+        run: bash scripts/deadcode_cpp_report.sh
+
+      - name: Upload deadcode reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadcode-reports
+          path: reports/deadcode_*.md

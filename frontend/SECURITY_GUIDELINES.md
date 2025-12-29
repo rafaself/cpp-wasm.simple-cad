@@ -34,33 +34,15 @@ Em desenvolvimento (`NODE_ENV=development`), as ferramentas de performance (`win
 
 ### 1. Numeric Inputs
 
-Todas as entradas numéricas (coordenadas, tolerâncias, contagens) devem passar por `isValidNumber()` ou `isPositiveNumber()` antes do uso em cálculos críticos ou chamadas do engine.
-
-**Exemplo:**
-
-```typescript
-import { isValidNumber } from "@/utils/typeGuards";
-
-if (!isValidNumber(x) || !isValidNumber(y)) {
-  console.warn("Invalid coordinates blocked");
-  return;
-}
-```
+Valide números com `typeof value === "number" && Number.isFinite(value)` antes de usá-los em cálculos críticos ou chamadas do engine (coordenadas, tolerâncias, contagens). Bloqueie valores fora de intervalo logo na entrada.
 
 ### 2. String Inputs (Export/Display)
 
-Strings destinadas a exportação (JSON) ou exibição na UI de monitoramento devem ser sanitizadas para limitar comprimento e remover caracteres perigosos.
-
-**Uso:**
-
-```typescript
-import { sanitizeString } from "@/utils/typeGuards";
-const safeLabel = sanitizeString(userInput, 50);
-```
+Strings destinadas a exportação (JSON) ou exibição na UI de monitoramento devem ser sanitizadas localmente (limitar comprimento, remover `<`/`>` e espaços extras) antes do uso.
 
 ### 3. Object Injection
 
-Ao hidratar caches ou configurações de armazenamento externo (Local Storage, URL), use Type Guards (`isPickResult`) para garantir a integridade da estrutura.
+Ao hidratar caches ou configurações de armazenamento externo (Local Storage, URL), implemente type guards locais e verifique campos essenciais (ids numéricos, enums, tamanhos de arrays) antes de aceitar os dados.
 
 ---
 
