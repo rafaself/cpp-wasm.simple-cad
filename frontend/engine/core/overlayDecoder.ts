@@ -1,6 +1,6 @@
-import type { OverlayBufferMeta, OverlayPrimitive } from './protocol';
+import { OverlayBufferMeta, OverlayPrimitive, OVERLAY_PRIMITIVE_LAYOUT } from './protocol';
 
-const PRIMITIVE_STRIDE_BYTES = 12;
+const PRIMITIVE_STRIDE_BYTES = OVERLAY_PRIMITIVE_LAYOUT.size;
 
 export const decodeOverlayBuffer = (
   heap: Uint8Array,
@@ -19,10 +19,10 @@ export const decodeOverlayBuffer = (
 
   for (let i = 0; i < meta.primitiveCount; i++) {
     const base = i * PRIMITIVE_STRIDE_BYTES;
-    const kind = view.getUint16(base + 0, true);
-    const flags = view.getUint16(base + 2, true);
-    const count = view.getUint32(base + 4, true);
-    const offset = view.getUint32(base + 8, true);
+    const kind = view.getUint16(base + OVERLAY_PRIMITIVE_LAYOUT.offsets.kind, true);
+    const flags = view.getUint16(base + OVERLAY_PRIMITIVE_LAYOUT.offsets.flags, true);
+    const count = view.getUint32(base + OVERLAY_PRIMITIVE_LAYOUT.offsets.count, true);
+    const offset = view.getUint32(base + OVERLAY_PRIMITIVE_LAYOUT.offsets.offset, true);
     primitives.push({ kind, flags, count, offset });
   }
 

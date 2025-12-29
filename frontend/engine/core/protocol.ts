@@ -149,6 +149,17 @@ export type EntityAabb = {
   valid: number;
 };
 
+// Layout constants for OverlayPrimitive to ensure decoder matches ABI hash
+export const OVERLAY_PRIMITIVE_LAYOUT = {
+  size: 12,
+  offsets: {
+    kind: 0,
+    flags: 2,
+    count: 4,
+    offset: 8,
+  }
+} as const;
+
 export const PROTOCOL_VERSION = 1 as const;
 export const COMMAND_VERSION = 2 as const;
 export const SNAPSHOT_VERSION = 1 as const;
@@ -350,7 +361,12 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x53000020, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x53000021, 12, [0, 2, 4, 8]);
+  h = hashStruct(h, 0x53000021, OVERLAY_PRIMITIVE_LAYOUT.size, [
+    OVERLAY_PRIMITIVE_LAYOUT.offsets.kind,
+    OVERLAY_PRIMITIVE_LAYOUT.offsets.flags,
+    OVERLAY_PRIMITIVE_LAYOUT.offsets.count,
+    OVERLAY_PRIMITIVE_LAYOUT.offsets.offset,
+  ]);
 
   h = hashStruct(h, 0x53000022, 20, [0, 4, 8, 12, 16]);
 

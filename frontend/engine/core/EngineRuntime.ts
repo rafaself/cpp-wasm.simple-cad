@@ -1,6 +1,5 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
-import { LayerRegistry } from './LayerRegistry';
 import { decodeEngineEvents } from './engineEventDecoder';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
 import {
@@ -236,7 +235,7 @@ export class EngineRuntime {
   }
 
   public resetIds(): void {
-    LayerRegistry.clear();
+    // No-op: IDs are now fully managed by Engine (C++)
   }
 
   public hasCapability(capability: EngineCapability): boolean {
@@ -244,7 +243,6 @@ export class EngineRuntime {
   }
 
   public clear(): void {
-    LayerRegistry.clear();
     this.engine.clear();
   }
 
