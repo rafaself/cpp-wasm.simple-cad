@@ -27,7 +27,12 @@ export class DraftingHandler extends BaseInteractionHandler {
   
   private activeTool: string;
   private toolDefaults: ToolDefaults;
+  // State machine:
+  // idle -> (pointerDown) drafting/polyline -> (pointerMove) updateDraft -> (pointerUp) commit | append -> idle
+  // cancel/tool switch -> idle
   private draft: DraftState = { kind: 'none' };
+  // Screen-space pointer down to detect click vs drag
+  private pointerDownScreen: { x: number; y: number } | null = null;
   
   // Polygon Modal State
   private polygonModalOpen = false;
@@ -59,6 +64,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   }
 
   private runtime: EngineRuntime | null = null; // Store runtime for keyboard events
+  private static readonly DRAG_THRESHOLD_PX = 2;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     if (this.polygonModalOpen) return;
@@ -72,6 +78,7 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     // Polyline multi-segment logic: don't restart if already drafting
     if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
+        this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
         return;
     }
     
@@ -108,6 +115,8 @@ export class DraftingHandler extends BaseInteractionHandler {
         }
     }]);
 
+    this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
+
     // Update local state
     if (this.activeTool === 'polyline') {
         this.draft = { kind: 'polyline', points: [snapped], current: snapped };
@@ -121,17 +130,11 @@ export class DraftingHandler extends BaseInteractionHandler {
     if (this.polygonModalOpen) return;
 
     const { runtime, snappedPoint: snapped } = ctx;
-    if (!runtime) return;
+    if (!runtime || this.draft.kind === 'none') return;
 
-    runtime.apply([{
-        op: CommandOp.UpdateDraft,
-        pos: { x: snapped.x, y: snapped.y }
-    }]);
+    runtime.updateDraft(snapped.x, snapped.y);
 
-    if (this.draft.kind !== 'none') {
-        this.draft.current = snapped;
-        // Again, assuming visual feedback is mostly Engine-side.
-    }
+    this.draft.current = snapped;
   }
 
   onPointerUp(ctx: InputEventContext): InteractionHandler | void {
@@ -146,28 +149,19 @@ export class DraftingHandler extends BaseInteractionHandler {
     const isPolyline = this.activeTool === 'polyline';
 
     if (isPolyline) {
-        runtime.apply([{
-            op: CommandOp.AppendDraftPoint,
-            pos: { x: snapped.x, y: snapped.y }
-        }]);
+        runtime.appendDraftPoint(snapped.x, snapped.y);
         if (this.draft.kind === 'polyline' && this.draft.points) {
             this.draft.points.push(snapped);
         }
         return;
     }
 
-    // Check for Polygon "Click to Open Modal"
-    // We need to know if it was a drag or click.
-    // Since we don't store "Down" location in this class, we might miss it.
-    // Improvement: Store `pointerDownStart` in `onPointerDown`.
-    const isClick = true; // TODO: Implement drag check. For now assume click if start ~= current
-    // If we have start in draft:
-    if (this.draft.start) {
-        const dist = Math.hypot(this.draft.current!.x - this.draft.start.x, this.draft.current!.y - this.draft.start.y);
-        // Map units check? Just assume some threshold.
-    }
+    const dragDistance = this.pointerDownScreen
+      ? Math.hypot(event.clientX - this.pointerDownScreen.x, event.clientY - this.pointerDownScreen.y)
+      : 0;
+    const isClick = dragDistance <= DraftingHandler.DRAG_THRESHOLD_PX;
 
-    if (this.activeTool === 'polygon' && this.draft.start && Math.hypot(snapped.x - this.draft.start.x, snapped.y - this.draft.start.y) < 1) {
+    if (this.activeTool === 'polygon' && this.draft.start && isClick) {
         // Was a simple click
         this.cancelDraft(runtime);
         this.polygonModalOpen = true;
@@ -179,18 +173,14 @@ export class DraftingHandler extends BaseInteractionHandler {
     // Commit
     runtime.apply([{ op: CommandOp.CommitDraft }]);
     this.draft = { kind: 'none' };
+    this.pointerDownScreen = null;
   }
 
   onCancel(): void {
-    // Esc pressed?
-    // If polyline, finish or cancel? Legacy behavior: Right click finishes. Esc cancels?
-    // Let's implement cancel via Engine.
-    // Actually we need the runtime. 
-    // `onCancel` doesn't pass context in my interface definition? 
-    // I should check types.ts. It implies generic cancel.
-    // I might need to store runtime reference or pass it.
-    // For now, we miss runtime in onCancel sans context.
-    // I'll update Interface later if needed, or store runtime in onEnter/PointerDown.
+    if (this.runtime) {
+      this.cancelDraft(this.runtime);
+    }
+    this.pointerDownScreen = null;
   }
 
   commitPolyline(runtime: any) {
@@ -201,6 +191,13 @@ export class DraftingHandler extends BaseInteractionHandler {
   cancelDraft(runtime: any) {
     if (runtime) runtime.apply([{ op: CommandOp.CancelDraft }]);
     this.draft = { kind: 'none' };
+    this.pointerDownScreen = null;
+  }
+
+  onLeave(): void {
+    if (this.runtime) {
+      this.cancelDraft(this.runtime);
+    }
   }
 
   // --- Modal Logic ---

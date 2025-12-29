@@ -60,6 +60,7 @@ export class TextInputCoordinator {
   private state: TextInputState;
   private styleDefaults: StyleDefaults;
   private callbacks: CoordinatorCallbacks;
+  private lastDiagnosticTs = 0;
 
   // Selection drag state
   private selectionDragAnchor: number | null = null;
@@ -131,6 +132,23 @@ export class TextInputCoordinator {
     this.state = this.createInitialState();
     this.selectionDragAnchor = null;
     this.isDragging = false;
+  }
+
+  /**
+   * External reset hook for undo/redo/doc load/tool switch.
+   * Resets UI state and emits a diagnostic for observability (rate-limited).
+   */
+  handleExternalMutation(reason: 'undo' | 'redo' | 'load' | 'tool-switch'): void {
+    const activeId = this.state.activeTextId;
+    this.resetState();
+    this.callbacks.onStateChange(this.state);
+    this.callbacks.updateCaretPosition();
+    this.emitDiagnostic('text-sync:external-reset', { reason, activeId });
+  }
+
+  /** Public resync hook to pull state from engine defensively. */
+  resyncFromEngine(): void {
+    this.syncStateFromEngine();
   }
 
   setStyleDefaults(defaults: StyleDefaults): void {
@@ -469,7 +487,41 @@ export class TextInputCoordinator {
     if (!this.bridge || this.state.activeTextId === null) return;
 
     const textId = this.state.activeTextId;
+    const content = this.bridge.getTextContent(textId);
+    if (content === null) {
+      this.resetState();
+      this.callbacks.onStateChange(this.state);
+      this.callbacks.updateCaretPosition();
+      this.emitDiagnostic('text-sync:missing-entity', { textId });
+      return;
+    }
+
     const snapshot = this.bridge.getTextStyleSnapshot(textId);
+    if (!snapshot) {
+      this.resetState();
+      this.callbacks.onStateChange(this.state);
+      this.callbacks.updateCaretPosition();
+      this.emitDiagnostic('text-sync:missing-snapshot', { textId });
+      return;
+    }
+
+    const clamp = (value: number): number => Math.max(0, Math.min(value, content.length));
+    const caretIndex = clamp(snapshot.caretLogical);
+    const selectionStart = clamp(snapshot.selectionStartLogical);
+    const selectionEnd = clamp(snapshot.selectionEndLogical);
+    if (
+      caretIndex !== snapshot.caretLogical ||
+      selectionStart !== snapshot.selectionStartLogical ||
+      selectionEnd !== snapshot.selectionEndLogical
+    ) {
+      this.emitDiagnostic('text-sync:clamped-selection', {
+        textId,
+        caretLogical: snapshot.caretLogical,
+        selectionStartLogical: snapshot.selectionStartLogical,
+        selectionEndLogical: snapshot.selectionEndLogical,
+        contentLength: content.length,
+      });
+    }
 
     // Update state from engine snapshot
     // Note: Engine provides 'Logical' indices which correspond to JS char indices (usually)
@@ -477,13 +529,22 @@ export class TextInputCoordinator {
     // but TextStyleSnapshot.caretLogical is designed for this.
     this.state = {
       ...this.state,
-      caretIndex: snapshot.caretLogical,
-      selectionStart: snapshot.selectionStartLogical,
-      selectionEnd: snapshot.selectionEndLogical,
+      caretIndex,
+      selectionStart,
+      selectionEnd,
     };
 
     this.callbacks.onStateChange(this.state);
     this.callbacks.updateCaretPosition();
+  }
+
+  private emitDiagnostic(reason: string, payload: Record<string, unknown>): void {
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    if (now - this.lastDiagnosticTs < 200) return; // prevent log spam
+    this.lastDiagnosticTs = now;
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[text-sync]', reason, payload);
+    }
   }
 
   /**

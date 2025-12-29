@@ -36,6 +36,7 @@ import { HistorySystem } from './runtime/HistorySystem';
 import { TextSystem } from './runtime/TextSystem';
 import { LayerSystem } from './runtime/LayerSystem';
 import { EntitySystem } from './runtime/EntitySystem';
+import { DraftSystem } from './runtime/DraftSystem';
 import { EngineCommand } from './commandBuffer';
 
 export class EngineRuntime {
@@ -50,6 +51,7 @@ export class EngineRuntime {
   private textSystem: TextSystem;
   private layerSystem: LayerSystem;
   private entitySystem: EntitySystem;
+  private draftSystem: DraftSystem;
 
   public readonly capabilitiesMask: number;
 
@@ -98,6 +100,7 @@ export class EngineRuntime {
     this.textSystem = new TextSystem(module, engine);
     this.layerSystem = new LayerSystem(module, engine);
     this.entitySystem = new EntitySystem(module, engine);
+    this.draftSystem = new DraftSystem(module, engine);
   }
 
   public resetIds(): void {
@@ -114,6 +117,7 @@ export class EngineRuntime {
 
   public dispose(): void {
     this.commandSystem.dispose();
+    this.draftSystem.dispose();
   }
 
   // ========================================================================
@@ -123,6 +127,15 @@ export class EngineRuntime {
   // --- Command System ---
   public apply(commands: readonly EngineCommand[]): void {
     this.commandSystem.apply(commands);
+  }
+
+  // --- Draft System (hot path) ---
+  public updateDraft(x: number, y: number): void {
+    this.draftSystem.updateDraft(x, y);
+  }
+
+  public appendDraftPoint(x: number, y: number): void {
+    this.draftSystem.appendDraftPoint(x, y);
   }
 
   // --- Event System ---

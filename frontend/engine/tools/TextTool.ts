@@ -201,6 +201,17 @@ export class TextTool {
     return this.initialized && this.bridge !== null && this.bridge.isAvailable();
   }
 
+  /** Reset editing UI state when document history or tool context changes. */
+  resetEditingState(reason: 'undo' | 'redo' | 'load' | 'tool-switch'): void {
+    this.inputCoordinator.handleExternalMutation(reason);
+    this.stateManager.clearActiveText();
+  }
+
+  /** Force a defensive resync from engine (used after external mutations). */
+  resyncFromEngine(): void {
+    this.inputCoordinator.resyncFromEngine();
+  }
+
   /**
    * Load a font for text rendering.
    */

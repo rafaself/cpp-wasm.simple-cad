@@ -19,9 +19,9 @@ export class TextHandler extends BaseInteractionHandler {
   public caretState = { x: 0, y: 0, height: 0, rotation: 0, anchorX: 0, anchorY: 0 };
   public selectionRects: any[] = [];
   
-  constructor() {
+  constructor(textTool?: TextTool) {
     super();
-    this.textTool = createTextTool({
+    this.textTool = textTool ?? createTextTool({
       onStateChange: (s) => {
         this.state = s;
         this.content = this.textTool.getContent();
@@ -68,6 +68,7 @@ export class TextHandler extends BaseInteractionHandler {
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, worldPoint: world, event } = ctx;
     if (!runtime || event.button !== 0) return;
+    this.textTool.resyncFromEngine();
     this.checkInit(runtime);
 
     // Hit Test Text
@@ -133,6 +134,20 @@ export class TextHandler extends BaseInteractionHandler {
     }
   }
 
+  onKeyDown(e: KeyboardEvent): void {
+    const undoCombo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z');
+    const redoCombo = (e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z' || e.key === 'z')));
+    if (undoCombo) {
+      this.textTool.resetEditingState('undo');
+    } else if (redoCombo) {
+      this.textTool.resetEditingState('redo');
+    }
+  }
+
+  onLeave(): void {
+    this.textTool.resetEditingState('tool-switch');
+  }
+
   onPointerMove(ctx: InputEventContext): void {
       // Pass move to TextTool?
       // `handlePointerMove` used for drag select text.
@@ -188,4 +203,3 @@ const TextHandlerOverlay: React.FC<{ handler: TextHandler }> = ({ handler }) => 
         </>
     );
 }
-

@@ -85,9 +85,37 @@ describe('TextInputCoordinator', () => {
         expect(mockBridge.setSelectionByteIndex).toHaveBeenCalled();
         expect(mockBridge.getTextStyleSnapshot).toHaveBeenCalled();
         expect(mockCallbacks.onStateChange).toHaveBeenCalledWith(expect.objectContaining({
-            caretIndex: 10,
+            caretIndex: 5,
             selectionStart: 5,
-            selectionEnd: 10
+            selectionEnd: 5
+        }));
+    });
+
+    it('resets on external undo/redo', () => {
+        coordinator.handleExternalMutation('undo');
+        expect(mockCallbacks.onStateChange).toHaveBeenCalledWith(expect.objectContaining({ activeTextId: null, mode: 'idle' }));
+    });
+
+    it('resets when text entity disappears', () => {
+        (mockBridge.getTextContent as any) = vi.fn(() => null);
+        mockCallbacks.onStateChange.mockClear();
+        coordinator.resyncFromEngine();
+        expect(mockCallbacks.onStateChange).toHaveBeenCalledWith(expect.objectContaining({ activeTextId: null, mode: 'idle' }));
+    });
+
+    it('clamps caret and selection when snapshot exceeds content length', () => {
+        (mockBridge.getTextContent as any) = vi.fn(() => "Hi");
+        vi.mocked(mockBridge.getTextStyleSnapshot).mockReturnValueOnce({
+            caretLogical: 10,
+            selectionStartLogical: 9,
+            selectionEndLogical: 12
+        } as any);
+        mockCallbacks.onStateChange.mockClear();
+        coordinator.resyncFromEngine();
+        expect(mockCallbacks.onStateChange).toHaveBeenCalledWith(expect.objectContaining({
+            caretIndex: 2,
+            selectionStart: 2,
+            selectionEnd: 2
         }));
     });
 });
