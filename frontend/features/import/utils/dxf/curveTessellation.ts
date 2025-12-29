@@ -105,7 +105,7 @@ export const tessellateBulge = (
 
     if (dist < 1e-10) return [];
 
-    const theta = 4 * Math.atan(bulge);
+
 
     // Radius: r = (d/2) / sin(theta/2)
     // Note: sin(theta/2) can be close to 0 if bulge is small, but we checked bulge size.
@@ -217,8 +217,7 @@ export const tessellateSpline = (
         // Optimization: Only iterate relevant i where N > 0 (i around t)
         // For simplicity, iterating all (or optimise range [floor(t)-p, floor(t)])
         const spanIndex = _knots.findIndex(k => k > t) - 1;
-        const startI = Math.max(0, spanIndex - p);
-        const endI = Math.min(n, spanIndex + p + 1); // rough window
+
 
         for (let j = 0; j <= n; j++) { // Using full loop for correctness first
             const basis = N(j, p, t, _knots);

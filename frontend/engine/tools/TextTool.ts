@@ -82,7 +82,7 @@ export interface TextToolCallbacks {
 // =============================================================================
 
 export class TextTool {
-  private runtime: EngineRuntime | null = null;
+
   private bridge: TextBridge | null = null;
   private callbacks: TextToolCallbacks;
   private initialized = false;
@@ -157,7 +157,7 @@ export class TextTool {
    * Must be called before using text features.
    */
   initialize(runtime: EngineRuntime): boolean {
-    this.runtime = runtime;
+
     this.bridge = new TextBridge(runtime);
 
     // Initialize text system in engine

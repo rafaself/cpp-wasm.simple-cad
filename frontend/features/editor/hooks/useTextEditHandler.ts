@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { ViewTransform } from '@/types';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -61,7 +61,7 @@ export function useTextEditHandler(params: {
         clearSelection();
         useUIStore.getState().setTool('select');
       },
-      onTextCreated: (shapeId: string, textId: number, _x: number, _y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => {
+      onTextCreated: (shapeId: string, textId: number, _x: number, _y: number, boxMode: TextBoxMode, constraintWidth: number, _initialWidth: number, _initialHeight: number) => {
         registerTextMapping(textId, shapeId);
         setTextMeta(textId, boxMode, constraintWidth);
 

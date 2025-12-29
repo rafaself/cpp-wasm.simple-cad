@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   MousePointer2, Hand, Minus, Circle, Square, Triangle, Activity, 
-  MoveDiagonal, Ruler, Trash2, Combine, Spline, Layers, Palette,
+  Ruler, Trash2, Combine, Spline, Layers, Palette,
   Scan, Expand, Settings, Undo, Redo,
   AlignLeft, AlignCenterHorizontal, AlignRight,
   AlignVerticalJustifyStart, AlignCenterVertical, AlignVerticalJustifyEnd,

@@ -1,9 +1,9 @@
 import { Shape, Layer, Point, ShapeColorMode } from '../../../../types';
 import { generateId } from '../../../../utils/uuid';
-import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLinetype, DxfLayer, DxfStyle } from './types';
+import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLayer, DxfStyle } from './types';
 import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
-import { Mat2D, identity, multiply, applyToPoint, fromTRS, fromTranslation, fromScaling, fromRotation } from './matrix2d';
-import { resolveColor, resolveLineweight, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER, BYBLOCK_LINETYPE_PLACEHOLDER } from './styles';
+import { Mat2D, identity, multiply, applyToPoint, fromTranslation, fromScaling, fromRotation } from './matrix2d';
+import { resolveColor, resolveLineweight, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
 import { applyColorScheme, resolveColorScheme, usesCustomColorMode } from './colorScheme';
 import { parseMTextContent, getDxfTextAlignment, getDxfTextShift, ParsedMText } from './textUtils';
 import { resolveUnitScale } from './unitResolver';

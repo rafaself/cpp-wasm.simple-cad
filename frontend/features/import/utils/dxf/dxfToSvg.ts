@@ -135,9 +135,7 @@ const updateExtents = (acc: SvgAccumulator, x: number, y: number) => {
 const entityToSvg = (
   entity: DxfEntity,
   data: DxfData,
-  options: DxfImportOptions,
-  colorScheme: ColorSchemePreferences,
-  blockContext: boolean = false
+  colorScheme: ColorSchemePreferences
 ): string | null => {
   // Resolve Style
   // If blockContext is true, we are inside a symbol definition.
@@ -363,14 +361,12 @@ const entityToSvg = (
        // Safer to rely on manual dy shift if needed, but let's try standard first or minimal adjustment.
        // For MText Top/Middle/Bottom:
        let baseline = 'auto'; // 0 - Baseline
-       let dy = '0';
        
        if (valign === 3) { // Top
            baseline = 'hanging'; 
            // SVG hanging is top of em box. DXF Top is top of Cap Height? 
            // Often 'hanging' works well enough.
            // dy might be needed for 'text-before-edge' behavior.
-           dy = '0.8em'; // Shift down to simulate Top align? No, hanging means origin is at top.
            // Actually, standard SVG text origin is baseline.
            // If we want Top alignment, we want the baseline to be below the point.
            // dominant-baseline="hanging" puts the "hanging baseline" at the point.
@@ -461,7 +457,7 @@ export const dxfToSvg = (
 
       if (block.entities) {
         block.entities.forEach(ent => {
-          const svgStr = entityToSvg(ent, data, options, colorScheme, true);
+          const svgStr = entityToSvg(ent, data, colorScheme);
           if (svgStr) parts.push(svgStr);
         });
       }
@@ -526,7 +522,7 @@ export const dxfToSvg = (
         if (p) updateExtents(acc, p.x, p.y);
     }
 
-    const svgStr = entityToSvg(entity, data, options, colorScheme);
+    const svgStr = entityToSvg(entity, data, colorScheme);
     if (svgStr) {
       const layerName = entity.layer || '0';
       if (!acc.layers.has(layerName)) {

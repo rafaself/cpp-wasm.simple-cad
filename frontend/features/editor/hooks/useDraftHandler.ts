@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { ViewTransform } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { CommandOp, type EngineCommand, type BeginDraftPayload } from '@/engine/core/commandBuffer';
+import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
 import { hexToRgb } from '@/utils/color';
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { EntityId } from '@/engine/core/protocol';
@@ -13,7 +13,7 @@ export type Draft =
   | { kind: 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'polygon'; start: { x: number; y: number }; current: { x: number; y: number } }
   | { kind: 'polyline'; points: { x: number; y: number }[]; current?: { x: number; y: number } };
 
-const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
+
 
 const colorToRgb01 = (hex: string): { r: number; g: number; b: number } => {
   const rgb = hexToRgb(hex) ?? { r: 255, g: 255, b: 255 };
@@ -28,7 +28,7 @@ export function useDraftHandler(params: {
   activeLayerId: number | null;
   runtime: EngineRuntime | null;
 }) {
-  const { activeTool, onFinalizeDraw, activeLayerId, runtime } = params;
+  const { activeTool, runtime } = params;
 
   // Track draft geometry for UI state
   const [draft, setDraft] = useState<Draft>({ kind: 'none' });
@@ -61,7 +61,7 @@ export function useDraftHandler(params: {
     cancelDraft();
   }, [activeTool]);
 
-  const handlePointerDown = (snapped: { x: number; y: number }, button: number, altKey: boolean) => {
+  const handlePointerDown = (snapped: { x: number; y: number }, button: number, _altKey: boolean) => {
     if (button !== 0 || !runtime) return;
 
     let kind = 0;
@@ -115,7 +115,7 @@ export function useDraftHandler(params: {
     }
   };
 
-  const handlePointerMove = (snapped: { x: number; y: number }, shiftKey: boolean) => {
+  const handlePointerMove = (snapped: { x: number; y: number }, _shiftKey: boolean) => {
     if (!runtime) return;
     // We send UpdateDraft constantly. 
     // Optimization: we could throttle this, but for now 60fps cmd buffer is fine.
@@ -176,7 +176,7 @@ export function useDraftHandler(params: {
   };
 
   // Helper for Polyline finish (e.g. on Enter key)
-  const commitPolyline = (points: {x:number, y:number}[]) => {
+  const commitPolyline = (_points: {x:number, y:number}[]) => {
       // If we are in engine draft mode, we just commit.
       // Ignoring arguments for legacy compat if called from outside.
       if (runtime) runtime.apply([{ op: CommandOp.CommitDraft }]);

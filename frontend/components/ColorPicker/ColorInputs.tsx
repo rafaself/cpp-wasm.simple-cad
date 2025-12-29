@@ -79,7 +79,7 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
     }
   };
 
-  const handleRgbBlur = (channel: 'r' | 'g' | 'b') => {
+  const handleRgbBlur = () => {
     const rgb = hsvToRgb(hsv);
     setRgbValues({ 
       r: rgb.r.toString(), 
@@ -159,7 +159,7 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
               type="text" 
               value={rgbValues.r}
               onChange={(e) => handleRgbChange('r', e.target.value)}
-              onBlur={() => handleRgbBlur('r')}
+              onBlur={() => handleRgbBlur()}
               className={`${inputClass} text-center`}
               maxLength={3}
             />
@@ -170,7 +170,7 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
               type="text" 
               value={rgbValues.g}
               onChange={(e) => handleRgbChange('g', e.target.value)}
-              onBlur={() => handleRgbBlur('g')}
+              onBlur={() => handleRgbBlur()}
               className={`${inputClass} text-center`}
               maxLength={3}
             />
@@ -181,7 +181,7 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
               type="text" 
               value={rgbValues.b}
               onChange={(e) => handleRgbChange('b', e.target.value)}
-              onBlur={() => handleRgbBlur('b')}
+              onBlur={() => handleRgbBlur()}
               className={`${inputClass} text-center`}
               maxLength={3}
             />

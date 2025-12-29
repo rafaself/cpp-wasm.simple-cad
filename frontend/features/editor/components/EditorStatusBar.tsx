@@ -10,8 +10,7 @@ import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
 import { LABELS } from '@/i18n/labels';
 
 const EditorStatusBar: React.FC = () => {
-  const activeTool = useUIStore((s) => s.activeTool);
-  const selectionCount = useEngineSelectionCount();
+
   const mousePos = useUIStore((s) => s.mousePos);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);

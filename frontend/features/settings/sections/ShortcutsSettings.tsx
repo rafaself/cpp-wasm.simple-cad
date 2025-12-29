@@ -1,5 +1,5 @@
 import React from 'react';
-import { KEYBINDINGS, getShortcutLabel } from '../../../config/keybindings';
+import { KEYBINDINGS } from '../../../config/keybindings';
 
 export const ShortcutsSettings: React.FC = () => {
   // Group bindings by category

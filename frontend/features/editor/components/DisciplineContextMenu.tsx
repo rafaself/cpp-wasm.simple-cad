@@ -3,7 +3,7 @@ import { Import } from 'lucide-react';
 
 interface DisciplineContextMenuProps {
   floorId: string;
-  discipline: 'architecture';
+
   position: { x: number; y: number };
   onClose: () => void;
   onImportPdf?: () => void;
@@ -12,7 +12,7 @@ interface DisciplineContextMenuProps {
 
 const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   floorId,
-  discipline,
+
   position,
   onClose,
   onImportPdf,

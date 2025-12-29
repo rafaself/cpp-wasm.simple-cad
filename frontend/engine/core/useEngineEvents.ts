@@ -51,7 +51,7 @@ export const useEngineEvents = (): void => {
     let rafId = 0;
     let resyncing = false;
     let bootstrapped = false;
-    let sourceSet = false;
+
 
     const tick = async () => {
       if (disposed) return;
