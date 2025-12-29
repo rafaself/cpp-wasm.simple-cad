@@ -1,41 +1,50 @@
-# Engine-First Governance
+# Engine-First Governance (Canonical Policy)
 
-The C++ engine is the only source of truth. Governance keeps the boundaries and budgets explicit so that engine authority cannot be eroded by accidental JS creep or oversized files.
+Engine is the single source of truth. Governance makes that non-negotiable via documented rules and automation.
+
+## Architecture Invariants
+- Engine owns document state: entities, geometry, styles, selection, history/undo, text layout, render buffers.
+- Frontend owns only UI/transient state: tool mode, viewport, preferences, modals, pointer/key tracking.
+- Forbidden: canonical geometry/state in JS stores; `runtime.engine.*` access outside `frontend/engine/**`; direct engine-internal imports from `frontend/features/**`.
+- EngineRuntime facade is the boundary: consume typed subsystems (text/pick/draft/transform/io/…) instead of touching native instances.
 
 ## Budgets (soft vs. hard)
-- Soft caps warn; hard caps fail CI unless an approved exception exists.
-- Limits are defined in `scripts/file_size_budget.json`.
-- Exceptions (with rationale) live in `scripts/file_size_budget_exceptions.json`; update this file instead of sprinkling inline ignores.
+- Limits live in `scripts/file_size_budget.json`; exceptions with rationale in `scripts/file_size_budget_exceptions.json`.
+- Soft caps warn; hard caps fail CI unless an explicit exception entry exists.
 
-| Extension | Soft | Hard | Notes |
-| --- | --- | --- | --- |
-| `.cpp`, `.h`, `.hpp` | 450 LOC | 800 LOC | Mirrors SRP refactor guardrails. |
-| `.ts`, `.tsx` | 350 LOC | 600 LOC | UI/bridge files stay lean; engine-first orchestration only. |
+| Extension           | Soft | Hard | Notes                                     |
+| ------------------- | ---- | ---- | ----------------------------------------- |
+| `.cpp`, `.h`, `.hpp`| 450  | 800  | Mirrors SRP guardrails                    |
+| `.ts`, `.tsx`       | 350  | 600  | UI/bridge kept lean; engine-first focus   |
+| Tests `.ts`         | 400  | 700  | Deterministic tests, avoid bloat          |
 
 ## Boundary Rules
-- No `runtime.engine.*` usage outside `frontend/engine/**` unless explicitly allowlisted in `scripts/boundary_rules.json`.
-- `frontend/features/**` must not import engine internals directly; they must go through the EngineRuntime facade or an approved transitional allowlist entry in `scripts/boundary_rules.json`.
-- Any new violation without an allowlist entry fails CI.
-- `EngineRuntime.engine` is private: consume typed subsystems (`runtime.text`, `runtime.render`, `runtime.layers`, etc.) or facade methods instead of touching the native instance.
+- No `runtime.engine.*` usage outside `frontend/engine/**` (enforced by `scripts/check_boundaries.js` + `scripts/boundary_rules.json`).
+- `frontend/features/**` cannot import engine internals directly; use EngineRuntime facades or add a temporary, justified allowlist entry.
+- Any new violation without allowlisting fails CI.
 
 ## Engine API Manifest
-- `scripts/generate_engine_api_manifest.js` parses all `cpp/**/bindings*.cpp` exports and writes:
-  - `docs/engine_api_manifest.json` (machine readable, includes `sourceHash`)
+- `scripts/generate_engine_api_manifest.js` produces:
+  - `docs/engine_api_manifest.json` (machine-readable with `sourceHash`)
   - `docs/ENGINE_API_MANIFEST.md` (human summary)
-- `scripts/check_engine_api_manifest.js` compares the recorded `sourceHash` against current bindings. CI fails if bindings changed without regenerating the manifest.
+- `scripts/check_engine_api_manifest.js` compares current bindings with the recorded `sourceHash`; CI fails on drift.
+
+## Doc Drift Check
+- `scripts/check_docs_references.js` ensures referenced paths in `AGENTS.md` and this document exist. CI fails if drift is detected.
 
 ## Local Commands
-- `pnpm governance:budgets` — Enforce file-size budgets (hard fail on hard-cap violations).
-- `pnpm governance:boundaries` — Enforce runtime/feature boundaries using `scripts/boundary_rules.json`.
-- `pnpm governance:manifest` — Drift check for the Embind manifest (`sourceHash` gate).
-- `pnpm governance:check` — Runs all of the above (used in CI).
+- `cd frontend && pnpm governance:budgets` — file-size budgets.
+- `cd frontend && pnpm governance:boundaries` — boundary enforcement.
+- `cd frontend && pnpm governance:manifest` — Embind manifest drift.
+- `cd frontend && pnpm governance:check` — runs all governance checks.
+- `node scripts/check_docs_references.js` — doc reference guard.
 
 ## Exception Policy
-- Prefer fixing violations. Use exceptions only for tracked, time-bound debt with a clear rationale.
-- Document the reason directly in `scripts/file_size_budget_exceptions.json` or `scripts/boundary_rules.json`.
-- When removing/refactoring debt, also remove the corresponding exception entry.
+- Prefer fixes; use exceptions sparingly with clear rationale and owner in the exceptions file.
+- Remove exceptions as soon as debt is paid.
 
-## CI Expectations
-- Hard-cap breaches or undocumented boundary violations fail CI.
-- Soft-cap breaches emit warnings; if a soft breach is intentional, record it in the exceptions file with justification.
-- Bindings changes must be accompanied by regenerated manifest files or CI fails the drift check.
+## PR Checklist (summary)
+- Governance: `pnpm governance:check` + `node scripts/check_docs_references.js`.
+- Tests: `pnpm test` (frontend) and `ctest` (cpp).
+- Manifest: regenerate if bindings changed.
+- Boundaries: no `runtime.engine.*` leaks; no document state in JS stores; respect budgets or record justified exceptions.

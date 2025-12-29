@@ -93,6 +93,9 @@ jobs:
       - name: Generate TS dead code report
         run: node scripts/deadcode_ts_report.js
 
+      - name: Check doc references
+        run: node scripts/check_docs_references.js
+
       - name: Configure C++ (for symbol analysis)
         run: cmake -S cpp -B cpp/build_native -DCMAKE_BUILD_TYPE=Release
 

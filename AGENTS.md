@@ -174,7 +174,16 @@ Reuse objects, typed arrays, direct buffer access
 
 ---
 
-## 6. Future Extensibility
+## 6. Source of Truth & Ownership
+
+- **Engine is authoritative** for: entities, geometry, styles, selection, history/undo, text content/layout, render buffers.
+- **Frontend is transient**: tool mode, viewport, preferences, modals, pointer/key state. Zustand is UI-only.
+- **Forbidden**: canonical geometry/state in JS stores; shadow copies of engine entities; `runtime.engine.*` usage outside `frontend/engine/**`.
+- **Boundaries**: feature code must go through EngineRuntime facades (text/pick/draft/transform/io/etc.), not native engine instances.
+
+---
+
+## 7. Future Extensibility
 
 ### Preparation for Vertical Domains (Electrical, etc.)
 
@@ -207,7 +216,7 @@ Reuse objects, typed arrays, direct buffer access
 
 ---
 
-## 7. Mandatory Synchronizations
+## 8. Mandatory Synchronizations
 
 ### Viewport → Engine
 
@@ -222,7 +231,7 @@ runtime.setViewScale(viewTransform.scale);
 
 ---
 
-## 8. Engine ↔ Frontend Communication
+## 9. Engine ↔ Frontend Communication
 
 ### Commands (JS → Engine)
 
@@ -258,7 +267,7 @@ const result = runtime.commitTransform();
 
 ---
 
-## 9. Code Quality Standards
+## 10. Code Quality Standards
 
 ### General
 
@@ -290,7 +299,7 @@ const result = runtime.commitTransform();
 
 ---
 
-## 10. Internationalization (i18n)
+## 11. Internationalization (i18n)
 
 ### Current State
 
@@ -328,7 +337,7 @@ button.textContent = "Salvar";
 
 ---
 
-## 11. Folder Structure
+## 12. Folder Structure
 
 ```
 cpp/
@@ -354,20 +363,42 @@ frontend/
 
 ---
 
-## 12. Additional Documentation
+## 13. Additional Documentation
 
-| Document                                  | Content                           |
-| ----------------------------------------- | --------------------------------- |
-| `docs/agents/engine-api.md`               | Complete C++ API reference        |
-| `docs/agents/frontend-patterns.md`        | Mandatory React patterns          |
-| `docs/agents/text-system.md`              | Text system                       |
-| `docs/agents/workflows.md`                | Development recipes               |
-| `docs/agents/srp-refactor-plan.md`        | SRP refactoring plan & guidelines |
-| `docs/agents/srp-refactor-action-plan.md` | Execution action plan             |
+| Document                            | Content                        |
+| ----------------------------------- | ------------------------------ |
+| `docs/agents/engine-api.md`         | Complete C++ API reference     |
+| `docs/agents/frontend-patterns.md`  | Mandatory React patterns       |
+| `docs/agents/text-system.md`        | Text system                    |
+| `docs/agents/workflows.md`          | Development recipes            |
+| `docs/ENGINE_FIRST_GOVERNANCE.md`   | Engine-first governance policy |
+| `docs/DEAD_CODE_REMOVAL_PROCESS.md` | Safe dead-code process         |
+| `docs/AGENT_RUNBOOK.md`             | Agent operating checklist      |
 
 ---
 
-## 13. Commands
+## 14. How to Run Checks
+
+```bash
+# Governance (budgets, boundaries, manifest)
+cd frontend && pnpm governance:check
+
+# Doc drift guard (AGENTS + governance doc)
+node scripts/check_docs_references.js
+
+# Regenerate engine API manifest (after bindings changes)
+node scripts/generate_engine_api_manifest.js
+
+# Frontend tests
+cd frontend && pnpm test
+
+# C++ tests
+cd cpp/build_native && ctest --output-on-failure
+```
+
+---
+
+## 15. Commands (general)
 
 ```bash
 # Full build
@@ -376,19 +407,13 @@ make fbuild
 # Dev (frontend only)
 cd frontend && pnpm dev
 
-# C++ tests
-cd cpp/build_native && ctest --output-on-failure
-
-# Frontend tests
-cd frontend && npx vitest run
-
 # Code size report
 ./scripts/loc-report.sh
 ```
 
 ---
 
-## 14. Code Size Governance (SRP)
+## 16. Code Size Governance (SRP)
 
 To maintain code quality and prevent monolithic files, the following size limits are enforced.
 
@@ -431,4 +456,4 @@ To maintain code quality and prevent monolithic files, the following size limits
 
 ### Documentation
 
-See `docs/agents/srp-refactor-plan.md` for the full refactoring plan and detailed guidelines.
+Budgets and exceptions live in `scripts/file_size_budget.json` and `scripts/file_size_budget_exceptions.json`.
