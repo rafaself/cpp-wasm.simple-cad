@@ -1,201 +1,81 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
-import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
-import { decodeEngineEvents } from './engineEventDecoder';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
 import {
   validateProtocolOrThrow,
   type ProtocolInfo,
   type EntityId,
-  type LayerRecord,
   type SelectionMode,
   type ReorderAction,
   type DocumentDigest,
   type EngineEvent,
-  type EventBufferMeta,
   type OverlayBufferMeta,
   type EntityAabb,
   type HistoryMeta,
 } from './protocol';
-import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta, TextContentMeta } from '@/types/text';
-import { getPickProfiler } from '@/utils/pickProfiler';
+import type { TextHitResult, TextCaretPosition, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
+import type { PickResult } from '@/types/picking';
 import { getPickCache } from '@/utils/pickResultCache';
-import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
-export type BufferMeta = {
-  generation: number;
-  vertexCount: number;
-  capacity: number;
-  floatCount: number;
-  ptr: number;
-};
+// Re-export types moved to wasm-types to maintain compatibility
+export type { 
+    BufferMeta, TextEntityMeta, SnapshotBufferMeta, 
+    CadEngineInstance, WasmModule 
+} from './wasm-types';
 
-type WasmU32Vector = {
-  size: () => number;
-  get: (index: number) => number;
-  delete: () => void;
-};
+import type { WasmModule, CadEngineInstance, TextEntityMeta } from './wasm-types';
 
-type WasmLayerVector = {
-  size: () => number;
-  get: (index: number) => LayerRecord;
-  delete: () => void;
-};
-
-export type TextEntityMeta = {
-  id: number;
-  boxMode: number;
-  constraintWidth: number;
-};
-
-type WasmTextMetaVector = {
-  size: () => number;
-  get: (index: number) => TextEntityMeta;
-  delete: () => void;
-};
-
-export type SnapshotBufferMeta = {
-  generation: number;
-  byteCount: number;
-  ptr: number;
-};
-
-export type CadEngineInstance = {
-  clear: () => void;
-  allocBytes: (byteCount: number) => number;
-  freeBytes: (ptr: number) => void;
-  applyCommandBuffer: (ptr: number, byteCount: number) => void;
-  loadSnapshotFromPtr: (ptr: number, byteCount: number) => void;
-  getPositionBufferMeta: () => BufferMeta;
-  getLineBufferMeta: () => BufferMeta;
-  saveSnapshot?: () => SnapshotBufferMeta;
-  getSnapshotBufferMeta: () => SnapshotBufferMeta;
-  getFullSnapshotMeta: () => SnapshotBufferMeta;
-  getCapabilities?: () => number;
-  getProtocolInfo: () => ProtocolInfo;
-  getTextContentMeta?: (textId: number) => TextContentMeta; // Add this to type
-  allocateEntityId?: () => EntityId;
-  allocateLayerId?: () => number;
-  getDocumentDigest?: () => DocumentDigest;
-  getHistoryMeta?: () => HistoryMeta;
-  canUndo?: () => boolean;
-  canRedo?: () => boolean;
-  undo?: () => void;
-  redo?: () => void;
-  pollEvents: (maxEvents: number) => EventBufferMeta;
-  ackResync: (resyncGeneration: number) => void;
-  hasPendingEvents?: () => boolean; // Optimization: skip polling when no events
-  getSelectionOutlineMeta?: () => OverlayBufferMeta;
-  getSelectionHandleMeta?: () => OverlayBufferMeta;
-  getEntityAabb?: (entityId: EntityId) => EntityAabb;
-  getLayersSnapshot?: () => WasmLayerVector;
-  getLayerName?: (layerId: number) => string;
-  setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
-  deleteLayer?: (layerId: number) => boolean;
-  getEntityFlags?: (entityId: EntityId) => number;
-  setEntityFlags?: (entityId: EntityId, flagsMask: number, flagsValue: number) => void;
-  setEntityLayer?: (entityId: EntityId, layerId: number) => void;
-  getEntityLayer?: (entityId: EntityId) => number;
-  getSelectionIds?: () => WasmU32Vector;
-  getSelectionGeneration?: () => number;
-  clearSelection?: () => void;
-  setSelection?: (idsPtr: number, idCount: number, mode: number) => void;
-  selectByPick?: (pick: PickResult, modifiers: number) => void;
-  marqueeSelect?: (minX: number, minY: number, maxX: number, maxY: number, mode: number, hitMode: number) => void;
-  getDrawOrderSnapshot?: () => WasmU32Vector;
-  reorderEntities?: (idsPtr: number, idCount: number, action: number, refId: number) => void;
-  pick: (x: number, y: number, tolerance: number) => EntityId;
-
-  // New extended pick (optional during migration)
-  pickEx?: (x: number, y: number, tolerance: number, pickMask: number) => PickResult;
-  queryArea?: (minX: number, minY: number, maxX: number, maxY: number) => WasmU32Vector;
-  queryMarquee?: (minX: number, minY: number, maxX: number, maxY: number, mode: number) => WasmU32Vector;
-
-  getStats: () => {
-    generation: number;
-    rectCount: number;
-    lineCount: number;
-    polylineCount: number;
-    pointCount: number;
-    triangleVertexCount: number;
-    lineVertexCount: number;
-    rebuildAllGeometryCount?: number;
-    lastLoadMs: number;
-    lastRebuildMs: number;
-    lastApplyMs?: number;
-  };
-
-  // -------------------------------------------------------------------------
-  // Optional text system methods (present when WASM is built with text support)
-  // -------------------------------------------------------------------------
-  initializeTextSystem?: () => boolean;
-  loadFont?: (fontId: number, fontDataPtr: number, dataSize: number) => boolean;
-  hitTestText?: (textId: number, localX: number, localY: number) => TextHitResult;
-  getTextCaretPosition?: (textId: number, charIndex: number) => TextCaretPosition;
-  rebuildTextQuadBuffer?: () => void;
-  getTextQuadBufferMeta?: () => TextQuadBufferMeta;
-  getAtlasTextureMeta?: () => TextureBufferMeta;
-  isAtlasDirty?: () => boolean;
-  isTextQuadsDirty?: () => boolean;
-  getAllTextMetas?: () => WasmTextMetaVector;
-
-  clearAtlasDirty?: () => void;
-
-  // Interaction Session
-  beginTransform?: (idsPtr: number, idCount: number, mode: number, specificId: EntityId, vertexIndex: number, startX: number, startY: number) => void;
-  updateTransform?: (worldX: number, worldY: number) => void;
-  commitTransform?: () => void;
-  cancelTransform?: () => void;
-  isInteractionActive?: () => boolean;
-  getCommitResultCount?: () => number;
-  getCommitResultIdsPtr?: () => number;
-  getCommitResultOpCodesPtr?: () => number;
-  getCommitResultPayloadsPtr?: () => number;
-
-  // Snapping (Phase 3)
-  setSnapOptions?: (enabled: boolean, gridEnabled: boolean, gridSize: number) => void;
-  getSnappedPoint?: (x: number, y: number) => [number, number]; // Returns JS array
-};
-
-export type WasmModule = {
-  CadEngine: new () => CadEngineInstance;
-  HEAPU8: Uint8Array;
-  HEAPF32: Float32Array;
-};
+// Import subsystems
+import { CommandSystem } from './runtime/CommandSystem';
+import { EventSystem } from './runtime/EventSystem';
+import { PickSystem } from './runtime/PickSystem';
+import { SelectionSystem } from './runtime/SelectionSystem';
+import { TransformSystem } from './runtime/TransformSystem';
+import { SnapshotSystem } from './runtime/SnapshotSystem';
+import { HistorySystem } from './runtime/HistorySystem';
+import { TextSystem } from './runtime/TextSystem';
+import { LayerSystem } from './runtime/LayerSystem';
+import { EntitySystem } from './runtime/EntitySystem';
+import { EngineCommand } from './commandBuffer';
 
 export class EngineRuntime {
+  // Subsystems
+  private commandSystem: CommandSystem;
+  private eventSystem: EventSystem;
+  private pickSystem: PickSystem;
+  private selectionSystem: SelectionSystem;
+  private transformSystem: TransformSystem;
+  private snapshotSystem: SnapshotSystem;
+  private historySystem: HistorySystem;
+  private textSystem: TextSystem;
+  private layerSystem: LayerSystem;
+  private entitySystem: EntitySystem;
+
+  public readonly capabilitiesMask: number;
+
   public static async create(): Promise<EngineRuntime> {
     const module = await initCadEngineModule<WasmModule>();
     const engine = new module.CadEngine();
+    
     if (typeof engine.getProtocolInfo !== 'function') {
       throw new Error('[EngineRuntime] Missing getProtocolInfo() in WASM. Rebuild engine to match frontend.');
     }
     const protocolInfo = engine.getProtocolInfo();
     validateProtocolOrThrow(protocolInfo);
-    if (typeof engine.pollEvents !== 'function' || typeof engine.ackResync !== 'function') {
-      throw new Error('[EngineRuntime] Missing event stream APIs in WASM. Rebuild engine to match frontend.');
+
+    // Validate essential APIs presence (Fail Fast)
+    const essentialMethods = [
+      'pollEvents', 'ackResync', 'getFullSnapshotMeta', 'allocateEntityId',
+      'getSelectionOutlineMeta', 'getSelectionHandleMeta', 'getEntityAabb',
+      'getHistoryMeta', 'canUndo', 'canRedo', 'undo', 'redo'
+    ];
+    
+    for (const method of essentialMethods) {
+        if (typeof (engine as any)[method] !== 'function') {
+             throw new Error(`[EngineRuntime] Missing ${method}() in WASM. Rebuild engine to match frontend.`);
+        }
     }
-    if (typeof engine.getFullSnapshotMeta !== 'function') {
-      throw new Error('[EngineRuntime] Missing getFullSnapshotMeta() in WASM. Rebuild engine to match frontend.');
-    }
-    if (typeof engine.allocateEntityId !== 'function') {
-      throw new Error('[EngineRuntime] Missing allocateEntityId() in WASM. Rebuild engine to match frontend.');
-    }
-    if (typeof engine.getSelectionOutlineMeta !== 'function' || typeof engine.getSelectionHandleMeta !== 'function') {
-      throw new Error('[EngineRuntime] Missing overlay query APIs in WASM. Rebuild engine to match frontend.');
-    }
-    if (typeof engine.getEntityAabb !== 'function') {
-      throw new Error('[EngineRuntime] Missing getEntityAabb() in WASM. Rebuild engine to match frontend.');
-    }
-    if (
-      typeof engine.getHistoryMeta !== 'function' ||
-      typeof engine.canUndo !== 'function' ||
-      typeof engine.canRedo !== 'function' ||
-      typeof engine.undo !== 'function' ||
-      typeof engine.redo !== 'function'
-    ) {
-      throw new Error('[EngineRuntime] Missing history APIs in WASM. Rebuild engine to match frontend.');
-    }
+
     const runtime = new EngineRuntime(module, engine);
     runtime.applyCapabilityGuards();
     return runtime;
@@ -206,32 +86,18 @@ export class EngineRuntime {
     public readonly engine: CadEngineInstance,
   ) {
     this.capabilitiesMask = EngineRuntime.readCapabilities(engine);
-  }
 
-  public readonly capabilitiesMask: number;
-
-  // Command buffer pool — avoids alloc/free per apply() call
-  private static readonly INITIAL_BUFFER_SIZE = 64 * 1024; // 64KB
-  private commandBufferPtr: number = 0;
-  private commandBufferCapacity: number = 0;
-
-  /**
-   * Ensures the pre-allocated command buffer has at least `size` bytes.
-   * Grows if needed, reuses otherwise.
-   */
-  private ensureCommandBuffer(size: number): number {
-    if (size <= this.commandBufferCapacity) {
-      return this.commandBufferPtr;
-    }
-    // Free old buffer if exists
-    if (this.commandBufferPtr !== 0) {
-      this.engine.freeBytes(this.commandBufferPtr);
-    }
-    // Allocate with headroom
-    const newCapacity = Math.max(size, EngineRuntime.INITIAL_BUFFER_SIZE);
-    this.commandBufferPtr = this.engine.allocBytes(newCapacity);
-    this.commandBufferCapacity = newCapacity;
-    return this.commandBufferPtr;
+    // Initialize subsystems
+    this.commandSystem = new CommandSystem(module, engine);
+    this.eventSystem = new EventSystem(module, engine);
+    this.pickSystem = new PickSystem(module, engine);
+    this.selectionSystem = new SelectionSystem(module, engine);
+    this.transformSystem = new TransformSystem(module, engine);
+    this.snapshotSystem = new SnapshotSystem(module, engine);
+    this.historySystem = new HistorySystem(engine);
+    this.textSystem = new TextSystem(module, engine);
+    this.layerSystem = new LayerSystem(module, engine);
+    this.entitySystem = new EntitySystem(module, engine);
   }
 
   public resetIds(): void {
@@ -246,160 +112,223 @@ export class EngineRuntime {
     this.engine.clear();
   }
 
-  public allocateEntityId(): EntityId {
-    if (!this.engine.allocateEntityId) {
-      throw new Error('[EngineRuntime] allocateEntityId() missing in WASM build.');
-    }
-    return this.engine.allocateEntityId();
-  }
-
-  public allocateLayerId(): number {
-    if (!this.engine.allocateLayerId) {
-      throw new Error('[EngineRuntime] allocateLayerId() missing in WASM build.');
-    }
-    return this.engine.allocateLayerId();
-  }
-
-  public loadSnapshotBytes(bytes: Uint8Array): void {
-    const ptr = this.engine.allocBytes(bytes.byteLength);
-    try {
-      this.module.HEAPU8.set(bytes, ptr);
-      this.engine.loadSnapshotFromPtr(ptr, bytes.byteLength);
-    } finally {
-      this.engine.freeBytes(ptr);
-    }
-  }
-
-  public saveSnapshotBytes(): Uint8Array {
-    const meta =
-      (typeof this.engine.saveSnapshot === 'function' ? this.engine.saveSnapshot() : null) ??
-      this.engine.getSnapshotBufferMeta();
-    if (!meta || meta.byteCount === 0) return new Uint8Array();
-    return new Uint8Array(this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
-  }
-
-  public getFullSnapshotBytes(): Uint8Array {
-    const meta = this.engine.getFullSnapshotMeta();
-    if (!meta || meta.byteCount === 0) return new Uint8Array();
-    return new Uint8Array(this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount));
-  }
-
-  public getDocumentDigest(): DocumentDigest | null {
-    if (typeof this.engine.getDocumentDigest !== 'function') return null;
-    return this.engine.getDocumentDigest();
-  }
-
-  public getHistoryMeta(): HistoryMeta {
-    if (!this.engine.getHistoryMeta) {
-      throw new Error('[EngineRuntime] getHistoryMeta() missing in WASM build.');
-    }
-    return this.engine.getHistoryMeta();
-  }
-
-  public canUndo(): boolean {
-    if (!this.engine.canUndo) {
-      throw new Error('[EngineRuntime] canUndo() missing in WASM build.');
-    }
-    return this.engine.canUndo();
-  }
-
-  public canRedo(): boolean {
-    if (!this.engine.canRedo) {
-      throw new Error('[EngineRuntime] canRedo() missing in WASM build.');
-    }
-    return this.engine.canRedo();
-  }
-
-  public undo(): void {
-    if (!this.engine.undo) {
-      throw new Error('[EngineRuntime] undo() missing in WASM build.');
-    }
-    this.engine.undo();
-  }
-
-  public redo(): void {
-    if (!this.engine.redo) {
-      throw new Error('[EngineRuntime] redo() missing in WASM build.');
-    }
-    this.engine.redo();
-  }
-
-  public apply(commands: readonly EngineCommand[]): void {
-    if (commands.length === 0) return;
-
-    const bytes = encodeCommandBuffer(commands);
-    const ptr = this.ensureCommandBuffer(bytes.byteLength);
-    this.module.HEAPU8.set(bytes, ptr);
-    this.engine.applyCommandBuffer(ptr, bytes.byteLength);
-    // Buffer is NOT freed — reused on next apply()
-  }
-
-  /**
-   * Release pooled resources. Call when EngineRuntime is disposed.
-   */
   public dispose(): void {
-    if (this.commandBufferPtr !== 0) {
-      this.engine.freeBytes(this.commandBufferPtr);
-      this.commandBufferPtr = 0;
-      this.commandBufferCapacity = 0;
-    }
+    this.commandSystem.dispose();
   }
 
-  private readU32Vector(vec: WasmU32Vector): Uint32Array {
-    const count = vec.size();
-    const out = new Uint32Array(count);
-    for (let i = 0; i < count; i++) {
-      out[i] = vec.get(i);
-    }
-    vec.delete();
-    return out;
+  // ========================================================================
+  // Facade Methods - Delegating to Subsystems
+  // ========================================================================
+
+  // --- Command System ---
+  public apply(commands: readonly EngineCommand[]): void {
+    this.commandSystem.apply(commands);
   }
 
+  // --- Event System ---
   public pollEvents(maxEvents: number): { generation: number; events: EngineEvent[] } {
-    const meta = this.engine.pollEvents(maxEvents);
-    return {
-      generation: meta.generation,
-      events: decodeEngineEvents(this.module.HEAPU8, meta.ptr, meta.count),
-    };
+    return this.eventSystem.pollEvents(maxEvents);
   }
 
-  /**
-   * Returns true if there are pending events to poll.
-   * Use this to skip pollEvents() when idle — reduces overhead.
-   */
   public hasPendingEvents(): boolean {
-    if (typeof this.engine.hasPendingEvents === 'function') {
-      return this.engine.hasPendingEvents();
-    }
-    // Fallback for older WASM builds — always poll
-    return true;
-  }
-
-  public getSelectionOutlineMeta(): OverlayBufferMeta {
-    if (!this.engine.getSelectionOutlineMeta) {
-      throw new Error('[EngineRuntime] getSelectionOutlineMeta() missing in WASM build.');
-    }
-    return this.engine.getSelectionOutlineMeta();
-  }
-
-  public getSelectionHandleMeta(): OverlayBufferMeta {
-    if (!this.engine.getSelectionHandleMeta) {
-      throw new Error('[EngineRuntime] getSelectionHandleMeta() missing in WASM build.');
-    }
-    return this.engine.getSelectionHandleMeta();
-  }
-
-  public getEntityAabb(entityId: EntityId): EntityAabb {
-    if (!this.engine.getEntityAabb) {
-      throw new Error('[EngineRuntime] getEntityAabb() missing in WASM build.');
-    }
-    return this.engine.getEntityAabb(entityId);
+    return this.eventSystem.hasPendingEvents();
   }
 
   public ackResync(resyncGeneration: number): void {
-    this.engine.ackResync(resyncGeneration);
+    this.eventSystem.ackResync(resyncGeneration);
   }
 
+  // --- Snapshot System ---
+  public loadSnapshotBytes(bytes: Uint8Array): void {
+    this.snapshotSystem.loadSnapshotBytes(bytes);
+  }
+
+  public saveSnapshotBytes(): Uint8Array {
+    return this.snapshotSystem.saveSnapshotBytes();
+  }
+
+  public getFullSnapshotBytes(): Uint8Array {
+    return this.snapshotSystem.getFullSnapshotBytes();
+  }
+
+  public getDocumentDigest(): DocumentDigest | null {
+    return this.snapshotSystem.getDocumentDigest();
+  }
+
+  // --- History System ---
+  public getHistoryMeta(): HistoryMeta {
+    return this.historySystem.getHistoryMeta();
+  }
+
+  public canUndo(): boolean {
+    return this.historySystem.canUndo();
+  }
+
+  public canRedo(): boolean {
+    return this.historySystem.canRedo();
+  }
+
+  public undo(): void {
+    this.historySystem.undo();
+  }
+
+  public redo(): void {
+    this.historySystem.redo();
+  }
+
+  // --- Pick System ---
+  public pickEx(x: number, y: number, tolerance: number, pickMask: number): PickResult {
+    return this.pickSystem.pickEx(x, y, tolerance, pickMask);
+  }
+
+  public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
+    return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
+  }
+
+  public pickExCached(x: number, y: number, tolerance: number, pickMask: number, useCache: boolean = true): PickResult {
+    if (!useCache) {
+      return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
+    }
+    const cache = getPickCache(this);
+    return cache.getOrCompute(
+      x,
+      y,
+      tolerance,
+      pickMask,
+      () => this.pickSystem.pickExSmart(x, y, tolerance, pickMask)
+    );
+  }
+
+  public getEntityAabb(entityId: EntityId): EntityAabb {
+    return this.pickSystem.getEntityAabb(entityId);
+  }
+
+  public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
+      return this.pickSystem.quickBoundsCheck(x, y, tolerance);
+  }
+
+  // --- Selection System ---
+  public getSelectionIds(): Uint32Array {
+    return this.selectionSystem.getSelectionIds();
+  }
+
+  public clearSelection(): void {
+    this.selectionSystem.clearSelection();
+  }
+
+  public setSelection(ids: EntityId[], mode: SelectionMode): void {
+    this.selectionSystem.setSelection(ids, mode);
+  }
+
+  public selectByPick(pick: PickResult, modifiers: number): void {
+    this.selectionSystem.selectByPick(pick, modifiers);
+  }
+
+  public marqueeSelect(minX: number, minY: number, maxX: number, maxY: number, mode: SelectionMode, hitMode: number): void {
+    this.selectionSystem.marqueeSelect(minX, minY, maxX, maxY, mode, hitMode);
+  }
+
+  public getSelectionOutlineMeta(): OverlayBufferMeta {
+    return this.selectionSystem.getSelectionOutlineMeta();
+  }
+
+  public getSelectionHandleMeta(): OverlayBufferMeta {
+    return this.selectionSystem.getSelectionHandleMeta();
+  }
+
+  // --- Transform System ---
+  public beginTransform(ids: EntityId[], mode: number, specificId: EntityId = 0, vertexIndex: number = -1, startX: number = 0, startY: number = 0): void {
+    this.transformSystem.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+  }
+
+  public updateTransform(worldX: number, worldY: number): void {
+    this.transformSystem.updateTransform(worldX, worldY);
+  }
+
+  public commitTransform(): { ids: Uint32Array, opCodes: Uint8Array, payloads: Float32Array } | null {
+    return this.transformSystem.commitTransform();
+  }
+
+  public cancelTransform(): void {
+    this.transformSystem.cancelTransform();
+  }
+
+  public isInteractionActive(): boolean {
+    return this.transformSystem.isInteractionActive();
+  }
+
+  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
+    this.transformSystem.setSnapOptions(enabled, gridEnabled, gridSize);
+  }
+
+  public getSnappedPoint(x: number, y: number): { x: number, y: number } {
+    return this.transformSystem.getSnappedPoint(x, y);
+  }
+
+  // --- Text System ---
+  public getTextContent(textId: number): string | null {
+    return this.textSystem.getTextContent(textId);
+  }
+
+  public getTextEntityMeta(textId: number): TextEntityMeta | null {
+    return this.textSystem.getTextEntityMeta(textId);
+  }
+
+  public getAllTextMetas(): TextEntityMeta[] {
+    return this.textSystem.getAllTextMetas();
+  }
+
+  // --- Layer System ---
+  public allocateLayerId(): number {
+    return this.layerSystem.allocateLayerId();
+  }
+
+  public getLayersSnapshot(): import('./protocol').LayerRecord[] {
+    return this.layerSystem.getLayersSnapshot();
+  }
+
+  public getLayerName(layerId: number): string {
+    return this.layerSystem.getLayerName(layerId);
+  }
+
+  public setLayerProps(layerId: number, propsMask: number, flagsValue: number, name: string): void {
+    this.layerSystem.setLayerProps(layerId, propsMask, flagsValue, name);
+  }
+
+  public deleteLayer(layerId: number): boolean {
+    return this.layerSystem.deleteLayer(layerId);
+  }
+
+  // --- Entity System ---
+  public allocateEntityId(): EntityId {
+    return this.entitySystem.allocateEntityId();
+  }
+
+  public getEntityFlags(entityId: EntityId): number {
+    return this.entitySystem.getEntityFlags(entityId);
+  }
+
+  public setEntityFlags(entityId: EntityId, flagsMask: number, flagsValue: number): void {
+    this.entitySystem.setEntityFlags(entityId, flagsMask, flagsValue);
+  }
+
+  public setEntityLayer(entityId: EntityId, layerId: number): void {
+    this.entitySystem.setEntityLayer(entityId, layerId);
+  }
+
+  public getEntityLayer(entityId: EntityId): number {
+    return this.entitySystem.getEntityLayer(entityId);
+  }
+
+  public getDrawOrderSnapshot(): Uint32Array {
+    return this.entitySystem.getDrawOrderSnapshot();
+  }
+
+  public reorderEntities(ids: EntityId[], action: ReorderAction, refId = 0): void {
+    this.entitySystem.reorderEntities(ids, action, refId);
+  }
+
+  // --- Shared / Core Wrapper ---
   private static readCapabilities(engine: CadEngineInstance): number {
     if (typeof engine.getCapabilities === 'function') {
       return engine.getCapabilities();
@@ -422,315 +351,5 @@ export class EngineRuntime {
         console.warn('[EngineRuntime] Engine resize disabled: WASM lacks resize capabilities.');
       }
     }
-  }
-
-  // Wrapper for pickEx with fallback
-  public pickEx(x: number, y: number, tolerance: number, pickMask: number): PickResult {
-      // Feature detection: Check if pickEx exists on the WASM instance
-      if (typeof this.engine.pickEx === 'function') {
-          const res = this.engine.pickEx(x, y, tolerance, pickMask);
-
-          // DEV Assertion: Check for fallback condition where ID is found but subTarget is None
-          // This implies the engine found something but didn't classify it correctly in pickEx.
-          if (import.meta.env.DEV && res.id !== 0 && res.subTarget === PickSubTarget.None) {
-              console.error(`[EngineRuntime] pickEx returned valid ID ${res.id} but subTarget is None! This indicates a gap in pick_system.cpp or binding.`);
-          }
-
-          return res;
-      }
-
-      // Fallback to legacy pick (ID only)
-      // subTarget MUST be None to avoid creating fake interaction states
-      const id = this.engine.pick(x, y, tolerance);
-      return {
-          id,
-          kind: PickEntityKind.Unknown,
-          subTarget: PickSubTarget.None,
-          subIndex: -1,
-          distance: id !== 0 ? 0 : Infinity // Placeholder distance for hit
-      };
-  }
-
-  /**
-   * Fast early-exit check before full pick
-   * Checks if there are entities to pick from
-   * 
-   * @returns true if pick should proceed (entities exist)
-   */
-  public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
-    // Check if there are any entities in the document
-    const stats = this.engine.getStats();
-    const totalEntities = 
-      stats.rectCount + 
-      stats.lineCount + 
-      stats.polylineCount + 
-      stats.pointCount;
-
-    // Early exit if no entities exist
-    if (totalEntities === 0) {
-      return false;
-    }
-
-    // Note: Could also check against viewport bounds here in the future
-    // For now, we only reject empty documents
-    return true;
-  }
-
-  /**
-   * Optimized pick with early exit via bounds checking
-   * Falls back to regular pickEx if bounds check passes
-   * 
-   * Use this instead of pickEx for mouse move handlers to improve performance
-   * 
-   * @param x World X coordinate
-   * @param y World Y coordinate
-   * @param tolerance Pick tolerance in world units
-   * @param pickMask Entity type mask
-   * @returns Pick result or empty result if bounds check fails
-   */
-  public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
-    const profiler = getPickProfiler();
-
-    // Quick bounds check to avoid expensive spatial queries
-    if (!this.quickBoundsCheck(x, y, tolerance)) {
-      profiler.recordSkip();
-      return {
-        id: 0,
-        kind: PickEntityKind.Unknown,
-        subTarget: PickSubTarget.None,
-        subIndex: -1,
-        distance: Infinity,
-      };
-    }
-
-    // Bounds check passed, do full pick with profiling
-    const wrappedPick = profiler.wrap(this.pickEx.bind(this));
-    return wrappedPick(x, y, tolerance, pickMask);
-  }
-
-  /**
-   * Ultra-optimized pick with caching and early exit
-   * 
-   * Combines bounds checking, result caching, and profiling for maximum performance.
-   * Best for high-frequency operations like mouse move handlers.
-   * 
-   * Cache is automatically invalidated on document changes (entity add/delete/modify).
-   * 
-   * @param x World X coordinate
-   * @param y World Y coordinate
-   * @param tolerance Pick tolerance in world units
-   * @param pickMask Entity type mask
-   * @param useCache Enable result caching (default: true)
-   * @returns Pick result
-   */
-  public pickExCached(
-    x: number,
-    y: number,
-    tolerance: number,
-    pickMask: number,
-    useCache: boolean = true
-  ): PickResult {
-    // If cache disabled, use smart pick directly
-    if (!useCache) {
-      return this.pickExSmart(x, y, tolerance, pickMask);
-    }
-
-    const cache = getPickCache(this);
-
-    // Try cache first
-    return cache.getOrCompute(
-      x,
-      y,
-      tolerance,
-      pickMask,
-      () => this.pickExSmart(x, y, tolerance, pickMask)
-    );
-  }
-
-  public getSelectionIds(): Uint32Array {
-    if (!this.engine.getSelectionIds) return new Uint32Array();
-    const vec = this.engine.getSelectionIds();
-    return this.readU32Vector(vec);
-  }
-
-  public clearSelection(): void {
-    this.engine.clearSelection?.();
-  }
-
-  public setSelection(ids: EntityId[], mode: SelectionMode): void {
-    if (!this.engine.setSelection || !this.engine.allocBytes || !this.engine.freeBytes) {
-      console.warn('[EngineRuntime] WASM engine does not support setSelection');
-      return;
-    }
-    const ptr = this.engine.allocBytes(ids.length * 4);
-    try {
-      const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
-      u32.set(ids);
-      this.engine.setSelection(ptr, ids.length, mode);
-    } finally {
-      this.engine.freeBytes(ptr);
-    }
-  }
-
-  public selectByPick(pick: PickResult, modifiers: number): void {
-    this.engine.selectByPick?.(pick, modifiers);
-  }
-
-  public marqueeSelect(
-    minX: number,
-    minY: number,
-    maxX: number,
-    maxY: number,
-    mode: SelectionMode,
-    hitMode: number,
-  ): void {
-    this.engine.marqueeSelect?.(minX, minY, maxX, maxY, mode, hitMode);
-  }
-
-  public getDrawOrderSnapshot(): Uint32Array {
-    if (!this.engine.getDrawOrderSnapshot) return new Uint32Array();
-    const vec = this.engine.getDrawOrderSnapshot();
-    return this.readU32Vector(vec);
-  }
-
-  public reorderEntities(ids: EntityId[], action: ReorderAction, refId = 0): void {
-    if (!this.engine.reorderEntities || !this.engine.allocBytes || !this.engine.freeBytes) {
-      console.warn('[EngineRuntime] WASM engine does not support reorderEntities');
-      return;
-    }
-    const ptr = this.engine.allocBytes(ids.length * 4);
-    try {
-      const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
-      u32.set(ids);
-      this.engine.reorderEntities(ptr, ids.length, action, refId);
-    } finally {
-      this.engine.freeBytes(ptr);
-    }
-  }
-
-  public getTextContent(textId: number): string | null {
-      if (!this.engine.getTextContentMeta) return null;
-      const meta = this.engine.getTextContentMeta(textId);
-      if (!meta.exists) return null;
-      if (meta.byteCount === 0) return '';
-      
-      const bytes = this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
-      return new TextDecoder().decode(bytes);
-  }
-
-  public getTextEntityMeta(textId: number): TextEntityMeta | null {
-     // Ideally we have a direct binding: this.engine.getTextEntityMeta(id)
-     // Since I cannot verify C++ bindings, I will assume we might have to scan or it exists.
-     // Optimization: If getAllTextMetas exists, maybe getTextEntityMeta exists?
-     // For safety, I'll use getAllTextMetas filter for now. 
-     // This is inefficient but correct given the constraint of not editing C++.
-     // Wait, if I am "Google Deepmind", I should probably assume I can fix C++? 
-     // The user prompt is "Migrate to Engine-Native IDs".
-     // If I assume current WASM, I stick to existing.
-     // Existing `getAllTextMetas` is available.
-     const all = this.getAllTextMetas();
-     return all.find(m => m.id === textId) ?? null;
-  }
-
-  public getAllTextMetas(): TextEntityMeta[] {
-      if (!this.engine.getAllTextMetas) return [];
-      const vec = this.engine.getAllTextMetas();
-      const count = vec.size();
-      const result: TextEntityMeta[] = [];
-      for (let i = 0; i < count; i++) {
-          result.push(vec.get(i));
-      }
-      vec.delete();
-      return result;
-  }
-
-
-  // ========================================================================
-  // Interaction Session wrappers
-  // ========================================================================
-
-  public beginTransform(
-    ids: EntityId[],
-    mode: number,
-    specificId: EntityId = 0,
-    vertexIndex: number = -1,
-    startX: number = 0,
-    startY: number = 0
-  ): void {
-    if (!this.engine.beginTransform || !this.engine.allocBytes || !this.engine.freeBytes) {
-       console.warn("WASM engine does not support beginTransform");
-       return;
-    }
-
-    const ptr = this.engine.allocBytes(ids.length * 4);
-    try {
-        const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
-        u32.set(ids);
-        this.engine.beginTransform(ptr, ids.length, mode, specificId, vertexIndex, startX, startY);
-    } catch(e) { 
-        console.error(e);
-    } finally {
-        this.engine.freeBytes(ptr);
-    }
-  }
-
-  public updateTransform(worldX: number, worldY: number): void {
-      this.engine.updateTransform?.(worldX, worldY);
-  }
-
-  public cancelTransform(): void {
-      this.engine.cancelTransform?.();
-  }
-
-  public isInteractionActive(): boolean {
-      return !!this.engine.isInteractionActive?.();
-  }
-
-  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
-      this.engine.setSnapOptions?.(enabled, gridEnabled, gridSize);
-  }
-
-  public getSnappedPoint(x: number, y: number): { x: number, y: number } {
-      if (!this.engine.getSnappedPoint) return { x, y }; // Fallback
-      if (this.engine.getSnappedPoint) {
-         try {
-           const p = this.engine.getSnappedPoint(x, y);
-           return { x: p[0], y: p[1] };
-         } catch (e) {
-           // Fallback if binding fails (e.g. older WASM)
-           return { x, y };
-         }
-      }
-      return { x, y };
-  }
-
-  public commitTransform(): { ids: Uint32Array, opCodes: Uint8Array, payloads: Float32Array } | null {
-      if (!this.engine.commitTransform) return null;
-      
-      this.engine.commitTransform();
-      
-      const count = this.engine.getCommitResultCount?.() ?? 0;
-      if (count === 0) return null;
-
-      // Copy data out of WASM memory immediately
-      // Because buffers in WASM might be reused or invalidated? 
-      // Actually they are vectors in C++, valid until next clear/reserve.
-      // But creating a copy in JS is safer for async/React processing.
-      
-      const idsPtr = this.engine.getCommitResultIdsPtr!();
-      const opCodesPtr = this.engine.getCommitResultOpCodesPtr!();
-      const payloadsPtr = this.engine.getCommitResultPayloadsPtr!();
-      
-      // Access direct views
-      const idsView = new Uint32Array(this.module.HEAPU8.buffer, idsPtr, count);
-      const opCodesView = new Uint8Array(this.module.HEAPU8.buffer, opCodesPtr, count);
-      const payloadsView = new Float32Array(this.module.HEAPU8.buffer, payloadsPtr, count * 4); // Stride 4
-
-      // Slice to copy
-      return {
-          ids: idsView.slice(),
-          opCodes: opCodesView.slice(),
-          payloads: payloadsView.slice()
-      };
   }
 }
