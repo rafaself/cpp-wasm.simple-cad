@@ -1,6 +1,5 @@
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
 import { encodeCommandBuffer, type EngineCommand } from './commandBuffer';
-import { IdRegistry } from './IdRegistry';
 import { LayerRegistry } from './LayerRegistry';
 import { decodeEngineEvents } from './engineEventDecoder';
 import { supportsEngineResize, type EngineCapability } from './capabilities';
@@ -235,7 +234,6 @@ export class EngineRuntime {
   }
 
   public resetIds(): void {
-    IdRegistry.clear();
     LayerRegistry.clear();
   }
 
@@ -244,7 +242,6 @@ export class EngineRuntime {
   }
 
   public clear(): void {
-    IdRegistry.clear();
     LayerRegistry.clear();
     this.engine.clear();
   }
@@ -523,6 +520,20 @@ export class EngineRuntime {
       
       const bytes = this.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
       return new TextDecoder().decode(bytes);
+  }
+
+  public getTextEntityMeta(textId: number): TextEntityMeta | null {
+     // Ideally we have a direct binding: this.engine.getTextEntityMeta(id)
+     // Since I cannot verify C++ bindings, I will assume we might have to scan or it exists.
+     // Optimization: If getAllTextMetas exists, maybe getTextEntityMeta exists?
+     // For safety, I'll use getAllTextMetas filter for now. 
+     // This is inefficient but correct given the constraint of not editing C++.
+     // Wait, if I am "Google Deepmind", I should probably assume I can fix C++? 
+     // The user prompt is "Migrate to Engine-Native IDs".
+     // If I assume current WASM, I stick to existing.
+     // Existing `getAllTextMetas` is available.
+     const all = this.getAllTextMetas();
+     return all.find(m => m.id === textId) ?? null;
   }
 
   public getAllTextMetas(): TextEntityMeta[] {

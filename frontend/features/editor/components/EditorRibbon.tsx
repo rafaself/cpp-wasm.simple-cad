@@ -4,7 +4,9 @@ import { FolderOpen, Save, Undo2, Redo2, Type, MousePointer2, Square, Circle, Mi
 import { useUIStore } from '../../../stores/useUIStore';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { encodeNextDocumentFile, decodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
-import { clearTextMappings, registerTextMapping, setTextMeta } from '@/engine/core/textEngineSync';
+      // Use engine-authoritative API instead of re-decoding snapshot
+      // Text metadata is already loaded into engine by loadSnapshotBytes
+      // No need to sync to IdRegistry anymore as we use Engine-First architecture
 import { bumpDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import { LABELS } from '@/i18n/labels';
 
@@ -63,15 +65,10 @@ const EditorRibbon: React.FC = () => {
       const runtime = await getEngineRuntime();
 
       runtime.resetIds();
-      clearTextMappings();
+      runtime.resetIds();
       runtime.loadSnapshotBytes(payload.engineSnapshot);
 
-      // Use engine-authoritative API instead of re-decoding snapshot
-      const textMetas = runtime.getAllTextMetas();
-      for (const meta of textMetas) {
-        registerTextMapping(meta.id, `entity-${meta.id}`);
-        setTextMeta(meta.id, meta.boxMode, meta.constraintWidth);
-      }
+      // Text metadata is already loaded into engine by loadSnapshotBytes
 
       if (runtime.engine.getLayersSnapshot) {
         const vec = runtime.engine.getLayersSnapshot();

@@ -12,7 +12,6 @@ import {
   byteIndexToCharIndex,
   type TextInputDelta,
 } from '@/types/text';
-import { registerEngineId } from '@/engine/core/IdRegistry';
 
 export interface TextInputState {
   mode: 'idle' | 'creating' | 'editing';
@@ -170,8 +169,7 @@ export class TextInputCoordinator {
     // Create new text entity with AutoWidth mode
     const textId = this.runtime.allocateEntityId();
     const shapeId = `entity-${textId}`;
-    registerEngineId(textId, shapeId);
-
+    
     this.state = {
       mode: 'creating',
       activeTextId: textId,
@@ -244,8 +242,7 @@ export class TextInputCoordinator {
     // Create new text entity with FixedWidth mode
     const textId = this.runtime.allocateEntityId();
     const shapeId = `entity-${textId}`;
-    registerEngineId(textId, shapeId);
-
+    
     this.state = {
       mode: 'creating',
       activeTextId: textId,

@@ -2,7 +2,6 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { CommandOp } from '@/engine/core/commandBuffer';
 import type { EntityId } from '@/engine/core/protocol';
-import { IdRegistry } from '@/engine/core/IdRegistry';
 
 export const useEditorLogic = () => {
   const deleteSelected = () => {
@@ -11,8 +10,8 @@ export const useEditorLogic = () => {
       if (ids.length === 0) return;
       const commands: import('@/engine/core/commandBuffer').EngineCommand[] = [];
       for (const id of ids) {
-        const meta = IdRegistry.getMeta(id);
-        if (meta?.entityType === 'text') {
+        const textMeta = runtime.getTextEntityMeta(id);
+        if (textMeta) {
           commands.push({ op: CommandOp.DeleteText, id });
         } else {
           commands.push({ op: CommandOp.DeleteEntity, id });

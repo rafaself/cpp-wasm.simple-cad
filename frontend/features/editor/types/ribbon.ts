@@ -9,7 +9,7 @@ import type { RefObject, MouseEvent } from 'react';
 // ============================================
 
 export interface TextControlProps {
-  selectedTextIds: string[];
+  selectedTextIds: number[];
   applyTextUpdate: (diff: TextUpdateDiff, recalcSize: boolean) => void;
 }
 

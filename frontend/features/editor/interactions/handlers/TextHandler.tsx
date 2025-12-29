@@ -114,23 +114,21 @@ export class TextHandler extends BaseInteractionHandler {
     // Implementation Detail: We need strict check.
     // Check `runtime.getTextContentMeta(id)`. If exists, it's text.
     
-    if (res.id !== 0 && runtime.engine.getTextContentMeta?.(res.id)?.exists) {
-         // It is text. Calculate local coords?
-         // `TextTool.handlePointerDown` takes `localX, localY`.
-         // We need the text's transform.
-         // `runtime.getEntityTransform(res.id)`?
-         // `runtime` usually exposes `getEntityMatrix`.
-         // This is getting deep into engine API.
-         // Let's rely on `handleClick`? `handleClick` handles hitting text? No.
+    // Check if we clicked on existing text
+    // We use the raw engine binding if available, or our wrapper
+    const engine = (runtime as any).engine;
+    const textMeta = engine && engine.getTextContentMeta ? engine.getTextContentMeta(res.id) : null;
+    
+    // Note: getTextContentMeta returns { exists, ptr, byteCount }
+    if (res.id !== 0 && textMeta && textMeta.exists) {
+         // It is text. 
+         // TODO: Implement local coordinate calculation and start editing.
+         // For now, we fallback to create new text at click location if we can't edit yet.
+         // But to prevent creating text ON TOP of text, we should probably do nothing or select it?
+         // If we are in 'Refactoring' mode, we might just log "Edit Text Not Implemented".
          
-         // If `TextInputCoordinator` does hit testing?
-         // `TextTool` seems to expect `handlePointerDown` with local coords.
-         
-         // Workaround: Use `handleClick` for everything if the tool supports it?
-         // TextTool.handleClick: "Handle click on canvas - creates AutoWidth text."
-         
-         // Okay, `TextTool` is somewhat separated.
-         // Let's implement Creation for now. Editing requires transformation logic.
+         // Assuming we want to create new text for now as fail-safe for this step.
+         this.textTool.handleClick(world.x, world.y);
     } else {
         this.textTool.handleClick(world.x, world.y);
     }

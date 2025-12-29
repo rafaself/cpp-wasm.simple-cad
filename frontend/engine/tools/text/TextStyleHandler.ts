@@ -10,7 +10,7 @@ import type { ApplyTextStylePayload } from '@/engine/core/commandBuffer';
 import type { TextStateManager } from './TextStateManager';
 import { TextStyleFlags, TextAlign, TextBoxMode } from './types';
 import { charIndexToByteIndex } from '@/types/text';
-import { getTextMeta } from '@/engine/core/textEngineSync';
+// import { getTextMeta } from '@/engine/core/textEngineSync'; // Removed
 
 export interface StyleChangeCallback {
   onTextUpdated?: (
@@ -271,7 +271,7 @@ export class TextStyleHandler {
   private syncTextToBounds(textId: number, content: string): void {
     const bounds = this.bridge.getTextBounds(textId);
     if (bounds && bounds.valid) {
-      const meta = getTextMeta(textId);
+      const meta = this.bridge.getTextMeta(textId);
       const boxMode = meta?.boxMode ?? TextBoxMode.AutoWidth;
       const constraint = meta?.constraintWidth ?? 0;
 

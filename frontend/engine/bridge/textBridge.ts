@@ -400,6 +400,13 @@ export class TextBridge {
   }
 
   /**
+   * Get text entity metadata (box mode, constraint width).
+   */
+  getTextMeta(textId: number) {
+      return this.runtime.getTextEntityMeta(textId);
+  }
+
+  /**
    * Get text layout bounds from engine.
    * @param textId Text entity ID
    * @returns Computed bounds or null

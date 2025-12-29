@@ -27,7 +27,6 @@ interface UIState {
   canvasSize: { width: number; height: number };
   isSettingsModalOpen: boolean;
   isLayerManagerOpen: boolean;
-  editingTextId: string | null;
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
@@ -63,7 +62,6 @@ interface UIState {
 
   setSettingsModalOpen: (isOpen: boolean) => void;
   setLayerManagerOpen: (isOpen: boolean) => void;
-  setEditingTextId: (id: string | null) => void;
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
@@ -95,7 +93,6 @@ export const useUIStore = create<UIState>((set) => ({
   canvasSize: { width: 0, height: 0 },
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
-  editingTextId: null,
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
@@ -187,7 +184,6 @@ export const useUIStore = create<UIState>((set) => ({
 
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
-  setEditingTextId: (id) => set({ editingTextId: id }),
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),

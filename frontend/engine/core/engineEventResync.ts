@@ -1,4 +1,3 @@
-import { clearTextMappings, registerTextMapping, setTextMeta } from './textEngineSync';
 import { bumpDocumentSignal } from './engineDocumentSignals';
 import { syncHistoryMetaFromEngine } from './engineStateSync';
 import { useUIStore } from '@/stores/useUIStore';
@@ -16,16 +15,7 @@ export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number
   }
 
   runtime.resetIds();
-  clearTextMappings();
   runtime.loadSnapshotBytes(bytes);
-
-  // Use engine-authoritative API instead of re-decoding snapshot
-  const textMetas = runtime.getAllTextMetas();
-  for (const meta of textMetas) {
-    const shapeId = `entity-${meta.id}`;
-    registerTextMapping(meta.id, shapeId);
-    setTextMeta(meta.id, meta.boxMode, meta.constraintWidth);
-  }
 
   if (runtime.engine.getLayersSnapshot) {
     const vec = runtime.engine.getLayersSnapshot();
