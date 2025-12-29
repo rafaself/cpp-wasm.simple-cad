@@ -150,12 +150,18 @@ describe('EngineRuntime', () => {
     expect(mockEngine.allocBytes).toHaveBeenCalled();
     expect(mockModule.HEAPU8.set).toHaveBeenCalled();
     expect(mockEngine.applyCommandBuffer).toHaveBeenCalledWith(100, expect.any(Number));
-    expect(mockEngine.freeBytes).toHaveBeenCalledWith(100);
+    // Buffer pool optimization: freeBytes is NOT called after apply()
+    // Buffer is reused across calls; only freed via dispose()
+    expect(mockEngine.freeBytes).not.toHaveBeenCalled();
 
     // Verify buffer content magic number
     // Pointer 100. Magic is at 100.
     const magic = new DataView(heapBuffer.buffer).getUint32(100, true);
     expect(magic).toBe(0x43445745); // EWDC
+
+    // dispose() should free the pooled buffer
+    runtime.dispose();
+    expect(mockEngine.freeBytes).toHaveBeenCalledWith(100);
   });
 
   it('does nothing if command list is empty', async () => {

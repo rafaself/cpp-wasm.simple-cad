@@ -101,6 +101,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("redo", &CadEngine::redo)
         .function("pollEvents", &CadEngine::pollEvents)
         .function("ackResync", &CadEngine::ackResync)
+        .function("hasPendingEvents", &CadEngine::hasPendingEvents)
         .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
         .function("getSelectionHandleMeta", &CadEngine::getSelectionHandleMeta)
         .function("getEntityAabb", &CadEngine::getEntityAabb)

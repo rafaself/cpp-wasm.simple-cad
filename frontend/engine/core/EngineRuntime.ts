@@ -84,6 +84,7 @@ export type CadEngineInstance = {
   redo?: () => void;
   pollEvents: (maxEvents: number) => EventBufferMeta;
   ackResync: (resyncGeneration: number) => void;
+  hasPendingEvents?: () => boolean; // Optimization: skip polling when no events
   getSelectionOutlineMeta?: () => OverlayBufferMeta;
   getSelectionHandleMeta?: () => OverlayBufferMeta;
   getEntityAabb?: (entityId: EntityId) => EntityAabb;
@@ -209,6 +210,30 @@ export class EngineRuntime {
 
   public readonly capabilitiesMask: number;
 
+  // Command buffer pool — avoids alloc/free per apply() call
+  private static readonly INITIAL_BUFFER_SIZE = 64 * 1024; // 64KB
+  private commandBufferPtr: number = 0;
+  private commandBufferCapacity: number = 0;
+
+  /**
+   * Ensures the pre-allocated command buffer has at least `size` bytes.
+   * Grows if needed, reuses otherwise.
+   */
+  private ensureCommandBuffer(size: number): number {
+    if (size <= this.commandBufferCapacity) {
+      return this.commandBufferPtr;
+    }
+    // Free old buffer if exists
+    if (this.commandBufferPtr !== 0) {
+      this.engine.freeBytes(this.commandBufferPtr);
+    }
+    // Allocate with headroom
+    const newCapacity = Math.max(size, EngineRuntime.INITIAL_BUFFER_SIZE);
+    this.commandBufferPtr = this.engine.allocBytes(newCapacity);
+    this.commandBufferCapacity = newCapacity;
+    return this.commandBufferPtr;
+  }
+
   public resetIds(): void {
     IdRegistry.clear();
     LayerRegistry.clear();
@@ -306,12 +331,20 @@ export class EngineRuntime {
     if (commands.length === 0) return;
 
     const bytes = encodeCommandBuffer(commands);
-    const ptr = this.engine.allocBytes(bytes.byteLength);
-    try {
-      this.module.HEAPU8.set(bytes, ptr);
-      this.engine.applyCommandBuffer(ptr, bytes.byteLength);
-    } finally {
-      this.engine.freeBytes(ptr);
+    const ptr = this.ensureCommandBuffer(bytes.byteLength);
+    this.module.HEAPU8.set(bytes, ptr);
+    this.engine.applyCommandBuffer(ptr, bytes.byteLength);
+    // Buffer is NOT freed — reused on next apply()
+  }
+
+  /**
+   * Release pooled resources. Call when EngineRuntime is disposed.
+   */
+  public dispose(): void {
+    if (this.commandBufferPtr !== 0) {
+      this.engine.freeBytes(this.commandBufferPtr);
+      this.commandBufferPtr = 0;
+      this.commandBufferCapacity = 0;
     }
   }
 
@@ -331,6 +364,18 @@ export class EngineRuntime {
       generation: meta.generation,
       events: decodeEngineEvents(this.module.HEAPU8, meta.ptr, meta.count),
     };
+  }
+
+  /**
+   * Returns true if there are pending events to poll.
+   * Use this to skip pollEvents() when idle — reduces overhead.
+   */
+  public hasPendingEvents(): boolean {
+    if (typeof this.engine.hasPendingEvents === 'function') {
+      return this.engine.hasPendingEvents();
+    }
+    // Fallback for older WASM builds — always poll
+    return true;
   }
 
   public getSelectionOutlineMeta(): OverlayBufferMeta {

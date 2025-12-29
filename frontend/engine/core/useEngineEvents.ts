@@ -69,6 +69,12 @@ export const useEngineEvents = (): void => {
         bootstrapped = true;
       }
 
+      // Skip polling if no pending events (performance optimization)
+      if (!runtime.hasPendingEvents()) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+
       const { events } = runtime.pollEvents(512);
       if (events.length === 0) {
         rafId = requestAnimationFrame(tick);

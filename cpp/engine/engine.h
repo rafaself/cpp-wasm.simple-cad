@@ -8,6 +8,7 @@
 
 #include "engine/core/util.h"
 #include "engine/core/types.h"
+#include "engine/protocol/protocol_types.h"
 
 #include "engine/command/commands.h"
 #include "engine/render/render.h"
@@ -49,91 +50,30 @@ public:
     // Expose legacy nested type names for backwards compatibility with existing callers/tests
     using CommandOp = ::CommandOp;
 
-    enum class EngineCapability : std::uint32_t {
-        HAS_QUERY_MARQUEE = 1 << 0,
-        HAS_RESIZE_HANDLES = 1 << 1,
-        HAS_TRANSFORM_RESIZE = 1 << 2,
-    };
-
-    // Feature flags for build-time capabilities (protocol handshake).
-    enum class EngineFeatureFlags : std::uint32_t {
-        FEATURE_PROTOCOL = 1 << 0,
-        FEATURE_LAYERS_FLAGS = 1 << 1,
-        FEATURE_SELECTION_ORDER = 1 << 2,
-        FEATURE_SNAPSHOT_VNEXT = 1 << 3,
-        FEATURE_EVENT_STREAM = 1 << 4,
-        FEATURE_OVERLAY_QUERIES = 1 << 5,
-        FEATURE_INTERACTIVE_TRANSFORM = 1 << 6,
-        FEATURE_ENGINE_HISTORY = 1 << 7,
-        FEATURE_ENGINE_DOCUMENT_SOT = 1 << 8,
-    };
-
-    enum class LayerPropMask : std::uint32_t {
-        Name = 1 << 0,
-        Visible = 1 << 1,
-        Locked = 1 << 2,
-    };
-
-    enum class SelectionMode : std::uint32_t {
-        Replace = 0,
-        Add = 1,
-        Remove = 2,
-        Toggle = 3,
-    };
-
-    enum class SelectionModifier : std::uint32_t {
-        Shift = 1 << 0,
-        Ctrl = 1 << 1,
-        Alt = 1 << 2,
-        Meta = 1 << 3,
-    };
-
-    enum class MarqueeMode : std::uint32_t {
-        Window = 0,
-        Crossing = 1,
-    };
-
-    enum class ReorderAction : std::uint32_t {
-        BringToFront = 1,
-        SendToBack = 2,
-        BringForward = 3,
-        SendBackward = 4,
-    };
-
-    enum class EventType : std::uint16_t {
-        Overflow = 1,
-        DocChanged = 2,
-        EntityChanged = 3,
-        EntityCreated = 4,
-        EntityDeleted = 5,
-        LayerChanged = 6,
-        SelectionChanged = 7,
-        OrderChanged = 8,
-        HistoryChanged = 9,
-    };
-
-
-
-    enum class ChangeMask : std::uint32_t {
-        Geometry = 1 << 0,
-        Style = 1 << 1,
-        Flags = 1 << 2,
-        Layer = 1 << 3,
-        Order = 1 << 4,
-        Text = 1 << 5,
-        Bounds = 1 << 6,
-        RenderData = 1 << 7,
-    };
-
-    // Handshake payload (POD): frontend validates version + abiHash + feature flags.
-    struct ProtocolInfo {
-        std::uint32_t protocolVersion;
-        std::uint32_t commandVersion;
-        std::uint32_t snapshotVersion;
-        std::uint32_t eventStreamVersion;
-        std::uint32_t abiHash;
-        std::uint32_t featureFlags;
-    };
+    // Protocol types (aliased from engine::protocol namespace for backwards compatibility)
+    using EngineCapability = engine::protocol::EngineCapability;
+    using EngineFeatureFlags = engine::protocol::EngineFeatureFlags;
+    using LayerPropMask = engine::protocol::LayerPropMask;
+    using SelectionMode = engine::protocol::SelectionMode;
+    using SelectionModifier = engine::protocol::SelectionModifier;
+    using MarqueeMode = engine::protocol::MarqueeMode;
+    using ReorderAction = engine::protocol::ReorderAction;
+    using EventType = engine::protocol::EventType;
+    using ChangeMask = engine::protocol::ChangeMask;
+    using OverlayKind = engine::protocol::OverlayKind;
+    using ProtocolInfo = engine::protocol::ProtocolInfo;
+    using BufferMeta = engine::protocol::BufferMeta;
+    using ByteBufferMeta = engine::protocol::ByteBufferMeta;
+    using TextureBufferMeta = engine::protocol::TextureBufferMeta;
+    using DocumentDigest = engine::protocol::DocumentDigest;
+    using HistoryMeta = engine::protocol::HistoryMeta;
+    using EngineEvent = engine::protocol::EngineEvent;
+    using EventBufferMeta = engine::protocol::EventBufferMeta;
+    using OverlayPrimitive = engine::protocol::OverlayPrimitive;
+    using OverlayBufferMeta = engine::protocol::OverlayBufferMeta;
+    using EntityAabb = engine::protocol::EntityAabb;
+    using EngineStats = engine::protocol::EngineStats;
+    using TextContentMeta = engine::protocol::TextContentMeta;
 
     // Protocol versions (must be non-zero; keep in sync with TS).
     static constexpr std::uint32_t kProtocolVersion = 1;      // Handshake schema version
@@ -196,39 +136,15 @@ public:
     std::uint32_t allocateEntityId();
     std::uint32_t allocateLayerId();
 
-    struct BufferMeta {
-        std::uint32_t generation;
-        std::uint32_t vertexCount;
-        std::uint32_t capacity;   // in vertices
-        std::uint32_t floatCount; // convenience for view length
-        std::uintptr_t ptr;       // byte offset in WASM linear memory
-    };
-
     BufferMeta buildMeta(const std::vector<float>& buffer, std::size_t floatsPerVertex) const noexcept;
     BufferMeta getPositionBufferMeta() const noexcept;
     BufferMeta getLineBufferMeta() const noexcept;
-
-    struct ByteBufferMeta {
-        std::uint32_t generation;
-        std::uint32_t byteCount;
-        std::uintptr_t ptr;
-    };
 
     ByteBufferMeta saveSnapshot() const noexcept;
     ByteBufferMeta getSnapshotBufferMeta() const noexcept;
     ByteBufferMeta getFullSnapshotMeta() const noexcept { return saveSnapshot(); }
 
-    struct DocumentDigest {
-        std::uint32_t lo;
-        std::uint32_t hi;
-    };
     DocumentDigest getDocumentDigest() const noexcept;
-
-    struct HistoryMeta {
-        std::uint32_t depth;
-        std::uint32_t cursor;
-        std::uint32_t generation;
-    };
 
     HistoryMeta getHistoryMeta() const noexcept;
     bool canUndo() const noexcept;
@@ -236,72 +152,18 @@ public:
     void undo();
     void redo();
 
-    struct EngineEvent {
-        std::uint16_t type;
-        std::uint16_t flags;
-        std::uint32_t a;
-        std::uint32_t b;
-        std::uint32_t c;
-        std::uint32_t d;
-    };
-
-    struct EventBufferMeta {
-        std::uint32_t generation;
-        std::uint32_t count;
-        std::uintptr_t ptr;
-    };
-
     EventBufferMeta pollEvents(std::uint32_t maxEvents);
     void ackResync(std::uint32_t resyncGeneration);
 
-    enum class OverlayKind : std::uint16_t {
-        Polyline = 1,
-        Polygon = 2,
-        Segment = 3,
-        Rect = 4,
-        Point = 5,
-    };
-
-    struct OverlayPrimitive {
-        std::uint16_t kind;
-        std::uint16_t flags;
-        std::uint32_t count;  // number of points
-        std::uint32_t offset; // float offset into data buffer
-    };
-
-    struct OverlayBufferMeta {
-        std::uint32_t generation;
-        std::uint32_t primitiveCount;
-        std::uint32_t floatCount;
-        std::uintptr_t primitivesPtr;
-        std::uintptr_t dataPtr;
-    };
-
-    struct EntityAabb {
-        float minX;
-        float minY;
-        float maxX;
-        float maxY;
-        std::uint32_t valid;
-    };
+    /**
+     * Returns true if there are pending events to poll.
+     * Use this to skip pollEvents() call when idle (reduces overhead).
+     */
+    bool hasPendingEvents() const noexcept { return eventCount_ > 0; }
 
     OverlayBufferMeta getSelectionOutlineMeta() const;
     OverlayBufferMeta getSelectionHandleMeta() const;
     EntityAabb getEntityAabb(std::uint32_t entityId) const;
-
-    struct EngineStats {
-        std::uint32_t generation;
-        std::uint32_t rectCount;
-        std::uint32_t lineCount;
-        std::uint32_t polylineCount;
-        std::uint32_t pointCount;
-        std::uint32_t triangleVertexCount;
-        std::uint32_t lineVertexCount;
-        std::uint32_t rebuildAllGeometryCount;
-        float lastLoadMs;
-        float lastRebuildMs;
-        float lastApplyMs;
-    };
 
     EngineStats getStats() const noexcept;
 
@@ -707,13 +569,6 @@ public:
     /**
      * Get atlas texture metadata for WebGL upload.
      */
-    struct TextureBufferMeta {
-        std::uint32_t generation;
-        std::uint32_t width;
-        std::uint32_t height;
-        std::uint32_t byteCount;
-        std::uintptr_t ptr;
-    };
     TextureBufferMeta getAtlasTextureMeta() const noexcept;
     
     /**
@@ -735,15 +590,6 @@ public:
      * Clear atlas dirty flag after texture upload.
      */
     void clearAtlasDirty();
-    
-    /**
-     * Metadata for text content buffer (for JS to read content from engine).
-     */
-    struct TextContentMeta {
-        std::uint32_t byteCount;  // Length of UTF-8 content in bytes
-        std::uintptr_t ptr;       // Pointer to UTF-8 data in WASM memory
-        bool exists;              // Whether the text entity exists
-    };
     
     /**
      * Get text content buffer metadata for a text entity.

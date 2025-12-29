@@ -3,6 +3,27 @@
  *
  * Provides character navigation (word boundaries, line boundaries) and
  * UTF-8 byte/character index conversion utilities.
+ *
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * INTENTIONAL DUPLICATION: UTF-8 ↔ Character Index Conversion
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *
+ * The functions charToByteIndex() and byteToCharIndex() duplicate logic that
+ * exists in the C++ engine (text/text_layout_impl.cpp). This is INTENTIONAL:
+ *
+ * 1. JS needs to convert indices BEFORE sending commands to the engine
+ *    (e.g., caret position, text selection, style application)
+ *
+ * 2. Exposing conversion via WASM would add FFI overhead on every keystroke
+ *
+ * 3. Both implementations use standard UTF-8 encoding (RFC 3629), ensuring
+ *    byte-identical results
+ *
+ * If you modify these functions, verify compatibility with:
+ * - cpp/engine/text/text_layout_impl.cpp: utf8ToLogical(), logicalToUtf8()
+ *
+ * @see AGENTS.md section "Engine-First Architecture"
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
 import { utf8ByteLength } from '@/types/text';

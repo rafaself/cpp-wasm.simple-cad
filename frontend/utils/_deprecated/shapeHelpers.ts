@@ -1,9 +1,18 @@
 /**
- * Helper functions for shape operations.
- * Centralizes common shape validation and lookup patterns to reduce duplication.
+ * @deprecated LEGACY CODE — NOT IN USE
+ * 
+ * Este arquivo contém helpers para o tipo Shape legado.
+ * NÃO É UTILIZADO no código atual — o engine C++ é a fonte de verdade.
+ * 
+ * Mantido em _deprecated/ caso seja necessário para:
+ * - Referência histórica
+ * - Possível reutilização em pipeline de import futuro
+ * 
+ * @see AGENTS.md seção "Engine-First Architecture"
+ * @see docs/agents/audit-action-plan.md
  */
 
-import { Shape, Layer } from '../types';
+import { Shape, Layer } from '../../types';
 
 /**
  * Gets a shape if it exists (engine handles locked state).
