@@ -43,6 +43,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Governance checks
+        run: pnpm governance:check
+
       - name: Test
         run: pnpm test
 

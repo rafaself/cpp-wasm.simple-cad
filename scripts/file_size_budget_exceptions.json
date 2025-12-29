@@ -1,0 +1,34 @@
+{
+  "files": [
+    {
+      "path": "cpp/engine/engine.h",
+      "hardLimit": 1300,
+      "reason": "Legacy engine header (pre-SRP split) exceeds hard cap; tracked for refactor."
+    },
+    {
+      "path": "cpp/engine/persistence/snapshot.cpp",
+      "hardLimit": 820,
+      "reason": "Snapshot path still monolithic; refactor planned in SRP roadmap."
+    },
+    {
+      "path": "cpp/engine/render/vector_tessellation.cpp",
+      "hardLimit": 820,
+      "reason": "Render tessellation debt; pending render system split."
+    },
+    {
+      "path": "cpp/tests/text_commands_test.cpp",
+      "hardLimit": 1050,
+      "reason": "Large text command test suite; slated for breakup after text refactor."
+    },
+    {
+      "path": "frontend/engine/tools/text/TextInputCoordinator.ts",
+      "hardLimit": 650,
+      "reason": "Legacy text input coordinator; slated for Phase 4 SRP refactor."
+    },
+    {
+      "path": "frontend/engine/bridge/textBridge.ts",
+      "hardLimit": 650,
+      "reason": "Historic text bridge still over the TS hard cap; pending bridge refactor."
+    }
+  ]
+}

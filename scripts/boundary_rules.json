@@ -1,0 +1,43 @@
+{
+  "runtimeEngineAllowlist": [
+    { "path": "frontend/tests/engineRuntime.test.ts", "reason": "Unit test inspects runtime.engine directly." },
+    { "path": "frontend/components/dev/PerformanceMonitor.tsx", "reason": "Dev-only performance overlay reads engine stats." },
+    { "path": "frontend/hooks/usePickThrottle.ts", "reason": "Legacy pick throttling still probes engine stats; pending facade." },
+    { "path": "frontend/features/editor/hooks/useEditorLogic.ts", "reason": "Editor layer deletions still call engine directly; slated for command helper extraction." },
+    { "path": "frontend/features/editor/hooks/useEngineTextEditState.ts", "reason": "Text editing bridge still casts runtime.engine; will move behind text facade." },
+    { "path": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx", "reason": "Selection marquee calls engine directly; refactor to interaction helper pending." },
+    { "path": "frontend/features/editor/components/EditorRibbon.tsx", "reason": "Layer snapshot read still pulls directly from runtime.engine." },
+    { "path": "frontend/features/editor/components/LayerManagerModal.tsx", "reason": "Layer mutations currently call engine directly; needs facade." },
+    { "path": "frontend/features/editor/components/EditorSidebar.tsx", "reason": "Sidebar layer actions still invoke engine until façade is in place." },
+    { "path": "frontend/utils/benchmarks/pickBenchmarks.ts", "reason": "Benchmark harness calls engine for setup/teardown." },
+    { "path": "frontend/utils/pickResultCache.ts", "reason": "Diagnostics cache uses engine stats for logging thresholds." }
+  ],
+  "featureImportEntrypoints": [
+    "frontend/engine/core/EngineRuntime",
+    "frontend/engine/core/singleton",
+    "frontend/engine/core/useEngineRuntime",
+    "frontend/engine/core/useEngineSelection",
+    "frontend/engine/core/useEngineEvents",
+    "frontend/engine/core/useEngineLayers",
+    "frontend/engine/core/engineDocumentSignals"
+  ],
+  "featureImportAllowlist": [
+    { "path": "frontend/features/settings/sections/CanvasSettings.tsx", "import": "frontend/engine/core/capabilities", "reason": "Legacy capability gate; to be exposed via EngineRuntime." },
+    { "path": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "frontend/engine/types", "reason": "Draft handler still uses engine enums directly; needs facade." },
+    { "path": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "frontend/engine/core/commandBuffer", "reason": "Command op construction should move to runtime helper." },
+    { "path": "frontend/features/editor/interactions/handlers/TextHandler.tsx", "import": "frontend/engine/tools/TextTool", "reason": "Text tool wiring still imports engine tool directly." },
+    { "path": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "frontend/engine/core/protocol", "reason": "Selection handler pulls engine protocol types directly; needs facade." },
+    { "path": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "frontend/engine/core/interactionSession", "reason": "Transform mode wiring bypasses runtime facade." },
+    { "path": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "frontend/engine/core/commandBuffer", "reason": "Command op construction should be moved behind EngineRuntime." },
+    { "path": "frontend/features/editor/components/SelectionOverlay.tsx", "import": "frontend/engine/core/capabilities", "reason": "Overlay still inspects engine capabilities directly." },
+    { "path": "frontend/features/editor/components/SelectionOverlay.tsx", "import": "frontend/engine/core/overlayDecoder", "reason": "Overlay decoder should be exposed via facade." },
+    { "path": "frontend/features/editor/components/SelectionOverlay.tsx", "import": "frontend/engine/core/protocol", "reason": "Overlay component still depends on engine protocol enums." },
+    { "path": "frontend/features/editor/components/LayerManagerModal.tsx", "import": "frontend/engine/core/protocol", "reason": "Layer mutations using protocol enums directly; needs facade." },
+    { "path": "frontend/features/editor/components/EditorSidebar.tsx", "import": "frontend/engine/core/protocol", "reason": "Sidebar layer commands reference protocol enums directly." },
+    { "path": "frontend/features/editor/components/EngineInteractionLayer.tsx", "import": "frontend/engine/core/commandBuffer", "reason": "Interaction layer builds command buffer directly; should delegate to runtime helper." },
+    { "path": "frontend/features/editor/hooks/useEditorLogic.ts", "import": "frontend/engine/core/commandBuffer", "reason": "Editor logic builds command lists manually; needs facade." },
+    { "path": "frontend/features/editor/hooks/useEditorLogic.ts", "import": "frontend/engine/core/protocol", "reason": "Protocol types still imported directly." },
+    { "path": "frontend/features/editor/hooks/useEngineTextEditState.ts", "import": "frontend/engine/bridge/textBridge", "reason": "Text editing hook still uses bridge types directly." },
+    { "path": "frontend/features/editor/components/NextSurface.tsx", "import": "frontend/engine/renderer/TessellatedWasmLayer", "reason": "Renderer is consumed directly until a facade exists." }
+  ]
+}

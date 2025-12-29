@@ -1,0 +1,7 @@
+{
+  "cpp": { "soft": 450, "hard": 800 },
+  "hpp": { "soft": 450, "hard": 800 },
+  "h": { "soft": 450, "hard": 800 },
+  "ts": { "soft": 350, "hard": 600 },
+  "tsx": { "soft": 350, "hard": 600 }
+}
