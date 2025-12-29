@@ -75,11 +75,10 @@ export class TextHandler extends BaseInteractionHandler {
     // Reviewing TextTool: `handleClick` takes world coords. `handlePointerDown` triggers editing.
     // If we click on existing text, we must pass `textId`. 
     // `TextTool` doesn't do "Pick" itself for selection usually?
-    // `EngineInteractionLayer` calls `runtime.pickEx`.
     
-    // We need to Pick here.
+    // Use optimized pick with bounds checking
     const tolerance = 10 / (ctx.viewTransform.scale || 1);
-    const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF);
+    const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xFF);
     
     // If Picked Text?
     // How do we know it is text?

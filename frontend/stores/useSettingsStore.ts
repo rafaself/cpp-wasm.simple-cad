@@ -52,6 +52,11 @@ interface SettingsState {
   toolDefaults: ToolDefaults;
   featureFlags: {
     enableEngineResize: boolean;
+    enablePickProfiling: boolean;
+    enablePickThrottling: boolean;
+  };
+  performance: {
+    pickThrottleInterval: number; // ms
   };
   engineCapabilitiesMask: number;
 
@@ -90,6 +95,9 @@ interface SettingsState {
 
   setEngineResizeEnabled: (enabled: boolean) => void;
   setEngineCapabilitiesMask: (mask: number) => void;
+  setPickProfilingEnabled: (enabled: boolean) => void;
+  setPickThrottlingEnabled: (enabled: boolean) => void;
+  setPickThrottleInterval: (interval: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -141,6 +149,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
   featureFlags: {
     enableEngineResize: false,
+    enablePickProfiling: process.env.NODE_ENV !== 'production',
+    enablePickThrottling: false,
+  },
+  performance: {
+    pickThrottleInterval: 16, // 60fps
   },
   engineCapabilitiesMask: 0,
 
@@ -191,4 +204,15 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     return { featureFlags: { ...state.featureFlags, enableEngineResize: true } };
   }),
   setEngineCapabilitiesMask: (mask) => set((state) => (state.engineCapabilitiesMask === mask ? state : { engineCapabilitiesMask: mask })),
+  
+  // Performance settings
+  setPickProfilingEnabled: (enabled) => set((state) => ({
+    featureFlags: { ...state.featureFlags, enablePickProfiling: enabled }
+  })),
+  setPickThrottlingEnabled: (enabled) => set((state) => ({
+    featureFlags: { ...state.featureFlags, enablePickThrottling: enabled }
+  })),
+  setPickThrottleInterval: (interval) => set((state) => ({
+    performance: { ...state.performance, pickThrottleInterval: Math.max(8, Math.min(100, interval)) }
+  })),
 }));

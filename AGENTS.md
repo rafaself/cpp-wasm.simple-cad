@@ -260,6 +260,10 @@ const result = runtime.commitTransform();
 
 ## 9. Code Quality Standards
 
+### General
+
+- Consider Type Safety always when possible
+
 ### C++
 
 - Modern C++17/20
@@ -352,14 +356,14 @@ frontend/
 
 ## 12. Additional Documentation
 
-| Document                              | Content                           |
-| ------------------------------------- | --------------------------------- |
-| `docs/agents/engine-api.md`           | Complete C++ API reference        |
-| `docs/agents/frontend-patterns.md`    | Mandatory React patterns          |
-| `docs/agents/text-system.md`          | Text system                       |
-| `docs/agents/workflows.md`            | Development recipes               |
-| `docs/agents/srp-refactor-plan.md`    | SRP refactoring plan & guidelines |
-| `docs/agents/srp-refactor-action-plan.md` | Execution action plan         |
+| Document                                  | Content                           |
+| ----------------------------------------- | --------------------------------- |
+| `docs/agents/engine-api.md`               | Complete C++ API reference        |
+| `docs/agents/frontend-patterns.md`        | Mandatory React patterns          |
+| `docs/agents/text-system.md`              | Text system                       |
+| `docs/agents/workflows.md`                | Development recipes               |
+| `docs/agents/srp-refactor-plan.md`        | SRP refactoring plan & guidelines |
+| `docs/agents/srp-refactor-action-plan.md` | Execution action plan             |
 
 ---
 
@@ -390,12 +394,12 @@ To maintain code quality and prevent monolithic files, the following size limits
 
 ### File Size Thresholds
 
-| Area | Review Threshold | Mandatory Refactor |
-| ---- | ---------------- | ------------------ |
-| C++ engine (`cpp/engine/**`) | > 450 LOC | > 800 LOC |
-| C++ tests (`cpp/tests/**`) | > 600 LOC | > 1000 LOC |
-| TS/TSX (`frontend/**`) | > 350 LOC | > 600 LOC |
-| TS tests | > 400 LOC | > 700 LOC |
+| Area                         | Review Threshold | Mandatory Refactor |
+| ---------------------------- | ---------------- | ------------------ |
+| C++ engine (`cpp/engine/**`) | > 450 LOC        | > 800 LOC          |
+| C++ tests (`cpp/tests/**`)   | > 600 LOC        | > 1000 LOC         |
+| TS/TSX (`frontend/**`)       | > 350 LOC        | > 600 LOC          |
+| TS tests                     | > 400 LOC        | > 700 LOC          |
 
 ### Function Length Guardrails
 
@@ -411,11 +415,11 @@ To maintain code quality and prevent monolithic files, the following size limits
 
 ### Forbidden Patterns
 
-| Pattern | Why Forbidden |
-| ------- | ------------- |
-| `utils.ts` > 200 LOC | Becomes god-file dumping ground |
-| Manager class > 500 LOC | Hidden monolith |
-| Cross-layer imports | Engine-First violation |
+| Pattern                   | Why Forbidden                   |
+| ------------------------- | ------------------------------- |
+| `utils.ts` > 200 LOC      | Becomes god-file dumping ground |
+| Manager class > 500 LOC   | Hidden monolith                 |
+| Cross-layer imports       | Engine-First violation          |
 | Document state in Zustand | Engine owns document, not React |
 
 ### Enforcement

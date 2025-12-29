@@ -36,12 +36,12 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     this.pointerDown = { x: event.clientX, y: event.clientY, world };
 
-    // Picking Logic (Hit Test)
+    // Picking Logic (Hit Test) - Use optimized pick with early exit
     // We throttle exact picking or just do it on down.
     // PickEx: (x, y, tolerance, mask)
     // Mask 0xFF is fine.
     const tolerance = 10 / (ctx.viewTransform.scale || 1); // 10px screen tolerance
-    const res = runtime.pickEx(world.x, world.y, tolerance, 0xFF);
+    const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xFF);
 
     // Check modifiers
     const shift = event.shiftKey;

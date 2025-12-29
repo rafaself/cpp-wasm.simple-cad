@@ -18,6 +18,8 @@ import {
   type HistoryMeta,
 } from './protocol';
 import type { TextCaretPosition, TextHitResult, TextQuadBufferMeta, TextureBufferMeta, TextContentMeta } from '@/types/text';
+import { getPickProfiler } from '@/utils/pickProfiler';
+import { getPickCache } from '@/utils/pickResultCache';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
@@ -449,6 +451,102 @@ export class EngineRuntime {
           subIndex: -1,
           distance: id !== 0 ? 0 : Infinity // Placeholder distance for hit
       };
+  }
+
+  /**
+   * Fast early-exit check before full pick
+   * Checks if there are entities to pick from
+   * 
+   * @returns true if pick should proceed (entities exist)
+   */
+  public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
+    // Check if there are any entities in the document
+    const stats = this.engine.getStats();
+    const totalEntities = 
+      stats.rectCount + 
+      stats.lineCount + 
+      stats.polylineCount + 
+      stats.pointCount;
+
+    // Early exit if no entities exist
+    if (totalEntities === 0) {
+      return false;
+    }
+
+    // Note: Could also check against viewport bounds here in the future
+    // For now, we only reject empty documents
+    return true;
+  }
+
+  /**
+   * Optimized pick with early exit via bounds checking
+   * Falls back to regular pickEx if bounds check passes
+   * 
+   * Use this instead of pickEx for mouse move handlers to improve performance
+   * 
+   * @param x World X coordinate
+   * @param y World Y coordinate
+   * @param tolerance Pick tolerance in world units
+   * @param pickMask Entity type mask
+   * @returns Pick result or empty result if bounds check fails
+   */
+  public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
+    const profiler = getPickProfiler();
+
+    // Quick bounds check to avoid expensive spatial queries
+    if (!this.quickBoundsCheck(x, y, tolerance)) {
+      profiler.recordSkip();
+      return {
+        id: 0,
+        kind: PickEntityKind.Unknown,
+        subTarget: PickSubTarget.None,
+        subIndex: -1,
+        distance: Infinity,
+      };
+    }
+
+    // Bounds check passed, do full pick with profiling
+    const wrappedPick = profiler.wrap(this.pickEx.bind(this));
+    return wrappedPick(x, y, tolerance, pickMask);
+  }
+
+  /**
+   * Ultra-optimized pick with caching and early exit
+   * 
+   * Combines bounds checking, result caching, and profiling for maximum performance.
+   * Best for high-frequency operations like mouse move handlers.
+   * 
+   * Cache is automatically invalidated on document changes (entity add/delete/modify).
+   * 
+   * @param x World X coordinate
+   * @param y World Y coordinate
+   * @param tolerance Pick tolerance in world units
+   * @param pickMask Entity type mask
+   * @param useCache Enable result caching (default: true)
+   * @returns Pick result
+   */
+  public pickExCached(
+    x: number,
+    y: number,
+    tolerance: number,
+    pickMask: number,
+    useCache: boolean = true
+  ): PickResult {
+    // If cache disabled, use smart pick directly
+    if (!useCache) {
+      return this.pickExSmart(x, y, tolerance, pickMask);
+    }
+
+    const cache = getPickCache(this);
+
+    // Try cache first
+    return cache.getOrCompute(
+      x,
+      y,
+      tolerance,
+      pickMask,
+      () => this.pickExSmart(x, y, tolerance, pickMask)
+    );
   }
 
   public getSelectionIds(): Uint32Array {
