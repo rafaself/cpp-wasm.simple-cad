@@ -7,9 +7,9 @@
 
 #include <gtest/gtest.h>
 #include "engine/engine.h"
-#include "engine/commands.h"
-#include "engine/command_dispatch.h"
-#include "engine/types.h"
+#include "engine/command/commands.h"
+#include "engine/command/command_dispatch.h"
+#include "engine/core/types.h"
 #include <cstring>
 #include <string>
 #include <vector>

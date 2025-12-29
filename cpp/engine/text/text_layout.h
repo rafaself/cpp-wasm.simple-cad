@@ -1,7 +1,7 @@
 #ifndef ELETROCAD_ENGINE_TEXT_LAYOUT_H
 #define ELETROCAD_ENGINE_TEXT_LAYOUT_H
 
-#include "engine/types.h"
+#include "engine/core/types.h"
 #include "engine/text/text_types.h"
 #include "engine/text/text_store.h"
 #include "engine/text/font_manager.h"

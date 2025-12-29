@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../engine/engine.h"
+#include "engine/engine.h"
 
 namespace {
 const RectRec* findRect(const CadEngine& engine, std::uint32_t id) {

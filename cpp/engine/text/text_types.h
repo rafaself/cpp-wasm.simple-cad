@@ -1,7 +1,7 @@
 #ifndef ELETROCAD_ENGINE_TEXT_TYPES_H
 #define ELETROCAD_ENGINE_TEXT_TYPES_H
 
-#include "engine/types.h"
+#include "engine/core/types.h"
 #include <cstdint>
 #include <vector>
 #include <string>

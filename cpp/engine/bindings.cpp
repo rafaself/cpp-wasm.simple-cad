@@ -6,7 +6,7 @@
 
 // Include the engine public API header for bindings.
 #include "engine/engine.h"
-#include "engine/pick_system.h" // For PickResult definition
+#include "engine/interaction/pick_system.h" // For PickResult definition
 
 #ifdef EMSCRIPTEN
 EMSCRIPTEN_BINDINGS(cad_engine_module) {

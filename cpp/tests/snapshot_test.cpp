@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "engine/snapshot.h"
-#include "engine/entity_manager.h"
+#include "engine/persistence/snapshot.h"
+#include "engine/entity/entity_manager.h"
 
 using namespace engine;
 

@@ -6,21 +6,21 @@
 #include <emscripten/val.h>
 #endif
 
-#include "engine/util.h"
-#include "engine/types.h"
+#include "engine/core/util.h"
+#include "engine/core/types.h"
 
-#include "engine/commands.h"
-#include "engine/render.h"
-#include "engine/snapshot.h"
+#include "engine/command/commands.h"
+#include "engine/render/render.h"
+#include "engine/persistence/snapshot.h"
 
-#include "engine/entity_manager.h"
+#include "engine/entity/entity_manager.h"
 #include "engine/text_system.h"
 #include "engine/text_system.h"
-#include "engine/pick_system.h"
-#include "engine/history_types.h"
-#include "engine/history_manager.h"
-#include "engine/selection_manager.h"
-#include "engine/interaction_session.h"
+#include "engine/interaction/pick_system.h"
+#include "engine/history/history_types.h"
+#include "engine/history/history_manager.h"
+#include "engine/entity/selection_manager.h"
+#include "engine/interaction/interaction_session.h"
 
 #include <array>
 #include <cstdint>

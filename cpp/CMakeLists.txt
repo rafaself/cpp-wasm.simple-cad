@@ -86,24 +86,31 @@ endif()
 set(ENGINE_SOURCES
   engine/bindings.cpp
   engine.cpp
-  engine/commands.cpp
-  engine/snapshot.cpp
-  engine/render.cpp
-  engine/pick_system.cpp
-  engine/vector_tessellation.cpp
-  engine/entity_manager.cpp
-  engine/history_manager.cpp
-  engine/selection_manager.cpp
-  engine/interaction_session.cpp
-  engine/command_dispatch.cpp
-  engine/engine_upsert.cpp
-  engine/engine_digest.cpp
-  engine/engine_query.cpp
-  engine/engine_overlay.cpp
-  engine/engine_text.cpp
-  engine/engine_snapshot.cpp
-  engine/engine_render.cpp
-  engine/engine_event.cpp
+  # Command processing
+  engine/command/commands.cpp
+  engine/command/command_dispatch.cpp
+  # Entity management
+  engine/entity/entity_manager.cpp
+  engine/entity/selection_manager.cpp
+  # History (undo/redo)
+  engine/history/history_manager.cpp
+  # Rendering
+  engine/render/render.cpp
+  engine/render/vector_tessellation.cpp
+  # Interaction (picking, transforms)
+  engine/interaction/pick_system.cpp
+  engine/interaction/interaction_session.cpp
+  # Persistence
+  engine/persistence/snapshot.cpp
+  # Implementation (CadEngine method implementations)
+  engine/impl/engine_upsert.cpp
+  engine/impl/engine_digest.cpp
+  engine/impl/engine_query.cpp
+  engine/impl/engine_overlay.cpp
+  engine/impl/engine_text.cpp
+  engine/impl/engine_snapshot.cpp
+  engine/impl/engine_render.cpp
+  engine/impl/engine_event.cpp
 )
 
 # Text module sources (conditional)

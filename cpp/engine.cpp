@@ -1,7 +1,7 @@
 // engine.cpp now contains only a thin TU; public `CadEngine` lives in engine/engine.h
 #include "engine/engine.h"
-#include "engine/command_dispatch.h"
-#include "engine/string_utils.h"
+#include "engine/command/command_dispatch.h"
+#include "engine/core/string_utils.h"
 
 // Implement CadEngine methods moved out of the header to keep the header small.
 
