@@ -127,15 +127,10 @@ EngineError dispatchCommand(
         // Text Commands
         // =======================================================================
         case static_cast<std::uint32_t>(CommandOp::UpsertText): {
-            printf("[DEBUG] UpsertText command received: id=%u payloadBytes=%u\n", id, payloadByteCount);
-            
             if (payloadByteCount < sizeof(TextPayloadHeader)) return EngineError::InvalidPayloadSize;
             
             TextPayloadHeader hdr;
             std::memcpy(&hdr, payload, sizeof(TextPayloadHeader));
-            
-            printf("[DEBUG] UpsertText header: x=%.2f y=%.2f runCount=%u contentLen=%u\n", 
-                hdr.x, hdr.y, hdr.runCount, hdr.contentLength);
             
             const std::size_t runsSize = static_cast<std::size_t>(hdr.runCount) * sizeof(TextRunPayload);
             const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength;
