@@ -1,13 +1,16 @@
 import { Shape, Layer, Point, ShapeColorMode } from '../../../../types';
 import { generateId } from '../../../../utils/uuid';
 import { DxfData, DxfEntity, DxfVector, DxfImportOptions, DxfLayer, DxfStyle } from './types';
-import { tessellateArc, tessellateCircle, tessellateBulge, tessellateSpline } from './curveTessellation';
-import { Mat2D, identity, multiply, applyToPoint, fromTranslation, fromScaling, fromRotation } from './matrix2d';
-import { resolveColor, resolveLineweight, resolveFontFamily, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
+import { tessellateCircle } from './curveTessellation';
+import { Mat2D, identity, multiply, applyToPoint, fromTranslation, fromScaling, fromRotation, isSimilarityTransform } from './matrix2d';
+import { resolveColor, resolveLineweight, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
 import { applyColorScheme, resolveColorScheme, usesCustomColorMode } from './colorScheme';
-import { parseMTextContent, getDxfTextAlignment, getDxfTextShift, ParsedMText } from './textUtils';
 import { resolveUnitScale } from './unitResolver';
 import { calculateBounds, normalizeShapesToOrigin, normalizeTextScaling } from './shapeNormalization';
+import { 
+  processLine, processPolyline, processSpline, processCircle, processArc, processText, 
+  EntityProcessorContext 
+} from './entityProcessors';
 
 export interface DxfImportResult {
   shapes: Shape[];
@@ -17,7 +20,7 @@ export interface DxfImportResult {
   origin: { x: number; y: number };
 }
 
-const dist = (p1: DxfVector, p2: DxfVector) => Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+const DXF_CURVE_TOLERANCE_DEG = 2.5;
 
 const STANDARD_LINETYPES: Record<string, number[]> = {
     'DASHED': [10, 5],
@@ -28,23 +31,6 @@ const STANDARD_LINETYPES: Record<string, number[]> = {
     'CONTINUOUS': []
 };
 
-const MIN_TEXT_SIZE = 0.001;
-const DXF_CURVE_TOLERANCE_DEG = 2.5;
-
-const toRadiansIfNeeded = (angle: number): number => {
-    if (!isFinite(angle)) return 0;
-    const abs = Math.abs(angle);
-    return abs > Math.PI * 2 + 0.5 ? (angle * Math.PI) / 180 : angle;
-};
-
-const isSimilarityTransform = (m: Mat2D): { ok: boolean; scale: number } => {
-    const sx = Math.hypot(m.a, m.b);
-    const sy = Math.hypot(m.c, m.d);
-    const dot = m.a * m.c + m.b * m.d;
-    const scale = sx || 1;
-    const ok = Math.abs(sx - sy) < 1e-6 && Math.abs(dot) < 1e-6 && isFinite(scale) && scale > 0;
-    return { ok, scale };
-};
 
 export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): DxfImportResult => {
   const ENTITY_LIMIT = 30000;
@@ -221,263 +207,40 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
         ...(colorModeOverride ? { colorMode: colorModeOverride } : {})
     };
 
+    const ctx: EntityProcessorContext = {
+        matrix,
+        shapeProps,
+        color,
+        dxfStyles,
+        header: data.header
+    };
+
     switch (entity.type) {
       case 'LINE':
-        if (entity.vertices && entity.vertices.length >= 2) {
-          outputShapes.push({
-            id: generateId('dxf-line'),
-            type: 'line',
-            points: [trans(entity.vertices[0]), trans(entity.vertices[1])],
-            ...shapeProps
-          });
-        }
+        outputShapes.push(...processLine(entity, ctx));
         break;
 
       case 'LWPOLYLINE':
       case 'POLYLINE':
-        if (entity.vertices && entity.vertices.length >= 2) {
-          const sim = isSimilarityTransform(matrix);
-          const rawPts: DxfVector[] = [];
-          const vs = entity.vertices;
-          const isClosed = (entity as any).closed === true || (entity as any).shape === true || (entity.closed === true);
-
-          if (
-              sim.ok &&
-              isClosed &&
-              vs.length === 2 &&
-              vs.every(v => v.bulge !== undefined && Math.abs(v.bulge) > 1e-10) &&
-              Math.abs(Math.abs(vs[0].bulge!) - 1) < 1e-6 &&
-              Math.abs(Math.abs(vs[1].bulge!) - 1) < 1e-6
-          ) {
-              const p1 = trans(vs[0]);
-              const p2 = trans(vs[1]);
-              const cx = (p1.x + p2.x) / 2;
-              const cy = (p1.y + p2.y) / 2;
-              const r = Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2;
-              outputShapes.push({
-                  id: generateId('dxf-circle'),
-                  type: 'circle',
-                  x: cx,
-                  y: cy,
-                  radius: r,
-                  points: [],
-                  ...shapeProps
-              });
-              break;
-          }
-
-          for (let i = 0; i < vs.length; i++) {
-              const curr = vs[i];
-              rawPts.push(curr);
-              const next = (i === vs.length - 1) ? (isClosed ? vs[0] : null) : vs[i+1];
-              if (next && curr.bulge && Math.abs(curr.bulge) > 1e-10) {
-                  const curvePts = tessellateBulge(curr, next, curr.bulge, DXF_CURVE_TOLERANCE_DEG);
-                  rawPts.push(...curvePts);
-              }
-          }
-          if (isClosed && rawPts.length > 2) {
-              const first = rawPts[0];
-              const last = rawPts[rawPts.length-1];
-              if (dist(first, last) > 0.001) rawPts.push({...first});
-          }
-          const pts = rawPts.map(v => trans(v));
-
-          const isHatch = (entity as any).isHatch === true;
-
-          outputShapes.push({
-            id: generateId('dxf-poly'),
-            type: 'polyline',
-            points: pts,
-            ...shapeProps,
-            ...(isHatch
-              ? {
-                  strokeEnabled: false,
-                  fillColor: color,
-                  fillEnabled: true,
-                  colorMode: { fill: 'custom', stroke: 'custom' }
-                }
-              : {})
-          });
-        }
+        outputShapes.push(...processPolyline(entity, ctx));
         break;
 
       case 'SPLINE':
-        if (entity.controlPoints && entity.controlPoints.length > 1) {
-            const degree = entity.degree || 3;
-            const pts = tessellateSpline(entity.controlPoints, degree, entity.knots, entity.weights);
-            const transformedPts = pts.map(p => trans(p));
-            outputShapes.push({
-               id: generateId('dxf-spline'),
-               type: 'polyline',
-               points: transformedPts,
-               ...shapeProps
-            });
-        }
+        outputShapes.push(...processSpline(entity, ctx));
         break;
 
       case 'CIRCLE':
-        if (entity.center && entity.radius) {
-          const sim = isSimilarityTransform(matrix);
-          if (sim.ok) {
-              const c = trans(entity.center);
-              outputShapes.push({
-                  id: generateId('dxf-circle'),
-                  type: 'circle',
-                  x: c.x,
-                  y: c.y,
-                  radius: entity.radius * sim.scale,
-                  points: [],
-                  ...shapeProps
-              });
-          } else {
-              const localPts = tessellateCircle(entity.center, entity.radius, DXF_CURVE_TOLERANCE_DEG);
-              const pts = localPts.map(p => trans(p));
-              outputShapes.push({
-                id: generateId('dxf-circle'),
-                type: 'polyline',
-                points: pts,
-                ...shapeProps
-              });
-          }
-        }
+        outputShapes.push(...processCircle(entity, ctx));
         break;
 
       case 'ARC':
-        if (entity.center && entity.radius) {
-           const startAngle = toRadiansIfNeeded(entity.startAngle || 0);
-           const endAngle = toRadiansIfNeeded(entity.endAngle || 0);
-           const localPts = tessellateArc(entity.center, entity.radius, startAngle, endAngle, true, DXF_CURVE_TOLERANCE_DEG);
-           const pts = localPts.map(p => trans(p));
-           outputShapes.push({
-            id: generateId('dxf-arc'),
-            type: 'polyline',
-            points: pts,
-            ...shapeProps
-          });
-        }
+        outputShapes.push(...processArc(entity, ctx));
         break;
 
       case 'TEXT':
       case 'MTEXT':
       case 'ATTRIB':
-        const rawText = entity.text || (entity as any).value;
-        const parsed: ParsedMText = (entity.type === 'MTEXT')
-            ? parseMTextContent(rawText)
-            : { text: rawText, widthFactor: undefined, oblique: undefined };
-
-        const textContent = parsed.text;
-
-        let localPoint = entity.startPoint || entity.position;
-        let halign = (entity as any).halign || 0;
-        let valign = (entity as any).valign || 0;
-
-        if (entity.type === 'TEXT') {
-            const alignmentPoint = (entity as any).endPoint || (entity as any).alignmentPoint;
-            if (halign !== 0 || valign !== 0) {
-               if (alignmentPoint) {
-                  localPoint = alignmentPoint;
-               }
-            }
-        } else if (entity.type === 'MTEXT') {
-            const attachment = (entity as any).attachmentPoint;
-            if (attachment) {
-                 const att = attachment;
-                 if ([1, 4, 7].includes(att)) halign = 0;
-                 else if ([2, 5, 8].includes(att)) halign = 1;
-                 else if ([3, 6, 9].includes(att)) halign = 2;
-
-                 if ([1, 2, 3].includes(att)) valign = 3;
-                 else if ([4, 5, 6].includes(att)) valign = 2;
-                 else if ([7, 8, 9].includes(att)) valign = 1;
-            }
-        }
-
-        if (localPoint && textContent) {
-           const p = trans(localPoint);
-           const rotRad = (entity.rotation || 0) * (Math.PI / 180);
-
-           const cos = Math.cos(rotRad);
-           const sin = Math.sin(rotRad);
-           const ux = { x: cos, y: sin };
-           const uy = { x: -sin, y: cos };
-
-           const tx_vec = {
-               x: matrix.a * ux.x + matrix.c * ux.y,
-               y: matrix.b * ux.x + matrix.d * ux.y
-           };
-           const ty_vec = {
-               x: matrix.a * uy.x + matrix.c * uy.y,
-               y: matrix.b * uy.x + matrix.d * uy.y
-           };
-
-           const newRot = Math.atan2(tx_vec.y, tx_vec.x);
-           const scaleX_new = Math.sqrt(tx_vec.x * tx_vec.x + tx_vec.y * tx_vec.y);
-           const scaleY_new = Math.sqrt(ty_vec.x * ty_vec.x + ty_vec.y * ty_vec.y);
-
-           const ty_len = scaleY_new || 1;
-           const ty_dir = { x: ty_vec.x / ty_len, y: ty_vec.y / ty_len };
-
-           const det = matrix.a * matrix.d - matrix.b * matrix.c;
-           const isMirrored = det < 0;
-
-           let h = entity.textHeight || (entity as any).height;
-           if (!h || h === 0) {
-               if (entity.style) {
-                   const styleDef = dxfStyles[entity.style.toUpperCase()];
-                   if (styleDef) {
-                       const fixedH = styleDef.fixedTextHeight || styleDef.fixedHeight;
-                       if (fixedH && fixedH > 0) h = fixedH;
-                   }
-               }
-           }
-           h = h || data.header?.$TEXTSIZE || 1;
-           h = Math.max(h, MIN_TEXT_SIZE);
-
-           let fontFile: string | undefined;
-           let styleWidthFactor = 1.0;
-           let styleOblique = 0;
-
-           if (entity.style) {
-               const styleDef = dxfStyles[entity.style.toUpperCase()];
-               if (styleDef) {
-                   fontFile = styleDef.fontFile;
-                   if (styleDef.widthFactor) styleWidthFactor = styleDef.widthFactor;
-                   if (styleDef.obliqueAngle) styleOblique = styleDef.obliqueAngle;
-               }
-           }
-
-           const fontFamily = resolveFontFamily(fontFile);
-
-           let finalWidthFactor = styleWidthFactor;
-           if ((entity as any).widthFactor) finalWidthFactor *= (entity as any).widthFactor;
-           if (parsed.widthFactor) finalWidthFactor *= parsed.widthFactor;
-
-           let finalOblique = styleOblique;
-           if (parsed.oblique) finalOblique += parsed.oblique;
-
-           const textAlign = getDxfTextAlignment(halign, valign);
-           const vShift = getDxfTextShift(valign, h);
-
-           const shiftX = ty_dir.x * vShift * scaleY_new;
-           const shiftY = ty_dir.y * vShift * scaleY_new;
-
-           outputShapes.push({
-            id: generateId('dxf-text'),
-            type: 'text',
-            x: p.x + shiftX,
-            y: p.y + shiftY,
-            points: [],
-            textContent: textContent,
-            fontSize: h,
-            fontFamily: fontFamily,
-            italic: (finalOblique > 10),
-            rotation: newRot,
-            align: textAlign,
-            scaleX: scaleX_new * finalWidthFactor,
-            scaleY: scaleY_new * (isMirrored ? 1 : -1),
-            ...shapeProps
-          });
-        }
+        outputShapes.push(...processText(entity, ctx));
         break;
 
       case 'INSERT':
@@ -570,8 +333,7 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
           }
         }
         break;
-    }
-  };
+    }  };
 
   const globalMatrix = fromScaling(globalScale, globalScale);
   if (data.entities) {

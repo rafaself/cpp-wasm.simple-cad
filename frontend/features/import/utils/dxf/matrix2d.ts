@@ -114,3 +114,12 @@ export const fromTRS = (
     f: ty
   };
 };
+
+export const isSimilarityTransform = (m: Mat2D): { ok: boolean; scale: number } => {
+  const sx = Math.hypot(m.a, m.b);
+  const sy = Math.hypot(m.c, m.d);
+  const dot = m.a * m.c + m.b * m.d;
+  const scale = sx || 1;
+  const ok = Math.abs(sx - sy) < 1e-6 && Math.abs(dot) < 1e-6 && isFinite(scale) && scale > 0;
+  return { ok, scale };
+};
