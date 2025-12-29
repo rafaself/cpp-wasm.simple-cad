@@ -76,12 +76,14 @@ export class PickResultCache {
   ) {
     this.runtime = runtime;
     this.config = {
-      maxSize: config.maxSize ?? 100,
-      ttlMs: config.ttlMs ?? 50,
-      gridSize: config.gridSize ?? 5,
+      maxSize: Math.max(1, config.maxSize ?? 100),
+      ttlMs: Math.max(0, config.ttlMs ?? 50),
+      gridSize: Math.max(1, config.gridSize ?? 5),
     };
 
     // Subscribe to document changes for cache invalidation
+    const stats = this.runtime.engine?.getStats ? this.runtime.engine.getStats() : null;
+    this.lastDocumentGeneration = stats ? stats.generation : 0;
     this.setupInvalidation();
   }
 
@@ -260,7 +262,8 @@ export class PickResultCache {
   private setupInvalidation(): void {
     // Check document generation periodically
     this.intervalId = window.setInterval(() => {
-      const stats = this.runtime.engine?.getStats();
+      if (!this.runtime || !this.runtime.engine || !this.runtime.engine.getStats) return;
+      const stats = this.runtime.engine.getStats();
       if (!stats) return;
 
       const currentGen = stats.generation;

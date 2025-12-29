@@ -462,6 +462,31 @@ export class TextInputCoordinator {
   // ===========================================================================
 
   /**
+   * Sync local state from engine (Single Source of Truth).
+   * Call this after any operation that modifies text or selection.
+   */
+  private syncStateFromEngine(): void {
+    if (!this.bridge || this.state.activeTextId === null) return;
+
+    const textId = this.state.activeTextId;
+    const snapshot = this.bridge.getTextStyleSnapshot(textId);
+
+    // Update state from engine snapshot
+    // Note: Engine provides 'Logical' indices which correspond to JS char indices (usually)
+    // If mismatch proves to be an issue with emojis, we might need byte-to-char conversion
+    // but TextStyleSnapshot.caretLogical is designed for this.
+    this.state = {
+      ...this.state,
+      caretIndex: snapshot.caretLogical,
+      selectionStart: snapshot.selectionStartLogical,
+      selectionEnd: snapshot.selectionEndLogical,
+    };
+
+    this.callbacks.onStateChange(this.state);
+    this.callbacks.updateCaretPosition();
+  }
+
+  /**
    * Handle text input delta from TextInputProxy.
    */
   handleInputDelta(delta: TextInputDelta): void {
@@ -474,20 +499,12 @@ export class TextInputCoordinator {
 
     const textId = this.state.activeTextId;
 
+    // 1. Apply changes to Engine
     switch (delta.type) {
       case 'insert': {
         const currentContent = this.getPooledContent();
         const byteIndex = charIndexToByteIndex(currentContent, delta.at);
         this.bridge.insertContentByteIndex(textId, byteIndex, delta.text);
-
-        const newCaretIndex = delta.at + delta.text.length;
-
-        this.state = {
-          ...this.state,
-          caretIndex: newCaretIndex,
-          selectionStart: newCaretIndex,
-          selectionEnd: newCaretIndex,
-        };
         break;
       }
 
@@ -496,13 +513,6 @@ export class TextInputCoordinator {
         const startByte = charIndexToByteIndex(currentContent, delta.start);
         const endByte = charIndexToByteIndex(currentContent, delta.end);
         this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-
-        this.state = {
-          ...this.state,
-          caretIndex: delta.start,
-          selectionStart: delta.start,
-          selectionEnd: delta.start,
-        };
         break;
       }
 
@@ -513,25 +523,41 @@ export class TextInputCoordinator {
 
         this.bridge.deleteContentByteIndex(textId, startByte, endByte);
         this.bridge.insertContentByteIndex(textId, startByte, delta.text);
-
-        const newCaretIndex = delta.start + delta.text.length;
-
-        this.state = {
-          ...this.state,
-          caretIndex: newCaretIndex,
-          selectionStart: newCaretIndex,
-          selectionEnd: newCaretIndex,
-        };
         break;
       }
     }
 
-    // Update caret in engine
-    const contentAfterEdit = this.getPooledContent();
-    const caretByte = charIndexToByteIndex(contentAfterEdit, this.state.caretIndex);
+    // 2. Sync state from Engine (SSOT)
+    // We assume the Engine updates the caret automatically after insertion/deletion
+    // If not, we might need to set it manually based on delta, 
+    // but ideally the Engine handles 'insert moves caret'.
+    // NOTE: If engine doesn't auto-move caret on insert, we might need explicitly set it.
+    // Let's assume for now we need to hint the engine if it doesn't auto-update,
+    // but standard behavior is valid. 
+    // Actually, TextBridge operations (insertContent) usually DON'T move caret automatically 
+    // in strict ECS, but let's check. 
+    // If they don't, we should send SetCaret command too.
+    
+    // For now, let's explicitly update caret in Engine based on delta, 
+    // THEN read back. This keeps 'logic' here but 'truth' from Engine.
+    // Ideally Engine command `InsertText` should update caret.
+    // If we rely on the bridge commands which are atomic, we might need to set caret.
+
+    // Let's optimize: calculate target caret, set in engine, them read back.
+    // This is still cleaner than keeping local state authoritative.
+    
+    let targetCaretChar = this.state.caretIndex;
+    if (delta.type === 'insert') targetCaretChar = delta.at + delta.text.length;
+    else if (delta.type === 'delete') targetCaretChar = delta.start;
+    else if (delta.type === 'replace') targetCaretChar = delta.start + delta.text.length;
+
+    const contentAfter = this.getPooledContent();
+    const caretByte = charIndexToByteIndex(contentAfter, targetCaretChar);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
-    // Notify JS side of text update
+    this.syncStateFromEngine();
+
+    // 3. Notify JS side for shape bounds (estimated or computed)
     const bounds = this.bridge.getTextBounds(textId);
     let estimatedWidth = 100;
     let estimatedHeight = 16;
@@ -553,9 +579,6 @@ export class TextInputCoordinator {
       this.state.boxMode,
       this.state.constraintWidth
     );
-
-    this.callbacks.onStateChange(this.state);
-    this.callbacks.updateCaretPosition();
   }
 
   /**
@@ -577,14 +600,6 @@ export class TextInputCoordinator {
       this.bridge.setSelectionByteIndex(textId, startByte, endByte);
     }
 
-    this.state = {
-      ...this.state,
-      caretIndex: end,
-      selectionStart: start,
-      selectionEnd: end,
-    };
-
-    this.callbacks.onStateChange(this.state);
-    this.callbacks.updateCaretPosition();
+    this.syncStateFromEngine();
   }
 }

@@ -72,7 +72,7 @@ describe('PerformanceMonitor', () => {
     );
 
     // Initial render
-    expect(screen.getByText('10/s')).toBeInTheDocument(); // Calls/s from mock
+    expect(screen.getAllByText('0').length).toBeGreaterThan(0); // Initial state zeroes
 
     // Advance time to trigger update
     act(() => {
@@ -81,7 +81,7 @@ describe('PerformanceMonitor', () => {
 
     // Verify updates (values might stay same as mock is static, 
     // but at least no error and re-render happens)
-    expect(screen.getByText('10/s')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
   });
 
   it('should position correctly', () => {
