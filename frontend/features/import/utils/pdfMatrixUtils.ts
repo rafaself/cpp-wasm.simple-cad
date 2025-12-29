@@ -21,7 +21,14 @@ export const applyMatrix = (p: Point, m: Matrix): Point => ({
   y: m[1] * p.x + m[3] * p.y + m[5],
 });
 
-const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+export const scaleFromMatrix = (m: Matrix): number => {
+  const sx = Math.hypot(m[0], m[1]);
+  const sy = Math.hypot(m[2], m[3]);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return 1;
+  return (sx + sy) / 2;
+};
+
+export const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
 const toHex2From01 = (v01: number): string =>
   Math.round(clamp01(v01) * 255).toString(16).padStart(2, '0');

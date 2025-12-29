@@ -1,13 +1,6 @@
 /**
  * TextInputCoordinator - Handles text input and pointer events for TextTool
- *
- * This module is extracted from TextTool to handle:
- * - Click/Drag to create text
- * - Pointer down/move/up for selection
- * - Text input delta processing
- * - Selection change handling
- *
- * @see TextTool for the main text tool orchestration
+ * Manages click/drag creation, pointer selection, text input deltas, and selection changes.
  */
 
 import type { TextBridge } from '@/engine/bridge/textBridge';
@@ -20,10 +13,6 @@ import {
   type TextInputDelta,
 } from '@/types/text';
 import { registerEngineId } from '@/engine/core/IdRegistry';
-
-// =============================================================================
-// Types
-// =============================================================================
 
 export interface TextInputState {
   mode: 'idle' | 'creating' | 'editing';
@@ -65,10 +54,6 @@ export interface CoordinatorCallbacks {
   ) => void;
   updateCaretPosition: () => void;
 }
-
-// =============================================================================
-// TextInputCoordinator Class
-// =============================================================================
 
 export class TextInputCoordinator {
   private runtime: EngineRuntime | null = null;
