@@ -16,7 +16,8 @@
     "governance:budgets": "node ../scripts/check_file_size_budget.js",
     "governance:boundaries": "node ../scripts/check_boundaries.js",
     "governance:manifest": "node ../scripts/check_engine_api_manifest.js",
-    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest"
+    "governance:docs": "node ../scripts/check_docs_references.js",
+    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.6",

@@ -57,6 +57,8 @@ export function createMockRuntime(options: {
 
   return {
     engine: mockEngine as any,
+    getStats: vi.fn(() => mockEngine.getStats()),
+    clear: vi.fn(),
     pickEx: vi.fn((x, y, tolerance, mask) => createMockPickResult(0)),
     pickExSmart: vi.fn((x, y, tolerance, mask) => createMockPickResult(0)),
     pickExCached: vi.fn((x, y, tolerance, mask) => createMockPickResult(0)),

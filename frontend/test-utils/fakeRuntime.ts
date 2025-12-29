@@ -54,6 +54,7 @@ export class FakeRuntime {
   applyCallCount = 0;
   draftUpdateCalls = 0;
   appendDraftPointCalls = 0;
+  generation = 0;
 
   engine = {
     queryMarquee: (_x1: number, _y1: number, _x2: number, _y2: number, _hitMode: number) => {
@@ -81,6 +82,7 @@ export class FakeRuntime {
   apply(commands: readonly EngineCommand[]): void {
     this.applyCallCount += 1;
     this.commands.push(...commands);
+    this.generation += 1;
   }
 
   pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
@@ -149,6 +151,16 @@ export class FakeRuntime {
 
   getSnappedPoint(x: number, y: number): { x: number; y: number } {
     return this.snappedPoint ?? { x, y };
+  }
+
+  clear(): void {
+    this.commands = [];
+    this.selection.clear();
+    this.generation += 1;
+  }
+
+  getStats(): { generation: number } {
+    return { generation: this.generation };
   }
 
   saveSnapshotBytes(): Uint8Array {

@@ -26,6 +26,7 @@ describe('TextSystem Cache Optimization', () => {
         mockEngine = {
             // Essential dummies
             getProtocolInfo: vi.fn(() => EXPECTED_PROTOCOL_INFO),
+            getCapabilities: vi.fn(() => 0),
             pollEvents: vi.fn(() => ({ generation: 0, count: 0, ptr: 0 })),
             ackResync: vi.fn(),
             getFullSnapshotMeta: vi.fn(() => ({ generation: 0, byteCount: 0, ptr: 0 })),

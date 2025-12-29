@@ -337,33 +337,7 @@ button.textContent = "Salvar";
 
 ---
 
-## 12. Folder Structure
-
-```
-cpp/
-├── engine/
-│   ├── engine.h              # Main API (header-only heavy parts)
-│   ├── types.h               # Shared POD types
-│   ├── entity_manager.*      # Entity CRUD
-│   ├── pick_system.*         # Hit testing + spatial index
-│   ├── snapshot.*            # Binary serialization
-│   ├── text/                 # Complete text system
-│   └── bindings.cpp          # Embind exposure
-└── tests/                    # CTest
-
-frontend/
-├── engine/
-│   ├── core/                 # Runtime, commands, protocols
-│   ├── tools/                # TextTool (engine-native tools)
-│   └── renderer/             # WebGL2 backend
-├── stores/                   # Zustand (UI state ONLY)
-├── features/editor/          # Editor components and hooks
-└── components/               # Generic UI
-```
-
----
-
-## 13. Additional Documentation
+## 12. Additional Documentation
 
 | Document                            | Content                        |
 | ----------------------------------- | ------------------------------ |
@@ -377,7 +351,7 @@ frontend/
 
 ---
 
-## 14. How to Run Checks
+## 13. How to Run Checks
 
 ```bash
 # Governance (budgets, boundaries, manifest)
@@ -398,7 +372,7 @@ cd cpp/build_native && ctest --output-on-failure
 
 ---
 
-## 15. Commands (general)
+## 14. Commands (general)
 
 ```bash
 # Full build
@@ -413,7 +387,7 @@ cd frontend && pnpm dev
 
 ---
 
-## 16. Code Size Governance (SRP)
+## 15. Code Size Governance (SRP)
 
 To maintain code quality and prevent monolithic files, the following size limits are enforced.
 

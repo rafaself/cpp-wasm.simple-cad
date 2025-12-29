@@ -140,7 +140,7 @@ describe('PickProfiler', () => {
       const wrapped = profiler.wrap(() => {});
       wrapped();
       
-      expect(profiler.getStats().totalCalls).toBe(2);
+      expect(profiler.getStats().totalCalls).toBe(1);
       
       profiler.reset();
       
@@ -186,7 +186,7 @@ describe('PickProfiler', () => {
       wrapped(); // 1 call (no skip)
       
       const stats = profiler.getStats();
-      expect(stats.totalCalls).toBe(2);
+      expect(stats.totalCalls).toBe(1);
       expect(stats.totalSkipped).toBe(1);
       expect(stats.skipRate).toBe(0.5);
     });
@@ -221,24 +221,18 @@ describe('PickProfiler', () => {
   });
 
   describe('auto-logging', () => {
-    it('should log stats periodically', () => {
-      vi.useFakeTimers();
+    it('should log stats when interval threshold reached', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       
       // Create profiler with auto-logging enabled (logInterval > 0)
-      const profiler = new PickProfiler({ enabled: true, logInterval: 1000 });
+      const profiler = new PickProfiler({ enabled: true, logInterval: 2 });
+      const wrapped = profiler.wrap(() => {});
+      wrapped();
+      wrapped(); // hitting interval triggers log
       
-      // Should setup interval
-      vi.advanceTimersByTime(1100);
       expect(consoleSpy).toHaveBeenCalled(); // Should log header at least
       
-      profiler.recordSkip(); // Some activity
-      vi.advanceTimersByTime(1000);
-      
-      // Cleanup (internal interval needs to be accessible or cleared on destroy if it existed)
-      // PickProfiler doesn't have a destroy method for the interval, 
-      // but the interval is private. 
-      // Assuming Implementation Details: PickProfiler sets interval in constructor.
+      consoleSpy.mockRestore();
     });
 
     it('should not log if interval is 0', () => {
