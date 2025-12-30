@@ -83,10 +83,29 @@ interface UIState {
   // References
   referencedDisciplines: Map<string, Set<'architecture'>>; // Map<floorId, Set<discipline>>
   toggleReference: (floorId: string, disciplineToToggle: 'architecture') => void;
+  // Toast State
+  toast: {
+    message: string | React.ReactNode;
+    type: 'info' | 'success' | 'warning' | 'error';
+    isVisible: boolean;
+  };
+  showToast: (message: string | React.ReactNode, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  hideToast: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  // Toast State
+  toast: {
+    message: '',
+    type: 'info',
+    isVisible: false,
+  },
+  
+  showToast: (message, type = 'info') => set({ toast: { message, type, isVisible: true } }),
+  hideToast: () => set((state) => ({ toast: { ...state.toast, isVisible: false } })),
+  
   activeTool: 'select',
+  // ...
   sidebarTab: 'edificacao',
   viewTransform: { x: 0, y: 0, scale: 1 },
   mousePos: null,

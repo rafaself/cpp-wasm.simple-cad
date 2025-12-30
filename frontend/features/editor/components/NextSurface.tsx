@@ -15,6 +15,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useEngineEvents } from '@/engine/core/useEngineEvents';
 import EngineInteractionLayer from './EngineInteractionLayer';
 import TessellatedWasmLayer from '@/engine/renderer/TessellatedWasmLayer';
+import Toast from '@/components/ui/Toast';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
@@ -58,6 +59,7 @@ const NextCanvasArea: React.FC = () => {
 const NextSurface: React.FC = () => {
   useKeyboardShortcuts();
   useEngineEvents();
+  const { toast, hideToast } = useUIStore();
 
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
@@ -76,6 +78,12 @@ const NextSurface: React.FC = () => {
         <EditorSidebar />
       </div>
       <LoadingOverlay />
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={hideToast}
+      />
     </div>
   );
 };

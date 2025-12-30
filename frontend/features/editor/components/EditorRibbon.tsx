@@ -3,110 +3,148 @@ import { MoreHorizontal } from 'lucide-react';
 
 import { useUIStore } from '../../../stores/useUIStore';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
-import { RIBBON_GROUPS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
+import { RIBBON_TABS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
+import { RibbonGroup } from './ribbon/RibbonGroup';
 
 const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
   const { executeAction, selectTool } = useEditorCommands();
+  const [activeTabId, setActiveTabId] = useState<string>(RIBBON_TABS[0].id);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
 
+  const activeTab = RIBBON_TABS.find((t) => t.id === activeTabId) || RIBBON_TABS[0];
+  const activeGroups = activeTab.groups;
+
+  const handleItemClick = (item: RibbonItem) => {
+    if (item.kind === 'action' && item.actionId) {
+      executeAction(item.actionId, item.status);
+    } else if (item.kind === 'tool' && item.toolId) {
+      selectTool(item.toolId, item.status);
+    }
+  };
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      // Check for number keys corresponding to tabs (1 to RIBBON_TABS.length)
+      if (/^[1-9]$/.test(e.key)) {
+        const index = parseInt(e.key, 10) - 1;
+        if (RIBBON_TABS[index]) {
+          e.preventDefault();
+          setActiveTabId(RIBBON_TABS[index].id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
-    <div className="h-10 bg-slate-900 border-b border-slate-800 flex items-center gap-2 px-3 text-slate-200">
-      {RIBBON_GROUPS.map((group, groupIndex) => (
-        <React.Fragment key={group.id}>
-          <div className="flex items-center gap-1">
-            {group.items.map((item: RibbonItem) => {
-              const Icon = item.icon;
-              const isTool = item.kind === 'tool';
-              const isActiveTool = isTool && activeTool === item.toolId;
-              const isIconOnlyAction = item.kind === 'action' && (item.actionId === 'undo' || item.actionId === 'redo');
-              const isStub = item.status === 'stub';
-              const baseClasses =
-                item.kind === 'action' && isIconOnlyAction
-                  ? 'h-7 w-7 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center'
-                  : 'h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1';
-              const toolClasses = isTool
-                ? `h-7 px-2 rounded text-xs flex items-center gap-1 transition-colors ${
-                    isActiveTool ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700'
-                  }`
-                : baseClasses;
-
-              const handleClick = () => {
-                if (item.kind === 'action' && item.actionId) {
-                  executeAction(item.actionId, item.status);
-                } else if (item.kind === 'tool' && item.toolId) {
-                  selectTool(item.toolId, item.status);
-                }
-              };
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={handleClick}
-                  className={`${toolClasses} ${isStub ? 'opacity-70' : ''}`}
-                  title={isStub ? `${item.label} — Em breve (Engine-First)` : item.label}
-                  aria-disabled={isStub}
-                >
-                  <Icon size={14} />
-                  {!isIconOnlyAction && item.kind === 'action' && <span>{item.label}</span>}
-                  {isTool && <span>{item.label}</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {groupIndex < RIBBON_GROUPS.length - 1 && <div className="h-5 w-px bg-slate-700 mx-2" />}
-        </React.Fragment>
-      ))}
-
-      {RIBBON_OVERFLOW_ITEMS.length > 0 && (
-        <>
-          <div className="h-5 w-px bg-slate-700 mx-2" />
-          <div className="relative">
+    <div className="flex flex-col bg-slate-900 border-b border-slate-800 text-slate-200">
+      {/* Tab Headers */}
+      <div 
+        className="flex items-center gap-1 px-2 pt-1" 
+        role="tablist" 
+        aria-label="Categorias de Ferramentas"
+      >
+        {RIBBON_TABS.map((tab, index) => {
+          const isActive = tab.id === activeTabId;
+          return (
             <button
-              onClick={() => setIsOverflowOpen((open) => !open)}
-              className="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1"
-              title="Mais"
+              key={tab.id}
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={isActive}
+              aria-controls={`panel-${tab.id}`}
+              onClick={() => setActiveTabId(tab.id)}
+              className={`px-3 py-1 text-xs rounded-t-md transition-colors ${
+                isActive
+                  ? 'bg-slate-800 text-white font-medium'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+              }`}
+              title={`${tab.label} (${index + 1})`}
             >
-              <MoreHorizontal size={14} />
-              Mais
+              {tab.label}
             </button>
-            {isOverflowOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg py-1 z-10">
-                {RIBBON_OVERFLOW_ITEMS.map((item) => {
-                  const Icon = item.icon;
-                  const isStub = item.status === 'stub';
-                  const title = isStub ? `${item.label} — Em breve (Engine-First)` : item.label;
+          );
+        })}
+      </div>
 
-                  const handleClick = () => {
-                    if (item.kind === 'action' && item.actionId) {
-                      executeAction(item.actionId, item.status);
-                    } else if (item.kind === 'tool' && item.toolId) {
-                      selectTool(item.toolId, item.status);
-                    }
-                    setIsOverflowOpen(false);
-                  };
+      {/* Toolbar Content - 66px total height (54px content + 12px padding) */}
+      <div 
+        id={`panel-${activeTabId}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTabId}`}
+        className="h-[66px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800/30 overflow-x-auto"
+      >
+        {activeGroups.map((group, groupIndex) => (
+          <React.Fragment key={group.id}>
+            <RibbonGroup 
+              group={group} 
+              activeTool={activeTool} 
+              onItemClick={handleItemClick}
+            />
+            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-slate-700 mx-2 self-center opacity-50" aria-hidden="true" />}
+          </React.Fragment>
+        ))}
 
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={handleClick}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-700 ${
-                        isStub ? 'opacity-70' : ''
-                      }`}
-                      title={title}
-                      aria-disabled={isStub}
-                    >
-                      <Icon size={14} />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
+        {/* Overflow Items Logic */}
+        {RIBBON_OVERFLOW_ITEMS.length > 0 && (
+          <>
+            <div className="h-full w-px bg-slate-700 mx-2 self-center opacity-50" aria-hidden="true" />
+            <div className="relative self-center h-[54px] flex items-center">
+              <button
+                onClick={() => setIsOverflowOpen((open) => !open)}
+                className="h-[54px] px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex flex-col items-center justify-center gap-1"
+                title="Mais"
+                aria-haspopup="true"
+                aria-expanded={isOverflowOpen}
+              >
+                <MoreHorizontal size={20} />
+                Mais
+              </button>
+              {isOverflowOpen && (
+                <div role="menu" className="absolute top-full right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg py-1 z-10">
+                  {RIBBON_OVERFLOW_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    const isStub = item.status === 'stub';
+                    const title = isStub ? `${item.label} — Em breve (Engine-First)` : item.label;
+
+                    const handleClick = () => {
+                      if (item.kind === 'action' && item.actionId) {
+                        executeAction(item.actionId, item.status);
+                      } else if (item.kind === 'tool' && item.toolId) {
+                        selectTool(item.toolId, item.status);
+                      }
+                      setIsOverflowOpen(false);
+                    };
+
+                    return (
+                      <button
+                        role="menuitem"
+                        key={item.id}
+                        onClick={handleClick}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-700 ${
+                          isStub ? 'opacity-70' : ''
+                        }`}
+                        title={title}
+                        aria-disabled={isStub}
+                      >
+                        <Icon size={14} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

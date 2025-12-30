@@ -33,6 +33,10 @@ export const stub = (id: string): void => {
   if (import.meta.env.DEV) {
     console.log(`[UI-STUB] ${id}`);
   }
+  useUIStore.getState().showToast(
+    `A funcionalidade "${id}" será implementada em breve.`,
+    'info'
+  );
 };
 
 const saveFile = async (): Promise<void> => {
