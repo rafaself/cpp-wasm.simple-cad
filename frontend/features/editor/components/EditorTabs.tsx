@@ -13,7 +13,7 @@ const EditorTabs: React.FC = () => {
   if (openTabs.length === 0) return null;
 
   return (
-    <div className="flex items-center bg-slate-100 border-b border-slate-300 px-2 pt-2 gap-1 overflow-x-auto no-scrollbar h-9 shrink-0">
+    <div className="flex items-center bg-slate-950 border-b border-slate-800 px-2 pt-2 gap-1 overflow-x-auto no-scrollbar h-9 shrink-0">
       {openTabs.map((tab) => {
         const isActive = tab.floorId === activeFloorId && tab.discipline === activeDiscipline;
         const key = `${tab.floorId}-${tab.discipline}`;
@@ -28,8 +28,8 @@ const EditorTabs: React.FC = () => {
             className={`
               group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent
               ${isActive 
-                ? 'bg-white text-blue-600 border-slate-300 border-b-white relative -mb-[1px] z-10 shadow-sm' 
-                : 'bg-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                ? 'bg-slate-900 text-blue-400 border-slate-800 border-b-slate-900 relative -mb-[1px] z-10 shadow-sm' 
+                : 'bg-transparent text-slate-500 hover:bg-slate-900 hover:text-slate-300'
               }
             `}
             onClick={() => openTab(tab)}
@@ -45,8 +45,8 @@ const EditorTabs: React.FC = () => {
                 closeTab(tab);
               }}
               className={`
-                ml-1 p-0.5 rounded-full hover:bg-slate-300/50 
-                ${isActive ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-500'}
+                ml-1 p-0.5 rounded-full hover:bg-slate-700 
+                ${isActive ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-400'}
                 transition-all
               `}
             >
