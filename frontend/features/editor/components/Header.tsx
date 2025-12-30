@@ -44,53 +44,53 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-8 bg-[#0f172a] flex items-center justify-between px-2 select-none border-b border-[#1e293b]">
+    <div className="h-8 bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
       <div className="flex items-center gap-1.5">
-        <div className="w-6 h-6 bg-red-600 flex items-center justify-center rounded-sm text-white font-bold text-sm">
+        <div className="w-6 h-6 bg-accent text-accent-foreground flex items-center justify-center rounded-sm font-bold text-sm shadow-focus">
           E
         </div>
-        <div className="text-white font-semibold text-xs tracking-wide mr-1">EndeavourPower</div>
-        <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
-        <div className="flex items-center gap-0.5 text-slate-400">
+        <div className="font-semibold text-xs tracking-wide mr-1">EndeavourPower</div>
+        <div className="h-4 w-px bg-border mx-0.5"></div>
+        <div className="flex items-center gap-0.5 text-muted">
           <button
-            className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
             title={`${LABELS.menu.newFile} (Ctrl+N)`}
             onClick={() => executeAction('new-file', 'stub')}
           >
             <FilePlus size={14} />
           </button>
           <button
-            className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
             title={`${LABELS.menu.openFile} (Ctrl+O)`}
             onClick={() => executeAction('open-file')}
           >
             <FolderOpen size={14} />
           </button>
           <button
-            className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
             title={`${LABELS.menu.saveFile} (Ctrl+S)`}
             onClick={() => executeAction('save-file')}
           >
             <Save size={14} />
           </button>
-          <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
+          <div className="h-4 w-px bg-border mx-0.5"></div>
           <button
-            className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
             title={`${LABELS.menu.undo} (Ctrl+Z)`}
             onClick={() => executeAction('undo')}
           >
             <Undo2 size={14} />
           </button>
           <button
-            className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
             title={`${LABELS.menu.redo} (Ctrl+Y)`}
             onClick={() => executeAction('redo')}
           >
             <Redo2 size={14} />
           </button>
-          <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
+          <div className="h-4 w-px bg-border mx-0.5"></div>
           <button
-            className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
             title={LABELS.menu.settings}
             onClick={() => executeAction('open-settings')}
           >
@@ -99,13 +99,13 @@ const Header: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center text-slate-400">
+      <div className="flex items-center text-muted">
         <Dialog
           maxWidth="400px"
           closeOnResize
           activator={({ onClick }) => (
             <button
-              className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
+              className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
               title={
                 isFullScreen
                   ? `${LABELS.common.fullScreenExit} (${fullscreenShortcut})`
@@ -127,15 +127,15 @@ const Header: React.FC = () => {
               }
             >
               <div className="flex flex-col items-center gap-4 py-2">
-                <p className="text-center text-slate-300">
+                <p className="text-center text-foreground">
                   {isFullScreen
                     ? LABELS.common.fullScreenMessageExit
                     : LABELS.common.fullScreenMessageEnter}
                 </p>
-                <kbd className="bg-slate-700 px-4 py-2 rounded-lg text-lg font-mono font-bold border border-slate-500 text-white shadow-lg">
+                <kbd className="bg-surface-strong px-4 py-2 rounded-lg text-lg font-mono font-bold border border-border text-foreground shadow-card">
                   {fullscreenShortcut}
                 </kbd>
-                <p className="text-center text-slate-400 text-sm">
+                <p className="text-center text-muted text-sm">
                   {LABELS.common.fullScreenInstruction.replace(
                     '{shortcut}',
                     fullscreenShortcutReadable,

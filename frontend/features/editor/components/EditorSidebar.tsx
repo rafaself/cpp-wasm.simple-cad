@@ -49,14 +49,14 @@ const EditorSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-100 border-l border-slate-800 flex flex-col">
-      <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-        <span className="text-xs uppercase tracking-widest text-slate-400">
+    <aside className="w-64 bg-surface-strong text-foreground border-l border-border flex flex-col">
+      <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+        <span className="text-xs uppercase tracking-widest text-muted">
           {LABELS.sidebar.layers}
         </span>
         <button
           onClick={handleAddLayer}
-          className="h-6 w-6 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
+          className="h-6 w-6 rounded bg-surface-muted hover:bg-surface text-foreground flex items-center justify-center"
           title={LABELS.sidebar.newLayer}
         >
           <Plus size={14} />
@@ -66,14 +66,14 @@ const EditorSidebar: React.FC = () => {
         {layers.map((layer) => (
           <div
             key={layer.id}
-            className={`flex items-center justify-between px-3 py-2 text-xs border-b border-slate-800 cursor-pointer ${
-              layer.id === activeLayerId ? 'bg-slate-800' : 'hover:bg-slate-800/60'
+            className={`flex items-center justify-between px-3 py-2 text-xs border-b border-border cursor-pointer ${
+              layer.id === activeLayerId ? 'bg-surface-muted' : 'hover:bg-surface-muted/70'
             }`}
             onClick={() => setActiveLayerId(layer.id)}
           >
             <div className="flex flex-col">
               <span className="font-semibold">{layer.name || `Layer ${layer.id}`}</span>
-              <span className="text-[10px] text-slate-500">ID {layer.id}</span>
+              <span className="text-[10px] text-muted">ID {layer.id}</span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -81,7 +81,7 @@ const EditorSidebar: React.FC = () => {
                   e.stopPropagation();
                   updateLayerFlags(layer.id, !layer.visible, undefined);
                 }}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1 text-muted hover:text-foreground"
                 title={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
               >
                 {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -91,7 +91,7 @@ const EditorSidebar: React.FC = () => {
                   e.stopPropagation();
                   updateLayerFlags(layer.id, undefined, !layer.locked);
                 }}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1 text-muted hover:text-foreground"
                 title={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
               >
                 {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
@@ -100,7 +100,7 @@ const EditorSidebar: React.FC = () => {
           </div>
         ))}
         {layers.length === 0 && (
-          <div className="px-3 py-4 text-xs text-slate-500">{LABELS.common.none}</div>
+          <div className="px-3 py-4 text-xs text-muted">{LABELS.common.none}</div>
         )}
       </div>
     </aside>

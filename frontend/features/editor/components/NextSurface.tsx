@@ -1,7 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 
-import '@/design/tailwind.css';
-import '@/design/global.css';
 import LoadingOverlay from '@/components/LoadingOverlay';
 import Toast from '@/components/ui/Toast';
 import { useEngineEvents } from '@/engine/core/useEngineEvents';
@@ -43,7 +41,7 @@ const NextCanvasArea: React.FC = () => {
       <EditorTabs />
 
       <div
-        className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none"
+        className="flex-grow relative bg-surface overflow-hidden cursor-crosshair select-none"
         ref={containerRef}
       >
         <div className="absolute inset-0 pointer-events-none">
@@ -67,14 +65,14 @@ const NextSurface: React.FC = () => {
   const { toast, hideToast } = useUIStore();
 
   return (
-    <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
+    <div className="w-full h-screen flex flex-col overflow-hidden bg-background text-foreground">
       <div className="shrink-0">
         <Header />
       </div>
       <div className="shrink-0">
         <EditorRibbon />
       </div>
-      <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
+      <div className="flex-grow flex relative bg-surface-strong overflow-hidden">
         <div className="flex-grow flex flex-col relative overflow-hidden">
           <NextCanvasArea />
           <SettingsModal />

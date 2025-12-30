@@ -158,7 +158,7 @@ const Dialog: React.FC<DialogProps> = ({
         aria-modal="true"
         tabIndex={-1}
         className={`
-          relative bg-slate-800 border border-slate-700 rounded-lg shadow-2xl
+          relative bg-surface-strong border border-border rounded-lg shadow-card
           transform transition-all duration-200 ease-out
           animate-in fade-in zoom-in-95
           overflow-hidden flex flex-col

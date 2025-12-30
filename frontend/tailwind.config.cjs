@@ -10,19 +10,44 @@ module.exports = {
     './stores/**/*.{ts,tsx}',
     './utils/**/*.{ts,tsx}',
     './design/**/*.css',
+    './shared/**/*.{ts,tsx,css}',
   ],
   theme: {
     extend: {
       colors: {
+        background: 'hsl(var(--color-background))',
+        surface: 'hsl(var(--color-surface))',
+        'surface-strong': 'hsl(var(--color-surface-strong))',
+        'surface-muted': 'hsl(var(--color-surface-muted))',
+        foreground: 'hsl(var(--color-foreground))',
+        muted: 'hsl(var(--color-muted))',
+        border: 'hsl(var(--color-border))',
+        accent: {
+          DEFAULT: 'hsl(var(--color-accent))',
+          foreground: 'hsl(var(--color-accent-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--color-destructive))',
+          foreground: 'hsl(var(--color-destructive-foreground))',
+        },
         ribbon: {
-          root: '#0f172a',   // slate-900
-          panel: '#1e293b',  // slate-800
-          border: '#334155', // slate-700
-          hover: '#334155',  // slate-700
-          text: '#e2e8f0',   // slate-200
-          muted: '#94a3b8',  // slate-400
-        }
-      }
+          root: 'hsl(var(--color-surface-strong))',
+          panel: 'hsl(var(--color-surface-strong))',
+          border: 'hsl(var(--color-border))',
+          hover: 'hsl(var(--color-surface-muted))',
+          text: 'hsl(var(--color-foreground))',
+          muted: 'hsl(var(--color-muted))',
+        },
+      },
+      borderRadius: {
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        focus: 'var(--shadow-focus)',
+      },
     },
   },
   plugins: [],

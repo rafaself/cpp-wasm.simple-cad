@@ -46,7 +46,7 @@ const EditorRibbon: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col bg-ribbon-root border-b border-ribbon-panel text-ribbon-text">
+    <div className="flex flex-col bg-surface border-b border-border text-foreground">
       {/* Tab Headers */}
       <div
         className="flex items-center gap-1 px-2 pt-1"
@@ -65,14 +65,14 @@ const EditorRibbon: React.FC = () => {
               onClick={() => setActiveTabId(tab.id)}
               className={`relative px-3 py-1 text-xs rounded-t-md transition-colors ${
                 isActive
-                  ? 'bg-ribbon-panel text-white font-medium'
-                  : 'text-ribbon-muted hover:text-ribbon-text hover:bg-ribbon-panel/50'
+                  ? 'bg-surface-strong text-foreground font-medium'
+                  : 'text-muted hover:text-foreground hover:bg-surface-muted/60'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
               {tab.label}
               <span
-                className={`absolute bottom-0 left-0 h-[2px] w-full bg-blue-400 transition-transform ease-out origin-center ${
+                className={`absolute bottom-0 left-0 h-[2px] w-full bg-accent transition-transform ease-out origin-center ${
                   isActive ? 'scale-x-100 duration-300' : 'scale-x-0 duration-150'
                 }`}
                 aria-hidden="true"
@@ -87,13 +87,13 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[90px] px-[12px] py-[6px] flex items-start bg-ribbon-panel overflow-x-auto shadow-sm"
+        className="h-[90px] px-[12px] py-[6px] flex items-start bg-surface-strong overflow-x-auto shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
             <RibbonGroup group={group} activeTool={activeTool} onItemClick={handleItemClick} />
             {groupIndex < activeGroups.length - 1 && (
-              <div className="h-full w-px bg-ribbon-border mx-2 opacity-50" aria-hidden="true" />
+              <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
             )}
           </React.Fragment>
         ))}
@@ -101,11 +101,11 @@ const EditorRibbon: React.FC = () => {
         {/* Overflow Items Logic */}
         {RIBBON_OVERFLOW_ITEMS.length > 0 && (
           <>
-            <div className="h-full w-px bg-ribbon-border mx-2 opacity-50" aria-hidden="true" />
+            <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
             <div className="relative self-start h-[54px] flex items-center">
               <button
                 onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[52px] px-2 rounded bg-ribbon-panel hover:bg-ribbon-hover text-xs flex flex-col items-center justify-center gap-1"
+                className="h-[52px] px-2 rounded bg-surface-strong hover:bg-surface-muted text-xs flex flex-col items-center justify-center gap-1"
                 title="Mais"
                 aria-haspopup="true"
                 aria-expanded={isOverflowOpen}
@@ -116,7 +116,7 @@ const EditorRibbon: React.FC = () => {
               {isOverflowOpen && (
                 <div
                   role="menu"
-                  className="absolute top-full right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg py-1 z-10"
+                  className="absolute top-full right-0 mt-1 w-56 bg-surface-strong border border-border rounded shadow-lg py-1 z-10"
                 >
                   {RIBBON_OVERFLOW_ITEMS.map((item) => {
                     const isStub = item.status === 'stub';
@@ -137,7 +137,7 @@ const EditorRibbon: React.FC = () => {
                         role="menuitem"
                         key={item.id}
                         onClick={handleClick}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-700 ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted ${
                           isStub ? 'opacity-70' : ''
                         }`}
                         title={title}
