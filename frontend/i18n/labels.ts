@@ -18,6 +18,7 @@ export const LABELS = {
     fullScreenMessageEnter: 'Para alternar o modo tela cheia, pressione:',
     fullScreenMessageExit: 'Você está no modo tela cheia. Para sair, pressione:',
     fullScreenInstruction: 'Use {shortcut} para entrar ou sair do modo tela cheia.',
+    toggleTheme: 'Alternar Tema',
   },
   colorPicker: {
     title: 'Seletor de Cor',

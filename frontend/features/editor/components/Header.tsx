@@ -12,6 +12,7 @@ import React from 'react';
 
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
+import ThemeToggle from '@/features/editor/components/ThemeToggle';
 import { LABELS } from '@/i18n/labels';
 
 const Header: React.FC = () => {
@@ -99,7 +100,8 @@ const Header: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center text-muted">
+      <div className="flex items-center text-muted gap-1">
+        <ThemeToggle />
         <Dialog
           maxWidth="400px"
           closeOnResize
