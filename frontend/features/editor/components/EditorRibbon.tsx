@@ -44,7 +44,7 @@ const EditorRibbon: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col bg-slate-900 border-b border-slate-800 text-slate-200">
+    <div className="flex flex-col bg-ribbon-root border-b border-ribbon-panel text-ribbon-text">
       {/* Tab Headers */}
       <div 
         className="flex items-center gap-1 px-2 pt-1" 
@@ -63,8 +63,8 @@ const EditorRibbon: React.FC = () => {
               onClick={() => setActiveTabId(tab.id)}
               className={`relative px-3 py-1 text-xs rounded-t-md transition-colors ${
                 isActive
-                  ? 'bg-slate-800 text-white font-medium'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+                  ? 'bg-ribbon-panel text-white font-medium'
+                  : 'text-ribbon-muted hover:text-ribbon-text hover:bg-ribbon-panel/50'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
@@ -80,12 +80,12 @@ const EditorRibbon: React.FC = () => {
         })}
       </div>
 
-      {/* Toolbar Content - 66px total height (54px content + 12px padding) */}
+      {/* Toolbar Content - 90px total height per Gold Standard */}
       <div 
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[82px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800 overflow-x-auto shadow-sm"
+        className="h-[90px] px-[12px] py-[6px] flex items-start bg-ribbon-panel overflow-x-auto shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
@@ -94,18 +94,18 @@ const EditorRibbon: React.FC = () => {
               activeTool={activeTool} 
               onItemClick={handleItemClick}
             />
-            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-slate-700 mx-2 opacity-50" aria-hidden="true" />}
+            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-ribbon-border mx-2 opacity-50" aria-hidden="true" />}
           </React.Fragment>
         ))}
 
         {/* Overflow Items Logic */}
         {RIBBON_OVERFLOW_ITEMS.length > 0 && (
           <>
-            <div className="h-full w-px bg-slate-700 mx-2 opacity-50" aria-hidden="true" />
+            <div className="h-full w-px bg-ribbon-border mx-2 opacity-50" aria-hidden="true" />
             <div className="relative self-start h-[54px] flex items-center">
               <button
                 onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[54px] px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex flex-col items-center justify-center gap-1"
+                className="h-[52px] px-2 rounded bg-ribbon-panel hover:bg-ribbon-hover text-xs flex flex-col items-center justify-center gap-1"
                 title="Mais"
                 aria-haspopup="true"
                 aria-expanded={isOverflowOpen}

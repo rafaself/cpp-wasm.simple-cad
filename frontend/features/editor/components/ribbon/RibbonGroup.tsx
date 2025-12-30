@@ -42,7 +42,7 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
       
       {/* Group Title */}
       <div className="flex items-center justify-center">
-        <span className="text-[10px] text-slate-500 font-semibold select-none whitespace-nowrap text-center uppercase tracking-wider opacity-80 leading-none">
+        <span className="text-[10px] text-ribbon-muted font-semibold select-none whitespace-nowrap text-center uppercase tracking-wider opacity-80 leading-none">
           {group.label}
         </span>
       </div>

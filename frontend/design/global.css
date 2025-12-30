@@ -247,6 +247,7 @@
 :root {
   --ribbon-item-height: 24px; /* Standard height for all inputs/buttons/rows */
   --ribbon-gap: 4px; /* Consistent vertical/horizontal gap */
+  --ribbon-content-height: 52px; /* 24px + 4px + 24px - Height of large buttons/groups */
 }
 
 /* 

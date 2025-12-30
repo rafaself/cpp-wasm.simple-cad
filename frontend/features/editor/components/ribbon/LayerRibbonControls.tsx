@@ -59,21 +59,21 @@ export const LayerRibbonControls: React.FC = () => {
   return (
     <div className="ribbon-group-col px-1">
       {/* Row 1: Layer Select and Add */}
-      <div className="ribbon-row w-[140px]">
-        <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 w-full h-full gap-0.5 items-center">
+      <div className="ribbon-row min-w-[140px]">
+        <div className="flex bg-ribbon-root/50 rounded-lg border border-ribbon-border/50 p-0.5 w-full h-full gap-0.5 items-center">
           <div className="flex-1 w-full relative h-full">
                <CustomSelect 
                   value={String(activeLayerId)} 
                   onChange={handleLayerChange} 
                   options={layerOptions} 
-                  className={`bg-transparent ribbon-fill-h text-xs w-full px-1 focus:ring-0 border-none hover:bg-slate-800/50 rounded transition-colors text-slate-200`}
+                  className={`bg-transparent ribbon-fill-h text-xs w-full px-1 focus:ring-0 border-none hover:bg-ribbon-hover/50 rounded transition-colors text-ribbon-text`}
                   placeholder="Selecione a camada..."
               />
           </div>
-          <div className="w-px bg-slate-700/50 my-0.5 h-4/5" />
+          <div className="w-px bg-ribbon-border/50 my-0.5 h-4/5" />
           <button 
               onClick={handleAddLayer}
-              className={`w-6 h-full ${BUTTON_STYLES.centered} text-slate-400 hover:text-green-400 hover:bg-slate-700`}
+              className={`w-6 h-full ${BUTTON_STYLES.centered} text-ribbon-muted hover:text-green-400 hover:bg-ribbon-hover`}
               title="Nova Camada"
           >
               <Plus size={14} />
@@ -82,24 +82,24 @@ export const LayerRibbonControls: React.FC = () => {
       </div>
 
       {/* Row 2: Layer Properties */}
-      <div className="ribbon-row w-[140px]">
-          <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
+      <div className="ribbon-row min-w-[140px]">
+          <div className="flex bg-ribbon-root/50 rounded-lg border border-ribbon-border/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
               {/* Visibility Toggle */}
               <button 
                   onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
-                  className={`w-7 h-full ${BUTTON_STYLES.centered} ${activeLayer?.visible ? 'text-blue-400 hover:text-blue-300' : 'text-slate-500 hover:text-slate-400'} rounded hover:bg-slate-700 transition-colors shrink-0`}
+                  className={`w-7 h-full ${BUTTON_STYLES.centered} ${activeLayer?.visible ? 'text-blue-400 hover:text-blue-300' : 'text-ribbon-muted hover:text-ribbon-text'} rounded hover:bg-ribbon-hover transition-colors shrink-0`}
                   title={activeLayer?.visible ? "Ocultar Camada" : "Mostrar Camada"}
                   disabled={!activeLayer}
               >
                   {activeLayer?.visible ? <Eye size={13} /> : <EyeOff size={13} />}
               </button>
 
-              <div className="w-px bg-slate-700/50 my-0.5 h-4/5" />
+              <div className="w-px bg-ribbon-border/50 my-0.5 h-4/5" />
 
               {/* Lock Toggle */}
               <button 
                   onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
-                  className={`w-7 h-full ${BUTTON_STYLES.centered} ${activeLayer?.locked ? 'text-amber-400 hover:text-amber-300' : 'text-slate-400 hover:text-slate-200'} rounded hover:bg-slate-700 transition-colors shrink-0`}
+                  className={`w-7 h-full ${BUTTON_STYLES.centered} ${activeLayer?.locked ? 'text-amber-400 hover:text-amber-300' : 'text-ribbon-muted hover:text-ribbon-text'} rounded hover:bg-ribbon-hover transition-colors shrink-0`}
                   title={activeLayer?.locked ? "Desbloquear Camada" : "Bloquear Camada"}
                   disabled={!activeLayer}
               >
@@ -110,10 +110,10 @@ export const LayerRibbonControls: React.FC = () => {
           <div className="flex-1" />
 
           {/* Open Manager (Properties) */}
-          <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-full w-8 shrink-0 items-center">
+          <div className="flex bg-ribbon-root/50 rounded-lg border border-ribbon-border/50 p-0.5 h-full w-8 shrink-0 items-center">
                <button 
                   onClick={() => setLayerManagerOpen(true)}
-                  className={`w-full h-full ${BUTTON_STYLES.centered} rounded hover:bg-slate-700 text-slate-300 hover:text-white transition-colors`}
+                  className={`w-full h-full ${BUTTON_STYLES.centered} rounded hover:bg-ribbon-hover text-ribbon-text hover:text-white transition-colors`}
                   title="Gerenciador de Camadas (Propriedades)"
               >
                   <Layers size={13} className="opacity-80" />

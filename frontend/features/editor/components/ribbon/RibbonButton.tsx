@@ -68,8 +68,8 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
 
   // Height Logic
   let heightClass = 'h-8';
-  if (isVertical) heightClass = 'h-[54px]';
-  if (isGrid || isStack) heightClass = 'h-[24px]'; // Match 24+24+6 = 54px container limit
+  if (isVertical) heightClass = 'h-[52px]'; // Match 24 + 4 + 24 = 52px (Perfect alignment with 2 rows)
+  if (isGrid || isStack) heightClass = 'h-[24px]'; // Match --ribbon-item-height
 
   // Flex Structure
   const flexClass = isVertical 
@@ -86,19 +86,18 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
 
   // Colors & Interaction (Design Tokens)
   // Primary: blue-500 (#3b82f6) for selection
-  // Surface: slate-800
-  // Danger: only on hover/specifics? We'll use slate-700 hover usually.
-  let colorClass = 'bg-slate-800 text-slate-200 border border-transparent';
+  // Surface: ribbon-panel
+  let colorClass = 'bg-ribbon-panel text-ribbon-text border border-transparent';
   
   if (isActive) {
     colorClass = 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-400/50';
   } else if (isStub) {
-    colorClass = 'bg-slate-800/50 text-slate-500 opacity-60 cursor-not-allowed';
+    colorClass = 'bg-ribbon-panel/50 text-ribbon-muted opacity-60 cursor-not-allowed';
   } else {
     // Hover State
     const hoverClass = item.actionId === 'delete' 
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400' 
-      : 'hover:bg-slate-700 hover:text-white hover:border-slate-600/50';
+      : 'hover:bg-ribbon-hover hover:text-white hover:border-ribbon-border/50';
     colorClass = `${colorClass} ${hoverClass}`;
   }
 
