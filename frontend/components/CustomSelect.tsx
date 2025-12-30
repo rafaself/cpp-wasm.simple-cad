@@ -63,14 +63,14 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
     const selectedLabel = options.find(o => o.value === value)?.label || value || placeholder;
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full h-full">
             <button
                 ref={buttonRef}
                 onClick={() => {
                     if (!isOpen) updateDropdownPosition();
                     setIsOpen(!isOpen);
                 }}
-                className={`flex items-center justify-between px-2 cursor-pointer w-full text-left ${className}`}
+                className={`flex items-center justify-between px-2 cursor-pointer w-full h-full text-left ${className}`}
             >
                 <span className="truncate">{selectedLabel}</span>
                 <ChevronDown 

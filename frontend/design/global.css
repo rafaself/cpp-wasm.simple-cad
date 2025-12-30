@@ -272,6 +272,17 @@
   height: var(--ribbon-item-height);
 }
 
+.ribbon-row > * {
+  height: 100%;
+}
+
+.ribbon-row button,
+.ribbon-row input,
+.ribbon-row .input-wrapper,
+.ribbon-row select {
+  height: 100%;
+}
+
 /* 
   Specific fix for inputs/selects to ensure they fill the parent row height.
   Use this on the wrappers or direct input elements.

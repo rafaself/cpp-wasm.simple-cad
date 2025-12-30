@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Layers, Eye, EyeOff, Lock, Unlock, Plus } from 'lucide-react';
 import CustomSelect from '@/components/CustomSelect';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
@@ -15,6 +15,12 @@ export const LayerRibbonControls: React.FC = () => {
   const setLayerManagerOpen = useUIStore((s) => s.setLayerManagerOpen);
 
   const activeLayer = useMemo(() => layers.find(l => l.id === activeLayerId), [layers, activeLayerId]);
+
+  useEffect(() => {
+    if (layers.length > 0 && !activeLayer) {
+        setActiveLayerId(layers[0].id);
+    }
+  }, [layers, activeLayer, setActiveLayerId]);
 
   const layerOptions = useMemo(() => 
     layers.map(l => ({ value: String(l.id), label: l.name })), 
