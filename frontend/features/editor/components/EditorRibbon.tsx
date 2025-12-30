@@ -64,7 +64,7 @@ const EditorRibbon: React.FC = () => {
               aria-selected={isActive}
               aria-controls={`panel-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
-              className={`relative px-3 py-1 text-xs rounded-t-md transition-colors focus-outline ${
+              className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
                   ? 'bg-surface1 text-text font-medium'
                   : 'text-text-muted hover:text-text hover:bg-surface2/60'

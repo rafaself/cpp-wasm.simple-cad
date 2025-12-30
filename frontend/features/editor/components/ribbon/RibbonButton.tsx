@@ -112,7 +112,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
     return (
       <button
         onClick={() => !isStub && onClick(item)}
-        className={`relative rounded-md transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
+        className={`relative rounded transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
         title={tooltip}
         aria-disabled={isStub}
         aria-pressed={isTool ? isActive : undefined}
@@ -125,7 +125,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   return (
     <button
       onClick={() => !isStub && onClick(item)}
-      className={`relative rounded-md transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
+      className={`relative rounded transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
       title={tooltip}
       aria-disabled={isStub}
       aria-pressed={isTool ? isActive : undefined}

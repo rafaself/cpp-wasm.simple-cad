@@ -69,7 +69,7 @@ export const LayerRibbonControls: React.FC = () => {
 
       {/* Row 2: Layer Properties */}
       <div className="ribbon-row min-w-[140px]">
-        <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
+        <div className="flex bg-surface2/50 rounded border border-border/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
           {/* Visibility Toggle */}
           <button
             onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
@@ -96,7 +96,7 @@ export const LayerRibbonControls: React.FC = () => {
         <div className="flex-1" />
 
         {/* Open Manager (Properties) */}
-        <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 h-full w-8 shrink-0 items-center">
+        <div className="flex bg-surface2/50 rounded border border-border/50 p-0.5 h-full w-8 shrink-0 items-center">
           <button
             onClick={() => setLayerManagerOpen(true)}
             className={`w-full h-full ${BUTTON_STYLES.centered} rounded hover:bg-surface2 text-text opacity-80 hover:opacity-100 transition-colors`}
