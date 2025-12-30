@@ -61,10 +61,9 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
   } else if (isVertical) {
     widthClass = 'w-16'; // Default for vertical buttons
   } else if (isGrid) {
-    widthClass = 'w-full'; // Grid items fill their cell
+    widthClass = 'w-28'; // Fixed width for grid items
   } else if (isStack) {
-     // Stack items default to auto but might need min-width
-     widthClass = 'w-full min-w-[32px]';
+     widthClass = 'w-28';
   }
 
   // Height Logic
@@ -75,15 +74,15 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
   // Flex Structure
   const flexClass = isVertical 
     ? 'flex flex-col justify-center items-center gap-1' 
-    : 'flex flex-row items-center justify-center gap-2';
+    : 'flex flex-row items-center gap-2';
     
   // Override justify for specific horizontal layouts if needed
-  const justifyClass = (!isVertical && (isGrid || isStack)) ? 'justify-start px-2' : 'justify-center px-2';
+  const justifyClass = (!isVertical) ? 'justify-start px-2.5' : 'justify-center px-2';
 
   // Typography & Text Wrapping
   const textClass = isVertical
     ? 'text-[10px] leading-tight text-center line-clamp-2 break-words max-w-full'
-    : 'text-xs whitespace-nowrap truncate';
+    : 'text-xs whitespace-nowrap truncate text-left flex-1';
 
   // Colors & Interaction (Design Tokens)
   // Primary: blue-500 (#3b82f6) for selection
@@ -118,9 +117,15 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
       aria-disabled={isStub}
       aria-pressed={isTool ? isActive : undefined}
     >
-      <Icon size={isVertical ? 20 : 15} className="shrink-0" />
-      {/* Show label unless it's an icon-only variant (if we had one) */}
-      <span className="pointer-events-none">
+      {!isVertical ? (
+        <div className="w-5 flex items-center justify-center shrink-0">
+          <Icon size={15} className="shrink-0" />
+        </div>
+      ) : (
+        <Icon size={20} className="shrink-0" />
+      )}
+      
+      <span className="pointer-events-none truncate">
         {item.label}
       </span>
     </button>

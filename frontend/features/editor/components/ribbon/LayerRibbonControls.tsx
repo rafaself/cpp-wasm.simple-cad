@@ -53,7 +53,7 @@ export const LayerRibbonControls: React.FC = () => {
   return (
     <div className="flex flex-col h-full justify-center px-0.5 gap-1">
       {/* Row 1: Layer Select and Add */}
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5 w-[220px]">
+      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5 w-[140px]">
         <div className="flex-1 w-full relative">
              <CustomSelect 
                 value={String(activeLayerId)} 
@@ -74,40 +74,43 @@ export const LayerRibbonControls: React.FC = () => {
       </div>
 
       {/* Row 2: Layer Properties */}
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5 w-[220px]">
-           {/* Open Manager */}
-           <button 
-              onClick={() => setLayerManagerOpen(true)}
-              className={`flex-1 h-full flex items-center justify-start px-2 gap-2 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition-colors`}
-              title="Gerenciador de Camadas"
-          >
-              <Layers size={12} className="opacity-70" />
-              <span className="text-[10px] font-medium tracking-wide">Propriedades</span>
-          </button>
-          
-          <div className="w-px bg-slate-700/50 my-0.5" />
+      <div className="flex gap-1 w-[140px] items-center">
+          <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5 shrink-0">
+              {/* Visibility Toggle */}
+              <button 
+                  onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
+                  className={`w-7 h-full ${BUTTON_STYLES.centered} ${activeLayer?.visible ? 'text-blue-400 hover:text-blue-300' : 'text-slate-500 hover:text-slate-400'} rounded hover:bg-slate-700 transition-colors shrink-0`}
+                  title={activeLayer?.visible ? "Ocultar Camada" : "Mostrar Camada"}
+                  disabled={!activeLayer}
+              >
+                  {activeLayer?.visible ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
 
-          {/* Visibility Toggle */}
-          <button 
-              onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
-              className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeLayer?.visible ? 'text-blue-400 hover:text-blue-300' : 'text-slate-500 hover:text-slate-400'}`}
-              title={activeLayer?.visible ? "Ocultar Camada" : "Mostrar Camada"}
-              disabled={!activeLayer}
-          >
-              {activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-          </button>
+              <div className="w-px bg-slate-700/50 my-0.5" />
 
-          <div className="w-px bg-slate-700/50 my-0.5" />
+              {/* Lock Toggle */}
+              <button 
+                  onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
+                  className={`w-7 h-full ${BUTTON_STYLES.centered} ${activeLayer?.locked ? 'text-amber-400 hover:text-amber-300' : 'text-slate-400 hover:text-slate-200'} rounded hover:bg-slate-700 transition-colors shrink-0`}
+                  title={activeLayer?.locked ? "Desbloquear Camada" : "Bloquear Camada"}
+                  disabled={!activeLayer}
+              >
+                  {activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
+              </button>
+          </div>
 
-          {/* Lock Toggle */}
-           <button 
-              onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
-              className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeLayer?.locked ? 'text-amber-400 hover:text-amber-300' : 'text-slate-400 hover:text-slate-200'}`}
-              title={activeLayer?.locked ? "Desbloquear Camada" : "Bloquear Camada"}
-              disabled={!activeLayer}
-          >
-              {activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
-          </button>
+          <div className="flex-1" />
+
+          {/* Open Manager (Properties) */}
+          <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 w-8 shrink-0">
+               <button 
+                  onClick={() => setLayerManagerOpen(true)}
+                  className={`w-full h-full ${BUTTON_STYLES.centered} rounded hover:bg-slate-700 text-slate-300 hover:text-white transition-colors`}
+                  title="Gerenciador de Camadas (Propriedades)"
+              >
+                  <Layers size={13} className="opacity-80" />
+              </button>
+          </div>
       </div>
     </div>
   );

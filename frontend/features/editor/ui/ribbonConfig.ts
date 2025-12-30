@@ -136,25 +136,18 @@ export const RIBBON_TABS: RibbonTab[] = [
     label: 'Ferramentas',
     groups: [
       {
-        id: 'basic-tools',
-        layout: 'stack',
+        id: 'selection',
         items: [
-          { id: 'select', kind: 'tool', label: LABELS.tools.select, icon: MousePointer2, toolId: 'select', status: 'ready' },
-          { id: 'delete', kind: 'action', label: LABELS.common.delete, icon: Trash2, actionId: 'delete', status: 'ready' },
+          { id: 'select', kind: 'tool', label: LABELS.tools.select, icon: MousePointer2, toolId: 'select', status: 'ready', variant: 'large' },
         ],
       },
       {
-        id: 'history',
-        layout: 'stack',
+        id: 'edit',
+        layout: 'grid-2x3',
         items: [
           { id: 'undo', kind: 'action', label: LABELS.menu.undo, icon: Undo2, actionId: 'undo', status: 'ready' },
           { id: 'redo', kind: 'action', label: LABELS.menu.redo, icon: Redo2, actionId: 'redo', status: 'ready' },
-        ],
-      },
-      {
-        id: 'transform',
-        layout: 'stack',
-        items: [
+          { id: 'delete', kind: 'action', label: LABELS.common.delete, icon: Trash2, actionId: 'delete', status: 'ready' },
           { id: 'move', kind: 'tool', label: 'Mover', icon: Move, toolId: 'move', status: 'stub' },
           { id: 'rotate', kind: 'tool', label: 'Rotacionar', icon: RotateCw, toolId: 'rotate', status: 'stub' },
         ],
@@ -173,7 +166,6 @@ export const RIBBON_TABS: RibbonTab[] = [
           { id: 'measure', kind: 'tool', label: 'Medir', icon: Ruler, toolId: 'measure', status: 'stub', variant: 'large' },
         ],
       },
-
     ],
   },
 ];

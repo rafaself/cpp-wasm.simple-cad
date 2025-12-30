@@ -26,7 +26,7 @@ const EditorTabs: React.FC = () => {
           <div
             key={key}
             className={`
-              group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent
+              group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent select-none
               ${isActive 
                 ? 'bg-slate-900 text-blue-400 border-slate-800 border-b-slate-900 relative -mb-[1px] z-10 shadow-sm' 
                 : 'bg-transparent text-slate-500 hover:bg-slate-900 hover:text-slate-300'
