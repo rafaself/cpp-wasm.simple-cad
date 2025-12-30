@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { LABELS } from '@/i18n/labels';
 import { TextFormattingControls } from '../components/ribbon/TextFormattingControls';
+import { LayerRibbonControls } from '../components/ribbon/LayerRibbonControls';
 
 export type RibbonItemKind = 'action' | 'tool' | 'custom';
 export type RibbonItemStatus = 'ready' | 'stub';
@@ -76,6 +77,7 @@ export const RIBBON_TABS: RibbonTab[] = [
           { id: 'export-project', kind: 'action', label: 'Exportar Projeto', icon: Package, actionId: 'export-project', status: 'stub', variant: 'large' },
         ]
       },
+
       {
         id: 'data',
         layout: 'stack',
@@ -114,6 +116,18 @@ export const RIBBON_TABS: RibbonTab[] = [
             componentType: TextFormattingControls
           }
         ],
+      },
+      {
+        id: 'layers',
+        items: [
+           { 
+            id: 'layer-controls', 
+            kind: 'custom', 
+            label: 'Camadas', 
+            status: 'ready', 
+            componentType: LayerRibbonControls
+          }
+        ]
       },
     ],
   },
