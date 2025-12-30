@@ -84,12 +84,12 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   // Colors & Interaction (Design Tokens)
   // Primary: primary token for selection
   // Surface: surface2 (ribbon panel)
-  let colorClass = 'bg-surface2 text-text border border-transparent';
+  let colorClass = 'bg-surface2 text-text border border-transparent focus-outline';
 
   if (isActive) {
-    colorClass = 'bg-primary text-primary-contrast shadow-sm ring-1 ring-primary/50';
+    colorClass = 'bg-primary text-primary-contrast border-primary/20 shadow-sm focus-outline';
   } else if (isStub) {
-    colorClass = 'bg-surface2/50 text-text-muted opacity-60 cursor-not-allowed';
+    colorClass = 'bg-surface2/50 text-text-muted opacity-60 cursor-not-allowed focus-outline';
   } else {
     // Hover State
     const hoverClass =
@@ -112,7 +112,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
     return (
       <button
         onClick={() => !isStub && onClick(item)}
-        className={`relative rounded-md transition-all duration-150 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
+        className={`relative rounded-md transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
         title={tooltip}
         aria-disabled={isStub}
         aria-pressed={isTool ? isActive : undefined}
@@ -125,7 +125,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   return (
     <button
       onClick={() => !isStub && onClick(item)}
-      className={`relative rounded-md transition-all duration-150 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
+      className={`relative rounded-md transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
       title={tooltip}
       aria-disabled={isStub}
       aria-pressed={isTool ? isActive : undefined}

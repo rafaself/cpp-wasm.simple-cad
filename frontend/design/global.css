@@ -147,3 +147,10 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Global focus/active reset for UI buttons to prevent white flashes */
+button:focus,
+button:active {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}

@@ -223,8 +223,8 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
   return (
     <div
       className={`relative flex items-center bg-surface-strong/60 border ${
-        isFocused ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border/50'
-      } rounded overflow-hidden transition-all group ${
+        isFocused ? 'border-primary/50' : 'border-border/50'
+      } rounded overflow-hidden transition-colors duration-200 group ${
         disabled ? 'opacity-50 cursor-not-allowed' : ''
       } ${className}`}
       data-testid={testId}
@@ -268,7 +268,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
             onMouseDown={(e) => e.preventDefault()}
             tabIndex={-1}
             disabled={disabled}
-            className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors border-b border-border/50"
+            className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors border-b border-border/50 focus:outline-none"
             aria-label="Increment"
           >
             <ChevronUp size={8} strokeWidth={3} />
@@ -279,7 +279,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
             onMouseDown={(e) => e.preventDefault()}
             tabIndex={-1}
             disabled={disabled}
-            className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors"
+            className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors focus:outline-none"
             aria-label="Decrement"
           >
             <ChevronDown size={8} strokeWidth={3} />
@@ -296,7 +296,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
           onMouseDown={(e) => e.preventDefault()}
           tabIndex={-1}
           disabled={disabled}
-          className="flex items-center justify-center h-full w-5 border-l border-border/50 bg-surface-strong/80 hover:bg-surface2 transition-colors"
+          className="flex items-center justify-center h-full w-5 border-l border-border/50 bg-surface-strong/80 hover:bg-surface2 transition-colors focus:outline-none"
           aria-label="Open presets"
           aria-haspopup="listbox"
         >

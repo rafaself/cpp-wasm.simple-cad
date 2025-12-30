@@ -70,7 +70,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
           if (!isOpen) updateDropdownPosition();
           setIsOpen(!isOpen);
         }}
-        className={`flex items-center justify-between px-2 cursor-pointer w-full h-full text-left ${className}`}
+        className={`flex items-center justify-between px-2 cursor-pointer w-full h-full text-left focus-outline ${className}`}
       >
         <span className="truncate">{selectedLabel}</span>
         <ChevronDown

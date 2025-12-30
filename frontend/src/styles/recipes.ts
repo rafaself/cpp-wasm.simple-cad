@@ -27,7 +27,7 @@ export const INPUT_STYLES = {
 
 // Base button shared classes
 const BUTTON_BASE =
-  'rounded transition-colors text-text-muted hover:text-text hover:bg-surface2 border border-transparent active:bg-surface2/80';
+  'rounded transition-colors text-text-muted hover:text-text hover:bg-surface2 border border-transparent active:bg-surface2/80 focus:outline-none';
 
 export const BUTTON_STYLES = {
   /** Base button style */
