@@ -209,7 +209,9 @@
 }
 
 .premium-switch-input:checked + .premium-switch-track .premium-switch-handle {
-  transform: translateX(18px); /* 38(track) - 16(handle) - 4(2px padding each side) = 18px */
+  transform: translateX(
+    18px
+  ); /* 38(track) - 16(handle) - 4(2px padding each side) = 18px */
 }
 
 /* Hover Effects */
@@ -225,7 +227,9 @@
   transform: scale(1.05);
 }
 
-.premium-switch-input:checked:hover + .premium-switch-track .premium-switch-handle {
+.premium-switch-input:checked:hover
+  + .premium-switch-track
+  .premium-switch-handle {
   transform: translateX(18px) scale(1.05);
 }
 
@@ -233,4 +237,56 @@
 .premium-switch-input:focus-visible + .premium-switch-track {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
+}
+
+/* ==========================================================================
+   RIBBON LAYOUT REFACTOR
+   Standardizing heights, gaps, and alignment across all ribbon groups.
+   ========================================================================== */
+
+:root {
+  --ribbon-item-height: 24px; /* Standard height for all inputs/buttons/rows */
+  --ribbon-gap: 4px; /* Consistent vertical/horizontal gap */
+}
+
+/* 
+  Constraint: Container for multiple rows (e.g. Text Group, Layers Group).
+  Replaces 'flex flex-col gap-1.5' with standardized gap.
+*/
+.ribbon-group-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  gap: var(--ribbon-gap);
+}
+
+/* 
+  Constraint: Single row of controls.
+  Forces stretch alignment so children fill the --ribbon-item-height.
+*/
+.ribbon-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ribbon-gap);
+  height: var(--ribbon-item-height);
+}
+
+/* 
+  Specific fix for inputs/selects to ensure they fill the parent row height.
+  Use this on the wrappers or direct input elements.
+*/
+.ribbon-fill-h {
+  height: 100% !important;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+
+/* 
+  Helper to center content within a button/div but ensure the container fills height.
+*/
+.ribbon-center-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

@@ -14,14 +14,14 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
   onItemClick,
 }) => {
   return (
-    <div className="flex flex-col h-full gap-1.5">
+    <div className="flex flex-col h-full gap-1">
       <div 
         role="group"
         aria-label={group.label || group.id}
-        className={`flex justify-center
-          ${group.layout === 'grid-2x3' ? 'grid grid-cols-3 gap-[6px] content-start' : ''}
-          ${group.layout === 'stack' ? 'flex flex-col gap-[6px]' : ''}
-          ${!group.layout || group.layout === 'flex-row' ? 'flex items-start gap-[6px]' : ''}
+        className={`flex justify-center flex-1
+          ${group.layout === 'grid-2x3' ? 'grid grid-cols-3 gap-1 content-center items-center' : ''}
+          ${group.layout === 'stack' ? 'flex flex-col gap-1 justify-center' : ''}
+          ${!group.layout || group.layout === 'flex-row' ? 'flex items-stretch gap-1' : ''}
         `}>
         {group.items.map((item, index) => {
           if (item.kind === 'custom' && item.componentType) {

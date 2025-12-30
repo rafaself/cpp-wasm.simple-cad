@@ -21,8 +21,9 @@ const FONT_OPTIONS = [
   { value: 'Roboto', label: 'Roboto' },
 ];
 
+
 const InputWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`flex flex-col justify-center w-full ${className || ''}`}>{children}</div>
+  <div className={`flex flex-col justify-center w-full h-full ${className || ''}`}>{children}</div>
 );
 
 type StyleState = 'off' | 'on' | 'mixed';
@@ -43,7 +44,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds,
   };
   return (
     <InputWrapper>
-      <CustomSelect value={textFontFamily} onChange={handleChange} options={FONT_OPTIONS} className={`${INPUT_STYLES.ribbon} h-6 text-xs`} />
+      <CustomSelect value={textFontFamily} onChange={handleChange} options={FONT_OPTIONS} className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`} />
     </InputWrapper>
   );
 };
@@ -70,7 +71,7 @@ export const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, a
   };
   return (
     <InputWrapper className="items-center">
-      <NumberSpinner value={textFontSize} onChange={handleChange} min={8} max={256} className="w-full h-6" />
+      <NumberSpinner value={textFontSize} onChange={handleChange} min={8} max={256} className="w-full ribbon-fill-h" />
     </InputWrapper>
   );
 };
@@ -110,7 +111,7 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   };
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5">
+      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 ribbon-fill-h gap-0.5">
         {alignOptions.map(({ align, icon, label }) => (
           <button
             key={align}
@@ -195,7 +196,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
 
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5">
+      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 ribbon-fill-h gap-0.5">
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
@@ -223,22 +224,22 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
 };
 
 export const TextFormatGroup: React.FC<TextControlProps> = (props) => (
-  <div className="flex flex-col h-full justify-center px-0.5 gap-1">
+  <div className="ribbon-group-col px-1">
     {/* Row 1 */}
-    <div className="flex items-center gap-1.5">
-      <div className="w-[140px]">
+    <div className="ribbon-row">
+      <div className="w-[140px] h-full">
         <FontFamilyControl {...props} />
       </div>
-      <div className="w-[106px]">
+      <div className="w-[106px] h-full">
         <FontSizeControl {...props} />
       </div>
     </div>
     {/* Row 2 */}
-    <div className="flex items-center gap-1.5">
-      <div className="w-[140px]">
+    <div className="ribbon-row">
+      <div className="w-[140px] h-full">
         <TextStyleControl {...props} />
       </div>
-      <div className="w-[106px]">
+      <div className="w-[106px] h-full">
         <TextAlignControl {...props} />
       </div>
     </div>
