@@ -85,7 +85,7 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[66px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800/30 overflow-x-auto"
+        className="h-[66px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800 overflow-x-auto shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
