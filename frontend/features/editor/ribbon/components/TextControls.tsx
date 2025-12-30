@@ -160,13 +160,13 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
   };
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
+      <div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
         {alignOptions.map(({ align, icon, label }) => (
           <button
             key={align}
             onClick={() => handleClick(align)}
             onMouseDown={(e) => e.preventDefault()}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-primary/30 text-primary' : ''}`}
+            className={`w-8 h-full ${BUTTON_STYLES.centered} focus-outline ${activeAlign === align ? BUTTON_STYLES.active : ''}`}
             title={label}
           >
             {icon}
@@ -295,14 +295,14 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
+      <div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
           const stateClass = isOn
-            ? 'bg-primary/30 text-primary'
+            ? BUTTON_STYLES.active
             : isMixed
-              ? 'bg-primary/15 text-primary border border-primary/40'
+              ? 'bg-primary/10 text-primary border border-primary/20'
               : '';
 
           return (
@@ -310,7 +310,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
               key={option.key}
               onClick={() => handleClick(option)}
               onMouseDown={(e) => e.preventDefault()}
-              className={`w-8 h-full ${BUTTON_STYLES.centered} ${stateClass}`}
+              className={`w-8 h-full ${BUTTON_STYLES.centered} focus-outline ${stateClass}`}
               title={option.label}
             >
               {option.icon}
