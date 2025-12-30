@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import DxfParser from 'dxf-parser/dist/dxf-parser.js';
 import fs from 'fs';
+import path from 'path';
 import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { DxfData } from './types';
@@ -8,7 +9,7 @@ import { toGrayscale } from './styles';
 import { DxfColorScheme } from './colorScheme';
 
 const parser = new DxfParser();
-const fixturePath = new URL('../../../../verification/color-schemes-test.dxf', import.meta.url);
+const fixturePath = path.resolve(process.cwd(), 'verification/color-schemes-test.dxf');
 const dxfText = fs.readFileSync(fixturePath, 'utf-8');
 const fixtureData = parser.parseSync(dxfText) as DxfData;
 

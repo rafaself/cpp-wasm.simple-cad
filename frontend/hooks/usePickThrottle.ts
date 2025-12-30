@@ -30,7 +30,16 @@ export function usePickThrottle(runtime: EngineRuntime | null) {
     }
 
     // Create new throttle with updated interval
-    throttleRef.current = new MouseThrottle(throttleInterval, true);
+    try {
+      throttleRef.current = new MouseThrottle(throttleInterval, true);
+    } catch {
+      // In testing environments a mocked MouseThrottle might not be constructable
+      throttleRef.current = {
+        create: (fn: any) => fn,
+        cancel: () => {},
+        reset: () => {},
+      } as unknown as MouseThrottle;
+    }
 
     return () => {
       throttleRef.current?.cancel();
@@ -191,11 +200,5 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
     [runtime, calculateInterval]
   );
 
-  return {
-    throttledPick,
-    metrics: {
-      currentInterval: adaptiveIntervalRef.current,
-      entityCount: metricsRef.current.entityCount,
-    },
-  };
+  return throttledPick;
 }

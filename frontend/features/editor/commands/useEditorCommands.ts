@@ -14,10 +14,16 @@ export type ActionId =
   | 'save-file'
   | 'undo'
   | 'redo'
+  | 'delete'
   | 'open-settings'
   | 'zoom-in'
   | 'zoom-out'
   | 'zoom-to-fit'
+  | 'export-json'
+  | 'report-csv'
+  | 'export-project'
+  | 'view-project'
+  | 'grid'
   | (string & {});
 export type ToolId = ToolType | (string & {});
 
@@ -92,7 +98,7 @@ export const useEditorCommands = () => {
   const setTool = useUIStore((s) => s.setTool);
   const setSettingsModalOpen = useUIStore((s) => s.setSettingsModalOpen);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
-  const { zoomToFit } = useEditorLogic();
+  const { zoomToFit, deleteSelected } = useEditorLogic();
 
   const executeAction = useCallback(
     (actionId: ActionId, status: ItemStatus = 'ready') => {
@@ -116,6 +122,9 @@ export const useEditorCommands = () => {
           return;
         case 'open-settings':
           setSettingsModalOpen(true);
+          return;
+        case 'delete':
+          deleteSelected();
           return;
         case 'zoom-in':
           setViewTransform((prev) => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));

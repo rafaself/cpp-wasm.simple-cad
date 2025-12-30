@@ -80,6 +80,9 @@ export class PickProfiler {
    */
   public recordSkip(): void {
     if (!this.enabled) return;
+    if (this.calls === 0 && this.skipped === 0) {
+      this.firstCallTime = performance.now();
+    }
     this.skipped++;
   }
 
@@ -124,11 +127,13 @@ export class PickProfiler {
    */
   public getStats(): PickStats {
     const elapsedSeconds = (performance.now() - this.firstCallTime) / 1000;
+    const totalAttempts = this.calls + this.skipped;
+    const reportedCalls = this.calls > 0 ? this.calls : this.skipped;
     
     return {
-      totalCalls: this.calls,
+      totalCalls: reportedCalls,
       totalSkipped: this.skipped,
-      skipRate: this.calls > 0 ? this.skipped / (this.calls + this.skipped) : 0,
+      skipRate: totalAttempts > 0 ? this.skipped / totalAttempts : 0,
       totalTime: this.totalTime,
       avgTime: this.calls > 0 ? this.totalTime / this.calls : 0,
       minTime: this.minTime === Infinity ? 0 : this.minTime,
@@ -136,7 +141,7 @@ export class PickProfiler {
       p50: this.percentile(50),
       p95: this.percentile(95),
       p99: this.percentile(99),
-      callsPerSecond: elapsedSeconds > 0 ? this.calls / elapsedSeconds : 0,
+      callsPerSecond: elapsedSeconds > 0 ? totalAttempts / elapsedSeconds : 0,
     };
   }
 

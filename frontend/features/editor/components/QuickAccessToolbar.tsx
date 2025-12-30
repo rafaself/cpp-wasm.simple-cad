@@ -5,12 +5,12 @@ import { LayoutPanelLeft } from 'lucide-react';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 const TOOLS = [
-  { id: 'select', icon: 'Select', label: 'Selecionar' },
-  { id: 'pan', icon: 'Hand', label: 'Pan' },
-  { id: 'line', icon: 'Line', label: 'Linha' },
-  { id: 'rect', icon: 'Rect', label: 'Retangulo' },
-  { id: 'circle', icon: 'Circle', label: 'Circulo' },
-  { id: 'move', icon: 'Move', label: 'Mover' },
+  { id: 'select', icon: 'Select', label: 'Selecionar', status: 'ready' as const },
+  { id: 'pan', icon: 'Hand', label: 'Pan', status: 'stub' as const },
+  { id: 'line', icon: 'Line', label: 'Linha', status: 'ready' as const },
+  { id: 'rect', icon: 'Rect', label: 'Retangulo', status: 'ready' as const },
+  { id: 'circle', icon: 'Circle', label: 'Circulo', status: 'ready' as const },
+  { id: 'move', icon: 'Move', label: 'Mover', status: 'stub' as const },
 ];
 
 const QuickAccessToolbar: React.FC = () => {
@@ -45,7 +45,7 @@ const QuickAccessToolbar: React.FC = () => {
       {TOOLS.map(item => (
         <button
           key={item.id}
-          onClick={() => selectTool(item.id)}
+          onClick={() => selectTool(item.id, item.status)}
           className={`
             flex items-center justify-center w-8 h-8 rounded-md transition-all
             ${activeTool === item.id

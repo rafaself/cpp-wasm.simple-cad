@@ -8,24 +8,22 @@ This document serves as the single source of truth for the project's architectur
 
 We utilize a **Feature-Based Architecture**. This means code is organized by **business domain** (features) rather than technical type (controllers, views, etc.) wherever possible.
 
-### Folder Structure Explained
+### Folder Structure (frontend/)
 
 ```text
-src/
+frontend/
 ├── assets/             # Static assets (images, SVGs) used globally.
 ├── components/         # GLOBAL "Dumb" Components (UI Kit).
 │                       # (e.g., Button, Modal, Input, RibbonButton).
 │                       # These components know NOTHING about business logic or Stores.
-├── config/             # Global configuration, Constants, and Menu Definitions (JSON).
+├── config/             # Global configuration and constants (no menu here).
 ├── features/           # THE CORE. Independent modules of the application.
 │   └── editor/         # Example Feature: The CAD Editor.
 │       ├── components/ # Components specific ONLY to the Editor (Canvas, Sidebar).
 │       ├── hooks/      # Business logic specific to the Editor.
 │       ├── types/      # Types specific to the Editor.
-│       └── index.ts    # Public API of the feature (optional).
+│       └── ui/         # Ribbon config lives here.
 ├── hooks/              # Global reusable hooks (e.g., useWindowSize, useTheme).
-├── layouts/            # Page wrappers (e.g., MainLayout with Header/Footer).
-├── pages/              # Route entry points. Composes Features into a Page.
 ├── stores/             # Global State Management (Zustand).
 ├── types/              # Global TypeScript Definitions (shared across features).
 └── utils/              # Pure functions (Math, Geometry, Formatters).
@@ -46,9 +44,9 @@ src/
 2.  **Atomic Selectors:** When using `useStore`, select only the specific state you need to prevent unnecessary re-renders.
 
 ### C. Menu & Configuration
-1.  **Data-Driven UI:** The Top Ribbon and Menus are generated dynamically from `src/config/menu.ts`.
-2.  **Modifying Menus:** To add a button, edit the JSON in `config/menu.ts`, not the JSX in `Ribbon.tsx`.
-3.  **Icons:** Icons are mapped via string keys in `src/utils/iconMap.tsx`. Do not import Lucide icons directly into components that read from the Menu JSON; use the `IconMap`.
+1.  **Data-Driven UI:** The Ribbon is defined in `features/editor/ui/ribbonConfig.ts`. This is the single source of truth for Ribbon items (READY/STUB).
+2.  **Modifying Menus:** To add/adjust a Ribbon button, edit `ribbonConfig.ts` and route actions/tools via the dispatcher (`useEditorCommands`); do not recreate legacy `config/menu.ts`.
+3.  **Icons:** Icons for Ribbon items come from the config (Lucide components). Avoid reintroducing string-based icon maps for Ribbon.
 
 ### D. Styling (Tailwind CSS)
 1.  **Utility First:** Use Tailwind utility classes directly in JSX (`className`).
@@ -66,12 +64,12 @@ src/
 When asked to implement a new feature (e.g., "Add a Layer Manager"):
 
 1.  **Analyze Scope:** Is it global or part of an existing feature?
-    *   *If specific:* Add to `src/features/editor/components`.
-    *   *If new domain:* Create `src/features/layers/`.
-2.  **Define Types:** Update `src/types/index.ts` with new data structures.
-3.  **Update State:** Add UI-only state in `src/stores/useUIStore.ts` or `src/stores/useSettingsStore.ts` and send document mutations to the engine via commands.
+    *   *If specific:* Add to `features/editor/components`.
+    *   *If new domain:* Create `features/{domain}/`.
+2.  **Define Types:** Update `types/index.ts` with new data structures if shared.
+3.  **Update State:** Add UI-only state in `stores/useUIStore.ts` or `stores/useSettingsStore.ts` and send document mutations to the engine via commands.
 4.  **Create Logic/UI:** Implement components.
-5.  **Register:** If it's a tool/action, register it in `src/config/menu.ts`.
+5.  **Register:** If it's a Ribbon tool/action, register it in `features/editor/ui/ribbonConfig.ts` and dispatch via `useEditorCommands`.
 
 ---
 
@@ -81,7 +79,8 @@ If you are an AI assistant reading this, follow these rules when generating code
 
 1.  **Check Existing Structure:** Do not create duplicate files. Check `src/features` first.
 2.  **Engine-First State:** The engine owns all document data; the frontend stores only UI state (tools, viewport, panels, preferences).
-3.  **JSON Menus:** If the user asks to "Add a button", generate the change for `src/config/menu.ts`.
+3.  **Ribbon Source of Truth:** If asked to "Add a button", update `features/editor/ui/ribbonConfig.ts` and ensure it goes through `useEditorCommands`.
+5.  **Anti-regressão:** Não recrie `config/menu.ts` legado; qualquer PR que reintroduza menus antigos deve ser recusado.
 4.  **Geometry:** Do not compute authoritative shape geometry in JS; prefer engine queries and overlay buffers.
 
 ---

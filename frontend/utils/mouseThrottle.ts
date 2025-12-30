@@ -27,8 +27,9 @@ export interface ThrottleOptions {
 }
 
 export class MouseThrottle {
-  private lastCallTime = 0;
+  private lastCallTime: number;
   private pendingCall: number | null = null; // RAF ID or timeout ID
+  private pendingIsRaf: boolean | null = null;
   private useRAF: boolean;
 
   /**
@@ -40,6 +41,8 @@ export class MouseThrottle {
     useRAF: boolean = true
   ) {
     this.useRAF = useRAF;
+    // Allow first call to fire immediately even with leading=true
+    this.lastCallTime = -this.minInterval;
   }
 
   /**
@@ -61,12 +64,13 @@ export class MouseThrottle {
 
       // Cancel any pending trailing call
       if (this.pendingCall !== null) {
-        if (this.useRAF) {
+        if (this.pendingIsRaf) {
           cancelAnimationFrame(this.pendingCall);
         } else {
           clearTimeout(this.pendingCall);
         }
         this.pendingCall = null;
+        this.pendingIsRaf = null;
       }
 
       // Leading edge: execute immediately if interval passed
@@ -85,15 +89,19 @@ export class MouseThrottle {
           this.pendingCall = requestAnimationFrame(() => {
             this.lastCallTime = performance.now();
             this.pendingCall = null;
+            this.pendingIsRaf = null;
             fn(...args);
           });
+          this.pendingIsRaf = true;
         } else {
           // Use setTimeout for precise timing
           this.pendingCall = window.setTimeout(() => {
             this.lastCallTime = performance.now();
             this.pendingCall = null;
+            this.pendingIsRaf = null;
             fn(...args);
           }, delay);
+          this.pendingIsRaf = false;
         }
       }
     };
@@ -104,12 +112,13 @@ export class MouseThrottle {
    */
   public cancel(): void {
     if (this.pendingCall !== null) {
-      if (this.useRAF) {
+      if (this.pendingIsRaf) {
         cancelAnimationFrame(this.pendingCall);
       } else {
         clearTimeout(this.pendingCall);
       }
       this.pendingCall = null;
+      this.pendingIsRaf = null;
     }
   }
 
@@ -118,7 +127,7 @@ export class MouseThrottle {
    */
   public reset(): void {
     this.cancel();
-    this.lastCallTime = 0;
+    this.lastCallTime = -this.minInterval;
   }
 }
 
