@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { HSV, hsvToRgb, rgbToHex, hexToRgb, rgbToHsv, RGB } from './utils';
 import { ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+
+import { HSV, hsvToRgb, rgbToHex, hexToRgb, rgbToHsv, RGB } from './utils';
 
 interface ColorInputsProps {
   hsv: HSV;
@@ -21,10 +22,10 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
     const rgb = hsvToRgb(hsv);
     const hex = rgbToHex(rgb);
     setHexValue(hex);
-    setRgbValues({ 
-      r: rgb.r.toString(), 
-      g: rgb.g.toString(), 
-      b: rgb.b.toString() 
+    setRgbValues({
+      r: rgb.r.toString(),
+      g: rgb.g.toString(),
+      b: rgb.b.toString(),
     });
     setAlphaValue(Math.round(hsv.a * 100).toString());
   }, [hsv]);
@@ -36,7 +37,7 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
   const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
     setHexValue(val);
-    
+
     if (val.length === 6) {
       // Remember the typed hex to prevent blur from changing it
       userTypedHex.current = val.toUpperCase();
@@ -64,15 +65,15 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
   // RGB handlers
   const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
     const numVal = value.replace(/[^0-9]/g, '');
-    setRgbValues(prev => ({ ...prev, [channel]: numVal }));
-    
+    setRgbValues((prev) => ({ ...prev, [channel]: numVal }));
+
     const num = parseInt(numVal, 10);
     if (!isNaN(num)) {
       const clamped = Math.max(0, Math.min(255, num));
       const currentRgb = hsvToRgb(hsv);
-      const newRgb: RGB = { 
-        ...currentRgb, 
-        [channel]: clamped 
+      const newRgb: RGB = {
+        ...currentRgb,
+        [channel]: clamped,
       };
       const newHsv = rgbToHsv(newRgb);
       onChange(newHsv);
@@ -81,10 +82,10 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
 
   const handleRgbBlur = () => {
     const rgb = hsvToRgb(hsv);
-    setRgbValues({ 
-      r: rgb.r.toString(), 
-      g: rgb.g.toString(), 
-      b: rgb.b.toString() 
+    setRgbValues({
+      r: rgb.r.toString(),
+      g: rgb.g.toString(),
+      b: rgb.b.toString(),
     });
   };
 
@@ -104,33 +105,40 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
     setAlphaValue(Math.round(hsv.a * 100).toString());
   };
 
-  const inputClass = "w-full bg-transparent border-none outline-none text-slate-200 text-xs py-1.5 font-mono";
+  const inputClass =
+    'w-full bg-transparent border-none outline-none text-slate-200 text-xs py-1.5 font-mono';
 
   return (
     <div className="flex gap-2 items-center">
       {/* Mode Select Dropdown */}
       <div className="relative">
-        <div 
+        <div
           className="flex items-center gap-1 bg-[#3D3D3D] text-slate-300 px-2 py-1.5 rounded text-xs cursor-pointer hover:bg-[#4D4D4D] transition-colors border border-slate-600/50 shrink-0"
           onClick={() => setShowModeDropdown(!showModeDropdown)}
         >
           <span className="font-medium uppercase">{mode}</span>
           <ChevronDown size={12} />
         </div>
-        
+
         {showModeDropdown && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowModeDropdown(false)} />
             <div className="absolute top-full left-0 mt-1 bg-[#3D3D3D] border border-slate-600/50 rounded shadow-lg z-20 overflow-hidden">
-              <div 
+              <div
                 className={`px-3 py-1.5 text-xs cursor-pointer hover:bg-[#4D4D4D] ${mode === 'hex' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-                onClick={() => { setMode('hex'); setShowModeDropdown(false); }}
+                onClick={() => {
+                  setMode('hex');
+                  setShowModeDropdown(false);
+                }}
               >
                 HEX
               </div>
-              <div 
+              <div
                 className={`px-3 py-1.5 text-xs cursor-pointer hover:bg-[#4D4D4D] ${mode === 'rgb' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-                onClick={() => { setMode('rgb'); setShowModeDropdown(false); }}
+                onClick={() => {
+                  setMode('rgb');
+                  setShowModeDropdown(false);
+                }}
               >
                 RGB
               </div>
@@ -142,21 +150,21 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
       {/* Color Values Input */}
       {mode === 'hex' ? (
         <div className="flex-grow bg-[#3D3D3D] rounded border border-slate-600/50 flex items-center px-2">
-           <input 
-              type="text" 
-              value={hexValue}
-              onChange={handleHexChange}
-              onBlur={handleHexBlur}
-              className={`${inputClass} uppercase`}
-              placeholder="000000"
-           />
+          <input
+            type="text"
+            value={hexValue}
+            onChange={handleHexChange}
+            onBlur={handleHexBlur}
+            className={`${inputClass} uppercase`}
+            placeholder="000000"
+          />
         </div>
       ) : (
         <div className="flex-grow flex gap-1">
           <div className="flex-1 bg-[#3D3D3D] rounded border border-slate-600/50 flex items-center px-1.5">
             <span className="text-slate-500 text-[10px] mr-1">R</span>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={rgbValues.r}
               onChange={(e) => handleRgbChange('r', e.target.value)}
               onBlur={() => handleRgbBlur()}
@@ -166,8 +174,8 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
           </div>
           <div className="flex-1 bg-[#3D3D3D] rounded border border-slate-600/50 flex items-center px-1.5">
             <span className="text-slate-500 text-[10px] mr-1">G</span>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={rgbValues.g}
               onChange={(e) => handleRgbChange('g', e.target.value)}
               onBlur={() => handleRgbBlur()}
@@ -177,8 +185,8 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
           </div>
           <div className="flex-1 bg-[#3D3D3D] rounded border border-slate-600/50 flex items-center px-1.5">
             <span className="text-slate-500 text-[10px] mr-1">B</span>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={rgbValues.b}
               onChange={(e) => handleRgbChange('b', e.target.value)}
               onBlur={() => handleRgbBlur()}
@@ -191,15 +199,15 @@ const ColorInputs: React.FC<ColorInputsProps> = ({ hsv, onChange }) => {
 
       {/* Alpha/Opacity Input */}
       <div className="w-14 bg-[#3D3D3D] rounded border border-slate-600/50 flex items-center px-2 shrink-0">
-         <input 
-            type="text" 
-            value={alphaValue}
-            onChange={handleAlphaChange}
-            onBlur={handleAlphaBlur}
-            className={`${inputClass} text-right`}
-            maxLength={3}
-         />
-         <span className="text-slate-400 text-xs ml-0.5">%</span>
+        <input
+          type="text"
+          value={alphaValue}
+          onChange={handleAlphaChange}
+          onBlur={handleAlphaBlur}
+          className={`${inputClass} text-right`}
+          maxLength={3}
+        />
+        <span className="text-slate-400 text-xs ml-0.5">%</span>
       </div>
     </div>
   );

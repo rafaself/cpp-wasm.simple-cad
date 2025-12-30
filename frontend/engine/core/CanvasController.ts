@@ -1,8 +1,10 @@
-import { getEngineRuntime } from './singleton';
-import type { TessellatedRenderer } from '@/engine/renderer/types';
 import { Webgl2TessellatedRenderer } from '@/engine/renderer/webgl2/webgl2TessellatedRenderer';
-import type { ViewTransform } from '@/types';
+
+import { getEngineRuntime } from './singleton';
+
 import type { BufferMeta } from './EngineRuntime';
+import type { TessellatedRenderer } from '@/engine/renderer/types';
+import type { ViewTransform } from '@/types';
 
 export class CanvasController {
   private canvas: HTMLCanvasElement | null = null;
@@ -70,8 +72,9 @@ export class CanvasController {
     const meta = runtime.getPositionBufferMeta();
 
     // Engine-native text: rebuild quad buffer (if supported) and feed meta to renderer.
-    if (runtime.isTextQuadsDirty() !== false) { // Default to true if missing
-       runtime.rebuildTextQuadBuffer();
+    if (runtime.isTextQuadsDirty() !== false) {
+      // Default to true if missing
+      runtime.rebuildTextQuadBuffer();
     }
 
     const textQuadMeta = runtime.getTextQuadBufferMeta();

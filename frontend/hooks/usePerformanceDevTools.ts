@@ -1,18 +1,19 @@
 /**
  * usePerformanceDevTools - Hook to initialize performance dev tools
- * 
+ *
  * Automatically installs performance API in development mode
  * Also optionally shows performance monitor overlay
- * 
+ *
  * @example
  * // In App.tsx or main component
- * usePerformanceDevTools({ 
+ * usePerformanceDevTools({
  *   showMonitor: true,
  *   monitorPosition: 'top-right'
  * });
  */
 
 import { useEffect } from 'react';
+
 import { installPerformanceAPI } from '@/utils/dev/performanceAPI';
 
 export interface PerformanceDevToolsConfig {

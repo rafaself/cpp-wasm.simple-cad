@@ -1,6 +1,8 @@
-import { useUIStore } from '../../../stores/useUIStore';
-import { getEngineRuntime } from '@/engine/core/singleton';
 import { CommandOp } from '@/engine/core/commandBuffer';
+import { getEngineRuntime } from '@/engine/core/singleton';
+
+import { useUIStore } from '../../../stores/useUIStore';
+
 import type { EntityId } from '@/engine/core/protocol';
 
 export const useEditorLogic = () => {
@@ -57,7 +59,12 @@ export const useEditorLogic = () => {
         maxY = Math.max(maxY, aabb.maxY);
       }
 
-      if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+      if (
+        !Number.isFinite(minX) ||
+        !Number.isFinite(minY) ||
+        !Number.isFinite(maxX) ||
+        !Number.isFinite(maxY)
+      ) {
         return;
       }
 

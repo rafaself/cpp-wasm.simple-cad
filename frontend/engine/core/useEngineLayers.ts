@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
-import { EngineLayerFlags } from './protocol';
 import { useDocumentSignal } from './engineDocumentSignals';
+import { EngineLayerFlags } from './protocol';
 import { useEngineRuntime } from './useEngineRuntime';
 
 export type EngineLayerSnapshot = {

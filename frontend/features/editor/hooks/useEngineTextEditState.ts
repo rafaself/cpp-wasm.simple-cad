@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
+
 import { useUIStore } from '@/stores/useUIStore';
+
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { TextStyleSnapshot } from '@/types/text';
 

@@ -2,10 +2,12 @@
  * PerformanceMonitor Component Test Suite - 100% Coverage
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import React from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
 import { PerformanceMonitor } from '@/components/dev/PerformanceMonitor';
+
 import { createMockRuntime } from '../../tests/utils/testHelpers';
 
 // Mocks
@@ -42,34 +44,24 @@ describe('PerformanceMonitor', () => {
   });
 
   it('should not render when disabled', () => {
-    const { container } = render(
-      <PerformanceMonitor runtime={mockRuntime} enabled={false} />
-    );
+    const { container } = render(<PerformanceMonitor runtime={mockRuntime} enabled={false} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('should not render when runtime is null', () => {
-    const { container } = render(
-      <PerformanceMonitor runtime={null} enabled={true} />
-    );
+    const { container } = render(<PerformanceMonitor runtime={null} enabled={true} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('should render title and metrics when enabled', () => {
     render(<PerformanceMonitor runtime={mockRuntime} enabled={true} />);
-    
+
     expect(screen.getByText('⚡ Performance Monitor')).toBeInTheDocument();
     expect(screen.getByText('FPS:')).toBeInTheDocument();
   });
 
   it('should update metrics periodically', () => {
-    render(
-      <PerformanceMonitor 
-        runtime={mockRuntime} 
-        enabled={true} 
-        updateInterval={100} 
-      />
-    );
+    render(<PerformanceMonitor runtime={mockRuntime} enabled={true} updateInterval={100} />);
 
     // Initial render
     expect(screen.getAllByText('0').length).toBeGreaterThan(0); // Initial state zeroes
@@ -79,14 +71,14 @@ describe('PerformanceMonitor', () => {
       vi.advanceTimersByTime(150);
     });
 
-    // Verify updates (values might stay same as mock is static, 
+    // Verify updates (values might stay same as mock is static,
     // but at least no error and re-render happens)
     expect(screen.getByText('10')).toBeInTheDocument();
   });
 
   it('should position correctly', () => {
     const { rerender, container } = render(
-      <PerformanceMonitor runtime={mockRuntime} position="top-left" />
+      <PerformanceMonitor runtime={mockRuntime} position="top-left" />,
     );
     // Checking styles requires computing styles or checking props passed to div
     // Testing library is semantic, checking styles is brittle but possible via inline styles
@@ -102,7 +94,7 @@ describe('PerformanceMonitor', () => {
   it('should cleanup cleanup interval on unmount', () => {
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
     const { unmount } = render(<PerformanceMonitor runtime={mockRuntime} />);
-    
+
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalled();
   });

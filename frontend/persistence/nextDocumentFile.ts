@@ -43,7 +43,13 @@ const readU32LE = (view: DataView, offset: number): number => {
 
 const fourCC = (s: string): number => {
   if (s.length !== 4) throw new Error(`fourCC must be 4 chars, got "${s}"`);
-  return (s.charCodeAt(0) | (s.charCodeAt(1) << 8) | (s.charCodeAt(2) << 16) | (s.charCodeAt(3) << 24)) >>> 0;
+  return (
+    (s.charCodeAt(0) |
+      (s.charCodeAt(1) << 8) |
+      (s.charCodeAt(2) << 16) |
+      (s.charCodeAt(3) << 24)) >>>
+    0
+  );
 };
 
 const TAG_META = fourCC('META');
@@ -55,7 +61,7 @@ const crcTable: Uint32Array = (() => {
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {
     let c = i;
-    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     table[i] = c >>> 0;
   }
   return table;
@@ -74,12 +80,17 @@ type Section = {
   bytes: Uint8Array;
 };
 
-export const encodeNextDocumentFile = (payload: NextDocumentPayload, extras?: NextDocumentExtras): Uint8Array => {
+export const encodeNextDocumentFile = (
+  payload: NextDocumentPayload,
+  extras?: NextDocumentExtras,
+): Uint8Array => {
   if (!extras?.engineSnapshot || extras.engineSnapshot.byteLength === 0) {
     throw new Error('NextDocument V3 requires an ESNP engine snapshot.');
   }
 
-  const metaBytes = textEncoder.encode(JSON.stringify({ worldScale: payload.worldScale, frame: payload.frame }));
+  const metaBytes = textEncoder.encode(
+    JSON.stringify({ worldScale: payload.worldScale, frame: payload.frame }),
+  );
 
   const sections: Section[] = [
     { tag: TAG_META, bytes: metaBytes },
@@ -171,7 +182,8 @@ export const decodeNextDocumentFile = (bytes: Uint8Array): NextDocumentDecoded =
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const version = readU32LE(view, 4);
   if (version === VERSION_V1) return decodeV1(bytes);
-  if (version !== VERSION_V2 && version !== VERSION_V3) throw new Error(`Unsupported file version: ${version}`);
+  if (version !== VERSION_V2 && version !== VERSION_V3)
+    throw new Error(`Unsupported file version: ${version}`);
 
   const sectionCount = readU32LE(view, 8);
   const headerBytes = 16;
@@ -209,8 +221,12 @@ export const decodeNextDocumentFile = (bytes: Uint8Array): NextDocumentDecoded =
   const historyBytes = sectionsByTag.get(TAG_HIST);
   const engineSnapshot = sectionsByTag.get(TAG_ESNP);
 
-  const project = projectBytes ? (JSON.parse(textDecoder.decode(projectBytes)) as SerializedProject) : undefined;
-  const history = historyBytes ? (JSON.parse(textDecoder.decode(historyBytes)) as NextDocumentHistory) : undefined;
+  const project = projectBytes
+    ? (JSON.parse(textDecoder.decode(projectBytes)) as SerializedProject)
+    : undefined;
+  const history = historyBytes
+    ? (JSON.parse(textDecoder.decode(historyBytes)) as NextDocumentHistory)
+    : undefined;
 
   if (version === VERSION_V3 && !engineSnapshot) {
     throw new Error('Invalid file: missing ESNP snapshot for V3.');

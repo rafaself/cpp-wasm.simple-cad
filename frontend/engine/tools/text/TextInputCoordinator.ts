@@ -3,8 +3,6 @@
  * Manages click/drag creation, pointer selection, text input deltas, and selection changes.
  */
 
-import type { TextBridge } from '@/engine/bridge/textBridge';
-import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import {
   TextBoxMode,
   TextStyleFlags,
@@ -12,6 +10,9 @@ import {
   byteIndexToCharIndex,
   type TextInputDelta,
 } from '@/types/text';
+
+import type { TextBridge } from '@/engine/bridge/textBridge';
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 export interface TextInputState {
   mode: 'idle' | 'creating' | 'editing';
@@ -43,13 +44,13 @@ export interface CoordinatorCallbacks {
     boxMode: TextBoxMode,
     constraintWidth: number,
     initialWidth: number,
-    initialHeight: number
+    initialHeight: number,
   ) => void;
   onTextUpdated?: (
     textId: number,
     bounds: { width: number; height: number },
     boxMode: TextBoxMode,
-    constraintWidth: number
+    constraintWidth: number,
   ) => void;
   updateCaretPosition: () => void;
 }
@@ -79,10 +80,7 @@ export class TextInputCoordinator {
     count: 0,
   };
 
-  constructor(
-    callbacks: CoordinatorCallbacks,
-    styleDefaults: StyleDefaults
-  ) {
+  constructor(callbacks: CoordinatorCallbacks, styleDefaults: StyleDefaults) {
     this.callbacks = callbacks;
     this.styleDefaults = styleDefaults;
     this.state = this.createInitialState();
@@ -175,10 +173,12 @@ export class TextInputCoordinator {
       x: number,
       y: number,
       boxMode: TextBoxMode,
-      constraintWidth: number
-    ) => void
+      constraintWidth: number,
+    ) => void,
   ): void {
-    console.log('[DEBUG] TextInputCoordinator: handleClick', { worldX, worldY });
+    if (import.meta.env.DEV) {
+      console.warn('[DEBUG] TextInputCoordinator: handleClick', { worldX, worldY });
+    }
     if (!this.isReady() || !this.runtime) {
       console.warn('TextInputCoordinator.handleClick: Not ready');
       return;
@@ -187,7 +187,7 @@ export class TextInputCoordinator {
     // Create new text entity with AutoWidth mode
     const textId = this.runtime.allocateEntityId();
     const shapeId = `entity-${textId}`;
-    
+
     this.state = {
       mode: 'creating',
       activeTextId: textId,
@@ -208,20 +208,9 @@ export class TextInputCoordinator {
     const bounds = this.bridge?.getTextBounds(textId);
     const w = bounds && bounds.valid ? bounds.maxX - bounds.minX : 0;
     const h =
-      bounds && bounds.valid
-        ? bounds.maxY - bounds.minY
-        : this.styleDefaults.fontSize * 1.2;
+      bounds && bounds.valid ? bounds.maxY - bounds.minY : this.styleDefaults.fontSize * 1.2;
 
-    this.callbacks.onTextCreated?.(
-      shapeId,
-      textId,
-      worldX,
-      worldY,
-      TextBoxMode.AutoWidth,
-      0,
-      w,
-      h
-    );
+    this.callbacks.onTextCreated?.(shapeId, textId, worldX, worldY, TextBoxMode.AutoWidth, 0, w, h);
 
     this.callbacks.onStateChange(this.state);
     this.callbacks.updateCaretPosition();
@@ -240,8 +229,8 @@ export class TextInputCoordinator {
       x: number,
       y: number,
       boxMode: TextBoxMode,
-      constraintWidth: number
-    ) => void
+      constraintWidth: number,
+    ) => void,
   ): void {
     if (!this.isReady() || !this.runtime) return;
 
@@ -249,10 +238,7 @@ export class TextInputCoordinator {
     const x = Math.min(startX, endX);
     const y = Math.max(startY, endY); // Y-Up: Top is Max Y
     const width = Math.abs(endX - startX);
-    const height = Math.max(
-      Math.abs(endY - startY),
-      this.styleDefaults.fontSize * 1.2
-    );
+    const height = Math.max(Math.abs(endY - startY), this.styleDefaults.fontSize * 1.2);
 
     // Minimum width for fixed-width text
     const constraintWidth = Math.max(width, 50);
@@ -260,7 +246,7 @@ export class TextInputCoordinator {
     // Create new text entity with FixedWidth mode
     const textId = this.runtime.allocateEntityId();
     const shapeId = `entity-${textId}`;
-    
+
     this.state = {
       mode: 'creating',
       activeTextId: textId,
@@ -289,7 +275,7 @@ export class TextInputCoordinator {
       TextBoxMode.FixedWidth,
       constraintWidth,
       w,
-      h
+      h,
     );
 
     this.callbacks.onStateChange(this.state);
@@ -313,16 +299,14 @@ export class TextInputCoordinator {
     rotation: number,
     boxMode?: TextBoxMode,
     constraintWidth?: number,
-    startDrag = true
+    startDrag = true,
   ): void {
     if (!this.isReady() || !this.bridge) return;
 
     const resolvedBoxMode = boxMode ?? this.state.boxMode ?? TextBoxMode.AutoWidth;
     const resolvedConstraint =
       constraintWidth ??
-      (resolvedBoxMode === TextBoxMode.FixedWidth
-        ? this.state.constraintWidth
-        : 0);
+      (resolvedBoxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 0);
 
     // 1. Hit test
     const hitResult = this.bridge.hitTest(textId, localX, localY);
@@ -431,10 +415,7 @@ export class TextInputCoordinator {
     }
 
     // Update engine
-    this.bridge.setCaretByteIndex(
-      textId,
-      charIndexToByteIndex(content, this.state.caretIndex)
-    );
+    this.bridge.setCaretByteIndex(textId, charIndexToByteIndex(content, this.state.caretIndex));
 
     this.callbacks.onStateChange(this.state);
     this.callbacks.updateCaretPosition();
@@ -444,8 +425,7 @@ export class TextInputCoordinator {
    * Handle pointer move during text selection drag.
    */
   handlePointerMove(textId: number, localX: number, localY: number): void {
-    if (!this.isDragging || !this.bridge || this.state.activeTextId !== textId)
-      return;
+    if (!this.isDragging || !this.bridge || this.state.activeTextId !== textId) return;
 
     const hitResult = this.bridge.hitTest(textId, localX, localY);
     if (!hitResult) return;
@@ -539,7 +519,8 @@ export class TextInputCoordinator {
   }
 
   private emitDiagnostic(reason: string, payload: Record<string, unknown>): void {
-    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const now =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (now - this.lastDiagnosticTs < 200) return; // prevent log spam
     this.lastDiagnosticTs = now;
     if (process.env.NODE_ENV !== 'production') {
@@ -556,7 +537,9 @@ export class TextInputCoordinator {
       return;
     }
 
-    console.log('[DEBUG] TextInputCoordinator: handleInputDelta', delta);
+    if (import.meta.env.DEV) {
+      console.warn('[DEBUG] TextInputCoordinator: handleInputDelta', delta);
+    }
 
     const textId = this.state.activeTextId;
 
@@ -590,23 +573,23 @@ export class TextInputCoordinator {
 
     // 2. Sync state from Engine (SSOT)
     // We assume the Engine updates the caret automatically after insertion/deletion
-    // If not, we might need to set it manually based on delta, 
+    // If not, we might need to set it manually based on delta,
     // but ideally the Engine handles 'insert moves caret'.
     // NOTE: If engine doesn't auto-move caret on insert, we might need explicitly set it.
     // Let's assume for now we need to hint the engine if it doesn't auto-update,
-    // but standard behavior is valid. 
-    // Actually, TextBridge operations (insertContent) usually DON'T move caret automatically 
-    // in strict ECS, but let's check. 
+    // but standard behavior is valid.
+    // Actually, TextBridge operations (insertContent) usually DON'T move caret automatically
+    // in strict ECS, but let's check.
     // If they don't, we should send SetCaret command too.
-    
-    // For now, let's explicitly update caret in Engine based on delta, 
+
+    // For now, let's explicitly update caret in Engine based on delta,
     // THEN read back. This keeps 'logic' here but 'truth' from Engine.
     // Ideally Engine command `InsertText` should update caret.
     // If we rely on the bridge commands which are atomic, we might need to set caret.
 
     // Let's optimize: calculate target caret, set in engine, them read back.
     // This is still cleaner than keeping local state authoritative.
-    
+
     let targetCaretChar = this.state.caretIndex;
     if (delta.type === 'insert') targetCaretChar = delta.at + delta.text.length;
     else if (delta.type === 'delete') targetCaretChar = delta.start;
@@ -628,9 +611,7 @@ export class TextInputCoordinator {
       estimatedHeight = bounds.maxY - bounds.minY;
     } else {
       estimatedWidth =
-        this.state.boxMode === TextBoxMode.FixedWidth
-          ? this.state.constraintWidth
-          : 50;
+        this.state.boxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 50;
       estimatedHeight = this.styleDefaults.fontSize;
     }
 
@@ -638,7 +619,7 @@ export class TextInputCoordinator {
       textId,
       { width: estimatedWidth, height: estimatedHeight },
       this.state.boxMode,
-      this.state.constraintWidth
+      this.state.constraintWidth,
     );
   }
 
@@ -646,8 +627,7 @@ export class TextInputCoordinator {
    * Handle selection change from TextInputProxy.
    */
   handleSelectionChange(start: number, end: number): void {
-    if (!this.isReady() || !this.bridge || this.state.activeTextId === null)
-      return;
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return;
 
     const textId = this.state.activeTextId;
     const currentContent = this.getPooledContent();

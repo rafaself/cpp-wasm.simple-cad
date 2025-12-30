@@ -1,4 +1,5 @@
 import { COMMAND_BUFFER_MAGIC, CommandOp } from '../commandBuffer';
+
 import type { CadEngineInstance, WasmModule } from '../wasm-types';
 
 /**
@@ -14,7 +15,10 @@ export class DraftSystem {
   private appendBufferPtr: number | null = null;
   private appendView: DataView | null = null;
 
-  constructor(private readonly module: WasmModule, private readonly engine: CadEngineInstance) {}
+  constructor(
+    private readonly module: WasmModule,
+    private readonly engine: CadEngineInstance,
+  ) {}
 
   public dispose(): void {
     if (this.updateBufferPtr !== null) {

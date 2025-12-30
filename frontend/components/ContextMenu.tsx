@@ -16,11 +16,14 @@ interface ContextMenuProps {
 const ContextMenu: React.FC<ContextMenuProps> = ({ isOpen, position, onClose, items }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleClickOutside = useCallback((event: MouseEvent) => {
-    if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-      onClose();
-    }
-  }, [onClose]);
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
 
   useEffect(() => {
     if (isOpen) {

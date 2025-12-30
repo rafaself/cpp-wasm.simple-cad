@@ -1,14 +1,16 @@
 import React from 'react';
-import { SnapOptions } from '../../../types';
-import { useSettingsStore } from '../../../stores/useSettingsStore';
-import { Section } from '../../../components/ui/Section';
-import { Toggle } from '../../../components/ui/Toggle';
+
 import { LABELS } from '@/i18n/labels';
 
+import { Section } from '../../../components/ui/Section';
+import { Toggle } from '../../../components/ui/Toggle';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
+import { SnapOptions } from '../../../types';
+
 const SnappingSettings: React.FC = () => {
-  const snapOptions = useSettingsStore(s => s.snap);
-  const setSnapOption = useSettingsStore(s => s.setSnapOption);
-  const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
+  const snapOptions = useSettingsStore((s) => s.snap);
+  const setSnapOption = useSettingsStore((s) => s.setSnapOption);
+  const setSnapEnabled = useSettingsStore((s) => s.setSnapEnabled);
 
   const updateOption = (key: keyof SnapOptions, value: boolean) => {
     setSnapOption(key, value);

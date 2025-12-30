@@ -30,7 +30,10 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
     return { code, value: (lines[i + 1] ?? '').trim() };
   };
 
-  const readPoint = (startIndex: number, baseCode: number): { point?: DxfVector; nextIndex: number } => {
+  const readPoint = (
+    startIndex: number,
+    baseCode: number,
+  ): { point?: DxfVector; nextIndex: number } => {
     // Expects codes baseCode and baseCode+10 for x/y.
     const gx = readGroup(startIndex);
     const gy = readGroup(startIndex + 2);
@@ -87,7 +90,11 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
     }
 
     // POLYLINE parsing (in ENTITIES and in BLOCKS)
-    if ((currentSection === 'ENTITIES' || currentSection === 'BLOCKS') && g.code === 0 && g.value === 'POLYLINE') {
+    if (
+      (currentSection === 'ENTITIES' || currentSection === 'BLOCKS') &&
+      g.code === 0 &&
+      g.value === 'POLYLINE'
+    ) {
       let layer = '0';
       let flags70 = 0;
       let j = i + 2;
@@ -140,7 +147,7 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
         type: 'LWPOLYLINE',
         layer,
         vertices,
-        closed
+        closed,
       };
       // dxf-parser uses `shape` as a closed indicator in some cases; set it for compatibility.
       (entity as any).shape = closed;
@@ -254,7 +261,7 @@ export const augmentParsedDxfDataWithRaw = (rawText: string, parsed: DxfData): D
             type: 'LWPOLYLINE',
             layer,
             vertices: pts,
-            closed: true
+            closed: true,
           };
           (hatchPolyline as any).isHatch = true;
           (hatchPolyline as any).shape = true;

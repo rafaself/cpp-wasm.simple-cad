@@ -1,20 +1,22 @@
 /**
  * PerformanceMonitor - Real-time performance monitoring component
- * 
+ *
  * Displays live metrics for pick operations including:
  * - Calls per second
  * - Cache hit rate
  * - Skip rate
  * - Average latency
  * - FPS counter
- * 
+ *
  * Usage:
  * <PerformanceMonitor runtime={runtime} position="top-right" />
  */
 
 import React, { useEffect, useState, useRef } from 'react';
+
 import { getPickProfiler } from '@/utils/pickProfiler';
 import { getPickCache } from '@/utils/pickResultCache';
+
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 export interface PerformanceMonitorProps {
@@ -46,7 +48,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
     cacheHitRate: 0,
     skipRate: 0,
     avgPickTime: 0,
-    p95PickTime:0,
+    p95PickTime: 0,
     entityCount: 0,
   });
 
@@ -137,54 +139,51 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
       }}
     >
-      <div style={{ 
-        marginBottom: '8px', 
-        fontSize: '12px', 
-        fontWeight: 'bold',
-        color: '#00ff00',
-        borderBottom: '1px solid rgba(0, 255, 0, 0.3)',
-        paddingBottom: '6px',
-      }}>
+      <div
+        style={{
+          marginBottom: '8px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          color: '#00ff00',
+          borderBottom: '1px solid rgba(0, 255, 0, 0.3)',
+          paddingBottom: '6px',
+        }}
+      >
         ⚡ Performance Monitor
       </div>
 
       <MetricRow label="FPS" value={metrics.fps} unit="" good={metrics.fps >= 55} />
-      <MetricRow 
-        label="Pick Calls/s" 
-        value={metrics.pickCallsPerSec} 
-        unit="" 
-        good={metrics.pickCallsPerSec < 100} 
+      <MetricRow
+        label="Pick Calls/s"
+        value={metrics.pickCallsPerSec}
+        unit=""
+        good={metrics.pickCallsPerSec < 100}
       />
-      <MetricRow 
-        label="Cache Hit" 
-        value={(metrics.cacheHitRate * 100).toFixed(0)} 
-        unit="%" 
-        good={metrics.cacheHitRate > 0.6} 
+      <MetricRow
+        label="Cache Hit"
+        value={(metrics.cacheHitRate * 100).toFixed(0)}
+        unit="%"
+        good={metrics.cacheHitRate > 0.6}
       />
-      <MetricRow 
-        label="Skip Rate" 
-        value={(metrics.skipRate * 100).toFixed(0)} 
-        unit="%" 
-        good={metrics.skipRate > 0.1} 
+      <MetricRow
+        label="Skip Rate"
+        value={(metrics.skipRate * 100).toFixed(0)}
+        unit="%"
+        good={metrics.skipRate > 0.1}
       />
-      <MetricRow 
-        label="Avg Time" 
-        value={metrics.avgPickTime.toFixed(2)} 
-        unit="ms" 
-        good={metrics.avgPickTime < 1} 
+      <MetricRow
+        label="Avg Time"
+        value={metrics.avgPickTime.toFixed(2)}
+        unit="ms"
+        good={metrics.avgPickTime < 1}
       />
-      <MetricRow 
-        label="P95 Time" 
-        value={metrics.p95PickTime.toFixed(2)} 
-        unit="ms" 
-        good={metrics.p95PickTime < 2} 
+      <MetricRow
+        label="P95 Time"
+        value={metrics.p95PickTime.toFixed(2)}
+        unit="ms"
+        good={metrics.p95PickTime < 2}
       />
-      <MetricRow 
-        label="Entities" 
-        value={metrics.entityCount} 
-        unit="" 
-        good={true} 
-      />
+      <MetricRow label="Entities" value={metrics.entityCount} unit="" good={true} />
     </div>
   );
 };
@@ -198,21 +197,26 @@ interface MetricRowProps {
 
 const MetricRow: React.FC<MetricRowProps> = ({ label, value, unit, good }) => {
   const color = good ? '#00ff00' : '#ff9900';
-  
+
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'space-between', 
-      marginBottom: '4px',
-      padding: '2px 0',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '4px',
+        padding: '2px 0',
+      }}
+    >
       <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{label}:</span>
-      <span style={{ 
-        color, 
-        fontWeight: 'bold',
-        marginLeft: '8px',
-      }}>
-        {value}{unit}
+      <span
+        style={{
+          color,
+          fontWeight: 'bold',
+          marginLeft: '8px',
+        }}
+      >
+        {value}
+        {unit}
       </span>
     </div>
   );

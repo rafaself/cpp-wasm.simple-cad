@@ -139,4 +139,3 @@ export const mergeSvgStyle = (parent: StyleState, attrs: Record<string, string>)
 
   return { style: next };
 };
-

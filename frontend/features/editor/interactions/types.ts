@@ -1,5 +1,5 @@
-import type { Point, ViewTransform } from '@/types';
 import type { getEngineRuntime } from '@/engine/core/singleton';
+import type { Point, ViewTransform } from '@/types';
 
 export type EngineRuntime = Awaited<ReturnType<typeof getEngineRuntime>>;
 
@@ -18,14 +18,14 @@ export interface InputEventContext {
  */
 export interface InteractionHandler {
   name: string;
-  
+
   /** Called when this handler becomes active */
   onEnter?(): void;
-  
+
   /** Called when this handler is replaced or deactivated */
   onLeave?(): void;
 
-  /** 
+  /**
    * Handle Pointer Down.
    * Returns a new handler to transition to, or void/undefined to stay in current state.
    */
@@ -39,7 +39,7 @@ export interface InteractionHandler {
 
   /** Handle Double Click */
   onDoubleClick?(ctx: InputEventContext): void;
-  
+
   /** Handle context menu (right click) or special cancel actions */
   onCancel?(): void;
 

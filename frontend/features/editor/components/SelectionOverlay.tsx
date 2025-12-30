@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useUIStore } from '@/stores/useUIStore';
-import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+
 import { supportsEngineResize } from '@/engine/core/capabilities';
-import { getEngineRuntime } from '@/engine/core/singleton';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { OverlayKind } from '@/engine/core/protocol';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { worldToScreen } from '@/utils/viewportMath';
+
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 const HANDLE_SIZE_PX = 8;
@@ -75,7 +77,11 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
     };
 
     return (
-      <svg width={canvasSize.width} height={canvasSize.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      <svg
+        width={canvasSize.width}
+        height={canvasSize.height}
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+      >
         {outline.primitives.map((prim, idx) => {
           if (prim.count < 2) return null;
           const pts = renderPoints(prim);
@@ -121,26 +127,28 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
           );
         })}
 
-        {!hideAnchors && (engineResizeEnabled || handles.primitives.length > 0) && handles.primitives.map((prim, idx) => {
-          if (prim.count < 1) return null;
-          const pts = renderHandlePoints(prim);
-          return (
-            <g key={`handles-${idx}`}>
-              {pts.map((p, i) => (
-                <rect
-                  key={i}
-                  x={p.x - hh}
-                  y={p.y - hh}
-                  width={hs}
-                  height={hs}
-                  fill="#ffffff"
-                  stroke={stroke}
-                  strokeWidth={1}
-                />
-              ))}
-            </g>
-          );
-        })}
+        {!hideAnchors &&
+          (engineResizeEnabled || handles.primitives.length > 0) &&
+          handles.primitives.map((prim, idx) => {
+            if (prim.count < 1) return null;
+            const pts = renderHandlePoints(prim);
+            return (
+              <g key={`handles-${idx}`}>
+                {pts.map((p, i) => (
+                  <rect
+                    key={i}
+                    x={p.x - hh}
+                    y={p.y - hh}
+                    width={hs}
+                    height={hs}
+                    fill="#ffffff"
+                    stroke={stroke}
+                    strokeWidth={1}
+                  />
+                ))}
+              </g>
+            );
+          })}
       </svg>
     );
   }, [

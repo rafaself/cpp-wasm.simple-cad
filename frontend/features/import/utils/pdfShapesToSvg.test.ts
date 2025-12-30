@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Shape } from '../../../types';
+
 import { pdfShapesToSvg } from './pdfShapesToSvg';
+
+import type { Shape } from '../../../types';
 
 describe('pdfShapesToSvg', () => {
   it('emits a single SVG without raster <image> tags', () => {
@@ -9,7 +11,10 @@ describe('pdfShapesToSvg', () => {
         id: 'l1',
         type: 'line',
         layerId: 'layer',
-        points: [{ x: 0, y: 10 }, { x: 10, y: 0 }],
+        points: [
+          { x: 0, y: 10 },
+          { x: 10, y: 0 },
+        ],
         strokeColor: '#ff0000',
         strokeWidth: 2,
         strokeEnabled: true,
@@ -35,7 +40,10 @@ describe('pdfShapesToSvg', () => {
         id: 'p1',
         type: 'polyline',
         layerId: 'layer',
-        points: [{ x: 0, y: 0 }, { x: 0, y: 10 }],
+        points: [
+          { x: 0, y: 0 },
+          { x: 0, y: 10 },
+        ],
         strokeColor: '#000000',
         // Use 0 so bounds are not expanded by strokeWidth/2 for this coordinate-flip test.
         strokeWidth: 0,
@@ -67,7 +75,10 @@ describe('pdfShapesToSvg', () => {
         id: 'p1',
         type: 'polyline',
         layerId: 'layer',
-        points: [{ x: 0, y: 0 }, { x: 0, y: 10 }],
+        points: [
+          { x: 0, y: 0 },
+          { x: 0, y: 10 },
+        ],
         strokeColor: '#000000',
         strokeWidth: 2,
         strokeEnabled: true,
@@ -89,7 +100,10 @@ describe('pdfShapesToSvg', () => {
         id: 'line',
         type: 'line',
         layerId: 'layer',
-        points: [{ x: 0, y: 0 }, { x: 5, y: 5 }],
+        points: [
+          { x: 0, y: 0 },
+          { x: 5, y: 5 },
+        ],
         strokeColor: '#000000',
         strokeWidth: 1,
         strokeEnabled: true,
@@ -109,4 +123,3 @@ describe('pdfShapesToSvg', () => {
     expect(paddedResult.svgRaw).toContain(`<g transform="translate(${paddingPx} ${paddingPx})">`);
   });
 });
-

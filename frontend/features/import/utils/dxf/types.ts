@@ -1,4 +1,5 @@
 import { Shape, Layer } from '../../../../types';
+
 import { DxfColorScheme } from './colorScheme';
 
 export interface DxfVector {
@@ -84,19 +85,19 @@ export interface DxfLayer {
 }
 
 export interface DxfLinetype {
-    name: string;
-    description?: string;
-    patternLength?: number;
-    pattern?: number[]; // The raw dash lengths
+  name: string;
+  description?: string;
+  patternLength?: number;
+  pattern?: number[]; // The raw dash lengths
 }
 
 export interface DxfStyle {
-    name: string;
-    fixedHeight?: number;
-    fixedTextHeight?: number;
-    widthFactor?: number;
-    obliqueAngle?: number;
-    fontFile?: string;
+  name: string;
+  fixedHeight?: number;
+  fixedTextHeight?: number;
+  widthFactor?: number;
+  obliqueAngle?: number;
+  fontFile?: string;
 }
 
 export interface DxfData {
@@ -107,10 +108,10 @@ export interface DxfData {
       layers: Record<string, DxfLayer>;
     };
     ltype?: {
-        linetypes: Record<string, DxfLinetype>;
+      linetypes: Record<string, DxfLinetype>;
     };
     style?: {
-        styles: Record<string, DxfStyle>;
+      styles: Record<string, DxfStyle>;
     };
   };
   header?: {

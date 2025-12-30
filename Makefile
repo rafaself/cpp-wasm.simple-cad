@@ -5,7 +5,7 @@ CPP_BUILD_DIR := cpp_build_test
 PNPM := pnpm --dir $(FRONTEND_DIR)
 DC := docker compose
 
-.PHONY: fbuild up install test wasm build dev all ctest ctest-clean
+.PHONY: fbuild up install test wasm build dev all ctest ctest-clean checks
 
 fbuild:
 	$(PNPM) install --frozen-lockfile
@@ -29,6 +29,14 @@ build:
 
 dev:
 	$(PNPM) dev
+
+checks:
+	$(PNPM) typecheck
+	$(PNPM) lint
+	$(PNPM) format:check
+	$(PNPM) test
+	$(PNPM) build
+	$(PNPM) governance:check
 
 # C++ engine tests
 ctest:

@@ -1,8 +1,7 @@
-
-import type { TessellatedRenderer, TessellatedRenderInput } from '../types';
-
 import { GeometryPass } from './passes/GeometryPass';
 import { TextRenderPass } from './passes/TextRenderPass';
+
+import type { TessellatedRenderer, TessellatedRenderInput } from '../types';
 
 type SsaaResources = {
   framebuffer: WebGLFramebuffer;
@@ -26,7 +25,11 @@ const compileShader = (gl: WebGL2RenderingContext, type: number, source: string)
   return shader;
 };
 
-const createProgram = (gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram => {
+const createProgram = (
+  gl: WebGL2RenderingContext,
+  vertexSource: string,
+  fragmentSource: string,
+): WebGLProgram => {
   const vs = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
   const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
@@ -81,14 +84,7 @@ const initSsaaResources = (gl: WebGL2RenderingContext): SsaaResources => {
   gl.bindBuffer(gl.ARRAY_BUFFER, blitVbo);
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    new Float32Array([
-      -1, -1,
-      1, -1,
-      -1, 1,
-      -1, 1,
-      1, -1,
-      1, 1,
-    ]),
+    new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
     gl.STATIC_DRAW,
   );
   gl.enableVertexAttribArray(aPos);
@@ -115,8 +111,15 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   // Supersampling scale factor (coverage-style AA). 1 disables SSAA.
   private readonly aaScale: number;
 
-  public constructor(private canvas: HTMLCanvasElement, opts?: { aaScale?: number }) {
-    const gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false, alpha: true });
+  public constructor(
+    private canvas: HTMLCanvasElement,
+    opts?: { aaScale?: number },
+  ) {
+    const gl = canvas.getContext('webgl2', {
+      antialias: false,
+      premultipliedAlpha: false,
+      alpha: true,
+    });
     if (!gl) throw new Error('WebGL2 not available');
     this.gl = gl;
     this.ssaa = initSsaaResources(gl);
@@ -141,7 +144,11 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     this.textPass.dispose();
   }
 
-  private ensureCanvasSize(input: TessellatedRenderInput): { width: number; height: number; pixelRatio: number } {
+  private ensureCanvasSize(input: TessellatedRenderInput): {
+    width: number;
+    height: number;
+    pixelRatio: number;
+  } {
     const dpr = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
     const width = Math.max(1, Math.floor(input.canvasSizeCss.width * dpr));
     const height = Math.max(1, Math.floor(input.canvasSizeCss.height * dpr));
@@ -161,14 +168,21 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     const targetW = Math.min(max, width * scale);
     const targetH = Math.min(max, height * scale);
 
-    if (this.offscreenSize.width === targetW && this.offscreenSize.height === targetH) return this.offscreenSize;
+    if (this.offscreenSize.width === targetW && this.offscreenSize.height === targetH)
+      return this.offscreenSize;
 
     gl.bindTexture(gl.TEXTURE_2D, this.ssaa.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, targetW, targetH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.ssaa.framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.ssaa.texture, 0);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      this.ssaa.texture,
+      0,
+    );
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this.offscreenSize = { width: targetW, height: targetH };
@@ -237,7 +251,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     input: TessellatedRenderInput,
     canvasWidth: number,
     canvasHeight: number,
-    pixelRatio: number
+    pixelRatio: number,
   ): void {
     if (!input.textQuadMeta || !input.textAtlasMeta) return;
 
@@ -264,7 +278,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
         pixelRatio: effectivePixelRatio,
         canvasSizeDevice: { width: canvasWidth, height: canvasHeight },
       },
-      vertexCount
+      vertexCount,
     );
   }
 }

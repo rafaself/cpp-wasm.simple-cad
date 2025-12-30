@@ -57,10 +57,13 @@ export const getCadEngineFactory = async <TModule>(): Promise<CadEngineFactory<T
   return factory as CadEngineFactory<TModule>;
 };
 
-export const initCadEngineModule = async <TModule extends object>(): Promise<TModule & HeapViews> => {
+export const initCadEngineModule = async <TModule extends object>(): Promise<
+  TModule & HeapViews
+> => {
   const factory = await getCadEngineFactory<TModule>();
 
-  const moduleArg: Record<string, unknown> & Partial<HeapViews> & { __wasmMemory?: WebAssembly.Memory } = {};
+  const moduleArg: Record<string, unknown> &
+    Partial<HeapViews> & { __wasmMemory?: WebAssembly.Memory } = {};
   moduleArg.instantiateWasm = async (
     imports: WebAssembly.Imports,
     successCallback: (instance: WebAssembly.Instance, module?: WebAssembly.Module) => void,
@@ -72,7 +75,8 @@ export const initCadEngineModule = async <TModule extends object>(): Promise<TMo
 
     const bytes = await res.arrayBuffer();
     const instantiated = await WebAssembly.instantiate(bytes, imports);
-    const instance = instantiated instanceof WebAssembly.Instance ? instantiated : instantiated.instance;
+    const instance =
+      instantiated instanceof WebAssembly.Instance ? instantiated : instantiated.instance;
     const mod = instantiated instanceof WebAssembly.Instance ? undefined : instantiated.module;
 
     moduleArg.__wasmMemory = findWasmMemory(instance.exports);

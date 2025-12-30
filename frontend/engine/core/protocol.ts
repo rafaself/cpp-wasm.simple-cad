@@ -97,6 +97,21 @@ export type DocumentDigest = {
   hi: number;
 };
 
+export type EngineStats = {
+  generation: number;
+  rectCount: number;
+  lineCount: number;
+  polylineCount: number;
+  pointCount: number;
+  triangleVertexCount: number;
+  lineVertexCount: number;
+  lastLoadMs: number;
+  lastRebuildMs: number;
+  textCount?: number;
+  rebuildAllGeometryCount?: number;
+  lastApplyMs?: number;
+};
+
 export type HistoryMeta = {
   depth: number;
   cursor: number;
@@ -157,7 +172,7 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
     flags: 2,
     count: 4,
     offset: 8,
-  }
+  },
 } as const;
 
 export const PROTOCOL_VERSION = 1 as const;
@@ -166,14 +181,12 @@ export const SNAPSHOT_VERSION = 1 as const;
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
-  EngineFeatureFlags.FEATURE_PROTOCOL |
-  EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT;
+  EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
 
-const hashU32 = (h: number, v: number): number =>
-  Math.imul(h ^ (v >>> 0), ABI_HASH_PRIME) >>> 0;
+const hashU32 = (h: number, v: number): number => Math.imul(h ^ (v >>> 0), ABI_HASH_PRIME) >>> 0;
 
 const hashArray = (h: number, values: readonly number[]): number => {
   let out = h;
@@ -199,27 +212,25 @@ const hashStruct = (h: number, tag: number, size: number, offsets: readonly numb
 const computeAbiHash = (): number => {
   let h = ABI_HASH_OFFSET;
 
-  h = hashEnum(h, 0xE0000001, [
-    1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 42, 43,
-  ]);
+  h = hashEnum(h, 0xe0000001, [1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 42, 43]);
 
-  h = hashEnum(h, 0xE0000002, [0, 1, 2, 3, 4, 5, 6, 7]);
+  h = hashEnum(h, 0xe0000002, [0, 1, 2, 3, 4, 5, 6, 7]);
 
-  h = hashEnum(h, 0xE0000003, [0, 1, 2, 3, 4, 5, 6, 7]);
+  h = hashEnum(h, 0xe0000003, [0, 1, 2, 3, 4, 5, 6, 7]);
 
-  h = hashEnum(h, 0xE0000004, [0, 1, 2, 3]);
+  h = hashEnum(h, 0xe0000004, [0, 1, 2, 3]);
 
-  h = hashEnum(h, 0xE0000005, [1, 2, 3]);
+  h = hashEnum(h, 0xe0000005, [1, 2, 3]);
 
-  h = hashEnum(h, 0xE0000006, [1, 2, 4]);
+  h = hashEnum(h, 0xe0000006, [1, 2, 4]);
 
-  h = hashEnum(h, 0xE0000007, [0, 1, 2, 4, 8]);
+  h = hashEnum(h, 0xe0000007, [0, 1, 2, 4, 8]);
 
-  h = hashEnum(h, 0xE0000008, [0, 1, 2]);
+  h = hashEnum(h, 0xe0000008, [0, 1, 2]);
 
-  h = hashEnum(h, 0xE0000009, [0, 1]);
+  h = hashEnum(h, 0xe0000009, [0, 1]);
 
-  h = hashEnum(h, 0xE000000A, [
+  h = hashEnum(h, 0xe000000a, [
     EngineFeatureFlags.FEATURE_PROTOCOL,
     EngineFeatureFlags.FEATURE_LAYERS_FLAGS,
     EngineFeatureFlags.FEATURE_SELECTION_ORDER,
@@ -231,36 +242,36 @@ const computeAbiHash = (): number => {
     EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT,
   ]);
 
-  h = hashEnum(h, 0xE000000B, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);
+  h = hashEnum(h, 0xe000000b, [EngineLayerFlags.Visible, EngineLayerFlags.Locked]);
 
-  h = hashEnum(h, 0xE000000C, [EngineEntityFlags.Visible, EngineEntityFlags.Locked]);
+  h = hashEnum(h, 0xe000000c, [EngineEntityFlags.Visible, EngineEntityFlags.Locked]);
 
-  h = hashEnum(h, 0xE000000D, [LayerPropMask.Name, LayerPropMask.Visible, LayerPropMask.Locked]);
+  h = hashEnum(h, 0xe000000d, [LayerPropMask.Name, LayerPropMask.Visible, LayerPropMask.Locked]);
 
-  h = hashEnum(h, 0xE000000E, [
+  h = hashEnum(h, 0xe000000e, [
     SelectionMode.Replace,
     SelectionMode.Add,
     SelectionMode.Remove,
     SelectionMode.Toggle,
   ]);
 
-  h = hashEnum(h, 0xE000000F, [
+  h = hashEnum(h, 0xe000000f, [
     SelectionModifier.Shift,
     SelectionModifier.Ctrl,
     SelectionModifier.Alt,
     SelectionModifier.Meta,
   ]);
 
-  h = hashEnum(h, 0xE0000010, [MarqueeMode.Window, MarqueeMode.Crossing]);
+  h = hashEnum(h, 0xe0000010, [MarqueeMode.Window, MarqueeMode.Crossing]);
 
-  h = hashEnum(h, 0xE0000011, [
+  h = hashEnum(h, 0xe0000011, [
     ReorderAction.BringToFront,
     ReorderAction.SendToBack,
     ReorderAction.BringForward,
     ReorderAction.SendBackward,
   ]);
 
-  h = hashEnum(h, 0xE0000012, [
+  h = hashEnum(h, 0xe0000012, [
     EventType.Overflow,
     EventType.DocChanged,
     EventType.EntityChanged,
@@ -272,7 +283,7 @@ const computeAbiHash = (): number => {
     EventType.HistoryChanged,
   ]);
 
-  h = hashEnum(h, 0xE0000013, [
+  h = hashEnum(h, 0xe0000013, [
     ChangeMask.Geometry,
     ChangeMask.Style,
     ChangeMask.Flags,
@@ -283,7 +294,7 @@ const computeAbiHash = (): number => {
     ChangeMask.RenderData,
   ]);
 
-  h = hashEnum(h, 0xE0000014, [
+  h = hashEnum(h, 0xe0000014, [
     OverlayKind.Polyline,
     OverlayKind.Polygon,
     OverlayKind.Segment,
@@ -309,27 +320,26 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x53000009, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x5300000A, 46, [
-    0, 4, 8, 12, 16, 20, 24, 26, 30, 34, 38, 39, 40, 44,
-  ]);
+  h = hashStruct(h, 0x5300000a, 46, [0, 4, 8, 12, 16, 20, 24, 26, 30, 34, 38, 39, 40, 44]);
 
-  h = hashStruct(h, 0x5300000B, 18, [0, 4, 8, 12, 13, 14, 15, 16]);
+  h = hashStruct(h, 0x5300000b, 18, [0, 4, 8, 12, 13, 14, 15, 16]);
 
-  h = hashStruct(h, 0x5300000C, 56, [
-    0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52,
-  ]);
+  h = hashStruct(h, 0x5300000c, 56, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52]);
 
-  h = hashStruct(h, 0x5300000D, 40, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36]);
+  h = hashStruct(h, 0x5300000d, 40, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36]);
 
-  h = hashStruct(h, 0x5300000E, 32, [0, 4, 8, 12, 16, 20, 24, 28]);
+  h = hashStruct(h, 0x5300000e, 32, [0, 4, 8, 12, 16, 20, 24, 28]);
 
-  h = hashStruct(h, 0x5300000F, 8, [0, 4]);
+  h = hashStruct(h, 0x5300000f, 8, [0, 4]);
 
   h = hashStruct(h, 0x53000010, 4, [0]);
 
-  h = hashStruct(h, 0x53000011, 68, [
-    0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64,
-  ]);
+  h = hashStruct(
+    h,
+    0x53000011,
+    68,
+    [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64],
+  );
 
   h = hashStruct(h, 0x53000012, 72, [68]);
 
@@ -347,17 +357,17 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x53000019, 16, [0, 4, 8, 12]);
 
-  h = hashStruct(h, 0x5300001A, 8, [0, 4]);
+  h = hashStruct(h, 0x5300001a, 8, [0, 4]);
 
-  h = hashStruct(h, 0x5300001B, 20, [0, 4, 8, 12, 16]);
+  h = hashStruct(h, 0x5300001b, 20, [0, 4, 8, 12, 16]);
 
-  h = hashStruct(h, 0x5300001C, 20, [0, 4, 8, 12, 16]);
+  h = hashStruct(h, 0x5300001c, 20, [0, 4, 8, 12, 16]);
 
-  h = hashStruct(h, 0x5300001D, 12, [0, 4, 8]);
+  h = hashStruct(h, 0x5300001d, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x5300001E, 8, [0, 4]);
+  h = hashStruct(h, 0x5300001e, 8, [0, 4]);
 
-  h = hashStruct(h, 0x5300001F, 20, [0, 2, 4, 8, 12, 16]);
+  h = hashStruct(h, 0x5300001f, 20, [0, 2, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000020, 12, [0, 4, 8]);
 
@@ -403,13 +413,19 @@ export const validateProtocolOrThrow = (info: ProtocolInfo): void => {
     errors.push(`snapshotVersion required=${SNAPSHOT_VERSION} provided=${info.snapshotVersion}`);
   }
   if (info.eventStreamVersion !== EVENT_STREAM_VERSION) {
-    errors.push(`eventStreamVersion required=${EVENT_STREAM_VERSION} provided=${info.eventStreamVersion}`);
+    errors.push(
+      `eventStreamVersion required=${EVENT_STREAM_VERSION} provided=${info.eventStreamVersion}`,
+    );
   }
   if (info.abiHash !== EXPECTED_ABI_HASH) {
-    errors.push(`abiHash required=${formatHex(EXPECTED_ABI_HASH)} provided=${formatHex(info.abiHash)}`);
+    errors.push(
+      `abiHash required=${formatHex(EXPECTED_ABI_HASH)} provided=${formatHex(info.abiHash)}`,
+    );
   }
   if ((info.featureFlags & REQUIRED_FEATURE_FLAGS) !== REQUIRED_FEATURE_FLAGS) {
-    errors.push(`featureFlags required=${formatHex(REQUIRED_FEATURE_FLAGS)} provided=${formatHex(info.featureFlags)}`);
+    errors.push(
+      `featureFlags required=${formatHex(REQUIRED_FEATURE_FLAGS)} provided=${formatHex(info.featureFlags)}`,
+    );
   }
 
   if (errors.length > 0) {

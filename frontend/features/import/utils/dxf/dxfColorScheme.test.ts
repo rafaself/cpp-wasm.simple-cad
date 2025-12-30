@@ -1,12 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import DxfParser from 'dxf-parser/dist/dxf-parser.js';
 import fs from 'fs';
 import path from 'path';
+
+import DxfParser from 'dxf-parser/dist/dxf-parser.js';
+import { describe, it, expect } from 'vitest';
+
+import { DxfColorScheme } from './colorScheme';
 import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
-import { DxfData } from './types';
 import { toGrayscale } from './styles';
-import { DxfColorScheme } from './colorScheme';
+import { DxfData } from './types';
 
 const parser = new DxfParser();
 const fixturePath = path.resolve(process.cwd(), 'verification/color-schemes-test.dxf');
@@ -24,7 +26,7 @@ const combinations: readonly SchemeCombination[] = [
   { scheme: 'original', expected: baseLayerColor },
   { scheme: 'fixedGray153', expected: '#999999' },
   { scheme: 'grayscale', expected: toGrayscale(baseLayerColor) },
-  { scheme: 'custom', expected: '#123456', customColor: '#123456' }
+  { scheme: 'custom', expected: '#123456', customColor: '#123456' },
 ];
 
 describe('DXF Color Scheme Matrix', () => {
@@ -34,10 +36,10 @@ describe('DXF Color Scheme Matrix', () => {
         floorId: 'ground',
         defaultLayerId: 'def',
         colorScheme: scheme,
-        customColor
+        customColor,
       });
 
-      const lineShape = shapesResult.shapes.find(s => s.type === 'line');
+      const lineShape = shapesResult.shapes.find((s) => s.type === 'line');
       expect(lineShape).toBeDefined();
       expect(lineShape?.strokeColor?.toLowerCase()).toBe(expected);
 
@@ -54,7 +56,7 @@ describe('DXF Color Scheme Matrix', () => {
         floorId: 'ground',
         defaultLayerId: 'def',
         colorScheme: scheme,
-        customColor
+        customColor,
       });
 
       expect(svgResult.svgRaw.toLowerCase()).toContain(`stroke="${expected}"`);

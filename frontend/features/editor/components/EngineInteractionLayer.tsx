@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
-import { useUIStore } from '@/stores/useUIStore';
-import SelectionOverlay from './SelectionOverlay';
-import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
-import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
-import { useSettingsStore } from '@/stores/useSettingsStore';
-import { getEngineRuntime } from '@/engine/core/singleton';
+
 import { CommandOp } from '@/engine/core/commandBuffer';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
+import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
+
+import SelectionOverlay from './SelectionOverlay';
 
 const EngineInteractionLayer: React.FC = () => {
   // Store Hooks
@@ -25,58 +27,67 @@ const EngineInteractionLayer: React.FC = () => {
 
   // Engine Sync Effects (View/Grid)
   useEffect(() => {
-    getEngineRuntime().then(rt => {
-        rt.setSnapOptions?.(snapOptions.enabled, snapOptions.grid, gridSize);
+    getEngineRuntime().then((rt) => {
+      rt.setSnapOptions?.(snapOptions.enabled, snapOptions.grid, gridSize);
     });
   }, [snapOptions.enabled, snapOptions.grid, gridSize]);
 
   useEffect(() => {
-    getEngineRuntime().then(rt => {
-        rt.apply([{
+    getEngineRuntime().then((rt) => {
+      rt.apply([
+        {
           op: CommandOp.SetViewScale,
-          view: { x: viewTransform.x, y: viewTransform.y, scale: viewTransform.scale, width: canvasSize.width, height: canvasSize.height },
-        }]);
+          view: {
+            x: viewTransform.x,
+            y: viewTransform.y,
+            scale: viewTransform.scale,
+            width: canvasSize.width,
+            height: canvasSize.height,
+          },
+        },
+      ]);
     });
   }, [viewTransform, canvasSize]);
 
   // Pointer Events Wrapper
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-      (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-      
-      if (e.button === 1 || e.button === 2 || e.altKey || activeHandlerName === 'pan') { // Or check active tool
-          // Quick Pan Override
-          if (e.button === 1 || e.altKey) {
-             beginPan(e);
-             return;
-          }
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+
+    if (e.button === 1 || e.button === 2 || e.altKey || activeHandlerName === 'pan') {
+      // Or check active tool
+      // Quick Pan Override
+      if (e.button === 1 || e.altKey) {
+        beginPan(e);
+        return;
       }
-      
-      handlers.onPointerDown(e);
+    }
+
+    handlers.onPointerDown(e);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isPanningRef.current) {
-          updatePan(e);
-          return;
-      }
-      handlers.onPointerMove(e);
+    if (isPanningRef.current) {
+      updatePan(e);
+      return;
+    }
+    handlers.onPointerMove(e);
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isPanningRef.current) {
-          endPan();
-          return;
-      }
-      handlers.onPointerUp(e);
+    if (isPanningRef.current) {
+      endPan();
+      return;
+    }
+    handlers.onPointerUp(e);
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isPanningRef.current) {
-          endPan();
-          return;
-      }
-      // Handlers might need an onCancel
-  }
+    if (isPanningRef.current) {
+      endPan();
+      return;
+    }
+    // Handlers might need an onCancel
+  };
 
   return (
     <div
@@ -85,7 +96,9 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onDoubleClick={(e) => handlers.onDoubleClick(e as unknown as React.PointerEvent<HTMLDivElement>)}
+      onDoubleClick={(e) =>
+        handlers.onDoubleClick(e as unknown as React.PointerEvent<HTMLDivElement>)
+      }
       onContextMenu={(e) => e.preventDefault()}
       onPointerCancel={handlePointerCancel}
     >

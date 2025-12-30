@@ -12,7 +12,10 @@ export interface BoundsResult {
 
 /** Calculate bounds of all shapes. */
 export function calculateBounds(shapes: Shape[]): BoundsResult {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const s of shapes) {
     if (s.points && s.points.length > 0) {
       for (const p of s.points) {
@@ -37,7 +40,7 @@ export function normalizeShapesToOrigin(shapes: Shape[], bounds: BoundsResult): 
   const { minX, minY } = bounds;
   for (const s of shapes) {
     if (s.points && s.points.length > 0) {
-      s.points = s.points.map(p => ({ x: p.x - minX, y: p.y - minY }));
+      s.points = s.points.map((p) => ({ x: p.x - minX, y: p.y - minY }));
     } else if (s.x !== undefined && s.y !== undefined) {
       s.x -= minX;
       s.y -= minY;

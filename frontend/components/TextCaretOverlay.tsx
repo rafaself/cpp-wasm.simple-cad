@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+
 import type { ViewTransform } from '@/types';
 import type { TextSelectionRect } from '@/types/text';
 
@@ -94,10 +95,10 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   //    If we map World Rect to Screen Rect, we flip Y.
   //    ScreenY = -WorldY.
   //    Ideally we want CSS transform: translate(Sx, Sy) rotate(-R rad) scale(S).
-  
+
   const screenAnchor = {
     x: anchor.x * viewTransform.scale + viewTransform.x,
-    y: -anchor.y * viewTransform.scale + viewTransform.y
+    y: -anchor.y * viewTransform.scale + viewTransform.y,
   };
 
   // Convert rotation to degrees for CSS (CSS is CW for +deg)
@@ -127,8 +128,8 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
         className="absolute"
         style={{
           left: rect.x,
-          // Engine is Y-Up (bottom is y, top is y + height). 
-          // CSS is Y-Down (top is value). 
+          // Engine is Y-Up (bottom is y, top is y + height).
+          // CSS is Y-Down (top is value).
           // To get CSS Top from World Y-Up: Top_CSS = -(World_Y + Height).
           top: -(rect.y + rect.height),
           width: rect.width,
@@ -157,7 +158,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
           height: caret.height,
           backgroundColor: caretColor,
           transform: `scaleX(${1 / viewTransform.scale})`,
-          transformOrigin: '0 0'
+          transformOrigin: '0 0',
         }}
       />
     );
@@ -209,7 +210,14 @@ export interface UseTextCaretResult {
   selectionRects: TextSelectionRect[];
   anchor: { x: number; y: number };
   rotation: number;
-  setCaret: (x: number, y: number, height: number, rotation?: number, anchorX?: number, anchorY?: number) => void;
+  setCaret: (
+    x: number,
+    y: number,
+    height: number,
+    rotation?: number,
+    anchorX?: number,
+    anchorY?: number,
+  ) => void;
   setSelection: (rects: TextSelectionRect[]) => void;
   showCaret: () => void;
   hideCaret: () => void;
@@ -226,23 +234,26 @@ export function useTextCaret(options?: UseTextCaretOptions): UseTextCaretResult 
     height: 16,
     visible: false,
   });
-  
+
   const [anchor, setAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [rotation, setRotation] = useState<number>(0);
 
   const [selectionRects, setSelectionRects] = useState<TextSelectionRect[]>([]);
 
-  const updateCaret = React.useCallback((x: number, y: number, height: number, rot?: number, ancX?: number, ancY?: number) => {
-    setCaret((prev) => ({
-      ...prev,
-      x,
-      y,
-      height,
-      visible: true,
-    }));
-    if (rot !== undefined) setRotation(rot);
-    if (ancX !== undefined && ancY !== undefined) setAnchor({ x: ancX, y: ancY });
-  }, []);
+  const updateCaret = React.useCallback(
+    (x: number, y: number, height: number, rot?: number, ancX?: number, ancY?: number) => {
+      setCaret((prev) => ({
+        ...prev,
+        x,
+        y,
+        height,
+        visible: true,
+      }));
+      if (rot !== undefined) setRotation(rot);
+      if (ancX !== undefined && ancY !== undefined) setAnchor({ x: ancX, y: ancY });
+    },
+    [],
+  );
 
   const showCaret = React.useCallback(() => {
     setCaret((prev) => ({ ...prev, visible: true }));

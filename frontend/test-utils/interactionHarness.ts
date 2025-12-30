@@ -1,12 +1,15 @@
-import { screenToWorld } from '@/utils/viewportMath';
 import { DraftingHandler } from '@/features/editor/interactions/handlers/DraftingHandler';
 import { SelectionHandler } from '@/features/editor/interactions/handlers/SelectionHandler';
 import { TextHandler } from '@/features/editor/interactions/handlers/TextHandler';
+import { screenToWorld } from '@/utils/viewportMath';
+
+import { FakeRuntime } from './fakeRuntime';
+
+import type { FakeTextTool } from './fakeTextTool';
+import type { EngineCommand } from '@/engine/core/commandBuffer';
+import type { TextTool } from '@/engine/tools/TextTool';
 import type { InteractionHandler } from '@/features/editor/interactions/types';
 import type { ToolType, ViewTransform } from '@/types';
-import type { EngineCommand } from '@/engine/core/commandBuffer';
-import { FakeRuntime } from './fakeRuntime';
-import type { FakeTextTool } from './fakeTextTool';
 
 type PointerOpts = {
   x: number;
@@ -22,13 +25,16 @@ type HarnessOptions = {
   viewTransform?: ViewTransform;
   canvasSize?: { width: number; height: number };
   toolDefaults?: any;
-  textTool?: FakeTextTool;
+  textTool?: FakeTextTool | TextTool;
   activeTool?: ToolType;
 };
 
 const defaultView: ViewTransform = { x: 0, y: 0, scale: 1 };
 
-const buildPointerEvent = (opts: PointerOpts, canvasSize: { width: number; height: number }): React.PointerEvent => {
+const buildPointerEvent = (
+  opts: PointerOpts,
+  canvasSize: { width: number; height: number },
+): React.PointerEvent => {
   const base = {
     clientX: opts.x,
     clientY: opts.y,
@@ -37,7 +43,12 @@ const buildPointerEvent = (opts: PointerOpts, canvasSize: { width: number; heigh
     ctrlKey: !!opts.ctrlKey,
     metaKey: !!opts.metaKey,
     currentTarget: {
-      getBoundingClientRect: () => ({ left: 0, top: 0, width: canvasSize.width, height: canvasSize.height }),
+      getBoundingClientRect: () => ({
+        left: 0,
+        top: 0,
+        width: canvasSize.width,
+        height: canvasSize.height,
+      }),
     },
   } as unknown as React.PointerEvent;
   return base;
@@ -66,12 +77,12 @@ export class InteractionHarness {
     this.handler = this.createHandler(options.activeTool ?? 'select', options.textTool);
   }
 
-  private createHandler(tool: ToolType, textTool?: FakeTextTool): InteractionHandler {
+  private createHandler(tool: ToolType, textTool?: FakeTextTool | TextTool): InteractionHandler {
     let handler: InteractionHandler;
     if (tool === 'select') {
       handler = new SelectionHandler();
     } else if (tool === 'text') {
-      handler = new TextHandler(textTool);
+      handler = new TextHandler(textTool as TextTool | undefined);
     } else {
       handler = new DraftingHandler(tool, this.toolDefaults);
     }
@@ -82,7 +93,7 @@ export class InteractionHarness {
     return handler;
   }
 
-  setTool(tool: ToolType, options: { textTool?: FakeTextTool } = {}): void {
+  setTool(tool: ToolType, options: { textTool?: FakeTextTool | TextTool } = {}): void {
     this.handler.onLeave?.();
     this.handler = this.createHandler(tool, options.textTool);
   }
@@ -152,7 +163,7 @@ export class InteractionHarness {
     };
   }
 
-  private applyTransition(next?: InteractionHandler): void {
+  private applyTransition(next: InteractionHandler | void): void {
     if (!next) return;
     this.handler.onLeave?.();
     next.setOnUpdate?.(() => {

@@ -1,20 +1,24 @@
 import React from 'react';
+
 import { KEYBINDINGS } from '../../../config/keybindings';
 
 export const ShortcutsSettings: React.FC = () => {
   // Group bindings by category
-  const categories = Object.values(KEYBINDINGS).reduce((acc, binding) => {
-    if (!acc[binding.category]) {
-      acc[binding.category] = [];
-    }
-    acc[binding.category].push(binding);
-    return acc;
-  }, {} as Record<string, typeof KEYBINDINGS[string][]>);
+  const categories = Object.values(KEYBINDINGS).reduce(
+    (acc, binding) => {
+      if (!acc[binding.category]) {
+        acc[binding.category] = [];
+      }
+      acc[binding.category].push(binding);
+      return acc;
+    },
+    {} as Record<string, (typeof KEYBINDINGS)[string][]>,
+  );
 
   const categoryLabels: Record<string, string> = {
     ferramentas: 'Ferramentas de Desenho',
     editor: 'Editor e Ações',
-    navegacao: 'Navegação'
+    navegacao: 'Navegação',
   };
 
   return (
@@ -30,18 +34,25 @@ export const ShortcutsSettings: React.FC = () => {
           </h3>
           <div className="grid grid-cols-1 gap-2">
             {bindings.map((binding) => (
-              <div key={binding.id} className="flex items-center justify-between p-2 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors">
+              <div
+                key={binding.id}
+                className="flex items-center justify-between p-2 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors"
+              >
                 <div className="flex flex-col">
                   <span className="font-medium text-slate-200">{binding.label}</span>
                   <span className="text-xs text-slate-500">{binding.description}</span>
                 </div>
                 <div className="flex gap-2">
                   {binding.keys.map((key, i) => (
-                    <kbd 
+                    <kbd
                       key={i}
                       className="px-2 py-1 bg-slate-700 rounded text-xs font-mono text-slate-300 border border-slate-600 shadow-sm min-w-[24px] text-center"
                     >
-                      {key.toUpperCase().replace('CTRL', 'Ctrl').replace('SHIFT', 'Shift').replace('META', 'Cmd')}
+                      {key
+                        .toUpperCase()
+                        .replace('CTRL', 'Ctrl')
+                        .replace('SHIFT', 'Shift')
+                        .replace('META', 'Cmd')}
                     </kbd>
                   ))}
                 </div>

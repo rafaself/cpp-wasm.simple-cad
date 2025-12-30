@@ -1,4 +1,5 @@
 import React from 'react';
+
 import EditableNumber from '../../../../components/EditableNumber';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { GridControlProps } from '../../types/ribbon';

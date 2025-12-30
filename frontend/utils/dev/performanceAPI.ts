@@ -1,26 +1,32 @@
 /**
  * Performance Testing Utilities
- * 
+ *
  * Exposed to window for easy access via browser console.
  * Provides quick access to benchmarks and profiling tools.
- * 
+ *
  * Usage in browser console:
- * 
+ *
  * // Run benchmarks
  * await window.__perf.runBenchmarks()
- * 
+ *
  * // Get current stats
  * window.__perf.getStats()
- * 
+ *
  * // Reset profiler
  * window.__perf.resetProfiler()
- * 
+ *
  * // Export results
  * window.__perf.exportResults()
  */
 
+/* eslint-disable no-console */
+
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { runPickBenchmarks, formatBenchmarkResults, exportBenchmarkResults } from '@/utils/benchmarks/pickBenchmarks';
+import {
+  runPickBenchmarks,
+  formatBenchmarkResults,
+  exportBenchmarkResults,
+} from '@/utils/benchmarks/pickBenchmarks';
 import { getPickProfiler } from '@/utils/pickProfiler';
 import { getPickCache, resetPickCache } from '@/utils/pickResultCache';
 
@@ -39,24 +45,30 @@ export interface PerformanceAPI {
  */
 async function runBenchmarks(): Promise<void> {
   console.clear();
-  console.log('%c🎯 Pick Performance Benchmarks', 'font-size: 16px; font-weight: bold; color: #00ff00');
+  console.log(
+    '%c🎯 Pick Performance Benchmarks',
+    'font-size: 16px; font-weight: bold; color: #00ff00',
+  );
   console.log('');
-  
+
   try {
     const runtime = await getEngineRuntime();
     const results = await runPickBenchmarks(runtime);
-    
+
     console.log('%c📊 Results:', 'font-weight: bold; color: #00aaff');
     console.table(results);
-    
+
     console.log('%c📄 Markdown Report:', 'font-weight: bold; color: #00aaff');
     const markdown = formatBenchmarkResults(results);
     console.log(markdown);
-    
+
     // Store in sessionStorage for export
     sessionStorage.setItem('lastBenchmarkResults', JSON.stringify(results));
-    
-    console.log('%c✅ Benchmarks complete! Use window.__perf.exportResults() to download.', 'color: #00ff00');
+
+    console.log(
+      '%c✅ Benchmarks complete! Use window.__perf.exportResults() to download.',
+      'color: #00ff00',
+    );
   } catch (error) {
     console.error('%c❌ Benchmark failed:', 'color: #ff0000', error);
   }
@@ -67,13 +79,16 @@ async function runBenchmarks(): Promise<void> {
  */
 function getStats(): void {
   console.clear();
-  console.log('%c📊 Current Performance Stats', 'font-size: 16px; font-weight: bold; color: #00aaff');
+  console.log(
+    '%c📊 Current Performance Stats',
+    'font-size: 16px; font-weight: bold; color: #00aaff',
+  );
   console.log('');
-  
+
   try {
     const profiler = getPickProfiler();
     const stats = profiler.getStats();
-    
+
     console.group('%cProfiler Stats', 'font-weight: bold; color: #ffaa00');
     console.log(`Total Calls: ${stats.totalCalls}`);
     console.log(`Calls/Second: ${stats.callsPerSecond.toFixed(1)}`);
@@ -85,14 +100,14 @@ function getStats(): void {
     console.log(`P95: ${stats.p95.toFixed(3)}ms`);
     console.log(`P99: ${stats.p99.toFixed(3)}ms`);
     console.groupEnd();
-    
+
     console.log('');
-    
-    getEngineRuntime().then(runtime => {
+
+    getEngineRuntime().then((runtime) => {
       try {
         const cache = getPickCache(runtime);
         const cacheStats = cache.getStats();
-        
+
         console.group('%cCache Stats', 'font-weight: bold; color: #ff00aa');
         console.log(`Size: ${cacheStats.size} / ${cacheStats.maxSize}`);
         console.log(`Hit Rate: ${(cacheStats.hitRate * 100).toFixed(1)}%`);
@@ -102,7 +117,6 @@ function getStats(): void {
         console.log('%cCache not initialized', 'color: #999');
       }
     });
-    
   } catch (error) {
     console.error('%c❌ Failed to get stats:', 'color: #ff0000', error);
   }
@@ -140,13 +154,16 @@ function exportResults(): void {
   try {
     const resultsJson = sessionStorage.getItem('lastBenchmarkResults');
     if (!resultsJson) {
-      console.warn('%c⚠️  No benchmark results found. Run benchmarks first with runBenchmarks()', 'color: #ffaa00');
+      console.warn(
+        '%c⚠️  No benchmark results found. Run benchmarks first with runBenchmarks()',
+        'color: #ffaa00',
+      );
       return;
     }
-    
+
     const results = JSON.parse(resultsJson);
     const exportData = exportBenchmarkResults(results);
-    
+
     // Create download
     const blob = new Blob([exportData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -155,7 +172,7 @@ function exportResults(): void {
     a.download = `pick-benchmarks-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    
+
     console.log('%c✅ Results exported', 'color: #00ff00');
   } catch (error) {
     console.error('%c❌ Failed to export:', 'color: #ff0000', error);
@@ -184,13 +201,41 @@ function help(): void {
   console.log('');
   console.log('%cAvailable Commands:', 'font-weight: bold; color: #00aaff');
   console.log('');
-  console.log('%cwindow.__perf.runBenchmarks()%c - Run complete benchmark suite', 'color: #ffaa00', 'color: inherit');
-  console.log('%cwindow.__perf.getStats()%c      - Show current performance stats', 'color: #ffaa00', 'color: inherit');
-  console.log('%cwindow.__perf.resetProfiler()%c - Reset profiler statistics', 'color: #ffaa00', 'color: inherit');
-  console.log('%cwindow.__perf.resetCache()%c    - Clear pick result cache', 'color: #ffaa00', 'color: inherit');
-  console.log('%cwindow.__perf.exportResults()%c - Download benchmark results as JSON', 'color: #ffaa00', 'color: inherit');
-  console.log('%cwindow.__perf.toggleProfiling(enabled)%c - Enable/disable profiling', 'color: #ffaa00', 'color: inherit');
-  console.log('%cwindow.__perf.help()%c          - Show this help', 'color: #ffaa00', 'color: inherit');
+  console.log(
+    '%cwindow.__perf.runBenchmarks()%c - Run complete benchmark suite',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.getStats()%c      - Show current performance stats',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.resetProfiler()%c - Reset profiler statistics',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.resetCache()%c    - Clear pick result cache',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.exportResults()%c - Download benchmark results as JSON',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.toggleProfiling(enabled)%c - Enable/disable profiling',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.help()%c          - Show this help',
+    'color: #ffaa00',
+    'color: inherit',
+  );
   console.log('');
   console.log('%cExamples:', 'font-weight: bold; color: #00aaff');
   console.log('  await window.__perf.runBenchmarks()');
@@ -218,14 +263,14 @@ export function createPerformanceAPI(): PerformanceAPI {
  */
 export function installPerformanceAPI(): void {
   if (typeof window === 'undefined') return;
-  
+
   // Only in development
   if (import.meta.env.DEV) {
     (window as any).__perf = createPerformanceAPI();
-    
+
     console.log(
       '%c🔧 Performance API Loaded',
-      'font-size: 14px; font-weight: bold; color: #00ff00; background: #000; padding: 4px 8px; border-radius: 4px;'
+      'font-size: 14px; font-weight: bold; color: #00ff00; background: #000; padding: 4px 8px; border-radius: 4px;',
     );
     console.log('%cType window.__perf.help() for available commands', 'color: #00aaff');
   }

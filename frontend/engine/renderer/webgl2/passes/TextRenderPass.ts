@@ -8,14 +8,15 @@
  * with 6 vertices per glyph (2 triangles).
  */
 
-import type { WasmModule } from '@/engine/core/EngineRuntime';
-import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 import {
   TEXT_MSDF_VERTEX_SOURCE,
   TEXT_MSDF_FRAGMENT_SOURCE,
   TEXT_FLOATS_PER_VERTEX,
   DEFAULT_MSDF_PX_RANGE,
 } from '../shaders/textMsdf';
+
+import type { WasmModule } from '@/engine/core/EngineRuntime';
+import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 
 // =============================================================================
 // Types
@@ -69,7 +70,11 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
   return shader;
 }
 
-function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram {
+function createProgram(
+  gl: WebGL2RenderingContext,
+  vertexSource: string,
+  fragmentSource: string,
+): WebGLProgram {
   const vs = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
   const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
@@ -234,7 +239,7 @@ export class TextRenderPass {
     // Read quad data from WASM memory
     const start = meta.ptr >>> 2;
     const view = module.HEAPF32.subarray(start, start + meta.floatCount);
-    
+
     // Upload to GPU
     gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, view, gl.DYNAMIC_DRAW);
@@ -266,7 +271,7 @@ export class TextRenderPass {
 
     // Read atlas data from WASM memory
     const view = new Uint8Array(module.HEAPU8.buffer, meta.ptr, meta.byteCount);
-    
+
     // Atlas has valid MSDF data - upload to GPU
 
     // Upload to GPU as RGBA texture (MSDF has 3 channels + alpha)
@@ -280,7 +285,7 @@ export class TextRenderPass {
       0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      view
+      view,
     );
     gl.bindTexture(gl.TEXTURE_2D, null);
 
@@ -298,16 +303,25 @@ export class TextRenderPass {
     if (!this.resources || vertexCount === 0) return;
 
     const { gl } = this;
-    const { program, vao, atlasTexture, uViewScale, uViewTranslate, uCanvasSize, uPixelRatio, uAtlas, uPxRange } =
-      this.resources;
+    const {
+      program,
+      vao,
+      atlasTexture,
+      uViewScale,
+      uViewTranslate,
+      uCanvasSize,
+      uPixelRatio,
+      uAtlas,
+      uPxRange,
+    } = this.resources;
 
     // Enable blending for text (we have alpha from the MSDF shader)
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    
+
     // Disable depth test so text always renders on top
     gl.disable(gl.DEPTH_TEST);
-    
+
     // Disable face culling to ensure quads are visible regardless of winding order
     gl.disable(gl.CULL_FACE);
 
@@ -321,7 +335,7 @@ export class TextRenderPass {
     gl.uniform1f(uPixelRatio, input.pixelRatio);
     // MSDF pixel range (should match generation config)
     gl.uniform1f(uPxRange, DEFAULT_MSDF_PX_RANGE);
-    
+
     // Bind atlas texture
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
@@ -329,16 +343,16 @@ export class TextRenderPass {
 
     // Draw text quads
     gl.bindVertexArray(vao);
-    
+
     // Draw text quads
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
-    
+
     // Check for errors after draw
     const err2 = gl.getError();
     if (err2 !== 0) {
       console.error(`[DEBUG] TextRender drawArrays error: ${err2}`);
     }
-    
+
     gl.bindVertexArray(null);
 
     // Clean up

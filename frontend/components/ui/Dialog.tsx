@@ -1,6 +1,6 @@
+import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 
 export interface DialogProps {
   /** Max width of the dialog (e.g., '500px', '80%') */
@@ -55,7 +55,7 @@ const Dialog: React.FC<DialogProps> = ({
         setInternalOpen(value);
       }
     },
-    [isControlled, onUpdate]
+    [isControlled, onUpdate],
   );
 
   const open = useCallback(() => setIsOpen(true), [setIsOpen]);
@@ -69,7 +69,7 @@ const Dialog: React.FC<DialogProps> = ({
         close();
       }
     },
-    [persistent, close]
+    [persistent, close],
   );
 
   // Handle ESC key and custom closeOnKeys
@@ -104,8 +104,8 @@ const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (!isOpen || !closeOnResize) return;
 
-    let initialWidth = window.innerWidth;
-    let initialHeight = window.innerHeight;
+    const initialWidth = window.innerWidth;
+    const initialHeight = window.innerHeight;
     let timeoutId: ReturnType<typeof setTimeout>;
 
     const handleResize = () => {
@@ -114,7 +114,7 @@ const Dialog: React.FC<DialogProps> = ({
       timeoutId = setTimeout(() => {
         const widthChanged = Math.abs(window.innerWidth - initialWidth) > 100;
         const heightChanged = Math.abs(window.innerHeight - initialHeight) > 100;
-        
+
         if (widthChanged || heightChanged) {
           close();
         }
@@ -143,10 +143,7 @@ const Dialog: React.FC<DialogProps> = ({
   };
 
   const dialogContent = isOpen ? (
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ zIndex }}
-    >
+    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
       {/* Overlay/Scrim */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200"

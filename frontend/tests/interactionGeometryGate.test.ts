@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { describe, it, expect } from 'vitest';
 
 const FRONTEND_ROOT = path.resolve(__dirname, '..');
 const TARGET_DIRS = [path.join(FRONTEND_ROOT, 'features'), path.join(FRONTEND_ROOT, 'hooks')];
@@ -30,7 +31,8 @@ const collectFiles = (dirPath: string): string[] => {
 
 const extractImportPaths = (source: string): string[] => {
   const paths: string[] = [];
-  const importRegex = /from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
+  const importRegex =
+    /from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
   let match: RegExpExecArray | null = null;
   while ((match = importRegex.exec(source)) !== null) {
     const mod = match[1] || match[2] || match[3];

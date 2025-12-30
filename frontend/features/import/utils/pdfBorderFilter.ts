@@ -1,23 +1,28 @@
 import type { Shape } from '../../../types';
-const getShapeBoundingBox = (shape: Shape): { x: number; y: number; width: number; height: number } => {
+const getShapeBoundingBox = (
+  shape: Shape,
+): { x: number; y: number; width: number; height: number } => {
   if (shape.type === 'rect') {
     return {
       x: shape.x ?? 0,
       y: shape.y ?? 0,
       width: shape.width ?? 0,
-      height: shape.height ?? 0
+      height: shape.height ?? 0,
     };
   }
   if (shape.type === 'circle' || shape.type === 'polygon') {
-      // PDF import typically produces paths/polylines, but handling basic primitives just in case
-      const cx = shape.x ?? 0;
-      const cy = shape.y ?? 0;
-      const w = shape.width ?? (shape.radius ?? 0) * 2;
-      const h = shape.height ?? (shape.radius ?? 0) * 2;
-      return { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
+    // PDF import typically produces paths/polylines, but handling basic primitives just in case
+    const cx = shape.x ?? 0;
+    const cy = shape.y ?? 0;
+    const w = shape.width ?? (shape.radius ?? 0) * 2;
+    const h = shape.height ?? (shape.radius ?? 0) * 2;
+    return { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
   }
   if (shape.points && shape.points.length > 0) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     for (const p of shape.points) {
       if (p.x < minX) minX = p.x;
       if (p.x > maxX) maxX = p.x;
@@ -28,7 +33,7 @@ const getShapeBoundingBox = (shape: Shape): { x: number; y: number; width: numbe
       x: minX,
       y: minY,
       width: maxX - minX,
-      height: maxY - minY
+      height: maxY - minY,
     };
   }
   return { x: 0, y: 0, width: 0, height: 0 };
@@ -42,7 +47,8 @@ export interface PdfBorderFilterOptions {
   enabled: boolean;
 }
 
-const isTransparent = (color: string | undefined): boolean => !color || color === 'transparent' || color === 'none';
+const isTransparent = (color: string | undefined): boolean =>
+  !color || color === 'transparent' || color === 'none';
 
 const approxEqual = (a: number, b: number, tol: number): boolean => Math.abs(a - b) <= tol;
 
@@ -58,12 +64,18 @@ const isClosedPolyline = (shape: Shape): boolean => {
 /**
  * Removes outer frame/border shapes from PDF imports. This is intentionally conservative.
  */
-export const removePdfBorderShapes = (shapes: readonly Shape[], options: PdfBorderFilterOptions): Shape[] => {
+export const removePdfBorderShapes = (
+  shapes: readonly Shape[],
+  options: PdfBorderFilterOptions,
+): Shape[] => {
   if (!options.enabled) return [...shapes];
   if (shapes.length === 0) return [];
 
   // Compute global bounds for all shapes.
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   shapes.forEach((s) => {
     const b = getShapeBoundingBox(s);
     minX = Math.min(minX, b.x);
@@ -71,7 +83,13 @@ export const removePdfBorderShapes = (shapes: readonly Shape[], options: PdfBord
     maxX = Math.max(maxX, b.x + b.width);
     maxY = Math.max(maxY, b.y + b.height);
   });
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return [...shapes];
+  if (
+    !Number.isFinite(minX) ||
+    !Number.isFinite(minY) ||
+    !Number.isFinite(maxX) ||
+    !Number.isFinite(maxY)
+  )
+    return [...shapes];
 
   const totalW = Math.max(1, maxX - minX);
   const totalH = Math.max(1, maxY - minY);
@@ -113,4 +131,3 @@ export const removePdfBorderShapes = (shapes: readonly Shape[], options: PdfBord
   }
   return next;
 };
-

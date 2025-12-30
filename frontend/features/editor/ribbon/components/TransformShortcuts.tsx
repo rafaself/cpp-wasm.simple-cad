@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { getShortcutLabel } from '../../../../config/keybindings';
 
 const TransformShortcuts: React.FC = () => (

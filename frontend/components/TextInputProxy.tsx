@@ -13,13 +13,8 @@
  * - Manage selection highlighting (that's done by overlay)
  */
 
-import React, {
-  useRef,
-  useEffect,
-  useCallback,
-  forwardRef,
-  useImperativeHandle,
-} from 'react';
+import React, { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+
 import type { TextInputDelta, TextCompositionState } from '@/types/text';
 
 // =============================================================================
@@ -78,7 +73,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
       onCompositionChange,
       onSpecialKey,
     },
-    ref
+    ref,
   ) {
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const composingRef = useRef(false);
@@ -111,10 +106,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
       // Update selection
       const start = Math.min(selectionStart, content.length);
       const end = Math.min(selectionEnd, content.length);
-      if (
-        inputRef.current.selectionStart !== start ||
-        inputRef.current.selectionEnd !== end
-      ) {
+      if (inputRef.current.selectionStart !== start || inputRef.current.selectionEnd !== end) {
         inputRef.current.setSelectionRange(start, end);
       }
     }, [content, selectionStart, selectionEnd]);
@@ -139,20 +131,14 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         const oldValue = lastContentRef.current;
 
         // Calculate the delta
-        const delta = computeInputDelta(
-          oldValue,
-          newValue,
-          target.selectionStart ?? 0
-        );
-
-        console.log('[DEBUG] TextInputProxy: handleInput', { oldValue, newValue, delta });
+        const delta = computeInputDelta(oldValue, newValue, target.selectionStart ?? 0);
 
         if (delta) {
           lastContentRef.current = newValue;
           onInput(delta);
         }
       },
-      [onInput]
+      [onInput],
     );
 
     const handleKeyDown = useCallback(
@@ -163,15 +149,22 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         // Handle special keys including navigation
         if (e.nativeEvent.isComposing) return;
 
-        const isNavigation = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key);
+        const isNavigation = [
+          'ArrowLeft',
+          'ArrowRight',
+          'ArrowUp',
+          'ArrowDown',
+          'Home',
+          'End',
+        ].includes(key);
         const isControl = ['Enter', 'Escape', 'Tab', 'Backspace', 'Delete'].includes(key);
 
         if (isNavigation || isControl) {
           if (onSpecialKey) {
-             onSpecialKey(key, e);
-             if (e.defaultPrevented) {
-               return;
-             }
+            onSpecialKey(key, e);
+            if (e.defaultPrevented) {
+              return;
+            }
           }
         }
 
@@ -182,7 +175,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
             if (inputRef.current && onSelectionChange) {
               onSelectionChange(
                 inputRef.current.selectionStart ?? 0,
-                inputRef.current.selectionEnd ?? 0
+                inputRef.current.selectionEnd ?? 0,
               );
             }
           });
@@ -191,15 +184,15 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
 
         // Special keys default behaviors
         if (key === 'Escape') {
-            e.preventDefault();
+          e.preventDefault();
         }
         if (key === 'Tab') {
-            e.preventDefault();
+          e.preventDefault();
         }
-        // Enter falls through to input usually? Or separate handler. 
+        // Enter falls through to input usually? Or separate handler.
         // Original code returned for Enter/Escape/Tab.
         if (['Enter', 'Escape', 'Tab'].includes(key)) {
-           return;
+          return;
         }
 
         // Handle backspace/delete for better delta detection
@@ -208,7 +201,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           return;
         }
       },
-      [onSelectionChange, onSpecialKey]
+      [onSelectionChange, onSpecialKey],
     );
 
     const handleCompositionStart = useCallback(
@@ -220,7 +213,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           compositionStart: e.currentTarget.selectionStart ?? 0,
         });
       },
-      [onCompositionChange]
+      [onCompositionChange],
     );
 
     const handleCompositionUpdate = useCallback(
@@ -231,7 +224,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           compositionStart: e.currentTarget.selectionStart ?? 0,
         });
       },
-      [onCompositionChange]
+      [onCompositionChange],
     );
 
     const handleCompositionEnd = useCallback(
@@ -260,7 +253,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         // Update our tracking
         lastContentRef.current = e.currentTarget.value;
       },
-      [onInput, onCompositionChange]
+      [onInput, onCompositionChange],
     );
 
     const handlePaste = useCallback(
@@ -291,7 +284,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           });
         }
       },
-      [onInput]
+      [onInput],
     );
 
     const handleCut = useCallback(
@@ -314,7 +307,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           end,
         });
       },
-      [content, onInput]
+      [content, onInput],
     );
 
     const handleCopy = useCallback(
@@ -329,15 +322,12 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         e.clipboardData.setData('text/plain', selectedText);
         e.preventDefault();
       },
-      [content]
+      [content],
     );
 
     const handleSelect = useCallback(() => {
       if (inputRef.current && onSelectionChange) {
-        onSelectionChange(
-          inputRef.current.selectionStart ?? 0,
-          inputRef.current.selectionEnd ?? 0
-        );
+        onSelectionChange(inputRef.current.selectionStart ?? 0, inputRef.current.selectionEnd ?? 0);
       }
     }, [onSelectionChange]);
 
@@ -391,7 +381,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         onSelect={handleSelect}
       />
     );
-  }
+  },
 );
 
 // =============================================================================
@@ -405,7 +395,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
 function computeInputDelta(
   oldValue: string,
   newValue: string,
-  caretAfter: number
+  caretAfter: number,
 ): TextInputDelta | null {
   if (oldValue === newValue) return null;
 
@@ -414,11 +404,7 @@ function computeInputDelta(
 
   // Find common prefix
   let prefixLen = 0;
-  while (
-    prefixLen < oldLen &&
-    prefixLen < newLen &&
-    oldValue[prefixLen] === newValue[prefixLen]
-  ) {
+  while (prefixLen < oldLen && prefixLen < newLen && oldValue[prefixLen] === newValue[prefixLen]) {
     prefixLen++;
   }
 

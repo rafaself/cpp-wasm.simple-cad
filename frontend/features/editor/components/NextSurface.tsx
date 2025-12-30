@@ -1,21 +1,23 @@
 import React, { useEffect, useRef } from 'react';
+
 import '@/design/tailwind.css';
 import '@/design/global.css';
-import Header from '@/features/editor/components/Header';
+import LoadingOverlay from '@/components/LoadingOverlay';
+import Toast from '@/components/ui/Toast';
+import { useEngineEvents } from '@/engine/core/useEngineEvents';
+import TessellatedWasmLayer from '@/engine/renderer/TessellatedWasmLayer';
 import EditorRibbon from '@/features/editor/components/EditorRibbon';
 import EditorSidebar from '@/features/editor/components/EditorSidebar';
-import SettingsModal from '@/features/settings/SettingsModal';
-import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
-import LoadingOverlay from '@/components/LoadingOverlay';
 import EditorStatusBar from '@/features/editor/components/EditorStatusBar';
-import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import EditorTabs from '@/features/editor/components/EditorTabs';
+import Header from '@/features/editor/components/Header';
+import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
+import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
+import SettingsModal from '@/features/settings/SettingsModal';
 import { useUIStore } from '@/stores/useUIStore';
-import { useEngineEvents } from '@/engine/core/useEngineEvents';
+
 import EngineInteractionLayer from './EngineInteractionLayer';
-import TessellatedWasmLayer from '@/engine/renderer/TessellatedWasmLayer';
-import Toast from '@/components/ui/Toast';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
@@ -40,7 +42,10 @@ const NextCanvasArea: React.FC = () => {
     <div className="flex-grow flex flex-col h-full relative overflow-hidden">
       <EditorTabs />
 
-      <div className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none" ref={containerRef}>
+      <div
+        className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none"
+        ref={containerRef}
+      >
         <div className="absolute inset-0 pointer-events-none">
           <TessellatedWasmLayer />
         </div>
@@ -78,7 +83,7 @@ const NextSurface: React.FC = () => {
         <EditorSidebar />
       </div>
       <LoadingOverlay />
-      <Toast 
+      <Toast
         message={toast.message}
         type={toast.type}
         isVisible={toast.isVisible}

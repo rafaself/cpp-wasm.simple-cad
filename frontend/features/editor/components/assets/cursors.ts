@@ -1,4 +1,3 @@
-
 // Custom cursor SVGs
 
 // Pointer (Standard Selection)

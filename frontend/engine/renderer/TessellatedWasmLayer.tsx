@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { useUIStore } from '@/stores/useUIStore';
 import { CanvasController } from '@/engine/core/CanvasController';
+import { useUIStore } from '@/stores/useUIStore';
 
 const TessellatedWasmLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);

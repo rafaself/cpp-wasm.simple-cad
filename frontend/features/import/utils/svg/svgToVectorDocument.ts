@@ -1,13 +1,20 @@
-import type { VectorClipEntry, VectorDocumentV1, VectorDraw, VectorPath, VectorSegment, VectorStyle } from '@/types';
-
-import type { Mat2D } from '../dxf/matrix2d';
 import { applyToPoint, identity, multiply } from '../dxf/matrix2d';
 
-import type { XmlNode } from './xml';
-import { parseXml } from './xml';
-import { parseSvgTransform } from './transform';
-import { mergeSvgStyle, type StyleState } from './style';
 import { parseSvgPathData } from './pathData';
+import { mergeSvgStyle, type StyleState } from './style';
+import { parseSvgTransform } from './transform';
+import { parseXml } from './xml';
+
+import type { XmlNode } from './xml';
+import type { Mat2D } from '../dxf/matrix2d';
+import type {
+  VectorClipEntry,
+  VectorDocumentV1,
+  VectorDraw,
+  VectorPath,
+  VectorSegment,
+  VectorStyle,
+} from '@/types';
 
 const round4 = (v: number): number => {
   const s = 10_000;
@@ -57,7 +64,11 @@ const keyForSegments = (segs: readonly VectorSegment[], closed: boolean): string
       case 'line':
         return { k: s.kind, to: { x: round4(s.to.x), y: round4(s.to.y) } };
       case 'quad':
-        return { k: s.kind, c: { x: round4(s.c.x), y: round4(s.c.y) }, to: { x: round4(s.to.x), y: round4(s.to.y) } };
+        return {
+          k: s.kind,
+          c: { x: round4(s.c.x), y: round4(s.c.y) },
+          to: { x: round4(s.to.x), y: round4(s.to.y) },
+        };
       case 'cubic':
         return {
           k: s.kind,
@@ -106,7 +117,11 @@ type SvgToIrContext = {
 
 const makeDefaultStyle = (): StyleState => ({ style: {} as VectorStyle });
 
-const getOrCreatePathId = (ctx: SvgToIrContext, segments: VectorSegment[], closed: boolean): string => {
+const getOrCreatePathId = (
+  ctx: SvgToIrContext,
+  segments: VectorSegment[],
+  closed: boolean,
+): string => {
   const key = keyForSegments(segments, closed);
   const existing = ctx.pathKeyToId.get(key);
   if (existing) return existing;
@@ -116,7 +131,13 @@ const getOrCreatePathId = (ctx: SvgToIrContext, segments: VectorSegment[], close
   return id;
 };
 
-const addDraw = (ctx: SvgToIrContext, pathId: string, style: VectorStyle, transform: Mat2D, clipStack: VectorClipEntry[]) => {
+const addDraw = (
+  ctx: SvgToIrContext,
+  pathId: string,
+  style: VectorStyle,
+  transform: Mat2D,
+  clipStack: VectorClipEntry[],
+) => {
   const draw: VectorDraw = {
     id: `d${ctx.nextDrawId++}`,
     pathId,
@@ -137,7 +158,12 @@ const transformSegments = (segments: VectorSegment[], t: Mat2D): VectorSegment[]
       case 'quad':
         return { ...s, c: applyToPoint(t, s.c), to: applyToPoint(t, s.to) };
       case 'cubic':
-        return { ...s, c1: applyToPoint(t, s.c1), c2: applyToPoint(t, s.c2), to: applyToPoint(t, s.to) };
+        return {
+          ...s,
+          c1: applyToPoint(t, s.c1),
+          c2: applyToPoint(t, s.c2),
+          to: applyToPoint(t, s.to),
+        };
       case 'arc':
         // Best-effort: apply translation/rotation-scale to center; keep angles in local space.
         return { ...s, center: applyToPoint(t, s.center) };
@@ -147,7 +173,11 @@ const transformSegments = (segments: VectorSegment[], t: Mat2D): VectorSegment[]
   });
 };
 
-const applyClipAttr = (ctx: SvgToIrContext, node: XmlNode, state: SvgWalkState): VectorClipEntry[] => {
+const applyClipAttr = (
+  ctx: SvgToIrContext,
+  node: XmlNode,
+  state: SvgWalkState,
+): VectorClipEntry[] => {
   const clipId = urlId(node.attrs['clip-path'] ?? node.attrs['clipPath']);
   if (!clipId) return state.clipStack;
   const def = ctx.clipById.get(clipId);
@@ -156,7 +186,11 @@ const applyClipAttr = (ctx: SvgToIrContext, node: XmlNode, state: SvgWalkState):
   const next: VectorClipEntry[] = [...state.clipStack];
   const entryTransform = matToTransform(def.transform);
 
-  const addClipPathFromSegments = (segments: VectorSegment[], closed: boolean, fillRule?: 'nonzero' | 'evenodd') => {
+  const addClipPathFromSegments = (
+    segments: VectorSegment[],
+    closed: boolean,
+    fillRule?: 'nonzero' | 'evenodd',
+  ) => {
     const pid = getOrCreatePathId(ctx, segments, closed);
     next.push({ pathId: pid, fillRule, transform: entryTransform });
   };

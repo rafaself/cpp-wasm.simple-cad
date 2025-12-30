@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { mapImportedLayerNames } from './layerNameCollision';
 
 describe('layerNameCollision', () => {
@@ -36,4 +37,3 @@ describe('layerNameCollision', () => {
     expect(mapping.get('Layer')).toBe('Layer (3)');
   });
 });
-

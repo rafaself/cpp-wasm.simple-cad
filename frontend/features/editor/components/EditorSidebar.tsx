@@ -1,11 +1,12 @@
-import React from 'react';
 import { Eye, EyeOff, Lock, Unlock, Plus } from 'lucide-react';
+import React from 'react';
 
-import { useUIStore } from '../../../stores/useUIStore';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
-import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
 import { LABELS } from '@/i18n/labels';
+
+import { useUIStore } from '../../../stores/useUIStore';
 
 const EditorSidebar: React.FC = () => {
   const runtime = useEngineRuntime();
@@ -38,14 +39,21 @@ const EditorSidebar: React.FC = () => {
     const maxId = layers.reduce((max, layer) => Math.max(max, layer.id), 0);
     const nextId = maxId + 1;
     const flags = EngineLayerFlags.Visible;
-    runtime.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
+    runtime.setLayerProps(
+      nextId,
+      LayerPropMask.Name | LayerPropMask.Visible,
+      flags,
+      `Layer ${nextId}`,
+    );
     setActiveLayerId(nextId);
   };
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-100 border-l border-slate-800 flex flex-col">
       <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-        <span className="text-xs uppercase tracking-widest text-slate-400">{LABELS.sidebar.layers}</span>
+        <span className="text-xs uppercase tracking-widest text-slate-400">
+          {LABELS.sidebar.layers}
+        </span>
         <button
           onClick={handleAddLayer}
           className="h-6 w-6 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"

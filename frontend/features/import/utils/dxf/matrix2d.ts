@@ -1,4 +1,3 @@
-
 export type Mat2D = {
   a: number; // m11 (Scale X / Cos)
   b: number; // m12 (Sin)
@@ -9,9 +8,12 @@ export type Mat2D = {
 };
 
 export const identity = (): Mat2D => ({
-  a: 1, b: 0,
-  c: 0, d: 1,
-  e: 0, f: 0
+  a: 1,
+  b: 0,
+  c: 0,
+  d: 1,
+  e: 0,
+  f: 0,
 });
 
 // Multiply: M1 * M2 (M1 applied after M2? Or M1 * M2 meaning M2 applied first?)
@@ -34,36 +36,45 @@ export const multiply = (m1: Mat2D, m2: Mat2D): Mat2D => {
     e: m1.a * m2.e + m1.c * m2.f + m1.e,
     b: m1.b * m2.a + m1.d * m2.b,
     d: m1.b * m2.c + m1.d * m2.d,
-    f: m1.b * m2.e + m1.d * m2.f + m1.f
+    f: m1.b * m2.e + m1.d * m2.f + m1.f,
   };
 };
 
-export const applyToPoint = (m: Mat2D, p: { x: number, y: number }): { x: number, y: number } => {
+export const applyToPoint = (m: Mat2D, p: { x: number; y: number }): { x: number; y: number } => {
   return {
     x: m.a * p.x + m.c * p.y + m.e,
-    y: m.b * p.x + m.d * p.y + m.f
+    y: m.b * p.x + m.d * p.y + m.f,
   };
 };
 
 export const fromTranslation = (x: number, y: number): Mat2D => ({
-  a: 1, b: 0,
-  c: 0, d: 1,
-  e: x, f: y
+  a: 1,
+  b: 0,
+  c: 0,
+  d: 1,
+  e: x,
+  f: y,
 });
 
 export const fromScaling = (sx: number, sy: number): Mat2D => ({
-  a: sx, b: 0,
-  c: 0,  d: sy,
-  e: 0,  f: 0
+  a: sx,
+  b: 0,
+  c: 0,
+  d: sy,
+  e: 0,
+  f: 0,
 });
 
 export const fromRotation = (angleRad: number): Mat2D => {
   const c = Math.cos(angleRad);
   const s = Math.sin(angleRad);
   return {
-    a: c,  b: s,
-    c: -s, d: c,
-    e: 0,  f: 0
+    a: c,
+    b: s,
+    c: -s,
+    d: c,
+    e: 0,
+    f: 0,
   };
 };
 
@@ -84,7 +95,7 @@ export const fromTRS = (
   ty: number,
   rotationDeg: number,
   sx: number,
-  sy: number
+  sy: number,
 ): Mat2D => {
   // M = T * R * S
   // We can construct manually or multiply
@@ -111,7 +122,7 @@ export const fromTRS = (
     c: -sin * sy,
     d: cos * sy,
     e: tx,
-    f: ty
+    f: ty,
   };
 };
 

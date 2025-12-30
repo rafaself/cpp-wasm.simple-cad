@@ -1,13 +1,15 @@
 /**
  * Test Utilities and Mock Factories
- * 
+ *
  * Provides comprehensive mocks and utilities for testing performance components
  */
 
 import { vi } from 'vitest';
+
+import { PickEntityKind, PickSubTarget } from '@/types/picking';
+
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { PickResult } from '@/types/picking';
-import { PickEntityKind, PickSubTarget } from '@/types/picking';
 
 /**
  * Creates a mock PickResult
@@ -26,10 +28,12 @@ export function createMockPickResult(id: number, overrides?: Partial<PickResult>
 /**
  * Creates a mock EngineRuntime with configurable behavior
  */
-export function createMockRuntime(options: {
-  initialGeneration?: number;
-  statsOverride?: Partial<ReturnType<EngineRuntime['engine']['getStats']>>;
-} = {}): any {
+export function createMockRuntime(
+  options: {
+    initialGeneration?: number;
+    statsOverride?: Partial<ReturnType<EngineRuntime['getStats']>>;
+  } = {},
+): any {
   const { initialGeneration = 1, statsOverride = {} } = options;
 
   const mockEngine = {
@@ -75,7 +79,7 @@ export function createMockRuntime(options: {
  */
 export function createPickResultSequence(count: number): PickResult[] {
   return Array.from({ length: count }, (_, i) =>
-    createMockPickResult(i + 1, { distance: Math.random() * 100 })
+    createMockPickResult(i + 1, { distance: Math.random() * 100 }),
   );
 }
 
@@ -83,21 +87,21 @@ export function createPickResultSequence(count: number): PickResult[] {
  * Waits for a specific number of milliseconds (for async tests)
  */
 export function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
  * Waits for next event loop tick
  */
 export function waitForNextTick(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, 0));
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
  * Runs a function and measures its execution time
  */
 export async function measureExecutionTime<T>(
-  fn: () => T | Promise<T>
+  fn: () => T | Promise<T>,
 ): Promise<{ result: T; duration: number }> {
   const start = performance.now();
   const result = await fn();
@@ -130,7 +134,7 @@ export function restoreConsole() {
  */
 export function createCallOrderTracker() {
   const calls: string[] = [];
-  
+
   return {
     track: (name: string) => {
       calls.push(name);
@@ -157,11 +161,11 @@ export function assertDefined<T>(value: T | null | undefined): asserts value is 
 export function createDeferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: any) => void;
-  
+
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  
+
   return { promise, resolve, reject };
 }

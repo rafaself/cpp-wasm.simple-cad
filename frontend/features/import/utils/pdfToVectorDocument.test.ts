@@ -1,18 +1,25 @@
-import { describe, expect, it, vi } from 'vitest';
 import * as pdfjs from 'pdfjs-dist';
+import { describe, expect, it, vi } from 'vitest';
 
 import { convertPdfPageToVectorDocumentV1 } from './pdfToVectorDocument';
 
 const OPS = pdfjs.OPS;
 
-const createMockPage = (fnArray: number[], argsArray: unknown[], viewportTransform: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0]) => {
+const createMockPage = (
+  fnArray: number[],
+  argsArray: unknown[],
+  viewportTransform: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0],
+) => {
   return {
     getOperatorList: vi.fn().mockResolvedValue({ fnArray, argsArray }),
     getViewport: vi.fn().mockReturnValue({ transform: viewportTransform }),
   };
 };
 
-const pathForDraw = (doc: Awaited<ReturnType<typeof convertPdfPageToVectorDocumentV1>>['document'], drawIndex = 0) => {
+const pathForDraw = (
+  doc: Awaited<ReturnType<typeof convertPdfPageToVectorDocumentV1>>['document'],
+  drawIndex = 0,
+) => {
   const draw = doc.draws[drawIndex]!;
   const path = doc.paths.find((p) => p.id === draw.pathId);
   if (!path) throw new Error('missing path for draw');
@@ -26,7 +33,10 @@ describe('convertPdfPageToVectorDocumentV1', () => {
       [
         [2],
         [1, 0, 0],
-        [[OPS.moveTo, OPS.lineTo], [10, 10, 100, 100]],
+        [
+          [OPS.moveTo, OPS.lineTo],
+          [10, 10, 100, 100],
+        ],
         [],
       ],
     );
@@ -46,11 +56,7 @@ describe('convertPdfPageToVectorDocumentV1', () => {
   it('emits even-odd fill rule for eoFill', async () => {
     const page = createMockPage(
       [OPS.setFillRGBColor, OPS.constructPath, OPS.eoFill],
-      [
-        [0, 0, 1],
-        [[OPS.rectangle], [0, 0, 10, 10]],
-        [],
-      ],
+      [[0, 0, 1], [[OPS.rectangle], [0, 0, 10, 10]], []],
     );
 
     const res = await convertPdfPageToVectorDocumentV1(page as any);
@@ -66,7 +72,10 @@ describe('convertPdfPageToVectorDocumentV1', () => {
         [[OPS.rectangle], [0, 0, 5, 5]],
         [],
         [],
-        [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 10]],
+        [
+          [OPS.moveTo, OPS.lineTo],
+          [0, 0, 10, 10],
+        ],
         [],
       ],
     );
@@ -81,9 +90,15 @@ describe('convertPdfPageToVectorDocumentV1', () => {
     const page = createMockPage(
       [OPS.constructPath, OPS.stroke, OPS.constructPath, OPS.stroke],
       [
-        [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 0]],
+        [
+          [OPS.moveTo, OPS.lineTo],
+          [0, 0, 10, 0],
+        ],
         [],
-        [[OPS.moveTo, OPS.lineTo], [0, 0, 10, 0]],
+        [
+          [OPS.moveTo, OPS.lineTo],
+          [0, 0, 10, 0],
+        ],
         [],
       ],
     );
@@ -95,10 +110,18 @@ describe('convertPdfPageToVectorDocumentV1', () => {
   });
 
   it('caches results per page+options (calls getOperatorList once)', async () => {
-    const page = createMockPage([OPS.constructPath, OPS.stroke], [[[OPS.moveTo, OPS.lineTo], [0, 0, 10, 0]], []]);
+    const page = createMockPage(
+      [OPS.constructPath, OPS.stroke],
+      [
+        [
+          [OPS.moveTo, OPS.lineTo],
+          [0, 0, 10, 0],
+        ],
+        [],
+      ],
+    );
     await convertPdfPageToVectorDocumentV1(page as any, { removeBorder: false });
     await convertPdfPageToVectorDocumentV1(page as any, { removeBorder: false });
     expect(page.getOperatorList).toHaveBeenCalledTimes(1);
   });
 });
-

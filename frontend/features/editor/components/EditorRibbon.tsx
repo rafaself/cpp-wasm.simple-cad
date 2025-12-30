@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
+import React, { useState } from 'react';
+
+import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 import { useUIStore } from '../../../stores/useUIStore';
-import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 import { RIBBON_TABS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
+
 import { RibbonGroup } from './ribbon/RibbonGroup';
 
 const EditorRibbon: React.FC = () => {
@@ -46,9 +48,9 @@ const EditorRibbon: React.FC = () => {
   return (
     <div className="flex flex-col bg-ribbon-root border-b border-ribbon-panel text-ribbon-text">
       {/* Tab Headers */}
-      <div 
-        className="flex items-center gap-1 px-2 pt-1" 
-        role="tablist" 
+      <div
+        className="flex items-center gap-1 px-2 pt-1"
+        role="tablist"
         aria-label="Categorias de Ferramentas"
       >
         {RIBBON_TABS.map((tab, index) => {
@@ -69,7 +71,7 @@ const EditorRibbon: React.FC = () => {
               title={`${tab.label} (${index + 1})`}
             >
               {tab.label}
-              <span 
+              <span
                 className={`absolute bottom-0 left-0 h-[2px] w-full bg-blue-400 transition-transform ease-out origin-center ${
                   isActive ? 'scale-x-100 duration-300' : 'scale-x-0 duration-150'
                 }`}
@@ -81,7 +83,7 @@ const EditorRibbon: React.FC = () => {
       </div>
 
       {/* Toolbar Content - 90px total height per Gold Standard */}
-      <div 
+      <div
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
@@ -89,12 +91,10 @@ const EditorRibbon: React.FC = () => {
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
-            <RibbonGroup 
-              group={group} 
-              activeTool={activeTool} 
-              onItemClick={handleItemClick}
-            />
-            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-ribbon-border mx-2 opacity-50" aria-hidden="true" />}
+            <RibbonGroup group={group} activeTool={activeTool} onItemClick={handleItemClick} />
+            {groupIndex < activeGroups.length - 1 && (
+              <div className="h-full w-px bg-ribbon-border mx-2 opacity-50" aria-hidden="true" />
+            )}
           </React.Fragment>
         ))}
 
@@ -114,11 +114,14 @@ const EditorRibbon: React.FC = () => {
                 Mais
               </button>
               {isOverflowOpen && (
-                <div role="menu" className="absolute top-full right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg py-1 z-10">
+                <div
+                  role="menu"
+                  className="absolute top-full right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg py-1 z-10"
+                >
                   {RIBBON_OVERFLOW_ITEMS.map((item) => {
-                    const Icon = item.icon;
                     const isStub = item.status === 'stub';
                     const title = isStub ? `${item.label} — Em breve (Engine-First)` : item.label;
+                    const Icon = item.icon;
 
                     const handleClick = () => {
                       if (item.kind === 'action' && item.actionId) {
@@ -140,7 +143,7 @@ const EditorRibbon: React.FC = () => {
                         title={title}
                         aria-disabled={isStub}
                       >
-                        <Icon size={14} />
+                        {Icon ? <Icon size={14} /> : null}
                         <span>{item.label}</span>
                       </button>
                     );

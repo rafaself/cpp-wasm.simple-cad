@@ -1,6 +1,7 @@
-import type { EngineCommand } from '../commandBuffer';
 import { encodeCommandBuffer } from '../commandBuffer';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
+
+import type { EngineCommand } from '../commandBuffer';
 
 export class CommandSystem {
   private static readonly INITIAL_BUFFER_SIZE = 64 * 1024; // 64KB
@@ -9,7 +10,7 @@ export class CommandSystem {
 
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public apply(commands: readonly EngineCommand[]): void {

@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
+
 import { worldToScreen } from '@/utils/viewportMath';
+
 import type { ViewTransform, Point } from '@/types';
 
 export interface SelectionBoxState {

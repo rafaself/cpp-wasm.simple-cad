@@ -20,7 +20,7 @@
 }
 
 .ribbon-tab-active::after {
-  content: "";
+  content: '';
   position: absolute;
   bottom: 0;
   left: 0;
@@ -36,7 +36,7 @@
 }
 
 .sidebar-tab-active::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   left: 0;
@@ -201,7 +201,9 @@
   background-color: white;
   border-radius: 9999px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .premium-switch-input:checked + .premium-switch-track {
@@ -209,9 +211,7 @@
 }
 
 .premium-switch-input:checked + .premium-switch-track .premium-switch-handle {
-  transform: translateX(
-    18px
-  ); /* 38(track) - 16(handle) - 4(2px padding each side) = 18px */
+  transform: translateX(18px); /* 38(track) - 16(handle) - 4(2px padding each side) = 18px */
 }
 
 /* Hover Effects */
@@ -227,9 +227,7 @@
   transform: scale(1.05);
 }
 
-.premium-switch-input:checked:hover
-  + .premium-switch-track
-  .premium-switch-handle {
+.premium-switch-input:checked:hover + .premium-switch-track .premium-switch-handle {
   transform: translateX(18px) scale(1.05);
 }
 

@@ -10,10 +10,18 @@ describe('computeTriangleBatches', () => {
   it('groups consecutive triangles by blend state without reordering', () => {
     // 4 triangles: opaque, opaque, blended, opaque => 3 batches.
     const data = new Float32Array([
-      ...v(1), ...v(1), ...v(1),
-      ...v(1), ...v(1), ...v(1),
-      ...v(1), ...v(0.5), ...v(1),
-      ...v(1), ...v(1), ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(0.5),
+      ...v(1),
+      ...v(1),
+      ...v(1),
+      ...v(1),
     ]);
 
     const batches = computeTriangleBatches(data, floatsPerVertex);

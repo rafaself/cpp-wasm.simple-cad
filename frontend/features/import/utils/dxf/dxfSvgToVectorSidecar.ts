@@ -1,6 +1,6 @@
-import type { Shape, VectorSidecarV1 } from '@/types';
-
 import { svgToVectorDocumentV1 } from '../svg/svgToVectorDocument';
+
+import type { Shape, VectorSidecarV1 } from '@/types';
 
 export const buildDxfSvgVectorSidecarV1 = (shape: Shape): VectorSidecarV1 | null => {
   if (shape.type !== 'rect') return null;
@@ -17,4 +17,3 @@ export const buildDxfSvgVectorSidecarV1 = (shape: Shape): VectorSidecarV1 | null
     },
   };
 };
-

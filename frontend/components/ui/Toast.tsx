@@ -1,5 +1,5 @@
-import React from 'react';
 import { X, Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import React from 'react';
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error';
 

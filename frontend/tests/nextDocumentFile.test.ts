@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { decodeNextDocumentFile, encodeNextDocumentFile } from '@/persistence/nextDocumentFile';
 
 describe('nextDocumentFile v3', () => {

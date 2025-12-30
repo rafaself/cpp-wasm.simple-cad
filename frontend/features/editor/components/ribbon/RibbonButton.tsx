@@ -1,6 +1,8 @@
 import React from 'react';
-import { RibbonItem } from '../../ui/ribbonConfig';
+
 import { getShortcutLabel } from '@/config/keybindings';
+
+import { RibbonItem } from '../../ui/ribbonConfig';
 
 // Helper to map Ribbon IDs to Keybinding IDs
 const getBindingId = (item: RibbonItem): string | undefined => {
@@ -31,29 +33,24 @@ interface RibbonButtonProps {
   onClick: (item: RibbonItem) => void;
 }
 
-export const RibbonButton: React.FC<RibbonButtonProps> = ({
-  item,
-  layout,
-  isActive,
-  onClick,
-}) => {
+export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActive, onClick }) => {
   const Icon = item.icon;
   const isTool = item.kind === 'tool';
   const isStub = item.status === 'stub';
-  
+
   // Layout Logic
   const isVertical = item.variant === 'large';
   const isGrid = layout === 'grid-2x3';
   const isStack = layout === 'stack';
-  
+
   // Sizing Logic
   const widthClasses = {
-    sm: 'w-14',    // Compact
-    md: 'w-20',    // Standard
-    lg: 'w-32',    // Wide
-    auto: 'w-auto' // Self-sizing
+    sm: 'w-14', // Compact
+    md: 'w-20', // Standard
+    lg: 'w-32', // Wide
+    auto: 'w-auto', // Self-sizing
   };
-  
+
   // Determine effective width
   let widthClass = 'w-auto';
   if (item.width) {
@@ -63,7 +60,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
   } else if (isGrid) {
     widthClass = 'w-28'; // Fixed width for grid items
   } else if (isStack) {
-     widthClass = 'w-28';
+    widthClass = 'w-28';
   }
 
   // Height Logic
@@ -72,12 +69,12 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
   if (isGrid || isStack) heightClass = 'h-[24px]'; // Match --ribbon-item-height
 
   // Flex Structure
-  const flexClass = isVertical 
-    ? 'flex flex-col justify-center items-center gap-1' 
+  const flexClass = isVertical
+    ? 'flex flex-col justify-center items-center gap-1'
     : 'flex flex-row items-center gap-2';
-    
+
   // Override justify for specific horizontal layouts if needed
-  const justifyClass = (!isVertical) ? 'justify-start px-2.5' : 'justify-center px-2';
+  const justifyClass = !isVertical ? 'justify-start px-2.5' : 'justify-center px-2';
 
   // Typography & Text Wrapping
   const textClass = isVertical
@@ -88,25 +85,42 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
   // Primary: blue-500 (#3b82f6) for selection
   // Surface: ribbon-panel
   let colorClass = 'bg-ribbon-panel text-ribbon-text border border-transparent';
-  
+
   if (isActive) {
     colorClass = 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-400/50';
   } else if (isStub) {
     colorClass = 'bg-ribbon-panel/50 text-ribbon-muted opacity-60 cursor-not-allowed';
   } else {
     // Hover State
-    const hoverClass = item.actionId === 'delete' 
-      ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400' 
-      : 'hover:bg-ribbon-hover hover:text-white hover:border-ribbon-border/50';
+    const hoverClass =
+      item.actionId === 'delete'
+        ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
+        : 'hover:bg-ribbon-hover hover:text-white hover:border-ribbon-border/50';
     colorClass = `${colorClass} ${hoverClass}`;
   }
 
   // Tooltip
   const bindingId = getBindingId(item);
   const shortcut = bindingId ? getShortcutLabel(bindingId) : '';
-  const tooltip = isStub 
-    ? `${item.label} — Em breve` 
-    : shortcut ? `${item.label} (${shortcut})` : item.label;
+  const tooltip = isStub
+    ? `${item.label} — Em breve`
+    : shortcut
+      ? `${item.label} (${shortcut})`
+      : item.label;
+
+  if (!Icon) {
+    return (
+      <button
+        onClick={() => !isStub && onClick(item)}
+        className={`relative rounded-md transition-all duration-150 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass} ${textClass}`}
+        title={tooltip}
+        aria-disabled={isStub}
+        aria-pressed={isTool ? isActive : undefined}
+      >
+        <span className="pointer-events-none truncate">{item.label}</span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -123,10 +137,8 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
       ) : (
         <Icon size={20} className="shrink-0" />
       )}
-      
-      <span className="pointer-events-none truncate">
-        {item.label}
-      </span>
+
+      <span className="pointer-events-none truncate">{item.label}</span>
     </button>
   );
 };

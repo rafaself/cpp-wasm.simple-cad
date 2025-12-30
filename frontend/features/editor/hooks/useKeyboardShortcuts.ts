@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { useUIStore } from '../../../stores/useUIStore';
-import { useEditorLogic } from './useEditorLogic';
-import { KEYBINDINGS } from '../../../config/keybindings';
+
 import { getEngineRuntime } from '@/engine/core/singleton';
+
+import { KEYBINDINGS } from '../../../config/keybindings';
+import { useUIStore } from '../../../stores/useUIStore';
+
+import { useEditorLogic } from './useEditorLogic';
 
 export const useKeyboardShortcuts = () => {
   const uiStore = useUIStore();
@@ -23,7 +26,7 @@ export const useKeyboardShortcuts = () => {
         const binding = KEYBINDINGS[bindingId];
         if (!binding) return false;
 
-        return binding.keys.some(keyCombo => {
+        return binding.keys.some((keyCombo) => {
           const parts = keyCombo.toLowerCase().split('+');
           const mainKey = parts[parts.length - 1];
           const hasCtrl = parts.includes('ctrl');
@@ -41,21 +44,21 @@ export const useKeyboardShortcuts = () => {
           if (mainKey === 'space' && e.code === 'Space') return true;
           if (mainKey === 'delete' && e.key === 'Delete') return true;
           if (mainKey === 'escape' && e.key === 'Escape') return true;
-          
+
           return e.key.toLowerCase() === mainKey;
         });
       };
 
       // Undo / Redo
       if (checkKey('editor.undo')) {
-           e.preventDefault();
-           void getEngineRuntime().then((runtime) => runtime.undo());
-           return;
+        e.preventDefault();
+        void getEngineRuntime().then((runtime) => runtime.undo());
+        return;
       }
       if (checkKey('editor.redo')) {
-           e.preventDefault();
-           void getEngineRuntime().then((runtime) => runtime.redo());
-           return;
+        e.preventDefault();
+        void getEngineRuntime().then((runtime) => runtime.redo());
+        return;
       }
 
       // Pan shortcut (Space)
@@ -69,7 +72,8 @@ export const useKeyboardShortcuts = () => {
 
       // Global Tools
       if (checkKey('tools.select')) uiStore.setTool('select');
-      else if (checkKey('nav.pan')) uiStore.setTool('pan'); // 'h' key
+      else if (checkKey('nav.pan'))
+        uiStore.setTool('pan'); // 'h' key
       else if (checkKey('tools.line')) uiStore.setTool('line');
       else if (checkKey('tools.polyline')) uiStore.setTool('polyline');
       else if (checkKey('tools.rect')) uiStore.setTool('rect');

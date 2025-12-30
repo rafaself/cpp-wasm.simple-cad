@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 
-import type { EntityId } from './protocol';
 import { useDocumentSignal } from './engineDocumentSignals';
 import { useEngineRuntime } from './useEngineRuntime';
+
+import type { EntityId } from './protocol';
 
 export const useEngineSelectionIds = (): EntityId[] => {
   const runtime = useEngineRuntime();

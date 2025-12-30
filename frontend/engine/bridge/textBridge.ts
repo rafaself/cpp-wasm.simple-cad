@@ -5,7 +5,6 @@
  * bridging between application code and the WASM engine's text subsystem.
  */
 
-import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import {
   CommandOp,
   type ApplyTextStylePayload,
@@ -27,7 +26,10 @@ import {
   TextBoxMode,
   TextStyleSnapshot,
 } from '@/types/text';
+
 import { TextNavigator, charToByteIndex, byteToCharIndex } from './textNavigation';
+
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 /** Extended CadEngine instance with text methods exposed via Embind. */
 export interface TextEnabledCadEngine {
@@ -46,9 +48,19 @@ export interface TextEnabledCadEngine {
   clearAtlasDirty: () => void;
   getTextContentMeta: (textId: number) => TextContentMeta;
   getTextBounds: (textId: number) => TextBoundsResult;
-  getTextSelectionRects: (textId: number, start: number, end: number) => { size: () => number, get: (i: number) => TextSelectionRect, delete: () => void };
+  getTextSelectionRects: (
+    textId: number,
+    start: number,
+    end: number,
+  ) => { size: () => number; get: (i: number) => TextSelectionRect; delete: () => void };
   setTextConstraintWidth: (textId: number, width: number) => boolean;
-  setTextPosition: (textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number) => boolean;
+  setTextPosition: (
+    textId: number,
+    x: number,
+    y: number,
+    boxMode: TextBoxMode,
+    constraintWidth: number,
+  ) => boolean;
   getTextStyleSnapshot: (textId: number) => TextStyleSnapshot;
   getVisualPrevCharIndex: (textId: number, charIndex: number) => number;
   getVisualNextCharIndex: (textId: number, charIndex: number) => number;
@@ -103,9 +115,7 @@ export class TextBridge {
    * Check if text system is available and initialized.
    */
   isAvailable(): boolean {
-    return (
-      typeof this.textEngine.initializeTextSystem === 'function' && this.initialized
-    );
+    return typeof this.textEngine.initializeTextSystem === 'function' && this.initialized;
   }
 
   /**
@@ -203,12 +213,7 @@ export class TextBridge {
    * @param endChar Selection end character index
    * @param content The text content (needed for char-to-byte conversion)
    */
-  setSelection(
-    textId: number,
-    startChar: number,
-    endChar: number,
-    content: string
-  ): void {
+  setSelection(textId: number, startChar: number, endChar: number, content: string): void {
     const startByte = charToByteIndex(content, startChar);
     const endByte = charToByteIndex(content, endChar);
     this.runtime.apply([
@@ -226,11 +231,7 @@ export class TextBridge {
   /**
    * Set selection range using byte indices directly.
    */
-  setSelectionByteIndex(
-    textId: number,
-    startByte: number,
-    endByte: number
-  ): void {
+  setSelectionByteIndex(textId: number, startByte: number, endByte: number): void {
     this.runtime.apply([
       {
         op: CommandOp.SetTextSelection,
@@ -247,7 +248,9 @@ export class TextBridge {
    * Apply text style to a logical range.
    */
   applyTextStyle(textId: number, style: ApplyTextStylePayload): void {
-    console.log('[DEBUG] TextBridge.applyTextStyle sending command', { textId, style });
+    if (import.meta.env.DEV) {
+      console.warn('[DEBUG] TextBridge.applyTextStyle sending command', { textId, style });
+    }
     this.runtime.apply([
       {
         op: CommandOp.ApplyTextStyle,
@@ -264,8 +267,8 @@ export class TextBridge {
     this.runtime.apply([
       {
         op: CommandOp.SetTextAlign,
-        align: { textId, align }
-      }
+        align: { textId, align },
+      },
     ]);
     return true;
   }
@@ -277,12 +280,7 @@ export class TextBridge {
    * @param text Text to insert
    * @param currentContent Current content (needed for char-to-byte conversion)
    */
-  insertContent(
-    textId: number,
-    charIndex: number,
-    text: string,
-    currentContent: string
-  ): void {
+  insertContent(textId: number, charIndex: number, text: string, currentContent: string): void {
     const byteIndex = charToByteIndex(currentContent, charIndex);
     this.runtime.apply([
       {
@@ -299,12 +297,10 @@ export class TextBridge {
   /**
    * Insert text content using byte index directly.
    */
-  insertContentByteIndex(
-    textId: number,
-    byteIndex: number,
-    text: string
-  ): void {
-    console.log('[DEBUG] TextBridge: insertContentByteIndex', { textId, byteIndex, text });
+  insertContentByteIndex(textId: number, byteIndex: number, text: string): void {
+    if (import.meta.env.DEV) {
+      console.warn('[DEBUG] TextBridge: insertContentByteIndex', { textId, byteIndex, text });
+    }
     this.runtime.apply([
       {
         op: CommandOp.InsertTextContent,
@@ -320,12 +316,7 @@ export class TextBridge {
    * @param endChar End character index (exclusive)
    * @param currentContent Current content (needed for char-to-byte conversion)
    */
-  deleteContent(
-    textId: number,
-    startChar: number,
-    endChar: number,
-    currentContent: string
-  ): void {
+  deleteContent(textId: number, startChar: number, endChar: number, currentContent: string): void {
     const startByte = charToByteIndex(currentContent, startChar);
     const endByte = charToByteIndex(currentContent, endChar);
     this.runtime.apply([
@@ -343,11 +334,7 @@ export class TextBridge {
   /**
    * Delete text content using byte indices directly.
    */
-  deleteContentByteIndex(
-    textId: number,
-    startByte: number,
-    endByte: number
-  ): void {
+  deleteContentByteIndex(textId: number, startByte: number, endByte: number): void {
     this.runtime.apply([
       {
         op: CommandOp.DeleteTextContent,
@@ -387,12 +374,12 @@ export class TextBridge {
    */
   getTextContent(textId: number): string | null {
     if (!this.isAvailable()) return null;
-    
+
     const meta = this.textEngine.getTextContentMeta(textId);
     if (!meta.exists || meta.byteCount === 0) {
       return meta.exists ? '' : null;
     }
-    
+
     // Read UTF-8 bytes from WASM memory
     const bytes = this.runtime.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
     const decoder = new TextDecoder('utf-8');
@@ -403,7 +390,7 @@ export class TextBridge {
    * Get text entity metadata (box mode, constraint width).
    */
   getTextMeta(textId: number) {
-      return this.runtime.getTextEntityMeta(textId);
+    return this.runtime.getTextEntityMeta(textId);
   }
 
   /**
@@ -427,23 +414,23 @@ export class TextBridge {
     textId: number,
     startChar: number,
     endChar: number,
-    content: string
+    content: string,
   ): TextSelectionRect[] {
     if (!this.isAvailable()) return [];
 
     const startByte = charToByteIndex(content, startChar);
     const endByte = charToByteIndex(content, endChar);
-    
+
     // Engine returns a C++ vector wrapper
     const vector = this.textEngine.getTextSelectionRects(textId, startByte, endByte);
-    
+
     const result: TextSelectionRect[] = [];
     const size = vector.size();
     for (let i = 0; i < size; i++) {
       result.push(vector.get(i));
     }
     vector.delete(); // Important: free the C++ vector wrapper
-    
+
     return result;
   }
 
@@ -471,7 +458,7 @@ export class TextBridge {
     x: number,
     y: number,
     boxMode: TextBoxMode = TextBoxMode.AutoWidth,
-    constraintWidth = 0
+    constraintWidth = 0,
   ): boolean {
     if (!this.isAvailable() || typeof this.textEngine.setTextPosition !== 'function') return false;
     return this.textEngine.setTextPosition(textId, x, y, boxMode, constraintWidth);
@@ -546,10 +533,7 @@ export class TextBridge {
     // Return a view into the WASM heap
     const byteOffset = meta.ptr;
     const floatOffset = byteOffset / 4;
-    return this.runtime.module.HEAPF32.subarray(
-      floatOffset,
-      floatOffset + meta.floatCount
-    );
+    return this.runtime.module.HEAPF32.subarray(floatOffset, floatOffset + meta.floatCount);
   }
 
   /** Get visual previous caret position. */

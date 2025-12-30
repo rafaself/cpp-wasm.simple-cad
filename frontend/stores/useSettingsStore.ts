@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { SnapOptions } from '../types';
-import { UI } from '../design/tokens';
+
 import { supportsEngineResize } from '@/engine/core/capabilities';
+
+import { UI } from '../design/tokens';
+import { SnapOptions } from '../types';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
 
@@ -166,53 +168,115 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setGridShowDots: (show) => set((state) => ({ grid: { ...state.grid, showDots: show } })),
   setGridShowLines: (show) => set((state) => ({ grid: { ...state.grid, showLines: show } })),
 
-  setShowCenterAxes: (show) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, show } } })),
-  setAxisXColor: (color) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, xColor: color } } })),
-  setAxisYColor: (color) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yColor: color } } })),
-  setAxisXDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, xDashed: dashed } } })),
-  setAxisYDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yDashed: dashed } } })),
-  setShowCenterIcon: (show) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, show } } })),
-  setCenterIconColor: (color) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, color } } })),
-  setCanvasBackgroundColor: (color) => set((state) => ({ display: { ...state.display, backgroundColor: color } })),
+  setShowCenterAxes: (show) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, show } },
+    })),
+  setAxisXColor: (color) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, xColor: color } },
+    })),
+  setAxisYColor: (color) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, yColor: color } },
+    })),
+  setAxisXDashed: (dashed) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, xDashed: dashed } },
+    })),
+  setAxisYDashed: (dashed) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, yDashed: dashed } },
+    })),
+  setShowCenterIcon: (show) =>
+    set((state) => ({
+      display: { ...state.display, centerIcon: { ...state.display.centerIcon, show } },
+    })),
+  setCenterIconColor: (color) =>
+    set((state) => ({
+      display: { ...state.display, centerIcon: { ...state.display.centerIcon, color } },
+    })),
+  setCanvasBackgroundColor: (color) =>
+    set((state) => ({ display: { ...state.display, backgroundColor: color } })),
 
-  setStrokeColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),
-  setStrokeWidth: (width) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),
-  setStrokeEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeEnabled: enabled } })),
-  setFillColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillColor: color } })),
-  setFillEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillEnabled: enabled } })),
-  setPolygonSides: (sides) => set((state) => ({ toolDefaults: { ...state.toolDefaults, polygonSides: sides } })),
+  setStrokeColor: (color) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),
+  setStrokeWidth: (width) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),
+  setStrokeEnabled: (enabled) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeEnabled: enabled } })),
+  setFillColor: (color) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, fillColor: color } })),
+  setFillEnabled: (enabled) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, fillEnabled: enabled } })),
+  setPolygonSides: (sides) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, polygonSides: sides } })),
 
-  setTextFontSize: (size) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontSize: size } } })),
-  setTextFontFamily: (family) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontFamily: family } } })),
-  setTextAlign: (align) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, align } } })),
-  setTextBold: (bold) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, bold } } })),
-  setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
-  setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
-  setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
-  setEngineResizeEnabled: (enabled) => set((state) => {
-    if (!enabled) {
-      if (!state.featureFlags.enableEngineResize) return state;
-      return { featureFlags: { ...state.featureFlags, enableEngineResize: false } };
-    }
-    if (!supportsEngineResize(state.engineCapabilitiesMask)) {
-      if (import.meta.env.DEV) {
-        console.warn('[Settings] enableEngineResize ignored: WASM lacks resize capabilities.');
+  setTextFontSize: (size) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontSize: size } },
+    })),
+  setTextFontFamily: (family) =>
+    set((state) => ({
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, fontFamily: family },
+      },
+    })),
+  setTextAlign: (align) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, align } },
+    })),
+  setTextBold: (bold) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, bold } },
+    })),
+  setTextItalic: (italic) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } },
+    })),
+  setTextUnderline: (underline) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } },
+    })),
+  setTextStrike: (strike) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } },
+    })),
+  setEngineResizeEnabled: (enabled) =>
+    set((state) => {
+      if (!enabled) {
+        if (!state.featureFlags.enableEngineResize) return state;
+        return { featureFlags: { ...state.featureFlags, enableEngineResize: false } };
       }
-      return state;
-    }
-    if (state.featureFlags.enableEngineResize) return state;
-    return { featureFlags: { ...state.featureFlags, enableEngineResize: true } };
-  }),
-  setEngineCapabilitiesMask: (mask) => set((state) => (state.engineCapabilitiesMask === mask ? state : { engineCapabilitiesMask: mask })),
-  
+      if (!supportsEngineResize(state.engineCapabilitiesMask)) {
+        if (import.meta.env.DEV) {
+          console.warn('[Settings] enableEngineResize ignored: WASM lacks resize capabilities.');
+        }
+        return state;
+      }
+      if (state.featureFlags.enableEngineResize) return state;
+      return { featureFlags: { ...state.featureFlags, enableEngineResize: true } };
+    }),
+  setEngineCapabilitiesMask: (mask) =>
+    set((state) =>
+      state.engineCapabilitiesMask === mask ? state : { engineCapabilitiesMask: mask },
+    ),
+
   // Performance settings
-  setPickProfilingEnabled: (enabled) => set((state) => ({
-    featureFlags: { ...state.featureFlags, enablePickProfiling: enabled }
-  })),
-  setPickThrottlingEnabled: (enabled) => set((state) => ({
-    featureFlags: { ...state.featureFlags, enablePickThrottling: enabled }
-  })),
-  setPickThrottleInterval: (interval) => set((state) => ({
-    performance: { ...state.performance, pickThrottleInterval: Math.max(8, Math.min(100, interval)) }
-  })),
+  setPickProfilingEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePickProfiling: enabled },
+    })),
+  setPickThrottlingEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePickThrottling: enabled },
+    })),
+  setPickThrottleInterval: (interval) =>
+    set((state) => ({
+      performance: {
+        ...state.performance,
+        pickThrottleInterval: Math.max(8, Math.min(100, interval)),
+      },
+    })),
 }));

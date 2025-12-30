@@ -1,10 +1,10 @@
-import { CadEngineInstance, WasmModule } from '../wasm-types';
 import { LayerRecord } from '../protocol';
+import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class LayerSystem {
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public allocateLayerId(): number {
@@ -20,21 +20,21 @@ export class LayerSystem {
     const count = vec.size();
     const out: LayerRecord[] = [];
     for (let i = 0; i < count; i++) {
-        out.push(vec.get(i));
+      out.push(vec.get(i));
     }
     vec.delete();
     return out;
   }
 
   public getLayerName(layerId: number): string {
-      return this.engine.getLayerName?.(layerId) ?? `Layer ${layerId}`;
+    return this.engine.getLayerName?.(layerId) ?? `Layer ${layerId}`;
   }
 
   public setLayerProps(layerId: number, propsMask: number, flagsValue: number, name: string): void {
-      this.engine.setLayerProps?.(layerId, propsMask, flagsValue, name);
+    this.engine.setLayerProps?.(layerId, propsMask, flagsValue, name);
   }
 
   public deleteLayer(layerId: number): boolean {
-      return this.engine.deleteLayer?.(layerId) ?? false;
+    return this.engine.deleteLayer?.(layerId) ?? false;
   }
 }

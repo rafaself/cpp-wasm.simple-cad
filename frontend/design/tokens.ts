@@ -95,9 +95,11 @@ export const TEXT_STYLES = {
 
 export const INPUT_STYLES = {
   /** Dark-themed input for ribbon */
-  ribbon: 'w-full h-7 bg-slate-900 border border-slate-700/50 rounded flex items-center px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all',
+  ribbon:
+    'w-full h-7 bg-slate-900 border border-slate-700/50 rounded flex items-center px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all',
   /** Light-themed input for sidebar */
-  sidebar: 'w-full border rounded px-2 h-7 text-[11px] bg-slate-50 border-slate-200 focus:outline-none focus:border-blue-500',
+  sidebar:
+    'w-full border rounded px-2 h-7 text-[11px] bg-slate-50 border-slate-200 focus:outline-none focus:border-blue-500',
   /** Disabled state for sidebar */
   sidebarDisabled: 'bg-slate-100 border-slate-200 cursor-not-allowed',
 } as const;
@@ -106,7 +108,8 @@ export const BUTTON_STYLES = {
   /** Base button style */
   base: 'rounded hover:bg-slate-700 active:bg-slate-600 transition-colors text-slate-400 hover:text-slate-100 border border-transparent',
   /** Centered flex button */
-  centered: 'flex items-center justify-center rounded hover:bg-slate-700 active:bg-slate-600 transition-colors text-slate-400 hover:text-slate-100 border border-transparent',
+  centered:
+    'flex items-center justify-center rounded hover:bg-slate-700 active:bg-slate-600 transition-colors text-slate-400 hover:text-slate-100 border border-transparent',
   /** Active/selected state */
   active: 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30',
 } as const;

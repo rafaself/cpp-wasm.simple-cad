@@ -1,12 +1,14 @@
-import React, { useState } from "react";
-import ColorPicker from "../../../components/ColorPicker";
-import { useSettingsStore } from "../../../stores/useSettingsStore";
-import { Section } from "../../../components/ui/Section";
-import { Toggle } from "../../../components/ui/Toggle";
-import { UI } from "../../../design/tokens";
-import { RotateCcw } from "lucide-react";
-import { supportsEngineResize } from "../../../engine/core/capabilities";
+import { RotateCcw } from 'lucide-react';
+import React, { useState } from 'react';
+
 import { LABELS } from '@/i18n/labels';
+
+import ColorPicker from '../../../components/ColorPicker';
+import { Section } from '../../../components/ui/Section';
+import { Toggle } from '../../../components/ui/Toggle';
+import { UI } from '../../../design/tokens';
+import { supportsEngineResize } from '../../../engine/core/capabilities';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
@@ -14,9 +16,7 @@ const CanvasSettings: React.FC = () => {
   const engineResizeEnabled = settings.featureFlags.enableEngineResize && engineResizeSupported;
 
   // Color picker state
-  const [activeColorPicker, setActiveColorPicker] = useState<string | null>(
-    null
-  );
+  const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
   const openColorPicker = (e: React.MouseEvent, pickerId: string) => {
@@ -116,9 +116,7 @@ const CanvasSettings: React.FC = () => {
           onChange={(e) => onChange(parseInt(e.target.value))}
           className="flex-1 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
         />
-        <span className="text-xs font-mono text-slate-400 w-8 text-right">
-          {value}
-        </span>
+        <span className="text-xs font-mono text-slate-400 w-8 text-right">{value}</span>
       </div>
     </div>
   );
@@ -126,80 +124,92 @@ const CanvasSettings: React.FC = () => {
   return (
     <div className="flex flex-col">
       <Section title={LABELS.settings.grid}>
-          <SliderField
-            label={LABELS.settings.gridSize}
-            value={settings.grid.size}
-            min={10}
-            max={200}
-            step={10}
-            onChange={settings.setGridSize}
-          />
-          <ColorField
-            label="Cor da Grade"
-            color={settings.grid.color}
-            pickerId="grid"
-          />
-          <Toggle
-            label="Mostrar Pontos"
-            checked={settings.grid.showDots}
-            onChange={settings.setGridShowDots}
-          />
-          <Toggle
-            label={LABELS.settings.showGrid}
-            checked={settings.grid.showLines}
-            onChange={settings.setGridShowLines}
-          />
+        <SliderField
+          label={LABELS.settings.gridSize}
+          value={settings.grid.size}
+          min={10}
+          max={200}
+          step={10}
+          onChange={settings.setGridSize}
+        />
+        <ColorField label="Cor da Grade" color={settings.grid.color} pickerId="grid" />
+        <Toggle
+          label="Mostrar Pontos"
+          checked={settings.grid.showDots}
+          onChange={settings.setGridShowDots}
+        />
+        <Toggle
+          label={LABELS.settings.showGrid}
+          checked={settings.grid.showLines}
+          onChange={settings.setGridShowLines}
+        />
       </Section>
 
       <Section title={LABELS.settings.showAxis}>
-          <Toggle label={LABELS.settings.showAxis} checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
-          <ColorField label="Cor Eixo X" color={settings.display.centerAxes.xColor} pickerId="axisX" />
-          <ColorField label="Cor Eixo Y" color={settings.display.centerAxes.yColor} pickerId="axisY" />
-          <SelectField 
-            label="Tipo Eixo X" 
-            value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'} 
-            options={[
-              { value: 'solid', label: 'Contínuo' },
-              { value: 'dashed', label: 'Tracejado' }
-            ]}
-            onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
-          />
-          <SelectField 
-            label="Tipo Eixo Y" 
-            value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'} 
-            options={[
-              { value: 'solid', label: 'Contínuo' },
-              { value: 'dashed', label: 'Tracejado' }
-            ]}
-            onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
-          />
+        <Toggle
+          label={LABELS.settings.showAxis}
+          checked={settings.display.centerAxes.show}
+          onChange={settings.setShowCenterAxes}
+        />
+        <ColorField
+          label="Cor Eixo X"
+          color={settings.display.centerAxes.xColor}
+          pickerId="axisX"
+        />
+        <ColorField
+          label="Cor Eixo Y"
+          color={settings.display.centerAxes.yColor}
+          pickerId="axisY"
+        />
+        <SelectField
+          label="Tipo Eixo X"
+          value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'}
+          options={[
+            { value: 'solid', label: 'Contínuo' },
+            { value: 'dashed', label: 'Tracejado' },
+          ]}
+          onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
+        />
+        <SelectField
+          label="Tipo Eixo Y"
+          value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'}
+          options={[
+            { value: 'solid', label: 'Contínuo' },
+            { value: 'dashed', label: 'Tracejado' },
+          ]}
+          onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
+        />
       </Section>
 
       <Section title="Ícone Central">
-          <Toggle
-            label="Mostrar Ícone"
-            checked={settings.display.centerIcon.show}
-            onChange={settings.setShowCenterIcon}
-          />
-          <ColorField
-            label="Cor do Ícone"
-            color={settings.display.centerIcon.color}
-            pickerId="centerIcon"
-          />
+        <Toggle
+          label="Mostrar Ícone"
+          checked={settings.display.centerIcon.show}
+          onChange={settings.setShowCenterIcon}
+        />
+        <ColorField
+          label="Cor do Ícone"
+          color={settings.display.centerIcon.color}
+          pickerId="centerIcon"
+        />
       </Section>
 
       <Section title="Interface">
-          <ColorField
-            label="Cor de Fundo"
-            color={settings.display.backgroundColor}
-            pickerId="canvasBackground"
-            onReset={() => settings.setCanvasBackgroundColor(UI.BACKGROUND_DEFAULT)}
-          />
+        <ColorField
+          label="Cor de Fundo"
+          color={settings.display.backgroundColor}
+          pickerId="canvasBackground"
+          onReset={() => settings.setCanvasBackgroundColor(UI.BACKGROUND_DEFAULT)}
+        />
       </Section>
 
       <Section title="Dev">
         <Toggle
-          label={engineResizeSupported ? "Enable Engine Resize (Dev)" : "Enable Engine Resize (Dev) - requires WASM rebuild"}
+          label={
+            engineResizeSupported
+              ? 'Enable Engine Resize (Dev)'
+              : 'Enable Engine Resize (Dev) - requires WASM rebuild'
+          }
           checked={engineResizeEnabled}
           onChange={settings.setEngineResizeEnabled}
         />
@@ -211,23 +221,22 @@ const CanvasSettings: React.FC = () => {
           <div className="fixed inset-0 z-[200]" onClick={closeColorPicker} />
           <ColorPicker
             color={
-              activeColorPicker === "grid"
+              activeColorPicker === 'grid'
                 ? settings.grid.color
-                : activeColorPicker === "axisX"
-                ? settings.display.centerAxes.xColor
-                : activeColorPicker === "axisY"
-                ? settings.display.centerAxes.yColor
-                : activeColorPicker === "centerIcon"
-                ? settings.display.centerIcon.color
-                : settings.display.backgroundColor
+                : activeColorPicker === 'axisX'
+                  ? settings.display.centerAxes.xColor
+                  : activeColorPicker === 'axisY'
+                    ? settings.display.centerAxes.yColor
+                    : activeColorPicker === 'centerIcon'
+                      ? settings.display.centerIcon.color
+                      : settings.display.backgroundColor
             }
             onChange={(c) => {
-              if (activeColorPicker === "grid") settings.setGridColor(c);
-              else if (activeColorPicker === "axisX") settings.setAxisXColor(c);
-              else if (activeColorPicker === "axisY") settings.setAxisYColor(c);
-              else if (activeColorPicker === "centerIcon")
-                settings.setCenterIconColor(c);
-              else if (activeColorPicker === "canvasBackground")
+              if (activeColorPicker === 'grid') settings.setGridColor(c);
+              else if (activeColorPicker === 'axisX') settings.setAxisXColor(c);
+              else if (activeColorPicker === 'axisY') settings.setAxisYColor(c);
+              else if (activeColorPicker === 'centerIcon') settings.setCenterIconColor(c);
+              else if (activeColorPicker === 'canvasBackground')
                 settings.setCanvasBackgroundColor(c);
             }}
             onClose={closeColorPicker}

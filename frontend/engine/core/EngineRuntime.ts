@@ -1,5 +1,10 @@
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { getPickCache } from '@/utils/pickResultCache';
+
 import { initCadEngineModule } from '../bridge/getCadEngineFactory';
+
 import { supportsEngineResize, type EngineCapability } from './capabilities';
+import { EngineCommand } from './commandBuffer';
 import {
   validateProtocolOrThrow,
   type ProtocolInfo,
@@ -12,34 +17,39 @@ import {
   type EntityAabb,
   type HistoryMeta,
 } from './protocol';
-import type { TextHitResult, TextCaretPosition, TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
-import type { PickResult } from '@/types/picking';
-import { getPickCache } from '@/utils/pickResultCache';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 
 // Re-export types moved to wasm-types to maintain compatibility
-export type { 
-    BufferMeta, TextEntityMeta, SnapshotBufferMeta, 
-    CadEngineInstance, WasmModule 
+export type {
+  BufferMeta,
+  TextEntityMeta,
+  SnapshotBufferMeta,
+  CadEngineInstance,
+  WasmModule,
 } from './wasm-types';
-
-import type { WasmModule, CadEngineInstance, TextEntityMeta } from './wasm-types';
 
 // Import subsystems
 import { CommandSystem } from './runtime/CommandSystem';
-import { EventSystem } from './runtime/EventSystem';
-import { PickSystem } from './runtime/PickSystem';
-import { SelectionSystem } from './runtime/SelectionSystem';
-import { TransformSystem } from './runtime/TransformSystem';
-import { SnapshotSystem } from './runtime/SnapshotSystem';
-import { HistorySystem } from './runtime/HistorySystem';
-import { TextSystem } from './runtime/TextSystem';
-import { LayerSystem } from './runtime/LayerSystem';
-import { EntitySystem } from './runtime/EntitySystem';
 import { DraftSystem } from './runtime/DraftSystem';
+import { EntitySystem } from './runtime/EntitySystem';
+import { EventSystem } from './runtime/EventSystem';
+import { HistorySystem } from './runtime/HistorySystem';
+import { LayerSystem } from './runtime/LayerSystem';
+import { PickSystem } from './runtime/PickSystem';
 import { RenderSystem } from './runtime/RenderSystem';
+import { SelectionSystem } from './runtime/SelectionSystem';
+import { SnapshotSystem } from './runtime/SnapshotSystem';
 import { StatsSystem } from './runtime/StatsSystem';
-import { EngineCommand } from './commandBuffer';
+import { TextSystem } from './runtime/TextSystem';
+import { TransformSystem } from './runtime/TransformSystem';
+
+import type { WasmModule, CadEngineInstance, TextEntityMeta } from './wasm-types';
+import type { PickResult } from '@/types/picking';
+import type {
+  TextHitResult,
+  TextCaretPosition,
+  TextQuadBufferMeta,
+  TextureBufferMeta,
+} from '@/types/text';
 
 export class EngineRuntime {
   // Subsystems
@@ -70,24 +80,37 @@ export class EngineRuntime {
   public static async create(): Promise<EngineRuntime> {
     const module = await initCadEngineModule<WasmModule>();
     const engine = new module.CadEngine();
-    
+
     if (typeof engine.getProtocolInfo !== 'function') {
-      throw new Error('[EngineRuntime] Missing getProtocolInfo() in WASM. Rebuild engine to match frontend.');
+      throw new Error(
+        '[EngineRuntime] Missing getProtocolInfo() in WASM. Rebuild engine to match frontend.',
+      );
     }
     const protocolInfo = engine.getProtocolInfo();
     validateProtocolOrThrow(protocolInfo);
 
     // Validate essential APIs presence (Fail Fast)
     const essentialMethods = [
-      'pollEvents', 'ackResync', 'getFullSnapshotMeta', 'allocateEntityId',
-      'getSelectionOutlineMeta', 'getSelectionHandleMeta', 'getEntityAabb',
-      'getHistoryMeta', 'canUndo', 'canRedo', 'undo', 'redo'
+      'pollEvents',
+      'ackResync',
+      'getFullSnapshotMeta',
+      'allocateEntityId',
+      'getSelectionOutlineMeta',
+      'getSelectionHandleMeta',
+      'getEntityAabb',
+      'getHistoryMeta',
+      'canUndo',
+      'canRedo',
+      'undo',
+      'redo',
     ];
-    
+
     for (const method of essentialMethods) {
-        if (typeof (engine as any)[method] !== 'function') {
-             throw new Error(`[EngineRuntime] Missing ${method}() in WASM. Rebuild engine to match frontend.`);
-        }
+      if (typeof (engine as any)[method] !== 'function') {
+        throw new Error(
+          `[EngineRuntime] Missing ${method}() in WASM. Rebuild engine to match frontend.`,
+        );
+      }
     }
 
     const runtime = new EngineRuntime(module, engine);
@@ -222,17 +245,19 @@ export class EngineRuntime {
     return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
   }
 
-  public pickExCached(x: number, y: number, tolerance: number, pickMask: number, useCache: boolean = true): PickResult {
+  public pickExCached(
+    x: number,
+    y: number,
+    tolerance: number,
+    pickMask: number,
+    useCache: boolean = true,
+  ): PickResult {
     if (!useCache) {
       return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
     }
     const cache = getPickCache(this);
-    return cache.getOrCompute(
-      x,
-      y,
-      tolerance,
-      pickMask,
-      () => this.pickSystem.pickExSmart(x, y, tolerance, pickMask)
+    return cache.getOrCompute(x, y, tolerance, pickMask, () =>
+      this.pickSystem.pickExSmart(x, y, tolerance, pickMask),
     );
   }
 
@@ -241,7 +266,7 @@ export class EngineRuntime {
   }
 
   public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
-      return this.pickSystem.quickBoundsCheck(x, y, tolerance);
+    return this.pickSystem.quickBoundsCheck(x, y, tolerance);
   }
 
   // --- Selection System ---
@@ -261,11 +286,24 @@ export class EngineRuntime {
     this.selectionSystem.selectByPick(pick, modifiers);
   }
 
-  public marqueeSelect(minX: number, minY: number, maxX: number, maxY: number, mode: SelectionMode, hitMode: number): void {
+  public marqueeSelect(
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    mode: SelectionMode,
+    hitMode: number,
+  ): void {
     this.selectionSystem.marqueeSelect(minX, minY, maxX, maxY, mode, hitMode);
   }
 
-  public queryMarquee(minX: number, minY: number, maxX: number, maxY: number, hitMode: number): number[] {
+  public queryMarquee(
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    hitMode: number,
+  ): number[] {
     return this.selectionSystem.queryMarquee(minX, minY, maxX, maxY, hitMode);
   }
 
@@ -278,7 +316,14 @@ export class EngineRuntime {
   }
 
   // --- Transform System ---
-  public beginTransform(ids: EntityId[], mode: number, specificId: EntityId = 0, vertexIndex: number = -1, startX: number = 0, startY: number = 0): void {
+  public beginTransform(
+    ids: EntityId[],
+    mode: number,
+    specificId: EntityId = 0,
+    vertexIndex: number = -1,
+    startX: number = 0,
+    startY: number = 0,
+  ): void {
     this.transformSystem.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
   }
 
@@ -286,7 +331,11 @@ export class EngineRuntime {
     this.transformSystem.updateTransform(worldX, worldY);
   }
 
-  public commitTransform(): { ids: Uint32Array, opCodes: Uint8Array, payloads: Float32Array } | null {
+  public commitTransform(): {
+    ids: Uint32Array;
+    opCodes: Uint8Array;
+    payloads: Float32Array;
+  } | null {
     return this.transformSystem.commitTransform();
   }
 
@@ -302,7 +351,7 @@ export class EngineRuntime {
     this.transformSystem.setSnapOptions(enabled, gridEnabled, gridSize);
   }
 
-  public getSnappedPoint(x: number, y: number): { x: number, y: number } {
+  public getSnappedPoint(x: number, y: number): { x: number; y: number } {
     return this.transformSystem.getSnappedPoint(x, y);
   }
 

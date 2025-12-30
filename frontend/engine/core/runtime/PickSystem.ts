@@ -1,12 +1,14 @@
-import { getPickProfiler } from '@/utils/pickProfiler';
 import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
+import { getPickProfiler } from '@/utils/pickProfiler';
+
 import { CadEngineInstance, WasmModule } from '../wasm-types';
+
 import type { EntityId, EntityAabb } from '../protocol';
 
 export class PickSystem {
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public getEntityAabb(entityId: EntityId): EntityAabb {
@@ -31,17 +33,14 @@ export class PickSystem {
       kind: PickEntityKind.Unknown,
       subTarget: PickSubTarget.None,
       subIndex: -1,
-      distance: id !== 0 ? 0 : Infinity
+      distance: id !== 0 ? 0 : Infinity,
     };
   }
 
   public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
     const stats = this.engine.getStats();
-    const totalEntities = 
-      stats.rectCount + 
-      stats.lineCount + 
-      stats.polylineCount + 
-      stats.pointCount;
+    const totalEntities =
+      stats.rectCount + stats.lineCount + stats.polylineCount + stats.pointCount;
 
     if (totalEntities === 0) {
       return false;
@@ -66,6 +65,4 @@ export class PickSystem {
     const wrappedPick = profiler.wrap(this.pickEx.bind(this));
     return wrappedPick(x, y, tolerance, pickMask);
   }
-
-
 }

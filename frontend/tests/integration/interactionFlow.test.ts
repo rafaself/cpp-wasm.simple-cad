@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
+
 import { CommandOp } from '@/engine/core/commandBuffer';
 import { SelectionMode } from '@/engine/core/protocol';
-import { InteractionHarness } from '@/test-utils/interactionHarness';
 import { createFakeTextTool } from '@/test-utils/fakeTextTool';
+import { InteractionHarness } from '@/test-utils/interactionHarness';
 
 describe('Integration: draw → select → text → undo/redo → snapshot', () => {
   it('runs a deterministic interaction flow', () => {

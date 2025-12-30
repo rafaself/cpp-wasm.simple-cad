@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 
 import { useUIStore } from '@/stores/useUIStore';
-import { getEngineRuntime } from './singleton';
-import { ChangeMask, EventType } from './protocol';
-import { syncHistoryMetaFromEngine } from './engineStateSync';
-import { applyFullResync } from './engineEventResync';
+
 import { bumpDocumentSignal } from './engineDocumentSignals';
+import { applyFullResync } from './engineEventResync';
+import { syncHistoryMetaFromEngine } from './engineStateSync';
+import { ChangeMask, EventType } from './protocol';
+import { getEngineRuntime } from './singleton';
 
 const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): number | null => {
   const layers = runtime.getLayersSnapshot();
@@ -35,13 +36,10 @@ export const useEngineEvents = (): void => {
     let resyncing = false;
     let bootstrapped = false;
 
-
     const tick = async () => {
       if (disposed) return;
       const runtime = await getEngineRuntime();
       if (disposed) return;
-
-
 
       if (!bootstrapped) {
         bumpDocumentSignal('layers');

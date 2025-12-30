@@ -38,7 +38,10 @@ export const decodeMovePayload = (payloads: Float32Array, i: number): MoveCommit
 // - payload[1] = x
 // - payload[2] = y
 // - payload[3] = reserved
-export const decodeVertexSetPayload = (payloads: Float32Array, i: number): VertexSetCommitPayload | null => {
+export const decodeVertexSetPayload = (
+  payloads: Float32Array,
+  i: number,
+): VertexSetCommitPayload | null => {
   const o = i * COMMIT_PAYLOAD_STRIDE;
   if (o + 2 >= payloads.length) return null;
 
@@ -57,7 +60,10 @@ export const decodeVertexSetPayload = (payloads: Float32Array, i: number): Verte
 // - payload[1] = y (rect: minY, circle/polygon: cy)
 // - payload[2] = width  (rect: w, circle/polygon: diameterX)
 // - payload[3] = height (rect: h, circle/polygon: diameterY)
-export const decodeResizePayload = (payloads: Float32Array, i: number): ResizeCommitPayload | null => {
+export const decodeResizePayload = (
+  payloads: Float32Array,
+  i: number,
+): ResizeCommitPayload | null => {
   const o = i * COMMIT_PAYLOAD_STRIDE;
   if (o + 3 >= payloads.length) return null;
 
@@ -65,12 +71,23 @@ export const decodeResizePayload = (payloads: Float32Array, i: number): ResizeCo
   const y = payloads[o + 1]!;
   const width = payloads[o + 2]!;
   const height = payloads[o + 3]!;
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) return null;
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height)
+  )
+    return null;
 
   return { x, y, width, height };
 };
 
-export const applyCommitOpToShape = (shape: Shape, op: TransformOpCode, payloads: Float32Array, i: number): Partial<Shape> | null => {
+export const applyCommitOpToShape = (
+  shape: Shape,
+  op: TransformOpCode,
+  payloads: Float32Array,
+  i: number,
+): Partial<Shape> | null => {
   if (op === TransformOpCode.MOVE) {
     const move = decodeMovePayload(payloads, i);
     if (!move) return null;
@@ -82,7 +99,10 @@ export const applyCommitOpToShape = (shape: Shape, op: TransformOpCode, payloads
     if (shape.y !== undefined) diff.y = clampTiny((shape.y ?? 0) + dy);
 
     if (Array.isArray(shape.points) && shape.points.length > 0) {
-      diff.points = shape.points.map((pt) => ({ x: clampTiny(pt.x + dx), y: clampTiny(pt.y + dy) }));
+      diff.points = shape.points.map((pt) => ({
+        x: clampTiny(pt.x + dx),
+        y: clampTiny(pt.y + dy),
+      }));
     }
 
     return Object.keys(diff).length > 0 ? diff : null;

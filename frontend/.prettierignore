@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+build
+build_output.log
+pnpm-lock.yaml
+*.log
+public/wasm

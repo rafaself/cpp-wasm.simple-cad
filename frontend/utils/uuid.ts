@@ -22,15 +22,31 @@ export const generateId = (prefix?: string): string => {
     const hex = (b: number) => b.toString(16).padStart(2, '0');
 
     uuid =
-      hex(rnds[0]) + hex(rnds[1]) + hex(rnds[2]) + hex(rnds[3]) + '-' +
-      hex(rnds[4]) + hex(rnds[5]) + '-' +
-      hex(rnds[6]) + hex(rnds[7]) + '-' +
-      hex(rnds[8]) + hex(rnds[9]) + '-' +
-      hex(rnds[10]) + hex(rnds[11]) + hex(rnds[12]) + hex(rnds[13]) + hex(rnds[14]) + hex(rnds[15]);
+      hex(rnds[0]) +
+      hex(rnds[1]) +
+      hex(rnds[2]) +
+      hex(rnds[3]) +
+      '-' +
+      hex(rnds[4]) +
+      hex(rnds[5]) +
+      '-' +
+      hex(rnds[6]) +
+      hex(rnds[7]) +
+      '-' +
+      hex(rnds[8]) +
+      hex(rnds[9]) +
+      '-' +
+      hex(rnds[10]) +
+      hex(rnds[11]) +
+      hex(rnds[12]) +
+      hex(rnds[13]) +
+      hex(rnds[14]) +
+      hex(rnds[15]);
   } else {
     // Fallback for environments without crypto.randomUUID or getRandomValues
-    uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0,
+        v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
   }

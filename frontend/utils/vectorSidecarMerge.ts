@@ -1,8 +1,17 @@
-import type { VectorClipEntry, VectorDocumentV1, VectorDraw, VectorPath, VectorSidecarV1 } from '@/types';
+import type {
+  VectorClipEntry,
+  VectorDocumentV1,
+  VectorDraw,
+  VectorPath,
+  VectorSidecarV1,
+} from '@/types';
 
 const prefixId = (prefix: string, id: string): string => `${prefix}${id}`;
 
-const remapClipStack = (stack: VectorClipEntry[] | undefined, pathIdMap: Map<string, string>): VectorClipEntry[] | undefined => {
+const remapClipStack = (
+  stack: VectorClipEntry[] | undefined,
+  pathIdMap: Map<string, string>,
+): VectorClipEntry[] | undefined => {
   if (!stack || stack.length === 0) return stack;
   return stack.map((c) => ({
     ...c,
@@ -10,7 +19,14 @@ const remapClipStack = (stack: VectorClipEntry[] | undefined, pathIdMap: Map<str
   }));
 };
 
-const remapDocumentV1 = (doc: VectorDocumentV1, prefix: string): { document: VectorDocumentV1; pathIdMap: Map<string, string>; drawIdMap: Map<string, string> } => {
+const remapDocumentV1 = (
+  doc: VectorDocumentV1,
+  prefix: string,
+): {
+  document: VectorDocumentV1;
+  pathIdMap: Map<string, string>;
+  drawIdMap: Map<string, string>;
+} => {
   const pathIdMap = new Map<string, string>();
   const drawIdMap = new Map<string, string>();
 
@@ -34,12 +50,18 @@ const remapDocumentV1 = (doc: VectorDocumentV1, prefix: string): { document: Vec
   return { document: { version: 1, paths, draws }, pathIdMap, drawIdMap };
 };
 
-export const mergeVectorSidecarsV1 = (base: VectorSidecarV1 | null, add: VectorSidecarV1, prefixForAdd: string): VectorSidecarV1 => {
+export const mergeVectorSidecarsV1 = (
+  base: VectorSidecarV1 | null,
+  add: VectorSidecarV1,
+  prefixForAdd: string,
+): VectorSidecarV1 => {
   if (!base) {
     const remapped = remapDocumentV1(add.document as VectorDocumentV1, prefixForAdd);
     const bindings: VectorSidecarV1['bindings'] = {};
     for (const [shapeId, binding] of Object.entries(add.bindings)) {
-      bindings[shapeId] = { drawIds: binding.drawIds.map((id) => remapped.drawIdMap.get(id) ?? id) };
+      bindings[shapeId] = {
+        drawIds: binding.drawIds.map((id) => remapped.drawIdMap.get(id) ?? id),
+      };
     }
     return { version: 1, document: remapped.document, bindings };
   }
@@ -60,4 +82,3 @@ export const mergeVectorSidecarsV1 = (base: VectorSidecarV1 | null, add: VectorS
     bindings,
   };
 };
-

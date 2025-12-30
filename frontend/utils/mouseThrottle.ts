@@ -1,16 +1,16 @@
 /**
  * MouseThrottle - High-performance throttling for mouse events
- * 
+ *
  * Implements adaptive throttling with both leading and trailing edge execution
  * to maintain responsiveness while reducing CPU load.
- * 
+ *
  * Features:
  * - Configurable interval (default: 16ms for 60fps)
  * - Leading edge: immediate execution if enough time has passed
  * - Trailing edge: ensures last call is always executed
  * - Zero allocation in hot path after initial setup
  * - Sub-millisecond precision using performance.now()
- * 
+ *
  * @example
  * const throttle = new MouseThrottle(16); // 60fps
  * const handleMove = throttle.create((x, y) => {
@@ -38,7 +38,7 @@ export class MouseThrottle {
    */
   constructor(
     private readonly minInterval: number = 16,
-    useRAF: boolean = true
+    useRAF: boolean = true,
   ) {
     this.useRAF = useRAF;
     // Allow first call to fire immediately even with leading=true
@@ -47,14 +47,14 @@ export class MouseThrottle {
 
   /**
    * Creates a throttled version of the provided function
-   * 
+   *
    * @param fn Function to throttle
    * @param options Throttle behavior configuration
    * @returns Throttled function with same signature
    */
   public create<TArgs extends any[]>(
     fn: (...args: TArgs) => void,
-    options?: ThrottleOptions
+    options?: ThrottleOptions,
   ): (...args: TArgs) => void {
     const { leading = true, trailing = true } = options || {};
 
@@ -83,7 +83,7 @@ export class MouseThrottle {
       // Trailing edge: schedule execution
       if (trailing) {
         const delay = Math.max(0, this.minInterval - timeSinceLastCall);
-        
+
         if (this.useRAF && delay === 0) {
           // Use RAF for next frame if no delay needed
           this.pendingCall = requestAnimationFrame(() => {
@@ -133,14 +133,14 @@ export class MouseThrottle {
 
 /**
  * Utility function for one-off throttling without class instantiation
- * 
+ *
  * @example
  * const throttledLog = throttle((msg: string) => console.log(msg), 100);
  */
 export function throttle<TArgs extends any[]>(
   fn: (...args: TArgs) => void,
   interval: number,
-  options?: ThrottleOptions
+  options?: ThrottleOptions,
 ): (...args: TArgs) => void {
   const throttler = new MouseThrottle(interval, true);
   return throttler.create(fn, options);

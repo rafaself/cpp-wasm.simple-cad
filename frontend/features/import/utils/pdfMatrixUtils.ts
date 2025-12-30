@@ -10,9 +10,12 @@ export const multiplyMatrix = (m1: Matrix, m2: Matrix): Matrix => {
   const [a1, b1, c1, d1, e1, f1] = m1;
   const [a2, b2, c2, d2, e2, f2] = m2;
   return [
-    a1 * a2 + b1 * c2, a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2, c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2, e1 * b2 + f1 * d2 + f2,
+    a1 * a2 + b1 * c2,
+    a1 * b2 + b1 * d2,
+    c1 * a2 + d1 * c2,
+    c1 * b2 + d1 * d2,
+    e1 * a2 + f1 * c2 + e2,
+    e1 * b2 + f1 * d2 + f2,
   ];
 };
 
@@ -31,7 +34,9 @@ export const scaleFromMatrix = (m: Matrix): number => {
 export const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
 const toHex2From01 = (v01: number): string =>
-  Math.round(clamp01(v01) * 255).toString(16).padStart(2, '0');
+  Math.round(clamp01(v01) * 255)
+    .toString(16)
+    .padStart(2, '0');
 
 export const formatColor = (args: number[]): string => {
   if (args.length === 1) {
@@ -42,7 +47,10 @@ export const formatColor = (args: number[]): string => {
     return `#${toHex2From01(args[0])}${toHex2From01(args[1])}${toHex2From01(args[2])}`;
   }
   if (args.length === 4) {
-    const c = clamp01(args[0]), m = clamp01(args[1]), y = clamp01(args[2]), k = clamp01(args[3]);
+    const c = clamp01(args[0]),
+      m = clamp01(args[1]),
+      y = clamp01(args[2]),
+      k = clamp01(args[3]);
     const r = Math.round(255 * (1 - c) * (1 - k));
     const g = Math.round(255 * (1 - m) * (1 - k));
     const b = Math.round(255 * (1 - y) * (1 - k));

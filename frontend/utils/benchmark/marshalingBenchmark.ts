@@ -1,17 +1,19 @@
 /**
  * Marshaling Benchmark Utilities
- * 
+ *
  * Measures the performance of JS ↔ WASM data transfer.
  * Used to identify bottlenecks in the Engine-First architecture.
- * 
+ *
  * Usage:
  *   import { runMarshalingBenchmark } from '@/utils/benchmark/marshalingBenchmark';
  *   const results = await runMarshalingBenchmark();
  *   console.table(results);
  */
 
-import { getEngineRuntime } from '@/engine/core/singleton';
+/* eslint-disable no-console */
+
 import { CommandOp, encodeCommandBuffer, type EngineCommand } from '@/engine/core/commandBuffer';
+import { getEngineRuntime } from '@/engine/core/singleton';
 
 export interface BenchmarkResult {
   name: string;
@@ -52,10 +54,20 @@ function benchmarkCommandEncode(iterations: number): BenchmarkResult {
       op: CommandOp.UpsertRect,
       id: 1,
       rect: {
-        x: 10, y: 20, w: 30, h: 40,
-        fillR: 1, fillG: 0, fillB: 0, fillA: 1,
-        strokeR: 0, strokeG: 0, strokeB: 0, strokeA: 1,
-        strokeEnabled: 1, strokeWidthPx: 1,
+        x: 10,
+        y: 20,
+        w: 30,
+        h: 40,
+        fillR: 1,
+        fillG: 0,
+        fillB: 0,
+        fillA: 1,
+        strokeR: 0,
+        strokeG: 0,
+        strokeB: 0,
+        strokeA: 1,
+        strokeEnabled: 1,
+        strokeWidthPx: 1,
       },
     },
   ];
@@ -75,10 +87,20 @@ function benchmarkMultiCommandEncode(iterations: number): BenchmarkResult {
       op: CommandOp.UpsertRect,
       id: i + 1,
       rect: {
-        x: i * 10, y: i * 10, w: 30, h: 40,
-        fillR: 1, fillG: 0, fillB: 0, fillA: 1,
-        strokeR: 0, strokeG: 0, strokeB: 0, strokeA: 1,
-        strokeEnabled: 1, strokeWidthPx: 1,
+        x: i * 10,
+        y: i * 10,
+        w: 30,
+        h: 40,
+        fillR: 1,
+        fillG: 0,
+        fillB: 0,
+        fillA: 1,
+        strokeR: 0,
+        strokeG: 0,
+        strokeB: 0,
+        strokeA: 1,
+        strokeEnabled: 1,
+        strokeWidthPx: 1,
       },
     });
   }
@@ -101,10 +123,20 @@ async function benchmarkSnapshotRead(iterations: number): Promise<BenchmarkResul
       op: CommandOp.UpsertRect,
       id: runtime.allocateEntityId(),
       rect: {
-        x: i * 10, y: i * 10, w: 30, h: 40,
-        fillR: 1, fillG: 0, fillB: 0, fillA: 1,
-        strokeR: 0, strokeG: 0, strokeB: 0, strokeA: 1,
-        strokeEnabled: 1, strokeWidthPx: 1,
+        x: i * 10,
+        y: i * 10,
+        w: 30,
+        h: 40,
+        fillR: 1,
+        fillG: 0,
+        fillB: 0,
+        fillA: 1,
+        strokeR: 0,
+        strokeG: 0,
+        strokeB: 0,
+        strokeA: 1,
+        strokeEnabled: 1,
+        strokeWidthPx: 1,
       },
     });
   }
@@ -122,7 +154,7 @@ async function benchmarkPick(iterations: number): Promise<BenchmarkResult> {
   const runtime = await getEngineRuntime();
 
   return benchmark('pickEx (single query)', iterations, () => {
-    runtime.pickEx(100, 100, 5, 0xFF);
+    runtime.pickEx(100, 100, 5, 0xff);
   });
 }
 
@@ -199,7 +231,7 @@ export function printBenchmarkResults(results: BenchmarkResult[]): void {
       'Total (ms)': r.totalMs.toFixed(2),
       'Avg (ms)': r.avgMs.toFixed(4),
       'Ops/sec': Math.round(r.opsPerSecond).toLocaleString(),
-    }))
+    })),
   );
 }
 

@@ -1,6 +1,7 @@
+import { computeTriangleBatches, type TriangleBatch } from '../triBatching';
+
 import type { BufferMeta, WasmModule } from '@/engine/core/EngineRuntime';
 import type { ViewTransform } from '@/types';
-import { computeTriangleBatches, type TriangleBatch } from '../triBatching';
 
 type GeometryPassResources = {
   program: WebGLProgram;
@@ -86,7 +87,14 @@ export class GeometryPass {
     const uViewTranslate = gl.getUniformLocation(program, 'u_viewTranslate');
     const uCanvasSize = gl.getUniformLocation(program, 'u_canvasSize');
     const uPixelRatio = gl.getUniformLocation(program, 'u_pixelRatio');
-    if (aPosition < 0 || aColor < 0 || !uViewScale || !uViewTranslate || !uCanvasSize || !uPixelRatio) {
+    if (
+      aPosition < 0 ||
+      aColor < 0 ||
+      !uViewScale ||
+      !uViewTranslate ||
+      !uCanvasSize ||
+      !uPixelRatio
+    ) {
       throw new Error('Missing shader attributes/uniforms');
     }
 
@@ -98,7 +106,17 @@ export class GeometryPass {
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, floatsPerVertex * 4, 3 * 4);
     gl.bindVertexArray(null);
 
-    this.resources = { program, vao, vbo, aPosition, aColor, uViewScale, uViewTranslate, uCanvasSize, uPixelRatio };
+    this.resources = {
+      program,
+      vao,
+      vbo,
+      aPosition,
+      aColor,
+      uViewScale,
+      uViewTranslate,
+      uCanvasSize,
+      uPixelRatio,
+    };
   }
 
   public dispose(): void {
@@ -146,7 +164,11 @@ export class GeometryPass {
     gl.useProgram(this.resources.program);
     gl.bindVertexArray(this.resources.vao);
     gl.uniform1f(this.resources.uViewScale, input.viewTransform.scale || 1);
-    gl.uniform2f(this.resources.uViewTranslate, input.viewTransform.x || 0, input.viewTransform.y || 0);
+    gl.uniform2f(
+      this.resources.uViewTranslate,
+      input.viewTransform.x || 0,
+      input.viewTransform.y || 0,
+    );
     gl.uniform2f(this.resources.uCanvasSize, width, height);
     gl.uniform1f(this.resources.uPixelRatio, input.pixelRatio);
 
@@ -176,7 +198,11 @@ export class GeometryPass {
     return shader;
   }
 
-  private createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram {
+  private createProgram(
+    gl: WebGL2RenderingContext,
+    vertexSource: string,
+    fragmentSource: string,
+  ): WebGLProgram {
     const vs = this.compileShader(gl, gl.VERTEX_SHADER, vertexSource);
     const fs = this.compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
     const program = gl.createProgram();

@@ -2,8 +2,11 @@
  * TextTool - Text creation/editing orchestrator.
  * Coordinates TextBridge, TextInputCoordinator, NavigationHandler, StyleHandler.
  */
-import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import { TextBridge } from '@/engine/bridge/textBridge';
+import { TextInputCoordinator } from '@/engine/tools/text/TextInputCoordinator';
+import { TextNavigationHandler } from '@/engine/tools/text/TextNavigationHandler';
+import { TextStateManager } from '@/engine/tools/text/TextStateManager';
+import { TextStyleHandler } from '@/engine/tools/text/TextStyleHandler';
 import {
   TextBoxMode,
   TextAlign,
@@ -13,10 +16,8 @@ import {
   type TextInputDelta,
   type TextStyleSnapshot,
 } from '@/types/text';
-import { TextInputCoordinator } from '@/engine/tools/text/TextInputCoordinator';
-import { TextNavigationHandler } from '@/engine/tools/text/TextNavigationHandler';
-import { TextStateManager } from '@/engine/tools/text/TextStateManager';
-import { TextStyleHandler } from '@/engine/tools/text/TextStyleHandler';
+
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 // Types
 
@@ -55,7 +56,14 @@ export interface TextToolCallbacks {
   /** Called when tool state changes */
   onStateChange: (state: TextToolState) => void;
   /** Called when caret position updates (for overlay rendering) */
-  onCaretUpdate: (x: number, y: number, height: number, rotation: number, anchorX: number, anchorY: number) => void;
+  onCaretUpdate: (
+    x: number,
+    y: number,
+    height: number,
+    rotation: number,
+    anchorX: number,
+    anchorY: number,
+  ) => void;
   /** Called when selection rects update */
   onSelectionUpdate?: (rects: import('@/types/text').TextSelectionRect[]) => void;
   /** Called when engine style snapshot updates (tri-state flags, caret/selection). */
@@ -63,7 +71,16 @@ export interface TextToolCallbacks {
   /** Called when editing ends */
   onEditEnd: () => void;
   /** Called when a new text entity is created (for syncing to JS store) */
-  onTextCreated?: (shapeId: string, textId: number, x: number, y: number, boxMode: TextBoxMode, constraintWidth: number, initialWidth: number, initialHeight: number) => void;
+  onTextCreated?: (
+    shapeId: string,
+    textId: number,
+    x: number,
+    y: number,
+    boxMode: TextBoxMode,
+    constraintWidth: number,
+    initialWidth: number,
+    initialHeight: number,
+  ) => void;
   /** Called when text content/bounds are updated */
   onTextUpdated?: (
     textId: number,
@@ -71,7 +88,7 @@ export interface TextToolCallbacks {
     boxMode: TextBoxMode,
     constraintWidth: number,
     x?: number,
-    y?: number
+    y?: number,
   ) => void;
   /** Called when text is deleted (for syncing to JS store) */
   onTextDeleted?: (textId: number) => void;
@@ -82,7 +99,6 @@ export interface TextToolCallbacks {
 // =============================================================================
 
 export class TextTool {
-
   private bridge: TextBridge | null = null;
   private callbacks: TextToolCallbacks;
   private initialized = false;
@@ -95,7 +111,7 @@ export class TextTool {
 
   constructor(callbacks: TextToolCallbacks) {
     this.callbacks = callbacks;
-    
+
     // Create state manager with state change callback
     this.stateManager = new TextStateManager((state) => {
       this.callbacks.onStateChange(state);
@@ -128,7 +144,7 @@ export class TextTool {
         fontSize: this.stateManager.getStyleDefaults().fontSize,
         colorRGBA: this.stateManager.getStyleDefaults().colorRGBA,
         flags: this.stateManager.getStyleDefaults().flags,
-      }
+      },
     );
   }
 
@@ -143,10 +159,10 @@ export class TextTool {
   }
 
   private getPooledContent(): string {
-     const state = this.stateManager.getState();
-     if (!this.bridge || state.activeTextId === null) return '';
-     return this.bridge.getTextContent(state.activeTextId) ?? '';
-   }
+    const state = this.stateManager.getState();
+    if (!this.bridge || state.activeTextId === null) return '';
+    return this.bridge.getTextContent(state.activeTextId) ?? '';
+  }
 
   // ===========================================================================
   // Initialization
@@ -157,7 +173,6 @@ export class TextTool {
    * Must be called before using text features.
    */
   initialize(runtime: EngineRuntime): boolean {
-
     this.bridge = new TextBridge(runtime);
 
     // Initialize text system in engine
@@ -168,24 +183,18 @@ export class TextTool {
     }
 
     // Initialize navigation handler
-    this.navigationHandler = new TextNavigationHandler(
-      this.bridge,
-      this.stateManager,
-      { onCaretUpdate: () => this.updateCaretPosition() }
-    );
+    this.navigationHandler = new TextNavigationHandler(this.bridge, this.stateManager, {
+      onCaretUpdate: () => this.updateCaretPosition(),
+    });
 
     // Initialize style handler with adapted callback (ignore content param)
-    this.styleHandler = new TextStyleHandler(
-      this.bridge,
-      this.stateManager,
-      {
-        onTextUpdated: this.callbacks.onTextUpdated
-          ? (textId, _content, bounds, boxMode, constraintWidth) =>
-              this.callbacks.onTextUpdated!(textId, bounds, boxMode, constraintWidth)
-          : undefined,
-        onCaretUpdate: () => this.updateCaretPosition(),
-      }
-    );
+    this.styleHandler = new TextStyleHandler(this.bridge, this.stateManager, {
+      onTextUpdated: this.callbacks.onTextUpdated
+        ? (textId, _content, bounds, boxMode, constraintWidth) =>
+            this.callbacks.onTextUpdated!(textId, bounds, boxMode, constraintWidth)
+        : undefined,
+      onCaretUpdate: () => this.updateCaretPosition(),
+    });
 
     // Initialize the input coordinator
     this.inputCoordinator.initialize(runtime, this.bridge);
@@ -248,7 +257,9 @@ export class TextTool {
    * @param worldY World Y coordinate
    */
   handleClick(worldX: number, worldY: number): void {
-    console.log('[DEBUG] TextTool: handleClick', { worldX, worldY });
+    if (import.meta.env.DEV) {
+      console.warn('[DEBUG] TextTool: handleClick', { worldX, worldY });
+    }
     if (!this.isReady()) {
       console.warn('TextTool.handleClick: Tool not ready', {
         initialized: this.initialized,
@@ -257,28 +268,49 @@ export class TextTool {
       });
       return;
     }
-    this.inputCoordinator.handleClick(worldX, worldY,
-      (textId, x, y, boxMode, constraintWidth) => this.createTextEntity(textId, x, y, boxMode, constraintWidth)
+    this.inputCoordinator.handleClick(worldX, worldY, (textId, x, y, boxMode, constraintWidth) =>
+      this.createTextEntity(textId, x, y, boxMode, constraintWidth),
     );
   }
 
   /** Handle drag on canvas - creates FixedWidth text box. */
   handleDrag(startX: number, startY: number, endX: number, endY: number): void {
     if (!this.isReady()) return;
-    this.inputCoordinator.handleDrag(startX, startY, endX, endY,
-      (textId, x, y, boxMode, constraintWidth) => this.createTextEntity(textId, x, y, boxMode, constraintWidth)
+    this.inputCoordinator.handleDrag(
+      startX,
+      startY,
+      endX,
+      endY,
+      (textId, x, y, boxMode, constraintWidth) =>
+        this.createTextEntity(textId, x, y, boxMode, constraintWidth),
     );
   }
 
   /** Handle pointer down on text. */
   handlePointerDown(
-    textId: number, localX: number, localY: number, shiftKey: boolean,
-    anchorX: number, anchorY: number, rotation: number,
-    boxMode?: TextBoxMode, constraintWidth?: number, startDrag = true
+    textId: number,
+    localX: number,
+    localY: number,
+    shiftKey: boolean,
+    anchorX: number,
+    anchorY: number,
+    rotation: number,
+    boxMode?: TextBoxMode,
+    constraintWidth?: number,
+    startDrag = true,
   ): void {
     if (!this.isReady()) return;
     this.inputCoordinator.handlePointerDown(
-      textId, localX, localY, shiftKey, anchorX, anchorY, rotation, boxMode, constraintWidth, startDrag
+      textId,
+      localX,
+      localY,
+      shiftKey,
+      anchorX,
+      anchorY,
+      rotation,
+      boxMode,
+      constraintWidth,
+      startDrag,
     );
   }
 
@@ -296,7 +328,7 @@ export class TextTool {
     if (!this.bridge.setTextConstraintWidth(textId, width)) return null;
 
     const bounds = this.bridge.getTextBounds(textId);
-    if (!bounds.valid) return null;
+    if (!bounds || !bounds.valid) return null;
 
     // Update local state if we are currently editing this text
     const state = this.stateManager.getState();
@@ -309,7 +341,7 @@ export class TextTool {
 
     return {
       width: bounds.maxX - bounds.minX,
-      height: bounds.maxY - bounds.minY
+      height: bounds.maxY - bounds.minY,
     };
   }
 
@@ -326,12 +358,18 @@ export class TextTool {
     anchorX: number,
     anchorY: number,
     boxMode: TextBoxMode = TextBoxMode.AutoWidth,
-    constraintWidth = 0
+    constraintWidth = 0,
   ): boolean {
     if (!this.isReady() || !this.bridge) return false;
 
-    const success = this.bridge.updateTextPosition(textId, anchorX, anchorY, boxMode, constraintWidth);
-    
+    const success = this.bridge.updateTextPosition(
+      textId,
+      anchorX,
+      anchorY,
+      boxMode,
+      constraintWidth,
+    );
+
     // Update local state if we are currently editing this text
     const state = this.stateManager.getState();
     if (success && state.activeTextId === textId) {
@@ -339,7 +377,7 @@ export class TextTool {
       // Update caret position to reflect new anchor
       this.updateCaretPosition();
     }
-    
+
     return success;
   }
 
@@ -392,7 +430,11 @@ export class TextTool {
     return this.styleHandler.applyFontId(fontId);
   }
 
-  applyStyleToText(textId: number, flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
+  applyStyleToText(
+    textId: number,
+    flagsMask: TextStyleFlags,
+    intent: 'set' | 'clear' | 'toggle',
+  ): boolean {
     if (!this.styleHandler) return false;
     return this.styleHandler.applyStyleToText(textId, flagsMask, intent);
   }
@@ -411,7 +453,10 @@ export class TextTool {
   // Special Key Handling (delegated to TextNavigationHandler)
   // ===========================================================================
 
-  handleSpecialKey(key: string, event?: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; preventDefault: () => void }): void {
+  handleSpecialKey(
+    key: string,
+    event?: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; preventDefault: () => void },
+  ): void {
     // Handle Escape/Enter first
     if (key === 'Escape') {
       this.commitAndExit();
@@ -439,8 +484,9 @@ export class TextTool {
   commitAndExit(): void {
     const state = this.stateManager.getState();
     const textId = state.activeTextId;
-    const content = textId !== null && this.bridge ? this.bridge.getTextContent(textId) ?? '' : '';
-    
+    const content =
+      textId !== null && this.bridge ? (this.bridge.getTextContent(textId) ?? '') : '';
+
     if (textId !== null && content.trim() === '') {
       // Delete empty text
       this.bridge?.deleteText(textId);
@@ -508,13 +554,13 @@ export class TextTool {
    */
   deleteTextById(textId: number): boolean {
     if (!this.isReady() || !this.bridge) return false;
-    
+
     const state = this.stateManager.getState();
     if (state.activeTextId === textId) {
       this.stateManager.clearActiveText();
       this.callbacks.onEditEnd();
     }
-    
+
     this.bridge.deleteText(textId);
     return true;
   }
@@ -523,13 +569,12 @@ export class TextTool {
   // Private Helpers
   // ===========================================================================
 
-
   private createTextEntity(
     textId: number,
     x: number,
     y: number,
     boxMode: TextBoxMode,
-    constraintWidth: number
+    constraintWidth: number,
   ): void {
     if (!this.bridge) return;
 
@@ -565,22 +610,36 @@ export class TextTool {
 
     if (caretPos) {
       // Pass local coordinates. Overlay handles Transform.
-      this.callbacks.onCaretUpdate(caretPos.x, caretPos.y, caretPos.height, this.state.rotation, this.state.anchorX, this.state.anchorY);
+      this.callbacks.onCaretUpdate(
+        caretPos.x,
+        caretPos.y,
+        caretPos.height,
+        this.state.rotation,
+        this.state.anchorX,
+        this.state.anchorY,
+      );
     } else {
       // Fallback
-      this.callbacks.onCaretUpdate(0, 0, 16, this.state.rotation, this.state.anchorX, this.state.anchorY);
+      this.callbacks.onCaretUpdate(
+        0,
+        0,
+        16,
+        this.state.rotation,
+        this.state.anchorX,
+        this.state.anchorY,
+      );
     }
 
     // Update selection rects if there is a selection
     if (this.state.selectionStart !== this.state.selectionEnd) {
       const start = Math.min(this.state.selectionStart, this.state.selectionEnd);
       const end = Math.max(this.state.selectionStart, this.state.selectionEnd);
-      
+
       const localRects = this.bridge.getSelectionRects(
         this.state.activeTextId,
         start,
         end,
-        updateContent
+        updateContent,
       );
 
       // Pass local rects directly

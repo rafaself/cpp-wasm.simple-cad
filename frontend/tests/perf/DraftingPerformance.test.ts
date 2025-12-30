@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { InteractionHarness } from '@/test-utils/interactionHarness';
+
 import { FakeRuntime } from '@/test-utils/fakeRuntime';
+import { InteractionHarness } from '@/test-utils/interactionHarness';
 
 describe('Drafting performance', () => {
   it('does not serialize command buffer on every pointer move', () => {

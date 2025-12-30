@@ -1,10 +1,10 @@
-import { CadEngineInstance, WasmModule } from '../wasm-types';
 import { DocumentDigest } from '../protocol';
+import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class SnapshotSystem {
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public loadSnapshotBytes(bytes: Uint8Array): void {

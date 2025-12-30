@@ -1,13 +1,33 @@
-import type { VectorClipEntry, VectorDocumentV1, VectorDraw, VectorFillRule, VectorPath, VectorSegment, VectorStyle, VectorStrokeStyle } from '../../../types';
 import * as pdfjs from 'pdfjs-dist';
+
 import { applyColorScheme, resolveColorScheme, type DxfColorScheme } from './dxf/colorScheme';
 import {
-  Matrix, IDENTITY_MATRIX, multiplyMatrix, applyMatrix, scaleFromMatrix,
-  formatColor, isNearWhiteHex, clamp01,
+  Matrix,
+  IDENTITY_MATRIX,
+  multiplyMatrix,
+  applyMatrix,
+  scaleFromMatrix,
+  formatColor,
+  isNearWhiteHex,
+  clamp01,
 } from './pdfMatrixUtils';
 import {
-  keyForSegments, boundsFromSegments, normalizeSegments, isTransparent,
+  keyForSegments,
+  boundsFromSegments,
+  normalizeSegments,
+  isTransparent,
 } from './pdfPathUtils';
+
+import type {
+  VectorClipEntry,
+  VectorDocumentV1,
+  VectorDraw,
+  VectorFillRule,
+  VectorPath,
+  VectorSegment,
+  VectorStyle,
+  VectorStrokeStyle,
+} from '../../../types';
 
 type PdfPageProxyLike = {
   getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[] }>;
@@ -69,7 +89,13 @@ const removeLikelyBorderDraw = (draws: readonly PendingDraw[]): PendingDraw[] =>
     globalMaxY = Math.max(globalMaxY, b.maxY);
   }
 
-  if (!Number.isFinite(globalMinX) || !Number.isFinite(globalMinY) || !Number.isFinite(globalMaxX) || !Number.isFinite(globalMaxY)) return [...draws];
+  if (
+    !Number.isFinite(globalMinX) ||
+    !Number.isFinite(globalMinY) ||
+    !Number.isFinite(globalMaxX) ||
+    !Number.isFinite(globalMaxY)
+  )
+    return [...draws];
 
   const totalW = Math.max(1, globalMaxX - globalMinX);
   const totalH = Math.max(1, globalMaxY - globalMinY);
@@ -111,21 +137,29 @@ const removeLikelyBorderDraw = (draws: readonly PendingDraw[]): PendingDraw[] =>
 
 const pageCache = new WeakMap<object, Map<string, Promise<PdfVectorDocumentResult>>>();
 
-const cacheKeyFromOptions = (options?: PdfVectorImportOptions): string => JSON.stringify({
-  colorScheme: options?.colorScheme ?? null,
-  customColor: options?.customColor ?? null,
-  removeBorder: options?.removeBorder ?? false,
-});
+const cacheKeyFromOptions = (options?: PdfVectorImportOptions): string =>
+  JSON.stringify({
+    colorScheme: options?.colorScheme ?? null,
+    customColor: options?.customColor ?? null,
+    removeBorder: options?.removeBorder ?? false,
+  });
 
-export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, options?: PdfVectorImportOptions): Promise<PdfVectorDocumentResult> => {
+export const convertPdfPageToVectorDocumentV1 = async (
+  page: PdfPageProxyLike,
+  options?: PdfVectorImportOptions,
+): Promise<PdfVectorDocumentResult> => {
   const key = cacheKeyFromOptions(options);
   const cachedForPage = pageCache.get(page as unknown as object);
   const existing = cachedForPage?.get(key);
   if (existing) return existing;
 
   const p = (async (): Promise<PdfVectorDocumentResult> => {
-    const colorPrefs = resolveColorScheme({ colorScheme: options?.colorScheme, customColor: options?.customColor });
-    const applyScheme = (base: string): string => applyColorScheme(base, colorPrefs.scheme, colorPrefs.customColor);
+    const colorPrefs = resolveColorScheme({
+      colorScheme: options?.colorScheme,
+      customColor: options?.customColor,
+    });
+    const applyScheme = (base: string): string =>
+      applyColorScheme(base, colorPrefs.scheme, colorPrefs.customColor);
 
     const opList = await page.getOperatorList();
     const viewport = page.getViewport({ scale: 1.0 });
@@ -253,7 +287,9 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
         case OPS.setDash: {
           const dashArray = (args as unknown[])[0];
           const dashPhase = (args as unknown[])[1];
-          state.dash = Array.isArray(dashArray) ? dashArray.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0) : [];
+          state.dash = Array.isArray(dashArray)
+            ? dashArray.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)
+            : [];
           state.dashOffset = Number.isFinite(Number(dashPhase)) ? Number(dashPhase) : 0;
           break;
         }
@@ -293,7 +329,8 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
           let di = 0;
           for (let j = 0; j < pathOps.length; j++) {
             const op = pathOps[j]!;
-            if (currentSegments.length === 0 && op !== OPS.moveTo && op !== OPS.rectangle) ensureMoveTo();
+            if (currentSegments.length === 0 && op !== OPS.moveTo && op !== OPS.rectangle)
+              ensureMoveTo();
 
             const toViewport = multiplyMatrix(viewportMatrix, state.ctm);
             const readPoint = (): { x: number; y: number } => {
@@ -390,11 +427,25 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
         case OPS.closeFillStroke:
         case OPS.closeEOFillStroke: {
           const fillRule: VectorFillRule =
-            fn === OPS.eoFill || fn === OPS.eoFillStroke || fn === OPS.closeEOFillStroke ? 'evenodd' : 'nonzero';
-          const forceClose = fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke;
+            fn === OPS.eoFill || fn === OPS.eoFillStroke || fn === OPS.closeEOFillStroke
+              ? 'evenodd'
+              : 'nonzero';
+          const forceClose =
+            fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke;
           const isStroke =
-            fn === OPS.stroke || fn === OPS.fillStroke || fn === OPS.eoFillStroke || fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke;
-          const isFill = fn === OPS.fill || fn === OPS.eoFill || fn === OPS.fillStroke || fn === OPS.eoFillStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke;
+            fn === OPS.stroke ||
+            fn === OPS.fillStroke ||
+            fn === OPS.eoFillStroke ||
+            fn === OPS.closeStroke ||
+            fn === OPS.closeFillStroke ||
+            fn === OPS.closeEOFillStroke;
+          const isFill =
+            fn === OPS.fill ||
+            fn === OPS.eoFill ||
+            fn === OPS.fillStroke ||
+            fn === OPS.eoFillStroke ||
+            fn === OPS.closeFillStroke ||
+            fn === OPS.closeEOFillStroke;
 
           const path = snapshotPath({ forceClose });
           if (!path) break;
@@ -411,7 +462,9 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
       }
     }
 
-    const finalPending = options?.removeBorder ? removeLikelyBorderDraw(pendingDraws) : pendingDraws;
+    const finalPending = options?.removeBorder
+      ? removeLikelyBorderDraw(pendingDraws)
+      : pendingDraws;
 
     // Compute global bounds for normalization.
     let minX = Infinity;
@@ -433,7 +486,12 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
       }
     }
 
-    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY)
+    ) {
       return { document: { version: 1, paths: [], draws: [] }, width: 0, height: 0 };
     }
 
@@ -483,4 +541,3 @@ export const convertPdfPageToVectorDocumentV1 = async (page: PdfPageProxyLike, o
   if (!cachedForPage) pageCache.set(page as unknown as object, map);
   return p;
 };
-

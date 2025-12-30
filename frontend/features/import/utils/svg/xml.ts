@@ -127,4 +127,3 @@ export const parseXml = (input: string): XmlNode | null => {
 
   return root.children[0] ?? null;
 };
-

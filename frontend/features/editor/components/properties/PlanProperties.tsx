@@ -1,14 +1,15 @@
-import React from 'react';
-import { Shape } from '../../../../types';
-import { useUIStore } from '../../../../stores/useUIStore';
 import { Scale, Ruler } from 'lucide-react';
+import React from 'react';
+
+import { useUIStore } from '../../../../stores/useUIStore';
+import { Shape } from '../../../../types';
 
 interface PlanPropertiesProps {
   selectedShape: Shape;
 }
 
 export const PlanProperties: React.FC<PlanPropertiesProps> = ({ selectedShape }) => {
-  const setTool = useUIStore(s => s.setTool);
+  const setTool = useUIStore((s) => s.setTool);
 
   // Only show for shapes that look like plans (rect with svgRaw or discipline=architecture)
   const isPlan = selectedShape.svgRaw || selectedShape.discipline === 'architecture';
@@ -24,10 +25,10 @@ export const PlanProperties: React.FC<PlanPropertiesProps> = ({ selectedShape })
 
       <div className="flex flex-col gap-2">
         <div className="text-xs text-slate-500">
-            Dimensões atuais: 
-            <span className="font-mono ml-1">
-                {Math.round(selectedShape.width || 0)} x {Math.round(selectedShape.height || 0)}
-            </span>
+          Dimensões atuais:
+          <span className="font-mono ml-1">
+            {Math.round(selectedShape.width || 0)} x {Math.round(selectedShape.height || 0)}
+          </span>
         </div>
 
         <button
@@ -37,9 +38,9 @@ export const PlanProperties: React.FC<PlanPropertiesProps> = ({ selectedShape })
           <Ruler size={14} />
           Calibrar Escala
         </button>
-        
+
         <p className="text-[10px] text-slate-400 leading-tight">
-            Clique em dois pontos conhecidos na planta para definir a escala real.
+          Clique em dois pontos conhecidos na planta para definir a escala real.
         </p>
       </div>
     </div>

@@ -3,8 +3,9 @@
  * Pure functions extracted from EngineInteractionLayer for reusability.
  */
 
-import type { ViewTransform, Point } from '@/types';
 import { screenToWorld } from '@/utils/viewportMath';
+
+import type { ViewTransform, Point } from '@/types';
 
 /**
  * Convert pointer event to world coordinates.
@@ -22,8 +23,6 @@ export const toWorldPoint = (
  * Clamp tiny values to zero (for floating point stability).
  */
 export const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
-
-
 
 /**
  * Determine if a movement qualifies as a drag (vs click).

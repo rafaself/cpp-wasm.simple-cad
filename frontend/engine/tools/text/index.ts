@@ -1,6 +1,6 @@
 /**
  * Text Tool Handlers Index
- * 
+ *
  * Re-exports all text tool handler modules for clean imports.
  */
 

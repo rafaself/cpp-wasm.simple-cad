@@ -14,7 +14,7 @@ The tests here exist to ensure that:
 
 ## What tests should (and should not) assert
 
-Prefer asserting *invariants* over implementation details:
+Prefer asserting _invariants_ over implementation details:
 
 - ✅ Assert: output contains expected entity types, non-empty points, reasonable bounds, and required attributes.
 - ✅ Assert: important style contracts (ByLayer/ByBlock resolution, color scheme mapping, linetype dash presence).
@@ -43,4 +43,3 @@ From `frontend/`:
 - `npx vitest run`
 
 Note: if Vitest fails with a Windows `esbuild` spawn `EPERM` error while loading `vite.config.ts`, it’s usually caused by filesystem restrictions (e.g., OneDrive/Defender/Controlled Folder Access). In that case, move the repo out of OneDrive-controlled folders or allowlist the toolchain executables and re-run.
-

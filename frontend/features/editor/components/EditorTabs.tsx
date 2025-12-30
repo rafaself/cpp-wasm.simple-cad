@@ -1,14 +1,16 @@
-import React from 'react';
 import { X, Workflow, Lightbulb } from 'lucide-react';
-import { useUIStore } from '../../../stores/useUIStore';
+import React from 'react';
+
 import { LABELS } from '@/i18n/labels';
 
+import { useUIStore } from '../../../stores/useUIStore';
+
 const EditorTabs: React.FC = () => {
-  const openTabs = useUIStore(s => s.openTabs);
-  const activeFloorId = useUIStore(s => s.activeFloorId);
-  const activeDiscipline = useUIStore(s => s.activeDiscipline);
-  const openTab = useUIStore(s => s.openTab);
-  const closeTab = useUIStore(s => s.closeTab);
+  const openTabs = useUIStore((s) => s.openTabs);
+  const activeFloorId = useUIStore((s) => s.activeFloorId);
+  const activeDiscipline = useUIStore((s) => s.activeDiscipline);
+  const openTab = useUIStore((s) => s.openTab);
+  const closeTab = useUIStore((s) => s.closeTab);
 
   if (openTabs.length === 0) return null;
 
@@ -17,7 +19,7 @@ const EditorTabs: React.FC = () => {
       {openTabs.map((tab) => {
         const isActive = tab.floorId === activeFloorId && tab.discipline === activeDiscipline;
         const key = `${tab.floorId}-${tab.discipline}`;
-        
+
         // Mocking floor name lookup - ideally this comes from a store selector or prop
         // For now, assuming 'terreo' -> 'Térreo' mapping or just capitalization
         const floorName = tab.floorId === 'terreo' ? 'Térreo' : tab.floorId;
@@ -27,9 +29,10 @@ const EditorTabs: React.FC = () => {
             key={key}
             className={`
               group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent select-none
-              ${isActive 
-                ? 'bg-slate-900 text-blue-400 border-slate-800 border-b-slate-900 relative -mb-[1px] z-10 shadow-sm' 
-                : 'bg-transparent text-slate-500 hover:bg-slate-900 hover:text-slate-300'
+              ${
+                isActive
+                  ? 'bg-slate-900 text-blue-400 border-slate-800 border-b-slate-900 relative -mb-[1px] z-10 shadow-sm'
+                  : 'bg-transparent text-slate-500 hover:bg-slate-900 hover:text-slate-300'
               }
             `}
             onClick={() => openTab(tab)}
@@ -37,8 +40,10 @@ const EditorTabs: React.FC = () => {
             {tab.discipline === 'architecture' ? <Workflow size={12} /> : <Lightbulb size={12} />}
             <span>{floorName}</span>
             <span className="opacity-50 mx-1">|</span>
-            <span className="uppercase tracking-wider text-[10px]">{tab.discipline === 'architecture' ? LABELS.disciplines.shortArchitecture : 'Elé'}</span>
-            
+            <span className="uppercase tracking-wider text-[10px]">
+              {tab.discipline === 'architecture' ? LABELS.disciplines.shortArchitecture : 'Elé'}
+            </span>
+
             <button
               onClick={(e) => {
                 e.stopPropagation();

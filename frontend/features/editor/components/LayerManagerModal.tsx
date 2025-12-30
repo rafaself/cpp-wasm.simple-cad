@@ -1,10 +1,11 @@
-import React from 'react';
 import { X, Plus, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import React from 'react';
 
-import { useUIStore } from '../../../stores/useUIStore';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
-import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
+
+import { useUIStore } from '../../../stores/useUIStore';
 
 const LayerManagerModal: React.FC = () => {
   const isOpen = useUIStore((s) => s.isLayerManagerOpen);
@@ -38,7 +39,12 @@ const LayerManagerModal: React.FC = () => {
     if (!runtime || !runtime.allocateLayerId) return;
     const nextId = runtime.allocateLayerId();
     const flags = EngineLayerFlags.Visible;
-    runtime.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
+    runtime.setLayerProps(
+      nextId,
+      LayerPropMask.Name | LayerPropMask.Visible,
+      flags,
+      `Layer ${nextId}`,
+    );
     setActiveLayerId(nextId);
   };
 
@@ -49,7 +55,9 @@ const LayerManagerModal: React.FC = () => {
       <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-2xl w-[520px] h-[420px] flex flex-col text-slate-100">
         <div className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 rounded-t-lg">
           <h2 className="font-semibold text-sm uppercase tracking-wide">Gerenciador de Camadas</h2>
-          <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white"><X size={18} /></button>
+          <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">
+            <X size={18} />
+          </button>
         </div>
 
         <div className="p-2 border-b border-slate-700 bg-slate-800 flex gap-2">
@@ -57,7 +65,8 @@ const LayerManagerModal: React.FC = () => {
             onClick={handleAddLayer}
             className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs border border-slate-600"
           >
-            <Plus size={14} className="text-green-400" /> <span className="font-medium">Nova Camada</span>
+            <Plus size={14} className="text-green-400" />{' '}
+            <span className="font-medium">Nova Camada</span>
           </button>
         </div>
 
