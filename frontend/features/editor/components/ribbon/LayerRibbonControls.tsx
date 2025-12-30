@@ -1,4 +1,4 @@
-import { Layers, Eye, EyeOff, Lock, Unlock, Plus } from 'lucide-react';
+import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import React, { useMemo, useEffect } from 'react';
 
 import CustomSelect from '@/components/CustomSelect';
@@ -52,42 +52,19 @@ export const LayerRibbonControls: React.FC = () => {
     runtime.setLayerProps(activeLayer.id, mask, flags, activeLayer.name);
   };
 
-  const handleAddLayer = () => {
-    if (!runtime || !runtime.allocateLayerId) return;
-    const nextId = runtime.allocateLayerId();
-    const flags = EngineLayerFlags.Visible;
-    runtime.setLayerProps(
-      nextId,
-      LayerPropMask.Name | LayerPropMask.Visible,
-      flags,
-      `Layer ${nextId}`,
-    );
-    setActiveLayerId(nextId);
-  };
+
 
   return (
     <div className="ribbon-group-col px-1">
       {/* Row 1: Layer Select and Add */}
       <div className="ribbon-row min-w-[140px]">
-        <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 w-full h-full gap-0.5 items-center">
-          <div className="flex-1 w-full relative h-full">
-            <CustomSelect
-              value={String(activeLayerId)}
-              onChange={handleLayerChange}
-              options={layerOptions}
-              className={`bg-transparent ribbon-fill-h text-xs w-full px-1 focus:ring-0 border-none hover:bg-surface2/50 rounded transition-colors text-text`}
-              placeholder="Selecione a camada..."
-            />
-          </div>
-          <div className="w-px bg-border/50 my-0.5 h-4/5" />
-          <button
-            onClick={handleAddLayer}
-            className={`w-6 h-full ${BUTTON_STYLES.centered} text-text-muted hover:text-primary hover:bg-surface2`}
-            title="Nova Camada"
-          >
-            <Plus size={14} />
-          </button>
-        </div>
+        <CustomSelect
+          value={String(activeLayerId)}
+          onChange={handleLayerChange}
+          options={layerOptions}
+          className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
+          placeholder="Selecione a camada..."
+        />
       </div>
 
       {/* Row 2: Layer Properties */}

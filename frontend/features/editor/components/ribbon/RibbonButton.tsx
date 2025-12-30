@@ -56,7 +56,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   if (item.width) {
     widthClass = widthClasses[item.width];
   } else if (isVertical) {
-    widthClass = 'w-16'; // Default for vertical buttons
+    widthClass = 'flex-1 min-w-[4rem]'; // Flexible width, min 64px
   } else if (isGrid) {
     widthClass = 'w-28'; // Fixed width for grid items
   } else if (isStack) {
@@ -65,7 +65,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
 
   // Height Logic
   let heightClass = 'h-8';
-  if (isVertical) heightClass = 'h-[52px]'; // Match 24 + 4 + 24 = 52px (Perfect alignment with 2 rows)
+  if (isVertical) heightClass = 'h-full'; // Fill available height
   if (isGrid || isStack) heightClass = 'h-[24px]'; // Match --ribbon-item-height
 
   // Flex Structure
