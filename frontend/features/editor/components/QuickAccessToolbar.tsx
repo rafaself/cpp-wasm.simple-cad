@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { getIcon } from '../../../utils/iconMap';
 import { LayoutPanelLeft } from 'lucide-react';
-import { getEngineRuntime } from '@/engine/core/singleton';
+import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 const TOOLS = [
   { id: 'select', icon: 'Select', label: 'Selecionar' },
@@ -14,15 +14,10 @@ const TOOLS = [
 ];
 
 const QuickAccessToolbar: React.FC = () => {
-  const uiStore = useUIStore();
+  const activeTool = useUIStore((s) => s.activeTool);
   const history = useUIStore((s) => s.history);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
-  const handleUndo = () => {
-    void getEngineRuntime().then((runtime) => runtime.undo());
-  };
-  const handleRedo = () => {
-    void getEngineRuntime().then((runtime) => runtime.redo());
-  };
+  const { executeAction, selectTool } = useEditorCommands();
 
   const containerClasses = orientation === 'vertical'
     ? 'flex-col left-2 top-1/2 -translate-y-1/2'
@@ -50,16 +45,16 @@ const QuickAccessToolbar: React.FC = () => {
       {TOOLS.map(item => (
         <button
           key={item.id}
-          onClick={() => uiStore.setTool(item.id as any)}
+          onClick={() => selectTool(item.id)}
           className={`
             flex items-center justify-center w-8 h-8 rounded-md transition-all
-            ${uiStore.activeTool === item.id
+            ${activeTool === item.id
               ? 'bg-blue-600 text-white shadow-md' 
               : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}
           `}
           title={item.label}
           aria-label={item.label}
-          aria-pressed={uiStore.activeTool === item.id}
+          aria-pressed={activeTool === item.id}
         >
           <div className="transform scale-90 flex items-center justify-center">
             {getIcon(item.icon)}
@@ -70,7 +65,7 @@ const QuickAccessToolbar: React.FC = () => {
       <div className={`bg-slate-700/50 ${orientation === 'vertical' ? 'h-px w-full my-0.5' : 'w-px h-full mx-0.5'}`} />
       
       <button
-        onClick={handleUndo}
+        onClick={() => executeAction('undo')}
         disabled={!history.canUndo}
         className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
         title="Desfazer"
@@ -81,7 +76,7 @@ const QuickAccessToolbar: React.FC = () => {
         </div>
       </button>
        <button
-        onClick={handleRedo}
+        onClick={() => executeAction('redo')}
         disabled={!history.canRedo}
         className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
         title="Refazer"

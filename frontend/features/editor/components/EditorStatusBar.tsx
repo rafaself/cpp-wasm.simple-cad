@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
-import { useEditorLogic } from '../hooks/useEditorLogic';
 import { Magnet, ZoomIn, ZoomOut, Target, CircleDot, Square, ChevronUp, Undo, Redo, Scan, Grid3x3, Crosshair } from 'lucide-react';
 import { SnapOptions } from '../../../types';
 import EditableNumber from '../../../components/EditableNumber';
-import { getEngineRuntime } from '@/engine/core/singleton';
-import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
 import { LABELS } from '@/i18n/labels';
+import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 const EditorStatusBar: React.FC = () => {
 
@@ -15,23 +13,14 @@ const EditorStatusBar: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
   const history = useUIStore((s) => s.history);
-  const { zoomToFit } = useEditorLogic();
   const snapSettings = useSettingsStore(s => s.snap);
   const setSnapEnabled = useSettingsStore(s => s.setSnapEnabled);
   const setSnapOption = useSettingsStore(s => s.setSnapOption);
   const [showSnapMenu, setShowSnapMenu] = useState(false);
+  const { executeAction } = useEditorCommands();
   
   const toggleSnap = () => setSnapEnabled(!snapSettings.enabled);
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
-
-  const handleZoomIn = () => setViewTransform(prev => ({ ...prev, scale: Math.min(prev.scale * 1.2, 5) }));
-  const handleZoomOut = () => setViewTransform(prev => ({ ...prev, scale: Math.max(prev.scale / 1.2, 0.1) }));
-  const handleUndo = () => {
-    void getEngineRuntime().then((runtime) => runtime.undo());
-  };
-  const handleRedo = () => {
-    void getEngineRuntime().then((runtime) => runtime.redo());
-  };
 
   return (
     <div className="w-full h-9 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-4 text-xs text-slate-300 select-none z-50">
@@ -80,7 +69,7 @@ const EditorStatusBar: React.FC = () => {
 
       <div className="flex items-center gap-2">
          <button
-           onClick={handleUndo}
+           onClick={() => executeAction('undo')}
            className={`p-1 hover:bg-slate-700 rounded ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
            disabled={!history.canUndo}
            title={`${LABELS.menu.undo} (Ctrl+Z)`}
@@ -89,7 +78,7 @@ const EditorStatusBar: React.FC = () => {
            <Undo size={14} />
          </button>
          <button
-           onClick={handleRedo}
+           onClick={() => executeAction('redo')}
            className={`p-1 hover:bg-slate-700 rounded ${history.canRedo ? '' : 'opacity-50 cursor-not-allowed'}`}
            disabled={!history.canRedo}
            title={`${LABELS.menu.redo} (Ctrl+Y)`}
@@ -101,7 +90,7 @@ const EditorStatusBar: React.FC = () => {
          <div className="h-4 w-px bg-slate-600 mx-2" />
          
          <button
-           onClick={zoomToFit}
+           onClick={() => executeAction('zoom-to-fit')}
            className="p-1 hover:bg-slate-700 rounded"
            title={LABELS.statusbar.zoomOut} // Using generic label or adding specific 'Adjust to Fit' in future
            aria-label={LABELS.statusbar.zoomOut}
@@ -124,7 +113,7 @@ const EditorStatusBar: React.FC = () => {
          </div>
 
          <button
-           onClick={handleZoomOut}
+           onClick={() => executeAction('zoom-out')}
            className="p-1 hover:bg-slate-700 rounded"
            title={LABELS.statusbar.zoomOut}
            aria-label={LABELS.statusbar.zoomOut}
@@ -132,7 +121,7 @@ const EditorStatusBar: React.FC = () => {
            <ZoomOut size={14} />
          </button>
          <button
-           onClick={handleZoomIn}
+           onClick={() => executeAction('zoom-in')}
            className="p-1 hover:bg-slate-700 rounded"
            title={LABELS.statusbar.zoomIn}
            aria-label={LABELS.statusbar.zoomIn}

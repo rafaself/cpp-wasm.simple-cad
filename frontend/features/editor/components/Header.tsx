@@ -9,20 +9,13 @@ import {
   Maximize,
   Minimize
 } from 'lucide-react';
-import { useUIStore } from '@/stores/useUIStore';
-import { getEngineRuntime } from '@/engine/core/singleton';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 import { LABELS } from '@/i18n/labels';
+import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 const Header: React.FC = () => {
-  const setSettingsModalOpen = useUIStore(s => s.setSettingsModalOpen);
   const [isFullScreen, setIsFullScreen] = React.useState(false);
-  const handleUndo = () => {
-    void getEngineRuntime().then((runtime) => runtime.undo());
-  };
-  const handleRedo = () => {
-    void getEngineRuntime().then((runtime) => runtime.redo());
-  };
+  const { executeAction } = useEditorCommands();
 
   // Detect OS for correct fullscreen shortcut
   const isMac = React.useMemo(() => {
@@ -61,21 +54,21 @@ const Header: React.FC = () => {
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title={`${LABELS.menu.newFile} (Ctrl+N)`}
-            onClick={() => console.log('New File clicked')}
+            onClick={() => executeAction('new-file', 'stub')}
           >
             <FilePlus size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title={`${LABELS.menu.openFile} (Ctrl+O)`}
-            onClick={() => console.log('Open File clicked')}
+            onClick={() => executeAction('open-file')}
           >
             <FolderOpen size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title={`${LABELS.menu.saveFile} (Ctrl+S)`}
-            onClick={() => console.log('Save clicked')}
+            onClick={() => executeAction('save-file')}
           >
             <Save size={14} />
           </button>
@@ -83,14 +76,14 @@ const Header: React.FC = () => {
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title={`${LABELS.menu.undo} (Ctrl+Z)`}
-            onClick={handleUndo}
+            onClick={() => executeAction('undo')}
           >
             <Undo2 size={14} />
           </button>
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title={`${LABELS.menu.redo} (Ctrl+Y)`}
-            onClick={handleRedo}
+            onClick={() => executeAction('redo')}
           >
             <Redo2 size={14} />
           </button>
@@ -98,7 +91,7 @@ const Header: React.FC = () => {
           <button
             className="p-1 hover:bg-slate-800 rounded hover:text-white transition-colors"
             title={LABELS.menu.settings}
-            onClick={() => setSettingsModalOpen(true)}
+            onClick={() => executeAction('open-settings')}
           >
             <Settings size={14} />
           </button>
@@ -151,6 +144,5 @@ const Header: React.FC = () => {
 };
 
 export default Header;
-
 
 

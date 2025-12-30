@@ -2,15 +2,8 @@ import React from 'react';
 import { FolderOpen, Save, Undo2, Redo2, Type, MousePointer2, Square, Circle, Minus, PenTool } from 'lucide-react';
 
 import { useUIStore } from '../../../stores/useUIStore';
-import { getEngineRuntime } from '@/engine/core/singleton';
-import { encodeNextDocumentFile, decodeNextDocumentFile } from '../../../persistence/nextDocumentFile';
-      // Use engine-authoritative API instead of re-decoding snapshot
-      // Text metadata is already loaded into engine by loadSnapshotBytes
-      // No need to sync to IdRegistry anymore as we use Engine-First architecture
-import { bumpDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import { LABELS } from '@/i18n/labels';
-
-const DEFAULT_FRAME = { enabled: false, widthMm: 297, heightMm: 210, marginMm: 10 };
+import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 const TOOL_BUTTONS = [
   { id: 'select', label: LABELS.tools.select, icon: MousePointer2 },
@@ -23,82 +16,13 @@ const TOOL_BUTTONS = [
 
 const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
-  const setTool = useUIStore((s) => s.setTool);
-
-  const handleSave = () => {
-    void (async () => {
-      const runtime = await getEngineRuntime();
-      const engineSnapshot = runtime.saveSnapshotBytes();
-      const bytes = encodeNextDocumentFile({ worldScale: 100, frame: DEFAULT_FRAME }, { engineSnapshot });
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'eletrocad-next.ewnd';
-      a.click();
-      URL.revokeObjectURL(url);
-    })();
-  };
-
-  const handleOpen = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.ewnd,application/octet-stream';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const buf = await file.arrayBuffer();
-      let payload;
-      try {
-        payload = decodeNextDocumentFile(new Uint8Array(buf));
-      } catch (err) {
-        console.error(err);
-        alert(LABELS.common.errorInvalidFile);
-        return;
-      }
-
-      if (!payload.engineSnapshot || payload.engineSnapshot.byteLength === 0) {
-        alert(LABELS.common.errorNoSnapshot);
-        return;
-      }
-
-      const runtime = await getEngineRuntime();
-
-      runtime.resetIds();
-      runtime.resetIds();
-      runtime.loadSnapshotBytes(payload.engineSnapshot);
-
-      // Text metadata is already loaded into engine by loadSnapshotBytes
-
-      const layers = runtime.getLayersSnapshot();
-      if (layers.length > 0) {
-        const first = layers.reduce<{ id: number; order: number } | null>((acc, rec) => {
-          if (!acc || rec.order < acc.order) return { id: rec.id, order: rec.order };
-          return acc;
-        }, null);
-        if (first) useUIStore.getState().setActiveLayerId(first.id);
-      }
-
-      bumpDocumentSignal('layers');
-      bumpDocumentSignal('selection');
-      bumpDocumentSignal('order');
-    };
-    input.click();
-  };
-
-  const handleUndo = () => {
-    void getEngineRuntime().then((runtime) => runtime.undo());
-  };
-
-  const handleRedo = () => {
-    void getEngineRuntime().then((runtime) => runtime.redo());
-  };
+  const { executeAction, selectTool } = useEditorCommands();
 
   return (
     <div className="h-10 bg-slate-900 border-b border-slate-800 flex items-center gap-2 px-3 text-slate-200">
       <div className="flex items-center gap-1">
         <button
-          onClick={handleOpen}
+          onClick={() => executeAction('open-file')}
           className="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1"
           title={LABELS.menu.openFile}
         >
@@ -106,7 +30,7 @@ const EditorRibbon: React.FC = () => {
           {LABELS.menu.openFile}
         </button>
         <button
-          onClick={handleSave}
+          onClick={() => executeAction('save-file')}
           className="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1"
           title={LABELS.menu.saveFile}
         >
@@ -114,14 +38,14 @@ const EditorRibbon: React.FC = () => {
           {LABELS.menu.saveFile}
         </button>
         <button
-          onClick={handleUndo}
+          onClick={() => executeAction('undo')}
           className="h-7 w-7 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
           title={LABELS.menu.undo}
         >
           <Undo2 size={14} />
         </button>
         <button
-          onClick={handleRedo}
+          onClick={() => executeAction('redo')}
           className="h-7 w-7 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
           title={LABELS.menu.redo}
         >
@@ -138,7 +62,7 @@ const EditorRibbon: React.FC = () => {
           return (
             <button
               key={tool.id}
-              onClick={() => setTool(tool.id as any)}
+              onClick={() => selectTool(tool.id)}
               className={`h-7 px-2 rounded text-xs flex items-center gap-1 transition-colors ${
                 active ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700'
               }`}
