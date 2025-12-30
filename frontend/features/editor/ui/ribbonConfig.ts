@@ -315,7 +315,7 @@ export const RIBBON_TABS: RibbonTab[] = [
             label: LABELS.tools.pan,
             icon: Hand,
             toolId: 'pan',
-            status: 'stub',
+            status: 'ready',
             variant: 'large',
           },
           {

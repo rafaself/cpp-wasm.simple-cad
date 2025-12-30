@@ -27,6 +27,7 @@ interface UIState {
   activeDiscipline: 'architecture';
   viewTransform: ViewTransform;
   mousePos: Point | null;
+  isMouseOverCanvas: boolean;
   canvasSize: { width: number; height: number };
   isSettingsModalOpen: boolean;
   isLayerManagerOpen: boolean;
@@ -61,6 +62,7 @@ interface UIState {
   setViewTransform: (transform: ViewTransform | ((prev: ViewTransform) => ViewTransform)) => void;
   setCanvasSize: (size: { width: number; height: number }) => void;
   setMousePos: (pos: Point | null) => void;
+  setIsMouseOverCanvas: (isOver: boolean) => void;
 
   setSettingsModalOpen: (isOpen: boolean) => void;
   setLayerManagerOpen: (isOpen: boolean) => void;
@@ -116,6 +118,7 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarTab: 'edificacao',
   viewTransform: { x: 0, y: 0, scale: 1 },
   mousePos: null,
+  isMouseOverCanvas: false,
   canvasSize: { width: 0, height: 0 },
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
@@ -214,6 +217,7 @@ export const useUIStore = create<UIState>((set) => ({
     })),
   setCanvasSize: (size) => set({ canvasSize: size }),
   setMousePos: (pos) => set({ mousePos: pos }),
+  setIsMouseOverCanvas: (isOver) => set({ isMouseOverCanvas: isOver }),
 
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),

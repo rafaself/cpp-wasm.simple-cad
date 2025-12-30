@@ -8,7 +8,7 @@ import { getIcon } from '../../../utils/iconMap';
 
 const TOOLS = [
   { id: 'select', icon: 'Select', label: 'Selecionar', status: 'ready' as const },
-  { id: 'pan', icon: 'Hand', label: 'Pan', status: 'stub' as const },
+  { id: 'pan', icon: 'Hand', label: 'Pan', status: 'ready' as const },
   { id: 'line', icon: 'Line', label: 'Linha', status: 'ready' as const },
   { id: 'rect', icon: 'Rect', label: 'Retangulo', status: 'ready' as const },
   { id: 'circle', icon: 'Circle', label: 'Circulo', status: 'ready' as const },

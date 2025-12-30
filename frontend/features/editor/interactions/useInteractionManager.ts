@@ -7,6 +7,7 @@ import { screenToWorld } from '@/utils/viewportMath';
 
 import { DraftingHandler } from './handlers/DraftingHandler';
 import { IdleHandler } from './handlers/IdleHandler';
+import { PanHandler } from './handlers/PanHandler';
 import { SelectionHandler } from './handlers/SelectionHandler';
 import { TextHandler } from './handlers/TextHandler';
 import { InteractionHandler, InputEventContext, EngineRuntime } from './types';
@@ -79,6 +80,9 @@ export function useInteractionManager() {
     switch (activeTool) {
       case 'select':
         next = new SelectionHandler();
+        break;
+      case 'pan':
+        next = new PanHandler();
         break;
       case 'line':
       case 'rect':

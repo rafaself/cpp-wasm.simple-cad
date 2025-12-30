@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 
 import { useUIStore } from '@/stores/useUIStore';
 import { screenToWorld } from '@/utils/viewportMath';
@@ -12,6 +12,7 @@ import type { ViewTransform } from '@/types';
  */
 export function usePanZoom() {
   const isPanningRef = useRef(false);
+  const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const transformStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
 
@@ -21,6 +22,7 @@ export function usePanZoom() {
   const beginPan = useCallback(
     (evt: React.PointerEvent<HTMLDivElement>) => {
       isPanningRef.current = true;
+      setIsPanning(true);
       panStartRef.current = { x: evt.clientX, y: evt.clientY };
       transformStartRef.current = { ...viewTransform };
     },
@@ -43,6 +45,7 @@ export function usePanZoom() {
 
   const endPan = useCallback(() => {
     isPanningRef.current = false;
+    setIsPanning(false);
     transformStartRef.current = null;
   }, []);
 
@@ -59,6 +62,7 @@ export function usePanZoom() {
   );
 
   return {
+    isPanning,
     isPanningRef,
     beginPan,
     updatePan,

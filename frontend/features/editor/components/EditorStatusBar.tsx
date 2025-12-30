@@ -6,6 +6,7 @@ import {
   CircleDot,
   Square,
   ChevronUp,
+  MousePointer2,
   Undo,
   Redo,
   Scan,
@@ -24,6 +25,7 @@ import { SnapOptions } from '../../../types';
 
 const EditorStatusBar: React.FC = () => {
   const mousePos = useUIStore((s) => s.mousePos);
+  const isMouseOverCanvas = useUIStore((s) => s.isMouseOverCanvas);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
   const history = useUIStore((s) => s.history);
@@ -38,8 +40,27 @@ const EditorStatusBar: React.FC = () => {
 
   return (
     <div className="w-full h-9 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">
-      <div className="w-40 font-mono text-text">
-        {mousePos ? `${mousePos.x.toFixed(2)}, ${mousePos.y.toFixed(2)}` : ''}
+      <div className="w-56 font-mono flex items-center gap-4 text-text-muted text-[10px]">
+        {mousePos ? (
+          <>
+            <MousePointer2 size={12} />
+            <div className="flex gap-3">
+              <span>
+                <span className="mr-1">X:</span>
+                {mousePos.x.toFixed(2)}
+              </span>
+              <span>
+                <span className="mr-1">Y:</span>
+                {mousePos.y.toFixed(2)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-2 opacity-50">
+            <MousePointer2 size={12} />
+            <span>—</span>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-4">

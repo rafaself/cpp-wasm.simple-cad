@@ -6,12 +6,15 @@ import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { screenToWorld } from '@/utils/viewportMath';
 
 import SelectionOverlay from './SelectionOverlay';
 
 const EngineInteractionLayer: React.FC = () => {
   // Store Hooks
   const viewTransform = useUIStore((s) => s.viewTransform);
+  const setMousePos = useUIStore((s) => s.setMousePos);
+  const setIsMouseOverCanvas = useUIStore((s) => s.setIsMouseOverCanvas);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
@@ -20,11 +23,11 @@ const EngineInteractionLayer: React.FC = () => {
   const { handlers, overlay, activeHandlerName, cursor: handlerCursor } = useInteractionManager();
 
   // PanZoom Hook (Can coexist or be merged, currently keeping simple)
-  const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
+  const { isPanning, isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
 
   // Cursor Logic
   const DEFAULT_CANVAS_CURSOR = 'url(/assets/cursor-canva-default.svg) 3 3, auto';
-  const cursor = isPanningRef.current ? 'grabbing' : (handlerCursor || DEFAULT_CANVAS_CURSOR);
+  const cursor = isPanning ? 'grabbing' : (handlerCursor || DEFAULT_CANVAS_CURSOR);
 
   // Engine Sync Effects (View/Grid)
   useEffect(() => {
@@ -56,8 +59,8 @@ const EngineInteractionLayer: React.FC = () => {
 
     if (e.button === 1 || e.button === 2 || e.altKey || activeHandlerName === 'pan') {
       // Or check active tool
-      // Quick Pan Override
-      if (e.button === 1 || e.altKey) {
+      // Quick Pan Override or Explicit Pan Tool
+      if (e.button === 1 || e.altKey || (activeHandlerName === 'pan' && e.button === 0)) {
         beginPan(e);
         return;
       }
@@ -67,6 +70,15 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Update Global Mouse Pos
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const world = screenToWorld(
+      { x: e.clientX - rect.left, y: e.clientY - rect.top },
+      viewTransform,
+    );
+    setMousePos(world);
+    setIsMouseOverCanvas(true);
+
     if (isPanningRef.current) {
       updatePan(e);
       return;
@@ -102,6 +114,8 @@ const EngineInteractionLayer: React.FC = () => {
       }
       onContextMenu={(e) => e.preventDefault()}
       onPointerCancel={handlePointerCancel}
+      onPointerEnter={() => setIsMouseOverCanvas(true)}
+      onPointerLeave={() => setIsMouseOverCanvas(false)}
     >
       <SelectionOverlay />
       {/* Dynamic Overlay from Active Handler */}
