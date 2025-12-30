@@ -342,12 +342,12 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
                   onClick={(e) => handleOptionClick(preset, e)}
                   className={`px-3 py-2 text-xs text-text cursor-pointer transition-colors font-mono select-none ${
                     isSelected && isHighlighted
-                      ? 'bg-primary/30 text-primary'
+                      ? 'bg-primary/35'
                       : isSelected
-                        ? 'bg-primary/20 text-primary'
+                        ? 'bg-primary/25'
                         : isHighlighted
-                          ? 'bg-white/10'
-                          : 'hover:bg-white/10'
+                          ? 'bg-primary/10'
+                          : 'hover:bg-primary/10'
                   }`}
                 >
                   {decimals > 0 ? preset.toFixed(decimals) : preset}

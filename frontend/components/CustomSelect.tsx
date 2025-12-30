@@ -93,7 +93,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
             {options.map((option) => (
               <div
                 key={option.value}
-                className={`px-3 py-2 text-xs text-text hover:bg-surface2/50 cursor-pointer transition-colors ${option.value === value ? 'bg-surface2 text-primary' : ''}`}
+                className={`px-3 py-2 text-xs text-text cursor-pointer transition-colors ${option.value === value ? 'bg-primary/25 hover:bg-primary/35 font-medium' : 'hover:bg-primary/10'}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleSelect(option.value);
