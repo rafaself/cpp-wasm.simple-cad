@@ -10,6 +10,7 @@ export const useEngineSelectionIds = (): EntityId[] => {
   const generation = useDocumentSignal('selection');
 
   return useMemo(() => {
+    void generation;
     if (!runtime) return [];
     return Array.from(runtime.getSelectionIds());
   }, [runtime, generation]);

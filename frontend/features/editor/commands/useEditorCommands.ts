@@ -149,7 +149,7 @@ export const useEditorCommands = () => {
 
       stub(actionId);
     },
-    [setSettingsModalOpen, setViewTransform, zoomToFit],
+    [deleteSelected, setSettingsModalOpen, setViewTransform, zoomToFit],
   );
 
   const selectTool = useCallback(

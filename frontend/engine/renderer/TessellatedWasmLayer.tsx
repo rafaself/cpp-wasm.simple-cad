@@ -20,10 +20,11 @@ const TessellatedWasmLayer: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (canvasRef.current && controllerRef.current) {
-      controllerRef.current.setCanvas(canvasRef.current);
+    const canvas = canvasRef.current;
+    if (canvas && controllerRef.current) {
+      controllerRef.current.setCanvas(canvas);
     }
-  }, [canvasRef.current]);
+  }, []);
 
   useEffect(() => {
     controllerRef.current?.updateView(viewTransform, canvasSize);

@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 import {
   EngineRuntime,
   type WasmModule,
   type CadEngineInstance,
 } from '@/engine/core/EngineRuntime';
+import { EXPECTED_PROTOCOL_INFO } from '@/engine/core/protocol';
 
 // Mock factory
 vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
   initCadEngineModule: vi.fn(),
 }));
-import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
-import { EXPECTED_PROTOCOL_INFO } from '@/engine/core/protocol';
 
 describe('TextSystem Cache Optimization', () => {
   let mockEngine: CadEngineInstance;

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
 import {
   EngineRuntime,
@@ -12,8 +13,6 @@ import { EXPECTED_PROTOCOL_INFO, SelectionMode, ReorderAction } from '@/engine/c
 vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
   initCadEngineModule: vi.fn(),
 }));
-
-import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 
 describe('EngineRuntime', () => {
   let mockEngine: CadEngineInstance;

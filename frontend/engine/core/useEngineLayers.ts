@@ -17,6 +17,8 @@ export const useEngineLayers = (): EngineLayerSnapshot[] => {
   const generation = useDocumentSignal('layers');
 
   return useMemo(() => {
+    // tie memoization to layer generation changes
+    void generation;
     if (!runtime) return [];
 
     const layers = runtime.getLayersSnapshot();

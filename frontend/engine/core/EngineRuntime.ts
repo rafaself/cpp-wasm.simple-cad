@@ -1,10 +1,10 @@
+/* eslint-disable import/order */
+
+import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { getPickCache } from '@/utils/pickResultCache';
-
-import { initCadEngineModule } from '../bridge/getCadEngineFactory';
-
-import { supportsEngineResize, type EngineCapability } from './capabilities';
-import { EngineCommand } from './commandBuffer';
+import { supportsEngineResize, type EngineCapability } from '@/engine/core/capabilities';
+import { EngineCommand } from '@/engine/core/commandBuffer';
 import {
   validateProtocolOrThrow,
   type ProtocolInfo,
@@ -16,7 +16,7 @@ import {
   type OverlayBufferMeta,
   type EntityAabb,
   type HistoryMeta,
-} from './protocol';
+} from '@/engine/core/protocol';
 
 // Re-export types moved to wasm-types to maintain compatibility
 export type {
@@ -25,19 +25,19 @@ export type {
   SnapshotBufferMeta,
   CadEngineInstance,
   WasmModule,
-} from './wasm-types';
+} from '@/engine/core/wasm-types';
 
 // Import subsystems
-import { CommandSystem } from './runtime/CommandSystem';
-import { DraftSystem } from './runtime/DraftSystem';
-import { EntitySystem } from './runtime/EntitySystem';
-import { EventSystem } from './runtime/EventSystem';
-import { HistorySystem } from './runtime/HistorySystem';
-import { LayerSystem } from './runtime/LayerSystem';
-import { PickSystem } from './runtime/PickSystem';
-import { RenderSystem } from './runtime/RenderSystem';
-import { SelectionSystem } from './runtime/SelectionSystem';
-import { SnapshotSystem } from './runtime/SnapshotSystem';
+import { CommandSystem } from '@/engine/core/runtime/CommandSystem';
+import { DraftSystem } from '@/engine/core/runtime/DraftSystem';
+import { EntitySystem } from '@/engine/core/runtime/EntitySystem';
+import { EventSystem } from '@/engine/core/runtime/EventSystem';
+import { HistorySystem } from '@/engine/core/runtime/HistorySystem';
+import { LayerSystem } from '@/engine/core/runtime/LayerSystem';
+import { PickSystem } from '@/engine/core/runtime/PickSystem';
+import { RenderSystem } from '@/engine/core/runtime/RenderSystem';
+import { SelectionSystem } from '@/engine/core/runtime/SelectionSystem';
+import { SnapshotSystem } from '@/engine/core/runtime/SnapshotSystem';
 import { StatsSystem } from './runtime/StatsSystem';
 import { TextSystem } from './runtime/TextSystem';
 import { TransformSystem } from './runtime/TransformSystem';

@@ -16,6 +16,7 @@ export function useEngineTextEditState(runtime: EngineRuntime | null): EngineTex
   const { active, textId, editGeneration } = useUIStore((s) => s.engineTextEditState);
 
   return useMemo(() => {
+    void editGeneration;
     if (!active || textId === null || !runtime) {
       return { content: '', caretIndex: 0, selectionStart: 0, selectionEnd: 0 };
     }

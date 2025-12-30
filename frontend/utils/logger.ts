@@ -19,7 +19,9 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 const DEFAULT_MIN_LEVEL = (import.meta.env.VITE_UI_LOG_LEVEL as LogLevel | undefined) ?? 'info';
-const LOG_ENABLED = import.meta.env.DEV && import.meta.env.VITE_ENABLE_UI_LOGS !== 'false';
+const isTestEnv = import.meta.env.MODE === 'test';
+const LOG_ENABLED =
+  import.meta.env.DEV && !isTestEnv && import.meta.env.VITE_ENABLE_UI_LOGS !== 'false';
 
 const formatPrefix = (level: LogLevel, tag: string) =>
   `[${new Date().toISOString()}][${level.toUpperCase()}][${tag}]`;
