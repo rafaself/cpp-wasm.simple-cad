@@ -16,6 +16,7 @@ const EditorRibbon: React.FC = () => {
 
   const activeTab = RIBBON_TABS.find((t) => t.id === activeTabId) || RIBBON_TABS[0];
   const activeGroups = activeTab.groups;
+  const overflowButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   const handleItemClick = (item: RibbonItem) => {
     if (item.kind === 'action' && item.actionId) {
@@ -63,7 +64,7 @@ const EditorRibbon: React.FC = () => {
               aria-selected={isActive}
               aria-controls={`panel-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
-              className={`relative px-3 py-1 text-xs rounded-t-md transition-colors ${
+              className={`relative px-3 py-1 text-xs rounded-t-md transition-colors focus-outline ${
                 isActive
                   ? 'bg-surface-strong text-foreground font-medium'
                   : 'text-muted hover:text-foreground hover:bg-surface-muted/60'
@@ -104,8 +105,9 @@ const EditorRibbon: React.FC = () => {
             <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
             <div className="relative self-start h-[54px] flex items-center">
               <button
+                ref={overflowButtonRef}
                 onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[52px] px-2 rounded bg-surface-strong hover:bg-surface-muted text-xs flex flex-col items-center justify-center gap-1"
+                className="h-[52px] px-2 rounded bg-surface-strong hover:bg-surface-muted text-xs flex flex-col items-center justify-center gap-1 focus-outline"
                 title="Mais"
                 aria-haspopup="true"
                 aria-expanded={isOverflowOpen}
@@ -117,6 +119,13 @@ const EditorRibbon: React.FC = () => {
                 <div
                   role="menu"
                   className="absolute top-full right-0 mt-1 w-56 bg-surface-strong border border-border rounded shadow-lg py-1 z-10"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsOverflowOpen(false);
+                      overflowButtonRef.current?.focus();
+                    }
+                  }}
                 >
                   {RIBBON_OVERFLOW_ITEMS.map((item) => {
                     const isStub = item.status === 'stub';
@@ -130,6 +139,7 @@ const EditorRibbon: React.FC = () => {
                         selectTool(item.toolId, item.status);
                       }
                       setIsOverflowOpen(false);
+                      overflowButtonRef.current?.focus();
                     };
 
                     return (
@@ -137,7 +147,7 @@ const EditorRibbon: React.FC = () => {
                         role="menuitem"
                         key={item.id}
                         onClick={handleClick}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted focus-outline ${
                           isStub ? 'opacity-70' : ''
                         }`}
                         title={title}

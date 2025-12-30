@@ -111,6 +111,17 @@
 .animate-pulse-slow {
   animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Accessible focus ring using tokens */
+.focus-outline {
+  outline: none;
+}
+
+.focus-outline:focus-visible {
+  box-shadow: var(--shadow-focus);
+  outline: 2px solid hsl(var(--color-accent));
+  outline-offset: 2px;
+}
 /* Custom Scrollbar Styles */
 .custom-scrollbar::-webkit-scrollbar {
   width: 10px;

@@ -10,16 +10,51 @@ import SettingsSidebar from './SettingsSidebar';
 
 export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts';
 
+const focusableSelectors =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 const SettingsModal: React.FC = () => {
   const isOpen = useUIStore((s) => s.isSettingsModalOpen);
   const setOpen = useUIStore((s) => s.setSettingsModalOpen);
   const [activeSection, setActiveSection] = useState<SettingsSection>('canvas');
+  const dialogRef = React.useRef<HTMLDivElement | null>(null);
+  const lastFocusRef = React.useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      lastFocusRef.current = document.activeElement as HTMLElement | null;
       setActiveSection('canvas');
+      const container = dialogRef.current;
+      if (container) {
+        const first = container.querySelector<HTMLElement>(focusableSelectors);
+        first?.focus();
+      }
     }
   }, [isOpen]);
+
+  const trapFocus = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+    const focusables = dialogRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  const close = () => {
+    setOpen(false);
+    if (lastFocusRef.current) {
+      lastFocusRef.current.focus();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -43,13 +78,35 @@ const SettingsModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
-      <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-slate-100">
+    <div
+      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          close();
+        }
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-slate-100"
+        tabIndex={-1}
+        onKeyDown={trapFocus}
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <h2 className="font-semibold text-base">Configuracoes</h2>
+          <h2 id="settings-modal-title" className="font-semibold text-base">
+            Configuracoes
+          </h2>
           <button
-            onClick={() => setOpen(false)}
-            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700"
+            onClick={close}
+            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 focus-outline"
+            aria-label="Fechar"
           >
             <X size={18} />
           </button>
@@ -67,8 +124,8 @@ const SettingsModal: React.FC = () => {
 
         <div className="px-4 py-3 border-t border-slate-700 flex justify-end gap-2">
           <button
-            onClick={() => setOpen(false)}
-            className="px-4 py-1.5 rounded text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300"
+            onClick={close}
+            className="px-4 py-1.5 rounded text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 focus-outline"
           >
             Fechar
           </button>

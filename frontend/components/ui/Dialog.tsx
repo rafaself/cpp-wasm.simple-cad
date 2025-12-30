@@ -14,7 +14,10 @@ export interface DialogProps {
   /** Whether to show a close button in the top-right corner */
   showCloseButton?: boolean;
   /** The activator element (button that opens the dialog) */
-  activator?: (props: { onClick: () => void; isOpen: boolean }) => React.ReactNode;
+  activator?: (props: {
+    onClick: (e: React.MouseEvent) => void;
+    isOpen: boolean;
+  }) => React.ReactNode;
   /** The dialog content */
   children: React.ReactNode | ((props: { isOpen: boolean; close: () => void }) => React.ReactNode);
   /** Additional class for the dialog card */
@@ -25,6 +28,8 @@ export interface DialogProps {
   closeOnKeys?: string[];
   /** Close dialog when window resizes (useful for fullscreen toggle) */
   closeOnResize?: boolean;
+  /** Accessible label if no title is provided */
+  ariaLabel?: string;
 }
 
 const Dialog: React.FC<DialogProps> = ({
@@ -39,9 +44,11 @@ const Dialog: React.FC<DialogProps> = ({
   zIndex = 1000,
   closeOnKeys = [],
   closeOnResize = false,
+  ariaLabel,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const activatorRef = useRef<HTMLElement | null>(null);
 
   // Controlled or uncontrolled mode
   const isControlled = modelValue !== undefined;
@@ -72,6 +79,40 @@ const Dialog: React.FC<DialogProps> = ({
     [persistent, close],
   );
 
+  const focusFirstElement = () => {
+    const container = dialogRef.current;
+    if (!container) return;
+    const focusables = container.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusables[0];
+    first?.focus();
+  };
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Tab' && dialogRef.current) {
+      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) {
+        e.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
   // Handle ESC key and custom closeOnKeys
   useEffect(() => {
     if (!isOpen) return;
@@ -93,9 +134,16 @@ const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (isOpen) {
       const originalOverflow = document.body.style.overflow;
+      const lastFocused = document.activeElement as HTMLElement | null;
       document.body.style.overflow = 'hidden';
+      focusFirstElement();
       return () => {
         document.body.style.overflow = originalOverflow;
+        if (activatorRef.current) {
+          activatorRef.current.focus();
+        } else if (lastFocused) {
+          lastFocused.focus();
+        }
       };
     }
   }, [isOpen]);
@@ -157,6 +205,7 @@ const Dialog: React.FC<DialogProps> = ({
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
+        aria-label={ariaLabel}
         className={`
           relative bg-surface-strong border border-border rounded-lg shadow-card
           transform transition-all duration-200 ease-out
@@ -165,6 +214,7 @@ const Dialog: React.FC<DialogProps> = ({
           ${className}
         `}
         style={{ maxWidth, width: '100%', margin: '16px', maxHeight: 'calc(100vh - 32px)' }}
+        onKeyDown={handleKeyDown}
       >
         {showCloseButton && (
           <button
@@ -182,8 +232,16 @@ const Dialog: React.FC<DialogProps> = ({
 
   return (
     <>
-      {activator?.({ onClick: toggle, isOpen })}
-      {createPortal(dialogContent, document.body)}
+      {activator
+        ? activator({
+            onClick: (e) => {
+              activatorRef.current = e.currentTarget as HTMLElement;
+              toggle();
+            },
+            isOpen,
+          })
+        : null}
+      {dialogContent ? createPortal(dialogContent, document.body) : null}
     </>
   );
 };

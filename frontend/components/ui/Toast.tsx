@@ -55,6 +55,7 @@ const Toast: React.FC<ToastProps> = ({
   if (!isVisible) return null;
 
   const styles = typeStyles[type];
+  const role = type === 'error' ? 'alert' : 'status';
   const positionClass = position === 'top' ? 'top-16' : 'bottom-8';
   const animationClass = position === 'top' ? 'slide-in-from-top-2' : 'slide-in-from-bottom-2';
 
@@ -67,7 +68,7 @@ const Toast: React.FC<ToastProps> = ({
         z-[9999] flex items-center gap-3
         animate-in fade-in ${animationClass} duration-200
       `}
-      role="alert"
+      role={role}
     >
       {styles.icon}
       <div className="text-sm">{message}</div>

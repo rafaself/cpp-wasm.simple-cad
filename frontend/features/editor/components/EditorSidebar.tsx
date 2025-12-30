@@ -56,8 +56,9 @@ const EditorSidebar: React.FC = () => {
         </span>
         <button
           onClick={handleAddLayer}
-          className="h-6 w-6 rounded bg-surface-muted hover:bg-surface text-foreground flex items-center justify-center"
+          className="h-6 w-6 rounded bg-surface-muted hover:bg-surface text-foreground flex items-center justify-center focus-outline"
           title={LABELS.sidebar.newLayer}
+          aria-label={LABELS.sidebar.newLayer}
         >
           <Plus size={14} />
         </button>
@@ -70,6 +71,14 @@ const EditorSidebar: React.FC = () => {
               layer.id === activeLayerId ? 'bg-surface-muted' : 'hover:bg-surface-muted/70'
             }`}
             onClick={() => setActiveLayerId(layer.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveLayerId(layer.id);
+              }
+            }}
           >
             <div className="flex flex-col">
               <span className="font-semibold">{layer.name || `Layer ${layer.id}`}</span>
@@ -81,8 +90,9 @@ const EditorSidebar: React.FC = () => {
                   e.stopPropagation();
                   updateLayerFlags(layer.id, !layer.visible, undefined);
                 }}
-                className="p-1 text-muted hover:text-foreground"
+                className="p-1 text-muted hover:text-foreground focus-outline"
                 title={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
+                aria-label={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
               >
                 {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
@@ -91,8 +101,9 @@ const EditorSidebar: React.FC = () => {
                   e.stopPropagation();
                   updateLayerFlags(layer.id, undefined, !layer.locked);
                 }}
-                className="p-1 text-muted hover:text-foreground"
+                className="p-1 text-muted hover:text-foreground focus-outline"
                 title={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
+                aria-label={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
               >
                 {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
               </button>

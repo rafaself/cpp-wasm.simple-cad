@@ -53,21 +53,21 @@ const Header: React.FC = () => {
         <div className="h-4 w-px bg-border mx-0.5"></div>
         <div className="flex items-center gap-0.5 text-muted">
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
             title={`${LABELS.menu.newFile} (Ctrl+N)`}
             onClick={() => executeAction('new-file', 'stub')}
           >
             <FilePlus size={14} />
           </button>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
             title={`${LABELS.menu.openFile} (Ctrl+O)`}
             onClick={() => executeAction('open-file')}
           >
             <FolderOpen size={14} />
           </button>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
             title={`${LABELS.menu.saveFile} (Ctrl+S)`}
             onClick={() => executeAction('save-file')}
           >
@@ -75,14 +75,14 @@ const Header: React.FC = () => {
           </button>
           <div className="h-4 w-px bg-border mx-0.5"></div>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
             title={`${LABELS.menu.undo} (Ctrl+Z)`}
             onClick={() => executeAction('undo')}
           >
             <Undo2 size={14} />
           </button>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
             title={`${LABELS.menu.redo} (Ctrl+Y)`}
             onClick={() => executeAction('redo')}
           >
@@ -90,7 +90,7 @@ const Header: React.FC = () => {
           </button>
           <div className="h-4 w-px bg-border mx-0.5"></div>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
             title={LABELS.menu.settings}
             onClick={() => executeAction('open-settings')}
           >
@@ -105,7 +105,7 @@ const Header: React.FC = () => {
           closeOnResize
           activator={({ onClick }) => (
             <button
-              className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors"
+              className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
               title={
                 isFullScreen
                   ? `${LABELS.common.fullScreenExit} (${fullscreenShortcut})`

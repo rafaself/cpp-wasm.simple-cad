@@ -37,7 +37,11 @@ const NextCanvasArea: React.FC = () => {
   }, [setCanvasSize]);
 
   return (
-    <div className="flex-grow flex flex-col h-full relative overflow-hidden">
+    <div
+      className="flex-grow flex flex-col h-full relative overflow-hidden"
+      role="main"
+      tabIndex={-1}
+    >
       <EditorTabs />
 
       <div
