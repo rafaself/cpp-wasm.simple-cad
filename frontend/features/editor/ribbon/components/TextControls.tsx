@@ -13,7 +13,7 @@ import { LABELS } from '@/i18n/labels';
 import { createLogger } from '@/utils/logger';
 
 import CustomSelect from '../../../../components/CustomSelect';
-import NumberSpinner from '../../../../components/NumberSpinner';
+import { NumericComboField } from '../../../../components/NumericComboField';
 import { BUTTON_STYLES, INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { useUIStore } from '../../../../stores/useUIStore';
@@ -81,28 +81,36 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
   const engineEditState = useUIStore((s) => s.engineTextEditState);
   const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
 
-  const handleChange = (val: number) => {
+  // Font size presets (Figma-like)
+  const fontSizePresets = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 32, 48, 64, 96, 128];
+
+  const handleCommit = (val: number) => {
     setTextFontSize(val);
 
     if (applyViaEngine) {
       const tool = getTextTool();
       if (tool && tool.isReady()) {
         tool.applyFontSize(val);
-        // Don't return, allow applying to selection too if needed?
         return;
       }
     }
 
     if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
   };
+
   return (
     <InputWrapper className="items-center">
-      <NumberSpinner
+      <NumericComboField
         value={textFontSize}
-        onChange={handleChange}
-        min={8}
-        max={256}
+        onCommit={handleCommit}
+        presets={fontSizePresets}
+        min={1}
+        max={999}
+        step={1}
+        stepLarge={10}
+        ariaLabel="Tamanho da Fonte"
         className="w-full ribbon-fill-h"
+        dropdownMaxHeight="auto"
       />
     </InputWrapper>
   );
