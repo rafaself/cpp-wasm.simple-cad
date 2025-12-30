@@ -1,5 +1,6 @@
 import { GeometryPass } from './passes/GeometryPass';
 import { TextRenderPass } from './passes/TextRenderPass';
+import { AxesPass } from './passes/AxesPass';
 
 import type { TessellatedRenderer, TessellatedRenderInput } from '../types';
 
@@ -106,6 +107,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   private ssaa: SsaaResources;
   private geometryPass: GeometryPass;
   private textPass: TextRenderPass;
+  private axesPass: AxesPass;
   private offscreenSize: { width: number; height: number } = { width: 0, height: 0 };
 
   // Supersampling scale factor (coverage-style AA). 1 disables SSAA.
@@ -125,6 +127,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     this.ssaa = initSsaaResources(gl);
     this.geometryPass = new GeometryPass(gl);
     this.textPass = new TextRenderPass(gl);
+    this.axesPass = new AxesPass(gl);
     this.aaScale = Math.max(1, Math.floor(opts?.aaScale ?? 2));
   }
 
@@ -142,6 +145,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     // Dispose passes
     this.geometryPass.dispose();
     this.textPass.dispose();
+    this.axesPass.dispose();
   }
 
   private ensureCanvasSize(input: TessellatedRenderInput): {
@@ -219,6 +223,19 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
       canvasSizeDevice: { width: offW, height: offH },
       pixelRatio: effectivePixelRatio,
     });
+
+    // -------------------------------------------------------------------------
+    // Axes Rendering
+    // -------------------------------------------------------------------------
+    if (input.axesSettings && input.axesSettings.show) {
+      if (!this.axesPass.isInitialized()) this.axesPass.initialize();
+      this.axesPass.render({
+        viewTransform: input.viewTransform,
+        canvasSizeDevice: { width: offW, height: offH },
+        pixelRatio: effectivePixelRatio,
+        settings: input.axesSettings,
+      });
+    }
 
     // -------------------------------------------------------------------------
     // Text Rendering (if text metadata is provided)

@@ -1,4 +1,5 @@
 import { Webgl2TessellatedRenderer } from '@/engine/renderer/webgl2/webgl2TessellatedRenderer';
+import type { AxesSettings } from '@/engine/renderer/webgl2/passes/AxesPass';
 
 import { getEngineRuntime } from './singleton';
 
@@ -14,6 +15,7 @@ export class CanvasController {
   private viewTransform: ViewTransform = { x: 0, y: 0, scale: 1 };
   private canvasSize: { width: number; height: number } = { width: 0, height: 0 };
   private clearColor = { r: 0x0b / 255, g: 0x10 / 255, b: 0x21 / 255, a: 1 };
+  private axesSettings?: AxesSettings;
   private visibilityHandler = () => {
     if (document.hidden) {
       this.stop();
@@ -54,6 +56,10 @@ export class CanvasController {
   public updateView(transform: ViewTransform, size: { width: number; height: number }): void {
     this.viewTransform = transform;
     this.canvasSize = size;
+  }
+
+  public setAxesSettings(settings: AxesSettings): void {
+    this.axesSettings = settings;
   }
 
   public start(): void {
@@ -104,8 +110,10 @@ export class CanvasController {
       viewTransform: this.viewTransform,
       canvasSizeCss: this.canvasSize,
       clearColor: this.clearColor,
+
       textQuadMeta: textQuadMeta && textAtlasMeta?.width ? textQuadMeta : undefined,
       textAtlasMeta: textQuadMeta && textAtlasMeta?.width ? textAtlasMeta : undefined,
+      axesSettings: this.axesSettings,
     });
 
     this.rafId = requestAnimationFrame(this.loop);

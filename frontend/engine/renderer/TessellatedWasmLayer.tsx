@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { CanvasController } from '@/engine/core/CanvasController';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 
 const TessellatedWasmLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const canvasSize = useUIStore((s) => s.canvasSize);
+  const axesSettings = useSettingsStore((s) => s.display.centerAxes);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controllerRef = useRef<CanvasController | null>(null);
@@ -29,6 +31,10 @@ const TessellatedWasmLayer: React.FC = () => {
   useEffect(() => {
     controllerRef.current?.updateView(viewTransform, canvasSize);
   }, [viewTransform, canvasSize]);
+
+  useEffect(() => {
+    controllerRef.current?.setAxesSettings(axesSettings);
+  }, [axesSettings]);
 
   return (
     <canvas

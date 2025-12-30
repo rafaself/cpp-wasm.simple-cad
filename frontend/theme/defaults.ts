@@ -8,9 +8,9 @@ export const DEFAULT_CANVAS_BG = '#212830';
 export const DEFAULT_GRID_COLOR = '#313943';
 
 // Axes
-export const DEFAULT_AXIS_X_COLOR = 'rgba(239, 68, 68, 0.4)'; // Red/400 with opacity
-export const DEFAULT_AXIS_Y_COLOR = 'rgba(34, 197, 94, 0.4)'; // Green/500 with opacity
-export const DEFAULT_CENTER_ICON_COLOR = 'rgba(100, 116, 139, 0.5)'; // Slate/500 with opacity
+export const DEFAULT_AXIS_X_COLOR = 'rgba(239, 68, 68, 0.15)'; // Red/400 with low opacity
+export const DEFAULT_AXIS_Y_COLOR = 'rgba(34, 197, 94, 0.15)'; // Green/500 with low opacity
+export const DEFAULT_CENTER_ICON_COLOR = 'rgba(100, 116, 139, 0.25)'; // Slate/500 with low opacity
 
 // Tools
 export const DEFAULT_STROKE_COLOR = '#FFFFFF';

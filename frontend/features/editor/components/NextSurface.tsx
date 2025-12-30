@@ -19,7 +19,9 @@ import EngineInteractionLayer from './EngineInteractionLayer';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
+  const setViewTransform = useUIStore((s) => s.setViewTransform);
   const containerRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -29,12 +31,17 @@ const NextCanvasArea: React.FC = () => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         setCanvasSize({ width, height });
+
+        if (!initializedRef.current && width > 0 && height > 0) {
+          setViewTransform((prev) => ({ ...prev, x: width / 2, y: height / 2 }));
+          initializedRef.current = true;
+        }
       }
     });
 
     resizeObserver.observe(el);
     return () => resizeObserver.disconnect();
-  }, [setCanvasSize]);
+  }, [setCanvasSize, setViewTransform]);
 
   return (
     <div

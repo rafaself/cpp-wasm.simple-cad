@@ -12,6 +12,14 @@ export type TessellatedRenderInput = {
   textQuadMeta?: TextQuadBufferMeta;
   /** Optional atlas texture metadata (for text rendering) */
   textAtlasMeta?: TextureBufferMeta;
+  /** Optional axes settings */
+  axesSettings?: {
+    show: boolean;
+    xColor: string;
+    yColor: string;
+    xDashed: boolean;
+    yDashed: boolean;
+  };
 };
 
 export interface TessellatedRenderer {
