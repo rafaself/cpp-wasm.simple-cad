@@ -1,4 +1,4 @@
-import { ComponentType } from 'react';
+import { ComponentType, ReactNode } from 'react';
 import {
   FilePlus,
   FolderOpen,
@@ -26,20 +26,22 @@ import {
   Scan
 } from 'lucide-react';
 import { LABELS } from '@/i18n/labels';
+import { TextFormattingControls } from '../components/ribbon/TextFormattingControls';
 
-export type RibbonItemKind = 'action' | 'tool';
+export type RibbonItemKind = 'action' | 'tool' | 'custom';
 export type RibbonItemStatus = 'ready' | 'stub';
 
 export type RibbonItem = {
   id: string;
   kind: RibbonItemKind;
   label: string;
-  icon: ComponentType<any>;
+  icon?: ComponentType<any>; // Icon is optional for custom items
   actionId?: string;
   toolId?: string;
   status: RibbonItemStatus;
   variant?: 'default' | 'large' | 'icon';
-  width?: 'sm' | 'md' | 'lg' | 'auto'; // Width control
+  width?: 'sm' | 'md' | 'lg' | 'auto'; 
+  componentType?: ComponentType<any>; // For custom rendered items
 };
 
 export type RibbonGroup = {
@@ -73,6 +75,14 @@ export const RIBBON_TABS: RibbonTab[] = [
           { id: 'export-json', kind: 'action', label: 'Exportar JSON', icon: FileCode2, actionId: 'export-json', status: 'stub', variant: 'large' },
           { id: 'export-project', kind: 'action', label: 'Exportar Projeto', icon: Package, actionId: 'export-project', status: 'stub', variant: 'large' },
         ]
+      },
+      {
+        id: 'data',
+        layout: 'stack',
+        items: [
+          { id: 'report-csv', kind: 'action', label: 'Relatório CSV', icon: FileSpreadsheet, actionId: 'report-csv', status: 'stub', width: 'lg' },
+          { id: 'view-project', kind: 'action', label: 'Ver JSON', icon: Eye, actionId: 'view-project', status: 'stub', width: 'lg' },
+        ],
       }
     ],
   },
@@ -96,6 +106,13 @@ export const RIBBON_TABS: RibbonTab[] = [
         id: 'annotation',
         items: [
           { id: 'text', kind: 'tool', label: LABELS.tools.text, icon: Type, toolId: 'text', status: 'ready', variant: 'large' },
+          { 
+            id: 'text-formatting', 
+            kind: 'custom', 
+            label: 'Formatação', 
+            status: 'ready', 
+            componentType: TextFormattingControls
+          }
         ],
       },
     ],
@@ -142,14 +159,7 @@ export const RIBBON_TABS: RibbonTab[] = [
           { id: 'measure', kind: 'tool', label: 'Medir', icon: Ruler, toolId: 'measure', status: 'stub', variant: 'large' },
         ],
       },
-      {
-        id: 'data',
-        layout: 'stack',
-        items: [
-          { id: 'report-csv', kind: 'action', label: 'Relatório CSV', icon: FileSpreadsheet, actionId: 'report-csv', status: 'stub', width: 'lg' },
-          { id: 'view-project', kind: 'action', label: 'Ver JSON', icon: Eye, actionId: 'view-project', status: 'stub', width: 'lg' },
-        ],
-      },
+
     ],
   },
 ];

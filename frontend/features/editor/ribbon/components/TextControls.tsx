@@ -43,7 +43,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds,
   };
   return (
     <InputWrapper>
-      <CustomSelect value={textFontFamily} onChange={handleChange} options={FONT_OPTIONS} className={INPUT_STYLES.ribbon} />
+      <CustomSelect value={textFontFamily} onChange={handleChange} options={FONT_OPTIONS} className={`${INPUT_STYLES.ribbon} h-6 text-xs`} />
     </InputWrapper>
   );
 };
@@ -110,7 +110,7 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   };
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
+      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5">
         {alignOptions.map(({ align, icon, label }) => (
           <button
             key={align}
@@ -195,7 +195,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
 
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-7 gap-0.5">
+      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5">
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
@@ -223,14 +223,24 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
 };
 
 export const TextFormatGroup: React.FC<TextControlProps> = (props) => (
-  <div className="flex h-full py-1 gap-1.5 px-0.5">
-    <div className="flex flex-col justify-center gap-1 w-[140px]">
-      <FontFamilyControl {...props} />
-      <TextStyleControl {...props} />
+  <div className="flex flex-col h-full justify-center px-0.5 gap-1">
+    {/* Row 1 */}
+    <div className="flex items-center gap-1.5">
+      <div className="w-[140px]">
+        <FontFamilyControl {...props} />
+      </div>
+      <div className="w-[106px]">
+        <FontSizeControl {...props} />
+      </div>
     </div>
-    <div className="flex flex-col justify-center gap-1 w-[106px]">
-      <FontSizeControl {...props} />
-      <TextAlignControl {...props} />
+    {/* Row 2 */}
+    <div className="flex items-center gap-1.5">
+      <div className="w-[140px]">
+        <TextStyleControl {...props} />
+      </div>
+      <div className="w-[106px]">
+        <TextAlignControl {...props} />
+      </div>
     </div>
   </div>
 );

@@ -23,6 +23,10 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
       ${!group.layout || group.layout === 'flex-row' ? 'flex items-center gap-[6px] h-full' : ''}
     `}>
       {group.items.map((item, index) => {
+        if (item.kind === 'custom' && item.componentType) {
+          const Component = item.componentType;
+          return <React.Fragment key={item.id}><Component /></React.Fragment>;
+        }
         return (
           <RibbonButton
             key={item.id}

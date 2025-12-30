@@ -61,7 +61,7 @@ const EditorRibbon: React.FC = () => {
               aria-selected={isActive}
               aria-controls={`panel-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
-              className={`px-3 py-1 text-xs rounded-t-md transition-colors ${
+              className={`relative px-3 py-1 text-xs rounded-t-md transition-colors ${
                 isActive
                   ? 'bg-slate-800 text-white font-medium'
                   : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
@@ -69,6 +69,12 @@ const EditorRibbon: React.FC = () => {
               title={`${tab.label} (${index + 1})`}
             >
               {tab.label}
+              <span 
+                className={`absolute bottom-0 left-0 h-[2px] w-full bg-blue-400 transition-transform ease-out origin-center ${
+                  isActive ? 'scale-x-100 duration-300' : 'scale-x-0 duration-150'
+                }`}
+                aria-hidden="true"
+              />
             </button>
           );
         })}
