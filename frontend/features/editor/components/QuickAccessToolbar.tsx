@@ -24,7 +24,7 @@ const QuickAccessToolbar: React.FC = () => {
   const containerClasses =
     orientation === 'vertical'
       ? 'flex-col left-2 top-1/2 -translate-y-1/2'
-      : 'flex-row bottom-4 left-1/2 -translate-x-1/2';
+      : 'flex-row bottom-10 left-1/2 -translate-x-1/2';
 
   const toggleClasses =
     orientation === 'vertical'
