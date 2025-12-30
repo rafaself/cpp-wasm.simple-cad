@@ -85,7 +85,7 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[66px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800 overflow-x-auto shadow-sm"
+        className="h-[82px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800 overflow-x-auto shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
@@ -94,15 +94,15 @@ const EditorRibbon: React.FC = () => {
               activeTool={activeTool} 
               onItemClick={handleItemClick}
             />
-            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-slate-700 mx-2 self-center opacity-50" aria-hidden="true" />}
+            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-slate-700 mx-2 opacity-50" aria-hidden="true" />}
           </React.Fragment>
         ))}
 
         {/* Overflow Items Logic */}
         {RIBBON_OVERFLOW_ITEMS.length > 0 && (
           <>
-            <div className="h-full w-px bg-slate-700 mx-2 self-center opacity-50" aria-hidden="true" />
-            <div className="relative self-center h-[54px] flex items-center">
+            <div className="h-full w-px bg-slate-700 mx-2 opacity-50" aria-hidden="true" />
+            <div className="relative self-start h-[54px] flex items-center">
               <button
                 onClick={() => setIsOverflowOpen((open) => !open)}
                 className="h-[54px] px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex flex-col items-center justify-center gap-1"
