@@ -10,6 +10,7 @@ import {
 import React from 'react';
 
 import { LABELS } from '@/i18n/labels';
+import { createLogger } from '@/utils/logger';
 
 import CustomSelect from '../../../../components/CustomSelect';
 import NumberSpinner from '../../../../components/NumberSpinner';
@@ -46,6 +47,8 @@ const triStateFor = (flags: number, shift: number): StyleState => {
   if (v === 2) return 'mixed';
   return 'off';
 };
+
+const logger = createLogger('textControls', { minLevel: 'debug' });
 
 export const FontFamilyControl: React.FC<TextControlProps> = ({
   selectedTextIds,
@@ -259,21 +262,19 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
     const nextIntent: 'set' | 'clear' = option.state === 'on' ? 'clear' : 'set';
     option.setter(nextIntent === 'set');
 
-    if (import.meta.env.DEV) {
-      console.warn('[TextControls] handleClick', {
-        key: option.key,
-        nextIntent,
-        applyViaEngine,
-        textId: engineEditState.textId,
-      });
-    }
+    logger.debug('[TextControls] handleClick', {
+      key: option.key,
+      nextIntent,
+      applyViaEngine,
+      textId: engineEditState.textId,
+    });
 
     if (applyViaEngine) {
       const tool = getTextTool();
       if (tool) {
         tool.applyStyle(option.mask, nextIntent);
       } else {
-        console.warn('[TextControls] Tool not found!');
+        logger.warn('[TextControls] Tool not found!');
       }
       return;
     }

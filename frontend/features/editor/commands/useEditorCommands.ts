@@ -6,6 +6,7 @@ import { LABELS } from '@/i18n/labels';
 import { encodeNextDocumentFile, decodeNextDocumentFile } from '@/persistence/nextDocumentFile';
 import { useUIStore } from '@/stores/useUIStore';
 import { ToolType } from '@/types';
+import { createLogger } from '@/utils/logger';
 
 import { useEditorLogic } from '../hooks/useEditorLogic';
 
@@ -30,11 +31,10 @@ export type ActionId =
 export type ToolId = ToolType | (string & {});
 
 const DEFAULT_FRAME = { enabled: false, widthMm: 297, heightMm: 210, marginMm: 10 };
+const logger = createLogger('editorCommands');
 
 export const stub = (id: string): void => {
-  if (import.meta.env.DEV) {
-    console.warn(`[UI-STUB] ${id}`);
-  }
+  logger.warn(`[UI-STUB] ${id}`);
   useUIStore.getState().showToast(`A funcionalidade "${id}" será implementada em breve.`, 'info');
 };
 
@@ -66,7 +66,7 @@ const openFile = (): void => {
     try {
       payload = decodeNextDocumentFile(new Uint8Array(buf));
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to decode .ewnd file', err);
       alert(LABELS.common.errorInvalidFile);
       return;
     }

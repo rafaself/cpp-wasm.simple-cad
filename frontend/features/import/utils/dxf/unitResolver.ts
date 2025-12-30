@@ -2,6 +2,8 @@
  * DXF Unit Resolution - Scale computation for DXF imports.
  */
 
+import { createLogger } from '@/utils/logger';
+
 import { DxfData, DxfEntity, DxfVector, DxfImportOptions } from './types';
 
 // DXF Unit Codes to Centimeters (CM) Conversion Factors
@@ -24,6 +26,8 @@ export const DXF_UNITS: Record<number, number> = {
   16: 10000.0, // Hectometers
   17: 1.0e11, // Gigameters
 };
+
+const logger = createLogger('dxfUnitResolver', { minLevel: 'warn' });
 
 export interface UnitResolverResult {
   globalScale: number;
@@ -61,9 +65,7 @@ export function resolveUnitScale(
         break;
     }
     globalScale = sourceToMeters * 100;
-    if (import.meta.env.DEV) {
-      console.warn(`DXF Import: Override Units (${options.sourceUnits}). Scale: ${globalScale}`);
-    }
+    logger.warn(`DXF Import: Override Units (${options.sourceUnits}). Scale: ${globalScale}`);
   } else {
     // Auto-Detect
     if (insUnits !== undefined && DXF_UNITS[insUnits]) {
@@ -120,11 +122,11 @@ function detectUnitlessScale(data: DxfData, shouldImportEntity: (e: DxfEntity) =
   const extent = Math.max(maxX - minX, maxY - minY);
   if (extent > 0 && extent < 2000) {
     // Heuristic: Small numbers -> Likely Meters
-    if (import.meta.env.DEV) {
-      console.warn(
-        `DXF Import: Auto-detected unitless file with small extents (${extent.toFixed(2)}). Assuming Meters. Scale: 100`,
-      );
-    }
+    logger.warn(
+      `DXF Import: Auto-detected unitless file with small extents (${extent.toFixed(
+        2,
+      )}). Assuming Meters. Scale: 100`,
+    );
     return 100;
   }
 

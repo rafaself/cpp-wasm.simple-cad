@@ -1,5 +1,7 @@
 import * as pdfjs from 'pdfjs-dist';
 
+import { createLogger } from '@/utils/logger';
+
 import { Shape, Point, NormalizedViewBox } from '../../../types';
 import { generateId } from '../../../utils/uuid';
 
@@ -16,6 +18,7 @@ import {
 const isDevEnv = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
 const CTM_TRANSLATION_WARN = 1_000_000,
   CTM_SCALE_WARN = 10_000;
+const logger = createLogger('pdfToShapes', { minLevel: 'warn' });
 
 interface PdfImportColorOptions {
   colorScheme?: DxfColorScheme;
@@ -173,7 +176,7 @@ export const convertPdfPageToShapes = async (
       });
     });
   } catch (e) {
-    console.warn('Error extracting text content', e);
+    logger.warn('Error extracting text content', e);
   }
 
   const OPS = pdfjs.OPS;
@@ -207,7 +210,7 @@ export const convertPdfPageToShapes = async (
             translationMagnitude > CTM_TRANSLATION_WARN ||
             maxScale > CTM_SCALE_WARN
           ) {
-            console.warn('[pdfToShapes] Suspicious CTM after transform', {
+            logger.warn('Suspicious CTM after transform', {
               applied: incomingMatrix,
               resulting: nextCtm,
             });
