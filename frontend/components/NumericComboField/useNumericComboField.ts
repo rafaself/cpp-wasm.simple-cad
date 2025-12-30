@@ -267,7 +267,8 @@ export function useNumericComboField(
       setDraftValueInternal(formatNumber(finalValue, decimals));
       onCommit(finalValue);
       closeDropdown();
-      inputRef.current?.focus();
+      // Don't focus input after selection - avoids text highlight
+      inputRef.current?.blur();
     },
     [clampValue, decimals, onCommit, closeDropdown],
   );

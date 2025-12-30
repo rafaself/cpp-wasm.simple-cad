@@ -340,9 +340,15 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
                   data-index={index}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onClick={(e) => handleOptionClick(preset, e)}
-                  className={`px-3 py-1.5 text-xs text-text cursor-pointer transition-colors font-mono ${
-                    isHighlighted ? 'bg-surface2' : ''
-                  } ${isSelected ? 'bg-primary/20 text-primary font-medium' : 'hover:bg-surface2/50'}`}
+                  className={`px-3 py-2 text-xs text-text cursor-pointer transition-colors font-mono select-none ${
+                    isSelected && isHighlighted
+                      ? 'bg-primary/30 text-primary'
+                      : isSelected
+                        ? 'bg-primary/20 text-primary'
+                        : isHighlighted
+                          ? 'bg-white/10'
+                          : 'hover:bg-white/10'
+                  }`}
                 >
                   {decimals > 0 ? preset.toFixed(decimals) : preset}
                   {suffix && <span className="text-text-muted ml-1">{suffix}</span>}
