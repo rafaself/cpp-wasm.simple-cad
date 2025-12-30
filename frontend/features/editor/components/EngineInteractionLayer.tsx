@@ -17,13 +17,14 @@ const EngineInteractionLayer: React.FC = () => {
   const gridSize = useSettingsStore((s) => s.grid.size);
 
   // Interaction Manager (The Brain)
-  const { handlers, overlay, activeHandlerName } = useInteractionManager();
+  const { handlers, overlay, activeHandlerName, cursor: handlerCursor } = useInteractionManager();
 
   // PanZoom Hook (Can coexist or be merged, currently keeping simple)
   const { isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
 
   // Cursor Logic
-  const cursor = isPanningRef.current ? 'grabbing' : undefined; // Or let handlers define cursor via overlays or store
+  const DEFAULT_CANVAS_CURSOR = 'url(/assets/cursor-canva-default.svg) 3 3, auto';
+  const cursor = isPanningRef.current ? 'grabbing' : (handlerCursor || DEFAULT_CANVAS_CURSOR);
 
   // Engine Sync Effects (View/Grid)
   useEffect(() => {

@@ -178,5 +178,6 @@ export function useInteractionManager() {
     },
     overlay,
     activeHandlerName: handlerRef.current.name,
+    cursor: handlerRef.current.getCursor ? handlerRef.current.getCursor() : null,
   };
 }
