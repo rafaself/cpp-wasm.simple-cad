@@ -32,14 +32,13 @@ const ensureActiveLayer = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>
 export const useEngineEvents = (): void => {
   useEffect(() => {
     let disposed = false;
-    let rafId = 0;
+    let rafId: number | null = null;
     let resyncing = false;
     let bootstrapped = false;
+    let runtime: Awaited<ReturnType<typeof getEngineRuntime>> | null = null;
 
-    const tick = async () => {
-      if (disposed) return;
-      const runtime = await getEngineRuntime();
-      if (disposed) return;
+    const tick = () => {
+      if (disposed || document.hidden || !runtime) return;
 
       if (!bootstrapped) {
         bumpDocumentSignal('layers');
@@ -114,11 +113,29 @@ export const useEngineEvents = (): void => {
       rafId = requestAnimationFrame(tick);
     };
 
-    void tick();
+    const visibilityHandler = () => {
+      if (document.hidden && rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      } else if (!document.hidden && rafId === null && runtime) {
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    void getEngineRuntime().then((rt) => {
+      if (disposed) return;
+      runtime = rt;
+      if (!document.hidden) {
+        rafId = requestAnimationFrame(tick);
+      }
+    });
+
+    document.addEventListener('visibilitychange', visibilityHandler);
 
     return () => {
       disposed = true;
       if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener('visibilitychange', visibilityHandler);
     };
   }, []);
 };
