@@ -49,6 +49,10 @@ export class DraftingHandler extends BaseInteractionHandler {
     this.polygonSidesValue = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
   }
 
+  getCursor(): string {
+    return 'crosshair';
+  }
+
   // Helper to build draft styling
   private buildDraftStyle(): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> {
     const stroke = this.colorToRgb01(this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR);
