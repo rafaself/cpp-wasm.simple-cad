@@ -49,14 +49,14 @@ const EditorSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-64 bg-surface-strong text-foreground border-l border-border flex flex-col">
+    <aside className="w-64 bg-surface1 text-text border-l border-border flex flex-col">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-        <span className="text-xs uppercase tracking-widest text-muted">
+        <span className="text-xs uppercase tracking-widest text-text-muted">
           {LABELS.sidebar.layers}
         </span>
         <button
           onClick={handleAddLayer}
-          className="h-6 w-6 rounded bg-surface-muted hover:bg-surface text-foreground flex items-center justify-center focus-outline"
+          className="h-6 w-6 rounded bg-surface2 hover:bg-surface1 text-text flex items-center justify-center focus-outline"
           title={LABELS.sidebar.newLayer}
           aria-label={LABELS.sidebar.newLayer}
         >
@@ -68,7 +68,7 @@ const EditorSidebar: React.FC = () => {
           <div
             key={layer.id}
             className={`flex items-center justify-between px-3 py-2 text-xs border-b border-border cursor-pointer ${
-              layer.id === activeLayerId ? 'bg-surface-muted' : 'hover:bg-surface-muted/70'
+              layer.id === activeLayerId ? 'bg-surface2' : 'hover:bg-surface2/70'
             }`}
             onClick={() => setActiveLayerId(layer.id)}
             role="button"
@@ -82,7 +82,7 @@ const EditorSidebar: React.FC = () => {
           >
             <div className="flex flex-col">
               <span className="font-semibold">{layer.name || `Layer ${layer.id}`}</span>
-              <span className="text-[10px] text-muted">ID {layer.id}</span>
+              <span className="text-[10px] text-text-muted">ID {layer.id}</span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -90,7 +90,7 @@ const EditorSidebar: React.FC = () => {
                   e.stopPropagation();
                   updateLayerFlags(layer.id, !layer.visible, undefined);
                 }}
-                className="p-1 text-muted hover:text-foreground focus-outline"
+                className="p-1 text-text-muted hover:text-text focus-outline"
                 title={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
                 aria-label={layer.visible ? LABELS.sidebar.hideLayer : LABELS.sidebar.showLayer}
               >
@@ -101,7 +101,7 @@ const EditorSidebar: React.FC = () => {
                   e.stopPropagation();
                   updateLayerFlags(layer.id, undefined, !layer.locked);
                 }}
-                className="p-1 text-muted hover:text-foreground focus-outline"
+                className="p-1 text-text-muted hover:text-text focus-outline"
                 title={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
                 aria-label={layer.locked ? LABELS.sidebar.unlockLayer : LABELS.sidebar.lockLayer}
               >
@@ -111,7 +111,7 @@ const EditorSidebar: React.FC = () => {
           </div>
         ))}
         {layers.length === 0 && (
-          <div className="px-3 py-4 text-xs text-muted">{LABELS.common.none}</div>
+          <div className="px-3 py-4 text-xs text-text-muted">{LABELS.common.none}</div>
         )}
       </div>
     </aside>

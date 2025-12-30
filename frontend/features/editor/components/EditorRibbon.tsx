@@ -47,7 +47,7 @@ const EditorRibbon: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col bg-surface border-b border-border text-foreground">
+    <div className="flex flex-col bg-bg border-b border-border text-text">
       {/* Tab Headers */}
       <div
         className="flex items-center gap-1 px-2 pt-1"
@@ -66,14 +66,14 @@ const EditorRibbon: React.FC = () => {
               onClick={() => setActiveTabId(tab.id)}
               className={`relative px-3 py-1 text-xs rounded-t-md transition-colors focus-outline ${
                 isActive
-                  ? 'bg-surface-strong text-foreground font-medium'
-                  : 'text-muted hover:text-foreground hover:bg-surface-muted/60'
+                  ? 'bg-surface1 text-text font-medium'
+                  : 'text-text-muted hover:text-text hover:bg-surface2/60'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
               {tab.label}
               <span
-                className={`absolute bottom-0 left-0 h-[2px] w-full bg-accent transition-transform ease-out origin-center ${
+                className={`absolute bottom-0 left-0 h-[2px] w-full bg-primary transition-transform ease-out origin-center ${
                   isActive ? 'scale-x-100 duration-300' : 'scale-x-0 duration-150'
                 }`}
                 aria-hidden="true"
@@ -88,7 +88,7 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[90px] px-[12px] py-[6px] flex items-start bg-surface-strong overflow-x-auto shadow-sm"
+        className="h-[90px] px-[12px] py-[6px] flex items-start bg-surface1 overflow-x-auto shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
@@ -107,7 +107,7 @@ const EditorRibbon: React.FC = () => {
               <button
                 ref={overflowButtonRef}
                 onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[52px] px-2 rounded bg-surface-strong hover:bg-surface-muted text-xs flex flex-col items-center justify-center gap-1 focus-outline"
+                className="h-[52px] px-2 rounded bg-surface1 hover:bg-surface2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
                 title="Mais"
                 aria-haspopup="true"
                 aria-expanded={isOverflowOpen}

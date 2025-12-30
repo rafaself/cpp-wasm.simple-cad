@@ -2,7 +2,9 @@ import { create } from 'zustand';
 
 import { supportsEngineResize } from '@/engine/core/capabilities';
 
-import { UI } from '../design/tokens';
+import { INTERACTION } from '../src/constants/interaction';
+import { GRID } from '../src/constants/ui';
+import * as DEFAULTS from '../theme/defaults';
 import { SnapOptions } from '../types';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
@@ -104,8 +106,8 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   grid: {
-    size: 100,
-    color: '#313943',
+    size: GRID.DEFAULT_SIZE_WU,
+    color: DEFAULTS.DEFAULT_GRID_COLOR,
     showDots: true,
     showLines: false,
   },
@@ -116,27 +118,27 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     center: true,
     nearest: false,
     grid: false,
-    tolerancePx: 20,
+    tolerancePx: INTERACTION.SNAP_THRESHOLD_PX,
   },
   display: {
     centerAxes: {
       show: true,
-      xColor: 'rgba(239, 68, 68, 0.4)',
-      yColor: 'rgba(34, 197, 94, 0.4)',
+      xColor: DEFAULTS.DEFAULT_AXIS_X_COLOR,
+      yColor: DEFAULTS.DEFAULT_AXIS_Y_COLOR,
       xDashed: true,
       yDashed: true,
     },
     centerIcon: {
       show: true,
-      color: 'rgba(100, 116, 139, 0.5)',
+      color: DEFAULTS.DEFAULT_CENTER_ICON_COLOR,
     },
-    backgroundColor: UI.BACKGROUND_DEFAULT,
+    backgroundColor: DEFAULTS.DEFAULT_CANVAS_BG,
   },
   toolDefaults: {
-    strokeColor: '#FFFFFF',
+    strokeColor: DEFAULTS.DEFAULT_STROKE_COLOR,
     strokeWidth: 1,
     strokeEnabled: true,
-    fillColor: '#D9D9D9',
+    fillColor: DEFAULTS.DEFAULT_FILL_COLOR,
     fillEnabled: true,
     polygonSides: 3,
     text: {

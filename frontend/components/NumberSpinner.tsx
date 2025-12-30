@@ -61,7 +61,7 @@ const NumberSpinner: React.FC<NumberSpinnerProps> = ({
 
   return (
     <div
-      className={`flex items-center bg-slate-800/60 border ${isFocused ? 'border-blue-500/50 ring-1 ring-blue-500/20' : 'border-slate-700/50'} rounded ${className || 'w-[60px]'} relative overflow-hidden transition-all group`}
+      className={`flex items-center bg-surface-strong/60 border ${isFocused ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border/50'} rounded ${className || 'w-[60px]'} relative overflow-hidden transition-all group`}
     >
       <input
         type="text"
@@ -74,30 +74,30 @@ const NumberSpinner: React.FC<NumberSpinnerProps> = ({
         onFocus={() => setIsFocused(true)}
         onKeyDown={handleKeyDown}
         autoFocus={autoFocus}
-        className="w-full h-full bg-transparent text-[10px] text-center text-slate-200 font-mono focus:outline-none px-1 pl-2"
+        className="w-full h-full bg-transparent text-[10px] text-center text-text font-mono focus:outline-none px-1 pl-2"
       />
       {label && (
-        <span className="absolute right-5 pointer-events-none text-[8px] text-slate-500 pt-0.5">
+        <span className="absolute right-5 pointer-events-none text-[8px] text-text-muted pt-0.5">
           {label}
         </span>
       )}
       {suffix && !isFocused && (
-        <span className="absolute right-5 pointer-events-none text-[10px] text-slate-300 pt-0.5">
+        <span className="absolute right-5 pointer-events-none text-[10px] text-text-muted pt-0.5">
           {suffix}
         </span>
       )}
 
-      <div className="flex flex-col h-full border-l border-slate-700/50 w-4 bg-slate-800/80 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex flex-col h-full border-l border-border/50 w-4 bg-surface-strong/80 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={increment}
-          className="flex-1 flex items-center justify-center hover:bg-slate-700 active:bg-blue-600/50 text-slate-400 hover:text-white transition-colors border-b border-slate-700/50"
+          className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors border-b border-border/50"
           tabIndex={-1}
         >
           <ChevronUp size={8} strokeWidth={3} />
         </button>
         <button
           onClick={decrement}
-          className="flex-1 flex items-center justify-center hover:bg-slate-700 active:bg-blue-600/50 text-slate-400 hover:text-white transition-colors"
+          className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors"
           tabIndex={-1}
         >
           <ChevronDown size={8} strokeWidth={3} />

@@ -75,7 +75,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
         <span className="truncate">{selectedLabel}</span>
         <ChevronDown
           size={12}
-          className={`text-slate-500 transition-transform duration-300 ease-in-out ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+          className={`text-text-muted transition-transform duration-300 ease-in-out ${isOpen ? 'rotate-180' : 'rotate-0'}`}
         />
       </button>
       {isOpen &&
@@ -83,7 +83,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed bg-slate-800 border border-slate-600 shadow-xl rounded-lg z-[9999] max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 ease-out py-1 custom-scrollbar"
+            className="fixed bg-surface-strong border border-border shadow-xl rounded-lg z-[9999] max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 ease-out py-1 custom-scrollbar"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
@@ -93,7 +93,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
             {options.map((option) => (
               <div
                 key={option.value}
-                className={`px-3 py-2 text-xs text-slate-200 hover:bg-slate-700/50 cursor-pointer transition-colors ${option.value === value ? 'bg-slate-700 text-blue-400' : ''}`}
+                className={`px-3 py-2 text-xs text-text hover:bg-surface2/50 cursor-pointer transition-colors ${option.value === value ? 'bg-surface2 text-primary' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleSelect(option.value);

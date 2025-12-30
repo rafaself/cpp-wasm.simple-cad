@@ -41,7 +41,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ isOpen, position, onClose, it
   return (
     <div
       ref={menuRef}
-      className="absolute bg-slate-800 border border-slate-700 rounded-md shadow-lg z-[1000] py-1"
+      className="absolute bg-surface1 border border-border rounded-md shadow-lg z-[1000] py-1"
       style={{ left: position.x, top: position.y }}
     >
       {items.map((item, index) => (
@@ -52,7 +52,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ isOpen, position, onClose, it
             onClose();
           }}
           disabled={item.disabled}
-          className={`block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-blue-600 hover:text-white transition-colors
+          className={`block w-full text-left px-4 py-2 text-sm text-text hover:bg-primary hover:text-primary-contrast transition-colors
                       ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {item.label}

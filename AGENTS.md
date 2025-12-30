@@ -138,6 +138,18 @@ User Input → React Event → Engine Command → Engine Update → Render Buffe
 | Zero-allocation in hot paths  | pointermove, drag, render loops                 |
 | Specific selectors in Zustand | Avoid unnecessary re-renders                    |
 
+### VERY IMPORTANT!
+
+**Global project rule:** There is NO backward compatibility during migrations.
+
+**Any form of backward compatibility MUST be BANNED. This is a strict, prohibitive rule.**
+
+- Do not create shims, legacy adapters, “deprecated” re-exports, alias modules, or key remapping layers to preserve old APIs/imports.
+- If something breaks due to a refactor, fix it at the call sites immediately. Breaking changes are expected and acceptable at this stage.
+- This project is in active development, so there is no requirement to support older versions.
+- Do not leave “temporary compatibility”, “migration bridge”, or “keep for legacy” comments in committed code.
+- The codebase must converge to one canonical implementation per module—no duplicate sources of truth.
+
 ---
 
 ## 5. Performance Requirements

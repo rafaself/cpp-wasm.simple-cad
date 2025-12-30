@@ -2,13 +2,15 @@ import { RotateCcw } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { LABELS } from '@/i18n/labels';
+import * as DEFAULTS from '@/theme/defaults';
 
 import ColorPicker from '../../../components/ColorPicker';
 import { Section } from '../../../components/ui/Section';
 import { Toggle } from '../../../components/ui/Toggle';
-import { UI } from '../../../design/tokens';
 import { supportsEngineResize } from '../../../engine/core/capabilities';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
+
+
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
@@ -40,14 +42,14 @@ const CanvasSettings: React.FC = () => {
   }) => (
     <div className="flex items-center justify-between py-2">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-300">{label}</span>
+        <span className="text-sm text-text-muted">{label}</span>
         {onReset && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onReset();
             }}
-            className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1 rounded hover:bg-surface2 text-text-muted hover:text-text transition-colors"
             title="Restaurar cor padrão"
           >
             <RotateCcw size={12} />
@@ -55,7 +57,7 @@ const CanvasSettings: React.FC = () => {
         )}
       </div>
       <div
-        className="w-8 h-6 rounded border border-slate-600 cursor-pointer hover:border-slate-400"
+        className="w-8 h-6 rounded border border-border cursor-pointer hover:border-primary/50"
         style={{ backgroundColor: color }}
         onClick={(e) => openColorPicker(e, pickerId)}
       />
@@ -74,11 +76,11 @@ const CanvasSettings: React.FC = () => {
     onChange: (v: string) => void;
   }) => (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-slate-300">{label}</span>
+      <span className="text-sm text-text-muted">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 cursor-pointer hover:border-slate-400 focus:outline-none focus:border-blue-500"
+        className="bg-surface2 border border-border rounded px-2 py-1 text-sm text-text cursor-pointer hover:border-primary/50 focus:outline-none focus:border-primary"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -105,7 +107,7 @@ const CanvasSettings: React.FC = () => {
     onChange: (v: number) => void;
   }) => (
     <div className="flex items-center justify-between py-2 gap-4">
-      <span className="text-sm text-slate-300 flex-shrink-0">{label}</span>
+      <span className="text-sm text-text-muted flex-shrink-0">{label}</span>
       <div className="flex items-center gap-2 flex-1">
         <input
           type="range"
@@ -114,9 +116,9 @@ const CanvasSettings: React.FC = () => {
           step={step}
           value={value}
           onChange={(e) => onChange(parseInt(e.target.value))}
-          className="flex-1 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          className="flex-1 h-1 bg-surface2 rounded-lg appearance-none cursor-pointer accent-primary"
         />
-        <span className="text-xs font-mono text-slate-400 w-8 text-right">{value}</span>
+        <span className="text-xs font-mono text-text-muted w-8 text-right">{value}</span>
       </div>
     </div>
   );
@@ -199,7 +201,8 @@ const CanvasSettings: React.FC = () => {
           label="Cor de Fundo"
           color={settings.display.backgroundColor}
           pickerId="canvasBackground"
-          onReset={() => settings.setCanvasBackgroundColor(UI.BACKGROUND_DEFAULT)}
+          onReset={() => settings.setCanvasBackgroundColor(DEFAULTS.DEFAULT_CANVAS_BG)}
+
         />
       </Section>
 

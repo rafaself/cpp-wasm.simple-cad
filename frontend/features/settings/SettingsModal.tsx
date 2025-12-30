@@ -95,17 +95,17 @@ const SettingsModal: React.FC = () => {
     >
       <div
         ref={dialogRef}
-        className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-slate-100"
+        className="bg-surface-strong border border-border rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-text"
         tabIndex={-1}
         onKeyDown={trapFocus}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 id="settings-modal-title" className="font-semibold text-base">
             Configuracoes
           </h2>
           <button
             onClick={close}
-            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 focus-outline"
+            className="text-text-muted hover:text-text p-1 rounded hover:bg-surface2 focus-outline"
             aria-label="Fechar"
           >
             <X size={18} />
@@ -122,10 +122,10 @@ const SettingsModal: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4">{renderContent()}</div>
         </div>
 
-        <div className="px-4 py-3 border-t border-slate-700 flex justify-end gap-2">
+        <div className="px-4 py-3 border-t border-border flex justify-end gap-2">
           <button
             onClick={close}
-            className="px-4 py-1.5 rounded text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 focus-outline"
+            className="px-4 py-1.5 rounded text-sm font-medium bg-surface2 hover:bg-surface1 text-text-muted focus-outline"
           >
             Fechar
           </button>

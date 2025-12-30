@@ -3,6 +3,7 @@ import React from 'react';
 import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
 import { EntityKind } from '@/engine/types';
 import { hexToRgb } from '@/utils/color';
+import * as DEFAULTS from '@/theme/defaults';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
@@ -50,8 +51,8 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   // Helper to build draft styling
   private buildDraftStyle(): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> {
-    const stroke = this.colorToRgb01(this.toolDefaults.strokeColor ?? '#FFFFFF');
-    const fill = this.colorToRgb01(this.toolDefaults.fillColor ?? '#D9D9D9');
+    const stroke = this.colorToRgb01(this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR);
+    const fill = this.colorToRgb01(this.toolDefaults.fillColor ?? DEFAULTS.DEFAULT_FILL_COLOR);
     return {
       fillR: fill.r,
       fillG: fill.g,

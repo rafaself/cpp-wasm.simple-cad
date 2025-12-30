@@ -82,20 +82,20 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
     : 'text-xs whitespace-nowrap truncate text-left flex-1';
 
   // Colors & Interaction (Design Tokens)
-  // Primary: blue-500 (#3b82f6) for selection
-  // Surface: ribbon-panel
-  let colorClass = 'bg-ribbon-panel text-ribbon-text border border-transparent';
+  // Primary: primary token for selection
+  // Surface: surface2 (ribbon panel)
+  let colorClass = 'bg-surface2 text-text border border-transparent';
 
   if (isActive) {
-    colorClass = 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-400/50';
+    colorClass = 'bg-primary text-primary-contrast shadow-sm ring-1 ring-primary/50';
   } else if (isStub) {
-    colorClass = 'bg-ribbon-panel/50 text-ribbon-muted opacity-60 cursor-not-allowed';
+    colorClass = 'bg-surface2/50 text-text-muted opacity-60 cursor-not-allowed';
   } else {
     // Hover State
     const hoverClass =
       item.actionId === 'delete'
         ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
-        : 'hover:bg-ribbon-hover hover:text-white hover:border-ribbon-border/50';
+        : 'hover:bg-surface1 hover:text-text hover:border-border/50';
     colorClass = `${colorClass} ${hoverClass}`;
   }
 

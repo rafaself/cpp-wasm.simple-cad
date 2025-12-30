@@ -1,4 +1,4 @@
-import { UI } from '../design/tokens';
+import { UI } from '../src/constants/ui';
 import { Point, ViewTransform } from '../types';
 
 /**
@@ -26,7 +26,7 @@ export const calculateZoomTransform = (
   const scaleFactor = Math.exp(delta * zoomIntensity);
 
   let newScale = currentTransform.scale * scaleFactor;
-  newScale = Math.max(UI.MIN_ZOOM, Math.min(newScale, UI.MAX_ZOOM));
+  newScale = Math.max(UI.MIN_ZOOM_SCALE, Math.min(newScale, UI.MAX_ZOOM_SCALE));
 
   const w = screenToWorldFn(mousePos, currentTransform);
 

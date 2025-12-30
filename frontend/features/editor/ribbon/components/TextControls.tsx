@@ -14,7 +14,7 @@ import { createLogger } from '@/utils/logger';
 
 import CustomSelect from '../../../../components/CustomSelect';
 import NumberSpinner from '../../../../components/NumberSpinner';
-import { BUTTON_STYLES, INPUT_STYLES } from '../../../../design/tokens';
+import { BUTTON_STYLES, INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 // import { getTextTool } from '../../../../engine/core/textEngineSync';
@@ -152,13 +152,13 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
   };
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 ribbon-fill-h gap-0.5">
+      <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
         {alignOptions.map(({ align, icon, label }) => (
           <button
             key={align}
             onClick={() => handleClick(align)}
             onMouseDown={(e) => e.preventDefault()}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
+            className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-primary/30 text-primary' : ''}`}
             title={label}
           >
             {icon}
@@ -287,14 +287,14 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 
   return (
     <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 ribbon-fill-h gap-0.5">
+      <div className="flex bg-surface2/50 rounded-lg border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
           const stateClass = isOn
-            ? 'bg-blue-600/30 text-blue-400'
+            ? 'bg-primary/30 text-primary'
             : isMixed
-              ? 'bg-blue-600/15 text-blue-200 border border-blue-500/40'
+              ? 'bg-primary/15 text-primary border border-primary/40'
               : '';
 
           return (

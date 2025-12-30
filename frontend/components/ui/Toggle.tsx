@@ -10,10 +10,10 @@ interface ToggleProps {
 export const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange, className = '' }) => (
   <label className={`flex items-center justify-between py-2 cursor-pointer group ${className}`}>
     {label && (
-      <span className="text-sm text-slate-300 group-hover:text-white select-none">{label}</span>
+      <span className="text-sm text-text-muted group-hover:text-text select-none">{label}</span>
     )}
     <div
-      className={`w-10 h-5 rounded-full p-0.5 transition-colors ${checked ? 'bg-blue-600' : 'bg-slate-600'}`}
+      className={`w-10 h-5 rounded-full p-0.5 transition-colors ${checked ? 'bg-primary' : 'bg-muted'}`}
       onClick={(e) => {
         e.preventDefault();
         onChange(!checked);

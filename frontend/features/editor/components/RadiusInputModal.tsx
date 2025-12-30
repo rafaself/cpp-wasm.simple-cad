@@ -55,16 +55,16 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="radius-modal-title"
-        className="fixed z-[100] bg-slate-900 border border-slate-700 shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-slate-200"
+        className="fixed z-[100] bg-surface-strong border border-border shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-text"
         style={{ left: position.x, top: position.y }}
       >
-        <div className="flex items-center justify-between border-b border-slate-700 pb-1 mb-1">
-          <span id="radius-modal-title" className="text-xs font-bold text-slate-300 uppercase">
+        <div className="flex items-center justify-between border-b border-border pb-1 mb-1">
+          <span id="radius-modal-title" className="text-xs font-bold text-text-muted uppercase">
             Definir Raio
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">R:</span>
+          <span className="text-xs text-text-muted">R:</span>
           <input
             ref={inputRef}
             type="number"
@@ -74,15 +74,15 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            className={`flex-grow bg-slate-800 border rounded px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-blue-500 ${isValid ? 'border-slate-600' : 'border-red-500 text-red-400'}`}
+            className={`flex-grow bg-surface2 border rounded px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-primary ${isValid ? 'border-border' : 'border-red-500 text-red-400'}`}
             aria-invalid={!isValid}
           />
-          <span className="text-xs text-slate-500">px</span>
+          <span className="text-xs text-text-muted">px</span>
         </div>
         <div className="flex justify-end gap-2 mt-1">
           <button
             onClick={onCancel}
-            className="px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 rounded transition-colors"
+            className="px-2 py-1 text-xs text-text-muted hover:bg-surface2 rounded transition-colors"
             aria-label="Cancelar"
           >
             Cancelar
@@ -90,7 +90,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
           <button
             onClick={handleConfirm}
             disabled={!isValid}
-            className={`px-2 py-1 text-xs text-white rounded transition-colors ${isValid ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 opacity-50 cursor-not-allowed'}`}
+            className={`px-2 py-1 text-xs text-white rounded transition-colors ${isValid ? 'bg-primary hover:bg-primary/90' : 'bg-surface2 opacity-50 cursor-not-allowed'}`}
             aria-label="Confirmar"
           >
             OK

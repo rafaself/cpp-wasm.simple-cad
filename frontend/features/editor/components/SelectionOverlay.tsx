@@ -48,7 +48,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
 
     if (outline.primitives.length === 0 && handles.primitives.length === 0) return null;
 
-    const stroke = '#3b82f6';
+
     const hs = HANDLE_SIZE_PX;
     const hh = hs / 2;
 
@@ -98,7 +98,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
                 y1={a.y}
                 x2={b.x}
                 y2={b.y}
-                stroke={stroke}
+                className="stroke-primary"
                 strokeWidth={1}
               />
             );
@@ -110,7 +110,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
                 key={`poly-${idx}`}
                 points={pointsAttr}
                 fill="transparent"
-                stroke={stroke}
+                className="stroke-primary"
                 strokeWidth={1}
               />
             );
@@ -121,7 +121,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
               key={`poly-${idx}`}
               points={pointsAttr}
               fill="transparent"
-              stroke={stroke}
+              className="stroke-primary"
               strokeWidth={1}
             />
           );
@@ -141,8 +141,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
                     y={p.y - hh}
                     width={hs}
                     height={hs}
-                    fill="#ffffff"
-                    stroke={stroke}
+                    className="fill-white stroke-primary"
                     strokeWidth={1}
                   />
                 ))}

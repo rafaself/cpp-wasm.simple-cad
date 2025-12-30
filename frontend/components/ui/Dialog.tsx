@@ -207,7 +207,7 @@ const Dialog: React.FC<DialogProps> = ({
         tabIndex={-1}
         aria-label={ariaLabel}
         className={`
-          relative bg-surface-strong border border-border rounded-lg shadow-card
+          relative bg-surface1 border border-border rounded-lg shadow-card
           transform transition-all duration-200 ease-out
           animate-in fade-in zoom-in-95
           overflow-hidden flex flex-col
@@ -219,7 +219,7 @@ const Dialog: React.FC<DialogProps> = ({
         {showCloseButton && (
           <button
             onClick={close}
-            className="absolute top-3 right-3 text-slate-400 hover:text-white transition-colors z-10"
+            className="absolute top-3 right-3 text-text-muted hover:text-text transition-colors z-10"
             aria-label="Fechar"
           >
             <X size={20} />
@@ -265,15 +265,15 @@ export const DialogCard: React.FC<DialogCardProps> = ({
   return (
     <div className={`flex flex-col min-h-0 max-h-full ${className}`}>
       {title && (
-        <div className="px-6 py-4 border-b border-slate-700 shrink-0">
-          <h2 className="text-lg font-semibold text-white leading-none">{title}</h2>
+        <div className="px-6 py-4 border-b border-border shrink-0">
+          <h2 className="text-lg font-semibold text-text leading-none">{title}</h2>
         </div>
       )}
-      <div className={`px-6 py-4 text-slate-300 flex-grow min-h-0 ${contentClassName}`}>
+      <div className={`px-6 py-4 text-text flex-grow min-h-0 ${contentClassName}`}>
         {children}
       </div>
       {actions && (
-        <div className="px-6 py-3 border-t border-slate-700 flex justify-end gap-2 shrink-0 bg-slate-800/50">
+        <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface2/50">
           {actions}
         </div>
       )}
@@ -297,9 +297,9 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
   disabled = false,
 }) => {
   const variantClasses = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
-    secondary: 'bg-slate-700 hover:bg-slate-600 text-white',
-    text: 'text-slate-300 hover:text-white hover:bg-slate-700/50',
+    primary: 'bg-primary hover:bg-primary-hover text-primary-contrast shadow-sm',
+    secondary: 'bg-secondary hover:bg-secondary-hover text-text',
+    text: 'text-text-muted hover:text-text hover:bg-surface2/50',
   };
 
   return (

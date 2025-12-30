@@ -31,14 +31,19 @@ module.exports = {
           DEFAULT: 'hsl(var(--color-destructive))',
           foreground: 'hsl(var(--color-destructive-foreground))',
         },
-        ribbon: {
-          root: 'hsl(var(--color-surface-strong))',
-          panel: 'hsl(var(--color-surface-strong))',
-          border: 'hsl(var(--color-border))',
-          hover: 'hsl(var(--color-surface-muted))',
-          text: 'hsl(var(--color-foreground))',
-          muted: 'hsl(var(--color-muted))',
-        },
+
+        // New Semantic Tokens (v1)
+        bg: 'hsl(var(--color-bg) / <alpha-value>)',
+        surface1: 'hsl(var(--color-surface-1) / <alpha-value>)',
+        surface2: 'hsl(var(--color-surface-2) / <alpha-value>)',
+        // border is already defined as hsl(var(--color-border)), which matches our new system
+        text: 'hsl(var(--color-text) / <alpha-value>)',
+        'text-muted': 'hsl(var(--color-text-muted) / <alpha-value>)',
+        primary: 'hsl(var(--color-primary) / <alpha-value>)',
+        'primary-hover': 'hsl(var(--color-primary-hover) / <alpha-value>)',
+        'primary-contrast': 'hsl(var(--color-primary-contrast) / <alpha-value>)',
+        secondary: 'hsl(var(--color-secondary) / <alpha-value>)',
+        'secondary-hover': 'hsl(var(--color-secondary-hover) / <alpha-value>)',
       },
       borderRadius: {
         sm: 'var(--radius-sm)',

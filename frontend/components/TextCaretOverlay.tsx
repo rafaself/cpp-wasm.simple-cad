@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 
 import type { ViewTransform } from '@/types';
 import type { TextSelectionRect } from '@/types/text';
+import * as DEFAULTS from '@/theme/defaults';
 
 // =============================================================================
 // Types
@@ -58,8 +59,8 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   viewTransform,
   anchor,
   rotation,
-  caretColor = '#ffffff',
-  selectionColor = 'rgba(59, 130, 246, 0.3)', // blue-500 with opacity
+  caretColor = DEFAULTS.DEFAULT_STROKE_COLOR,
+  selectionColor = DEFAULTS.DEFAULT_TEXT_SELECTION_COLOR,
   blinkInterval = 530,
 }) => {
   const [caretVisible, setCaretVisible] = useState(true);

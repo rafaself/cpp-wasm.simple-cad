@@ -2,7 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import './design/index.css';
+import './theme/theme.css';
+import { applyTheme, getInitialTheme } from './theme/applyTheme';
 import { ThemeProvider } from './design/ThemeContext';
+
+// Apply theme immediately to avoid flicker
+applyTheme(getInitialTheme());
 import App from './App';
 
 const rootElement = document.getElementById('root');

@@ -37,7 +37,7 @@ const TessellatedWasmLayer: React.FC = () => {
         width: '100%',
         height: '100%',
         display: 'block',
-        background: 'rgb(11,16,33)',
+        background: 'transparent',
         pointerEvents: 'none',
       }}
     />

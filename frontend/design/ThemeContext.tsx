@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { applyTheme, ThemeName, THEME_STORAGE_KEY } from '../theme/applyTheme';
 
-type Theme = 'dark' | 'light' | 'system';
+type Theme = ThemeName | 'system';
 
 interface ThemeProviderProps {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ const ThemeContext = createContext<ThemeProviderState>(initialState);
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
-  storageKey = 'vite-ui-theme',
+  storageKey = THEME_STORAGE_KEY,
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
@@ -32,16 +33,16 @@ export function ThemeProvider({
   useEffect(() => {
     const root = window.document.documentElement;
 
-    root.classList.remove('light', 'dark');
+    // Helper to apply using our infrastructure
+    const apply = (t: ThemeName) => {
+      applyTheme(t, false); // Persistence handled by context state setter
+    };
 
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       
       const applySystemTheme = () => {
-        const systemTheme = mediaQuery.matches ? 'dark' : 'light';
-        root.classList.remove('light', 'dark');
-        root.classList.add(systemTheme);
-        root.setAttribute('data-theme', systemTheme);
+        apply(mediaQuery.matches ? 'dark' : 'light');
       };
 
       applySystemTheme();
@@ -50,15 +51,14 @@ export function ThemeProvider({
       return () => mediaQuery.removeEventListener('change', applySystemTheme);
     }
 
-    root.classList.add(theme);
-    root.setAttribute('data-theme', theme);
+    apply(theme);
   }, [theme]);
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+    setTheme: (newTheme: Theme) => {
+      localStorage.setItem(storageKey, newTheme);
+      setTheme(newTheme);
     },
   };
 
@@ -68,6 +68,8 @@ export function ThemeProvider({
     </ThemeContext.Provider>
   );
 }
+
+
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
