@@ -75,12 +75,12 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
 
   return (
     <div 
-      className="flex border-t border-border bg-surface1 select-none"
+      className="flex bg-surface1 select-none"
       style={{ height: '56px' }} // Reduced fixed height
     >
       <div
         ref={containerRef}
-        className={`flex overflow-x-auto items-center no-scrollbar px-1 ${
+        className={`flex overflow-x-auto items-center no-scrollbar px-1 ${!isDragging ? 'scroll-smooth' : ''} ${
           hasMoved ? 'cursor-grabbing' : 'cursor-pointer'
         }`}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
