@@ -39,7 +39,7 @@ const EditorStatusBar: React.FC = () => {
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
 
   return (
-    <div className="w-full h-9 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">
+    <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">
       <div className="w-56 font-mono flex items-center gap-4 text-text-muted text-[10px]">
         {mousePos ? (
           <>
