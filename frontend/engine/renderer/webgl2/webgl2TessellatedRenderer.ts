@@ -220,8 +220,10 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     const effectivePixelRatio = pixelRatio * (this.aaScale > 1 ? this.aaScale : 1);
 
     // -------------------------------------------------------------------------
-    // Grid Rendering (background - before entities)
+    // Background Layer: Grid + Axes (rendered BEFORE entities)
     // -------------------------------------------------------------------------
+
+    // Grid Rendering
     if (input.gridSettings && input.gridSettings.enabled) {
       if (!this.gridPass.isInitialized()) this.gridPass.initialize();
       this.gridPass.render({
@@ -232,21 +234,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
       });
     }
 
-    // -------------------------------------------------------------------------
-    // Geometry Pass (document entities)
-    // -------------------------------------------------------------------------
-    this.geometryPass.render({
-      module: input.module,
-      positionMeta: input.positionMeta,
-      viewTransform: input.viewTransform,
-      canvasSizeCss: input.canvasSizeCss,
-      canvasSizeDevice: { width: offW, height: offH },
-      pixelRatio: effectivePixelRatio,
-    });
-
-    // -------------------------------------------------------------------------
-    // Axes Rendering
-    // -------------------------------------------------------------------------
+    // Axes Rendering (also background, rendered before entities)
     if (input.axesSettings && input.axesSettings.show) {
       if (!this.axesPass.isInitialized()) this.axesPass.initialize();
       this.axesPass.render({
@@ -256,6 +244,18 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
         settings: input.axesSettings,
       });
     }
+
+    // -------------------------------------------------------------------------
+    // Geometry Pass (document entities - rendered ON TOP of background)
+    // -------------------------------------------------------------------------
+    this.geometryPass.render({
+      module: input.module,
+      positionMeta: input.positionMeta,
+      viewTransform: input.viewTransform,
+      canvasSizeCss: input.canvasSizeCss,
+      canvasSizeDevice: { width: offW, height: offH },
+      pixelRatio: effectivePixelRatio,
+    });
 
     // -------------------------------------------------------------------------
     // Text Rendering (if text metadata is provided)

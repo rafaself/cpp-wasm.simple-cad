@@ -18,7 +18,7 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
   onItemClick,
 }) => {
   return (
-    <div className="flex flex-col h-full gap-1">
+    <div className="flex flex-col h-full gap-1 shrink-0">
       <div
         role="group"
         aria-label={group.label || group.id}

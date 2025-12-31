@@ -154,3 +154,47 @@ button:active {
   outline: none !important;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ==========================================================================
+   RIBBON SCROLLBAR
+   Subtle horizontal scrollbar for ribbon when content overflows.
+   ========================================================================== */
+
+.ribbon-scrollbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.ribbon-scrollbar:hover {
+  scrollbar-color: rgba(71, 85, 105, 0.3) transparent;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.ribbon-scrollbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.ribbon-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ribbon-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.ribbon-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(71, 85, 105, 0.3);
+}
+
+.ribbon-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(71, 85, 105, 0.5);
+}
+
+.ribbon-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+

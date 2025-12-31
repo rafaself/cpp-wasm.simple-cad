@@ -1,5 +1,5 @@
 import { MoreHorizontal } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
@@ -23,6 +23,20 @@ const EditorRibbon: React.FC = () => {
   const activeTab = RIBBON_TABS.find((t) => t.id === activeTabId) || RIBBON_TABS[0];
   const activeGroups = activeTab.groups;
   const overflowButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const ribbonContentRef = useRef<HTMLDivElement | null>(null);
+
+  // Convert vertical mouse wheel to horizontal scroll
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const container = ribbonContentRef.current;
+    if (!container) return;
+    
+    // Only convert if there's horizontal overflow and primarily vertical scroll
+    const hasHorizontalOverflow = container.scrollWidth > container.clientWidth;
+    if (hasHorizontalOverflow && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      container.scrollLeft += e.deltaY;
+    }
+  }, []);
 
   const handleItemClick = (item: RibbonItem) => {
     if (item.kind === 'action' && item.actionId) {
@@ -91,10 +105,12 @@ const EditorRibbon: React.FC = () => {
 
       {/* Toolbar Content - 90px total height per Gold Standard */}
       <div
+        ref={ribbonContentRef}
+        onWheel={handleWheel}
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[90px] px-[12px] py-[6px] flex items-start bg-surface1 overflow-x-auto shadow-sm"
+        className="h-[90px] px-[12px] py-[6px] flex items-start bg-surface1 ribbon-scrollbar shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
