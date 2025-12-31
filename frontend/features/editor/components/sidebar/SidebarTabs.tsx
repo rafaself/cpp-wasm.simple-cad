@@ -102,7 +102,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
                 flex-shrink-0 flex flex-col items-center justify-center gap-1
                 min-w-[60px] h-[48px] rounded-md transition-colors
                 ${isActive 
-                  ? 'bg-primary/10 text-text' 
+                  ? 'bg-primary/20 text-text active-tab-shadow' 
                   : 'text-text-muted hover:bg-surface2 hover:text-text'
                 }
               `}
@@ -110,7 +110,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
               draggable={false}
             >
               <Icon size={18} className="text-current" />
-              <span className="text-[9px] font-medium leading-none max-w-[56px] truncate text-center">
+              <span className="text-[9px] font-medium leading-normal pb-0.5 max-w-[56px] truncate text-center">
                 {tab.label}
               </span>
             </div>
