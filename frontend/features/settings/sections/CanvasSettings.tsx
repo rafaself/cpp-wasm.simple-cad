@@ -150,7 +150,7 @@ const CanvasSettings: React.FC = () => {
             {/* Tamanho da Grade */}
             <div className="flex items-center justify-between py-2 gap-4">
               <span className="text-sm text-text-muted flex-shrink-0">{LABELS.settings.gridSize}</span>
-              <div className="w-[60px]">
+              <div className="w-[75px]">
                 <NumericComboField
                   value={settings.grid.size}
                   onCommit={settings.setGridSize}
@@ -160,6 +160,7 @@ const CanvasSettings: React.FC = () => {
                   step={10}
                   stepLarge={50}
                   ariaLabel="Tamanho da Grade"
+                  size="small"
                   className="w-full"
                 />
               </div>

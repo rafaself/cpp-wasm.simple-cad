@@ -7,10 +7,16 @@ import { RibbonButton } from './RibbonButton';
 interface RibbonGroupProps {
   group: RibbonGroupType;
   activeTool: string;
+  activeActions?: Record<string, boolean>;
   onItemClick: (item: RibbonItem) => void;
 }
 
-export const RibbonGroup: React.FC<RibbonGroupProps> = ({ group, activeTool, onItemClick }) => {
+export const RibbonGroup: React.FC<RibbonGroupProps> = ({
+  group,
+  activeTool,
+  activeActions = {},
+  onItemClick,
+}) => {
   return (
     <div className="flex flex-col h-full gap-1">
       <div
@@ -31,12 +37,16 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({ group, activeTool, onI
               </React.Fragment>
             );
           }
+          const isActive =
+            (item.kind === 'tool' && activeTool === item.toolId) ||
+            (item.kind === 'action' && item.actionId && activeActions[item.actionId]);
+
           return (
             <RibbonButton
               key={item.id}
               item={item}
               layout={group.layout}
-              isActive={item.kind === 'tool' && activeTool === item.toolId}
+              isActive={!!isActive}
               onClick={onItemClick}
             />
           );

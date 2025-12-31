@@ -334,7 +334,7 @@ export const RIBBON_TABS: RibbonTab[] = [
             label: 'Grade',
             icon: Grid3x3,
             actionId: 'grid',
-            status: 'stub',
+            status: 'ready',
             variant: 'large',
             width: 'sm',
           },

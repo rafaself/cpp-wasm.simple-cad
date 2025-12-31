@@ -65,7 +65,27 @@ export interface NumericComboFieldProps {
   suffix?: string;
   /** Dropdown max height: 'auto' (no limit), number (fixed px), or undefined (default ~256px) */
   dropdownMaxHeight?: 'auto' | number;
+  /** Size preset (controls height and font size) */
+  size?: 'x-small' | 'small' | 'medium' | 'large' | 'x-large' | 'auto';
 }
+
+const CONTAINER_SIZE_CLASSES = {
+  'x-small': 'h-6',
+  small: 'h-7',
+  medium: 'h-8',
+  large: 'h-10',
+  'x-large': 'h-12',
+  auto: '',
+};
+
+const INPUT_TEXT_CLASSES = {
+  'x-small': 'text-[10px]',
+  small: 'text-xs',
+  medium: 'text-sm',
+  large: 'text-base',
+  'x-large': 'text-lg',
+  auto: 'text-[10px]',
+};
 
 const FONT_SIZE_PRESETS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 32, 48, 64, 96];
 
@@ -94,6 +114,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
   className = '',
   suffix,
   dropdownMaxHeight,
+  size,
 }) => {
   const uniqueId = useId();
   const listboxId = `numeric-combo-listbox-${uniqueId}`;
@@ -226,7 +247,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
         isFocused ? 'border-primary/50' : 'border-border/50'
       } rounded overflow-hidden transition-colors duration-200 group ${
         disabled ? 'opacity-50 cursor-not-allowed' : ''
-      } ${className}`}
+      } ${size ? CONTAINER_SIZE_CLASSES[size] : ''} ${className}`}
       data-testid={testId}
     >
       {/* Input */}
@@ -251,7 +272,9 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
             : undefined
         }
         aria-autocomplete="list"
-        className="flex-1 h-full bg-transparent text-[10px] text-center text-text font-mono focus:outline-none px-1 min-w-0 placeholder:text-text-muted"
+        className={`flex-1 h-full bg-transparent text-center text-text font-mono focus:outline-none px-1 min-w-0 placeholder:text-text-muted ${
+          size ? INPUT_TEXT_CLASSES[size] : 'text-[10px]'
+        }`}
       />
 
       {/* Suffix */}

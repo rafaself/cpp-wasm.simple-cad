@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 import { useUIStore } from '../../../stores/useUIStore';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { RIBBON_TABS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
 
 import { RibbonGroup } from './ribbon/RibbonGroup';
@@ -13,6 +14,11 @@ const EditorRibbon: React.FC = () => {
   const { executeAction, selectTool } = useEditorCommands();
   const [activeTabId, setActiveTabId] = useState<string>(RIBBON_TABS[0].id);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+  const gridSettings = useSettingsStore((s) => s.grid);
+
+  const activeActions = {
+    grid: gridSettings.showDots || gridSettings.showLines,
+  };
 
   const activeTab = RIBBON_TABS.find((t) => t.id === activeTabId) || RIBBON_TABS[0];
   const activeGroups = activeTab.groups;
@@ -92,7 +98,12 @@ const EditorRibbon: React.FC = () => {
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
-            <RibbonGroup group={group} activeTool={activeTool} onItemClick={handleItemClick} />
+            <RibbonGroup
+              group={group}
+              activeTool={activeTool}
+              activeActions={activeActions}
+              onItemClick={handleItemClick}
+            />
             {groupIndex < activeGroups.length - 1 && (
               <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
             )}
