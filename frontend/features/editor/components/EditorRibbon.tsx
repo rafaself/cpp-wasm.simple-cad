@@ -70,7 +70,7 @@ const EditorRibbon: React.FC = () => {
     <div className="flex flex-col bg-bg border-b border-border text-text">
       {/* Tab Headers */}
       <div
-        className="flex items-center gap-1 px-2"
+        className="flex items-center gap-1 px-2 bg-surface2"
         role="tablist"
         aria-label="Categorias de Ferramentas"
       >
