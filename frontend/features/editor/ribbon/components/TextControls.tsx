@@ -17,9 +17,12 @@ import { NumericComboField } from '../../../../components/NumericComboField';
 import { BUTTON_STYLES, INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { useUIStore } from '../../../../stores/useUIStore';
-// import { getTextTool } from '../../../../engine/core/textEngineSync';
 import { TextStyleFlags } from '../../../../types/text';
 import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
+import { RibbonControlWrapper } from '../../components/ribbon/RibbonControlWrapper';
+import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
+import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
+import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 
 // Stub for now, as textEngineSync is deprecated
 // TODO: Refactor to use EngineRuntime directly if this component is revived.
@@ -31,13 +34,6 @@ const FONT_OPTIONS = [
   { value: 'Times', label: 'Times' },
   { value: 'Roboto', label: 'Roboto' },
 ];
-
-const InputWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className,
-}) => (
-  <div className={`flex flex-col justify-center w-full h-full ${className || ''}`}>{children}</div>
-);
 
 type StyleState = 'off' | 'on' | 'mixed';
 
@@ -61,14 +57,14 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
     if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: val }, true);
   };
   return (
-    <InputWrapper>
+    <RibbonControlWrapper>
       <CustomSelect
         value={textFontFamily}
         onChange={handleChange}
         options={FONT_OPTIONS}
         className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
       />
-    </InputWrapper>
+    </RibbonControlWrapper>
   );
 };
 
@@ -99,7 +95,7 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
   };
 
   return (
-    <InputWrapper className="items-center">
+    <RibbonControlWrapper align="center">
       <NumericComboField
         value={textFontSize}
         onCommit={handleCommit}
@@ -112,7 +108,7 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
         className="w-full ribbon-fill-h"
         dropdownMaxHeight="auto"
       />
-    </InputWrapper>
+    </RibbonControlWrapper>
   );
 };
 
@@ -159,21 +155,19 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
     if (selectedTextIds.length > 0) applyTextUpdate({ align }, false);
   };
   return (
-    <InputWrapper className="items-center">
-      <div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
+    <RibbonControlWrapper align="center">
+      <RibbonToggleGroup>
         {alignOptions.map(({ align, icon, label }) => (
-          <button
+          <RibbonIconButton
             key={align}
+            icon={icon}
             onClick={() => handleClick(align)}
-            onMouseDown={(e) => e.preventDefault()}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} focus-outline ${activeAlign === align ? BUTTON_STYLES.active : ''}`}
+            isActive={activeAlign === align}
             title={label}
-          >
-            {icon}
-          </button>
+          />
         ))}
-      </div>
-    </InputWrapper>
+      </RibbonToggleGroup>
+    </RibbonControlWrapper>
   );
 };
 
@@ -294,31 +288,27 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   };
 
   return (
-    <InputWrapper className="items-center">
-      <div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
+    <RibbonControlWrapper align="center">
+      <RibbonToggleGroup>
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
-          const stateClass = isOn
-            ? BUTTON_STYLES.active
-            : isMixed
-              ? 'bg-primary/10 text-primary border border-primary/20'
-              : '';
+          // Mixed state uses custom class, active uses standard
+          const mixedClass = isMixed ? 'bg-primary/10 text-primary border border-primary/20' : '';
 
           return (
-            <button
+            <RibbonIconButton
               key={option.key}
+              icon={option.icon}
               onClick={() => handleClick(option)}
-              onMouseDown={(e) => e.preventDefault()}
-              className={`w-8 h-full ${BUTTON_STYLES.centered} focus-outline ${stateClass}`}
+              isActive={isOn}
               title={option.label}
-            >
-              {option.icon}
-            </button>
+              className={mixedClass}
+            />
           );
         })}
-      </div>
-    </InputWrapper>
+      </RibbonToggleGroup>
+    </RibbonControlWrapper>
   );
 };
 

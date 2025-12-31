@@ -2,11 +2,16 @@ import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import React, { useMemo, useEffect } from 'react';
 
 import CustomSelect from '@/components/CustomSelect';
-import { BUTTON_STYLES, INPUT_STYLES } from '@/src/styles/recipes';
+import { INPUT_STYLES } from '@/src/styles/recipes';
 import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useUIStore } from '@/stores/useUIStore';
+
+import { RibbonDivider } from './RibbonDivider';
+import { RibbonIconButton } from './RibbonIconButton';
+import { RibbonToggleGroup } from './RibbonToggleGroup';
+import { RIBBON_ICON_SIZES } from './ribbonUtils';
 
 export const LayerRibbonControls: React.FC = () => {
   const runtime = useEngineRuntime();
@@ -52,11 +57,9 @@ export const LayerRibbonControls: React.FC = () => {
     runtime.setLayerProps(activeLayer.id, mask, flags, activeLayer.name);
   };
 
-
-
   return (
     <div className="ribbon-group-col px-1">
-      {/* Row 1: Layer Select and Add */}
+      {/* Row 1: Layer Select */}
       <div className="ribbon-row min-w-[140px]">
         <CustomSelect
           value={String(activeLayerId)}
@@ -69,43 +72,45 @@ export const LayerRibbonControls: React.FC = () => {
 
       {/* Row 2: Layer Properties */}
       <div className="ribbon-row min-w-[140px]">
-        <div className="flex bg-surface2 rounded border border-border/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
+        <RibbonToggleGroup>
           {/* Visibility Toggle */}
-          <button
+          <RibbonIconButton
+            icon={activeLayer?.visible ? <Eye size={RIBBON_ICON_SIZES.sm} /> : <EyeOff size={RIBBON_ICON_SIZES.sm} />}
             onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
-            className={`w-7 h-full ${BUTTON_STYLES.centered} focus-outline ${activeLayer?.visible ? 'text-primary hover:text-primary-hover' : 'text-text-muted hover:text-text'} rounded hover:bg-surface2 transition-colors shrink-0`}
+            isActive={activeLayer?.visible ?? false}
+            variant={activeLayer?.visible ? 'primary' : 'default'}
             title={activeLayer?.visible ? 'Ocultar Camada' : 'Mostrar Camada'}
             disabled={!activeLayer}
-          >
-            {activeLayer?.visible ? <Eye size={13} /> : <EyeOff size={13} />}
-          </button>
+            size="sm"
+          />
 
-          <div className="w-px bg-border/50 my-0.5 h-4/5" />
+          <RibbonDivider />
 
           {/* Lock Toggle */}
-          <button
+          <RibbonIconButton
+            icon={activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
             onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
-            className={`w-7 h-full ${BUTTON_STYLES.centered} focus-outline ${activeLayer?.locked ? 'text-yellow-500 hover:text-yellow-400' : 'text-text-muted hover:text-text'} rounded hover:bg-surface2 transition-colors shrink-0`}
+            isActive={activeLayer?.locked ?? false}
+            variant={activeLayer?.locked ? 'warning' : 'default'}
             title={activeLayer?.locked ? 'Desbloquear Camada' : 'Bloquear Camada'}
             disabled={!activeLayer}
-          >
-            {activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
-          </button>
-        </div>
+            size="sm"
+          />
+        </RibbonToggleGroup>
 
         <div className="flex-1" />
 
         {/* Open Manager (Properties) */}
-        <div className="flex bg-surface2 rounded border border-border/50 p-0.5 h-full w-8 shrink-0 items-center">
-          <button
+        <RibbonToggleGroup width="fit">
+          <RibbonIconButton
+            icon={<Layers size={RIBBON_ICON_SIZES.sm} />}
             onClick={() => setLayerManagerOpen(true)}
-            className={`w-full h-full ${BUTTON_STYLES.centered} focus-outline rounded hover:bg-surface2 text-text opacity-80 hover:opacity-100 transition-colors`}
             title="Gerenciador de Camadas (Propriedades)"
-          >
-            <Layers size={13} />
-          </button>
-        </div>
+            size="sm"
+          />
+        </RibbonToggleGroup>
       </div>
     </div>
   );
 };
+
