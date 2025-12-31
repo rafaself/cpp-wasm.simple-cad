@@ -5,6 +5,7 @@ import { LABELS } from '@/i18n/labels';
 import * as DEFAULTS from '@/theme/defaults';
 
 import ColorPicker from '../../../components/ColorPicker';
+import { NumericComboField } from '../../../components/NumericComboField';
 import { Section } from '../../../components/ui/Section';
 import { Toggle } from '../../../components/ui/Toggle';
 import { supportsEngineResize } from '../../../engine/core/capabilities';
@@ -89,38 +90,6 @@ const CanvasSettings: React.FC = () => {
     </div>
   );
 
-  const SliderField = ({
-    label,
-    value,
-    min,
-    max,
-    step,
-    onChange,
-  }: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    onChange: (v: number) => void;
-  }) => (
-    <div className="flex items-center justify-between py-2 gap-4">
-      <span className="text-sm text-text-muted flex-shrink-0">{label}</span>
-      <div className="flex items-center gap-2 flex-1">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseInt(e.target.value))}
-          className="flex-1 h-1 bg-surface2 rounded-lg appearance-none cursor-pointer accent-primary"
-        />
-        <span className="text-xs font-mono text-text-muted w-8 text-right">{value}</span>
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex flex-col">
       <Section title={LABELS.settings.grid}>
@@ -183,14 +152,23 @@ const CanvasSettings: React.FC = () => {
           </div>
         </div>
 
-        <SliderField
-          label={LABELS.settings.gridSize}
-          value={settings.grid.size}
-          min={10}
-          max={200}
-          step={10}
-          onChange={settings.setGridSize}
-        />
+        {/* Tamanho da Grade - NumericComboField */}
+        <div className="flex items-center justify-between py-2 gap-4">
+          <span className="text-sm text-text-muted flex-shrink-0">{LABELS.settings.gridSize}</span>
+          <div className="w-[120px]">
+            <NumericComboField
+              value={settings.grid.size}
+              onCommit={settings.setGridSize}
+              presets={[10, 20, 25, 50, 100, 150, 200]}
+              min={10}
+              max={500}
+              step={10}
+              stepLarge={50}
+              ariaLabel="Tamanho da Grade"
+              className="w-full"
+            />
+          </div>
+        </div>
         <ColorField label="Cor da Grade" color={settings.grid.color} pickerId="grid" />
 
         {/* Slider de Opacidade */}
