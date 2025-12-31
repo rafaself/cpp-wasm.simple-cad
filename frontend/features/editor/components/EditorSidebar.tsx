@@ -62,25 +62,18 @@ const EditorSidebar: React.FC = () => {
 
   return (
     <aside className="w-64 bg-surface1 text-text border-l border-border flex flex-col h-full overflow-hidden">
-      {/* Header - Shows active tab content title */}
-      <div className="h-9 shrink-0 px-3 border-b border-border flex items-center select-none bg-surface1">
-        <span className="text-xs uppercase tracking-widest text-text font-semibold">
-          {activeTab.label}
-        </span>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        {activeTab.component}
-      </div>
-
-      {/* Bottom Tabs Navigation */}
-      <div className="shrink-0">
+      {/* Tabs Navigation */}
+      <div className="shrink-0 border-b border-border">
         <SidebarTabs
           tabs={SIDEBAR_TABS}
           activeTabId={activeTabId}
           onTabChange={setActiveTabId}
         />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {activeTab.component}
       </div>
     </aside>
   );
