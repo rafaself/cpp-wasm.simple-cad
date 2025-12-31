@@ -99,7 +99,7 @@ const Header: React.FC = () => {
       </div>
 
       {/* Project Title */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-medium text-sm text-foreground/80 pointer-events-none text-center">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-semibold text-sm text-foreground/80 pointer-events-none text-center">
         {projectTitle}
       </div>
 
