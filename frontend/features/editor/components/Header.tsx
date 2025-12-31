@@ -48,7 +48,7 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <div className="relative h-[28px] py-[3px] bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
+    <div className="relative h-[26px] py-[2px] bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
       <div className="flex items-center gap-1.5">
         <div className="flex items-center justify-center">
           <svg width="0" height="0" className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
@@ -99,7 +99,7 @@ const Header: React.FC = () => {
       </div>
 
       {/* Project Title */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-medium text-sm text-foreground/80 pointer-events-none">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-medium text-sm text-foreground/80 pointer-events-none text-center">
         {projectTitle}
       </div>
 
