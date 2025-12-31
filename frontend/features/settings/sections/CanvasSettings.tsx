@@ -1,4 +1,4 @@
-import { RotateCcw, Circle, Grid3x3, Layers, Minus } from 'lucide-react';
+import { Circle, Grid3x3, RotateCcw } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { LABELS } from '@/i18n/labels';
@@ -93,170 +93,101 @@ const CanvasSettings: React.FC = () => {
   return (
     <div className="flex flex-col">
       <Section title={LABELS.settings.grid}>
-        {/* Presets de Estilo */}
-        <div className="flex items-center justify-between py-2">
-          <span className="text-sm text-text-muted">Estilo Rápido</span>
-          <div className="flex gap-1">
-            <button
-              onClick={() => settings.applyGridPreset('dots')}
-              className={`p-1.5 rounded border transition-colors ${
-                settings.grid.showDots && !settings.grid.showLines
-                  ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
-              }`}
-              title="Apenas Pontos"
-            >
-              <Circle size={14} />
-            </button>
-            <button
-              onClick={() => settings.applyGridPreset('lines')}
-              className={`p-1.5 rounded border transition-colors ${
-                !settings.grid.showDots && settings.grid.showLines
-                  ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
-              }`}
-              title="Apenas Linhas"
-            >
-              <Grid3x3 size={14} />
-            </button>
-            <button
-              onClick={() => settings.applyGridPreset('combined')}
-              className={`p-1.5 rounded border transition-colors ${
-                settings.grid.showDots && settings.grid.showLines
-                  ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
-              }`}
-              title="Pontos + Linhas"
-            >
-              <Layers size={14} />
-            </button>
-            <button
-              onClick={() => settings.applyGridPreset('minimal')}
-              className={`p-1.5 rounded border transition-colors ${
-                settings.grid.opacity < 0.3 && !settings.grid.showSubdivisions
-                  ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
-              }`}
-              title="Minimalista"
-            >
-              <Minus size={14} />
-            </button>
-            <div className="w-px bg-border mx-1" />
-            <button
-              onClick={settings.resetGridToDefaults}
-              className="p-1.5 rounded border bg-surface2 border-border text-text-muted hover:border-primary/50 hover:text-text transition-colors"
-              title="Restaurar Padrões"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-        </div>
-
-        {/* Tamanho da Grade - NumericComboField */}
-        <div className="flex items-center justify-between py-2 gap-4">
-          <span className="text-sm text-text-muted flex-shrink-0">{LABELS.settings.gridSize}</span>
-          <div className="w-[120px]">
-            <NumericComboField
-              value={settings.grid.size}
-              onCommit={settings.setGridSize}
-              presets={[10, 20, 25, 50, 100, 150, 200]}
-              min={10}
-              max={500}
-              step={10}
-              stepLarge={50}
-              ariaLabel="Tamanho da Grade"
-              className="w-full"
-            />
-          </div>
-        </div>
-        <ColorField label="Cor da Grade" color={settings.grid.color} pickerId="grid" />
-
-        {/* Slider de Opacidade */}
-        <div className="flex items-center justify-between py-2 gap-4">
-          <span className="text-sm text-text-muted flex-shrink-0">Opacidade</span>
-          <div className="flex items-center gap-2 flex-1">
-            <input
-              type="range"
-              min={10}
-              max={100}
-              step={5}
-              value={Math.round(settings.grid.opacity * 100)}
-              onChange={(e) => settings.setGridOpacity(parseInt(e.target.value) / 100)}
-              className="flex-1 h-1 bg-surface2 rounded-lg appearance-none cursor-pointer accent-primary"
-            />
-            <span className="text-xs font-mono text-text-muted w-10 text-right">
-              {Math.round(settings.grid.opacity * 100)}%
-            </span>
-          </div>
-        </div>
-
-        <Toggle
-          label="Mostrar Pontos"
-          checked={settings.grid.showDots}
-          onChange={settings.setGridShowDots}
-        />
-        {settings.grid.showDots && (
-          <div className="flex items-center justify-between py-2 gap-4 ml-4">
-            <span className="text-sm text-text-muted flex-shrink-0">Tamanho</span>
-            <div className="flex items-center gap-2 flex-1">
-              <input
-                type="range"
-                min={1}
-                max={8}
-                step={0.5}
-                value={settings.grid.dotRadius}
-                onChange={(e) => settings.setGridDotRadius(parseFloat(e.target.value))}
-                className="flex-1 h-1 bg-surface2 rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <span className="text-xs font-mono text-text-muted w-8 text-right">
-                {settings.grid.dotRadius}px
-              </span>
-            </div>
-          </div>
-        )}
-
+        {/* Toggle Mostrar Grade - primeiro item */}
         <Toggle
           label={LABELS.settings.showGrid}
-          checked={settings.grid.showLines}
-          onChange={settings.setGridShowLines}
+          checked={settings.grid.showDots || settings.grid.showLines}
+          onChange={(show) => {
+            if (show) {
+              // Ativar com estilo padrão (pontos)
+              settings.setGridShowDots(true);
+            } else {
+              // Desativar ambos
+              settings.setGridShowDots(false);
+              settings.setGridShowLines(false);
+            }
+          }}
         />
-        {settings.grid.showLines && (
-          <div className="flex items-center justify-between py-2 gap-4 ml-4">
-            <span className="text-sm text-text-muted flex-shrink-0">Espessura</span>
-            <div className="flex items-center gap-2 flex-1">
-              <input
-                type="range"
-                min={0.5}
-                max={5}
-                step={0.5}
-                value={settings.grid.lineWidth}
-                onChange={(e) => settings.setGridLineWidth(parseFloat(e.target.value))}
-                className="flex-1 h-1 bg-surface2 rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <span className="text-xs font-mono text-text-muted w-8 text-right">
-                {settings.grid.lineWidth}px
-              </span>
-            </div>
-          </div>
-        )}
 
-        <Toggle
-          label="Subdivisões Adaptativas"
-          checked={settings.grid.showSubdivisions}
-          onChange={settings.setGridShowSubdivisions}
-        />
-        {settings.grid.showSubdivisions && (
-          <SelectField
-            label="Divisões"
-            value={String(settings.grid.subdivisionCount)}
-            options={[
-              { value: '2', label: '÷2' },
-              { value: '4', label: '÷4' },
-              { value: '5', label: '÷5' },
-              { value: '10', label: '÷10' },
-            ]}
-            onChange={(v) => settings.setGridSubdivisionCount(parseInt(v, 10))}
-          />
+        {/* Demais controles só aparecem quando a grade está visível */}
+        {(settings.grid.showDots || settings.grid.showLines) && (
+          <>
+            {/* Estilo da Grade - apenas 2 opções: Pontos e Linhas */}
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-text-muted">Estilo</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    settings.setGridShowDots(true);
+                    settings.setGridShowLines(false);
+                  }}
+                  className={`p-1.5 rounded border transition-colors ${
+                    settings.grid.showDots && !settings.grid.showLines
+                      ? 'bg-primary/20 border-primary text-primary'
+                      : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
+                  }`}
+                  title="Pontos"
+                >
+                  <Circle size={14} />
+                </button>
+                <button
+                  onClick={() => {
+                    settings.setGridShowDots(false);
+                    settings.setGridShowLines(true);
+                  }}
+                  className={`p-1.5 rounded border transition-colors ${
+                    !settings.grid.showDots && settings.grid.showLines
+                      ? 'bg-primary/20 border-primary text-primary'
+                      : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
+                  }`}
+                  title="Linhas"
+                >
+                  <Grid3x3 size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Tamanho da Grade */}
+            <div className="flex items-center justify-between py-2 gap-4">
+              <span className="text-sm text-text-muted flex-shrink-0">{LABELS.settings.gridSize}</span>
+              <div className="w-[60px]">
+                <NumericComboField
+                  value={settings.grid.size}
+                  onCommit={settings.setGridSize}
+                  presets={[10, 20, 25, 50, 100, 150, 200]}
+                  min={10}
+                  max={500}
+                  step={10}
+                  stepLarge={50}
+                  ariaLabel="Tamanho da Grade"
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            {/* Cor da Grade (já inclui opacidade) */}
+            <ColorField label="Cor da Grade" color={settings.grid.color} pickerId="grid" />
+
+            {/* Subdivisões Adaptativas */}
+            <Toggle
+              label="Subdivisões Adaptativas"
+              checked={settings.grid.showSubdivisions}
+              onChange={settings.setGridShowSubdivisions}
+            />
+            {settings.grid.showSubdivisions && (
+              <SelectField
+                label="Divisões"
+                value={String(settings.grid.subdivisionCount)}
+                options={[
+                  { value: '2', label: '÷2' },
+                  { value: '4', label: '÷4' },
+                  { value: '5', label: '÷5' },
+                  { value: '10', label: '÷10' },
+                ]}
+                onChange={(v) => settings.setGridSubdivisionCount(parseInt(v, 10))}
+              />
+            )}
+          </>
         )}
       </Section>
 
