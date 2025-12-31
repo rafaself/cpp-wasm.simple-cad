@@ -148,7 +148,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       yDashed: true,
     },
     centerIcon: {
-      show: true,
+      show: false,
       color: DEFAULTS.DEFAULT_CENTER_ICON_COLOR,
     },
     backgroundColor: DEFAULTS.DEFAULT_CANVAS_BG,

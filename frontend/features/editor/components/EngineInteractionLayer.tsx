@@ -6,7 +6,7 @@ import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { screenToWorld } from '@/utils/viewportMath';
+import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
 
 import SelectionOverlay from './SelectionOverlay';
 
@@ -18,6 +18,7 @@ const EngineInteractionLayer: React.FC = () => {
   const canvasSize = useUIStore((s) => s.canvasSize);
   const snapOptions = useSettingsStore((s) => s.snap);
   const gridSize = useSettingsStore((s) => s.grid.size);
+  const centerIconSettings = useSettingsStore((s) => s.display.centerIcon);
 
   // Interaction Manager (The Brain)
   const { handlers, overlay, activeHandlerName, cursor: handlerCursor } = useInteractionManager();
@@ -102,6 +103,9 @@ const EngineInteractionLayer: React.FC = () => {
     // Handlers might need an onCancel
   };
 
+  // Center Icon Calculation
+  const centerScreen = worldToScreen({ x: 0, y: 0 }, viewTransform);
+
   return (
     <div
       style={{ position: 'absolute', inset: 0, zIndex: 20, touchAction: 'none', cursor }}
@@ -118,6 +122,35 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerLeave={() => setIsMouseOverCanvas(false)}
     >
       <SelectionOverlay />
+      
+      {/* Center Icon */}
+      {centerIconSettings.show && (
+        <div
+          style={{
+            position: 'absolute',
+            left: centerScreen.x,
+            top: centerScreen.y,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            color: centerIconSettings.color,
+          }}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+            <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+          </svg>
+        </div>
+      )}
+
       {/* Dynamic Overlay from Active Handler */}
       {overlay}
     </div>
