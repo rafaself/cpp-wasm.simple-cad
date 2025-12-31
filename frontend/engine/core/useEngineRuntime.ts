@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import type { EngineRuntime } from './EngineRuntime';
 import { getEngineRuntime, getEngineRuntimeSync } from './singleton';
+
+import type { EngineRuntime } from './EngineRuntime';
 
 export const useEngineRuntime = (): EngineRuntime | null => {
   const [runtime, setRuntime] = useState<EngineRuntime | null>(() => getEngineRuntimeSync());

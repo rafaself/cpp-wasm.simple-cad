@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EngineRuntime, type WasmModule, type CadEngineInstance } from '@/engine/core/EngineRuntime';
+
+import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
+import {
+  EngineRuntime,
+  type WasmModule,
+  type CadEngineInstance,
+} from '@/engine/core/EngineRuntime';
 import { EXPECTED_PROTOCOL_INFO, SelectionMode, ReorderAction } from '@/engine/core/protocol';
 
 // Mock the factory to avoid loading real WASM
 vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
   initCadEngineModule: vi.fn(),
 }));
-
-import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 
 describe('EngineRuntime', () => {
   let mockEngine: CadEngineInstance;
@@ -27,7 +31,7 @@ describe('EngineRuntime', () => {
       get: (index: number) => values[index] ?? 0,
       delete: () => undefined,
     });
-    
+
     mockEngine = {
       clear: vi.fn(),
       allocBytes: vi.fn((size) => 100), // Always return pointer 100
@@ -48,8 +52,20 @@ describe('EngineRuntime', () => {
       redo: vi.fn(),
       pollEvents: vi.fn(() => ({ generation: 0, count: 0, ptr: 0 })),
       ackResync: vi.fn(),
-      getSelectionOutlineMeta: vi.fn(() => ({ generation: 0, primitiveCount: 0, floatCount: 0, primitivesPtr: 0, dataPtr: 0 })),
-      getSelectionHandleMeta: vi.fn(() => ({ generation: 0, primitiveCount: 0, floatCount: 0, primitivesPtr: 0, dataPtr: 0 })),
+      getSelectionOutlineMeta: vi.fn(() => ({
+        generation: 0,
+        primitiveCount: 0,
+        floatCount: 0,
+        primitivesPtr: 0,
+        dataPtr: 0,
+      })),
+      getSelectionHandleMeta: vi.fn(() => ({
+        generation: 0,
+        primitiveCount: 0,
+        floatCount: 0,
+        primitivesPtr: 0,
+        dataPtr: 0,
+      })),
       getEntityAabb: vi.fn(() => ({ minX: 0, minY: 0, maxX: 0, maxY: 0, valid: 0 })),
       getSelectionIds: vi.fn(() => makeVector(selectionIds)),
       clearSelection: vi.fn(() => {
@@ -110,7 +126,7 @@ describe('EngineRuntime', () => {
   it('initializes correctly', async () => {
     const runtime = await EngineRuntime.create();
     expect(initCadEngineModule).toHaveBeenCalled();
-    mockEngine.getStats = vi.fn(() => ({ generation: 1 } as any));
+    mockEngine.getStats = vi.fn(() => ({ generation: 1 }) as any);
     expect(runtime.getStats()).toEqual({ generation: 1 });
   });
 
@@ -143,7 +159,7 @@ describe('EngineRuntime', () => {
           strokeEnabled: 1,
           strokeWidthPx: 1,
         },
-      }
+      },
     ];
 
     runtime.apply(commands);

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="16px" height="16px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Borda (quase branca) -->
+  <path d="M1.5 4.07L7.93 21.22C8.64 23.12 11.42 22.87 11.77 20.86L13.13 13.13L20.86 11.77C22.87 11.42 23.12 8.64 21.22 7.93L4.07 1.5C2.47 0.9 0.9 2.47 1.5 4.07Z" fill="#F0F0F0"/>
+  <!-- Preenchimento Interno (quase preto) -->
+  <path d="M3.37 3.37L20.51 9.8L12.79 11.16C11.96 11.31 11.31 11.96 11.16 12.79L9.8 20.51L3.37 3.37Z" fill="#1A1A1A"/>
+</svg>

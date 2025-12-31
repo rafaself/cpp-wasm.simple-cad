@@ -1,8 +1,11 @@
 import { create } from 'zustand';
-import { TextStyleSnapshot } from '../types/text';
-import { Point, ToolType, ViewTransform } from '../types';
-import type { HistoryMeta } from '@/engine/core/protocol';
+
 import { getEngineRuntime } from '@/engine/core/singleton';
+
+import { Point, ToolType, ViewTransform } from '../types';
+import { TextStyleSnapshot } from '../types/text';
+
+import type { HistoryMeta } from '@/engine/core/protocol';
 
 export interface EditorTab {
   floorId: string;
@@ -24,6 +27,7 @@ interface UIState {
   activeDiscipline: 'architecture';
   viewTransform: ViewTransform;
   mousePos: Point | null;
+  isMouseOverCanvas: boolean;
   canvasSize: { width: number; height: number };
   isSettingsModalOpen: boolean;
   isLayerManagerOpen: boolean;
@@ -48,7 +52,6 @@ interface UIState {
   };
   engineTextStyleSnapshot: { textId: number; snapshot: TextStyleSnapshot } | null;
 
-  
   openTabs: EditorTab[];
   openTab: (tab: EditorTab) => void;
   closeTab: (tab: EditorTab) => void;
@@ -59,6 +62,7 @@ interface UIState {
   setViewTransform: (transform: ViewTransform | ((prev: ViewTransform) => ViewTransform)) => void;
   setCanvasSize: (size: { width: number; height: number }) => void;
   setMousePos: (pos: Point | null) => void;
+  setIsMouseOverCanvas: (isOver: boolean) => void;
 
   setSettingsModalOpen: (isOpen: boolean) => void;
   setLayerManagerOpen: (isOpen: boolean) => void;
@@ -71,7 +75,9 @@ interface UIState {
   // Engine text editing setters
   setEngineTextEditActive: (active: boolean, textId?: number | null) => void;
   bumpEngineTextEditGeneration: () => void;
-  setEngineTextEditCaretPosition: (position: { x: number; y: number; height: number } | null) => void;
+  setEngineTextEditCaretPosition: (
+    position: { x: number; y: number; height: number } | null,
+  ) => void;
   clearEngineTextEdit: () => void;
   setEngineTextStyleSnapshot: (textId: number, snapshot: TextStyleSnapshot) => void;
   clearEngineTextStyleSnapshot: () => void;
@@ -89,7 +95,10 @@ interface UIState {
     type: 'info' | 'success' | 'warning' | 'error';
     isVisible: boolean;
   };
-  showToast: (message: string | React.ReactNode, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  showToast: (
+    message: string | React.ReactNode,
+    type?: 'info' | 'success' | 'warning' | 'error',
+  ) => void;
   hideToast: () => void;
 }
 
@@ -100,15 +109,16 @@ export const useUIStore = create<UIState>((set) => ({
     type: 'info',
     isVisible: false,
   },
-  
+
   showToast: (message, type = 'info') => set({ toast: { message, type, isVisible: true } }),
   hideToast: () => set((state) => ({ toast: { ...state.toast, isVisible: false } })),
-  
+
   activeTool: 'select',
   // ...
   sidebarTab: 'edificacao',
   viewTransform: { x: 0, y: 0, scale: 1 },
   mousePos: null,
+  isMouseOverCanvas: false,
   canvasSize: { width: 0, height: 0 },
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
@@ -135,71 +145,79 @@ export const useUIStore = create<UIState>((set) => ({
   activeFloorId: 'terreo',
   activeDiscipline: 'architecture',
   activeLayerId: null,
-  
+
   openTabs: [{ floorId: 'terreo', discipline: 'architecture' }],
 
   referencedDisciplines: new Map(), // Default to empty Map
-  toggleReference: (floorId, disciplineToToggle) => set((state) => {
+  toggleReference: (floorId, disciplineToToggle) =>
+    set((state) => {
       const newReferences = new Map(state.referencedDisciplines);
-      let floorReferences = newReferences.get(floorId) || new Set();
+      const floorReferences = newReferences.get(floorId) || new Set();
 
       if (floorReferences.has(disciplineToToggle)) {
-          floorReferences.delete(disciplineToToggle);
+        floorReferences.delete(disciplineToToggle);
       } else {
-          floorReferences.add(disciplineToToggle);
+        floorReferences.add(disciplineToToggle);
       }
 
       if (floorReferences.size > 0) {
-          newReferences.set(floorId, new Set(floorReferences)); // Ensure new Set instance for immutability
+        newReferences.set(floorId, new Set(floorReferences)); // Ensure new Set instance for immutability
       } else {
-          newReferences.delete(floorId);
+        newReferences.delete(floorId);
       }
       return { referencedDisciplines: newReferences };
-  }),
-  
+    }),
+
   openTab: (tab) => {
     clearEngineSelection();
     return set((state) => {
-    const exists = state.openTabs.some(t => t.floorId === tab.floorId && t.discipline === tab.discipline);
-    
-    // Always clear selection when switching context
-    const updates = { 
-        activeFloorId: tab.floorId, 
-        activeDiscipline: tab.discipline,
-    };
+      const exists = state.openTabs.some(
+        (t) => t.floorId === tab.floorId && t.discipline === tab.discipline,
+      );
 
-    if (exists) {
+      // Always clear selection when switching context
+      const updates = {
+        activeFloorId: tab.floorId,
+        activeDiscipline: tab.discipline,
+      };
+
+      if (exists) {
         return updates;
-    }
-    return { 
+      }
+      return {
         ...updates,
         openTabs: [...state.openTabs, tab],
-    };
-  });
+      };
+    });
   },
-  
-  closeTab: (tab) => set((state) => {
-    const newTabs = state.openTabs.filter(t => !(t.floorId === tab.floorId && t.discipline === tab.discipline));
-    if (newTabs.length === 0) return { openTabs: newTabs }; // Allow empty, UI should handle it or prevent closing last
 
-    let updates: Partial<UIState> = { openTabs: newTabs };
-    
-    // If closing active tab, switch to last available
-    if (state.activeFloorId === tab.floorId && state.activeDiscipline === tab.discipline) {
+  closeTab: (tab) =>
+    set((state) => {
+      const newTabs = state.openTabs.filter(
+        (t) => !(t.floorId === tab.floorId && t.discipline === tab.discipline),
+      );
+      if (newTabs.length === 0) return { openTabs: newTabs }; // Allow empty, UI should handle it or prevent closing last
+
+      const updates: Partial<UIState> = { openTabs: newTabs };
+
+      // If closing active tab, switch to last available
+      if (state.activeFloorId === tab.floorId && state.activeDiscipline === tab.discipline) {
         const last = newTabs[newTabs.length - 1];
         updates.activeFloorId = last.floorId;
         updates.activeDiscipline = last.discipline;
-    }
-    return updates;
-  }),
+      }
+      return updates;
+    }),
 
   setTool: (tool) => set({ activeTool: tool }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
-  setViewTransform: (transform) => set((state) => ({
-    viewTransform: typeof transform === 'function' ? transform(state.viewTransform) : transform
-  })),
+  setViewTransform: (transform) =>
+    set((state) => ({
+      viewTransform: typeof transform === 'function' ? transform(state.viewTransform) : transform,
+    })),
   setCanvasSize: (size) => set({ canvasSize: size }),
   setMousePos: (pos) => set({ mousePos: pos }),
+  setIsMouseOverCanvas: (isOver) => set({ isMouseOverCanvas: isOver }),
 
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
@@ -207,44 +225,50 @@ export const useUIStore = create<UIState>((set) => ({
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),
 
-  setHistoryMeta: (meta) => set({
-    history: {
-      depth: meta.depth,
-      cursor: meta.cursor,
-      generation: meta.generation,
-      canUndo: meta.cursor > 0,
-      canRedo: meta.cursor < meta.depth,
-    },
-  }),
+  setHistoryMeta: (meta) =>
+    set({
+      history: {
+        depth: meta.depth,
+        cursor: meta.cursor,
+        generation: meta.generation,
+        canUndo: meta.cursor > 0,
+        canRedo: meta.cursor < meta.depth,
+      },
+    }),
 
   // Engine text editing setters
-  setEngineTextEditActive: (active, textId = null) => set((state) => ({
-    engineTextEditState: {
-      ...state.engineTextEditState,
-      active,
-      textId: active ? (textId ?? state.engineTextEditState.textId) : null,
-      editGeneration: active ? state.engineTextEditState.editGeneration + 1 : 0,
-    },
-  })),
-  bumpEngineTextEditGeneration: () => set((state) => ({
-    engineTextEditState: {
-      ...state.engineTextEditState,
-      editGeneration: state.engineTextEditState.editGeneration + 1,
-    }
-  })),
-  setEngineTextEditCaretPosition: (position) => set((state) => ({
-    engineTextEditState: { ...state.engineTextEditState, caretPosition: position },
-  })),
-  clearEngineTextEdit: () => set({
-    engineTextEditState: {
-      active: false,
-      textId: null,
-      editGeneration: 0,
-      caretPosition: null,
-    },
-    engineTextStyleSnapshot: null,
-  }),
-  setEngineTextStyleSnapshot: (textId, snapshot) => set({ engineTextStyleSnapshot: { textId, snapshot } }),
+  setEngineTextEditActive: (active, textId = null) =>
+    set((state) => ({
+      engineTextEditState: {
+        ...state.engineTextEditState,
+        active,
+        textId: active ? (textId ?? state.engineTextEditState.textId) : null,
+        editGeneration: active ? state.engineTextEditState.editGeneration + 1 : 0,
+      },
+    })),
+  bumpEngineTextEditGeneration: () =>
+    set((state) => ({
+      engineTextEditState: {
+        ...state.engineTextEditState,
+        editGeneration: state.engineTextEditState.editGeneration + 1,
+      },
+    })),
+  setEngineTextEditCaretPosition: (position) =>
+    set((state) => ({
+      engineTextEditState: { ...state.engineTextEditState, caretPosition: position },
+    })),
+  clearEngineTextEdit: () =>
+    set({
+      engineTextEditState: {
+        active: false,
+        textId: null,
+        editGeneration: 0,
+        caretPosition: null,
+      },
+      engineTextStyleSnapshot: null,
+    }),
+  setEngineTextStyleSnapshot: (textId, snapshot) =>
+    set({ engineTextStyleSnapshot: { textId, snapshot } }),
   clearEngineTextStyleSnapshot: () => set({ engineTextStyleSnapshot: null }),
 
   setActiveFloorId: (id) => {

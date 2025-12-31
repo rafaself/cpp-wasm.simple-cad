@@ -1,10 +1,10 @@
-import { CadEngineInstance, WasmModule } from '../wasm-types';
 import { EntityId, ReorderAction } from '../protocol';
+import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class EntitySystem {
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public allocateEntityId(): EntityId {

@@ -1,5 +1,5 @@
-
 import { describe, it, expect } from 'vitest';
+
 import {
   identity,
   multiply,
@@ -7,7 +7,7 @@ import {
   fromTranslation,
   fromRotation,
   fromScaling,
-  fromTRS
+  fromTRS,
 } from './matrix2d';
 
 describe('Matrix2D', () => {

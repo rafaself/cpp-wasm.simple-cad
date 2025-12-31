@@ -59,4 +59,3 @@ describe('svgToVectorDocumentV1', () => {
     expect(doc.draws[0]!.clipStack?.[0]!.pathId).toBeDefined();
   });
 });
-

@@ -1,18 +1,20 @@
 /**
  * PickProfiler - Performance monitoring for pick operations
- * 
+ *
  * Tracks detailed metrics for runtime.pickEx calls including:
  * - Call frequency
  * - Execution time (average, percentiles)
  * - Skip rate (when early exit optimizations trigger)
- * 
+ *
  * Minimal overhead in production (~1-2% CPU increase)
- * 
+ *
  * @example
  * const profiler = new PickProfiler({ enabled: true, logInterval: 100 });
  * const profiledPick = profiler.wrap(runtime.pickEx.bind(runtime));
  * const result = profiledPick(x, y, tolerance, mask);
  */
+
+/* eslint-disable no-console */
 
 export interface PickProfilerConfig {
   /** Enable profiling (set false in production for zero overhead) */
@@ -116,7 +118,7 @@ export class PickProfiler {
    */
   private percentile(p: number): number {
     if (this.samples.length === 0) return 0;
-    
+
     const sorted = [...this.samples].sort((a, b) => a - b);
     const index = Math.ceil((p / 100) * sorted.length) - 1;
     return sorted[Math.max(0, index)] || 0;
@@ -129,7 +131,7 @@ export class PickProfiler {
     const elapsedSeconds = (performance.now() - this.firstCallTime) / 1000;
     const totalAttempts = this.calls + this.skipped;
     const reportedCalls = this.calls > 0 ? this.calls : this.skipped;
-    
+
     return {
       totalCalls: reportedCalls,
       totalSkipped: this.skipped,
@@ -152,13 +154,15 @@ export class PickProfiler {
     if (!this.enabled) return;
 
     const stats = this.getStats();
-    
+
     console.group(`🎯 PickProfiler Stats`);
     console.log(`Calls: ${stats.totalCalls} (${stats.callsPerSecond.toFixed(1)}/sec)`);
     console.log(`Skipped: ${stats.totalSkipped} (${(stats.skipRate * 100).toFixed(1)}%)`);
     console.log(`Avg: ${stats.avgTime.toFixed(2)}ms`);
     console.log(`Min/Max: ${stats.minTime.toFixed(2)}ms / ${stats.maxTime.toFixed(2)}ms`);
-    console.log(`Percentiles: P50=${stats.p50.toFixed(2)}ms, P95=${stats.p95.toFixed(2)}ms, P99=${stats.p99.toFixed(2)}ms`);
+    console.log(
+      `Percentiles: P50=${stats.p50.toFixed(2)}ms, P95=${stats.p95.toFixed(2)}ms, P99=${stats.p99.toFixed(2)}ms`,
+    );
     console.groupEnd();
   }
 

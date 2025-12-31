@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
 import { Import } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
 
 interface DisciplineContextMenuProps {
   floorId: string;
@@ -16,7 +16,7 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   position,
   onClose,
   onImportPdf,
-  onImportDxf
+  onImportDxf,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -34,36 +34,36 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-lg py-1 w-48 text-xs text-slate-700"
+      className="fixed z-50 bg-surface-strong border border-border rounded-md shadow-lg py-1 w-48 text-xs text-text"
       style={{ top: position.y, left: position.x }}
     >
-      <div className="px-3 py-2 border-b border-slate-100 font-bold text-slate-500 bg-slate-50">
+      <div className="px-3 py-2 border-b border-border font-bold text-text-muted bg-surface2">
         Arquitetura ({floorId === 'terreo' ? 'Térreo' : floorId})
       </div>
 
       {onImportPdf && (
         <button
-            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-            onClick={() => {
-                onImportPdf();
-                onClose();
-            }}
+          className="w-full text-left px-3 py-2 hover:bg-surface2 flex items-center gap-2"
+          onClick={() => {
+            onImportPdf();
+            onClose();
+          }}
         >
-            <Import size={14} />
-            <span>Importar Planta (PDF/SVG)</span>
+          <Import size={14} />
+          <span>Importar Planta (PDF/SVG)</span>
         </button>
       )}
 
       {onImportDxf && (
         <button
-            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-            onClick={() => {
-                onImportDxf();
-                onClose();
-            }}
+          className="w-full text-left px-3 py-2 hover:bg-surface2 flex items-center gap-2"
+          onClick={() => {
+            onImportDxf();
+            onClose();
+          }}
         >
-            <Import size={14} />
-            <span>Importar Planta (DXF)</span>
+          <Import size={14} />
+          <span>Importar Planta (DXF)</span>
         </button>
       )}
     </div>

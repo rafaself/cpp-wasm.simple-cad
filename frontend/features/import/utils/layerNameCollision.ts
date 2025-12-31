@@ -54,4 +54,3 @@ export const mapImportedLayerNames = (params: {
 
   return { mapping, conflicts };
 };
-

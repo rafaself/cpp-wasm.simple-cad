@@ -1,22 +1,20 @@
-import React, { useState } from "react";
-import ColorPicker from "../../../components/ColorPicker";
-import { useSettingsStore } from "../../../stores/useSettingsStore";
-import { Section } from "../../../components/ui/Section";
-import { Toggle } from "../../../components/ui/Toggle";
-import { UI } from "../../../design/tokens";
-import { RotateCcw } from "lucide-react";
-import { supportsEngineResize } from "../../../engine/core/capabilities";
+import { Dot, Grid3x3, RotateCcw } from 'lucide-react';
+import React, { useState } from 'react';
+
 import { LABELS } from '@/i18n/labels';
+import * as DEFAULTS from '@/theme/defaults';
+
+import ColorPicker from '../../../components/ColorPicker';
+import { NumericComboField } from '../../../components/NumericComboField';
+import { Section } from '../../../components/ui/Section';
+import { Toggle } from '../../../components/ui/Toggle';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
-  const engineResizeSupported = supportsEngineResize(settings.engineCapabilitiesMask);
-  const engineResizeEnabled = settings.featureFlags.enableEngineResize && engineResizeSupported;
 
   // Color picker state
-  const [activeColorPicker, setActiveColorPicker] = useState<string | null>(
-    null
-  );
+  const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
   const openColorPicker = (e: React.MouseEvent, pickerId: string) => {
@@ -40,14 +38,14 @@ const CanvasSettings: React.FC = () => {
   }) => (
     <div className="flex items-center justify-between py-2">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-300">{label}</span>
+        <span className="text-sm text-text-muted">{label}</span>
         {onReset && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onReset();
             }}
-            className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1 rounded hover:bg-surface2 text-text-muted hover:text-text transition-colors"
             title="Restaurar cor padrão"
           >
             <RotateCcw size={12} />
@@ -55,7 +53,7 @@ const CanvasSettings: React.FC = () => {
         )}
       </div>
       <div
-        className="w-8 h-6 rounded border border-slate-600 cursor-pointer hover:border-slate-400"
+        className="w-8 h-6 rounded border border-border cursor-pointer hover:border-primary/50"
         style={{ backgroundColor: color }}
         onClick={(e) => openColorPicker(e, pickerId)}
       />
@@ -74,11 +72,11 @@ const CanvasSettings: React.FC = () => {
     onChange: (v: string) => void;
   }) => (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-slate-300">{label}</span>
+      <span className="text-sm text-text-muted">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 cursor-pointer hover:border-slate-400 focus:outline-none focus:border-blue-500"
+        className="bg-surface2 border border-border rounded px-2 py-1 text-sm text-text cursor-pointer hover:border-primary/50 focus:outline-none focus:border-primary"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -89,119 +87,172 @@ const CanvasSettings: React.FC = () => {
     </div>
   );
 
-  const SliderField = ({
-    label,
-    value,
-    min,
-    max,
-    step,
-    onChange,
-  }: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    onChange: (v: number) => void;
-  }) => (
-    <div className="flex items-center justify-between py-2 gap-4">
-      <span className="text-sm text-slate-300 flex-shrink-0">{label}</span>
-      <div className="flex items-center gap-2 flex-1">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseInt(e.target.value))}
-          className="flex-1 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-        />
-        <span className="text-xs font-mono text-slate-400 w-8 text-right">
-          {value}
-        </span>
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex flex-col">
       <Section title={LABELS.settings.grid}>
-          <SliderField
-            label={LABELS.settings.gridSize}
-            value={settings.grid.size}
-            min={10}
-            max={200}
-            step={10}
-            onChange={settings.setGridSize}
-          />
-          <ColorField
-            label="Cor da Grade"
-            color={settings.grid.color}
-            pickerId="grid"
-          />
-          <Toggle
-            label="Mostrar Pontos"
-            checked={settings.grid.showDots}
-            onChange={settings.setGridShowDots}
-          />
-          <Toggle
-            label={LABELS.settings.showGrid}
-            checked={settings.grid.showLines}
-            onChange={settings.setGridShowLines}
-          />
+        {/* Toggle Mostrar Grade - primeiro item */}
+        <Toggle
+          label={LABELS.settings.showGrid}
+          checked={settings.grid.showDots || settings.grid.showLines}
+          onChange={(show) => {
+            if (show) {
+              // Ativar com estilo padrão (pontos)
+              settings.setGridShowDots(true);
+            } else {
+              // Desativar ambos
+              settings.setGridShowDots(false);
+              settings.setGridShowLines(false);
+            }
+          }}
+        />
+
+        {/* Demais controles só aparecem quando a grade está visível */}
+        {(settings.grid.showDots || settings.grid.showLines) && (
+          <>
+            {/* Estilo da Grade - apenas 2 opções: Pontos e Linhas */}
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-text-muted">Estilo</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    settings.setGridShowDots(true);
+                    settings.setGridShowLines(false);
+                  }}
+                  className={`p-1.5 rounded border transition-colors ${
+                    settings.grid.showDots && !settings.grid.showLines
+                      ? 'bg-primary/20 border-primary text-primary'
+                      : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
+                  }`}
+                  title="Pontos"
+                >
+                  <Dot size={24} className="-m-1" />
+                </button>
+                <button
+                  onClick={() => {
+                    settings.setGridShowDots(false);
+                    settings.setGridShowLines(true);
+                  }}
+                  className={`p-1.5 rounded border transition-colors ${
+                    !settings.grid.showDots && settings.grid.showLines
+                      ? 'bg-primary/20 border-primary text-primary'
+                      : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
+                  }`}
+                  title="Linhas"
+                >
+                  <Grid3x3 size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Tamanho da Grade */}
+            <div className="flex items-center justify-between py-2 gap-4">
+              <span className="text-sm text-text-muted flex-shrink-0">
+                {LABELS.settings.gridSize}
+              </span>
+              <div className="w-[75px]">
+                <NumericComboField
+                  value={settings.grid.size}
+                  onCommit={settings.setGridSize}
+                  presets={[10, 20, 25, 50, 100, 150, 200]}
+                  min={10}
+                  max={500}
+                  step={10}
+                  stepLarge={50}
+                  ariaLabel="Tamanho da Grade"
+                  size="small"
+                  className="w-full"
+                  allowScrollWheel={true}
+                />
+              </div>
+            </div>
+
+            {/* Cor da Grade (já inclui opacidade) */}
+            <ColorField label="Cor da Grade" color={settings.grid.color} pickerId="grid" />
+
+            {/* Subdivisões Adaptativas */}
+            <Toggle
+              label="Subdivisões Adaptativas"
+              checked={settings.grid.showSubdivisions}
+              onChange={settings.setGridShowSubdivisions}
+            />
+            {settings.grid.showSubdivisions && (
+              <SelectField
+                label="Divisões"
+                value={String(settings.grid.subdivisionCount)}
+                options={[
+                  { value: '2', label: '÷2' },
+                  { value: '4', label: '÷4' },
+                  { value: '5', label: '÷5' },
+                  { value: '10', label: '÷10' },
+                ]}
+                onChange={(v) => settings.setGridSubdivisionCount(parseInt(v, 10))}
+              />
+            )}
+          </>
+        )}
       </Section>
 
       <Section title={LABELS.settings.showAxis}>
-          <Toggle label={LABELS.settings.showAxis} checked={settings.display.centerAxes.show} onChange={settings.setShowCenterAxes} />
-          <ColorField label="Cor Eixo X" color={settings.display.centerAxes.xColor} pickerId="axisX" />
-          <ColorField label="Cor Eixo Y" color={settings.display.centerAxes.yColor} pickerId="axisY" />
-          <SelectField 
-            label="Tipo Eixo X" 
-            value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'} 
-            options={[
-              { value: 'solid', label: 'Contínuo' },
-              { value: 'dashed', label: 'Tracejado' }
-            ]}
-            onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
-          />
-          <SelectField 
-            label="Tipo Eixo Y" 
-            value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'} 
-            options={[
-              { value: 'solid', label: 'Contínuo' },
-              { value: 'dashed', label: 'Tracejado' }
-            ]}
-            onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
-          />
+        <Toggle
+          label={LABELS.settings.showAxis}
+          checked={settings.display.centerAxes.show}
+          onChange={settings.setShowCenterAxes}
+        />
+        {settings.display.centerAxes.show && (
+          <>
+            <ColorField
+              label="Cor Eixo X"
+              color={settings.display.centerAxes.xColor}
+              pickerId="axisX"
+            />
+            <ColorField
+              label="Cor Eixo Y"
+              color={settings.display.centerAxes.yColor}
+              pickerId="axisY"
+            />
+            <SelectField
+              label="Tipo Eixo X"
+              value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'}
+              options={[
+                { value: 'solid', label: 'Contínuo' },
+                { value: 'dashed', label: 'Tracejado' },
+              ]}
+              onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
+            />
+            <SelectField
+              label="Tipo Eixo Y"
+              value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'}
+              options={[
+                { value: 'solid', label: 'Contínuo' },
+                { value: 'dashed', label: 'Tracejado' },
+              ]}
+              onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
+            />
+          </>
+        )}
       </Section>
 
       <Section title="Ícone Central">
-          <Toggle
-            label="Mostrar Ícone"
-            checked={settings.display.centerIcon.show}
-            onChange={settings.setShowCenterIcon}
-          />
+        <Toggle
+          label="Mostrar Ícone"
+          checked={settings.display.centerIcon.show}
+          onChange={settings.setShowCenterIcon}
+        />
+        {settings.display.centerIcon.show && (
           <ColorField
             label="Cor do Ícone"
             color={settings.display.centerIcon.color}
             pickerId="centerIcon"
           />
+        )}
       </Section>
 
-      <Section title="Interface">
-          <ColorField
-            label="Cor de Fundo"
-            color={settings.display.backgroundColor}
-            pickerId="canvasBackground"
-            onReset={() => settings.setCanvasBackgroundColor(UI.BACKGROUND_DEFAULT)}
-          />
-      </Section>
-
-      <Section title="Dev">
-        <Toggle
-          label={engineResizeSupported ? "Enable Engine Resize (Dev)" : "Enable Engine Resize (Dev) - requires WASM rebuild"}
-          checked={engineResizeEnabled}
-          onChange={settings.setEngineResizeEnabled}
+      <Section title="Fundo">
+        <ColorField
+          label="Cor de Fundo"
+          color={settings.display.backgroundColor}
+          pickerId="canvasBackground"
+          onReset={() => settings.setCanvasBackgroundColor(DEFAULTS.DEFAULT_CANVAS_BG)}
         />
       </Section>
 
@@ -211,23 +262,22 @@ const CanvasSettings: React.FC = () => {
           <div className="fixed inset-0 z-[200]" onClick={closeColorPicker} />
           <ColorPicker
             color={
-              activeColorPicker === "grid"
+              activeColorPicker === 'grid'
                 ? settings.grid.color
-                : activeColorPicker === "axisX"
-                ? settings.display.centerAxes.xColor
-                : activeColorPicker === "axisY"
-                ? settings.display.centerAxes.yColor
-                : activeColorPicker === "centerIcon"
-                ? settings.display.centerIcon.color
-                : settings.display.backgroundColor
+                : activeColorPicker === 'axisX'
+                  ? settings.display.centerAxes.xColor
+                  : activeColorPicker === 'axisY'
+                    ? settings.display.centerAxes.yColor
+                    : activeColorPicker === 'centerIcon'
+                      ? settings.display.centerIcon.color
+                      : settings.display.backgroundColor
             }
             onChange={(c) => {
-              if (activeColorPicker === "grid") settings.setGridColor(c);
-              else if (activeColorPicker === "axisX") settings.setAxisXColor(c);
-              else if (activeColorPicker === "axisY") settings.setAxisYColor(c);
-              else if (activeColorPicker === "centerIcon")
-                settings.setCenterIconColor(c);
-              else if (activeColorPicker === "canvasBackground")
+              if (activeColorPicker === 'grid') settings.setGridColor(c);
+              else if (activeColorPicker === 'axisX') settings.setAxisXColor(c);
+              else if (activeColorPicker === 'axisY') settings.setAxisYColor(c);
+              else if (activeColorPicker === 'centerIcon') settings.setCenterIconColor(c);
+              else if (activeColorPicker === 'canvasBackground')
                 settings.setCanvasBackgroundColor(c);
             }}
             onClose={closeColorPicker}

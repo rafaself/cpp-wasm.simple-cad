@@ -1,12 +1,13 @@
 /**
  * TextStateManager - Manages TextTool state lifecycle.
- * 
+ *
  * Extracted from TextTool.ts to handle state initialization, updates,
  * and active text management separately from tool logic.
  */
 
-import { TextBoxMode, TextStyleFlags, TextAlign, TextStyleDefaults, TextToolState } from './types';
 import { packColorRGBA } from '@/types/text';
+
+import { TextBoxMode, TextStyleFlags, TextAlign, TextStyleDefaults, TextToolState } from './types';
 
 export class TextStateManager {
   private state: TextToolState;
@@ -53,7 +54,7 @@ export class TextStateManager {
     rotation: number,
     boxMode: TextBoxMode,
     constraintWidth: number,
-    initialCaretIndex: number = 0
+    initialCaretIndex: number = 0,
   ): void {
     this.updateState({
       mode: 'editing',

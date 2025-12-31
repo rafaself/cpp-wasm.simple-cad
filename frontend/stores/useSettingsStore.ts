@@ -1,7 +1,11 @@
 import { create } from 'zustand';
-import { SnapOptions } from '../types';
-import { UI } from '../design/tokens';
+
 import { supportsEngineResize } from '@/engine/core/capabilities';
+
+import { INTERACTION } from '../src/constants/interaction';
+import { GRID } from '../src/constants/ui';
+import * as DEFAULTS from '../theme/defaults';
+import { SnapOptions } from '../types';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
 
@@ -10,6 +14,10 @@ export interface GridSettings {
   color: string;
   showDots: boolean;
   showLines: boolean;
+  showSubdivisions: boolean;
+  subdivisionCount: number;
+  lineWidth: number; // pixels
+  dotRadius: number; // pixels
 }
 
 export interface DisplaySettings {
@@ -25,6 +33,8 @@ export interface DisplaySettings {
     color: string;
   };
   backgroundColor: string;
+  showQuickAccess: boolean;
+  showSidebarScrollIndicators: boolean;
 }
 
 export interface ToolDefaults {
@@ -68,6 +78,13 @@ interface SettingsState {
   setGridColor: (color: string) => void;
   setGridShowDots: (show: boolean) => void;
   setGridShowLines: (show: boolean) => void;
+  setGridShowSubdivisions: (show: boolean) => void;
+  setGridSubdivisionCount: (count: number) => void;
+  // opacity removed
+  setGridLineWidth: (width: number) => void;
+  setGridDotRadius: (radius: number) => void;
+  resetGridToDefaults: () => void;
+  applyGridPreset: (preset: 'dots' | 'lines' | 'combined' | 'minimal') => void;
 
   setShowCenterAxes: (show: boolean) => void;
   setAxisXColor: (color: string) => void;
@@ -77,6 +94,8 @@ interface SettingsState {
   setShowCenterIcon: (show: boolean) => void;
   setCenterIconColor: (color: string) => void;
   setCanvasBackgroundColor: (color: string) => void;
+  setShowQuickAccess: (show: boolean) => void;
+  setShowSidebarScrollIndicators: (show: boolean) => void;
 
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
@@ -102,10 +121,14 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   grid: {
-    size: 100,
-    color: '#313943',
-    showDots: true,
+    size: GRID.DEFAULT_SIZE_WU,
+    color: DEFAULTS.DEFAULT_GRID_COLOR,
+    showDots: false,
     showLines: false,
+    showSubdivisions: true,
+    subdivisionCount: 5,
+    lineWidth: 1,
+    dotRadius: 2,
   },
   snap: {
     enabled: true,
@@ -114,27 +137,29 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     center: true,
     nearest: false,
     grid: false,
-    tolerancePx: 20,
+    tolerancePx: INTERACTION.SNAP_THRESHOLD_PX,
   },
   display: {
     centerAxes: {
       show: true,
-      xColor: 'rgba(239, 68, 68, 0.4)',
-      yColor: 'rgba(34, 197, 94, 0.4)',
+      xColor: DEFAULTS.DEFAULT_AXIS_X_COLOR,
+      yColor: DEFAULTS.DEFAULT_AXIS_Y_COLOR,
       xDashed: true,
       yDashed: true,
     },
     centerIcon: {
-      show: true,
-      color: 'rgba(100, 116, 139, 0.5)',
+      show: false,
+      color: DEFAULTS.DEFAULT_CENTER_ICON_COLOR,
     },
-    backgroundColor: UI.BACKGROUND_DEFAULT,
+    backgroundColor: DEFAULTS.DEFAULT_CANVAS_BG,
+    showQuickAccess: false,
+    showSidebarScrollIndicators: true,
   },
   toolDefaults: {
-    strokeColor: '#FFFFFF',
+    strokeColor: DEFAULTS.DEFAULT_STROKE_COLOR,
     strokeWidth: 1,
     strokeEnabled: true,
-    fillColor: '#D9D9D9',
+    fillColor: DEFAULTS.DEFAULT_FILL_COLOR,
     fillEnabled: true,
     polygonSides: 3,
     text: {
@@ -165,54 +190,182 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setGridColor: (color) => set((state) => ({ grid: { ...state.grid, color } })),
   setGridShowDots: (show) => set((state) => ({ grid: { ...state.grid, showDots: show } })),
   setGridShowLines: (show) => set((state) => ({ grid: { ...state.grid, showLines: show } })),
+  setGridShowSubdivisions: (show) =>
+    set((state) => ({ grid: { ...state.grid, showSubdivisions: show } })),
+  setGridSubdivisionCount: (count) =>
+    set((state) => ({ grid: { ...state.grid, subdivisionCount: count } })),
+  // opacity removed
+  setGridLineWidth: (width) =>
+    set((state) => ({ grid: { ...state.grid, lineWidth: Math.max(0.5, Math.min(5, width)) } })),
+  setGridDotRadius: (radius) =>
+    set((state) => ({ grid: { ...state.grid, dotRadius: Math.max(1, Math.min(8, radius)) } })),
 
-  setShowCenterAxes: (show) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, show } } })),
-  setAxisXColor: (color) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, xColor: color } } })),
-  setAxisYColor: (color) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yColor: color } } })),
-  setAxisXDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, xDashed: dashed } } })),
-  setAxisYDashed: (dashed) => set((state) => ({ display: { ...state.display, centerAxes: { ...state.display.centerAxes, yDashed: dashed } } })),
-  setShowCenterIcon: (show) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, show } } })),
-  setCenterIconColor: (color) => set((state) => ({ display: { ...state.display, centerIcon: { ...state.display.centerIcon, color } } })),
-  setCanvasBackgroundColor: (color) => set((state) => ({ display: { ...state.display, backgroundColor: color } })),
+  resetGridToDefaults: () =>
+    set((state) => ({
+      grid: {
+        size: GRID.DEFAULT_SIZE_WU,
+        color: DEFAULTS.DEFAULT_GRID_COLOR,
+        showDots: false,
+        showLines: false,
+        showSubdivisions: true,
+        subdivisionCount: 5,
+        // opacity: 0.5 removed,
+        lineWidth: 1,
+        dotRadius: 2,
+      },
+    })),
 
-  setStrokeColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),
-  setStrokeWidth: (width) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),
-  setStrokeEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeEnabled: enabled } })),
-  setFillColor: (color) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillColor: color } })),
-  setFillEnabled: (enabled) => set((state) => ({ toolDefaults: { ...state.toolDefaults, fillEnabled: enabled } })),
-  setPolygonSides: (sides) => set((state) => ({ toolDefaults: { ...state.toolDefaults, polygonSides: sides } })),
-
-  setTextFontSize: (size) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontSize: size } } })),
-  setTextFontFamily: (family) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontFamily: family } } })),
-  setTextAlign: (align) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, align } } })),
-  setTextBold: (bold) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, bold } } })),
-  setTextItalic: (italic) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } } })),
-  setTextUnderline: (underline) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } } })),
-  setTextStrike: (strike) => set((state) => ({ toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } } })),
-  setEngineResizeEnabled: (enabled) => set((state) => {
-    if (!enabled) {
-      if (!state.featureFlags.enableEngineResize) return state;
-      return { featureFlags: { ...state.featureFlags, enableEngineResize: false } };
-    }
-    if (!supportsEngineResize(state.engineCapabilitiesMask)) {
-      if (import.meta.env.DEV) {
-        console.warn('[Settings] enableEngineResize ignored: WASM lacks resize capabilities.');
+  applyGridPreset: (preset) =>
+    set((state) => {
+      switch (preset) {
+        case 'dots':
+          return {
+            grid: { ...state.grid, showDots: true, showLines: false, dotRadius: 2 },
+          };
+        case 'lines':
+          return {
+            grid: { ...state.grid, showDots: false, showLines: true, lineWidth: 1 },
+          };
+        case 'combined':
+          return {
+            grid: {
+              ...state.grid,
+              showDots: true,
+              showLines: true,
+              dotRadius: 1.5,
+              lineWidth: 0.5,
+              // opacity: 0.5 removed
+            },
+          };
+        case 'minimal':
+          return {
+            grid: {
+              ...state.grid,
+              showDots: true,
+              showLines: false,
+              dotRadius: 1,
+              // opacity: 0.25 removed
+              showSubdivisions: false,
+            },
+          };
+        default:
+          return state;
       }
-      return state;
-    }
-    if (state.featureFlags.enableEngineResize) return state;
-    return { featureFlags: { ...state.featureFlags, enableEngineResize: true } };
-  }),
-  setEngineCapabilitiesMask: (mask) => set((state) => (state.engineCapabilitiesMask === mask ? state : { engineCapabilitiesMask: mask })),
-  
+    }),
+
+  setShowCenterAxes: (show) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, show } },
+    })),
+  setAxisXColor: (color) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, xColor: color } },
+    })),
+  setAxisYColor: (color) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, yColor: color } },
+    })),
+  setAxisXDashed: (dashed) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, xDashed: dashed } },
+    })),
+  setAxisYDashed: (dashed) =>
+    set((state) => ({
+      display: { ...state.display, centerAxes: { ...state.display.centerAxes, yDashed: dashed } },
+    })),
+  setShowCenterIcon: (show) =>
+    set((state) => ({
+      display: { ...state.display, centerIcon: { ...state.display.centerIcon, show } },
+    })),
+  setCenterIconColor: (color) =>
+    set((state) => ({
+      display: { ...state.display, centerIcon: { ...state.display.centerIcon, color } },
+    })),
+  setCanvasBackgroundColor: (color) =>
+    set((state) => ({ display: { ...state.display, backgroundColor: color } })),
+  setShowQuickAccess: (show) =>
+    set((state) => ({ display: { ...state.display, showQuickAccess: show } })),
+  setShowSidebarScrollIndicators: (show) =>
+    set((state) => ({ display: { ...state.display, showSidebarScrollIndicators: show } })),
+
+  setStrokeColor: (color) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),
+  setStrokeWidth: (width) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeWidth: width } })),
+  setStrokeEnabled: (enabled) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeEnabled: enabled } })),
+  setFillColor: (color) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, fillColor: color } })),
+  setFillEnabled: (enabled) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, fillEnabled: enabled } })),
+  setPolygonSides: (sides) =>
+    set((state) => ({ toolDefaults: { ...state.toolDefaults, polygonSides: sides } })),
+
+  setTextFontSize: (size) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, fontSize: size } },
+    })),
+  setTextFontFamily: (family) =>
+    set((state) => ({
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, fontFamily: family },
+      },
+    })),
+  setTextAlign: (align) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, align } },
+    })),
+  setTextBold: (bold) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, bold } },
+    })),
+  setTextItalic: (italic) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, italic } },
+    })),
+  setTextUnderline: (underline) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, underline } },
+    })),
+  setTextStrike: (strike) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } },
+    })),
+  setEngineResizeEnabled: (enabled) =>
+    set((state) => {
+      if (!enabled) {
+        if (!state.featureFlags.enableEngineResize) return state;
+        return { featureFlags: { ...state.featureFlags, enableEngineResize: false } };
+      }
+      if (!supportsEngineResize(state.engineCapabilitiesMask)) {
+        if (import.meta.env.DEV) {
+          console.warn('[Settings] enableEngineResize ignored: WASM lacks resize capabilities.');
+        }
+        return state;
+      }
+      if (state.featureFlags.enableEngineResize) return state;
+      return { featureFlags: { ...state.featureFlags, enableEngineResize: true } };
+    }),
+  setEngineCapabilitiesMask: (mask) =>
+    set((state) =>
+      state.engineCapabilitiesMask === mask ? state : { engineCapabilitiesMask: mask },
+    ),
+
   // Performance settings
-  setPickProfilingEnabled: (enabled) => set((state) => ({
-    featureFlags: { ...state.featureFlags, enablePickProfiling: enabled }
-  })),
-  setPickThrottlingEnabled: (enabled) => set((state) => ({
-    featureFlags: { ...state.featureFlags, enablePickThrottling: enabled }
-  })),
-  setPickThrottleInterval: (interval) => set((state) => ({
-    performance: { ...state.performance, pickThrottleInterval: Math.max(8, Math.min(100, interval)) }
-  })),
+  setPickProfilingEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePickProfiling: enabled },
+    })),
+  setPickThrottlingEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePickThrottling: enabled },
+    })),
+  setPickThrottleInterval: (interval) =>
+    set((state) => ({
+      performance: {
+        ...state.performance,
+        pickThrottleInterval: Math.max(8, Math.min(100, interval)),
+      },
+    })),
 }));

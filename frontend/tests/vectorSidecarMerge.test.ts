@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { VectorSidecarV1 } from '../types';
 import { mergeVectorSidecarsV1 } from '../utils/vectorSidecarMerge';
+
+import type { VectorSidecarV1 } from '../types';
 
 const sidecarWithOneDraw = (shapeId: string): VectorSidecarV1 => ({
   version: 1,
@@ -10,7 +11,10 @@ const sidecarWithOneDraw = (shapeId: string): VectorSidecarV1 => ({
     paths: [
       {
         id: 'p1',
-        segments: [{ kind: 'move', to: { x: 0, y: 0 } }, { kind: 'line', to: { x: 1, y: 0 } }],
+        segments: [
+          { kind: 'move', to: { x: 0, y: 0 } },
+          { kind: 'line', to: { x: 1, y: 0 } },
+        ],
         closed: false,
       },
     ],
@@ -46,4 +50,3 @@ describe('mergeVectorSidecarsV1', () => {
     expect(merged.bindings['shape-b']?.drawIds).toEqual(['pdf:shape-b:d1']);
   });
 });
-

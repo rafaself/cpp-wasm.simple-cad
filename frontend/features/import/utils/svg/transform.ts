@@ -1,5 +1,6 @@
-import type { Mat2D } from '../dxf/matrix2d';
 import { identity, multiply, fromRotation, fromScaling, fromTranslation } from '../dxf/matrix2d';
+
+import type { Mat2D } from '../dxf/matrix2d';
 
 const toNumber = (value: string): number | null => {
   const n = Number.parseFloat(value);
@@ -74,4 +75,3 @@ export const parseSvgTransform = (raw: string | undefined): Mat2D => {
   }
   return acc;
 };
-

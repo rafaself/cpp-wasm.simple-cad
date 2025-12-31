@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+
 import { CommandOp } from '@/engine/core/commandBuffer';
-import { InteractionHarness } from '@/test-utils/interactionHarness';
 import { SelectionMode } from '@/engine/core/protocol';
+import { InteractionHarness } from '@/test-utils/interactionHarness';
 
 describe('DraftingHandler', () => {
   let harness: InteractionHarness;

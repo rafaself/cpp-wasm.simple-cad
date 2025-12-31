@@ -1,11 +1,11 @@
 import { decodeEngineEvents } from '../engineEventDecoder';
-import { CadEngineInstance, WasmModule } from '../wasm-types';
 import { EngineEvent } from '../protocol';
+import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class EventSystem {
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public pollEvents(maxEvents: number): { generation: number; events: EngineEvent[] } {

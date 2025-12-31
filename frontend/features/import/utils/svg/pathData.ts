@@ -23,7 +23,14 @@ const svgArcToCenter = (
   xAxisRotationDeg: number,
   largeArcFlag: number,
   sweepFlag: number,
-): { center: Point; radius: Point; rotation: number; startAngle: number; endAngle: number; ccw: boolean } | null => {
+): {
+  center: Point;
+  radius: Point;
+  rotation: number;
+  startAngle: number;
+  endAngle: number;
+  ccw: boolean;
+} | null => {
   // Based on SVG 1.1 arc implementation notes (endpoint-to-center conversion).
   const rx0 = Math.abs(rxIn);
   const ry0 = Math.abs(ryIn);
@@ -208,7 +215,9 @@ export const parseSvgPathData = (d: string): { segments: VectorSegment[]; closed
         const c2 = readPoint();
         const p = readPoint();
         if (!c2 || !p) break;
-        const c1 = lastCubicCtrl ? { x: 2 * curr.x - lastCubicCtrl.x, y: 2 * curr.y - lastCubicCtrl.y } : { ...curr };
+        const c1 = lastCubicCtrl
+          ? { x: 2 * curr.x - lastCubicCtrl.x, y: 2 * curr.y - lastCubicCtrl.y }
+          : { ...curr };
         segments.push({ kind: 'cubic', c1, c2, to: p });
         lastCubicCtrl = c2;
         lastQuadCtrl = null;
@@ -216,7 +225,7 @@ export const parseSvgPathData = (d: string): { segments: VectorSegment[]; closed
         break;
       }
       case 'Q': {
-        const qc = readPoint();
+        const qc: Point | null = readPoint();
         const p = readPoint();
         if (!qc || !p) break;
         segments.push({ kind: 'quad', c: qc, to: p });
@@ -228,7 +237,9 @@ export const parseSvgPathData = (d: string): { segments: VectorSegment[]; closed
       case 'T': {
         const p = readPoint();
         if (!p) break;
-        const qc = lastQuadCtrl ? { x: 2 * curr.x - lastQuadCtrl.x, y: 2 * curr.y - lastQuadCtrl.y } : { ...curr };
+        const qc: Point = lastQuadCtrl
+          ? { x: 2 * curr.x - lastQuadCtrl.x, y: 2 * curr.y - lastQuadCtrl.y }
+          : { ...curr };
         segments.push({ kind: 'quad', c: qc, to: p });
         lastQuadCtrl = qc;
         lastCubicCtrl = null;
@@ -271,4 +282,3 @@ export const parseSvgPathData = (d: string): { segments: VectorSegment[]; closed
 
   return { segments, closed };
 };
-

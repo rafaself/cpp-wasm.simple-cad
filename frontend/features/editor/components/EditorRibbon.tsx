@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+
+import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 import { useUIStore } from '../../../stores/useUIStore';
-import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { RIBBON_TABS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
+
 import { RibbonGroup } from './ribbon/RibbonGroup';
 
 const EditorRibbon: React.FC = () => {
@@ -11,9 +14,29 @@ const EditorRibbon: React.FC = () => {
   const { executeAction, selectTool } = useEditorCommands();
   const [activeTabId, setActiveTabId] = useState<string>(RIBBON_TABS[0].id);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+  const gridSettings = useSettingsStore((s) => s.grid);
+
+  const activeActions = {
+    grid: gridSettings.showDots || gridSettings.showLines,
+  };
 
   const activeTab = RIBBON_TABS.find((t) => t.id === activeTabId) || RIBBON_TABS[0];
   const activeGroups = activeTab.groups;
+  const overflowButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const ribbonContentRef = useRef<HTMLDivElement | null>(null);
+
+  // Convert vertical mouse wheel to horizontal scroll
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const container = ribbonContentRef.current;
+    if (!container) return;
+    
+    // Only convert if there's horizontal overflow and primarily vertical scroll
+    const hasHorizontalOverflow = container.scrollWidth > container.clientWidth;
+    if (hasHorizontalOverflow && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      container.scrollLeft += e.deltaY;
+    }
+  }, []);
 
   const handleItemClick = (item: RibbonItem) => {
     if (item.kind === 'action' && item.actionId) {
@@ -44,11 +67,11 @@ const EditorRibbon: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col bg-slate-900 border-b border-slate-800 text-slate-200">
+    <div className="flex flex-col bg-bg border-b border-border text-text">
       {/* Tab Headers */}
-      <div 
-        className="flex items-center gap-1 px-2 pt-1" 
-        role="tablist" 
+      <div
+        className="flex items-center gap-1 px-2 bg-header"
+        role="tablist"
         aria-label="Categorias de Ferramentas"
       >
         {RIBBON_TABS.map((tab, index) => {
@@ -61,16 +84,16 @@ const EditorRibbon: React.FC = () => {
               aria-selected={isActive}
               aria-controls={`panel-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
-              className={`relative px-3 py-1 text-xs rounded-t-md transition-colors ${
+              className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
-                  ? 'bg-slate-800 text-white font-medium'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+                  ? 'bg-header-tab-active text-text font-medium'
+                  : 'text-text-muted hover:text-text hover:bg-surface-muted'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
               {tab.label}
-              <span 
-                className={`absolute bottom-0 left-0 h-[2px] w-full bg-blue-400 transition-transform ease-out origin-center ${
+              <span
+                className={`absolute bottom-0 left-0 h-[2px] w-full bg-primary transition-transform ease-out origin-center ${
                   isActive ? 'scale-x-100 duration-300' : 'scale-x-0 duration-150'
                 }`}
                 aria-hidden="true"
@@ -80,32 +103,38 @@ const EditorRibbon: React.FC = () => {
         })}
       </div>
 
-      {/* Toolbar Content - 66px total height (54px content + 12px padding) */}
-      <div 
+      {/* Toolbar Content - 90px total height per Gold Standard */}
+      <div
+        ref={ribbonContentRef}
+        onWheel={handleWheel}
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[66px] px-[12px] py-[6px] flex items-start gap-[6px] bg-slate-800 overflow-x-auto shadow-sm"
+        className="h-[82px] px-[12px] py-[6px] flex items-start bg-surface1 ribbon-scrollbar shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
-            <RibbonGroup 
-              group={group} 
-              activeTool={activeTool} 
+            <RibbonGroup
+              group={group}
+              activeTool={activeTool}
+              activeActions={activeActions}
               onItemClick={handleItemClick}
             />
-            {groupIndex < activeGroups.length - 1 && <div className="h-full w-px bg-slate-700 mx-2 self-center opacity-50" aria-hidden="true" />}
+            {groupIndex < activeGroups.length - 1 && (
+              <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
+            )}
           </React.Fragment>
         ))}
 
         {/* Overflow Items Logic */}
         {RIBBON_OVERFLOW_ITEMS.length > 0 && (
           <>
-            <div className="h-full w-px bg-slate-700 mx-2 self-center opacity-50" aria-hidden="true" />
-            <div className="relative self-center h-[54px] flex items-center">
+            <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
+            <div className="relative self-start h-[54px] flex items-center">
               <button
+                ref={overflowButtonRef}
                 onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[54px] px-2 rounded bg-slate-800 hover:bg-slate-700 text-xs flex flex-col items-center justify-center gap-1"
+                className="h-[52px] px-2 rounded bg-surface1 hover:bg-surface2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
                 title="Mais"
                 aria-haspopup="true"
                 aria-expanded={isOverflowOpen}
@@ -114,11 +143,21 @@ const EditorRibbon: React.FC = () => {
                 Mais
               </button>
               {isOverflowOpen && (
-                <div role="menu" className="absolute top-full right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg py-1 z-10">
+                <div
+                  role="menu"
+                  className="absolute top-full right-0 mt-1 w-56 bg-surface-strong border border-border rounded shadow-lg py-1 z-10"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsOverflowOpen(false);
+                      overflowButtonRef.current?.focus();
+                    }
+                  }}
+                >
                   {RIBBON_OVERFLOW_ITEMS.map((item) => {
-                    const Icon = item.icon;
                     const isStub = item.status === 'stub';
                     const title = isStub ? `${item.label} — Em breve (Engine-First)` : item.label;
+                    const Icon = item.icon;
 
                     const handleClick = () => {
                       if (item.kind === 'action' && item.actionId) {
@@ -127,6 +166,7 @@ const EditorRibbon: React.FC = () => {
                         selectTool(item.toolId, item.status);
                       }
                       setIsOverflowOpen(false);
+                      overflowButtonRef.current?.focus();
                     };
 
                     return (
@@ -134,13 +174,13 @@ const EditorRibbon: React.FC = () => {
                         role="menuitem"
                         key={item.id}
                         onClick={handleClick}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-700 ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted focus-outline ${
                           isStub ? 'opacity-70' : ''
                         }`}
                         title={title}
                         aria-disabled={isStub}
                       >
-                        <Icon size={14} />
+                        {Icon ? <Icon size={14} /> : null}
                         <span>{item.label}</span>
                       </button>
                     );

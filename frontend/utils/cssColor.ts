@@ -4,16 +4,19 @@ const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 
 const clamp255 = (v: number): number => Math.max(0, Math.min(255, v));
 
-const toHex2 = (v: number): string => clamp255(Math.round(v)).toString(16).padStart(2, '0').toUpperCase();
+const toHex2 = (v: number): string =>
+  clamp255(Math.round(v)).toString(16).padStart(2, '0').toUpperCase();
 
-export const rgbToHex = (r: number, g: number, b: number): string => `#${toHex2(r)}${toHex2(g)}${toHex2(b)}`;
+export const rgbToHex = (r: number, g: number, b: number): string =>
+  `#${toHex2(r)}${toHex2(g)}${toHex2(b)}`;
 
 export const parseCssColorToHexAlpha = (input: string): ParsedCssColor | null => {
   const c = input.trim();
   if (!c) return null;
   if (c.toLowerCase() === 'transparent') return { hex: '#000000', alpha: 0 };
 
-  const rgba = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+)\s*)?\)$/i.exec(c);
+  const rgba =
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+)\s*)?\)$/i.exec(c);
   if (rgba) {
     const r = Number.parseInt(rgba[1], 10);
     const g = Number.parseInt(rgba[2], 10);
@@ -50,4 +53,3 @@ export const hexToCssRgba = (hex: string, alpha: number): string => {
   const b = Number.parseInt(h.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${clamp01(alpha).toFixed(2)})`;
 };
-

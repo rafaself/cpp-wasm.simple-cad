@@ -1,27 +1,30 @@
 /**
  * Performance Benchmark Suite
- * 
+ *
  * Automated benchmarks for pick operations with various scenarios:
  * - Empty documents
  * - Small documents (10-100 entities)
  * - Medium documents (100-1000 entities)
  * - Large documents (1000-10000 entities)
- * 
+ *
  * Compares performance across:
  * - pickEx (baseline)
  * - pickExSmart (Phase 1)
  * - pickExCached (Phase 2)
- * 
+ *
  * @example
  * import { runPickBenchmarks } from '@/utils/benchmarks/pickBenchmarks';
  * const results = await runPickBenchmarks(runtime);
  * console.table(results);
  */
 
-import type { EngineRuntime } from '@/engine/core/EngineRuntime';
-import type { PickResult } from '@/types/picking';
+/* eslint-disable no-console */
+
 import { getPickProfiler } from '@/utils/pickProfiler';
 import { getPickCache, resetPickCache } from '@/utils/pickResultCache';
+
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
+import type { PickResult } from '@/types/picking';
 
 export interface BenchmarkResult {
   scenario: string;
@@ -80,7 +83,7 @@ const SCENARIOS: BenchmarkScenario[] = [
 
 /**
  * Runs a single benchmark iteration with comprehensive error handling
- * 
+ *
  * @throws {Error} If runtime or method is invalid
  * @throws {Error} If iterations or positions are invalid
  */
@@ -88,21 +91,21 @@ function benchmarkMethod(
   runtime: EngineRuntime,
   method: 'pickEx' | 'pickExSmart' | 'pickExCached',
   iterations: number,
-  positions: Array<{ x: number; y: number }>
+  positions: Array<{ x: number; y: number }>,
 ): BenchmarkResult {
   // Input validation
   if (!runtime) {
     throw new Error('benchmarkMethod: runtime is required');
   }
-  
+
   if (!runtime[method] || typeof runtime[method] !== 'function') {
     throw new Error(`benchmarkMethod: method '${method}' is not available on runtime`);
   }
-  
+
   if (iterations <= 0 || !Number.isFinite(iterations)) {
     throw new Error(`benchmarkMethod: invalid iterations count: ${iterations}`);
   }
-  
+
   if (!Array.isArray(positions) || positions.length === 0) {
     throw new Error('benchmarkMethod: positions must be a non-empty array');
   }
@@ -140,23 +143,23 @@ function benchmarkMethod(
     for (let i = 0; i < iterations; i++) {
       try {
         const pos = positions[i % positions.length];
-        
+
         // Validate position
         if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
           console.warn(`[Benchmark] Skipping invalid position at iteration ${i}:`, pos);
           continue;
         }
-        
+
         const start = performance.now();
         runtime[method](pos.x, pos.y, 10, 0xff);
         const duration = performance.now() - start;
-        
+
         // Validate duration
         if (!Number.isFinite(duration) || duration < 0) {
           console.warn(`[Benchmark] Invalid duration at iteration ${i}: ${duration}ms`);
           continue;
         }
-        
+
         samples.push(duration);
         totalTime += duration;
       } catch (error) {
@@ -168,11 +171,15 @@ function benchmarkMethod(
 
     // Ensure we have enough samples
     if (samples.length === 0) {
-      throw new Error(`benchmarkMethod: all ${iterations} iterations failed, no valid samples collected`);
+      throw new Error(
+        `benchmarkMethod: all ${iterations} iterations failed, no valid samples collected`,
+      );
     }
 
     if (errors > iterations * 0.1) {
-      console.warn(`[Benchmark] High error rate: ${errors}/${iterations} (${((errors/iterations)*100).toFixed(1)}%)`);
+      console.warn(
+        `[Benchmark] High error rate: ${errors}/${iterations} (${((errors / iterations) * 100).toFixed(1)}%)`,
+      );
     }
 
     // Calculate statistics
@@ -208,22 +215,25 @@ function benchmarkMethod(
 /**
  * Generates random pick positions in world coordinates
  */
-function generatePickPositions(count: number, spread: number = 1000): Array<{ x: number; y: number }> {
+function generatePickPositions(
+  count: number,
+  spread: number = 1000,
+): Array<{ x: number; y: number }> {
   const positions: Array<{ x: number; y: number }> = [];
-  
+
   for (let i = 0; i < count; i++) {
     positions.push({
       x: (Math.random() - 0.5) * spread,
       y: (Math.random() - 0.5) * spread,
     });
   }
-  
+
   return positions;
 }
 
 /**
  * Populates document with test entities
- * 
+ *
  * @throws {Error} If runtime is invalid
  * @throws {Error} If entity creation fails critically
  */
@@ -231,27 +241,27 @@ async function setupTestDocument(runtime: EngineRuntime, entityCount: number): P
   if (!runtime) {
     throw new Error('setupTestDocument: runtime is required');
   }
-  
+
   if (entityCount < 0 || !Number.isFinite(entityCount)) {
     throw new Error(`setupTestDocument: invalid entityCount: ${entityCount}`);
   }
-  
+
   try {
     // Clear existing document
     runtime.clear();
-    
+
     if (entityCount === 0) return;
 
     // Create entities using command buffer
     const commands = [];
     const spread = 1000;
-    
+
     for (let i = 0; i < entityCount; i++) {
       const x = (Math.random() - 0.5) * spread;
       const y = (Math.random() - 0.5) * spread;
       const width = 10 + Math.random() * 90;
       const height = 10 + Math.random() * 90;
-      
+
       commands.push({
         op: 0, // UpsertRect
         x,
@@ -266,16 +276,16 @@ async function setupTestDocument(runtime: EngineRuntime, entityCount: number): P
         fillEnabled: false,
       });
     }
-    
+
     // Apply all at once
     if (runtime.apply && typeof runtime.apply === 'function') {
       runtime.apply(commands);
     } else {
       throw new Error('setupTestDocument: runtime.apply() is not available');
     }
-    
+
     // Wait for processing
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   } catch (error) {
     console.error('[Setup] Failed to setup test document:', error);
     throw error;
@@ -284,7 +294,7 @@ async function setupTestDocument(runtime: EngineRuntime, entityCount: number): P
 
 /**
  * Runs complete benchmark suite with comprehensive error handling
- * 
+ *
  * @param runtime EngineRuntime instance
  * @returns Array of benchmark results (may be partial if some scenarios fail)
  * @throws {Error} If runtime is invalid or all scenarios fail
@@ -293,18 +303,18 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
   if (!runtime) {
     throw new Error('runPickBenchmarks: runtime is required');
   }
-  
+
   console.log('🎯 Starting Pick Performance Benchmarks...\n');
-  
+
   const results: BenchmarkResult[] = [];
   const failedScenarios: string[] = [];
-  let totalScenarios = SCENARIOS.length;
+  const totalScenarios = SCENARIOS.length;
   let successfulScenarios = 0;
-  
+
   for (const scenario of SCENARIOS) {
     console.log(`📊 Scenario: ${scenario.name}`);
     console.log(`   Entities: ${scenario.entityCount}, Picks: ${scenario.pickCount}`);
-    
+
     try {
       // Setup test document with error handling
       try {
@@ -315,12 +325,12 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
         console.log('');
         continue; // Skip this scenario
       }
-      
+
       // Generate pick positions with validation
       let positions: Array<{ x: number; y: number }>;
       try {
         positions = generatePickPositions(scenario.pickCount);
-        
+
         if (!positions || positions.length === 0) {
           throw new Error('Generated positions array is empty');
         }
@@ -330,23 +340,23 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
         console.log('');
         continue;
       }
-      
+
       // Benchmark each method
       const methods: Array<'pickEx' | 'pickExSmart' | 'pickExCached'> = [
         'pickEx',
-        'pickExSmart', 
-        'pickExCached'
+        'pickExSmart',
+        'pickExCached',
       ];
-      
+
       const scenarioResults: BenchmarkResult[] = [];
       let scenarioHadErrors = false;
-      
+
       for (const method of methods) {
         try {
           const result = benchmarkMethod(runtime, method, scenario.pickCount, positions);
           result.scenario = scenario.name;
           scenarioResults.push(result);
-          
+
           console.log(`   ${method.padEnd(15)}: ${result.avgTime.toFixed(3)}ms avg`);
         } catch (methodError) {
           console.error(`  ❌ Failed to benchmark ${method} for ${scenario.name}:`, methodError);
@@ -354,7 +364,7 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
           // Continue with next method
         }
       }
-      
+
       // Only process results if we have at least one successful method
       if (scenarioResults.length > 0) {
         // Calculate improvements
@@ -363,9 +373,9 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
           const improvement = ((baseline - scenarioResults[i].avgTime) / baseline) * 100;
           scenarioResults[i].improvement = i === 0 ? 'baseline' : `+${improvement.toFixed(1)}%`;
         }
-        
+
         results.push(...scenarioResults);
-        
+
         if (!scenarioHadErrors) {
           successfulScenarios++;
         }
@@ -373,7 +383,7 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
         console.error(`  ❌ All methods failed for ${scenario.name}`);
         failedScenarios.push(scenario.name);
       }
-      
+
       console.log('');
     } catch (scenarioError) {
       console.error(`  ❌ Critical error in scenario ${scenario.name}:`, scenarioError);
@@ -382,19 +392,21 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
       // Continue with next scenario
     }
   }
-  
+
   // Summary
   if (results.length === 0) {
     throw new Error('runPickBenchmarks: All benchmark scenarios failed, no results collected');
   }
-  
+
   if (failedScenarios.length > 0) {
     console.warn(`⚠️  Some scenarios failed: ${failedScenarios.join(', ')}`);
     console.warn(`   Successful: ${successfulScenarios}/${totalScenarios}\n`);
   }
-  
-  console.log(`✅ Benchmarks Complete! (${successfulScenarios}/${totalScenarios} scenarios successful)\n`);
-  
+
+  console.log(
+    `✅ Benchmarks Complete! (${successfulScenarios}/${totalScenarios} scenarios successful)\n`,
+  );
+
   return results;
 }
 
@@ -403,7 +415,7 @@ export async function runPickBenchmarks(runtime: EngineRuntime): Promise<Benchma
  */
 export function formatBenchmarkResults(results: BenchmarkResult[]): string {
   let markdown = '# Pick Performance Benchmark Results\n\n';
-  
+
   // Group by scenario
   const byScenario = new Map<string, BenchmarkResult[]>();
   for (const result of results) {
@@ -412,25 +424,25 @@ export function formatBenchmarkResults(results: BenchmarkResult[]): string {
     }
     byScenario.get(result.scenario)!.push(result);
   }
-  
+
   for (const [scenario, scenarioResults] of byScenario) {
     markdown += `## ${scenario}\n\n`;
     markdown += '| Method | Avg (ms) | Min (ms) | P95 (ms) | P99 (ms) | Ops/s | Improvement |\n';
     markdown += '|--------|----------|----------|----------|----------|-------|-------------|\n';
-    
+
     for (const result of scenarioResults) {
       markdown += `| ${result.method} | ${result.avgTime.toFixed(3)} | ${result.minTime.toFixed(3)} | ${result.p95.toFixed(3)} | ${result.p99.toFixed(3)} | ${result.opsPerSecond.toFixed(0)} | ${result.improvement} |\n`;
     }
-    
+
     markdown += '\n';
   }
-  
+
   return markdown;
 }
 
 /**
  * Exports results as JSON for archiving with input sanitization
- * 
+ *
  * @param results Benchmark results to export
  * @returns Sanitized JSON string
  * @throws {Error} If results array is invalid
@@ -439,55 +451,66 @@ export function exportBenchmarkResults(results: BenchmarkResult[]): string {
   if (!Array.isArray(results)) {
     throw new Error('exportBenchmarkResults: results must be an array');
   }
-  
+
   if (results.length === 0) {
     throw new Error('exportBenchmarkResults: results array is empty');
   }
-  
+
   // Sanitize results to prevent injection attacks and ensure valid data
-  const sanitizedResults = results.map((result, index) => {
-    // Validate required fields
-    if (!result || typeof result !== 'object') {
-      console.warn(`[Export] Invalid result at index ${index}, skipping`);
-      return null;
-    }
-    
-    return {
-      // Sanitize strings (limit length and remove dangerous chars)
-      scenario: String(result.scenario || 'Unknown').slice(0, 100).replace(/[<>]/g, ''),
-      method: String(result.method || 'unknown').slice(0, 20),
-      
-      // Ensure numeric fields are valid numbers
-      iterations: Math.max(0, Number(result.iterations) || 0),
-      totalTime: Math.max(0, Number(result.totalTime) || 0),
-      avgTime: Math.max(0, Number(result.avgTime) || 0),
-      minTime: Math.max(0, Number(result.minTime) || 0),
-      maxTime: Math.max(0, Number(result.maxTime) || 0),
-      p50: Math.max(0, Number(result.p50) || 0),
-      p95: Math.max(0, Number(result.p95) || 0),
-      p99: Math.max(0, Number(result.p99) || 0),
-      opsPerSecond: Math.max(0, Number(result.opsPerSecond) || 0),
-      
-      // Sanitize improvement string
-      improvement: String(result.improvement || '').slice(0, 20).replace(/[<>]/g, ''),
-    };
-  }).filter(Boolean); // Remove null entries
-  
+  const sanitizedResults = results
+    .map((result, index) => {
+      // Validate required fields
+      if (!result || typeof result !== 'object') {
+        console.warn(`[Export] Invalid result at index ${index}, skipping`);
+        return null;
+      }
+
+      return {
+        // Sanitize strings (limit length and remove dangerous chars)
+        scenario: String(result.scenario || 'Unknown')
+          .slice(0, 100)
+          .replace(/[<>]/g, ''),
+        method: String(result.method || 'unknown').slice(0, 20),
+
+        // Ensure numeric fields are valid numbers
+        iterations: Math.max(0, Number(result.iterations) || 0),
+        totalTime: Math.max(0, Number(result.totalTime) || 0),
+        avgTime: Math.max(0, Number(result.avgTime) || 0),
+        minTime: Math.max(0, Number(result.minTime) || 0),
+        maxTime: Math.max(0, Number(result.maxTime) || 0),
+        p50: Math.max(0, Number(result.p50) || 0),
+        p95: Math.max(0, Number(result.p95) || 0),
+        p99: Math.max(0, Number(result.p99) || 0),
+        opsPerSecond: Math.max(0, Number(result.opsPerSecond) || 0),
+
+        // Sanitize improvement string
+        improvement: String(result.improvement || '')
+          .slice(0, 20)
+          .replace(/[<>]/g, ''),
+      };
+    })
+    .filter(Boolean); // Remove null entries
+
   // Sanitize platform string (limit navigator.userAgent length)
-  const platform = typeof navigator !== 'undefined' && navigator.userAgent
-    ? String(navigator.userAgent).slice(0, 200).replace(/[<>]/g, '')
-    : 'Unknown';
-  
+  const platform =
+    typeof navigator !== 'undefined' && navigator.userAgent
+      ? String(navigator.userAgent).slice(0, 200).replace(/[<>]/g, '')
+      : 'Unknown';
+
   try {
-    return JSON.stringify({
-      timestamp: new Date().toISOString(),
-      platform,
-      results: sanitizedResults,
-      meta: {
-        totalResults: sanitizedResults.length,
-        exportedAt: Date.now(),
+    return JSON.stringify(
+      {
+        timestamp: new Date().toISOString(),
+        platform,
+        results: sanitizedResults,
+        meta: {
+          totalResults: sanitizedResults.length,
+          exportedAt: Date.now(),
+        },
       },
-    }, null, 2);
+      null,
+      2,
+    );
   } catch (error) {
     console.error('[Export] Failed to stringify results:', error);
     throw new Error(`exportBenchmarkResults: JSON stringification failed: ${error}`);

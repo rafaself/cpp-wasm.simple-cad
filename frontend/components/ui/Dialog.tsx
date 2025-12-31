@@ -1,6 +1,6 @@
+import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 
 export interface DialogProps {
   /** Max width of the dialog (e.g., '500px', '80%') */
@@ -14,7 +14,10 @@ export interface DialogProps {
   /** Whether to show a close button in the top-right corner */
   showCloseButton?: boolean;
   /** The activator element (button that opens the dialog) */
-  activator?: (props: { onClick: () => void; isOpen: boolean }) => React.ReactNode;
+  activator?: (props: {
+    onClick: (e: React.MouseEvent) => void;
+    isOpen: boolean;
+  }) => React.ReactNode;
   /** The dialog content */
   children: React.ReactNode | ((props: { isOpen: boolean; close: () => void }) => React.ReactNode);
   /** Additional class for the dialog card */
@@ -25,6 +28,8 @@ export interface DialogProps {
   closeOnKeys?: string[];
   /** Close dialog when window resizes (useful for fullscreen toggle) */
   closeOnResize?: boolean;
+  /** Accessible label if no title is provided */
+  ariaLabel?: string;
 }
 
 const Dialog: React.FC<DialogProps> = ({
@@ -39,9 +44,11 @@ const Dialog: React.FC<DialogProps> = ({
   zIndex = 1000,
   closeOnKeys = [],
   closeOnResize = false,
+  ariaLabel,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const activatorRef = useRef<HTMLElement | null>(null);
 
   // Controlled or uncontrolled mode
   const isControlled = modelValue !== undefined;
@@ -55,7 +62,7 @@ const Dialog: React.FC<DialogProps> = ({
         setInternalOpen(value);
       }
     },
-    [isControlled, onUpdate]
+    [isControlled, onUpdate],
   );
 
   const open = useCallback(() => setIsOpen(true), [setIsOpen]);
@@ -69,8 +76,42 @@ const Dialog: React.FC<DialogProps> = ({
         close();
       }
     },
-    [persistent, close]
+    [persistent, close],
   );
+
+  const focusFirstElement = () => {
+    const container = dialogRef.current;
+    if (!container) return;
+    const focusables = container.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusables[0];
+    first?.focus();
+  };
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Tab' && dialogRef.current) {
+      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) {
+        e.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
 
   // Handle ESC key and custom closeOnKeys
   useEffect(() => {
@@ -93,9 +134,16 @@ const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (isOpen) {
       const originalOverflow = document.body.style.overflow;
+      const lastFocused = document.activeElement as HTMLElement | null;
       document.body.style.overflow = 'hidden';
+      focusFirstElement();
       return () => {
         document.body.style.overflow = originalOverflow;
+        if (activatorRef.current) {
+          activatorRef.current.focus();
+        } else if (lastFocused) {
+          lastFocused.focus();
+        }
       };
     }
   }, [isOpen]);
@@ -104,8 +152,8 @@ const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (!isOpen || !closeOnResize) return;
 
-    let initialWidth = window.innerWidth;
-    let initialHeight = window.innerHeight;
+    const initialWidth = window.innerWidth;
+    const initialHeight = window.innerHeight;
     let timeoutId: ReturnType<typeof setTimeout>;
 
     const handleResize = () => {
@@ -114,7 +162,7 @@ const Dialog: React.FC<DialogProps> = ({
       timeoutId = setTimeout(() => {
         const widthChanged = Math.abs(window.innerWidth - initialWidth) > 100;
         const heightChanged = Math.abs(window.innerHeight - initialHeight) > 100;
-        
+
         if (widthChanged || heightChanged) {
           close();
         }
@@ -143,10 +191,7 @@ const Dialog: React.FC<DialogProps> = ({
   };
 
   const dialogContent = isOpen ? (
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ zIndex }}
-    >
+    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
       {/* Overlay/Scrim */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
@@ -160,19 +205,21 @@ const Dialog: React.FC<DialogProps> = ({
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
+        aria-label={ariaLabel}
         className={`
-          relative bg-slate-800 border border-slate-700 rounded-lg shadow-2xl
+          relative bg-surface1 border border-border rounded-lg shadow-card
           transform transition-all duration-200 ease-out
           animate-in fade-in zoom-in-95
           overflow-hidden flex flex-col
           ${className}
         `}
         style={{ maxWidth, width: '100%', margin: '16px', maxHeight: 'calc(100vh - 32px)' }}
+        onKeyDown={handleKeyDown}
       >
         {showCloseButton && (
           <button
             onClick={close}
-            className="absolute top-3 right-3 text-slate-400 hover:text-white transition-colors z-10"
+            className="absolute top-3 right-3 text-text-muted hover:text-text transition-colors z-10"
             aria-label="Fechar"
           >
             <X size={20} />
@@ -185,8 +232,16 @@ const Dialog: React.FC<DialogProps> = ({
 
   return (
     <>
-      {activator?.({ onClick: toggle, isOpen })}
-      {createPortal(dialogContent, document.body)}
+      {activator
+        ? activator({
+            onClick: (e) => {
+              activatorRef.current = e.currentTarget as HTMLElement;
+              toggle();
+            },
+            isOpen,
+          })
+        : null}
+      {dialogContent ? createPortal(dialogContent, document.body) : null}
     </>
   );
 };
@@ -210,15 +265,15 @@ export const DialogCard: React.FC<DialogCardProps> = ({
   return (
     <div className={`flex flex-col min-h-0 max-h-full ${className}`}>
       {title && (
-        <div className="px-6 py-4 border-b border-slate-700 shrink-0">
-          <h2 className="text-lg font-semibold text-white leading-none">{title}</h2>
+        <div className="px-6 py-4 border-b border-border shrink-0">
+          <h2 className="text-lg font-semibold text-text leading-none">{title}</h2>
         </div>
       )}
-      <div className={`px-6 py-4 text-slate-300 flex-grow min-h-0 ${contentClassName}`}>
+      <div className={`px-6 py-4 text-text flex-grow min-h-0 ${contentClassName}`}>
         {children}
       </div>
       {actions && (
-        <div className="px-6 py-3 border-t border-slate-700 flex justify-end gap-2 shrink-0 bg-slate-800/50">
+        <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface2/50">
           {actions}
         </div>
       )}
@@ -242,9 +297,9 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
   disabled = false,
 }) => {
   const variantClasses = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
-    secondary: 'bg-slate-700 hover:bg-slate-600 text-white',
-    text: 'text-slate-300 hover:text-white hover:bg-slate-700/50',
+    primary: 'bg-primary hover:bg-primary-hover text-primary-contrast shadow-sm',
+    secondary: 'bg-secondary hover:bg-secondary-hover text-text',
+    text: 'text-text-muted hover:text-text hover:bg-surface2/50',
   };
 
   return (

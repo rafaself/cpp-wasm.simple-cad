@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useUIStore } from '@/stores/useUIStore';
+
 import { syncHistoryMetaFromEngine } from '@/engine/core/engineStateSync';
+import { useUIStore } from '@/stores/useUIStore';
 
 describe('history meta sync', () => {
   beforeEach(() => {

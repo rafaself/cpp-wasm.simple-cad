@@ -1,4 +1,3 @@
-
 export type ToolType =
   | 'select'
   | 'pan'
@@ -51,7 +50,7 @@ export interface Layer {
   strokeColor: string;
   strokeEnabled: boolean; // Whether stroke is active for ByLayer elements
   fillColor: string;
-  fillEnabled: boolean;   // Whether fill is active for ByLayer elements
+  fillEnabled: boolean; // Whether fill is active for ByLayer elements
   visible: boolean;
   locked: boolean;
   isNative?: boolean; // If true, layer cannot be deleted
@@ -107,7 +106,7 @@ export interface Shape {
   fillEnabled?: boolean; // false = no fill (transparent), keeps fillColor for restoration
   fillOpacity?: number; // 0-100
   colorMode?: ShapeColorMode;
-  
+
   // Text Properties
   textContent?: string;
   fontSize?: number;
@@ -120,7 +119,7 @@ export interface Shape {
   strike?: boolean;
 
   label?: string; // For measurements
-  
+
   rotation?: number; // Rotation in radians
   scaleX?: number; // 1 = normal, -1 = flipped horizontally
   scaleY?: number; // 1 = normal, -1 = flipped vertically
@@ -173,7 +172,15 @@ export type VectorSegment =
   | { kind: 'line'; to: Point }
   | { kind: 'quad'; c: Point; to: Point }
   | { kind: 'cubic'; c1: Point; c2: Point; to: Point }
-  | { kind: 'arc'; center: Point; radius: Point; rotation: number; startAngle: number; endAngle: number; ccw?: boolean }
+  | {
+      kind: 'arc';
+      center: Point;
+      radius: Point;
+      rotation: number;
+      startAngle: number;
+      endAngle: number;
+      ccw?: boolean;
+    }
   | { kind: 'close' };
 
 export type VectorPath = {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Shape } from '../../../types';
+
 import { removePdfBorderShapes } from './pdfBorderFilter';
+
+import type { Shape } from '../../../types';
 
 describe('removePdfBorderShapes', () => {
   it('does nothing when disabled', () => {
@@ -70,4 +72,3 @@ describe('removePdfBorderShapes', () => {
     expect(out.map((s) => s.id)).toEqual(['inner']);
   });
 });
-

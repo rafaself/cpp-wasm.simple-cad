@@ -5,9 +5,4 @@
  */
 
 export { TextTool, createTextTool } from './TextTool';
-export type {
-  TextToolMode,
-  TextToolState,
-  TextStyleDefaults,
-  TextToolCallbacks,
-} from './TextTool';
+export type { TextToolMode, TextToolState, TextStyleDefaults, TextToolCallbacks } from './TextTool';

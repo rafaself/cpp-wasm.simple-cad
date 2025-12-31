@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import DxfParser from 'dxf-parser/dist/dxf-parser.js';
+import { describe, it, expect } from 'vitest';
+
 import { dxfToSvg } from './dxfToSvg';
 import { DxfData } from './types';
 

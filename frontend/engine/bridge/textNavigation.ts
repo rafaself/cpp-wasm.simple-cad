@@ -27,6 +27,7 @@
  */
 
 import { utf8ByteLength } from '@/types/text';
+
 import type { TextEnabledCadEngine } from './textBridge';
 
 /**
@@ -36,7 +37,7 @@ import type { TextEnabledCadEngine } from './textBridge';
 export class TextNavigator {
   constructor(
     private textEngine: TextEnabledCadEngine,
-    private isAvailable: () => boolean
+    private isAvailable: () => boolean,
   ) {}
 
   /** Get visual previous caret position. */
@@ -127,7 +128,7 @@ export function byteToCharIndex(content: string, byteIndex: number): number {
     if (currentByte >= byteIndex) return i;
     const code = content.charCodeAt(i);
     // High surrogate
-    if (code >= 0xD800 && code <= 0xDBFF) {
+    if (code >= 0xd800 && code <= 0xdbff) {
       // 4 bytes in UTF-8
       currentByte += 4;
       i++; // Skip low surrogate

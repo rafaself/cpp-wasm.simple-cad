@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Shape } from '@/types';
+
 import { applyCommitOpToShape, TransformOpCode } from '@/engine/core/interactionSession';
 import { getDefaultColorMode } from '@/utils/shapeColors';
+
+import type { Shape } from '@/types';
 
 const baseShape = (overrides: Partial<Shape>): Shape => ({
   id: 's1',
@@ -81,7 +83,12 @@ describe('interactionSession commit decoding (Phase 0)', () => {
     const payloads = new Float32Array([1.0004, 9, 9, 0]);
 
     const diff = applyCommitOpToShape(shape, TransformOpCode.VERTEX_SET, payloads, 0);
-    expect(diff).toEqual({ points: [{ x: 0, y: 0 }, { x: 9, y: 9 }] });
+    expect(diff).toEqual({
+      points: [
+        { x: 0, y: 0 },
+        { x: 9, y: 9 },
+      ],
+    });
   });
 
   it('applies RESIZE payload as [x, y, w, h] to bbox shapes', () => {

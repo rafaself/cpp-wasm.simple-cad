@@ -1,11 +1,17 @@
-import React, { useMemo } from 'react';
-import { Layers, Eye, EyeOff, Lock, Unlock, Plus } from 'lucide-react';
+import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import React, { useMemo, useEffect } from 'react';
+
 import CustomSelect from '@/components/CustomSelect';
+import { INPUT_STYLES } from '@/src/styles/recipes';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useUIStore } from '@/stores/useUIStore';
-import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
-import { BUTTON_STYLES, INPUT_STYLES } from '@/design/tokens';
+
+import { RibbonDivider } from './RibbonDivider';
+import { RibbonIconButton } from './RibbonIconButton';
+import { RibbonToggleGroup } from './RibbonToggleGroup';
+import { RIBBON_ICON_SIZES } from './ribbonUtils';
 
 export const LayerRibbonControls: React.FC = () => {
   const runtime = useEngineRuntime();
@@ -14,11 +20,20 @@ export const LayerRibbonControls: React.FC = () => {
   const setActiveLayerId = useUIStore((s) => s.setActiveLayerId);
   const setLayerManagerOpen = useUIStore((s) => s.setLayerManagerOpen);
 
-  const activeLayer = useMemo(() => layers.find(l => l.id === activeLayerId), [layers, activeLayerId]);
+  const activeLayer = useMemo(
+    () => layers.find((l) => l.id === activeLayerId),
+    [layers, activeLayerId],
+  );
 
-  const layerOptions = useMemo(() => 
-    layers.map(l => ({ value: String(l.id), label: l.name })), 
-    [layers]
+  useEffect(() => {
+    if (layers.length > 0 && !activeLayer) {
+      setActiveLayerId(layers[0].id);
+    }
+  }, [layers, activeLayer, setActiveLayerId]);
+
+  const layerOptions = useMemo(
+    () => layers.map((l) => ({ value: String(l.id), label: l.name })),
+    [layers],
   );
 
   const handleLayerChange = (val: string) => {
@@ -27,7 +42,7 @@ export const LayerRibbonControls: React.FC = () => {
 
   const updateLayerFlags = (visible?: boolean, locked?: boolean) => {
     if (!runtime || !activeLayer) return;
-    
+
     let mask = 0;
     let flags = 0;
     const nextVisible = visible ?? activeLayer.visible;
@@ -42,73 +57,60 @@ export const LayerRibbonControls: React.FC = () => {
     runtime.setLayerProps(activeLayer.id, mask, flags, activeLayer.name);
   };
 
-  const handleAddLayer = () => {
-    if (!runtime || !runtime.allocateLayerId) return;
-    const nextId = runtime.allocateLayerId();
-    const flags = EngineLayerFlags.Visible;
-    runtime.setLayerProps(nextId, LayerPropMask.Name | LayerPropMask.Visible, flags, `Layer ${nextId}`);
-    setActiveLayerId(nextId);
-  };
-
   return (
-    <div className="flex flex-col h-full justify-center px-0.5 gap-1">
-      {/* Row 1: Layer Select and Add */}
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5 w-[220px]">
-        <div className="flex-1 w-full relative">
-             <CustomSelect 
-                value={String(activeLayerId)} 
-                onChange={handleLayerChange} 
-                options={layerOptions} 
-                className={`bg-transparent h-full text-xs w-full px-1 focus:ring-0 border-none hover:bg-slate-800/50 rounded transition-colors text-slate-200`}
-                placeholder="Selecione a camada..."
-            />
-        </div>
-        <div className="w-px bg-slate-700/50 my-0.5" />
-        <button 
-            onClick={handleAddLayer}
-            className={`w-6 h-full ${BUTTON_STYLES.centered} text-slate-400 hover:text-green-400 hover:bg-slate-700`}
-            title="Nova Camada"
-        >
-            <Plus size={14} />
-        </button>
+    <div className="ribbon-group-col px-1">
+      {/* Row 1: Layer Select */}
+      <div className="ribbon-row min-w-[140px]">
+        <CustomSelect
+          value={String(activeLayerId)}
+          onChange={handleLayerChange}
+          options={layerOptions}
+          className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
+          placeholder="Selecione a camada..."
+        />
       </div>
 
       {/* Row 2: Layer Properties */}
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5 w-[220px]">
-           {/* Open Manager */}
-           <button 
-              onClick={() => setLayerManagerOpen(true)}
-              className={`flex-1 h-full flex items-center justify-start px-2 gap-2 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition-colors`}
-              title="Gerenciador de Camadas"
-          >
-              <Layers size={12} className="opacity-70" />
-              <span className="text-[10px] font-medium tracking-wide">Propriedades</span>
-          </button>
-          
-          <div className="w-px bg-slate-700/50 my-0.5" />
-
+      <div className="ribbon-row min-w-[140px]">
+        <RibbonToggleGroup>
           {/* Visibility Toggle */}
-          <button 
-              onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
-              className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeLayer?.visible ? 'text-blue-400 hover:text-blue-300' : 'text-slate-500 hover:text-slate-400'}`}
-              title={activeLayer?.visible ? "Ocultar Camada" : "Mostrar Camada"}
-              disabled={!activeLayer}
-          >
-              {activeLayer?.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-          </button>
+          <RibbonIconButton
+            icon={activeLayer?.visible ? <Eye size={RIBBON_ICON_SIZES.sm} /> : <EyeOff size={RIBBON_ICON_SIZES.sm} />}
+            onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
+            isActive={activeLayer?.visible ?? false}
+            variant={activeLayer?.visible ? 'primary' : 'default'}
+            title={activeLayer?.visible ? 'Ocultar Camada' : 'Mostrar Camada'}
+            disabled={!activeLayer}
+            size="sm"
+          />
 
-          <div className="w-px bg-slate-700/50 my-0.5" />
+          <RibbonDivider />
 
           {/* Lock Toggle */}
-           <button 
-              onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
-              className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeLayer?.locked ? 'text-amber-400 hover:text-amber-300' : 'text-slate-400 hover:text-slate-200'}`}
-              title={activeLayer?.locked ? "Desbloquear Camada" : "Bloquear Camada"}
-              disabled={!activeLayer}
-          >
-              {activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
-          </button>
+          <RibbonIconButton
+            icon={activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
+            onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
+            isActive={activeLayer?.locked ?? false}
+            variant={activeLayer?.locked ? 'warning' : 'default'}
+            title={activeLayer?.locked ? 'Desbloquear Camada' : 'Bloquear Camada'}
+            disabled={!activeLayer}
+            size="sm"
+          />
+        </RibbonToggleGroup>
+
+        <div className="flex-1" />
+
+        {/* Open Manager (Properties) */}
+        <RibbonToggleGroup width="fit">
+          <RibbonIconButton
+            icon={<Layers size={RIBBON_ICON_SIZES.sm} />}
+            onClick={() => setLayerManagerOpen(true)}
+            title="Gerenciador de Camadas (Propriedades)"
+            size="sm"
+          />
+        </RibbonToggleGroup>
       </div>
     </div>
   );
 };
+

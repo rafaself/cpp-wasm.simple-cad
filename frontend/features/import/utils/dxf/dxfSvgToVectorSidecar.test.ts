@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Shape } from '../../../../types';
 import { buildDxfSvgVectorSidecarV1 } from './dxfSvgToVectorSidecar';
+
+import type { Shape } from '../../../../types';
 
 describe('buildDxfSvgVectorSidecarV1', () => {
   it('returns a v1 sidecar binding the shape to all draws', () => {
@@ -41,4 +42,3 @@ describe('buildDxfSvgVectorSidecarV1', () => {
     expect(buildDxfSvgVectorSidecarV1(shape)).toBeNull();
   });
 });
-

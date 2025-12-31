@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import {
   EXPECTED_PROTOCOL_INFO,
   EngineFeatureFlags,
@@ -7,7 +8,10 @@ import {
 
 describe('validateProtocolOrThrow', () => {
   it('throws on protocol version mismatch', () => {
-    const info = { ...EXPECTED_PROTOCOL_INFO, protocolVersion: EXPECTED_PROTOCOL_INFO.protocolVersion + 1 };
+    const info = {
+      ...EXPECTED_PROTOCOL_INFO,
+      protocolVersion: EXPECTED_PROTOCOL_INFO.protocolVersion + 1,
+    };
     expect(() => validateProtocolOrThrow(info)).toThrow(/protocolVersion/);
   });
 
@@ -17,7 +21,10 @@ describe('validateProtocolOrThrow', () => {
   });
 
   it('throws on command version mismatch', () => {
-    const info = { ...EXPECTED_PROTOCOL_INFO, commandVersion: EXPECTED_PROTOCOL_INFO.commandVersion + 1 };
+    const info = {
+      ...EXPECTED_PROTOCOL_INFO,
+      commandVersion: EXPECTED_PROTOCOL_INFO.commandVersion + 1,
+    };
     expect(() => validateProtocolOrThrow(info)).toThrow(/commandVersion/);
   });
 
@@ -38,8 +45,7 @@ describe('validateProtocolOrThrow', () => {
     const info = {
       ...EXPECTED_PROTOCOL_INFO,
       featureFlags:
-        EngineFeatureFlags.FEATURE_PROTOCOL |
-        EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT,
+        EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT,
     };
     expect(() => validateProtocolOrThrow(info)).not.toThrow();
   });

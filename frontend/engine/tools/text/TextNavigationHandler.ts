@@ -1,13 +1,14 @@
 /**
  * TextNavigationHandler - Keyboard navigation in text.
- * 
+ *
  * Extracted from TextTool.ts to handle arrow key navigation,
  * word jumps (Ctrl+Arrow), Home/End, and line up/down.
  */
 
-import type { TextBridge } from '@/engine/bridge/textBridge';
-import type { TextStateManager } from './TextStateManager';
 import { charIndexToByteIndex } from '@/types/text';
+
+import type { TextStateManager } from './TextStateManager';
+import type { TextBridge } from '@/engine/bridge/textBridge';
 
 export interface NavigationCallback {
   onCaretUpdate?: () => void;
@@ -24,7 +25,7 @@ export class TextNavigationHandler {
   constructor(
     private bridge: TextBridge,
     private stateManager: TextStateManager,
-    private callback: NavigationCallback
+    private callback: NavigationCallback,
   ) {}
 
   /**

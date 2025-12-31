@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
+
 import { worldToScreen } from '@/utils/viewportMath';
+
 import type { ViewTransform, Point } from '@/types';
 
 export interface SelectionBoxState {
@@ -35,10 +37,13 @@ export const MarqueeOverlay: React.FC<MarqueeOverlayProps> = ({
     const w = Math.abs(a.x - b.x);
     const h = Math.abs(a.y - b.y);
 
-    const stroke = '#3b82f6';
-    const fill = 'rgba(59, 130, 246, 0.2)';
+
     // Crossing (RTL) uses dashed stroke, Window (LTR) uses solid
     const strokeDash = selectionBox.direction === 'RTL' ? '5 5' : undefined;
+    const isRTL = selectionBox.direction === 'RTL';
+    const rectClass = isRTL
+      ? 'fill-green-400/20 stroke-green-400'
+      : 'fill-primary/20 stroke-primary';
 
     return (
       <svg
@@ -51,8 +56,7 @@ export const MarqueeOverlay: React.FC<MarqueeOverlayProps> = ({
           y={y}
           width={w}
           height={h}
-          fill={fill}
-          stroke={stroke}
+          className={rectClass}
           strokeWidth={1}
           strokeDasharray={strokeDash}
         />

@@ -8,17 +8,17 @@ export const getShapeColorMode = (shape: Shape): ShapeColorMode => {
   if (!shape.colorMode) return getDefaultColorMode();
   return {
     fill: shape.colorMode.fill ?? 'layer',
-    stroke: shape.colorMode.stroke ?? 'layer'
+    stroke: shape.colorMode.stroke ?? 'layer',
   };
 };
 
 export const buildColorModeUpdate = (
   shape: Shape,
-  overrides: Partial<ShapeColorMode>
+  overrides: Partial<ShapeColorMode>,
 ): ShapeColorMode => ({
   ...getDefaultColorMode(),
   ...shape.colorMode,
-  ...overrides
+  ...overrides,
 });
 
 // ============================================
@@ -90,11 +90,13 @@ export interface EffectiveProperties {
   strokeWidth: number;
 }
 
-export const getEffectiveProperties = (shape: Shape, layer?: Layer | null): EffectiveProperties => ({
+export const getEffectiveProperties = (
+  shape: Shape,
+  layer?: Layer | null,
+): EffectiveProperties => ({
   strokeColor: getEffectiveStrokeColor(shape, layer),
   strokeEnabled: isStrokeEffectivelyEnabled(shape, layer),
   fillColor: getEffectiveFillColor(shape, layer),
   fillEnabled: isFillEffectivelyEnabled(shape, layer),
-  strokeWidth: shape.strokeWidth ?? 1
+  strokeWidth: shape.strokeWidth ?? 1,
 });
-

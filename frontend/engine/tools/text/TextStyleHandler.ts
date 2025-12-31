@@ -1,15 +1,18 @@
 /**
  * TextStyleHandler - Handles text style application.
- * 
+ *
  * Extracted from TextTool.ts to manage bold/italic/underline/strikethrough,
  * font size, font family, and text alignment.
  */
 
+import { charIndexToByteIndex } from '@/types/text';
+
+import { TextStyleFlags, TextAlign, TextBoxMode } from './types';
+
+import type { TextStateManager } from './TextStateManager';
 import type { TextBridge } from '@/engine/bridge/textBridge';
 import type { ApplyTextStylePayload } from '@/engine/core/commandBuffer';
-import type { TextStateManager } from './TextStateManager';
-import { TextStyleFlags, TextAlign, TextBoxMode } from './types';
-import { charIndexToByteIndex } from '@/types/text';
+
 // import { getTextMeta } from '@/engine/core/textEngineSync'; // Removed
 
 export interface StyleChangeCallback {
@@ -18,7 +21,7 @@ export interface StyleChangeCallback {
     content: string,
     bounds: { width: number; height: number },
     boxMode: TextBoxMode,
-    constraintWidth: number
+    constraintWidth: number,
   ) => void;
   onCaretUpdate?: () => void;
 }
@@ -27,7 +30,7 @@ export class TextStyleHandler {
   constructor(
     private bridge: TextBridge,
     private stateManager: TextStateManager,
-    private callbacks: StyleChangeCallback
+    private callbacks: StyleChangeCallback,
   ) {}
 
   /**
@@ -93,7 +96,7 @@ export class TextStyleHandler {
       updateDefault(TextStyleFlags.Italic, 2);
       updateDefault(TextStyleFlags.Underline, 4);
       updateDefault(TextStyleFlags.Strikethrough, 6);
-      
+
       this.stateManager.setStyleDefaults(defaults);
     }
 
@@ -151,7 +154,11 @@ export class TextStyleHandler {
   /**
    * Apply style flags to an arbitrary text entity (object selection).
    */
-  applyStyleToText(textId: number, flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
+  applyStyleToText(
+    textId: number,
+    flagsMask: TextStyleFlags,
+    intent: 'set' | 'clear' | 'toggle',
+  ): boolean {
     const content = this.bridge.getTextContent(textId);
     if (content === null) return false;
 
@@ -255,7 +262,12 @@ export class TextStyleHandler {
     return true;
   }
 
-  private syncBoundsAndNotify(textId: number, content: string, boxMode: TextBoxMode, constraintWidth: number): void {
+  private syncBoundsAndNotify(
+    textId: number,
+    content: string,
+    boxMode: TextBoxMode,
+    constraintWidth: number,
+  ): void {
     const bounds = this.bridge.getTextBounds(textId);
     if (bounds && bounds.valid) {
       this.callbacks.onTextUpdated?.(
@@ -263,7 +275,7 @@ export class TextStyleHandler {
         content,
         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
         boxMode,
-        constraintWidth
+        constraintWidth,
       );
     }
   }
@@ -280,7 +292,7 @@ export class TextStyleHandler {
         content,
         { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY },
         boxMode,
-        constraint
+        constraint,
       );
     }
   }

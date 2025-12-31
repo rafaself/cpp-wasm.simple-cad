@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EngineRuntime, type CadEngineInstance, type WasmModule } from '@/engine/core/EngineRuntime';
+
+import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
+import {
+  EngineRuntime,
+  type CadEngineInstance,
+  type WasmModule,
+} from '@/engine/core/EngineRuntime';
 import { EXPECTED_PROTOCOL_INFO } from '@/engine/core/protocol';
 
 vi.mock('@/engine/bridge/getCadEngineFactory', () => ({
   initCadEngineModule: vi.fn(),
 }));
-
-import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 
 describe('EngineRuntime public API surface', () => {
   let mockEngine: CadEngineInstance;
@@ -24,15 +28,27 @@ describe('EngineRuntime public API surface', () => {
       pollEvents: vi.fn(() => ({ generation: 0, count: 0, ptr: 0 })),
       ackResync: vi.fn(),
       allocateEntityId: vi.fn(() => 1),
-      getSelectionOutlineMeta: vi.fn(() => ({ generation: 0, primitiveCount: 0, floatCount: 0, primitivesPtr: 0, dataPtr: 0 })),
-      getSelectionHandleMeta: vi.fn(() => ({ generation: 0, primitiveCount: 0, floatCount: 0, primitivesPtr: 0, dataPtr: 0 })),
+      getSelectionOutlineMeta: vi.fn(() => ({
+        generation: 0,
+        primitiveCount: 0,
+        floatCount: 0,
+        primitivesPtr: 0,
+        dataPtr: 0,
+      })),
+      getSelectionHandleMeta: vi.fn(() => ({
+        generation: 0,
+        primitiveCount: 0,
+        floatCount: 0,
+        primitivesPtr: 0,
+        dataPtr: 0,
+      })),
       getEntityAabb: vi.fn(() => ({ minX: 0, minY: 0, maxX: 0, maxY: 0, valid: 0 })),
       getHistoryMeta: vi.fn(() => ({ depth: 0, cursor: 0, generation: 0 })),
       canUndo: vi.fn(() => false),
       canRedo: vi.fn(() => false),
       undo: vi.fn(),
       redo: vi.fn(),
-      getStats: vi.fn(() => ({ generation: 0 } as any)),
+      getStats: vi.fn(() => ({ generation: 0 }) as any),
     } as unknown as CadEngineInstance;
 
     const MockCadEngine = class {
@@ -53,9 +69,21 @@ describe('EngineRuntime public API surface', () => {
   it('matches the approved public surface', async () => {
     const runtime = await EngineRuntime.create();
 
-    const allowedInstanceKeys = ['module', 'capabilitiesMask', 'text', 'pick', 'draft', 'transform', 'io', 'render', 'stats'];
+    const allowedInstanceKeys = [
+      'module',
+      'capabilitiesMask',
+      'text',
+      'pick',
+      'draft',
+      'transform',
+      'io',
+      'render',
+      'stats',
+    ];
     const instanceKeys = Object.keys(runtime).filter((k) => allowedInstanceKeys.includes(k));
-    const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(runtime)).filter((k) => k !== 'constructor');
+    const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(runtime)).filter(
+      (k) => k !== 'constructor',
+    );
     const surface = new Set([...instanceKeys, ...protoKeys]);
 
     const expected = new Set([

@@ -15,7 +15,11 @@ export const keyForSegments = (segs: readonly VectorSegment[], closed: boolean):
       case 'line':
         return { k: s.kind, to: { x: round4(s.to.x), y: round4(s.to.y) } };
       case 'quad':
-        return { k: s.kind, c: { x: round4(s.c.x), y: round4(s.c.y) }, to: { x: round4(s.to.x), y: round4(s.to.y) } };
+        return {
+          k: s.kind,
+          c: { x: round4(s.c.x), y: round4(s.c.y) },
+          to: { x: round4(s.to.x), y: round4(s.to.y) },
+        };
       case 'cubic':
         return {
           k: s.kind,
@@ -40,8 +44,13 @@ export const keyForSegments = (segs: readonly VectorSegment[], closed: boolean):
   return JSON.stringify({ closed, norm });
 };
 
-export const boundsFromSegments = (segments: readonly VectorSegment[]): { minX: number; minY: number; maxX: number; maxY: number } => {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+export const boundsFromSegments = (
+  segments: readonly VectorSegment[],
+): { minX: number; minY: number; maxX: number; maxY: number } => {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   const add = (p: { x: number; y: number }) => {
     minX = Math.min(minX, p.x);
     minY = Math.min(minY, p.y);
@@ -74,19 +83,33 @@ export const boundsFromSegments = (segments: readonly VectorSegment[]): { minX: 
   return { minX, minY, maxX, maxY };
 };
 
-export const normalizePoint = (p: { x: number; y: number }, minX: number, minY: number, height: number): { x: number; y: number } => ({
+export const normalizePoint = (
+  p: { x: number; y: number },
+  minX: number,
+  minY: number,
+  height: number,
+): { x: number; y: number } => ({
   x: p.x - minX,
   y: height - (p.y - minY),
 });
 
-export const normalizeSegments = (segments: VectorSegment[], minX: number, minY: number, height: number): VectorSegment[] =>
+export const normalizeSegments = (
+  segments: VectorSegment[],
+  minX: number,
+  minY: number,
+  height: number,
+): VectorSegment[] =>
   segments.map((s) => {
     switch (s.kind) {
       case 'move':
       case 'line':
         return { ...s, to: normalizePoint(s.to, minX, minY, height) };
       case 'quad':
-        return { ...s, c: normalizePoint(s.c, minX, minY, height), to: normalizePoint(s.to, minX, minY, height) };
+        return {
+          ...s,
+          c: normalizePoint(s.c, minX, minY, height),
+          to: normalizePoint(s.to, minX, minY, height),
+        };
       case 'cubic':
         return {
           ...s,
@@ -95,10 +118,15 @@ export const normalizeSegments = (segments: VectorSegment[], minX: number, minY:
           to: normalizePoint(s.to, minX, minY, height),
         };
       case 'arc':
-        return { ...s, center: normalizePoint(s.center, minX, minY, height), radius: { ...s.radius } };
+        return {
+          ...s,
+          center: normalizePoint(s.center, minX, minY, height),
+          radius: { ...s.radius },
+        };
       case 'close':
         return s;
     }
   });
 
-export const isTransparent = (hex: string | undefined): boolean => !hex || hex === 'transparent' || hex === 'none';
+export const isTransparent = (hex: string | undefined): boolean =>
+  !hex || hex === 'transparent' || hex === 'none';

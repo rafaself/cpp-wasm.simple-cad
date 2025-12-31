@@ -1,24 +1,29 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useUIStore } from '@/stores/useUIStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+
 import { getEngineRuntime } from '@/engine/core/singleton';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { screenToWorld } from '@/utils/viewportMath';
-import { InteractionHandler, InputEventContext, EngineRuntime } from './types';
-import { IdleHandler } from './handlers/IdleHandler';
-import { SelectionHandler } from './handlers/SelectionHandler';
+
 import { DraftingHandler } from './handlers/DraftingHandler';
+import { IdleHandler } from './handlers/IdleHandler';
+import { PanHandler } from './handlers/PanHandler';
+import { SelectionHandler } from './handlers/SelectionHandler';
 import { TextHandler } from './handlers/TextHandler';
+import { InteractionHandler, InputEventContext, EngineRuntime } from './types';
 
 export function useInteractionManager() {
   const activeTool = useUIStore((s) => s.activeTool);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
-  
+
   // Runtime Ref
   const runtimeRef = useRef<EngineRuntime | null>(null);
   useEffect(() => {
-    getEngineRuntime().then(rt => { runtimeRef.current = rt; });
+    getEngineRuntime().then((rt) => {
+      runtimeRef.current = rt;
+    });
   }, []);
 
   // Current Handler
@@ -26,43 +31,44 @@ export function useInteractionManager() {
   // We use a dummy state to force re-render when handler wants to update UI
   const [, setTick] = useState(0);
 
-  const forceUpdate = useCallback(() => setTick(t => t + 1), []);
-
+  const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
 
   // Global Event Listeners
   useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-          // Check for input focus (optional, but handlers usually handle this check or we do it globally)
-          const target = e.target as HTMLElement | null;
-          const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-          
-          // Special Case: Allow TextHandler to receive keys even if Proxy is focused? 
-          // Actually TextHandler uses Proxy, so Proxy receives keys. 
-          // But for other tools, we want to ignore if UI input is focused.
-          // Unless it's Escape?
-          
-          if (isInput && e.key !== 'Escape') return; 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for input focus (optional, but handlers usually handle this check or we do it globally)
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
-          handlerRef.current.onKeyDown?.(e);
-      };
+      // Special Case: Allow TextHandler to receive keys even if Proxy is focused?
+      // Actually TextHandler uses Proxy, so Proxy receives keys.
+      // But for other tools, we want to ignore if UI input is focused.
+      // Unless it's Escape?
 
-      const handleKeyUp = (e: KeyboardEvent) => {
-           handlerRef.current.onKeyUp?.(e);
-      };
-      
-      const handleBlur = () => {
-           handlerRef.current.onBlur?.();
-      }
+      if (isInput && e.key !== 'Escape') return;
 
-      window.addEventListener('keydown', handleKeyDown);
-      window.addEventListener('keyup', handleKeyUp);
-      window.addEventListener('blur', handleBlur);
+      handlerRef.current.onKeyDown?.(e);
+    };
 
-      return () => {
-          window.removeEventListener('keydown', handleKeyDown);
-          window.removeEventListener('keyup', handleKeyUp);
-          window.removeEventListener('blur', handleBlur);
-      };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      handlerRef.current.onKeyUp?.(e);
+    };
+
+    const handleBlur = () => {
+      handlerRef.current.onBlur?.();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, []);
 
   // Switch Handler on Tool Change (Simplified)
@@ -74,6 +80,9 @@ export function useInteractionManager() {
     switch (activeTool) {
       case 'select':
         next = new SelectionHandler();
+        break;
+      case 'pan':
+        next = new PanHandler();
         break;
       case 'line':
       case 'rect':
@@ -93,13 +102,12 @@ export function useInteractionManager() {
 
     // Bind Update Listener
     if (next.setOnUpdate) {
-        next.setOnUpdate(forceUpdate);
+      next.setOnUpdate(forceUpdate);
     }
-    
+
     if (next.onEnter) next.onEnter();
     handlerRef.current = next;
     forceUpdate();
-
   }, [activeTool, toolDefaults, forceUpdate]);
 
   // Input Pipeline Helper
@@ -108,11 +116,11 @@ export function useInteractionManager() {
     const clientX = e.clientX;
     const clientY = e.clientY;
     const world = screenToWorld({ x: clientX - rect.left, y: clientY - rect.top }, viewTransform);
-    
+
     // Snapping Logic (if Runtime available)
     let snapped = { x: world.x, y: world.y };
     if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
-       snapped = runtimeRef.current.getSnappedPoint(world.x, world.y);
+      snapped = runtimeRef.current.getSnappedPoint(world.x, world.y);
     }
 
     return {
@@ -121,7 +129,7 @@ export function useInteractionManager() {
       snappedPoint: snapped,
       runtime: runtimeRef.current,
       viewTransform,
-      canvasSize
+      canvasSize,
     };
   };
 
@@ -130,11 +138,11 @@ export function useInteractionManager() {
     const ctx = buildContext(e);
     const result = handlerRef.current.onPointerDown(ctx);
     if (result) {
-       if (handlerRef.current.onLeave) handlerRef.current.onLeave();
-       handlerRef.current = result;
-       if (result.setOnUpdate) result.setOnUpdate(forceUpdate);
-       if (result.onEnter) result.onEnter();
-       forceUpdate();
+      if (handlerRef.current.onLeave) handlerRef.current.onLeave();
+      handlerRef.current = result;
+      if (result.setOnUpdate) result.setOnUpdate(forceUpdate);
+      if (result.onEnter) result.onEnter();
+      forceUpdate();
     }
   };
 
@@ -147,20 +155,20 @@ export function useInteractionManager() {
     const ctx = buildContext(e);
     const result = handlerRef.current.onPointerUp(ctx);
     if (result) {
-       if (handlerRef.current.onLeave) handlerRef.current.onLeave();
-       handlerRef.current = result;
-       if (result.setOnUpdate) result.setOnUpdate(forceUpdate);
-       if (result.onEnter) result.onEnter();
-       forceUpdate();
+      if (handlerRef.current.onLeave) handlerRef.current.onLeave();
+      handlerRef.current = result;
+      if (result.setOnUpdate) result.setOnUpdate(forceUpdate);
+      if (result.onEnter) result.onEnter();
+      forceUpdate();
     }
   };
-  
+
   const onDoubleClick = (e: React.PointerEvent) => {
-      if (handlerRef.current.onDoubleClick) {
-          const ctx = buildContext(e);
-          handlerRef.current.onDoubleClick(ctx);
-      }
-  }
+    if (handlerRef.current.onDoubleClick) {
+      const ctx = buildContext(e);
+      handlerRef.current.onDoubleClick(ctx);
+    }
+  };
 
   // Render Overlay
   const overlay = handlerRef.current.renderOverlay ? handlerRef.current.renderOverlay() : null;
@@ -170,9 +178,10 @@ export function useInteractionManager() {
       onPointerDown,
       onPointerMove,
       onPointerUp,
-      onDoubleClick
+      onDoubleClick,
     },
     overlay,
-    activeHandlerName: handlerRef.current.name
+    activeHandlerName: handlerRef.current.name,
+    cursor: handlerRef.current.getCursor ? handlerRef.current.getCursor() : null,
   };
 }

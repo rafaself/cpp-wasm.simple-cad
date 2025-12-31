@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
 import { MouseThrottle, throttle } from '@/utils/mouseThrottle';
 
 describe('MouseThrottle', () => {
@@ -224,9 +225,9 @@ describe('MouseThrottle', () => {
 
       throttled(1);
       vi.advanceTimersByTime(50);
-      
+
       t.reset();
-      
+
       throttled(2); // Should execute immediately
       expect(fn).toHaveBeenCalledTimes(2);
     });

@@ -46,13 +46,37 @@ export type RectPayload = {
   strokeEnabled: number; // 0 or 1
   strokeWidthPx: number;
 };
-export type LinePayload = { x0: number; y0: number; x1: number; y1: number; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
-export type PolylinePayload = { points: ReadonlyArray<{ x: number; y: number }>; r: number; g: number; b: number; a: number; enabled: number; strokeWidthPx: number };
+export type LinePayload = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+  enabled: number;
+  strokeWidthPx: number;
+};
+export type PolylinePayload = {
+  points: ReadonlyArray<{ x: number; y: number }>;
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+  enabled: number;
+  strokeWidthPx: number;
+};
 
-export type SetViewScalePayload = { x: number; y: number; scale: number; width: number; height: number };
+export type SetViewScalePayload = {
+  x: number;
+  y: number;
+  scale: number;
+  width: number;
+  height: number;
+};
 
 // ... (omitted)
-
 
 export type SetDrawOrderPayload = { ids: readonly EntityId[] };
 
@@ -143,8 +167,14 @@ export type BeginDraftPayload = {
   kind: number;
   x: number;
   y: number;
-  fillR: number; fillG: number; fillB: number; fillA: number;
-  strokeR: number; strokeG: number; strokeB: number; strokeA: number;
+  fillR: number;
+  fillG: number;
+  fillB: number;
+  fillA: number;
+  strokeR: number;
+  strokeG: number;
+  strokeB: number;
+  strokeA: number;
   strokeEnabled: number;
   strokeWidthPx: number;
   sides: number;
@@ -466,7 +496,8 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         view.setUint8(o++, cmd.style.flagsValue & 0xff);
         view.setUint8(o++, cmd.style.mode & 0xff);
         view.setUint8(o++, cmd.style.styleParamsVersion & 0xff);
-        view.setUint16(o, cmd.style.styleParams.byteLength, true); o += 2;
+        view.setUint16(o, cmd.style.styleParams.byteLength, true);
+        o += 2;
         new Uint8Array(buf, o, cmd.style.styleParams.byteLength).set(cmd.style.styleParams);
         o += cmd.style.styleParams.byteLength;
         break;

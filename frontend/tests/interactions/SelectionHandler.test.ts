@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SelectionMode } from '@/engine/core/protocol';
+
 import { TransformMode } from '@/engine/core/interactionSession';
+import { SelectionMode } from '@/engine/core/protocol';
 import { InteractionHarness } from '@/test-utils/interactionHarness';
 
 describe('SelectionHandler', () => {

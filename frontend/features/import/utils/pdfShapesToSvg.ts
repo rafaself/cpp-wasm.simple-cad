@@ -37,8 +37,11 @@ const coerceNumber = (v: unknown, fallback: number): number => (isFiniteNumber(v
 const isTransparent = (color: string | undefined): boolean =>
   !color || color === 'transparent' || color === 'none' || color === 'rgba(0,0,0,0)';
 
-const pointsToSvgAttr = (points: Point[], mapX: (x: number) => number, mapY: (y: number) => number): string =>
-  points.map((p) => `${mapX(p.x)},${mapY(p.y)}`).join(' ');
+const pointsToSvgAttr = (
+  points: Point[],
+  mapX: (x: number) => number,
+  mapY: (y: number) => number,
+): string => points.map((p) => `${mapX(p.x)},${mapY(p.y)}`).join(' ');
 
 const extractSvgInnerContent = (svgRaw: string): string => {
   const start = svgRaw.indexOf('>');
@@ -55,7 +58,7 @@ const estimateTextWidth = (text: string, fontSize: number): number => {
 const accumulateBoundsFromPoints = (
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
   pts: readonly Point[],
-  expandBy: number = 0
+  expandBy: number = 0,
 ) => {
   pts.forEach((p) => {
     bounds.minX = Math.min(bounds.minX, p.x - expandBy);
@@ -85,12 +88,16 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
       const y = coerceNumber(s.y, 0);
       const w = coerceNumber(s.width, 0);
       const h = coerceNumber(s.height, 0);
-      accumulateBoundsFromPoints(bounds, [
-        { x, y },
-        { x: x + w, y },
-        { x: x + w, y: y + h },
-        { x, y: y + h },
-      ], strokeExpand);
+      accumulateBoundsFromPoints(
+        bounds,
+        [
+          { x, y },
+          { x: x + w, y },
+          { x: x + w, y: y + h },
+          { x, y: y + h },
+        ],
+        strokeExpand,
+      );
       return;
     }
 
@@ -100,12 +107,16 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
       const fontSize = coerceNumber(s.fontSize, 12);
       const w = estimateTextWidth(s.textContent, fontSize);
       const h = fontSize;
-      accumulateBoundsFromPoints(bounds, [
-        { x, y },
-        { x: x + w, y },
-        { x: x + w, y: y + h },
-        { x, y: y + h },
-      ], strokeExpand);
+      accumulateBoundsFromPoints(
+        bounds,
+        [
+          { x, y },
+          { x: x + w, y },
+          { x: x + w, y: y + h },
+          { x, y: y + h },
+        ],
+        strokeExpand,
+      );
     }
   });
 
@@ -116,23 +127,29 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
  * Converts already-normalized PDF shapes (using the editor/world coordinate system, where Y increases "up")
  * into a single SVG string (standard SVG Y-down), so it can be rendered as a single object like DXF SVG mode.
  */
- export const pdfShapesToSvg = (
+export const pdfShapesToSvg = (
   shapes: readonly Shape[],
-  options?: PdfShapesToSvgOptions
- ): PdfShapesToSvgResult => {
+  options?: PdfShapesToSvgOptions,
+): PdfShapesToSvgResult => {
   const nonEmpty = shapes.filter((s) => {
     if (s.type === 'line' || s.type === 'polyline') return (s.points?.length ?? 0) >= 2;
-    if (s.type === 'rect') return isFiniteNumber(s.width) && isFiniteNumber(s.height) && s.width > 0 && s.height > 0;
-    if (s.type === 'text') return typeof s.textContent === 'string' && s.textContent.trim().length > 0;
+    if (s.type === 'rect')
+      return isFiniteNumber(s.width) && isFiniteNumber(s.height) && s.width > 0 && s.height > 0;
+    if (s.type === 'text')
+      return typeof s.textContent === 'string' && s.textContent.trim().length > 0;
     return false;
   });
 
   const bounds = accumulateBounds(nonEmpty);
-  const hasBounds = Number.isFinite(bounds.minX) && Number.isFinite(bounds.minY) && Number.isFinite(bounds.maxX) && Number.isFinite(bounds.maxY);
+  const hasBounds =
+    Number.isFinite(bounds.minX) &&
+    Number.isFinite(bounds.minY) &&
+    Number.isFinite(bounds.maxX) &&
+    Number.isFinite(bounds.maxY);
 
   const origin = { x: hasBounds ? bounds.minX : 0, y: hasBounds ? bounds.minY : 0 };
-  const width = Math.max(1, (hasBounds ? bounds.maxX - bounds.minX : 1));
-  const height = Math.max(1, (hasBounds ? bounds.maxY - bounds.minY : 1));
+  const width = Math.max(1, hasBounds ? bounds.maxX - bounds.minX : 1);
+  const height = Math.max(1, hasBounds ? bounds.maxY - bounds.minY : 1);
 
   // Local mapping:
   // - X: normalize by minX
@@ -153,7 +170,7 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
       const pts = s.points ?? [];
       const pointsAttr = pointsToSvgAttr(pts, mapX, mapYDown);
       elements.push(
-        `<polyline points="${pointsAttr}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke" />`
+        `<polyline points="${pointsAttr}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke" />`,
       );
       return;
     }
@@ -168,11 +185,11 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
 
       if (isClosed) {
         elements.push(
-          `<polygon points="${pointsAttr}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="${fill}" vector-effect="non-scaling-stroke" />`
+          `<polygon points="${pointsAttr}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="${fill}" vector-effect="non-scaling-stroke" />`,
         );
       } else {
         elements.push(
-          `<polyline points="${pointsAttr}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke" />`
+          `<polyline points="${pointsAttr}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke" />`,
         );
       }
       return;
@@ -188,15 +205,15 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
 
       elements.push(
         `<text x="${x}" y="${y}" font-family="${fontFamily}" font-size="${fontSize}" fill="${strokeEnabled ? stroke : '#000000'}"${transform}>${escapeXml(
-          s.textContent
-        )}</text>`
+          s.textContent,
+        )}</text>`,
       );
       return;
     }
 
     if (s.type === 'rect') {
       const x = mapX(coerceNumber(s.x, 0));
-      const yTopDown = height - ((coerceNumber(s.y, 0) - origin.y) + coerceNumber(s.height, 0));
+      const yTopDown = height - (coerceNumber(s.y, 0) - origin.y + coerceNumber(s.height, 0));
       const w = coerceNumber(s.width, 0);
       const h = coerceNumber(s.height, 0);
 
@@ -205,13 +222,13 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
         // The rect's embedded svg content was authored in Y-up local coordinates.
         // We place it into the Y-down master SVG by flipping it within its own bbox.
         elements.push(
-          `<g transform="translate(${x} ${yTopDown})"><g transform="translate(0 ${h}) scale(1 -1)">${inner}</g></g>`
+          `<g transform="translate(${x} ${yTopDown})"><g transform="translate(0 ${h}) scale(1 -1)">${inner}</g></g>`,
         );
         return;
       }
 
       elements.push(
-        `<rect x="${x}" y="${yTopDown}" width="${w}" height="${h}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="${fill}" />`
+        `<rect x="${x}" y="${yTopDown}" width="${w}" height="${h}" stroke="${stroke}" stroke-width="${strokeWidth}" fill="${fill}" />`,
       );
     }
   });
@@ -228,4 +245,3 @@ const accumulateBounds = (shapes: readonly Shape[]) => {
 
   return { svgRaw, viewBox, width: paddedWidth, height: paddedHeight, origin };
 };
-

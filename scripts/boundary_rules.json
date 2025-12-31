@@ -20,6 +20,7 @@
     { "path": "frontend/features/editor/components/SelectionOverlay.tsx", "import": "frontend/engine/core/capabilities", "reason": "Overlay still inspects engine capabilities directly." },
     { "path": "frontend/features/editor/components/SelectionOverlay.tsx", "import": "frontend/engine/core/overlayDecoder", "reason": "Overlay decoder should be exposed via facade." },
     { "path": "frontend/features/editor/components/SelectionOverlay.tsx", "import": "frontend/engine/core/protocol", "reason": "Overlay component still depends on engine protocol enums." },
+    { "path": "frontend/features/editor/components/ribbon/LayerRibbonControls.tsx", "import": "frontend/engine/core/protocol", "reason": "Layer ribbon still uses protocol enums; needs facade exposure." },
     { "path": "frontend/features/editor/components/LayerManagerModal.tsx", "import": "frontend/engine/core/protocol", "reason": "Layer mutations using protocol enums directly; needs facade." },
     { "path": "frontend/features/editor/components/EditorSidebar.tsx", "import": "frontend/engine/core/protocol", "reason": "Sidebar layer commands reference protocol enums directly." },
     { "path": "frontend/features/editor/components/EngineInteractionLayer.tsx", "import": "frontend/engine/core/commandBuffer", "reason": "Interaction layer builds command buffer directly; should delegate to runtime helper." },

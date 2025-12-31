@@ -1,24 +1,26 @@
 /**
  * usePickThrottle - Reactive hook for pick operation throttling
- * 
+ *
  * Automatically adapts throttle interval based on settings store
  * and provides clean API for throttled pick operations.
- * 
+ *
  * @example
  * const throttledPick = usePickThrottle(runtime);
  * const result = throttledPick(x, y, tolerance, mask);
  */
 
 import { useRef, useCallback, useEffect } from 'react';
-import { MouseThrottle } from '@/utils/mouseThrottle';
+
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { MouseThrottle } from '@/utils/mouseThrottle';
+
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { PickResult } from '@/types/picking';
 
 export function usePickThrottle(runtime: EngineRuntime | null) {
   const throttleRef = useRef<MouseThrottle | null>(null);
   const lastResultRef = useRef<PickResult | null>(null);
-  
+
   const isThrottlingEnabled = useSettingsStore((s) => s.featureFlags.enablePickThrottling);
   const throttleInterval = useSettingsStore((s) => s.performance.pickThrottleInterval);
 
@@ -73,22 +75,24 @@ export function usePickThrottle(runtime: EngineRuntime | null) {
           const result = runtime.pickExSmart(px, py, ptol, pmask);
           lastResultRef.current = result;
         },
-        { leading: true, trailing: true }
+        { leading: true, trailing: true },
       );
 
       // Execute throttled pick
       throttledFn(x, y, tolerance, mask);
 
       // Return last known result (may be from previous call if throttled)
-      return lastResultRef.current || {
-        id: 0,
-        kind: 0,
-        subTarget: 0,
-        subIndex: -1,
-        distance: Infinity,
-      };
+      return (
+        lastResultRef.current || {
+          id: 0,
+          kind: 0,
+          subTarget: 0,
+          subIndex: -1,
+          distance: Infinity,
+        }
+      );
     },
-    [runtime, isThrottlingEnabled]
+    [runtime, isThrottlingEnabled],
   );
 
   return throttledPick;
@@ -96,19 +100,19 @@ export function usePickThrottle(runtime: EngineRuntime | null) {
 
 /**
  * useAdaptivePickThrottle - Advanced version with adaptive interval
- * 
+ *
  * Automatically adjusts throttle interval based on:
  * - Frame rate (lower FPS = longer interval)
  * - Movement speed (fast movement = longer interval for performance)
  * - Entity count (more entities = longer interval)
- * 
+ *
  * @example
  * const { throttledPick, metrics } = useAdaptivePickThrottle(runtime);
  */
 export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
   const baseInterval = useSettingsStore((s) => s.performance.pickThrottleInterval);
   const isEnabled = useSettingsStore((s) => s.featureFlags.enablePickThrottling);
-  
+
   const metricsRef = useRef({
     avgFrameTime: 16,
     recentSpeeds: [] as number[],
@@ -123,7 +127,7 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
     if (!isEnabled) return baseInterval;
 
     const { avgFrameTime, recentSpeeds, entityCount } = metricsRef.current;
-    
+
     let interval = baseInterval;
 
     // 1. Adjust for frame rate (if dropping frames, increase interval)
@@ -136,10 +140,9 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
     }
 
     // 2. Adjust for movement speed (fast = increase interval for smoothness)
-    const avgSpeed = recentSpeeds.length > 0
-      ? recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length
-      : 0;
-    
+    const avgSpeed =
+      recentSpeeds.length > 0 ? recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length : 0;
+
     if (avgSpeed > 1000) {
       // Very fast movement
       interval *= 1.3;
@@ -176,7 +179,7 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
         const dx = x - lastPosRef.current.x;
         const dy = y - lastPosRef.current.y;
         const speed = Math.sqrt(dx * dx + dy * dy) / (dt / 1000);
-        
+
         metricsRef.current.recentSpeeds.push(speed);
         if (metricsRef.current.recentSpeeds.length > 10) {
           metricsRef.current.recentSpeeds.shift();
@@ -187,8 +190,7 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
       // Update entity count periodically
       const stats = runtime.getStats();
       if (stats) {
-        metricsRef.current.entityCount = 
-          stats.rectCount + stats.lineCount + stats.polylineCount;
+        metricsRef.current.entityCount = stats.rectCount + stats.lineCount + stats.polylineCount;
       }
 
       // Recalculate adaptive interval
@@ -197,7 +199,7 @@ export function useAdaptivePickThrottle(runtime: EngineRuntime | null) {
       // Direct pick (throttling will be applied via MouseThrottle if enabled)
       return runtime.pickExSmart(x, y, tolerance, mask);
     },
-    [runtime, calculateInterval]
+    [runtime, calculateInterval],
   );
 
   return throttledPick;

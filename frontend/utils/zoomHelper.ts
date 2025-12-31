@@ -1,6 +1,5 @@
-
+import { UI } from '../src/constants/ui';
 import { Point, ViewTransform } from '../types';
-import { UI } from '../design/tokens';
 
 /**
  * Calculates the new ViewTransform based on wheel delta.
@@ -13,27 +12,27 @@ import { UI } from '../design/tokens';
  * @returns The new ViewTransform
  */
 export const calculateZoomTransform = (
-    currentTransform: ViewTransform,
-    mousePos: Point,
-    deltaY: number,
-    screenToWorldFn: (point: Point, transform: ViewTransform) => Point
+  currentTransform: ViewTransform,
+  mousePos: Point,
+  deltaY: number,
+  screenToWorldFn: (point: Point, transform: ViewTransform) => Point,
 ): ViewTransform => {
-    // Normalize delta to handle both mouse wheel and trackpad smooth scrolling
-    const delta = -deltaY;
+  // Normalize delta to handle both mouse wheel and trackpad smooth scrolling
+  const delta = -deltaY;
 
-    // Use a smaller multiplier for smoother zoom.
-    // Trackpads produce many small deltas (e.g. 1-10), Mouse wheels produce large (100).
-    const zoomIntensity = 0.001;
-    const scaleFactor = Math.exp(delta * zoomIntensity);
+  // Use a smaller multiplier for smoother zoom.
+  // Trackpads produce many small deltas (e.g. 1-10), Mouse wheels produce large (100).
+  const zoomIntensity = 0.001;
+  const scaleFactor = Math.exp(delta * zoomIntensity);
 
-    let newScale = currentTransform.scale * scaleFactor;
-    newScale = Math.max(UI.MIN_ZOOM, Math.min(newScale, UI.MAX_ZOOM));
+  let newScale = currentTransform.scale * scaleFactor;
+  newScale = Math.max(UI.MIN_ZOOM_SCALE, Math.min(newScale, UI.MAX_ZOOM_SCALE));
 
-    const w = screenToWorldFn(mousePos, currentTransform);
+  const w = screenToWorldFn(mousePos, currentTransform);
 
-    // Pivot zoom around cursor
-    const newX = mousePos.x - w.x * newScale;
-    const newY = mousePos.y + w.y * newScale; // Inverted Y-axis logic
+  // Pivot zoom around cursor
+  const newX = mousePos.x - w.x * newScale;
+  const newY = mousePos.y + w.y * newScale; // Inverted Y-axis logic
 
-    return { scale: newScale, x: newX, y: newY };
+  return { scale: newScale, x: newX, y: newY };
 };

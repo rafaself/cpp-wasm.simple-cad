@@ -5,19 +5,27 @@ export const hexToRgb = (hex: string) => {
   const c = hex.trim();
 
   // rgba(r,g,b,a) / rgb(r,g,b)
-  const rgba = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+)\s*)?\)$/i.exec(c);
+  const rgba =
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+)\s*)?\)$/i.exec(c);
   if (rgba) {
     const r = Number.parseInt(rgba[1], 10);
     const g = Number.parseInt(rgba[2], 10);
     const b = Number.parseInt(rgba[3], 10);
     if ([r, g, b].some((n) => Number.isNaN(n))) return null;
-    return { r: Math.max(0, Math.min(255, r)), g: Math.max(0, Math.min(255, g)), b: Math.max(0, Math.min(255, b)) };
+    return {
+      r: Math.max(0, Math.min(255, r)),
+      g: Math.max(0, Math.min(255, g)),
+      b: Math.max(0, Math.min(255, b)),
+    };
   }
 
   if (!c.startsWith('#')) return null;
   let clean = c.slice(1);
   if (clean.length === 3) {
-    clean = clean.split('').map(ch => ch + ch).join('');
+    clean = clean
+      .split('')
+      .map((ch) => ch + ch)
+      .join('');
   }
   if (clean.length !== 6) return null;
   const intValue = parseInt(clean, 16);
@@ -25,7 +33,7 @@ export const hexToRgb = (hex: string) => {
   return {
     r: (intValue >> 16) & 0xff,
     g: (intValue >> 8) & 0xff,
-    b: intValue & 0xff
+    b: intValue & 0xff,
   };
 };
 
@@ -37,9 +45,7 @@ const rgbToHex = (r: number, g: number, b: number) => {
 const getLuminanceFromRgb = (rgb: { r: number; g: number; b: number }) => {
   const transform = (value: number) => {
     const normalized = value / 255;
-    return normalized <= 0.03928
-      ? normalized / 12.92
-      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+    return normalized <= 0.03928 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
   };
   const r = transform(rgb.r);
   const g = transform(rgb.g);

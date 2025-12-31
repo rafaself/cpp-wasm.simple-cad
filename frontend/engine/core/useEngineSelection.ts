@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
 
-import type { EntityId } from './protocol';
 import { useDocumentSignal } from './engineDocumentSignals';
 import { useEngineRuntime } from './useEngineRuntime';
+
+import type { EntityId } from './protocol';
 
 export const useEngineSelectionIds = (): EntityId[] => {
   const runtime = useEngineRuntime();
   const generation = useDocumentSignal('selection');
 
   return useMemo(() => {
+    void generation;
     if (!runtime) return [];
     return Array.from(runtime.getSelectionIds());
   }, [runtime, generation]);

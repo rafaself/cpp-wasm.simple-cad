@@ -4,7 +4,11 @@ export type TriangleBatch = {
   blended: boolean;
 };
 
-const isTriangleBlended = (vertices: Float32Array, triFirstFloat: number, floatsPerVertex: number): boolean => {
+const isTriangleBlended = (
+  vertices: Float32Array,
+  triFirstFloat: number,
+  floatsPerVertex: number,
+): boolean => {
   // Expected interleaved layout: [x,y,z,r,g,b,a] per vertex => alpha at offset 6.
   const alphaOffset = 6;
   if (floatsPerVertex <= alphaOffset) return true;
@@ -44,4 +48,3 @@ export const computeTriangleBatches = (
 
   return batches;
 };
-

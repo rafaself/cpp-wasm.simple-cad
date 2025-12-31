@@ -1,18 +1,32 @@
+import {
+  AlignCenterHorizontal,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+} from 'lucide-react';
 import React from 'react';
-import { AlignCenterHorizontal, AlignLeft, AlignRight, Bold, Italic, Underline, Strikethrough } from 'lucide-react';
+
+import { LABELS } from '@/i18n/labels';
+import { createLogger } from '@/utils/logger';
+
 import CustomSelect from '../../../../components/CustomSelect';
-import NumberSpinner from '../../../../components/NumberSpinner';
+import { NumericComboField } from '../../../../components/NumericComboField';
+import { BUTTON_STYLES, INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
-import { BUTTON_STYLES, INPUT_STYLES } from '../../../../design/tokens';
-import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 import { useUIStore } from '../../../../stores/useUIStore';
-// import { getTextTool } from '../../../../engine/core/textEngineSync';
 import { TextStyleFlags } from '../../../../types/text';
+import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
+import { RibbonControlWrapper } from '../../components/ribbon/RibbonControlWrapper';
+import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
+import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
+import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 
 // Stub for now, as textEngineSync is deprecated
 // TODO: Refactor to use EngineRuntime directly if this component is revived.
 const getTextTool = () => null as any;
-import { LABELS } from '@/i18n/labels';
 
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
@@ -20,10 +34,6 @@ const FONT_OPTIONS = [
   { value: 'Times', label: 'Times' },
   { value: 'Roboto', label: 'Roboto' },
 ];
-
-const InputWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`flex flex-col justify-center w-full ${className || ''}`}>{children}</div>
-);
 
 type StyleState = 'off' | 'on' | 'mixed';
 
@@ -34,7 +44,12 @@ const triStateFor = (flags: number, shift: number): StyleState => {
   return 'off';
 };
 
-export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+const logger = createLogger('textControls', { minLevel: 'debug' });
+
+export const FontFamilyControl: React.FC<TextControlProps> = ({
+  selectedTextIds,
+  applyTextUpdate,
+}) => {
   const textFontFamily = useSettingsStore((s) => s.toolDefaults.text.fontFamily);
   const setTextFontFamily = useSettingsStore((s) => s.setTextFontFamily);
   const handleChange = (val: string) => {
@@ -42,53 +57,85 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({ selectedTextIds,
     if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: val }, true);
   };
   return (
-    <InputWrapper>
-      <CustomSelect value={textFontFamily} onChange={handleChange} options={FONT_OPTIONS} className={`${INPUT_STYLES.ribbon} h-6 text-xs`} />
-    </InputWrapper>
+    <RibbonControlWrapper>
+      <CustomSelect
+        value={textFontFamily}
+        onChange={handleChange}
+        options={FONT_OPTIONS}
+        className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
+      />
+    </RibbonControlWrapper>
   );
 };
 
-export const FontSizeControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+export const FontSizeControl: React.FC<TextControlProps> = ({
+  selectedTextIds,
+  applyTextUpdate,
+}) => {
   const textFontSize = useSettingsStore((s) => s.toolDefaults.text.fontSize);
   const setTextFontSize = useSettingsStore((s) => s.setTextFontSize);
   const engineEditState = useUIStore((s) => s.engineTextEditState);
   const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
 
-  const handleChange = (val: number) => {
+  // Font size presets (Figma-like)
+  const fontSizePresets = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 32, 48, 64, 96, 128];
+
+  const handleCommit = (val: number) => {
     setTextFontSize(val);
 
     if (applyViaEngine) {
       const tool = getTextTool();
       if (tool && tool.isReady()) {
-         tool.applyFontSize(val);
-         // Don't return, allow applying to selection too if needed?
-         return; 
+        tool.applyFontSize(val);
+        return;
       }
     }
-    
+
     if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
   };
+
   return (
-    <InputWrapper className="items-center">
-      <NumberSpinner value={textFontSize} onChange={handleChange} min={8} max={256} className="w-full h-6" />
-    </InputWrapper>
+    <RibbonControlWrapper align="center">
+      <NumericComboField
+        value={textFontSize}
+        onCommit={handleCommit}
+        presets={fontSizePresets}
+        min={1}
+        max={999}
+        step={1}
+        stepLarge={10}
+        ariaLabel="Tamanho da Fonte"
+        className="w-full ribbon-fill-h"
+        dropdownMaxHeight="auto"
+        allowScrollWheel={true}
+      />
+    </RibbonControlWrapper>
   );
 };
 
 const alignOptions = [
   { align: 'left' as const, icon: <AlignLeft size={16} />, label: LABELS.text.alignLeft },
-  { align: 'center' as const, icon: <AlignCenterHorizontal size={16} />, label: LABELS.text.alignCenter },
+  {
+    align: 'center' as const,
+    icon: <AlignCenterHorizontal size={16} />,
+    label: LABELS.text.alignCenter,
+  },
   { align: 'right' as const, icon: <AlignRight size={16} />, label: LABELS.text.alignRight },
 ];
 
-export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+export const TextAlignControl: React.FC<TextControlProps> = ({
+  selectedTextIds,
+  applyTextUpdate,
+}) => {
   const textAlign = useSettingsStore((s) => s.toolDefaults.text.align);
   const setTextAlignShortcut = useSettingsStore((s) => s.setTextAlign);
   const engineEditState = useUIStore((s) => s.engineTextEditState);
   const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
 
   const engineAlign: 'left' | 'center' | 'right' | null =
-    engineEditState.active && engineStyleSnapshot && engineEditState.textId === engineStyleSnapshot.textId
+    engineEditState.active &&
+    engineStyleSnapshot &&
+    engineEditState.textId === engineStyleSnapshot.textId
       ? (['left', 'center', 'right'] as const)[engineStyleSnapshot.snapshot.align]
       : null;
 
@@ -109,27 +156,28 @@ export const TextAlignControl: React.FC<TextControlProps> = ({ selectedTextIds, 
     if (selectedTextIds.length > 0) applyTextUpdate({ align }, false);
   };
   return (
-    <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5">
+    <RibbonControlWrapper align="center">
+      <RibbonToggleGroup>
         {alignOptions.map(({ align, icon, label }) => (
-          <button
+          <RibbonIconButton
             key={align}
+            icon={icon}
             onClick={() => handleClick(align)}
-            onMouseDown={(e) => e.preventDefault()}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${activeAlign === align ? 'bg-blue-600/30 text-blue-400' : ''}`}
+            isActive={activeAlign === align}
             title={label}
-          >
-            {icon}
-          </button>
+          />
         ))}
-      </div>
-    </InputWrapper>
+      </RibbonToggleGroup>
+    </RibbonControlWrapper>
   );
 };
 
 type StyleKey = 'bold' | 'italic' | 'underline' | 'strike';
 
-export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, applyTextUpdate }) => {
+export const TextStyleControl: React.FC<TextControlProps> = ({
+  selectedTextIds,
+  applyTextUpdate,
+}) => {
   const {
     bold: textBold,
     italic: textItalic,
@@ -145,7 +193,9 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
 
   const engineStyles: Record<StyleKey, StyleState> | null =
-    engineEditState.active && engineStyleSnapshot && engineEditState.textId === engineStyleSnapshot.textId
+    engineEditState.active &&
+    engineStyleSnapshot &&
+    engineEditState.textId === engineStyleSnapshot.textId
       ? {
           bold: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 0),
           italic: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 2),
@@ -164,25 +214,70 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   const styleStates = engineStyles ?? fallbackStyles;
   const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
 
-  const options: Array<{ key: StyleKey; icon: React.ReactNode; state: StyleState; setter: (v: boolean) => void; recalc: boolean; mask: TextStyleFlags; label: string }> = [
-    { key: 'bold', icon: <Bold size={16} />, state: styleStates.bold, setter: setBold, recalc: true, mask: TextStyleFlags.Bold, label: LABELS.text.bold },
-    { key: 'italic', icon: <Italic size={16} />, state: styleStates.italic, setter: setItalic, recalc: true, mask: TextStyleFlags.Italic, label: LABELS.text.italic },
-    { key: 'underline', icon: <Underline size={16} />, state: styleStates.underline, setter: setUnderline, recalc: false, mask: TextStyleFlags.Underline, label: LABELS.text.underline },
-    { key: 'strike', icon: <Strikethrough size={16} />, state: styleStates.strike, setter: setStrike, recalc: false, mask: TextStyleFlags.Strikethrough, label: LABELS.text.strike },
+  const options: Array<{
+    key: StyleKey;
+    icon: React.ReactNode;
+    state: StyleState;
+    setter: (v: boolean) => void;
+    recalc: boolean;
+    mask: TextStyleFlags;
+    label: string;
+  }> = [
+    {
+      key: 'bold',
+      icon: <Bold size={16} />,
+      state: styleStates.bold,
+      setter: setBold,
+      recalc: true,
+      mask: TextStyleFlags.Bold,
+      label: LABELS.text.bold,
+    },
+    {
+      key: 'italic',
+      icon: <Italic size={16} />,
+      state: styleStates.italic,
+      setter: setItalic,
+      recalc: true,
+      mask: TextStyleFlags.Italic,
+      label: LABELS.text.italic,
+    },
+    {
+      key: 'underline',
+      icon: <Underline size={16} />,
+      state: styleStates.underline,
+      setter: setUnderline,
+      recalc: false,
+      mask: TextStyleFlags.Underline,
+      label: LABELS.text.underline,
+    },
+    {
+      key: 'strike',
+      icon: <Strikethrough size={16} />,
+      state: styleStates.strike,
+      setter: setStrike,
+      recalc: false,
+      mask: TextStyleFlags.Strikethrough,
+      label: LABELS.text.strike,
+    },
   ];
 
-  const handleClick = (option: typeof options[number]) => {
+  const handleClick = (option: (typeof options)[number]) => {
     const nextIntent: 'set' | 'clear' = option.state === 'on' ? 'clear' : 'set';
     option.setter(nextIntent === 'set');
 
-    console.log('[TextControls] handleClick', { key: option.key, nextIntent, applyViaEngine, textId: engineEditState.textId });
+    logger.debug('[TextControls] handleClick', {
+      key: option.key,
+      nextIntent,
+      applyViaEngine,
+      textId: engineEditState.textId,
+    });
 
     if (applyViaEngine) {
       const tool = getTextTool();
       if (tool) {
         tool.applyStyle(option.mask, nextIntent);
       } else {
-        console.warn('[TextControls] Tool not found!');
+        logger.warn('[TextControls] Tool not found!');
       }
       return;
     }
@@ -194,51 +289,47 @@ export const TextStyleControl: React.FC<TextControlProps> = ({ selectedTextIds, 
   };
 
   return (
-    <InputWrapper className="items-center">
-      <div className="flex bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 h-6 gap-0.5">
+    <RibbonControlWrapper align="center">
+      <RibbonToggleGroup>
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
-          const stateClass = isOn
-            ? 'bg-blue-600/30 text-blue-400'
-            : isMixed
-              ? 'bg-blue-600/15 text-blue-200 border border-blue-500/40'
-              : '';
+          // Mixed state uses custom class, active uses standard
+          const mixedClass = isMixed ? 'bg-primary/10 text-primary border border-primary/20' : '';
 
           return (
-          <button
-            key={option.key}
-            onClick={() => handleClick(option)}
-            onMouseDown={(e) => e.preventDefault()}
-            className={`w-8 h-full ${BUTTON_STYLES.centered} ${stateClass}`}
-            title={option.label}
-          >
-            {option.icon}
-          </button>
+            <RibbonIconButton
+              key={option.key}
+              icon={option.icon}
+              onClick={() => handleClick(option)}
+              isActive={isOn}
+              title={option.label}
+              className={mixedClass}
+            />
           );
         })}
-      </div>
-    </InputWrapper>
+      </RibbonToggleGroup>
+    </RibbonControlWrapper>
   );
 };
 
 export const TextFormatGroup: React.FC<TextControlProps> = (props) => (
-  <div className="flex flex-col h-full justify-center px-0.5 gap-1">
+  <div className="ribbon-group-col px-1">
     {/* Row 1 */}
-    <div className="flex items-center gap-1.5">
-      <div className="w-[140px]">
+    <div className="ribbon-row">
+      <div className="w-[140px] h-full">
         <FontFamilyControl {...props} />
       </div>
-      <div className="w-[106px]">
+      <div className="w-[106px] h-full">
         <FontSizeControl {...props} />
       </div>
     </div>
     {/* Row 2 */}
-    <div className="flex items-center gap-1.5">
-      <div className="w-[140px]">
+    <div className="ribbon-row">
+      <div className="w-[140px] h-full">
         <TextStyleControl {...props} />
       </div>
-      <div className="w-[106px]">
+      <div className="w-[106px] h-full">
         <TextAlignControl {...props} />
       </div>
     </div>

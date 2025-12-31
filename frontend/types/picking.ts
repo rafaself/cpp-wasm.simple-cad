@@ -10,7 +10,7 @@ export enum PickSubTarget {
   ResizeHandle = 4,
   RotateHandle = 5,
   TextBody = 6,
-  TextCaret = 7
+  TextCaret = 7,
 }
 
 export enum PickEntityKind {
@@ -21,15 +21,15 @@ export enum PickEntityKind {
   Polyline = 4,
   Polygon = 5,
   Arrow = 6,
-  Text = 7
+  Text = 7,
 }
 
 export interface PickResult {
-  id: EntityId;        // 0 = miss
+  id: EntityId; // 0 = miss
   kind: PickEntityKind;
   subTarget: PickSubTarget;
-  subIndex: number;     // -1 if N/A
-  distance: number;     // Infinity for miss
-  hitX?: number;        // Optional, not always populated by fallback
+  subIndex: number; // -1 if N/A
+  distance: number; // Infinity for miss
+  hitX?: number; // Optional, not always populated by fallback
   hitY?: number;
 }

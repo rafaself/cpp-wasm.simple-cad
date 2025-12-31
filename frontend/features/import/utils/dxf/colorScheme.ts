@@ -18,7 +18,7 @@ export const resolveColorScheme = (options?: {
   }
   return {
     scheme: options.colorScheme,
-    customColor: options.customColor
+    customColor: options.customColor,
   };
 };
 
@@ -30,7 +30,7 @@ const normalizeColorValue = (value?: string): string => {
 export const applyColorScheme = (
   baseColor: string,
   scheme: DxfColorScheme,
-  customColor?: string
+  customColor?: string,
 ): string => {
   const normalizedBase = baseColor?.toLowerCase() || '#000000';
 

@@ -29,6 +29,51 @@
       "path": "frontend/engine/bridge/textBridge.ts",
       "hardLimit": 650,
       "reason": "Historic text bridge still over the TS hard cap; pending bridge refactor."
+    },
+    {
+      "path": "frontend/engine/core/commandBuffer.ts",
+      "hardLimit": 560,
+      "reason": "Command encoder still monolithic; slated for SRP split after governance rollout."
+    },
+    {
+      "path": "frontend/engine/core/EngineRuntime.ts",
+      "hardLimit": 520,
+      "reason": "Runtime facade consolidation pending; keep under watch while bridge is stabilized."
+    },
+    {
+      "path": "frontend/engine/tools/TextTool.ts",
+      "hardLimit": 700,
+      "reason": "Text tool debt known; to be broken down in dedicated text refactor."
+    },
+    {
+      "path": "frontend/features/import/utils/dxf/dxfToShapes.test.ts",
+      "hardLimit": 530,
+      "reason": "Large DXF integration test; needs segmentation but kept for coverage in current phase."
+    },
+    {
+      "path": "frontend/features/import/utils/dxf/dxfToSvg.ts",
+      "hardLimit": 700,
+      "reason": "DXF→SVG converter awaiting modularization; allow temporarily during governance baseline."
+    },
+    {
+      "path": "frontend/features/import/utils/pdfToShapes.ts",
+      "hardLimit": 720,
+      "reason": "PDF import path to be broken down; tracked in import refactor backlog."
+    },
+    {
+      "path": "frontend/features/import/utils/pdfToVectorDocument.ts",
+      "hardLimit": 560,
+      "reason": "PDF vector builder monolith; scheduled for later SRP split."
+    },
+    {
+      "path": "frontend/utils/benchmarks/pickBenchmarks.ts",
+      "hardLimit": 540,
+      "reason": "Benchmark helper intentionally verbose; exempted while perf suite is stabilized."
+    },
+    {
+      "path": "frontend/utils/pickResultCache.test.ts",
+      "hardLimit": 540,
+      "reason": "Large cache test fixture; to be broken up after governance baseline."
     }
   ]
 }

@@ -1,11 +1,12 @@
-import { CadEngineInstance, WasmModule } from '../wasm-types';
 import { EntityId, SelectionMode, OverlayBufferMeta } from '../protocol';
+import { CadEngineInstance, WasmModule } from '../wasm-types';
+
 import type { PickResult } from '@/types/picking';
 
 export class SelectionSystem {
   constructor(
     private readonly module: WasmModule,
-    private readonly engine: CadEngineInstance
+    private readonly engine: CadEngineInstance,
   ) {}
 
   public getSelectionIds(): Uint32Array {
@@ -14,7 +15,7 @@ export class SelectionSystem {
     const count = vec.size();
     const out = new Uint32Array(count);
     for (let i = 0; i < count; i++) {
-        out[i] = vec.get(i);
+      out[i] = vec.get(i);
     }
     vec.delete();
     return out;
@@ -54,7 +55,13 @@ export class SelectionSystem {
     this.engine.marqueeSelect?.(minX, minY, maxX, maxY, mode, hitMode);
   }
 
-  public queryMarquee(minX: number, minY: number, maxX: number, maxY: number, hitMode: number): number[] {
+  public queryMarquee(
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    hitMode: number,
+  ): number[] {
     if (!this.engine.queryMarquee) return [];
     const vec = this.engine.queryMarquee(minX, minY, maxX, maxY, hitMode);
     const count = vec.size();

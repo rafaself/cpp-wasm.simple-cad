@@ -1,9 +1,11 @@
-import { SelectionMode } from '@/engine/core/protocol';
-import { TransformMode } from '@/engine/core/interactionSession';
-import type { EngineCommand } from '@/engine/core/commandBuffer';
 import { CommandOp } from '@/engine/core/commandBuffer';
-import type { PickResult } from '@/types/picking';
+import { TransformMode } from '@/engine/core/interactionSession';
+import { SelectionMode } from '@/engine/core/protocol';
+
 import { FakeEventBus } from './fakeEventBus';
+
+import type { EngineCommand } from '@/engine/core/commandBuffer';
+import type { PickResult } from '@/types/picking';
 
 type VectorLike = { size(): number; get(index: number): number; delete(): void };
 
@@ -24,7 +26,15 @@ type MarqueeCall = {
 
 export class FakeRuntime {
   commands: EngineCommand[] = [];
-  pickResult: PickResult = { id: 0, kind: 0, subIndex: 0, distance: 0, subTarget: 0, hitX: 0, hitY: 0 };
+  pickResult: PickResult = {
+    id: 0,
+    kind: 0,
+    subIndex: 0,
+    distance: 0,
+    subTarget: 0,
+    hitX: 0,
+    hitY: 0,
+  };
   lastPickArgs: Array<{ x: number; y: number; tolerance: number; mask: number }> = [];
   selection = new Set<number>();
   marqueeReturnIds: number[] = [];
@@ -114,9 +124,22 @@ export class FakeRuntime {
     this.clearSelectionCalls += 1;
   }
 
-  beginTransform(ids: readonly number[], mode: TransformMode, specificId: number, subIndex: number, startX: number, startY: number): void {
+  beginTransform(
+    ids: readonly number[],
+    mode: TransformMode,
+    specificId: number,
+    subIndex: number,
+    startX: number,
+    startY: number,
+  ): void {
     this.transformSessions.begun += 1;
-    this.transformSessions.lastBegin = { ids: Array.from(ids), mode, specificId, subIndex, start: { x: startX, y: startY } };
+    this.transformSessions.lastBegin = {
+      ids: Array.from(ids),
+      mode,
+      specificId,
+      subIndex,
+      start: { x: startX, y: startY },
+    };
   }
 
   updateTransform(x: number, y: number): void {
@@ -132,7 +155,14 @@ export class FakeRuntime {
     this.transformSessions.cancelled += 1;
   }
 
-  marqueeSelect(x1: number, y1: number, x2: number, y2: number, mode: SelectionMode, hitMode: number): void {
+  marqueeSelect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    mode: SelectionMode,
+    hitMode: number,
+  ): void {
     this.marqueeCalls.push({ x1, y1, x2, y2, mode, hitMode });
     this.setSelection(this.marqueeReturnIds, mode);
   }

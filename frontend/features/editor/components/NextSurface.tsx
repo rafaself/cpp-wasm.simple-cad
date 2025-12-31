@@ -1,25 +1,28 @@
 import React, { useEffect, useRef } from 'react';
-import '@/design/tailwind.css';
-import '@/design/global.css';
-import Header from '@/features/editor/components/Header';
+
+import LoadingOverlay from '@/components/LoadingOverlay';
+import Toast from '@/components/ui/Toast';
+import { useEngineEvents } from '@/engine/core/useEngineEvents';
+import TessellatedWasmLayer from '@/engine/renderer/TessellatedWasmLayer';
 import EditorRibbon from '@/features/editor/components/EditorRibbon';
 import EditorSidebar from '@/features/editor/components/EditorSidebar';
-import SettingsModal from '@/features/settings/SettingsModal';
-import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
-import LoadingOverlay from '@/components/LoadingOverlay';
 import EditorStatusBar from '@/features/editor/components/EditorStatusBar';
-import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import EditorTabs from '@/features/editor/components/EditorTabs';
+import Header from '@/features/editor/components/Header';
+import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
+import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
+import SettingsModal from '@/features/settings/SettingsModal';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { useEngineEvents } from '@/engine/core/useEngineEvents';
+
 import EngineInteractionLayer from './EngineInteractionLayer';
-import TessellatedWasmLayer from '@/engine/renderer/TessellatedWasmLayer';
-import Toast from '@/components/ui/Toast';
 
 const NextCanvasArea: React.FC = () => {
   const setCanvasSize = useUIStore((s) => s.setCanvasSize);
+  const setViewTransform = useUIStore((s) => s.setViewTransform);
   const containerRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -29,25 +32,37 @@ const NextCanvasArea: React.FC = () => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         setCanvasSize({ width, height });
+
+        if (!initializedRef.current && width > 0 && height > 0) {
+          setViewTransform((prev) => ({ ...prev, x: width / 2, y: height / 2 }));
+          initializedRef.current = true;
+        }
       }
     });
 
     resizeObserver.observe(el);
     return () => resizeObserver.disconnect();
-  }, [setCanvasSize]);
+  }, [setCanvasSize, setViewTransform]);
 
   return (
-    <div className="flex-grow flex flex-col h-full relative overflow-hidden">
+    <div
+      className="flex-grow flex flex-col h-full relative overflow-hidden"
+      role="main"
+      tabIndex={-1}
+    >
       <EditorTabs />
 
-      <div className="flex-grow relative bg-slate-100 overflow-hidden cursor-crosshair select-none" ref={containerRef}>
+      <div
+        className="flex-grow relative bg-bg overflow-hidden cursor-crosshair select-none"
+        ref={containerRef}
+      >
         <div className="absolute inset-0 pointer-events-none">
           <TessellatedWasmLayer />
         </div>
         <EngineInteractionLayer />
       </div>
 
-      <QuickAccessToolbar />
+      {useSettingsStore((s) => s.display.showQuickAccess) && <QuickAccessToolbar />}
 
       <div className="absolute bottom-0 left-0 right-0 z-50">
         <EditorStatusBar />
@@ -62,14 +77,14 @@ const NextSurface: React.FC = () => {
   const { toast, hideToast } = useUIStore();
 
   return (
-    <div className="w-full h-screen flex flex-col overflow-hidden bg-slate-900 text-slate-100">
+    <div className="w-full h-screen flex flex-col overflow-hidden bg-bg text-text">
       <div className="shrink-0">
         <Header />
       </div>
       <div className="shrink-0">
         <EditorRibbon />
       </div>
-      <div className="flex-grow flex relative bg-slate-200 overflow-hidden">
+      <div className="flex-grow flex relative bg-surface1 overflow-hidden">
         <div className="flex-grow flex flex-col relative overflow-hidden">
           <NextCanvasArea />
           <SettingsModal />
@@ -78,7 +93,7 @@ const NextSurface: React.FC = () => {
         <EditorSidebar />
       </div>
       <LoadingOverlay />
-      <Toast 
+      <Toast
         message={toast.message}
         type={toast.type}
         isVisible={toast.isVisible}

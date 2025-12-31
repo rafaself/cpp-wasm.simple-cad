@@ -1,12 +1,14 @@
+import { X, Pipette, GripHorizontal } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Pipette, GripHorizontal } from 'lucide-react';
-import { HSV, hexToRgb, rgbToHsv, hsvToRgb, rgbToHex } from './utils';
-import ColorArea from './ColorArea';
-import ColorSlider from './ColorSlider';
-import ColorInputs from './ColorInputs';
-import Swatches from './Swatches';
+
 import { LABELS } from '@/i18n/labels';
+
+import ColorArea from './ColorArea';
+import ColorInputs from './ColorInputs';
+import ColorSlider from './ColorSlider';
+import Swatches from './Swatches';
+import { HSV, hexToRgb, rgbToHsv, hsvToRgb, rgbToHex } from './utils';
 
 interface ColorPickerProps {
   color?: string; // Hex
@@ -16,12 +18,12 @@ interface ColorPickerProps {
   initialPosition?: { top: number; left: number };
 }
 
-const ColorPicker: React.FC<ColorPickerProps> = ({ 
-  color = '#FFFFFF', 
-  onChange, 
+const ColorPicker: React.FC<ColorPickerProps> = ({
+  color = '#FFFFFF',
+  onChange,
   onClose,
   className,
-  initialPosition
+  initialPosition,
 }) => {
   // Initialize HSV from the prop color
   const [hsv, setHsv] = useState<HSV>(() => {
@@ -40,7 +42,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
   // Calculate initial position clamped to viewport
   useEffect(() => {
     if (!containerRef.current || isPositioned) return;
-    
+
     const rect = containerRef.current.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -69,7 +71,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
       isInternalChange.current = false;
       return;
     }
-    
+
     // Only sync if color actually changed from external source
     if (color !== lastExternalColor.current) {
       lastExternalColor.current = color;
@@ -78,14 +80,13 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
         const newHsv = rgbToHsv(rgb);
         // Preserve hue if new color is black or grayscale (where hue is undefined)
         if (newHsv.v === 0 || newHsv.s === 0) {
-          setHsv(prev => ({ ...newHsv, h: prev.h }));
+          setHsv((prev) => ({ ...newHsv, h: prev.h }));
         } else {
           setHsv(newHsv);
         }
       }
     }
   }, [color]);
-
 
   const handleHsvChange = (newHsv: HSV) => {
     setHsv(newHsv);
@@ -105,23 +106,26 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
   const handleDragAlpha = (a: number) => handleHsvChange({ ...hsv, a: a / 100 });
 
   // Drag handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current) return;
-    e.preventDefault();
-    setIsDragging(true);
-    
-    dragOffset.current = {
-      x: e.clientX - position.x,
-      y: e.clientY - position.y
-    };
-  }, [position]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!containerRef.current) return;
+      e.preventDefault();
+      setIsDragging(true);
+
+      dragOffset.current = {
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      };
+    },
+    [position],
+  );
 
   useEffect(() => {
     if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
-      
+
       const rect = containerRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
@@ -143,7 +147,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -153,19 +157,19 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
   const currentColorHex = `#${rgbToHex(hsvToRgb(hsv))}`;
 
   const pickerContent = (
-    <div 
+    <div
       ref={containerRef}
       className={`w-[300px] bg-[#2D2D2D] rounded-lg shadow-2xl border border-slate-600/50 flex flex-col font-sans select-none overflow-hidden ${className || ''}`}
       style={{
         position: 'fixed',
         left: isPositioned ? position.x : -9999,
         top: isPositioned ? position.y : -9999,
-        zIndex: 2147483647
+        zIndex: 2147483647,
       }}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header with Title */}
-      <div 
+      <div
         className={`flex items-center justify-between px-3 py-2 border-b border-slate-600/50 bg-[#252525] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
       >
@@ -173,72 +177,74 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
           <GripHorizontal size={14} className="text-slate-500" />
           <span className="text-xs font-medium text-slate-300">{LABELS.colorPicker.title}</span>
         </div>
-        <X 
-          size={16} 
-          className="text-slate-400 hover:text-white cursor-pointer transition-colors" 
-          onClick={onClose} 
-          onMouseDown={(e) => e.stopPropagation()} 
+        <X
+          size={16}
+          className="text-slate-400 hover:text-white cursor-pointer transition-colors"
+          onClick={onClose}
+          onMouseDown={(e) => e.stopPropagation()}
         />
       </div>
 
       {/* Main Content */}
       <div className="p-3">
-        
         <ColorArea hsv={hsv} onChange={handleHsvChange} className="mb-3 rounded-md" />
 
         {/* Row 1: Eyedropper + Hue Slider + Color Preview */}
         <div className="flex items-center gap-3 mb-2">
-            {/* Eyedropper */}
-            <button className="text-slate-400 hover:text-white transition-colors shrink-0" title={LABELS.colorPicker.eyedropper}>
-                <Pipette size={16} />
-            </button>
+          {/* Eyedropper */}
+          <button
+            className="text-slate-400 hover:text-white transition-colors shrink-0"
+            title={LABELS.colorPicker.eyedropper}
+          >
+            <Pipette size={16} />
+          </button>
 
-            {/* Hue Slider */}
-            <div className="flex-grow">
-                <ColorSlider 
-                    value={hsv.h} 
-                    max={360} 
-                    onChange={handleDragHue} 
-                    background="linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)"
-                />
-            </div>
-            
-            {/* Current Color Indicator (Circle) */}
-            <div 
-              className="w-7 h-7 rounded-full border-2 border-slate-500 shadow-sm relative overflow-hidden shrink-0"
-              style={{ backgroundColor: currentColorHex }}
-              title={currentColorHex}
-            >
-              {hsv.a < 1 && (
-                <div className="absolute inset-0 -z-10"
-                    style={{
-                      backgroundImage: `linear-gradient(45deg, #666 25%, transparent 25%), linear-gradient(-45deg, #666 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #666 75%), linear-gradient(-45deg, transparent 75%, #666 75%)`,
-                      backgroundSize: '6px 6px'
-                    }} 
-                />
-              )}
-            </div>
+          {/* Hue Slider */}
+          <div className="flex-grow">
+            <ColorSlider
+              value={hsv.h}
+              max={360}
+              onChange={handleDragHue}
+              background="linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)"
+            />
+          </div>
+
+          {/* Current Color Indicator (Circle) */}
+          <div
+            className="w-7 h-7 rounded-full border-2 border-slate-500 shadow-sm relative overflow-hidden shrink-0"
+            style={{ backgroundColor: currentColorHex }}
+            title={currentColorHex}
+          >
+            {hsv.a < 1 && (
+              <div
+                className="absolute inset-0 -z-10"
+                style={{
+                  backgroundImage: `linear-gradient(45deg, #666 25%, transparent 25%), linear-gradient(-45deg, #666 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #666 75%), linear-gradient(-45deg, transparent 75%, #666 75%)`,
+                  backgroundSize: '6px 6px',
+                }}
+              />
+            )}
+          </div>
         </div>
 
         {/* Row 2: Alpha Slider (full width under hue) */}
         <div className="flex items-center gap-3 mb-3">
-            <div className="w-4 shrink-0" />
-            <div className="flex-grow">
-                <ColorSlider 
-                    value={Math.round(hsv.a * 100)} 
-                    max={100} 
-                    onChange={handleDragAlpha} 
-                    checkered
-                    background={`linear-gradient(to right, transparent, ${currentColorHex})`}
-                />
-            </div>
-            <div className="w-7 shrink-0" />
+          <div className="w-4 shrink-0" />
+          <div className="flex-grow">
+            <ColorSlider
+              value={Math.round(hsv.a * 100)}
+              max={100}
+              onChange={handleDragAlpha}
+              checkered
+              background={`linear-gradient(to right, transparent, ${currentColorHex})`}
+            />
+          </div>
+          <div className="w-7 shrink-0" />
         </div>
 
         <ColorInputs hsv={hsv} onChange={handleHsvChange} />
-        
-        <Swatches onSelect={handleHsvChange} />
 
+        <Swatches onSelect={handleHsvChange} />
       </div>
     </div>
   );

@@ -1,11 +1,15 @@
 import { useCallback } from 'react';
-import { ToolType } from '@/types';
-import { useUIStore } from '@/stores/useUIStore';
-import { useEditorLogic } from '../hooks/useEditorLogic';
-import { getEngineRuntime } from '@/engine/core/singleton';
-import { encodeNextDocumentFile, decodeNextDocumentFile } from '@/persistence/nextDocumentFile';
+
 import { bumpDocumentSignal } from '@/engine/core/engineDocumentSignals';
+import { getEngineRuntime } from '@/engine/core/singleton';
 import { LABELS } from '@/i18n/labels';
+import { encodeNextDocumentFile, decodeNextDocumentFile } from '@/persistence/nextDocumentFile';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { ToolType } from '@/types';
+import { createLogger } from '@/utils/logger';
+
+import { useEditorLogic } from '../hooks/useEditorLogic';
 
 export type ItemStatus = 'ready' | 'stub';
 export type ActionId =
@@ -20,29 +24,26 @@ export type ActionId =
   | 'zoom-out'
   | 'zoom-to-fit'
   | 'export-json'
-  | 'report-csv'
   | 'export-project'
-  | 'view-project'
   | 'grid'
   | (string & {});
 export type ToolId = ToolType | (string & {});
 
 const DEFAULT_FRAME = { enabled: false, widthMm: 297, heightMm: 210, marginMm: 10 };
+const logger = createLogger('editorCommands');
 
 export const stub = (id: string): void => {
-  if (import.meta.env.DEV) {
-    console.log(`[UI-STUB] ${id}`);
-  }
-  useUIStore.getState().showToast(
-    `A funcionalidade "${id}" será implementada em breve.`,
-    'info'
-  );
+  logger.warn(`[UI-STUB] ${id}`);
+  useUIStore.getState().showToast(`A funcionalidade "${id}" será implementada em breve.`, 'info');
 };
 
 const saveFile = async (): Promise<void> => {
   const runtime = await getEngineRuntime();
   const engineSnapshot = runtime.saveSnapshotBytes();
-  const bytes = encodeNextDocumentFile({ worldScale: 100, frame: DEFAULT_FRAME }, { engineSnapshot });
+  const bytes = encodeNextDocumentFile(
+    { worldScale: 100, frame: DEFAULT_FRAME },
+    { engineSnapshot },
+  );
   const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -64,7 +65,7 @@ const openFile = (): void => {
     try {
       payload = decodeNextDocumentFile(new Uint8Array(buf));
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to decode .ewnd file', err);
       alert(LABELS.common.errorInvalidFile);
       return;
     }
@@ -141,13 +142,23 @@ export const useEditorCommands = () => {
           return;
         case 'new-file':
           break;
+        case 'grid': {
+          const { grid, setGridShowDots, setGridShowLines } = useSettingsStore.getState();
+          if (grid.showDots || grid.showLines) {
+            setGridShowDots(false);
+            setGridShowLines(false);
+          } else {
+            setGridShowDots(true);
+          }
+          return;
+        }
         default:
           break;
       }
 
       stub(actionId);
     },
-    [setSettingsModalOpen, setViewTransform, zoomToFit]
+    [deleteSelected, setSettingsModalOpen, setViewTransform, zoomToFit],
   );
 
   const selectTool = useCallback(
@@ -159,7 +170,7 @@ export const useEditorCommands = () => {
 
       setTool(toolId as ToolType);
     },
-    [setTool]
+    [setTool],
   );
 
   return {

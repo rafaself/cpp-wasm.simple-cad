@@ -1,15 +1,15 @@
 /**
  * PickResultCache - LRU cache for pick results
- * 
+ *
  * Caches pick results with spatial hashing for fast lookup.
  * Automatically invalidates on document changes.
- * 
+ *
  * Features:
  * - Spatial grid hashing for O(1) lookup
  * - TTL-based expiration
  * - Automatic invalidation on engine events
  * - Configurable cache size
- * 
+ *
  * @example
  * const cache = new PickResultCache(runtime, { maxSize: 100, ttlMs: 50 });
  * const result = cache.get(x, y, tolerance, mask) || runtime.pickEx(x, y, tolerance, mask);
@@ -44,7 +44,13 @@ interface CacheKey {
 export interface PickCacheOperations {
   get(x: number, y: number, tolerance: number, mask: number): PickResult | null;
   set(x: number, y: number, tolerance: number, mask: number, result: PickResult): void;
-  getOrCompute(x: number, y: number, tolerance: number, mask: number, compute: () => PickResult): PickResult;
+  getOrCompute(
+    x: number,
+    y: number,
+    tolerance: number,
+    mask: number,
+    compute: () => PickResult,
+  ): PickResult;
   clear(): void;
 }
 
@@ -68,12 +74,9 @@ export class PickResultCache {
   private config: PickCacheConfig;
   private runtime: EngineRuntime;
   private lastDocumentGeneration = 0;
-  private intervalId: number | null = null;  // Track interval for cleanup
+  private intervalId: number | null = null; // Track interval for cleanup
 
-  constructor(
-    runtime: EngineRuntime,
-    config: Partial<PickCacheConfig> = {}
-  ) {
+  constructor(runtime: EngineRuntime, config: Partial<PickCacheConfig> = {}) {
     this.runtime = runtime;
     this.config = {
       maxSize: Math.max(1, config.maxSize ?? 100),
@@ -90,12 +93,7 @@ export class PickResultCache {
   /**
    * Gets cached pick result or returns null if not found/expired
    */
-  public get(
-    x: number,
-    y: number,
-    tolerance: number,
-    mask: number
-  ): PickResult | null {
+  public get(x: number, y: number, tolerance: number, mask: number): PickResult | null {
     const key = this.computeKey(x, y, tolerance, mask);
     const keyStr = this.serializeKey(key);
     const entry = this.cache.get(keyStr);
@@ -120,13 +118,7 @@ export class PickResultCache {
   /**
    * Stores pick result in cache
    */
-  public set(
-    x: number,
-    y: number,
-    tolerance: number,
-    mask: number,
-    result: PickResult
-  ): void {
+  public set(x: number, y: number, tolerance: number, mask: number, result: PickResult): void {
     // Don't cache empty results (id === 0)
     if (result.id === 0) return;
 
@@ -153,7 +145,7 @@ export class PickResultCache {
     y: number,
     tolerance: number,
     mask: number,
-    compute: () => PickResult
+    compute: () => PickResult,
   ): PickResult {
     const cached = this.get(x, y, tolerance, mask);
     if (cached !== null) return cached;
@@ -215,12 +207,7 @@ export class PickResultCache {
   /**
    * Computes spatial grid key for position
    */
-  private computeKey(
-    x: number,
-    y: number,
-    tolerance: number,
-    mask: number
-  ): CacheKey {
+  private computeKey(x: number, y: number, tolerance: number, mask: number): CacheKey {
     const { gridSize } = this.config;
     return {
       gridX: Math.floor(x / gridSize),

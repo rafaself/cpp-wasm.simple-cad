@@ -1,13 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
-import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
-import { useUIStore } from '@/stores/useUIStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
-import { FakeRuntime } from '@/test-utils/fakeRuntime';
-import { SelectionHandler } from '@/features/editor/interactions/handlers/SelectionHandler';
-import { DraftingHandler } from '@/features/editor/interactions/handlers/DraftingHandler';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { TransformMode } from '@/engine/core/interactionSession';
+import { DraftingHandler } from '@/features/editor/interactions/handlers/DraftingHandler';
+import { SelectionHandler } from '@/features/editor/interactions/handlers/SelectionHandler';
+import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { FakeRuntime } from '@/test-utils/fakeRuntime';
 
 const mockGetRuntime = vi.fn();
 

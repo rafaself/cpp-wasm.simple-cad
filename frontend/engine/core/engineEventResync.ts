@@ -1,6 +1,8 @@
+import { useUIStore } from '@/stores/useUIStore';
+
 import { bumpDocumentSignal } from './engineDocumentSignals';
 import { syncHistoryMetaFromEngine } from './engineStateSync';
-import { useUIStore } from '@/stores/useUIStore';
+
 import type { EngineRuntime } from './EngineRuntime';
 
 export const applyFullResync = (runtime: EngineRuntime, resyncGeneration: number): void => {

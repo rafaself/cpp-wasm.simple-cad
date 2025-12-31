@@ -1,10 +1,8 @@
-import { CadEngineInstance } from '../wasm-types';
 import { HistoryMeta } from '../protocol';
+import { CadEngineInstance } from '../wasm-types';
 
 export class HistorySystem {
-  constructor(
-    private readonly engine: CadEngineInstance
-  ) {}
+  constructor(private readonly engine: CadEngineInstance) {}
 
   public getHistoryMeta(): HistoryMeta {
     if (!this.engine.getHistoryMeta) {
