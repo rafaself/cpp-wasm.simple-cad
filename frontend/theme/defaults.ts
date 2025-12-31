@@ -5,7 +5,7 @@
  */
 
 export const DEFAULT_CANVAS_BG = '#212830';
-export const DEFAULT_GRID_COLOR = '#313943';
+export const DEFAULT_GRID_COLOR = '#404a57';
 
 // Axes
 export const DEFAULT_AXIS_X_COLOR = 'rgba(239, 68, 68, 0.15)'; // Red/400 with low opacity
