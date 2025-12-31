@@ -110,7 +110,7 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[90px] px-[12px] py-[6px] flex items-start bg-surface1 ribbon-scrollbar shadow-sm"
+        className="h-[82px] px-[12px] py-[6px] flex items-start bg-surface1 ribbon-scrollbar shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
