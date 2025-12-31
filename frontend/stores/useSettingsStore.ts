@@ -33,6 +33,7 @@ export interface DisplaySettings {
     color: string;
   };
   backgroundColor: string;
+  showQuickAccess: boolean;
 }
 
 export interface ToolDefaults {
@@ -92,6 +93,7 @@ interface SettingsState {
   setShowCenterIcon: (show: boolean) => void;
   setCenterIconColor: (color: string) => void;
   setCanvasBackgroundColor: (color: string) => void;
+  setShowQuickAccess: (show: boolean) => void;
 
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
@@ -148,6 +150,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       color: DEFAULTS.DEFAULT_CENTER_ICON_COLOR,
     },
     backgroundColor: DEFAULTS.DEFAULT_CANVAS_BG,
+    showQuickAccess: false,
   },
   toolDefaults: {
     strokeColor: DEFAULTS.DEFAULT_STROKE_COLOR,
@@ -277,6 +280,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     })),
   setCanvasBackgroundColor: (color) =>
     set((state) => ({ display: { ...state.display, backgroundColor: color } })),
+  setShowQuickAccess: (show) =>
+    set((state) => ({ display: { ...state.display, showQuickAccess: show } })),
 
   setStrokeColor: (color) =>
     set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),

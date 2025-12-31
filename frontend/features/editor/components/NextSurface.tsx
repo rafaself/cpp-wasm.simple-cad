@@ -13,6 +13,7 @@ import LayerManagerModal from '@/features/editor/components/LayerManagerModal';
 import QuickAccessToolbar from '@/features/editor/components/QuickAccessToolbar';
 import { useKeyboardShortcuts } from '@/features/editor/hooks/useKeyboardShortcuts';
 import SettingsModal from '@/features/settings/SettingsModal';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 
 import EngineInteractionLayer from './EngineInteractionLayer';
@@ -61,7 +62,7 @@ const NextCanvasArea: React.FC = () => {
         <EngineInteractionLayer />
       </div>
 
-      <QuickAccessToolbar />
+      {useSettingsStore((s) => s.display.showQuickAccess) && <QuickAccessToolbar />}
 
       <div className="absolute bottom-0 left-0 right-0 z-50">
         <EditorStatusBar />
