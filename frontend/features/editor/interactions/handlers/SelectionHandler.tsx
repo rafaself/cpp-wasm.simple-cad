@@ -39,10 +39,7 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     this.pointerDown = { x: event.clientX, y: event.clientY, world };
 
-    // Picking Logic (Hit Test) - Use optimized pick with early exit
-    // We throttle exact picking or just do it on down.
-    // PickEx: (x, y, tolerance, mask)
-    // Mask 0xFF is fine.
+    // Picking Logic (Hit Test)
     const tolerance = 10 / (ctx.viewTransform.scale || 1); // 10px screen tolerance
     const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
 
@@ -72,7 +69,6 @@ export class SelectionHandler extends BaseInteractionHandler {
           snapped.x,
           snapped.y,
         );
-        // Assuming it returns void or we assume success.
         this.state = { kind: 'transform', startWorld: snapped, mode: TransformMode.Move };
         return;
       }

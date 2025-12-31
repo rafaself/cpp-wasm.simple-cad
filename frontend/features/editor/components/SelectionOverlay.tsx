@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 
 import { supportsEngineResize } from '@/engine/core/capabilities';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
@@ -24,6 +24,9 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
 
   const [runtime, setRuntime] = useState<EngineRuntime | null>(null);
+  // Tick counter that increments during interaction to force overlay recalculation
+  const [interactionTick, setInteractionTick] = useState(0);
+  const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -34,6 +37,26 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
       disposed = true;
     };
   }, []);
+
+  // RAF loop to update overlay during interaction (drag/move)
+  useEffect(() => {
+    if (!runtime) return;
+
+    const tick = () => {
+      if (runtime.isInteractionActive()) {
+        setInteractionTick((t) => (t + 1) >>> 0);
+      }
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+
+    rafIdRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, [runtime]);
 
   const selectedOverlaySvg = useMemo(() => {
     if (!runtime) return null;
@@ -156,6 +179,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
     engineInteractionActive,
     engineResizeEnabled,
     hideAnchors,
+    interactionTick, // Forces recalculation during drag
     isEditingAppearance,
     runtime,
     selectionCount,

@@ -65,7 +65,17 @@ bool CadEngine::isEntityVisibleForRender(std::uint32_t id) const noexcept {
 }
 
 bool CadEngine::hasPendingEvents() const noexcept {
-    return eventCount_ > 0;
+    // Check both flushed events (eventCount_) and pending events that haven't been flushed yet
+    return eventCount_ > 0 
+        || pendingDocMask_ != 0 
+        || !pendingEntityChanges_.empty()
+        || !pendingEntityCreates_.empty()
+        || !pendingEntityDeletes_.empty()
+        || !pendingLayerChanges_.empty()
+        || pendingSelectionChanged_
+        || pendingOrderChanged_
+        || pendingHistoryChanged_
+        || eventOverflowed_;
 }
 
 bool CadEngine::isTextQuadsDirty() const {
