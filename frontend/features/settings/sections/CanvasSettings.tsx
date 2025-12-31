@@ -8,13 +8,10 @@ import ColorPicker from '../../../components/ColorPicker';
 import { NumericComboField } from '../../../components/NumericComboField';
 import { Section } from '../../../components/ui/Section';
 import { Toggle } from '../../../components/ui/Toggle';
-import { supportsEngineResize } from '../../../engine/core/capabilities';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 const CanvasSettings: React.FC = () => {
   const settings = useSettingsStore();
-  const engineResizeSupported = supportsEngineResize(settings.engineCapabilitiesMask);
-  const engineResizeEnabled = settings.featureFlags.enableEngineResize && engineResizeSupported;
 
   // Color picker state
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
@@ -149,7 +146,9 @@ const CanvasSettings: React.FC = () => {
 
             {/* Tamanho da Grade */}
             <div className="flex items-center justify-between py-2 gap-4">
-              <span className="text-sm text-text-muted flex-shrink-0">{LABELS.settings.gridSize}</span>
+              <span className="text-sm text-text-muted flex-shrink-0">
+                {LABELS.settings.gridSize}
+              </span>
               <div className="w-[75px]">
                 <NumericComboField
                   value={settings.grid.size}
@@ -256,8 +255,6 @@ const CanvasSettings: React.FC = () => {
           onReset={() => settings.setCanvasBackgroundColor(DEFAULTS.DEFAULT_CANVAS_BG)}
         />
       </Section>
-
-
 
       {/* Color Picker Portal */}
       {activeColorPicker && (

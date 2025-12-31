@@ -11,7 +11,13 @@ import { ShortcutsSettings } from './sections/ShortcutsSettings';
 import SnappingSettings from './sections/SnappingSettings';
 import SettingsSidebar from './SettingsSidebar';
 
-export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts' | 'project' | 'interface' | 'developer';
+export type SettingsSection =
+  | 'canvas'
+  | 'snapping'
+  | 'shortcuts'
+  | 'project'
+  | 'interface'
+  | 'developer';
 
 const focusableSelectors =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';

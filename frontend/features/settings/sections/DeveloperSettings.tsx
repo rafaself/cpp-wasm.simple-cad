@@ -1,4 +1,3 @@
-import { Terminal } from 'lucide-react';
 import React from 'react';
 
 import { Section } from '../../../components/ui/Section';
@@ -26,26 +25,27 @@ const DeveloperSettings: React.FC = () => {
             onChange={settings.setEngineResizeEnabled}
           />
           <div className="text-xs text-text-muted px-1 pb-2">
-            Permite que a engine C++ controle a lógica de redimensionamento e renderize as alças de seleção.
+            Permite que a engine C++ controle a lógica de redimensionamento e renderize as alças de
+            seleção.
           </div>
         </div>
-        
+
         <div className="text-xs text-text-muted mt-2 italic">
           Essas opções são destinadas ao desenvolvimento e debug da engine gráfica.
         </div>
       </Section>
 
       <Section title="Performance">
-         <div className="flex flex-col">
+        <div className="flex flex-col">
           <Toggle
-              label="Pick Profiling"
-              checked={settings.featureFlags.enablePickProfiling}
-              onChange={settings.setPickProfilingEnabled}
+            label="Pick Profiling"
+            checked={settings.featureFlags.enablePickProfiling}
+            onChange={settings.setPickProfilingEnabled}
           />
           <div className="text-xs text-text-muted px-1">
             Loga o tempo de execução do picking no console.
           </div>
-         </div>
+        </div>
       </Section>
     </div>
   );
