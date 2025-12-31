@@ -31,10 +31,12 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
 
   const handleMouseLeave = () => {
     setIsDragging(false);
+    setHasMoved(false);
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setHasMoved(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -71,12 +73,11 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
       <div
         ref={containerRef}
         className={`flex overflow-x-auto items-center no-scrollbar px-1 ${
-          isDragging ? 'cursor-grabbing' : 'cursor-pointer'
+          hasMoved ? 'cursor-grabbing' : 'cursor-pointer'
         }`}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         onMouseDown={handleMouseDown}
         onMouseLeave={handleMouseLeave}
-        onMouseUp={handleMouseUp}
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
         onWheel={handleWheel}
