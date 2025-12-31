@@ -18,9 +18,7 @@ import {
   ArrowUpRight,
   Shapes,
   FileCode2,
-  FileSpreadsheet,
   Package,
-  Eye,
   Trash2,
   Scan,
 } from 'lucide-react';
@@ -124,31 +122,7 @@ export const RIBBON_TABS: RibbonTab[] = [
         ],
       },
 
-      {
-        id: 'data',
-        label: 'Dados',
-        layout: 'stack',
-        items: [
-          {
-            id: 'report-csv',
-            kind: 'action',
-            label: 'Relatório CSV',
-            icon: FileSpreadsheet,
-            actionId: 'report-csv',
-            status: 'stub',
-            width: 'lg',
-          },
-          {
-            id: 'view-project',
-            kind: 'action',
-            label: 'Ver JSON',
-            icon: Eye,
-            actionId: 'view-project',
-            status: 'stub',
-            width: 'lg',
-          },
-        ],
-      },
+
     ],
   },
   {

@@ -24,9 +24,7 @@ export type ActionId =
   | 'zoom-out'
   | 'zoom-to-fit'
   | 'export-json'
-  | 'report-csv'
   | 'export-project'
-  | 'view-project'
   | 'grid'
   | (string & {});
 export type ToolId = ToolType | (string & {});
