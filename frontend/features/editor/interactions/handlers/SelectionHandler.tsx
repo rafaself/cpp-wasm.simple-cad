@@ -5,6 +5,7 @@ import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind } from '@/types/picking';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
@@ -42,6 +43,16 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Picking Logic (Hit Test)
     const tolerance = 10 / (ctx.viewTransform.scale || 1); // 10px screen tolerance
     const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+    cadDebugLog('selection', 'pick', () => ({
+      id: res.id,
+      kind: PickEntityKind[res.kind] ?? res.kind,
+      subTarget: res.subTarget,
+      subIndex: res.subIndex,
+      distance: res.distance,
+      x: world.x,
+      y: world.y,
+      tolerance,
+    }));
 
     // Check modifiers
     const shift = event.shiftKey;
@@ -54,6 +65,9 @@ export class SelectionHandler extends BaseInteractionHandler {
 
       if (!clickedSelected && !shift && !ctrl) {
         runtime.setSelection([res.id], SelectionMode.Replace);
+        cadDebugLog('selection', 'replace', () => ({
+          ids: Array.from(runtime.getSelectionIds()),
+        }));
       } else if (ctrl) {
         // Cycle/Toggle? Logic handled on Up usually for toggles to avoid deselecting on drag start.
       }
@@ -69,6 +83,14 @@ export class SelectionHandler extends BaseInteractionHandler {
           snapped.x,
           snapped.y,
         );
+        cadDebugLog('transform', 'begin', () => ({
+          ids: activeIds,
+          mode: TransformMode.Move,
+          specificId: res.id,
+          subIndex: res.subIndex,
+          x: snapped.x,
+          y: snapped.y,
+        }));
         this.state = { kind: 'transform', startWorld: snapped, mode: TransformMode.Move };
         return;
       }
@@ -80,6 +102,10 @@ export class SelectionHandler extends BaseInteractionHandler {
       box: { start: world, current: world, direction: 'LTR' },
       startScreen: { x: event.clientX, y: event.clientY },
     };
+    cadDebugLog('selection', 'marquee-start', () => ({
+      x: world.x,
+      y: world.y,
+    }));
     this.notifyChange(); // Render Overlay
   }
 
@@ -91,6 +117,7 @@ export class SelectionHandler extends BaseInteractionHandler {
       // Update Engine Transform
       if (runtime.updateTransform) {
         runtime.updateTransform(snapped.x, snapped.y);
+        cadDebugLog('transform', 'update', () => ({ x: snapped.x, y: snapped.y }));
       }
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
@@ -98,6 +125,11 @@ export class SelectionHandler extends BaseInteractionHandler {
       const currX = event.clientX;
       const direction = currX >= downX ? 'LTR' : 'RTL';
       this.state.box = { start: this.pointerDown.world, current: world, direction };
+      cadDebugLog('selection', 'marquee-update', () => ({
+        direction,
+        x: world.x,
+        y: world.y,
+      }));
       this.notifyChange();
     }
   }
@@ -114,6 +146,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (this.state.kind === 'transform') {
       if (runtime.commitTransform) runtime.commitTransform();
       else runtime.apply([{ op: CommandOp.CommitDraft }]); // Fallback if needed, but commitTransform is correct
+      cadDebugLog('transform', 'commit');
 
       this.state = { kind: 'none' };
       this.pointerDown = null;
@@ -146,6 +179,15 @@ export class SelectionHandler extends BaseInteractionHandler {
           const selected = runtime.queryMarquee(x1, y1, x2, y2, hitMode);
           runtime.setSelection?.(selected, mode);
         }
+        cadDebugLog('selection', 'marquee-commit', () => ({
+          mode,
+          hitMode,
+          x1,
+          y1,
+          x2,
+          y2,
+          ids: Array.from(runtime.getSelectionIds()),
+        }));
       } else {
         // Was a Click (No drag)
         // If we are here, we probably didn't hit an entity (handled in Down) OR we did hit but logic deferred.
@@ -166,6 +208,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         // Clear Selection (Replace with empty).
         if (!event.shiftKey && !event.ctrlKey) {
           runtime.clearSelection();
+          cadDebugLog('selection', 'clear');
         }
       }
 
@@ -182,6 +225,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         if (this.runtime?.cancelTransform) this.runtime.cancelTransform();
         else this.runtime?.apply([{ op: CommandOp.CancelDraft }]); // Fallback
 
+        cadDebugLog('transform', 'cancel');
         this.state = { kind: 'none' };
         this.pointerDown = null;
       } else {
@@ -189,6 +233,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         if (this.runtime) {
           this.runtime.clearSelection();
         }
+        cadDebugLog('selection', 'clear');
         this.state = { kind: 'none' }; // Also clear marquee
       }
       this.notifyChange();
@@ -207,6 +252,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         }
 
         this.runtime.clearSelection();
+        cadDebugLog('selection', 'delete', () => ({ count: selection.length }));
       }
     }
   }
@@ -216,6 +262,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (this.state.kind === 'transform' && this.runtime?.cancelTransform) {
       this.runtime.cancelTransform();
     }
+    cadDebugLog('selection', 'cancel');
     this.state = { kind: 'none' };
     this.pointerDown = null;
     this.notifyChange();

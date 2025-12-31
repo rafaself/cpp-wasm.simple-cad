@@ -1,5 +1,6 @@
 import { encodeCommandBuffer } from '../commandBuffer';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 import type { EngineCommand } from '../commandBuffer';
 
@@ -17,6 +18,11 @@ export class CommandSystem {
     if (commands.length === 0) return;
 
     const bytes = encodeCommandBuffer(commands);
+    cadDebugLog('commands', 'apply', () => ({
+      count: commands.length,
+      bytes: bytes.byteLength,
+      ops: commands.map((cmd) => cmd.op),
+    }));
     const ptr = this.ensureCommandBuffer(bytes.byteLength);
     this.module.HEAPU8.set(bytes, ptr);
     this.engine.applyCommandBuffer(ptr, bytes.byteLength);

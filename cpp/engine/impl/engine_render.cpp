@@ -112,8 +112,25 @@ void CadEngine::addGridToBuffers() const {
 }
 
 void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) const {
-    pushVertex(x0, y0, z, lineVertices);
-    pushVertex(x1, y1, z, lineVertices);
+    // Default color for legacy line helpers (not used by main render path).
+    constexpr float r = 1.0f;
+    constexpr float g = 1.0f;
+    constexpr float b = 1.0f;
+    constexpr float a = 1.0f;
+    lineVertices.push_back(x0);
+    lineVertices.push_back(y0);
+    lineVertices.push_back(z);
+    lineVertices.push_back(r);
+    lineVertices.push_back(g);
+    lineVertices.push_back(b);
+    lineVertices.push_back(a);
+    lineVertices.push_back(x1);
+    lineVertices.push_back(y1);
+    lineVertices.push_back(z);
+    lineVertices.push_back(r);
+    lineVertices.push_back(g);
+    lineVertices.push_back(b);
+    lineVertices.push_back(a);
 }
 
 void CadEngine::rebuildRenderBuffers() const {
@@ -138,7 +155,7 @@ void CadEngine::rebuildRenderBuffers() const {
         &renderRanges_
     );
     
-    addGridToBuffers();
+    // Grid rendering is handled by the WebGL GridPass (frontend).
     addDraftToBuffers();
     renderDirty = false;
     pendingFullRebuild_ = false;

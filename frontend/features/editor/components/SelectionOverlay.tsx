@@ -7,6 +7,7 @@ import { getEngineRuntime } from '@/engine/core/singleton';
 import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
@@ -27,6 +28,7 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
   // Tick counter that increments during interaction to force overlay recalculation
   const [interactionTick, setInteractionTick] = useState(0);
   const rafIdRef = useRef<number | null>(null);
+  const overlayLogRef = useRef<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -68,6 +70,34 @@ const SelectionOverlay: React.FC<{ hideAnchors?: boolean }> = ({ hideAnchors = f
     const handleMeta = runtime.getSelectionHandleMeta();
     const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
     const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+
+    if (isCadDebugEnabled('overlay')) {
+      const logKey = [
+        selectionCount,
+        outlineMeta.generation,
+        outlineMeta.primitiveCount,
+        outlineMeta.floatCount,
+        handleMeta.generation,
+        handleMeta.primitiveCount,
+        handleMeta.floatCount,
+      ].join(':');
+      if (overlayLogRef.current !== logKey) {
+        overlayLogRef.current = logKey;
+        cadDebugLog('overlay', 'meta', () => ({
+          selectionCount,
+          outline: {
+            generation: outlineMeta.generation,
+            primitiveCount: outlineMeta.primitiveCount,
+            floatCount: outlineMeta.floatCount,
+          },
+          handles: {
+            generation: handleMeta.generation,
+            primitiveCount: handleMeta.primitiveCount,
+            floatCount: handleMeta.floatCount,
+          },
+        }));
+      }
+    }
 
     if (outline.primitives.length === 0 && handles.primitives.length === 0) return null;
 

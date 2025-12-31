@@ -3,6 +3,7 @@ import React from 'react';
 import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
 import { EntityKind } from '@/engine/types';
 import { hexToRgb } from '@/utils/color';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 import * as DEFAULTS from '@/theme/defaults';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
@@ -91,6 +92,11 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     // Polyline multi-segment logic: don't restart if already drafting
     if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
+      cadDebugLog('draft', 'polyline-continue', () => ({
+        tool: this.activeTool,
+        x: snapped.x,
+        y: snapped.y,
+      }));
       this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
       return;
     }
@@ -127,6 +133,12 @@ export class DraftingHandler extends BaseInteractionHandler {
         },
       },
     ]);
+    cadDebugLog('draft', 'begin', () => ({
+      tool: this.activeTool,
+      kind,
+      x: snapped.x,
+      y: snapped.y,
+    }));
 
     this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
 
@@ -146,6 +158,12 @@ export class DraftingHandler extends BaseInteractionHandler {
     if (!runtime || this.draft.kind === 'none') return;
 
     runtime.updateDraft(snapped.x, snapped.y);
+    cadDebugLog('draft', 'update', () => ({
+      tool: this.activeTool,
+      kind: this.draft.kind,
+      x: snapped.x,
+      y: snapped.y,
+    }));
 
     this.draft.current = snapped;
   }
@@ -165,6 +183,11 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     if (isPolyline) {
       runtime.appendDraftPoint(snapped.x, snapped.y);
+      cadDebugLog('draft', 'polyline-append', () => ({
+        x: snapped.x,
+        y: snapped.y,
+        points: this.draft.points?.length ?? 0,
+      }));
       if (this.draft.kind === 'polyline' && this.draft.points) {
         this.draft.points.push(snapped);
       }
@@ -184,12 +207,18 @@ export class DraftingHandler extends BaseInteractionHandler {
       this.cancelDraft(runtime);
       this.polygonModalOpen = true;
       this.polygonModalCenter = snapped;
+      cadDebugLog('draft', 'polygon-modal', () => ({ x: snapped.x, y: snapped.y }));
       this.notifyChange(); // Trigger React Render for Modal
       return;
     }
 
     // Commit
     runtime.apply([{ op: CommandOp.CommitDraft }]);
+    cadDebugLog('draft', 'commit', () => ({
+      tool: this.activeTool,
+      x: snapped.x,
+      y: snapped.y,
+    }));
     this.draft = { kind: 'none' };
     this.pointerDownScreen = null;
   }
@@ -203,11 +232,13 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   commitPolyline(runtime: any) {
     if (runtime) runtime.apply([{ op: CommandOp.CommitDraft }]);
+    cadDebugLog('draft', 'polyline-commit');
     this.draft = { kind: 'none' };
   }
 
   cancelDraft(runtime: any) {
     if (runtime) runtime.apply([{ op: CommandOp.CancelDraft }]);
+    cadDebugLog('draft', 'cancel');
     this.draft = { kind: 'none' };
     this.pointerDownScreen = null;
   }
@@ -216,6 +247,7 @@ export class DraftingHandler extends BaseInteractionHandler {
     if (this.runtime) {
       this.cancelDraft(this.runtime);
     }
+    cadDebugLog('draft', 'leave');
   }
 
   // --- Modal Logic ---
@@ -242,6 +274,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       { op: CommandOp.UpdateDraft, pos: { x: center.x + r, y: center.y + r } },
       { op: CommandOp.CommitDraft },
     ]);
+    cadDebugLog('draft', 'polygon-commit', () => ({ x: center.x, y: center.y, sides }));
 
     this.polygonModalOpen = false;
     this.polygonModalCenter = null;

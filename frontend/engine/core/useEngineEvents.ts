@@ -7,6 +7,7 @@ import { applyFullResync } from './engineEventResync';
 import { syncHistoryMetaFromEngine } from './engineStateSync';
 import { ChangeMask, EventType } from './protocol';
 import { getEngineRuntime } from './singleton';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): number | null => {
   const layers = runtime.getLayersSnapshot();
@@ -60,6 +61,10 @@ export const useEngineEvents = (): void => {
         rafId = requestAnimationFrame(tick);
         return;
       }
+      cadDebugLog('events', 'poll', () => ({
+        count: events.length,
+        types: events.map((ev) => EventType[ev.type] ?? ev.type),
+      }));
 
       const overflowEvent = events.find((ev) => ev.type === EventType.Overflow);
       if (overflowEvent) {
@@ -109,6 +114,12 @@ export const useEngineEvents = (): void => {
       if (needsSelection) bumpDocumentSignal('selection');
       if (needsOrder) bumpDocumentSignal('order');
       if (needsHistory) syncHistoryMetaFromEngine(runtime);
+      cadDebugLog('events', 'signals', () => ({
+        layers: needsLayers,
+        selection: needsSelection,
+        order: needsOrder,
+        history: needsHistory,
+      }));
 
       rafId = requestAnimationFrame(tick);
     };

@@ -6,6 +6,7 @@ import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
 
 import SelectionOverlay from './SelectionOverlay';
@@ -29,6 +30,32 @@ const EngineInteractionLayer: React.FC = () => {
   // Cursor Logic
   const DEFAULT_CANVAS_CURSOR = 'url(/assets/cursor-canva-default.svg) 3 3, auto';
   const cursor = isPanning ? 'grabbing' : (handlerCursor || DEFAULT_CANVAS_CURSOR);
+
+  const logPointer = (
+    label: string,
+    e: React.PointerEvent<HTMLDivElement>,
+    extra?: () => Record<string, unknown>,
+  ) => {
+    cadDebugLog('pointer', label, () => {
+      const payload: Record<string, unknown> = {
+        type: e.type,
+        pointerId: e.pointerId,
+        button: e.button,
+        buttons: e.buttons,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        altKey: e.altKey,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+      };
+      const extraPayload = extra?.();
+      if (extraPayload) {
+        Object.assign(payload, extraPayload);
+      }
+      return payload;
+    });
+  };
 
   // Engine Sync Effects (View/Grid)
   useEffect(() => {
@@ -56,7 +83,9 @@ const EngineInteractionLayer: React.FC = () => {
 
   // Pointer Events Wrapper
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    logPointer('pointerdown', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    cadDebugLog('pointer', 'setPointerCapture', () => ({ pointerId: e.pointerId }));
 
     if (e.button === 1 || e.button === 2 || e.altKey || activeHandlerName === 'pan') {
       // Or check active tool
@@ -71,6 +100,7 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    logPointer('pointermove', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
     // Update Global Mouse Pos
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const world = screenToWorld(
@@ -88,6 +118,7 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    logPointer('pointerup', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
     if (isPanningRef.current) {
       endPan();
       return;
@@ -96,6 +127,7 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    logPointer('pointercancel', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
     if (isPanningRef.current) {
       endPan();
       return;
@@ -113,11 +145,15 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onDoubleClick={(e) =>
-        handlers.onDoubleClick(e as unknown as React.PointerEvent<HTMLDivElement>)
-      }
+      onDoubleClick={(e) => {
+        logPointer('doubleclick', e as unknown as React.PointerEvent<HTMLDivElement>);
+        handlers.onDoubleClick(e as unknown as React.PointerEvent<HTMLDivElement>);
+      }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerCancel={handlePointerCancel}
+      onLostPointerCapture={(e) => {
+        logPointer('lostpointercapture', e as unknown as React.PointerEvent<HTMLDivElement>);
+      }}
       onPointerEnter={() => setIsMouseOverCanvas(true)}
       onPointerLeave={() => setIsMouseOverCanvas(false)}
     >
