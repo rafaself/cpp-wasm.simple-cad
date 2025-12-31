@@ -29,6 +29,7 @@ import { ComponentType, ReactNode } from 'react';
 import { LABELS } from '@/i18n/labels';
 
 import { LayerRibbonControls } from '../components/ribbon/LayerRibbonControls';
+import { SelectionControls } from '../components/ribbon/SelectionControls';
 import { TextFormattingControls } from '../components/ribbon/TextFormattingControls';
 
 export type RibbonItemKind = 'action' | 'tool' | 'custom';
@@ -263,12 +264,19 @@ export const RIBBON_TABS: RibbonTab[] = [
             status: 'ready',
             variant: 'large',
           },
+          {
+            id: 'selection-controls',
+            kind: 'custom',
+            label: 'Modificar',
+            status: 'ready',
+            componentType: SelectionControls,
+          },
         ],
       },
       {
         id: 'edit',
         label: 'Edição',
-        layout: 'grid-2x3',
+        layout: 'stack',
         items: [
           {
             id: 'undo',
@@ -285,23 +293,6 @@ export const RIBBON_TABS: RibbonTab[] = [
             icon: Redo2,
             actionId: 'redo',
             status: 'ready',
-          },
-          {
-            id: 'delete',
-            kind: 'action',
-            label: LABELS.common.delete,
-            icon: Trash2,
-            actionId: 'delete',
-            status: 'ready',
-          },
-          { id: 'move', kind: 'tool', label: 'Mover', icon: Move, toolId: 'move', status: 'stub' },
-          {
-            id: 'rotate',
-            kind: 'tool',
-            label: 'Rotacionar',
-            icon: RotateCw,
-            toolId: 'rotate',
-            status: 'stub',
           },
         ],
       },

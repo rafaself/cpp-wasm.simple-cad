@@ -21,6 +21,7 @@ export { RibbonControlWrapper } from './RibbonControlWrapper';
 // Custom Control Groups
 export { LayerRibbonControls } from './LayerRibbonControls';
 export { TextFormattingControls } from './TextFormattingControls';
+export { SelectionControls } from './SelectionControls';
 
 // Utilities
 export { 
