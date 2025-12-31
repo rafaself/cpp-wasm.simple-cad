@@ -70,7 +70,7 @@ const EditorRibbon: React.FC = () => {
     <div className="flex flex-col bg-bg border-b border-border text-text">
       {/* Tab Headers */}
       <div
-        className="flex items-center gap-1 px-2 bg-surface2"
+        className="flex items-center gap-1 px-2 bg-header"
         role="tablist"
         aria-label="Categorias de Ferramentas"
       >
@@ -86,7 +86,7 @@ const EditorRibbon: React.FC = () => {
               onClick={() => setActiveTabId(tab.id)}
               className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
-                  ? 'bg-surface1 text-text font-medium'
+                  ? 'bg-header-tab-active text-text font-medium'
                   : 'text-text-muted hover:text-text hover:bg-surface-muted'
               }`}
               title={`${tab.label} (${index + 1})`}

@@ -44,6 +44,8 @@ module.exports = {
         'primary-contrast': 'hsl(var(--color-primary-contrast) / <alpha-value>)',
         secondary: 'hsl(var(--color-secondary) / <alpha-value>)',
         'secondary-hover': 'hsl(var(--color-secondary-hover) / <alpha-value>)',
+        header: 'hsl(var(--color-header-bg) / <alpha-value>)',
+        'header-tab-active': 'hsl(var(--color-header-tab-active) / <alpha-value>)',
       },
       borderRadius: {
         sm: 'var(--radius-sm)',

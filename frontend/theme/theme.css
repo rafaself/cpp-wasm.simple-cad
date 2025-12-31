@@ -19,6 +19,9 @@
 
   --color-secondary: 215 19% 35%; /* #475569 (slate-600) */
   --color-secondary-hover: 215 25% 27%; /* #334155 (slate-700) */
+
+  --color-header-bg: 220 39% 9%; /* #0e1420 */
+  --color-header-tab-active: 217 33% 17%; /* #1d283a */
 }
 
 :root[data-theme="light"] {
@@ -35,4 +38,7 @@
 
   --color-secondary: 210 40% 96%; /* #e2e8f0 (slate-200) approx */
   --color-secondary-hover: 212 23% 84%; /* #cbd5e1 (slate-300) */
+  
+  --color-header-bg: 210 40% 96%; /* #f1f5f9 (slate-100) match surface-2 for light mode */
+  --color-header-tab-active: 0 0% 100%; /* White for light mode active tab */
 }
