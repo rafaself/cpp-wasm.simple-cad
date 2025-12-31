@@ -1,16 +1,17 @@
-import { X, Grid3X3, Magnet, Keyboard, Briefcase, LayoutTemplate } from 'lucide-react';
+import { X, Grid3X3, Magnet, Keyboard, Briefcase, LayoutTemplate, Terminal } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
 import { useUIStore } from '../../stores/useUIStore';
 
 import CanvasSettings from './sections/CanvasSettings';
+import DeveloperSettings from './sections/DeveloperSettings';
 import InterfaceSettings from './sections/InterfaceSettings';
 import ProjectSettings from './sections/ProjectSettings';
 import { ShortcutsSettings } from './sections/ShortcutsSettings';
 import SnappingSettings from './sections/SnappingSettings';
 import SettingsSidebar from './SettingsSidebar';
 
-export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts' | 'project' | 'interface';
+export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts' | 'project' | 'interface' | 'developer';
 
 const focusableSelectors =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -66,6 +67,7 @@ const SettingsModal: React.FC = () => {
     { id: 'canvas' as const, label: 'Canvas', icon: Grid3X3 },
     { id: 'snapping' as const, label: 'Snapping', icon: Magnet },
     { id: 'shortcuts' as const, label: 'Atalhos', icon: Keyboard },
+    { id: 'developer' as const, label: 'Desenvolvedor', icon: Terminal },
   ];
 
   const renderContent = () => {
@@ -80,6 +82,8 @@ const SettingsModal: React.FC = () => {
         return <InterfaceSettings />;
       case 'project':
         return <ProjectSettings />;
+      case 'developer':
+        return <DeveloperSettings />;
       default:
         return null;
     }

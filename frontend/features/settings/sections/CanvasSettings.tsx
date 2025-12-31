@@ -257,17 +257,7 @@ const CanvasSettings: React.FC = () => {
         />
       </Section>
 
-      <Section title="Dev">
-        <Toggle
-          label={
-            engineResizeSupported
-              ? 'Enable Engine Resize (Dev)'
-              : 'Enable Engine Resize (Dev) - requires WASM rebuild'
-          }
-          checked={engineResizeEnabled}
-          onChange={settings.setEngineResizeEnabled}
-        />
-      </Section>
+
 
       {/* Color Picker Portal */}
       {activeColorPicker && (
