@@ -40,6 +40,10 @@ export const MarqueeOverlay: React.FC<MarqueeOverlayProps> = ({
 
     // Crossing (RTL) uses dashed stroke, Window (LTR) uses solid
     const strokeDash = selectionBox.direction === 'RTL' ? '5 5' : undefined;
+    const isRTL = selectionBox.direction === 'RTL';
+    const rectClass = isRTL
+      ? 'fill-green-400/20 stroke-green-400'
+      : 'fill-primary/20 stroke-primary';
 
     return (
       <svg
@@ -52,7 +56,7 @@ export const MarqueeOverlay: React.FC<MarqueeOverlayProps> = ({
           y={y}
           width={w}
           height={h}
-          className="fill-primary/20 stroke-primary"
+          className={rectClass}
           strokeWidth={1}
           strokeDasharray={strokeDash}
         />
