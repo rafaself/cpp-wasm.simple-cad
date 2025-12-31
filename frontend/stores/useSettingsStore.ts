@@ -14,6 +14,11 @@ export interface GridSettings {
   color: string;
   showDots: boolean;
   showLines: boolean;
+  showSubdivisions: boolean;
+  subdivisionCount: number;
+  opacity: number; // 0.0 - 1.0
+  lineWidth: number; // pixels
+  dotRadius: number; // pixels
 }
 
 export interface DisplaySettings {
@@ -72,6 +77,13 @@ interface SettingsState {
   setGridColor: (color: string) => void;
   setGridShowDots: (show: boolean) => void;
   setGridShowLines: (show: boolean) => void;
+  setGridShowSubdivisions: (show: boolean) => void;
+  setGridSubdivisionCount: (count: number) => void;
+  setGridOpacity: (opacity: number) => void;
+  setGridLineWidth: (width: number) => void;
+  setGridDotRadius: (radius: number) => void;
+  resetGridToDefaults: () => void;
+  applyGridPreset: (preset: 'dots' | 'lines' | 'combined' | 'minimal') => void;
 
   setShowCenterAxes: (show: boolean) => void;
   setAxisXColor: (color: string) => void;
@@ -110,6 +122,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     color: DEFAULTS.DEFAULT_GRID_COLOR,
     showDots: true,
     showLines: false,
+    showSubdivisions: true,
+    subdivisionCount: 5,
+    opacity: 0.5,
+    lineWidth: 1,
+    dotRadius: 2,
   },
   snap: {
     enabled: true,
@@ -169,6 +186,69 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setGridColor: (color) => set((state) => ({ grid: { ...state.grid, color } })),
   setGridShowDots: (show) => set((state) => ({ grid: { ...state.grid, showDots: show } })),
   setGridShowLines: (show) => set((state) => ({ grid: { ...state.grid, showLines: show } })),
+  setGridShowSubdivisions: (show) =>
+    set((state) => ({ grid: { ...state.grid, showSubdivisions: show } })),
+  setGridSubdivisionCount: (count) =>
+    set((state) => ({ grid: { ...state.grid, subdivisionCount: count } })),
+  setGridOpacity: (opacity) =>
+    set((state) => ({ grid: { ...state.grid, opacity: Math.max(0, Math.min(1, opacity)) } })),
+  setGridLineWidth: (width) =>
+    set((state) => ({ grid: { ...state.grid, lineWidth: Math.max(0.5, Math.min(5, width)) } })),
+  setGridDotRadius: (radius) =>
+    set((state) => ({ grid: { ...state.grid, dotRadius: Math.max(1, Math.min(8, radius)) } })),
+
+  resetGridToDefaults: () =>
+    set((state) => ({
+      grid: {
+        size: GRID.DEFAULT_SIZE_WU,
+        color: DEFAULTS.DEFAULT_GRID_COLOR,
+        showDots: true,
+        showLines: false,
+        showSubdivisions: true,
+        subdivisionCount: 5,
+        opacity: 0.5,
+        lineWidth: 1,
+        dotRadius: 2,
+      },
+    })),
+
+  applyGridPreset: (preset) =>
+    set((state) => {
+      switch (preset) {
+        case 'dots':
+          return {
+            grid: { ...state.grid, showDots: true, showLines: false, dotRadius: 2, opacity: 0.5 },
+          };
+        case 'lines':
+          return {
+            grid: { ...state.grid, showDots: false, showLines: true, lineWidth: 1, opacity: 0.4 },
+          };
+        case 'combined':
+          return {
+            grid: {
+              ...state.grid,
+              showDots: true,
+              showLines: true,
+              dotRadius: 1.5,
+              lineWidth: 0.5,
+              opacity: 0.5,
+            },
+          };
+        case 'minimal':
+          return {
+            grid: {
+              ...state.grid,
+              showDots: true,
+              showLines: false,
+              dotRadius: 1,
+              opacity: 0.25,
+              showSubdivisions: false,
+            },
+          };
+        default:
+          return state;
+      }
+    }),
 
   setShowCenterAxes: (show) =>
     set((state) => ({

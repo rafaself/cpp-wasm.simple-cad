@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { CanvasController } from '@/engine/core/CanvasController';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -8,6 +8,7 @@ const TessellatedWasmLayer: React.FC = () => {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const axesSettings = useSettingsStore((s) => s.display.centerAxes);
+  const gridSettings = useSettingsStore((s) => s.grid);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controllerRef = useRef<CanvasController | null>(null);
@@ -35,6 +36,23 @@ const TessellatedWasmLayer: React.FC = () => {
   useEffect(() => {
     controllerRef.current?.setAxesSettings(axesSettings);
   }, [axesSettings]);
+
+  useEffect(() => {
+    // Map grid store settings to renderer settings
+    const renderGridSettings = {
+      enabled: gridSettings.showDots || gridSettings.showLines,
+      size: gridSettings.size,
+      color: gridSettings.color,
+      showDots: gridSettings.showDots,
+      showLines: gridSettings.showLines,
+      showSubdivisions: gridSettings.showSubdivisions,
+      subdivisionCount: gridSettings.subdivisionCount,
+      opacity: gridSettings.opacity,
+      lineWidth: gridSettings.lineWidth,
+      dotRadius: gridSettings.dotRadius,
+    };
+    controllerRef.current?.setGridSettings(renderGridSettings);
+  }, [gridSettings]);
 
   return (
     <canvas

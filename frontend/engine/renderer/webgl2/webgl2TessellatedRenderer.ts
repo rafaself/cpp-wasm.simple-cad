@@ -1,6 +1,7 @@
 import { GeometryPass } from './passes/GeometryPass';
 import { TextRenderPass } from './passes/TextRenderPass';
 import { AxesPass } from './passes/AxesPass';
+import { GridPass } from './passes/GridPass';
 
 import type { TessellatedRenderer, TessellatedRenderInput } from '../types';
 
@@ -105,6 +106,7 @@ const initSsaaResources = (gl: WebGL2RenderingContext): SsaaResources => {
 export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   private gl: WebGL2RenderingContext;
   private ssaa: SsaaResources;
+  private gridPass: GridPass;
   private geometryPass: GeometryPass;
   private textPass: TextRenderPass;
   private axesPass: AxesPass;
@@ -125,6 +127,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     if (!gl) throw new Error('WebGL2 not available');
     this.gl = gl;
     this.ssaa = initSsaaResources(gl);
+    this.gridPass = new GridPass(gl);
     this.geometryPass = new GeometryPass(gl);
     this.textPass = new TextRenderPass(gl);
     this.axesPass = new AxesPass(gl);
@@ -143,6 +146,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     gl.deleteProgram(blitProgram);
 
     // Dispose passes
+    this.gridPass.dispose();
     this.geometryPass.dispose();
     this.textPass.dispose();
     this.axesPass.dispose();
@@ -213,8 +217,24 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     gl.clearColor(input.clearColor.r, input.clearColor.g, input.clearColor.b, input.clearColor.a);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Render Geometry Pass
     const effectivePixelRatio = pixelRatio * (this.aaScale > 1 ? this.aaScale : 1);
+
+    // -------------------------------------------------------------------------
+    // Grid Rendering (background - before entities)
+    // -------------------------------------------------------------------------
+    if (input.gridSettings && input.gridSettings.enabled) {
+      if (!this.gridPass.isInitialized()) this.gridPass.initialize();
+      this.gridPass.render({
+        viewTransform: input.viewTransform,
+        canvasSizeDevice: { width: offW, height: offH },
+        pixelRatio: effectivePixelRatio,
+        settings: input.gridSettings,
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // Geometry Pass (document entities)
+    // -------------------------------------------------------------------------
     this.geometryPass.render({
       module: input.module,
       positionMeta: input.positionMeta,

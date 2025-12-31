@@ -1,5 +1,6 @@
 import { Webgl2TessellatedRenderer } from '@/engine/renderer/webgl2/webgl2TessellatedRenderer';
 import type { AxesSettings } from '@/engine/renderer/webgl2/passes/AxesPass';
+import type { GridRenderSettings } from '@/engine/renderer/types';
 
 import { getEngineRuntime } from './singleton';
 
@@ -16,6 +17,7 @@ export class CanvasController {
   private canvasSize: { width: number; height: number } = { width: 0, height: 0 };
   private clearColor = { r: 0x0b / 255, g: 0x10 / 255, b: 0x21 / 255, a: 1 };
   private axesSettings?: AxesSettings;
+  private gridSettings?: GridRenderSettings;
   private visibilityHandler = () => {
     if (document.hidden) {
       this.stop();
@@ -60,6 +62,10 @@ export class CanvasController {
 
   public setAxesSettings(settings: AxesSettings): void {
     this.axesSettings = settings;
+  }
+
+  public setGridSettings(settings: GridRenderSettings): void {
+    this.gridSettings = settings;
   }
 
   public start(): void {
@@ -113,6 +119,7 @@ export class CanvasController {
 
       textQuadMeta: textQuadMeta && textAtlasMeta?.width ? textQuadMeta : undefined,
       textAtlasMeta: textQuadMeta && textAtlasMeta?.width ? textAtlasMeta : undefined,
+      gridSettings: this.gridSettings,
       axesSettings: this.axesSettings,
     });
 

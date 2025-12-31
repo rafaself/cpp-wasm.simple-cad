@@ -2,6 +2,21 @@ import type { BufferMeta, WasmModule } from '@/engine/core/EngineRuntime';
 import type { ViewTransform } from '@/types';
 import type { TextQuadBufferMeta, TextureBufferMeta } from '@/types/text';
 
+/** Grid visual settings for rendering */
+export type GridRenderSettings = {
+  enabled: boolean;
+  size: number;
+  color: string;
+  showDots: boolean;
+  showLines: boolean;
+  opacity?: number;
+  lineWidth?: number;
+  dotRadius?: number;
+  // Subdivision support (Phase 2)
+  showSubdivisions?: boolean;
+  subdivisionCount?: number; // 2, 4, 5, 10
+};
+
 export type TessellatedRenderInput = {
   module: WasmModule;
   positionMeta: BufferMeta;
@@ -12,6 +27,8 @@ export type TessellatedRenderInput = {
   textQuadMeta?: TextQuadBufferMeta;
   /** Optional atlas texture metadata (for text rendering) */
   textAtlasMeta?: TextureBufferMeta;
+  /** Optional grid settings */
+  gridSettings?: GridRenderSettings;
   /** Optional axes settings */
   axesSettings?: {
     show: boolean;
