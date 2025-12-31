@@ -336,7 +336,6 @@ export const RIBBON_TABS: RibbonTab[] = [
             actionId: 'grid',
             status: 'ready',
             variant: 'large',
-            width: 'sm',
           },
         ],
       },
