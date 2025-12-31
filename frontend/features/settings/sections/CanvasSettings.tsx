@@ -199,34 +199,38 @@ const CanvasSettings: React.FC = () => {
           checked={settings.display.centerAxes.show}
           onChange={settings.setShowCenterAxes}
         />
-        <ColorField
-          label="Cor Eixo X"
-          color={settings.display.centerAxes.xColor}
-          pickerId="axisX"
-        />
-        <ColorField
-          label="Cor Eixo Y"
-          color={settings.display.centerAxes.yColor}
-          pickerId="axisY"
-        />
-        <SelectField
-          label="Tipo Eixo X"
-          value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'}
-          options={[
-            { value: 'solid', label: 'Contínuo' },
-            { value: 'dashed', label: 'Tracejado' },
-          ]}
-          onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
-        />
-        <SelectField
-          label="Tipo Eixo Y"
-          value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'}
-          options={[
-            { value: 'solid', label: 'Contínuo' },
-            { value: 'dashed', label: 'Tracejado' },
-          ]}
-          onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
-        />
+        {settings.display.centerAxes.show && (
+          <>
+            <ColorField
+              label="Cor Eixo X"
+              color={settings.display.centerAxes.xColor}
+              pickerId="axisX"
+            />
+            <ColorField
+              label="Cor Eixo Y"
+              color={settings.display.centerAxes.yColor}
+              pickerId="axisY"
+            />
+            <SelectField
+              label="Tipo Eixo X"
+              value={settings.display.centerAxes.xDashed ? 'dashed' : 'solid'}
+              options={[
+                { value: 'solid', label: 'Contínuo' },
+                { value: 'dashed', label: 'Tracejado' },
+              ]}
+              onChange={(v) => settings.setAxisXDashed(v === 'dashed')}
+            />
+            <SelectField
+              label="Tipo Eixo Y"
+              value={settings.display.centerAxes.yDashed ? 'dashed' : 'solid'}
+              options={[
+                { value: 'solid', label: 'Contínuo' },
+                { value: 'dashed', label: 'Tracejado' },
+              ]}
+              onChange={(v) => settings.setAxisYDashed(v === 'dashed')}
+            />
+          </>
+        )}
       </Section>
 
       <Section title="Ícone Central">
@@ -235,11 +239,13 @@ const CanvasSettings: React.FC = () => {
           checked={settings.display.centerIcon.show}
           onChange={settings.setShowCenterIcon}
         />
-        <ColorField
-          label="Cor do Ícone"
-          color={settings.display.centerIcon.color}
-          pickerId="centerIcon"
-        />
+        {settings.display.centerIcon.show && (
+          <ColorField
+            label="Cor do Ícone"
+            color={settings.display.centerIcon.color}
+            pickerId="centerIcon"
+          />
+        )}
       </Section>
 
       <Section title="Fundo">
