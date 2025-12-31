@@ -1,5 +1,7 @@
 :root {
   color-scheme: light dark;
+  /* Canvas background is fixed regardless of theme (always dark) */
+  --canvas-bg: #212830;
 }
 
 :root[data-theme="dark"] {

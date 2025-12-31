@@ -4,7 +4,7 @@
  * They are defined here to satisfy style governance (raw colors allowed in theme/*).
  */
 
-export const DEFAULT_CANVAS_BG = '#212830';
+export const DEFAULT_CANVAS_BG = 'var(--canvas-bg)';
 export const DEFAULT_GRID_COLOR = '#404a57';
 
 // Axes

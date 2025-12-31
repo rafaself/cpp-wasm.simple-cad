@@ -12,6 +12,7 @@ const allowlistGlobs = [
   'tailwind.config.cjs',
   'index.html',
   'scripts/**',
+  'theme/**',
 ];
 
 // Temporary debt allowlist: legacy hex usage that must be migrated to tokens.

@@ -68,6 +68,10 @@ export class CanvasController {
     this.gridSettings = settings;
   }
 
+  public setClearColor(color: { r: number; g: number; b: number; a: number }): void {
+    this.clearColor = color;
+  }
+
   public start(): void {
     if (this.rafId !== null) return;
     this.loop();

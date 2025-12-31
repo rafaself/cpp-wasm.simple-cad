@@ -33,7 +33,7 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
   const justifyClass = 'justify-start px-2.5';
   
   // Typography
-  const textClass = 'text-xs whitespace-nowrap truncate text-left flex-1 leading-none';
+  const textClass = 'text-xs whitespace-nowrap truncate text-left flex-1';
 
   // Colors
   const colorClass = getRibbonButtonColorClasses({
