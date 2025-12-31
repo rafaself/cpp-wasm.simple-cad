@@ -87,7 +87,7 @@ const EditorRibbon: React.FC = () => {
               className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
                   ? 'bg-surface1 text-text font-medium'
-                  : 'text-text-muted hover:text-text hover:bg-surface2/60'
+                  : 'text-text-muted hover:text-text hover:bg-surface-muted'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
