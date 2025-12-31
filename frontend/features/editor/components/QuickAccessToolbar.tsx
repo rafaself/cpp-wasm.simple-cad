@@ -28,8 +28,8 @@ const QuickAccessToolbar: React.FC = () => {
 
   const toggleClasses =
     orientation === 'vertical'
-      ? 'w-full h-4 border-b border-border/50 mb-0.5'
-      : 'self-stretch w-4 border-r border-border/50 mr-0.5';
+      ? 'w-8 border-b border-border/50 mb-1'
+      : 'h-8 border-r border-border/50 mr-1';
 
   return (
     <div
@@ -40,15 +40,13 @@ const QuickAccessToolbar: React.FC = () => {
     >
       <button
         onClick={() => setOrientation((prev) => (prev === 'vertical' ? 'horizontal' : 'vertical'))}
-        className={`flex items-center justify-center text-text-muted hover:text-text hover:bg-surface2 rounded-sm transition-colors ${toggleClasses}`}
+        className={`flex items-center justify-center text-text-muted hover:text-text hover:bg-surface2 rounded-sm transition-colors overflow-visible mt-1 ${toggleClasses}`}
         title="Alternar orientacao da barra"
         aria-label="Alternar orientação da barra"
       >
-        {orientation === 'vertical' ? (
-          <LayoutPanelLeft size={10} className="rotate-90" />
-        ) : (
-          <LayoutPanelLeft size={10} />
-        )}
+        <div className={`flex items-center justify-center transition-transform duration-200 overflow-visible ${orientation === 'vertical' ? 'rotate-90' : ''}`}>
+          <LayoutPanelLeft size={12} />
+        </div>
       </button>
 
       {TOOLS.map((item) => (
