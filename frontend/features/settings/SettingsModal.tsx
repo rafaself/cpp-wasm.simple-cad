@@ -1,14 +1,15 @@
-import { X, Grid3X3, Magnet, Keyboard } from 'lucide-react';
+import { X, Grid3X3, Magnet, Keyboard, Briefcase } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
 import { useUIStore } from '../../stores/useUIStore';
 
 import CanvasSettings from './sections/CanvasSettings';
+import ProjectSettings from './sections/ProjectSettings';
 import { ShortcutsSettings } from './sections/ShortcutsSettings';
 import SnappingSettings from './sections/SnappingSettings';
 import SettingsSidebar from './SettingsSidebar';
 
-export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts';
+export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts' | 'project';
 
 const focusableSelectors =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -62,6 +63,7 @@ const SettingsModal: React.FC = () => {
     { id: 'canvas' as const, label: 'Canvas', icon: Grid3X3 },
     { id: 'snapping' as const, label: 'Snapping', icon: Magnet },
     { id: 'shortcuts' as const, label: 'Atalhos', icon: Keyboard },
+    { id: 'project' as const, label: 'Projeto', icon: Briefcase },
   ];
 
   const renderContent = () => {
@@ -72,6 +74,8 @@ const SettingsModal: React.FC = () => {
         return <SnappingSettings />;
       case 'shortcuts':
         return <ShortcutsSettings />;
+      case 'project':
+        return <ProjectSettings />;
       default:
         return null;
     }

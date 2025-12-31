@@ -7,8 +7,8 @@ import {
   Square,
   ChevronUp,
   MousePointer2,
-  Undo,
-  Redo,
+  Undo2,
+  Redo2,
   Scan,
   Grid3x3,
   Crosshair,
@@ -140,7 +140,7 @@ const EditorStatusBar: React.FC = () => {
           title={`${LABELS.menu.undo} (Ctrl+Z)`}
           aria-label={LABELS.menu.undo}
         >
-          <Undo size={14} />
+          <Undo2 size={14} />
         </button>
         <button
           onClick={() => executeAction('redo')}
@@ -149,7 +149,7 @@ const EditorStatusBar: React.FC = () => {
           title={`${LABELS.menu.redo} (Ctrl+Y)`}
           aria-label={LABELS.menu.redo}
         >
-          <Redo size={14} />
+          <Redo2 size={14} />
         </button>
 
         <div className="h-4 w-px bg-border mx-2" />

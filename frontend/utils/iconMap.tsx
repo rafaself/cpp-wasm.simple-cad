@@ -15,8 +15,8 @@ import {
   Scan,
   Expand,
   Settings,
-  Undo,
-  Redo,
+  Undo2,
+  Redo2,
   AlignLeft,
   AlignCenterHorizontal,
   AlignRight,
@@ -34,6 +34,7 @@ import {
   MoveUpRight,
   Plug,
   Lightbulb,
+  Briefcase,
 } from 'lucide-react';
 import React from 'react';
 
@@ -57,8 +58,9 @@ export const IconMap: Record<string, React.ReactNode> = {
   Palette: <Palette size={16} />,
   Scan: <Scan size={24} />,
   Settings: <Settings size={20} />,
-  Undo: <Undo size={20} />,
-  Redo: <Redo size={20} />,
+  Project: <Briefcase size={20} />,
+  Undo: <Undo2 size={20} />,
+  Redo: <Redo2 size={20} />,
   AlignLeft: <AlignLeft size={18} />,
   AlignCenterH: <AlignCenterHorizontal size={18} />,
   AlignRight: <AlignRight size={18} />,

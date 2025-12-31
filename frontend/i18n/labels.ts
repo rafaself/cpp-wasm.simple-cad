@@ -77,6 +77,8 @@ export const LABELS = {
     gridSize: 'Tamanho da Grade',
     showGrid: 'Mostrar Grade',
     showAxis: 'Eixos Centrais',
+    project: 'Projeto',
+    projectTitle: 'Título do Projeto',
   },
   text: {
     bold: 'Negrito',

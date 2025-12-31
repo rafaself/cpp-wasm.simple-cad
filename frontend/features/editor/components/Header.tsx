@@ -13,11 +13,13 @@ import React from 'react';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 import ThemeToggle from '@/features/editor/components/ThemeToggle';
+import { useProjectStore } from '@/stores/useProjectStore';
 import { LABELS } from '@/i18n/labels';
 
 const Header: React.FC = () => {
   const [isFullScreen, setIsFullScreen] = React.useState(false);
   const { executeAction } = useEditorCommands();
+  const projectTitle = useProjectStore((s) => s.projectTitle);
 
   // Detect OS for correct fullscreen shortcut
   const isMac = React.useMemo(() => {
@@ -45,7 +47,7 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-8 bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
+    <div className="relative h-8 bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
       <div className="flex items-center gap-1.5">
         <div className="w-6 h-6 bg-accent text-accent-foreground flex items-center justify-center rounded-sm font-bold text-sm shadow-focus">
           E
@@ -74,21 +76,7 @@ const Header: React.FC = () => {
           >
             <Save size={14} />
           </button>
-          <div className="h-4 w-px bg-border mx-0.5"></div>
-          <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
-            title={`${LABELS.menu.undo} (Ctrl+Z)`}
-            onClick={() => executeAction('undo')}
-          >
-            <Undo2 size={14} />
-          </button>
-          <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
-            title={`${LABELS.menu.redo} (Ctrl+Y)`}
-            onClick={() => executeAction('redo')}
-          >
-            <Redo2 size={14} />
-          </button>
+
           <div className="h-4 w-px bg-border mx-0.5"></div>
           <button
             className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
@@ -98,6 +86,11 @@ const Header: React.FC = () => {
             <Settings size={14} />
           </button>
         </div>
+      </div>
+
+      {/* Project Title */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-medium text-sm text-foreground/80 pointer-events-none">
+        {projectTitle}
       </div>
 
       <div className="flex items-center text-muted gap-1">
