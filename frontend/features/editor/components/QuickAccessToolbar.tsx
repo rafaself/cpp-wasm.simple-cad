@@ -28,12 +28,13 @@ const QuickAccessToolbar: React.FC = () => {
 
   const toggleClasses =
     orientation === 'vertical'
-      ? 'w-full h-3 border-b border-border/50 mb-0.5'
-      : 'self-stretch w-3 border-r border-border/50 mr-0.5';
+      ? 'w-full h-4 border-b border-border/50 mb-0.5'
+      : 'self-stretch w-4 border-r border-border/50 mr-0.5';
 
   return (
     <div
-      className={`absolute z-50 bg-surface-strong/95 backdrop-blur-sm border border-border rounded-lg shadow-xl flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
+      className={`absolute z-50 bg-surface-strong/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
+      style={{ boxShadow: '0 8px 32px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(255, 255, 255, 0.02)' }}
       role="toolbar"
       aria-label="Barra de ferramentas de acesso rápido"
     >
@@ -72,28 +73,6 @@ const QuickAccessToolbar: React.FC = () => {
         </button>
       ))}
 
-      <div
-        className={`bg-border/50 ${orientation === 'vertical' ? 'h-px w-full my-0.5' : 'w-px h-full mx-0.5'}`}
-      />
-
-      <button
-        onClick={() => executeAction('undo')}
-        disabled={!history.canUndo}
-        className="flex items-center justify-center w-8 h-8 rounded-md text-text-muted hover:bg-surface2 hover:text-text disabled:opacity-30 disabled:cursor-not-allowed"
-        title="Desfazer"
-        aria-label="Desfazer"
-      >
-        <div className="transform scale-90 flex items-center justify-center">{getIcon('Undo')}</div>
-      </button>
-      <button
-        onClick={() => executeAction('redo')}
-        disabled={!history.canRedo}
-        className="flex items-center justify-center w-8 h-8 rounded-md text-text-muted hover:bg-surface2 hover:text-text disabled:opacity-30 disabled:cursor-not-allowed"
-        title="Refazer"
-        aria-label="Refazer"
-      >
-        <div className="transform scale-90 flex items-center justify-center">{getIcon('Redo')}</div>
-      </button>
     </div>
   );
 };
