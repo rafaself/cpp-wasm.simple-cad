@@ -162,6 +162,7 @@ const CanvasSettings: React.FC = () => {
                   ariaLabel="Tamanho da Grade"
                   size="small"
                   className="w-full"
+                  allowScrollWheel={true}
                 />
               </div>
             </div>

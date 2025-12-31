@@ -31,7 +31,7 @@ const EditorTabs: React.FC = () => {
               group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent select-none
               ${
                 isActive
-                  ? 'bg-surface2 text-primary border-border border-b-surface2 relative -mb-[1px] z-10 shadow-sm'
+                  ? 'bg-surface2 text-text border-border border-b-surface2 relative -mb-[1px] z-10 shadow-sm'
                   : 'bg-transparent text-text-muted hover:bg-surface2 hover:text-text'
               }
             `}

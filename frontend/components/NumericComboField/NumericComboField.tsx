@@ -120,6 +120,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
   const listboxId = `numeric-combo-listbox-${uniqueId}`;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = React.useState({ top: 0, left: 0, width: 0 });
 
   const {
@@ -211,6 +212,28 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
     }
   }, [isDropdownOpen, highlightedIndex]);
 
+  // Handle mouse wheel natively with passive: false to prevent parent scroll
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !allowScrollWheel || disabled) return;
+
+    const onNativeWheel = (e: WheelEvent) => {
+      // Prevent the page/parent from scrolling
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Adjust value
+      if (e.deltaY < 0) {
+        increment(e.shiftKey);
+      } else {
+        decrement(e.shiftKey);
+      }
+    };
+
+    container.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onNativeWheel);
+  }, [allowScrollWheel, disabled, increment, decrement]);
+
   const handleDropdownToggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -243,13 +266,13 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className={`relative flex items-center bg-surface-strong/60 border ${
         isFocused ? 'border-primary/50' : 'border-border/50'
       } rounded overflow-hidden transition-colors duration-200 group ${
         disabled ? 'opacity-50 cursor-not-allowed' : ''
       } ${size ? CONTAINER_SIZE_CLASSES[size] : ''} ${className}`}
       data-testid={testId}
-      onWheel={handleWheel}
     >
       {/* Input */}
       <input
