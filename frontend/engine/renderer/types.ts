@@ -9,7 +9,7 @@ export type GridRenderSettings = {
   color: string;
   showDots: boolean;
   showLines: boolean;
-  opacity?: number;
+  // opacity removed
   lineWidth?: number;
   dotRadius?: number;
   // Subdivision support (Phase 2)

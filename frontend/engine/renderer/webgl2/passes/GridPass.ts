@@ -27,7 +27,7 @@ export type GridSettings = {
   color: string;
   showDots: boolean;
   showLines: boolean;
-  opacity?: number;
+  // opacity removed
   lineWidth?: number;
   dotRadius?: number;
   // Phase 2: Subdivision support
@@ -280,10 +280,10 @@ export class GridPass {
 
     // Parse color
     const color = this.parseColor(settings.color);
-    const opacity = settings.opacity ?? 0.5;
-    gl.uniform4f(res.uMajorGridColor, color.r, color.g, color.b, color.a * opacity);
-    // Minor grid uses same hue but reduced opacity
-    gl.uniform4f(res.uMinorGridColor, color.r, color.g, color.b, color.a * opacity * 0.5);
+    // Ignore legacy settings.opacity, strictly use color alpha
+    gl.uniform4f(res.uMajorGridColor, color.r, color.g, color.b, color.a);
+    // Minor grid uses same hue but significantly reduced opacity (30%)
+    gl.uniform4f(res.uMinorGridColor, color.r, color.g, color.b, color.a * 0.3);
 
     // Enable blending for transparency
     gl.enable(gl.BLEND);

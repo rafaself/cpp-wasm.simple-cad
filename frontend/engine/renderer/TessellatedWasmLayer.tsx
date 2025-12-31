@@ -47,7 +47,7 @@ const TessellatedWasmLayer: React.FC = () => {
       showLines: gridSettings.showLines,
       showSubdivisions: gridSettings.showSubdivisions,
       subdivisionCount: gridSettings.subdivisionCount,
-      opacity: gridSettings.opacity,
+      // opacity removed
       lineWidth: gridSettings.lineWidth,
       dotRadius: gridSettings.dotRadius,
     };

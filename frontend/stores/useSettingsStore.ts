@@ -16,7 +16,6 @@ export interface GridSettings {
   showLines: boolean;
   showSubdivisions: boolean;
   subdivisionCount: number;
-  opacity: number; // 0.0 - 1.0
   lineWidth: number; // pixels
   dotRadius: number; // pixels
 }
@@ -79,7 +78,7 @@ interface SettingsState {
   setGridShowLines: (show: boolean) => void;
   setGridShowSubdivisions: (show: boolean) => void;
   setGridSubdivisionCount: (count: number) => void;
-  setGridOpacity: (opacity: number) => void;
+  // opacity removed
   setGridLineWidth: (width: number) => void;
   setGridDotRadius: (radius: number) => void;
   resetGridToDefaults: () => void;
@@ -120,11 +119,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   grid: {
     size: GRID.DEFAULT_SIZE_WU,
     color: DEFAULTS.DEFAULT_GRID_COLOR,
-    showDots: true,
+    showDots: false,
     showLines: false,
     showSubdivisions: true,
     subdivisionCount: 5,
-    opacity: 0.5,
     lineWidth: 1,
     dotRadius: 2,
   },
@@ -190,8 +188,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set((state) => ({ grid: { ...state.grid, showSubdivisions: show } })),
   setGridSubdivisionCount: (count) =>
     set((state) => ({ grid: { ...state.grid, subdivisionCount: count } })),
-  setGridOpacity: (opacity) =>
-    set((state) => ({ grid: { ...state.grid, opacity: Math.max(0, Math.min(1, opacity)) } })),
+  // opacity removed
   setGridLineWidth: (width) =>
     set((state) => ({ grid: { ...state.grid, lineWidth: Math.max(0.5, Math.min(5, width)) } })),
   setGridDotRadius: (radius) =>
@@ -202,11 +199,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       grid: {
         size: GRID.DEFAULT_SIZE_WU,
         color: DEFAULTS.DEFAULT_GRID_COLOR,
-        showDots: true,
+        showDots: false,
         showLines: false,
         showSubdivisions: true,
         subdivisionCount: 5,
-        opacity: 0.5,
+        // opacity: 0.5 removed,
         lineWidth: 1,
         dotRadius: 2,
       },
@@ -217,11 +214,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       switch (preset) {
         case 'dots':
           return {
-            grid: { ...state.grid, showDots: true, showLines: false, dotRadius: 2, opacity: 0.5 },
+            grid: { ...state.grid, showDots: true, showLines: false, dotRadius: 2 },
           };
         case 'lines':
           return {
-            grid: { ...state.grid, showDots: false, showLines: true, lineWidth: 1, opacity: 0.4 },
+            grid: { ...state.grid, showDots: false, showLines: true, lineWidth: 1 },
           };
         case 'combined':
           return {
@@ -231,7 +228,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
               showLines: true,
               dotRadius: 1.5,
               lineWidth: 0.5,
-              opacity: 0.5,
+              // opacity: 0.5 removed
             },
           };
         case 'minimal':
@@ -241,7 +238,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
               showDots: true,
               showLines: false,
               dotRadius: 1,
-              opacity: 0.25,
+              // opacity: 0.25 removed
               showSubdivisions: false,
             },
           };

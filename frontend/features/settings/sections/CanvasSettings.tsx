@@ -1,4 +1,4 @@
-import { Circle, Grid3x3, RotateCcw } from 'lucide-react';
+import { Dot, Grid3x3, RotateCcw } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { LABELS } from '@/i18n/labels';
@@ -128,7 +128,7 @@ const CanvasSettings: React.FC = () => {
                   }`}
                   title="Pontos"
                 >
-                  <Circle size={14} />
+                  <Dot size={24} className="-m-1" />
                 </button>
                 <button
                   onClick={() => {
