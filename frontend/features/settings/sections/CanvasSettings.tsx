@@ -242,17 +242,12 @@ const CanvasSettings: React.FC = () => {
         />
       </Section>
 
-      <Section title="Interface">
+      <Section title="Fundo">
         <ColorField
           label="Cor de Fundo"
           color={settings.display.backgroundColor}
           pickerId="canvasBackground"
           onReset={() => settings.setCanvasBackgroundColor(DEFAULTS.DEFAULT_CANVAS_BG)}
-        />
-        <Toggle
-          label="Barra de Acesso Rápido"
-          checked={settings.display.showQuickAccess}
-          onChange={settings.setShowQuickAccess}
         />
       </Section>
 

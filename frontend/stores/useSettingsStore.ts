@@ -34,6 +34,7 @@ export interface DisplaySettings {
   };
   backgroundColor: string;
   showQuickAccess: boolean;
+  showSidebarScrollIndicators: boolean;
 }
 
 export interface ToolDefaults {
@@ -94,6 +95,7 @@ interface SettingsState {
   setCenterIconColor: (color: string) => void;
   setCanvasBackgroundColor: (color: string) => void;
   setShowQuickAccess: (show: boolean) => void;
+  setShowSidebarScrollIndicators: (show: boolean) => void;
 
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
@@ -151,6 +153,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
     backgroundColor: DEFAULTS.DEFAULT_CANVAS_BG,
     showQuickAccess: false,
+    showSidebarScrollIndicators: true,
   },
   toolDefaults: {
     strokeColor: DEFAULTS.DEFAULT_STROKE_COLOR,
@@ -282,6 +285,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set((state) => ({ display: { ...state.display, backgroundColor: color } })),
   setShowQuickAccess: (show) =>
     set((state) => ({ display: { ...state.display, showQuickAccess: show } })),
+  setShowSidebarScrollIndicators: (show) =>
+    set((state) => ({ display: { ...state.display, showSidebarScrollIndicators: show } })),
 
   setStrokeColor: (color) =>
     set((state) => ({ toolDefaults: { ...state.toolDefaults, strokeColor: color } })),

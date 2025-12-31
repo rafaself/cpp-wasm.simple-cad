@@ -1,15 +1,16 @@
-import { X, Grid3X3, Magnet, Keyboard, Briefcase } from 'lucide-react';
+import { X, Grid3X3, Magnet, Keyboard, Briefcase, LayoutTemplate } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
 import { useUIStore } from '../../stores/useUIStore';
 
 import CanvasSettings from './sections/CanvasSettings';
+import InterfaceSettings from './sections/InterfaceSettings';
 import ProjectSettings from './sections/ProjectSettings';
 import { ShortcutsSettings } from './sections/ShortcutsSettings';
 import SnappingSettings from './sections/SnappingSettings';
 import SettingsSidebar from './SettingsSidebar';
 
-export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts' | 'project';
+export type SettingsSection = 'canvas' | 'snapping' | 'shortcuts' | 'project' | 'interface';
 
 const focusableSelectors =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -24,7 +25,7 @@ const SettingsModal: React.FC = () => {
   useEffect(() => {
     if (isOpen) {
       lastFocusRef.current = document.activeElement as HTMLElement | null;
-      setActiveSection('canvas');
+      setActiveSection('project');
       const container = dialogRef.current;
       if (container) {
         const first = container.querySelector<HTMLElement>(focusableSelectors);
@@ -60,10 +61,11 @@ const SettingsModal: React.FC = () => {
   if (!isOpen) return null;
 
   const sections = [
+    { id: 'project' as const, label: 'Projeto', icon: Briefcase },
+    { id: 'interface' as const, label: 'Interface', icon: LayoutTemplate },
     { id: 'canvas' as const, label: 'Canvas', icon: Grid3X3 },
     { id: 'snapping' as const, label: 'Snapping', icon: Magnet },
     { id: 'shortcuts' as const, label: 'Atalhos', icon: Keyboard },
-    { id: 'project' as const, label: 'Projeto', icon: Briefcase },
   ];
 
   const renderContent = () => {
@@ -74,6 +76,8 @@ const SettingsModal: React.FC = () => {
         return <SnappingSettings />;
       case 'shortcuts':
         return <ShortcutsSettings />;
+      case 'interface':
+        return <InterfaceSettings />;
       case 'project':
         return <ProjectSettings />;
       default:

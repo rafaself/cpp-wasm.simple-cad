@@ -1,5 +1,7 @@
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import React, { useRef, useState, useCallback } from 'react';
+
+import { useSettingsStore } from '@/stores/useSettingsStore';
 
 export interface SidebarTabConfig {
   id: string;
@@ -18,10 +20,29 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [hasMoved, setHasMoved] = useState(false); // To distinguish click from drag
-
+  const [scrollLeftState, setScrollLeftState] = useState(0); // Renamed to avoid confusion with scrollLeft property
+  const [hasMoved, setHasMoved] = useState(false);
   const [wasDragging, setWasDragging] = useState(false);
+
+  const showIndicators = useSettingsStore((s) => s.display.showSidebarScrollIndicators);
+
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const checkOverflow = useCallback(() => {
+    if (!containerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = containerRef.current;
+    
+    // Use a small threshold (e.g. 1px) to avoid precision issues
+    setShowLeftArrow(scrollLeft > 1);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+  }, []);
+
+  React.useEffect(() => {
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [checkOverflow, tabs]); // Re-check if tabs change
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
@@ -29,7 +50,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
     setHasMoved(false);
     setWasDragging(false);
     setStartX(e.pageX - containerRef.current.offsetLeft);
-    setScrollLeft(containerRef.current.scrollLeft);
+    setScrollLeftState(containerRef.current.scrollLeft);
   };
 
   const handleMouseLeave = () => {
@@ -40,8 +61,6 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   const handleMouseUp = () => {
     if (hasMoved) {
       setWasDragging(true);
-      // Use a tiny timeout to ensure the click event (which fires after mouseup) 
-      // can check wasDragging before we reset it
       setTimeout(() => setWasDragging(false), 50);
     }
     setIsDragging(false);
@@ -54,11 +73,14 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
     const x = e.pageX - containerRef.current.offsetLeft;
     const walk = (x - startX) * 1.5; 
     
-    if (Math.abs(x - (startX + scrollLeft)) > 3) {
+    if (Math.abs(x - (startX + scrollLeftState)) > 3) {
       setHasMoved(true);
     }
     
-    containerRef.current.scrollLeft = scrollLeft - walk;
+    containerRef.current.scrollLeft = scrollLeftState - walk;
+    // We don't checkOverflow here continuously to avoid trash, 
+    // but onScroll will handle update visually. 
+    // Actually dragging modifies scrollLeft which triggers onScroll.
   };
 
   const handleTabClick = (tabId: string) => {
@@ -73,16 +95,40 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
     }
   };
 
+  // Triggered by both wheel, drag, and button scroll
+  const handleScroll = () => {
+    checkOverflow();
+  };
+
+  const scrollByAmount = (amount: number) => {
+    if (containerRef.current) {
+      containerRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div 
-      className="flex bg-surface1 select-none"
-      style={{ height: '56px' }} // Reduced fixed height
+      className="relative flex bg-surface1 select-none group"
+      style={{ height: '56px' }}
     >
+      {/* Left Overflow Button */}
+      {showIndicators && showLeftArrow && (
+        <button
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/50 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
+          onClick={(e) => { e.stopPropagation(); scrollByAmount(-100); }}
+          title="Rolar para esquerda"
+          aria-hidden="true"
+        >
+          <ChevronLeft size={14} />
+        </button>
+      )}
+
       <div
         ref={containerRef}
-        className={`flex overflow-x-auto items-center no-scrollbar px-1 ${!isDragging ? 'scroll-smooth' : ''} ${
-          hasMoved ? 'cursor-grabbing' : 'cursor-pointer'
-        }`}
+        onScroll={handleScroll}
+        className={`flex overflow-x-auto items-center no-scrollbar px-1 ${
+          !isDragging ? 'scroll-smooth' : ''
+        } ${hasMoved ? 'cursor-grabbing' : 'cursor-pointer'}`}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         onMouseDown={handleMouseDown}
         onMouseLeave={handleMouseLeave}
@@ -119,6 +165,18 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
         {/* Spacer */}
         <div className="min-w-[4px] flex-shrink-0" />
       </div>
+
+       {/* Right Overflow Button */}
+       {showIndicators && showRightArrow && (
+        <button
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/50 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
+          onClick={(e) => { e.stopPropagation(); scrollByAmount(100); }}
+          title="Rolar para direita"
+          aria-hidden="true"
+        >
+          <ChevronRight size={14} />
+        </button>
+      )}
     </div>
   );
 };
