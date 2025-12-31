@@ -7,6 +7,7 @@ import {
   Settings,
   Maximize,
   Minimize,
+  Zap,
 } from 'lucide-react';
 import React from 'react';
 
@@ -47,12 +48,21 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <div className="relative h-8 bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
+    <div className="relative h-[28px] py-[3px] bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
       <div className="flex items-center gap-1.5">
-        <div className="w-6 h-6 bg-accent text-accent-foreground flex items-center justify-center rounded-sm font-bold text-sm shadow-focus">
-          E
+        <div className="flex items-center justify-center">
+          <svg width="0" height="0" className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
+            <defs>
+              <linearGradient id="blazar-gradient-header" x1="10%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#0ea5e9" /> {/* Electric Sky Blue */}
+                <stop offset="25%" stopColor="#f97316" /> {/* Orange takes over early */}
+                <stop offset="100%" stopColor="#ea580c" /> {/* Deep Orange finish */}
+              </linearGradient>
+            </defs>
+          </svg>
+          <Zap size={20} className="text-transparent" fill="url(#blazar-gradient-header)" stroke="url(#blazar-gradient-header)" />
         </div>
-        <div className="font-semibold text-xs tracking-wide mr-1">EndeavourPower</div>
+        <div className="font-semibold text-xs tracking-wide mr-1">Blazar</div>
         <div className="h-4 w-px bg-border mx-0.5"></div>
         <div className="flex items-center gap-0.5 text-muted">
           <button
