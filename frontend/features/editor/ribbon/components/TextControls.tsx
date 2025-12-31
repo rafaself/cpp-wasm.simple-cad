@@ -107,6 +107,7 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
         ariaLabel="Tamanho da Fonte"
         className="w-full ribbon-fill-h"
         dropdownMaxHeight="auto"
+        allowScrollWheel={true}
       />
     </RibbonControlWrapper>
   );

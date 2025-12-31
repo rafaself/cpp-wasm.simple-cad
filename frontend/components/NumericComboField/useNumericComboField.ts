@@ -364,15 +364,21 @@ export function useNumericComboField(
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
-      if (!allowScrollWheel || !isFocused) return;
+      // Allow scroll wheel even if not focused, as long as it's enabled
+      if (!allowScrollWheel) return;
+      
+      // Prevent default scroll behavior of the page
       e.preventDefault();
+      // Stop propagation to prevent parent containers (like Ribbon) from scrolling
+      e.stopPropagation();
+      
       if (e.deltaY < 0) {
         increment(e.shiftKey);
       } else {
         decrement(e.shiftKey);
       }
     },
-    [allowScrollWheel, isFocused, increment, decrement],
+    [allowScrollWheel, increment, decrement],
   );
 
   return {

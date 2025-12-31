@@ -249,6 +249,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
         disabled ? 'opacity-50 cursor-not-allowed' : ''
       } ${size ? CONTAINER_SIZE_CLASSES[size] : ''} ${className}`}
       data-testid={testId}
+      onWheel={handleWheel}
     >
       {/* Input */}
       <input
@@ -259,7 +260,6 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
         onFocus={handleFocus}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        onWheel={handleWheel}
         disabled={disabled}
         placeholder={isMixed ? placeholder : undefined}
         role="combobox"
