@@ -21,10 +21,13 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   const [scrollLeft, setScrollLeft] = useState(0);
   const [hasMoved, setHasMoved] = useState(false); // To distinguish click from drag
 
+  const [wasDragging, setWasDragging] = useState(false);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
     setIsDragging(true);
     setHasMoved(false);
+    setWasDragging(false);
     setStartX(e.pageX - containerRef.current.offsetLeft);
     setScrollLeft(containerRef.current.scrollLeft);
   };
@@ -35,6 +38,12 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   };
 
   const handleMouseUp = () => {
+    if (hasMoved) {
+      setWasDragging(true);
+      // Use a tiny timeout to ensure the click event (which fires after mouseup) 
+      // can check wasDragging before we reset it
+      setTimeout(() => setWasDragging(false), 50);
+    }
     setIsDragging(false);
     setHasMoved(false);
   };
@@ -43,10 +52,9 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
     if (!isDragging || !containerRef.current) return;
     e.preventDefault();
     const x = e.pageX - containerRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5; // Scroll speed multiplier
+    const walk = (x - startX) * 1.5; 
     
-    // Check if moved significantly to consider it a drag
-    if (Math.abs(walk) > 5) {
+    if (Math.abs(x - (startX + scrollLeft)) > 3) {
       setHasMoved(true);
     }
     
@@ -54,7 +62,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   };
 
   const handleTabClick = (tabId: string) => {
-    if (!hasMoved) {
+    if (!hasMoved && !wasDragging) {
       onTabChange(tabId);
     }
   };
