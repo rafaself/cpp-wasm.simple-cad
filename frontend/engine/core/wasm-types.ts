@@ -184,6 +184,26 @@ export type CadEngineInstance = {
   // Snapping
   setSnapOptions?: (enabled: boolean, gridEnabled: boolean, gridSize: number) => void;
   getSnappedPoint?: (x: number, y: number) => Float32Array;
+
+  // Draft System
+  getDraftDimensions?: () => DraftDimensions;
+};
+
+/**
+ * Draft dimensions returned from the engine during shape creation.
+ * Contains bounding box and computed dimensions for overlay rendering.
+ */
+export type DraftDimensions = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+  kind: number;
+  active: boolean;
 };
 
 export type WasmModule = {

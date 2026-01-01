@@ -707,7 +707,9 @@ std::uint32_t CadEngine::commitDraft() {
     return interactionSession_.commitDraft();
 }
 
-// addDraftToBuffers moved to engine_render.cpp
+DraftDimensions CadEngine::getDraftDimensions() const {
+    return interactionSession_.getDraftDimensions();
+}
 
 void CadEngine::updateTransform(float worldX, float worldY) {
     interactionSession_.updateTransform(worldX, worldY);

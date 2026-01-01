@@ -156,7 +156,7 @@ void CadEngine::rebuildRenderBuffers() const {
     );
     
     // Grid rendering is handled by the WebGL GridPass (frontend).
-    addDraftToBuffers();
+    // Draft rendering is now handled by the phantom entity system (no addDraftToBuffers needed).
     renderDirty = false;
     pendingFullRebuild_ = false;
     
@@ -204,11 +204,5 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
     return true;
 }
 
-void CadEngine::addDraftToBuffers() const {
-    // Cast away constness if needed to call interactionSession methods
-    // InteractionSession::addDraftToBuffers is NOT const because it calls pushL.
-    // engine_.lineVertices is mutable.
-    const_cast<InteractionSession&>(interactionSession_).addDraftToBuffers(const_cast<std::vector<float>&>(lineVertices));
-}
-
 #include "engine/internal/engine_state_aliases_undef.h"
+

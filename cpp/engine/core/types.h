@@ -370,4 +370,16 @@ struct SnapOptions {
     float gridSize = 10.0f;
 };
 
+// Reserved entity ID for the phantom draft entity (never allocated normally)
+static constexpr std::uint32_t DRAFT_ENTITY_ID = 0xFFFFFFFE;
+
+// Draft dimensions for frontend overlay rendering
+struct DraftDimensions {
+    float minX, minY, maxX, maxY;  // Bounding box
+    float width, height;           // Computed dimensions
+    float centerX, centerY;        // Center point for label positioning
+    std::uint32_t kind;            // EntityKind
+    bool active;                   // Whether draft is active
+};
+
 #endif // ELETROCAD_ENGINE_TYPES_H

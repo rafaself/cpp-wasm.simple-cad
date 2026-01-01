@@ -1,6 +1,6 @@
 import { COMMAND_BUFFER_MAGIC, CommandOp } from '../commandBuffer';
 
-import type { CadEngineInstance, WasmModule } from '../wasm-types';
+import type { CadEngineInstance, DraftDimensions, WasmModule } from '../wasm-types';
 
 /**
  * DraftSystem
@@ -51,6 +51,17 @@ export class DraftSystem {
     this.appendView!.setFloat32(32, x, true);
     this.appendView!.setFloat32(36, y, true);
     this.engine.applyCommandBuffer(this.appendBufferPtr!, this.updateBufferByteLength);
+  }
+
+  /**
+   * Get the current draft dimensions (bounding box, width, height) from the engine.
+   * Returns null if no draft is active.
+   */
+  public getDraftDimensions(): DraftDimensions | null {
+    if (!this.engine.getDraftDimensions) return null;
+    const dims = this.engine.getDraftDimensions();
+    if (!dims || !dims.active) return null;
+    return dims as DraftDimensions;
   }
 
   private ensureUpdateBuffer(): boolean {

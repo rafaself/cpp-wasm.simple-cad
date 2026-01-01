@@ -504,12 +504,12 @@ public:
 
     void rebuildRenderBuffers() const;
     void addGridToBuffers() const;
-    void addDraftToBuffers() const;
     void beginDraft(const BeginDraftPayload& p);
     void updateDraft(float x, float y);
     void appendDraftPoint(float x, float y);
     std::uint32_t commitDraft();
     void cancelDraft();
+    DraftDimensions getDraftDimensions() const;
 
     bool refreshEntityRenderRange(std::uint32_t id) const;
 

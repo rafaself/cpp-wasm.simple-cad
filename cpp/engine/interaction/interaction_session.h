@@ -49,14 +49,16 @@ public:
     void cancelTransform();
 
     // ==============================================================================
-    // Draft API
+    // Draft API (Phantom Entity System)
     // ==============================================================================
     void beginDraft(const BeginDraftPayload& p);
     void updateDraft(float x, float y);
     void appendDraftPoint(float x, float y);
     void cancelDraft();
     std::uint32_t commitDraft();
-    void addDraftToBuffers(std::vector<float>& lineVertices); // Helper to draw draft
+    
+    // Draft overlay data for frontend (computed from phantom entity)
+    DraftDimensions getDraftDimensions() const;
 
 private:
     CadEngine& engine_;
@@ -104,4 +106,10 @@ private:
 
     // Helper to refresh render range in engine
     void refreshEntityRenderRange(std::uint32_t id);
+    
+    // ==============================================================================
+    // Phantom Entity Helpers (Draft System)
+    // ==============================================================================
+    void upsertPhantomEntity();   // Create or update phantom entity from draft state
+    void removePhantomEntity();   // Remove phantom entity from EntityManager
 };

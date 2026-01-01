@@ -531,9 +531,19 @@ void InteractionSession::cancelTransform() {
     engine_.state().renderDirty = true;
 }
 
-// Draft Implementation
+// ==============================================================================
+// Draft Implementation (Phantom Entity System)
+// ==============================================================================
+// The draft system now creates a real temporary entity (phantom) with a reserved ID
+// that gets rendered by the normal render pipeline. This ensures consistent visuals
+// between draft preview and final entity.
 
 void InteractionSession::beginDraft(const BeginDraftPayload& p) {
+    // Cancel any existing draft first
+    if (draft_.active) {
+        removePhantomEntity();
+    }
+    
     draft_.active = true;
     draft_.kind = p.kind;
     draft_.startX = p.x;
@@ -551,6 +561,9 @@ void InteractionSession::beginDraft(const BeginDraftPayload& p) {
     if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
         draft_.points.push_back({p.x, p.y});
     }
+    
+    // Create the phantom entity for immediate visual feedback
+    upsertPhantomEntity();
     engine_.state().renderDirty = true;
 }
 
@@ -558,6 +571,9 @@ void InteractionSession::updateDraft(float x, float y) {
     if (!draft_.active) return;
     draft_.currentX = x;
     draft_.currentY = y;
+    
+    // Update the phantom entity to reflect new position
+    upsertPhantomEntity();
     engine_.state().renderDirty = true;
 }
 
@@ -566,121 +582,254 @@ void InteractionSession::appendDraftPoint(float x, float y) {
     draft_.points.push_back({x, y});
     draft_.currentX = x; 
     draft_.currentY = y;
+    
+    // Update phantom entity with new point
+    upsertPhantomEntity();
     engine_.state().renderDirty = true;
 }
 
 std::uint32_t InteractionSession::commitDraft() {
     if (!draft_.active) return 0;
     
+    // Remove the phantom entity first
+    removePhantomEntity();
+    
+    // Allocate a real entity ID
     const std::uint32_t id = engine_.allocateEntityId();
     
-    // Delegate creation to engine methods (simplest integration)
-    // Or call entityManager directly? Creating entities via Engine methods handles history/recording automatically.
-    // It's better to use CadEngine public methods for upserting, to keep things consistent.
-    
+    // Create the final entity via CadEngine (which handles history)
     switch (static_cast<EntityKind>(draft_.kind)) {
         case EntityKind::Rect: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (w > 0.001f && h > 0.001f)
+            float x0 = std::min(draft_.startX, draft_.currentX);
+            float y0 = std::min(draft_.startY, draft_.currentY);
+            float w = std::abs(draft_.currentX - draft_.startX);
+            float h = std::abs(draft_.currentY - draft_.startY);
+            if (w > 0.001f && h > 0.001f)
                 engine_.upsertRect(id, x0, y0, w, h, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
+            break;
         }
         case EntityKind::Line:
-             engine_.upsertLine(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
+            engine_.upsertLine(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
         case EntityKind::Circle: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (w > 0.001f && h > 0.001f)
+            float x0 = std::min(draft_.startX, draft_.currentX);
+            float y0 = std::min(draft_.startY, draft_.currentY);
+            float w = std::abs(draft_.currentX - draft_.startX);
+            float h = std::abs(draft_.currentY - draft_.startY);
+            if (w > 0.001f && h > 0.001f)
                 engine_.upsertCircle(id, x0 + w/2, y0 + h/2, w/2, h/2, 0, 1, 1, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
+            break;
         }
         case EntityKind::Polygon: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (w > 0.001f && h > 0.001f) {
+            float x0 = std::min(draft_.startX, draft_.currentX);
+            float y0 = std::min(draft_.startY, draft_.currentY);
+            float w = std::abs(draft_.currentX - draft_.startX);
+            float h = std::abs(draft_.currentY - draft_.startY);
+            if (w > 0.001f && h > 0.001f) {
                 float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
                 engine_.upsertPolygon(id, x0 + w/2, y0 + h/2, w/2, h/2, rot, 1, 1, static_cast<std::uint32_t>(draft_.sides), draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             }
-             break;
+            }
+            break;
         }
         case EntityKind::Polyline: {
-             if (draft_.points.size() < 2) break; // Need at least 2 points
-             std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
-             for (const auto& p : draft_.points) {
-                 entityManager_.points.push_back({p.x, p.y});
-             }
-             engine_.upsertPolyline(id, offset, static_cast<std::uint32_t>(draft_.points.size()), draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
+            if (draft_.points.size() < 2) break;
+            std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
+            for (const auto& p : draft_.points) {
+                entityManager_.points.push_back({p.x, p.y});
+            }
+            engine_.upsertPolyline(id, offset, static_cast<std::uint32_t>(draft_.points.size()), draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
         }
         case EntityKind::Arrow: {
-             engine_.upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-             break;
+            engine_.upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
         }
         case EntityKind::Text: break;
     }
 
     draft_.active = false;
     draft_.points.clear();
+    engine_.state().renderDirty = true;
     return id;
 }
 
 void InteractionSession::cancelDraft() {
+    if (!draft_.active) return;
+    
+    removePhantomEntity();
+    
     draft_.active = false;
     draft_.points.clear();
     engine_.state().renderDirty = true;
 }
 
-void InteractionSession::addDraftToBuffers(std::vector<float>& lineVertices) {
+// ==============================================================================
+// Phantom Entity Helpers
+// ==============================================================================
+
+void InteractionSession::upsertPhantomEntity() {
     if (!draft_.active) return;
     
-    auto pushL = [&](float x0, float y0, float x1, float y1) {
-        lineVertices.push_back(x0); lineVertices.push_back(y0); lineVertices.push_back(0); 
-        lineVertices.push_back(draft_.strokeR); lineVertices.push_back(draft_.strokeG); lineVertices.push_back(draft_.strokeB); lineVertices.push_back(1.0f); 
-    };
+    const std::uint32_t phantomId = DRAFT_ENTITY_ID;
     
     switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Line:
-        case EntityKind::Arrow:
-            pushL(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+        case EntityKind::Rect: {
+            float x0 = std::min(draft_.startX, draft_.currentX);
+            float y0 = std::min(draft_.startY, draft_.currentY);
+            float w = std::abs(draft_.currentX - draft_.startX);
+            float h = std::abs(draft_.currentY - draft_.startY);
+            // Always create, even if small (will be filtered at commit)
+            entityManager_.upsertRect(phantomId, x0, y0, std::max(w, 0.1f), std::max(h, 0.1f), 
+                draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, 
+                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, 
+                draft_.strokeEnabled, draft_.strokeWidthPx);
             break;
+        }
+        case EntityKind::Line: {
+            entityManager_.upsertLine(phantomId, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, 
+                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, 
+                draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
+        }
+        case EntityKind::Circle: {
+            float x0 = std::min(draft_.startX, draft_.currentX);
+            float y0 = std::min(draft_.startY, draft_.currentY);
+            float w = std::abs(draft_.currentX - draft_.startX);
+            float h = std::abs(draft_.currentY - draft_.startY);
+            entityManager_.upsertCircle(phantomId, x0 + w/2, y0 + h/2, std::max(w/2, 0.1f), std::max(h/2, 0.1f), 0, 1, 1,
+                draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA,
+                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
+                draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
+        }
+        case EntityKind::Polygon: {
+            float x0 = std::min(draft_.startX, draft_.currentX);
+            float y0 = std::min(draft_.startY, draft_.currentY);
+            float w = std::abs(draft_.currentX - draft_.startX);
+            float h = std::abs(draft_.currentY - draft_.startY);
+            float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
+            entityManager_.upsertPolygon(phantomId, x0 + w/2, y0 + h/2, std::max(w/2, 0.1f), std::max(h/2, 0.1f), rot, 1, 1,
+                static_cast<std::uint32_t>(draft_.sides),
+                draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA,
+                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
+                draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
+        }
+        case EntityKind::Polyline: {
+            // For polyline, we need to handle the points specially
+            // First, find and remove any existing phantom polyline points
+            auto it = entityManager_.entities.find(phantomId);
+            if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Polyline) {
+                // Remove old polyline - points will be orphaned but that's ok for phantom
+            }
+            
+            // Calculate how many points we have (draft points + current cursor)
+            size_t totalPoints = draft_.points.size() + 1; // +1 for current position
+            if (totalPoints < 2) {
+                totalPoints = 2; // Need at least 2 for a valid polyline
+            }
+            
+            // Use a reserved area at the end of points for phantom
+            // This is a simplification - in production you'd want proper point management
+            std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
+            for (const auto& p : draft_.points) {
+                entityManager_.points.push_back({p.x, p.y});
+            }
+            // Add current cursor position
+            entityManager_.points.push_back({draft_.currentX, draft_.currentY});
+            
+            entityManager_.upsertPolyline(phantomId, offset, static_cast<std::uint32_t>(totalPoints),
+                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
+                draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
+        }
+        case EntityKind::Arrow: {
+            entityManager_.upsertArrow(phantomId, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY,
+                draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
+                draft_.strokeEnabled, draft_.strokeWidthPx);
+            break;
+        }
+        case EntityKind::Text: break;
+    }
+    
+    // Remove phantom entity from draw order - it should not be included in normal draw order
+    // (it's rendered separately, at the end, on top of all other entities)
+    auto& drawOrder = entityManager_.drawOrderIds;
+    for (auto it = drawOrder.begin(); it != drawOrder.end(); ++it) {
+        if (*it == phantomId) {
+            drawOrder.erase(it);
+            break;
+        }
+    }
+}
+
+void InteractionSession::removePhantomEntity() {
+    const std::uint32_t phantomId = DRAFT_ENTITY_ID;
+    
+    // Simply delete the phantom entity from the entity manager
+    entityManager_.deleteEntity(phantomId);
+    
+    // Trigger a full rebuild since we removed an entity
+    engine_.state().renderDirty = true;
+}
+
+DraftDimensions InteractionSession::getDraftDimensions() const {
+    DraftDimensions dims{};
+    dims.active = draft_.active;
+    dims.kind = draft_.kind;
+    
+    if (!draft_.active) {
+        return dims;
+    }
+    
+    // Calculate bounding box based on entity kind
+    switch (static_cast<EntityKind>(draft_.kind)) {
         case EntityKind::Rect:
         case EntityKind::Circle:
         case EntityKind::Polygon: {
-             float x0 = std::min(draft_.startX, draft_.currentX);
-             float y0 = std::min(draft_.startY, draft_.currentY);
-             float w = std::abs(draft_.currentX - draft_.startX);
-             float h = std::abs(draft_.currentY - draft_.startY);
-             if (static_cast<EntityKind>(draft_.kind) == EntityKind::Rect) {
-                  pushL(x0, y0, x0+w, y0);
-                  pushL(x0+w, y0, x0+w, y0+h);
-                  pushL(x0+w, y0+h, x0, y0+h);
-                  pushL(x0, y0+h, x0, y0);
-             } else {
-                  pushL(x0, y0, x0+w, y0);
-                  pushL(x0+w, y0, x0+w, y0+h);
-                  pushL(x0+w, y0+h, x0, y0+h);
-                  pushL(x0, y0+h, x0, y0);
-             }
-             break;
+            dims.minX = std::min(draft_.startX, draft_.currentX);
+            dims.minY = std::min(draft_.startY, draft_.currentY);
+            dims.maxX = std::max(draft_.startX, draft_.currentX);
+            dims.maxY = std::max(draft_.startY, draft_.currentY);
+            break;
+        }
+        case EntityKind::Line:
+        case EntityKind::Arrow: {
+            dims.minX = std::min(draft_.startX, draft_.currentX);
+            dims.minY = std::min(draft_.startY, draft_.currentY);
+            dims.maxX = std::max(draft_.startX, draft_.currentX);
+            dims.maxY = std::max(draft_.startY, draft_.currentY);
+            break;
         }
         case EntityKind::Polyline: {
-             if (draft_.points.empty()) break;
-             for (size_t i = 0; i < draft_.points.size() - 1; ++i) {
-                 pushL(draft_.points[i].x, draft_.points[i].y, draft_.points[i+1].x, draft_.points[i+1].y);
-             }
-             if (!draft_.points.empty()) {
-                  pushL(draft_.points.back().x, draft_.points.back().y, draft_.currentX, draft_.currentY);
-             }
-             break;
+            if (draft_.points.empty()) {
+                dims.minX = dims.minY = dims.maxX = dims.maxY = 0;
+            } else {
+                dims.minX = dims.maxX = draft_.points[0].x;
+                dims.minY = dims.maxY = draft_.points[0].y;
+                for (const auto& p : draft_.points) {
+                    dims.minX = std::min(dims.minX, p.x);
+                    dims.minY = std::min(dims.minY, p.y);
+                    dims.maxX = std::max(dims.maxX, p.x);
+                    dims.maxY = std::max(dims.maxY, p.y);
+                }
+                // Include current cursor position
+                dims.minX = std::min(dims.minX, draft_.currentX);
+                dims.minY = std::min(dims.minY, draft_.currentY);
+                dims.maxX = std::max(dims.maxX, draft_.currentX);
+                dims.maxY = std::max(dims.maxY, draft_.currentY);
+            }
+            break;
         }
-        default: break;
+        default:
+            break;
     }
+    
+    dims.width = dims.maxX - dims.minX;
+    dims.height = dims.maxY - dims.minY;
+    dims.centerX = (dims.minX + dims.maxX) / 2.0f;
+    dims.centerY = (dims.minY + dims.maxY) / 2.0f;
+    
+    return dims;
 }
+

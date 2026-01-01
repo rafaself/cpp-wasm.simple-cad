@@ -179,7 +179,9 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getCommitResultCount", &CadEngine::getCommitResultCount)
         .function("getCommitResultIdsPtr", &CadEngine::getCommitResultIdsPtr)
         .function("getCommitResultOpCodesPtr", &CadEngine::getCommitResultOpCodesPtr)
-        .function("getCommitResultPayloadsPtr", &CadEngine::getCommitResultPayloadsPtr);
+        .function("getCommitResultPayloadsPtr", &CadEngine::getCommitResultPayloadsPtr)
+        // Draft System
+        .function("getDraftDimensions", &CadEngine::getDraftDimensions);
     
     // ... values ...
 
@@ -265,6 +267,18 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("maxX", &CadEngine::EntityAabb::maxX)
         .field("maxY", &CadEngine::EntityAabb::maxY)
         .field("valid", &CadEngine::EntityAabb::valid);
+
+    emscripten::value_object<DraftDimensions>("DraftDimensions")
+        .field("minX", &DraftDimensions::minX)
+        .field("minY", &DraftDimensions::minY)
+        .field("maxX", &DraftDimensions::maxX)
+        .field("maxY", &DraftDimensions::maxY)
+        .field("width", &DraftDimensions::width)
+        .field("height", &DraftDimensions::height)
+        .field("centerX", &DraftDimensions::centerX)
+        .field("centerY", &DraftDimensions::centerY)
+        .field("kind", &DraftDimensions::kind)
+        .field("active", &DraftDimensions::active);
 
     // Text-related value objects
     emscripten::value_object<TextHitResult>("TextHitResult")

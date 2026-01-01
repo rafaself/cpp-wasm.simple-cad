@@ -9,7 +9,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
 
-import SelectionOverlay from './SelectionOverlay';
+import ShapeOverlay from './ShapeOverlay';
 
 const EngineInteractionLayer: React.FC = () => {
   // Store Hooks
@@ -157,7 +157,7 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerEnter={() => setIsMouseOverCanvas(true)}
       onPointerLeave={() => setIsMouseOverCanvas(false)}
     >
-      <SelectionOverlay />
+      <ShapeOverlay />
       
       {/* Center Icon */}
       {centerIconSettings.show && (
