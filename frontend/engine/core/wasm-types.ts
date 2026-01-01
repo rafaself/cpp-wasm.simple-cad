@@ -171,11 +171,25 @@ export type CadEngineInstance = {
     mode: number,
     specificId: EntityId,
     vertexIndex: number,
-    startX: number,
-    startY: number,
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
     modifiers: number,
   ) => void;
-  updateTransform?: (worldX: number, worldY: number, modifiers: number) => void;
+  updateTransform?: (
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
+  ) => void;
   commitTransform?: () => void;
   cancelTransform?: () => void;
   isInteractionActive?: () => boolean;

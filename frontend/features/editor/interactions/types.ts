@@ -5,6 +5,7 @@ export type EngineRuntime = Awaited<ReturnType<typeof getEngineRuntime>>;
 
 export interface InputEventContext {
   event: React.PointerEvent | PointerEvent;
+  screenPoint: Point;
   worldPoint: Point;
   snappedPoint: Point;
   runtime: EngineRuntime | null;

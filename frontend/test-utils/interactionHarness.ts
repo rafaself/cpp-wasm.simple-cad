@@ -151,9 +151,11 @@ export class InteractionHarness {
 
   private buildContext(opts: PointerOpts) {
     const event = buildPointerEvent(opts, this.canvasSize);
-    const worldPoint = screenToWorld({ x: opts.x, y: opts.y }, this.viewTransform);
+    const screenPoint = { x: opts.x, y: opts.y };
+    const worldPoint = screenToWorld(screenPoint, this.viewTransform);
     return {
       event,
+      screenPoint,
       worldPoint,
       snappedPoint: worldPoint,
       runtime: this.runtime as any,

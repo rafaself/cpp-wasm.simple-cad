@@ -16,8 +16,8 @@ TEST(HistoryTest, UndoRedoSequence) {
     const auto digestAfterCreate = engine.getDocumentDigest();
 
     std::uint32_t ids[] = {1};
-    engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1, 0.0f, 0.0f, 0);
-    engine.updateTransform(5.0f, 0.0f, 0);
+    engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
+    engine.updateTransform(5.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
     engine.commitTransform();
 
     const RectRec* rect = findRect(engine, 1);
@@ -57,8 +57,8 @@ TEST(HistoryTest, SnapshotRoundTripUndoRedo) {
     CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
 
     std::uint32_t ids[] = {1};
-    engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1, 0.0f, 0.0f, 0);
-    engine.updateTransform(3.0f, 0.0f, 0);
+    engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
+    engine.updateTransform(3.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
     engine.commitTransform();
 
     CadEngineTestAccessor::deleteEntity(engine, 1);
@@ -86,4 +86,25 @@ TEST(HistoryTest, SnapshotRoundTripUndoRedo) {
 
     engine2.redo();
     EXPECT_EQ(findRect(engine2, 1), nullptr);
+}
+
+TEST(HistoryTest, DragBelowThresholdDoesNotCreateHistory) {
+    CadEngine engine;
+    engine.clear();
+
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
+    engine.clearHistory();
+
+    std::uint32_t ids[] = {1};
+    engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1,
+        0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
+    engine.updateTransform(1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
+    engine.commitTransform();
+
+    const RectRec* rect = findRect(engine, 1);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->x, 0.0f);
+    EXPECT_FALSE(engine.canUndo());
 }

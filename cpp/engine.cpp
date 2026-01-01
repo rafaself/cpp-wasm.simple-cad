@@ -443,6 +443,45 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
 }
 
 PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept {
+    constexpr std::uint32_t kPickHandlesMask = 1u << 3;
+    if ((pickMask & kPickHandlesMask) != 0) {
+        const auto& selection = selectionManager_.getOrdered();
+        if (selection.size() > 1) {
+            const EntityAabb bounds = getSelectionBounds();
+            if (bounds.valid) {
+                const float corners[4][2] = {
+                    {bounds.minX, bounds.minY},
+                    {bounds.maxX, bounds.minY},
+                    {bounds.maxX, bounds.maxY},
+                    {bounds.minX, bounds.maxY},
+                };
+                float bestDist = std::numeric_limits<float>::infinity();
+                int bestIndex = -1;
+                for (int i = 0; i < 4; ++i) {
+                    const float dx = x - corners[i][0];
+                    const float dy = y - corners[i][1];
+                    const float dist = std::sqrt(dx * dx + dy * dy);
+                    if (dist <= tolerance && dist < bestDist) {
+                        bestDist = dist;
+                        bestIndex = i;
+                    }
+                }
+
+                if (bestIndex >= 0) {
+                    return {
+                        selection.front(),
+                        static_cast<std::uint16_t>(PickEntityKind::Unknown),
+                        static_cast<std::uint8_t>(PickSubTarget::ResizeHandle),
+                        bestIndex,
+                        bestDist,
+                        x,
+                        y
+                    };
+                }
+            }
+        }
+    }
+
     return pickSystem_.pickEx(x, y, tolerance, viewScale, pickMask, entityManager_, textSystem_);
 }
 
@@ -707,16 +746,34 @@ void CadEngine::decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCo
 // ==============================================================================
 
 void CadEngine::beginTransform(
-    const std::uint32_t* ids, 
-    std::uint32_t idCount, 
-    TransformMode mode, 
-    std::uint32_t specificId, 
-    int32_t vertexIndex, 
-    float startX, 
-    float startY,
+    const std::uint32_t* ids,
+    std::uint32_t idCount,
+    TransformMode mode,
+    std::uint32_t specificId,
+    int32_t vertexIndex,
+    float screenX,
+    float screenY,
+    float viewX,
+    float viewY,
+    float viewScale,
+    float viewWidth,
+    float viewHeight,
     std::uint32_t modifiers
 ) {
-    interactionSession_.beginTransform(ids, idCount, mode, specificId, vertexIndex, startX, startY, modifiers);
+    interactionSession_.beginTransform(
+        ids,
+        idCount,
+        mode,
+        specificId,
+        vertexIndex,
+        screenX,
+        screenY,
+        viewX,
+        viewY,
+        viewScale,
+        viewWidth,
+        viewHeight,
+        modifiers);
 }
 
 // ==============================================================================
@@ -747,8 +804,24 @@ DraftDimensions CadEngine::getDraftDimensions() const {
     return interactionSession_.getDraftDimensions();
 }
 
-void CadEngine::updateTransform(float worldX, float worldY, std::uint32_t modifiers) {
-    interactionSession_.updateTransform(worldX, worldY, modifiers);
+void CadEngine::updateTransform(
+    float screenX,
+    float screenY,
+    float viewX,
+    float viewY,
+    float viewScale,
+    float viewWidth,
+    float viewHeight,
+    std::uint32_t modifiers) {
+    interactionSession_.updateTransform(
+        screenX,
+        screenY,
+        viewX,
+        viewY,
+        viewScale,
+        viewWidth,
+        viewHeight,
+        modifiers);
 }
 
 void CadEngine::commitTransform() {

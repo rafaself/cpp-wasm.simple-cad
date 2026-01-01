@@ -528,8 +528,13 @@ public:
      * @param mode Transform mode (Move, VertexDrag, etc)
      * @param specificId ID of the specific sub-element being dragged (e.g. vertex owner)
      * @param vertexIndex Index of vertex if applicable, -1 otherwise
-     * @param startX World X start position
-     * @param startY World Y start position
+     * @param screenX Screen-space X (canvas local)
+     * @param screenY Screen-space Y (canvas local)
+     * @param viewX View translate X (screen space)
+     * @param viewY View translate Y (screen space)
+     * @param viewScale View scale (world->screen)
+     * @param viewWidth Viewport width (screen space)
+     * @param viewHeight Viewport height (screen space)
      * @param modifiers Modifier bitmask (Shift/Ctrl/Alt/Meta)
      */
     void beginTransform(
@@ -538,18 +543,36 @@ public:
         TransformMode mode, 
         std::uint32_t specificId, 
         int32_t vertexIndex, 
-        float startX, 
-        float startY,
+        float screenX, 
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
         std::uint32_t modifiers
     );
 
     /**
      * Update the current transform session.
-     * @param worldX Current pointer World X
-     * @param worldY Current pointer World Y
+     * @param screenX Current pointer Screen X (canvas local)
+     * @param screenY Current pointer Screen Y (canvas local)
+     * @param viewX View translate X (screen space)
+     * @param viewY View translate Y (screen space)
+     * @param viewScale View scale (world->screen)
+     * @param viewWidth Viewport width (screen space)
+     * @param viewHeight Viewport height (screen space)
      * @param modifiers Modifier bitmask (Shift/Ctrl/Alt/Meta)
      */
-    void updateTransform(float worldX, float worldY, std::uint32_t modifiers);
+    void updateTransform(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        std::uint32_t modifiers);
 
     /**
      * Commit changes and end the session.

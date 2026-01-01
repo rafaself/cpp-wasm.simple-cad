@@ -49,7 +49,7 @@ struct EngineProtocolTypes {
     using TextContentMeta = engine::protocol::TextContentMeta;
 
     // Protocol versions (must be non-zero; keep in sync with TS).
-    static constexpr std::uint32_t kProtocolVersion = 1;      // Handshake schema version
+    static constexpr std::uint32_t kProtocolVersion = 2;      // Handshake schema version
     static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
     static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version (ESNP v1)
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)

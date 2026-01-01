@@ -72,11 +72,24 @@ public:
         TransformMode mode, 
         std::uint32_t specificId, 
         int32_t vertexIndex, 
-        float startX, 
-        float startY,
+        float screenX, 
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
         std::uint32_t modifiers
     );
-    void updateTransform(float worldX, float worldY, std::uint32_t modifiers);
+    void updateTransform(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        std::uint32_t modifiers);
     void commitTransform();
     void cancelTransform();
 
@@ -113,9 +126,11 @@ private:
         std::vector<std::uint32_t> initialIds;
         std::uint32_t specificId = 0;
         int32_t vertexIndex = -1;
+        float startScreenX = 0.0f;
+        float startScreenY = 0.0f;
         float startX = 0.0f;
         float startY = 0.0f;
-        float dragThresholdWU = 0.0f;
+        float dragThresholdPx = 0.0f;
         bool dragging = false;
         bool historyActive = false;
         float baseMinX = 0.0f;
@@ -183,8 +198,8 @@ private:
     void upsertPhantomEntity();   // Create or update phantom entity from draft state
     void removePhantomEntity();   // Remove phantom entity from EntityManager
 
-    void recordTransformBegin(float startX, float startY, std::uint32_t modifiers);
-    void recordTransformUpdate(float worldX, float worldY, std::uint32_t modifiers);
+    void recordTransformBegin(float screenX, float screenY, std::uint32_t modifiers);
+    void recordTransformUpdate(float screenX, float screenY, std::uint32_t modifiers);
     void recordTransformCommit();
     void recordTransformCancel();
 };

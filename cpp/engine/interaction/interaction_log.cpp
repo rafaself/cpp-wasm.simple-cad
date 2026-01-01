@@ -52,11 +52,36 @@ bool InteractionSession::replayTransformLog() {
                     ids = transformLogIds_.data() + start;
                     engine_.setSelection(ids, entry.idCount, engine::protocol::SelectionMode::Replace);
                 }
-                beginTransform(ids, entry.idCount, static_cast<TransformMode>(entry.mode), entry.specificId, entry.vertexIndex, entry.x, entry.y, entry.modifiers);
+                const auto& state = engine_.state();
+                beginTransform(
+                    ids,
+                    entry.idCount,
+                    static_cast<TransformMode>(entry.mode),
+                    entry.specificId,
+                    entry.vertexIndex,
+                    entry.x,
+                    entry.y,
+                    state.viewX,
+                    state.viewY,
+                    state.viewScale,
+                    state.viewWidth,
+                    state.viewHeight,
+                    entry.modifiers);
                 break;
             }
             case engine::protocol::TransformLogEvent::Update:
-                updateTransform(entry.x, entry.y, entry.modifiers);
+                {
+                    const auto& state = engine_.state();
+                    updateTransform(
+                        entry.x,
+                        entry.y,
+                        state.viewX,
+                        state.viewY,
+                        state.viewScale,
+                        state.viewWidth,
+                        state.viewHeight,
+                        entry.modifiers);
+                }
                 break;
             case engine::protocol::TransformLogEvent::Commit:
                 commitTransform();
@@ -73,7 +98,7 @@ bool InteractionSession::replayTransformLog() {
     return true;
 }
 
-void InteractionSession::recordTransformBegin(float startX, float startY, std::uint32_t modifiers) {
+void InteractionSession::recordTransformBegin(float screenX, float screenY, std::uint32_t modifiers) {
     if (!transformLogEnabled_ || replaying_) return;
 
     transformLogEntries_.clear();
@@ -113,14 +138,14 @@ void InteractionSession::recordTransformBegin(float startX, float startY, std::u
     entry.idCount = static_cast<std::uint32_t>(idCount);
     entry.specificId = session_.specificId;
     entry.vertexIndex = session_.vertexIndex;
-    entry.x = startX;
-    entry.y = startY;
+    entry.x = screenX;
+    entry.y = screenY;
     entry.modifiers = modifiers;
     transformLogEntries_.push_back(entry);
     transformLogActive_ = true;
 }
 
-void InteractionSession::recordTransformUpdate(float worldX, float worldY, std::uint32_t modifiers) {
+void InteractionSession::recordTransformUpdate(float screenX, float screenY, std::uint32_t modifiers) {
     if (!transformLogEnabled_ || !transformLogActive_ || replaying_) return;
 
     if (transformLogCapacity_ == 0 || transformLogEntries_.size() >= transformLogCapacity_) {
@@ -134,8 +159,8 @@ void InteractionSession::recordTransformUpdate(float worldX, float worldY, std::
     entry.mode = static_cast<std::uint32_t>(session_.mode);
     entry.specificId = session_.specificId;
     entry.vertexIndex = session_.vertexIndex;
-    entry.x = worldX;
-    entry.y = worldY;
+    entry.x = screenX;
+    entry.y = screenY;
     entry.modifiers = modifiers;
     transformLogEntries_.push_back(entry);
 }

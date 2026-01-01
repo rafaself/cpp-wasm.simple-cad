@@ -36,7 +36,7 @@ const buildModifierMask = (event: {
 type InteractionState =
   | { kind: 'none' }
   | { kind: 'marquee'; box: SelectionBoxState; startScreen: { x: number; y: number } }
-  | { kind: 'transform'; startWorld: { x: number; y: number }; mode: TransformMode };
+  | { kind: 'transform'; startScreen: { x: number; y: number }; mode: TransformMode };
 
 export class SelectionHandler extends BaseInteractionHandler {
   name = 'select';
@@ -48,7 +48,7 @@ export class SelectionHandler extends BaseInteractionHandler {
   private runtime: EngineRuntime | null = null;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
-    const { runtime, snappedPoint: snapped, worldPoint: world, event } = ctx;
+    const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime || event.button !== 0) return;
     this.runtime = runtime;
 
@@ -95,8 +95,13 @@ export class SelectionHandler extends BaseInteractionHandler {
           TransformMode.Move,
           res.id,
           res.subIndex, // Pass subIndex (vertex/handle index)
-          snapped.x,
-          snapped.y,
+          screen.x,
+          screen.y,
+          ctx.viewTransform.x,
+          ctx.viewTransform.y,
+          ctx.viewTransform.scale,
+          ctx.canvasSize.width,
+          ctx.canvasSize.height,
           modifiers,
         );
         cadDebugLog('transform', 'begin', () => ({
@@ -104,10 +109,10 @@ export class SelectionHandler extends BaseInteractionHandler {
           mode: TransformMode.Move,
           specificId: res.id,
           subIndex: res.subIndex,
-          x: snapped.x,
-          y: snapped.y,
+          x: screen.x,
+          y: screen.y,
         }));
-        this.state = { kind: 'transform', startWorld: snapped, mode: TransformMode.Move };
+        this.state = { kind: 'transform', startScreen: screen, mode: TransformMode.Move };
         return;
       }
     }
@@ -126,15 +131,24 @@ export class SelectionHandler extends BaseInteractionHandler {
   }
 
   onPointerMove(ctx: InputEventContext): void {
-    const { runtime, snappedPoint: snapped, worldPoint: world, event } = ctx;
+    const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
 
     if (this.state.kind === 'transform') {
       // Update Engine Transform
       if (runtime.updateTransform) {
         const modifiers = buildModifierMask(event);
-        runtime.updateTransform(snapped.x, snapped.y, modifiers);
-        cadDebugLog('transform', 'update', () => ({ x: snapped.x, y: snapped.y }));
+        runtime.updateTransform(
+          screen.x,
+          screen.y,
+          ctx.viewTransform.x,
+          ctx.viewTransform.y,
+          ctx.viewTransform.scale,
+          ctx.canvasSize.width,
+          ctx.canvasSize.height,
+          modifiers,
+        );
+        cadDebugLog('transform', 'update', () => ({ x: screen.x, y: screen.y }));
       }
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
@@ -152,7 +166,7 @@ export class SelectionHandler extends BaseInteractionHandler {
   }
 
   onPointerUp(ctx: InputEventContext): InteractionHandler | void {
-    const { runtime, snappedPoint: snapped, event } = ctx;
+    const { runtime, event } = ctx;
     if (!runtime) {
       this.state = { kind: 'none' };
       this.pointerDown = null;

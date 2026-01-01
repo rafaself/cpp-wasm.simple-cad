@@ -18,6 +18,23 @@ namespace {
     inline bool isSnapSuppressed(std::uint32_t modifiers) {
         return (modifiers & (kCtrlMask | kMetaMask)) != 0;
     }
+
+    inline float normalizeViewScale(float viewScale) {
+        return (viewScale > 1e-6f && std::isfinite(viewScale)) ? viewScale : 1.0f;
+    }
+
+    inline void screenToWorld(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float& outX,
+        float& outY) {
+        const float scale = normalizeViewScale(viewScale);
+        outX = (screenX - viewX) / scale;
+        outY = -(screenY - viewY) / scale;
+    }
 }
 
 InteractionSession::InteractionSession(CadEngine& engine, EntityManager& entityManager, PickSystem& pickSystem, TextSystem& textSystem, HistoryManager& historyManager)
@@ -146,8 +163,13 @@ void InteractionSession::beginTransform(
     TransformMode mode, 
     std::uint32_t specificId, 
     int32_t vertexIndex, 
-    float startX, 
-    float startY,
+    float screenX, 
+    float screenY,
+    float viewX,
+    float viewY,
+    float viewScale,
+    float viewWidth,
+    float viewHeight,
     std::uint32_t modifiers
 ) {
     if (session_.active) return;
@@ -158,8 +180,11 @@ void InteractionSession::beginTransform(
     session_.snapshots.clear();
     session_.specificId = specificId;
     session_.vertexIndex = vertexIndex;
-    session_.startX = startX;
-    session_.startY = startY;
+    session_.startScreenX = screenX;
+    session_.startScreenY = screenY;
+    screenToWorld(screenX, screenY, viewX, viewY, viewScale, session_.startX, session_.startY);
+    (void)viewWidth;
+    (void)viewHeight;
     session_.dragging = false;
     session_.historyActive = false;
     session_.nextEntityIdBefore = engine_.state().nextEntityId_;
@@ -168,13 +193,9 @@ void InteractionSession::beginTransform(
     session_.originalIds.clear();
     transformStats_ = TransformStats{};
     snapGuides_.clear();
-    if (!isSnapSuppressed(modifiers)) {
-        applyGridSnap(session_.startX, session_.startY, snapOptions);
-    }
     {
-        const float scale = engine_.state().viewScale;
         constexpr float kDragThresholdPx = 3.0f;
-        session_.dragThresholdWU = (scale > 1e-6f) ? (kDragThresholdPx / scale) : kDragThresholdPx;
+        session_.dragThresholdPx = kDragThresholdPx;
     }
 
     std::vector<std::uint32_t> activeIds;
@@ -293,7 +314,7 @@ void InteractionSession::beginTransform(
         session_.baseMaxY = maxY;
     }
 
-    recordTransformBegin(startX, startY, modifiers);
+    recordTransformBegin(screenX, screenY, modifiers);
 
     session_.historyActive = engine_.beginHistoryEntry();
     if (session_.historyActive) {
@@ -303,12 +324,20 @@ void InteractionSession::beginTransform(
     }
 }
 
-void InteractionSession::updateTransform(float worldX, float worldY, std::uint32_t modifiers) {
+void InteractionSession::updateTransform(
+    float screenX,
+    float screenY,
+    float viewX,
+    float viewY,
+    float viewScale,
+    float viewWidth,
+    float viewHeight,
+    std::uint32_t modifiers) {
     if (!session_.active) return;
     snapGuides_.clear();
 
     const double t0 = emscripten_get_now();
-    recordTransformUpdate(worldX, worldY, modifiers);
+    recordTransformUpdate(screenX, screenY, modifiers);
     std::uint32_t snapCandidateCount = 0;
     std::uint32_t snapHitCount = 0;
     auto finalizeStats = [&]() {
@@ -317,19 +346,15 @@ void InteractionSession::updateTransform(float worldX, float worldY, std::uint32
         transformStats_.lastSnapHitCount = snapHitCount;
     };
 
+    const float screenDx = screenX - session_.startScreenX;
+    const float screenDy = screenY - session_.startScreenY;
     const bool snapSuppressed = isSnapSuppressed(modifiers);
-    if (!snapSuppressed) {
-        applyGridSnap(worldX, worldY, snapOptions);
-    }
-
     bool updated = false;
-    float totalDx = worldX - session_.startX;
-    float totalDy = worldY - session_.startY;
 
     bool dragStarted = false;
     if (!session_.dragging) {
-        const float threshold = session_.dragThresholdWU;
-        const float distSq = totalDx * totalDx + totalDy * totalDy;
+        const float threshold = session_.dragThresholdPx;
+        const float distSq = screenDx * screenDx + screenDy * screenDy;
         if (distSq < threshold * threshold) {
             finalizeStats();
             return;
@@ -337,6 +362,17 @@ void InteractionSession::updateTransform(float worldX, float worldY, std::uint32
         session_.dragging = true;
         dragStarted = true;
     }
+
+    float worldX = 0.0f;
+    float worldY = 0.0f;
+    screenToWorld(screenX, screenY, viewX, viewY, viewScale, worldX, worldY);
+
+    if (!snapSuppressed) {
+        applyGridSnap(worldX, worldY, snapOptions);
+    }
+
+    float totalDx = worldX - session_.startX;
+    float totalDy = worldY - session_.startY;
     
     if (session_.mode == TransformMode::Move) {
         const bool shiftDown = (modifiers & kShiftMask) != 0;
@@ -349,7 +385,7 @@ void InteractionSession::updateTransform(float worldX, float worldY, std::uint32
         if (!shiftDown) {
             session_.axisLock = AxisLock::None;
         } else if (session_.axisLock == AxisLock::None) {
-            session_.axisLock = (std::abs(totalDx) >= std::abs(totalDy)) ? AxisLock::X : AxisLock::Y;
+            session_.axisLock = (std::abs(screenDx) >= std::abs(screenDy)) ? AxisLock::X : AxisLock::Y;
         }
 
         if (session_.axisLock == AxisLock::X) {
@@ -374,11 +410,11 @@ void InteractionSession::updateTransform(float worldX, float worldY, std::uint32
                 entityManager_,
                 textSystem_,
                 pickSystem_,
-                engine_.state().viewScale,
-                engine_.state().viewX,
-                engine_.state().viewY,
-                engine_.state().viewWidth,
-                engine_.state().viewHeight,
+                viewScale,
+                viewX,
+                viewY,
+                viewWidth,
+                viewHeight,
                 allowSnapX,
                 allowSnapY,
                 snapGuides_,

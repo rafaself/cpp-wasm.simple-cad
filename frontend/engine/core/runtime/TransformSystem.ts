@@ -12,8 +12,13 @@ export class TransformSystem {
     mode: number,
     specificId: EntityId,
     vertexIndex: number,
-    startX: number,
-    startY: number,
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
     modifiers: number,
   ): void {
     if (!this.engine.beginTransform || !this.engine.allocBytes || !this.engine.freeBytes) {
@@ -25,16 +30,21 @@ export class TransformSystem {
     try {
       const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
       u32.set(ids);
-      this.engine.beginTransform(
-        ptr,
-        ids.length,
-        mode,
-        specificId,
-        vertexIndex,
-        startX,
-        startY,
-        modifiers,
-      );
+    this.engine.beginTransform(
+      ptr,
+      ids.length,
+      mode,
+      specificId,
+      vertexIndex,
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
     } catch (e) {
       console.error(e);
     } finally {
@@ -42,8 +52,26 @@ export class TransformSystem {
     }
   }
 
-  public updateTransform(worldX: number, worldY: number, modifiers: number): void {
-    this.engine.updateTransform?.(worldX, worldY, modifiers);
+  public updateTransform(
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
+  ): void {
+    this.engine.updateTransform?.(
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
   }
 
   public cancelTransform(): void {

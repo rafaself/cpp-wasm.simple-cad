@@ -171,8 +171,35 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
             return TextBoundsResult{0,0,0,0, false};
         }))
         // Interaction Session
-        .function("beginTransform", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode, std::uint32_t specificId, int32_t vertexIndex, float startX, float startY, std::uint32_t modifiers) {
-            self.beginTransform(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::TransformMode>(mode), specificId, vertexIndex, startX, startY, modifiers);
+        .function("beginTransform", emscripten::optional_override([](
+            CadEngine& self,
+            std::uintptr_t idsPtr,
+            std::uint32_t idCount,
+            int mode,
+            std::uint32_t specificId,
+            int32_t vertexIndex,
+            float screenX,
+            float screenY,
+            float viewX,
+            float viewY,
+            float viewScale,
+            float viewWidth,
+            float viewHeight,
+            std::uint32_t modifiers) {
+            self.beginTransform(
+                reinterpret_cast<const std::uint32_t*>(idsPtr),
+                idCount,
+                static_cast<CadEngine::TransformMode>(mode),
+                specificId,
+                vertexIndex,
+                screenX,
+                screenY,
+                viewX,
+                viewY,
+                viewScale,
+                viewWidth,
+                viewHeight,
+                modifiers);
         }))
         .function("updateTransform", &CadEngine::updateTransform)
         .function("commitTransform", &CadEngine::commitTransform)

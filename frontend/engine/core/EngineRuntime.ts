@@ -331,15 +331,51 @@ export class EngineRuntime {
     mode: number,
     specificId: EntityId,
     vertexIndex: number,
-    startX: number,
-    startY: number,
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
     modifiers: number,
   ): void {
-    this.transformSystem.beginTransform(ids, mode, specificId, vertexIndex, startX, startY, modifiers);
+    this.transformSystem.beginTransform(
+      ids,
+      mode,
+      specificId,
+      vertexIndex,
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
   }
 
-  public updateTransform(worldX: number, worldY: number, modifiers: number): void {
-    this.transformSystem.updateTransform(worldX, worldY, modifiers);
+  public updateTransform(
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
+  ): void {
+    this.transformSystem.updateTransform(
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
   }
 
   public commitTransform(): {

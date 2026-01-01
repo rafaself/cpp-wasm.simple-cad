@@ -129,10 +129,12 @@ export function useInteractionManager() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const clientX = e.clientX;
     const clientY = e.clientY;
-    const world = screenToWorld({ x: clientX - rect.left, y: clientY - rect.top }, viewTransform);
+    const screen = { x: clientX - rect.left, y: clientY - rect.top };
+    const world = screenToWorld(screen, viewTransform);
 
     return {
       event: e,
+      screenPoint: screen,
       worldPoint: world,
       snappedPoint: world,
       runtime: runtimeRef.current,

@@ -129,8 +129,13 @@ export class FakeRuntime {
     mode: TransformMode,
     specificId: number,
     subIndex: number,
-    startX: number,
-    startY: number,
+    screenX: number,
+    screenY: number,
+    _viewX: number,
+    _viewY: number,
+    _viewScale: number,
+    _viewWidth: number,
+    _viewHeight: number,
     _modifiers: number,
   ): void {
     this.transformSessions.begun += 1;
@@ -139,11 +144,20 @@ export class FakeRuntime {
       mode,
       specificId,
       subIndex,
-      start: { x: startX, y: startY },
+      start: { x: screenX, y: screenY },
     };
   }
 
-  updateTransform(x: number, y: number, _modifiers: number): void {
+  updateTransform(
+    x: number,
+    y: number,
+    _viewX: number,
+    _viewY: number,
+    _viewScale: number,
+    _viewWidth: number,
+    _viewHeight: number,
+    _modifiers: number,
+  ): void {
     this.transformSessions.updates += 1;
     this.transformSessions.lastUpdate = { x, y };
   }
