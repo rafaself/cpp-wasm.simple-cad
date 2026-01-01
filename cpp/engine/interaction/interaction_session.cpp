@@ -463,12 +463,19 @@ void InteractionSession::updateTransform(
             } else if (it->second.kind == EntityKind::Text) {
                   TextRec* tr = textSystem_.store.getTextMutable(id); 
                   if (tr) {
-                       tr->x = snap.x + totalDx; tr->y = snap.y + totalDy;
+                       const float offsetMinX = tr->minX - tr->x;
+                       const float offsetMinY = tr->minY - tr->y;
+                       const float offsetMaxX = tr->maxX - tr->x;
+                       const float offsetMaxY = tr->maxY - tr->y;
+                       const float newX = snap.x + totalDx;
+                       const float newY = snap.y + totalDy;
+                       tr->x = newX; tr->y = newY;
+                       tr->minX = newX + offsetMinX;
+                       tr->minY = newY + offsetMinY;
+                       tr->maxX = newX + offsetMaxX;
+                       tr->maxY = newY + offsetMaxY;
                       engine_.state().textQuadsDirty_ = true;
-                       float minX, minY, maxX, maxY;
-                       if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) {
-                           pickSystem_.update(id, {minX, minY, maxX, maxY});
-                       }
+                      pickSystem_.update(id, {tr->minX, tr->minY, tr->maxX, tr->maxY});
                        updated = true;
                    }
             } else if (it->second.kind == EntityKind::Line) {
@@ -797,9 +804,18 @@ void InteractionSession::cancelTransform() {
              for (auto& p : entityManager_.polygons) { if (p.id == id) { p.cx = snap.x; p.cy = snap.y; p.rx = snap.w; p.ry = snap.h; pickSystem_.update(id, PickSystem::computePolygonAABB(p)); break; } }
         } else if (it->second.kind == EntityKind::Text) {
              TextRec* tr = textSystem_.store.getTextMutable(id);
-             if (tr) { tr->x = snap.x; tr->y = snap.y; engine_.state().textQuadsDirty_ = true;
-                 float minX, minY, maxX, maxY;
-                 if (textSystem_.getBounds(id, minX, minY, maxX, maxY)) { pickSystem_.update(id, {minX, minY, maxX, maxY}); }
+             if (tr) { 
+                 const float offsetMinX = tr->minX - tr->x;
+                 const float offsetMinY = tr->minY - tr->y;
+                 const float offsetMaxX = tr->maxX - tr->x;
+                 const float offsetMaxY = tr->maxY - tr->y;
+                 tr->x = snap.x; tr->y = snap.y;
+                 tr->minX = tr->x + offsetMinX;
+                 tr->minY = tr->y + offsetMinY;
+                 tr->maxX = tr->x + offsetMaxX;
+                 tr->maxY = tr->y + offsetMaxY;
+                 engine_.state().textQuadsDirty_ = true;
+                 pickSystem_.update(id, {tr->minX, tr->minY, tr->maxX, tr->maxY});
              }
         } else if (it->second.kind == EntityKind::Polyline) {
              for (auto& pl : entityManager_.polylines) { if (pl.id == id) {
@@ -1064,12 +1080,12 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
             if (!(rx > 0.0f) || !(ry > 0.0f)) break;
             const float cx = (draft_.startX + draft_.currentX) * 0.5f;
             const float cy = (draft_.startY + draft_.currentY) * 0.5f;
-            constexpr std::uint32_t segments = 64;
+            constexpr std::uint32_t segmentCount = 64;
 
             Point2 first{};
             Point2 prev{};
-            for (std::uint32_t i = 0; i < segments; ++i) {
-                const float t = (static_cast<float>(i) / static_cast<float>(segments)) * twoPi;
+            for (std::uint32_t i = 0; i < segmentCount; ++i) {
+                const float t = (static_cast<float>(i) / static_cast<float>(segmentCount)) * twoPi;
                 const float x = cx + std::cos(t) * rx;
                 const float y = cy + std::sin(t) * ry;
                 const Point2 curr{x, y};

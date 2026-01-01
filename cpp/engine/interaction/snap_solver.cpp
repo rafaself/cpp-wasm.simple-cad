@@ -43,7 +43,7 @@ namespace {
         }
     }
 
-    inline bool computeEntityAabb(std::uint32_t id, const EntityManager& em, const TextSystem& ts, AABB& out) {
+    inline bool computeEntityAabb(std::uint32_t id, const EntityManager& em, TextSystem& ts, AABB& out) {
         const auto it = em.entities.find(id);
         if (it == em.entities.end()) return false;
 
@@ -191,7 +191,7 @@ SnapResult computeObjectSnap(
     float totalDx,
     float totalDy,
     const EntityManager& entityManager,
-    const TextSystem& textSystem,
+    TextSystem& textSystem,
     const PickSystem& pickSystem,
     float viewScale,
     float viewX,

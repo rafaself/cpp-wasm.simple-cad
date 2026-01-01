@@ -753,11 +753,11 @@ void CadEngine::beginTransform(
     int32_t vertexIndex,
     float screenX,
     float screenY,
-    float viewX,
-    float viewY,
-    float viewScale,
-    float viewWidth,
-    float viewHeight,
+    float viewXParam,
+    float viewYParam,
+    float viewScaleParam,
+    float viewWidthParam,
+    float viewHeightParam,
     std::uint32_t modifiers
 ) {
     interactionSession_.beginTransform(
@@ -768,11 +768,11 @@ void CadEngine::beginTransform(
         vertexIndex,
         screenX,
         screenY,
-        viewX,
-        viewY,
-        viewScale,
-        viewWidth,
-        viewHeight,
+        viewXParam,
+        viewYParam,
+        viewScaleParam,
+        viewWidthParam,
+        viewHeightParam,
         modifiers);
 }
 
@@ -807,20 +807,20 @@ DraftDimensions CadEngine::getDraftDimensions() const {
 void CadEngine::updateTransform(
     float screenX,
     float screenY,
-    float viewX,
-    float viewY,
-    float viewScale,
-    float viewWidth,
-    float viewHeight,
+    float viewXParam,
+    float viewYParam,
+    float viewScaleParam,
+    float viewWidthParam,
+    float viewHeightParam,
     std::uint32_t modifiers) {
     interactionSession_.updateTransform(
         screenX,
         screenY,
-        viewX,
-        viewY,
-        viewScale,
-        viewWidth,
-        viewHeight,
+        viewXParam,
+        viewYParam,
+        viewScaleParam,
+        viewWidthParam,
+        viewHeightParam,
         modifiers);
 }
 

@@ -1,5 +1,6 @@
 #include "engine/interaction/interaction_session.h"
 #include "engine/engine.h"
+#include "engine/internal/engine_state.h"
 
 void InteractionSession::setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds) {
     transformLogEnabled_ = enabled;

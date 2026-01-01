@@ -26,7 +26,7 @@ SnapResult computeObjectSnap(
     float totalDx,
     float totalDy,
     const EntityManager& entityManager,
-    const TextSystem& textSystem,
+    TextSystem& textSystem,
     const PickSystem& pickSystem,
     float viewScale,
     float viewX,

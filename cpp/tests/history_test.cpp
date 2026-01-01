@@ -93,7 +93,7 @@ TEST(HistoryTest, DragBelowThresholdDoesNotCreateHistory) {
     engine.clear();
 
     CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
-    engine.clearHistory();
+    CadEngineTestAccessor::clearHistory(engine);
 
     std::uint32_t ids[] = {1};
     engine.beginTransform(ids, 1, CadEngine::TransformMode::Move, 0, -1,

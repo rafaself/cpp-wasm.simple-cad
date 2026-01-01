@@ -40,6 +40,39 @@ void moveByScreen(CadEngine& engine, std::uint32_t id, float screenX, float scre
     engine.commitTransform();
 }
 
+void moveByScreenWithModifiers(
+    CadEngine& engine,
+    std::uint32_t id,
+    float screenX,
+    float screenY,
+    std::uint32_t modifiers) {
+    std::uint32_t ids[] = { id };
+    engine.beginTransform(
+        ids,
+        1,
+        CadEngine::TransformMode::Move,
+        0,
+        -1,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.updateTransform(
+        screenX,
+        screenY,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.commitTransform();
+}
+
 PickResult pickAt(const CadEngine& engine, float x, float y) {
     return engine.pickEx(x, y, kPickTolerance, kPickMask);
 }
@@ -290,14 +323,14 @@ TEST_F(CadEngineTest, MoveUpdatesPickIndexForRect) {
 }
 
 TEST_F(CadEngineTest, MoveUpdatesPickIndexForCircle) {
-    engine.upsertCircle(2, 0.0f, 0.0f, 5.0f, 5.0f, 0.0f, 1.0f, 1.0f,
+    CadEngineTestAccessor::upsertCircle(engine, 2, 0.0f, 0.0f, 5.0f, 5.0f, 0.0f, 1.0f, 1.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
     moveByScreen(engine, 2, kMoveScreenX, kMoveScreenY);
     expectPickMoved(engine, 2, 50.0f, 0.0f, 0.0f, 0.0f);
 }
 
 TEST_F(CadEngineTest, MoveUpdatesPickIndexForPolygon) {
-    engine.upsertPolygon(3, 0.0f, 0.0f, 5.0f, 5.0f, 0.0f, 1.0f, 1.0f, 5,
+    CadEngineTestAccessor::upsertPolygon(engine, 3, 0.0f, 0.0f, 5.0f, 5.0f, 0.0f, 1.0f, 1.0f, 5,
         1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
     moveByScreen(engine, 3, kMoveScreenX, kMoveScreenY);
     expectPickMoved(engine, 3, 50.0f, 0.0f, 0.0f, 0.0f);
@@ -310,7 +343,7 @@ TEST_F(CadEngineTest, MoveUpdatesPickIndexForLine) {
 }
 
 TEST_F(CadEngineTest, MoveUpdatesPickIndexForArrow) {
-    engine.upsertArrow(5, 0.0f, 0.0f, 10.0f, 0.0f, 6.0f,
+    CadEngineTestAccessor::upsertArrow(engine, 5, 0.0f, 0.0f, 10.0f, 0.0f, 6.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
     moveByScreen(engine, 5, kMoveScreenX, kMoveScreenY);
     expectPickMoved(engine, 5, 55.0f, 0.0f, 5.0f, 0.0f);
@@ -416,7 +449,115 @@ TEST_F(CadEngineTest, PickExUsesSelectionBoundsHandles) {
     const float tolerance = 2.0f;
 
     const PickResult res = engine.pickEx(x, y, tolerance, 0xFF);
-    EXPECT_EQ(res.subTarget, PickSubTarget::ResizeHandle);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
     EXPECT_EQ(res.subIndex, 2);
     EXPECT_EQ(res.id, 1u);
+}
+
+TEST_F(CadEngineTest, SnapToGridUsesSnapOptions) {
+    engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
+    const auto snapped = engine.getSnappedPoint(12.4f, 18.9f);
+    EXPECT_FLOAT_EQ(snapped.first, 10.0f);
+    EXPECT_FLOAT_EQ(snapped.second, 20.0f);
+}
+
+TEST_F(CadEngineTest, SnapToGridDisabledReturnsInput) {
+    engine.setSnapOptions(false, true, 10.0f, 5.0f, false, false, false, false);
+    const auto snapped = engine.getSnappedPoint(12.4f, 18.9f);
+    EXPECT_FLOAT_EQ(snapped.first, 12.4f);
+    EXPECT_FLOAT_EQ(snapped.second, 18.9f);
+}
+
+TEST_F(CadEngineTest, ObjectSnapAlignsEdges) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 30.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+
+    engine.setSnapOptions(true, false, 10.0f, 5.0f, false, false, true, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
+        0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
+    engine.updateTransform(19.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
+    engine.commitTransform();
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* rect = em.getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->x, 20.0f);
+}
+
+TEST_F(CadEngineTest, GridSnapAppliedDuringMove) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    moveByScreenWithModifiers(engine, id, 9.5f, 0.0f, 0);
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* rect = em.getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->x, 10.0f);
+}
+
+TEST_F(CadEngineTest, SnapSuppressedByCtrlDuringMove) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    const std::uint32_t ctrlMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Ctrl);
+    moveByScreenWithModifiers(engine, id, 9.5f, 0.0f, ctrlMask);
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* rect = em.getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_NEAR(rect->x, 9.5f, 1e-4f);
+}
+
+TEST_F(CadEngineTest, AxisLockWithShiftUsesScreenDelta) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    const std::uint32_t shiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    moveByScreenWithModifiers(engine, id, 10.0f, 2.0f, shiftMask);
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* rect = em.getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->x, 10.0f);
+    EXPECT_FLOAT_EQ(rect->y, 0.0f);
+}
+
+TEST_F(CadEngineTest, AltDragDuplicatesSelection) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    const std::uint32_t altMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Alt);
+    moveByScreenWithModifiers(engine, id, 10.0f, 0.0f, altMask);
+
+    const auto selection = engine.getSelectionIds();
+    ASSERT_EQ(selection.size(), 1u);
+    const std::uint32_t dupId = selection[0];
+    EXPECT_NE(dupId, id);
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* original = em.getRect(id);
+    const RectRec* duplicate = em.getRect(dupId);
+    ASSERT_NE(original, nullptr);
+    ASSERT_NE(duplicate, nullptr);
+    EXPECT_FLOAT_EQ(original->x, 0.0f);
+    EXPECT_FLOAT_EQ(duplicate->x, 10.0f);
+
+    engine.undo();
+    const auto& emAfter = CadEngineTestAccessor::entityManager(engine);
+    EXPECT_NE(emAfter.getRect(id), nullptr);
+    EXPECT_EQ(emAfter.getRect(dupId), nullptr);
 }
