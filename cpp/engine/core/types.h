@@ -367,7 +367,12 @@ struct UpdateDraftPayload { float x, y; };
 struct SnapOptions {
     bool enabled = false;
     bool gridEnabled = false;
+    bool endpointEnabled = false;
+    bool midpointEnabled = false;
+    bool centerEnabled = false;
+    bool nearestEnabled = false;
     float gridSize = 10.0f;
+    float tolerancePx = 10.0f;
 };
 
 // Reserved entity ID for the phantom draft entity (never allocated normally)

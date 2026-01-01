@@ -123,7 +123,9 @@ public:
 
     OverlayBufferMeta getSelectionOutlineMeta() const;
     OverlayBufferMeta getSelectionHandleMeta() const;
+    OverlayBufferMeta getSnapOverlayMeta() const;
     EntityAabb getEntityAabb(std::uint32_t entityId) const;
+    EntityAabb getSelectionBounds() const;
 
     EngineStats getStats() const noexcept;
 
@@ -407,7 +409,7 @@ public:
     // Snapping System (Phase 3)
     // =================================================================*********
     
-    void setSnapOptions(bool enabled, bool gridEnabled, float gridSize);
+    void setSnapOptions(bool enabled, bool gridEnabled, float gridSize, float tolerancePx, bool endpointEnabled, bool midpointEnabled, bool centerEnabled, bool nearestEnabled);
     std::pair<float, float> getSnappedPoint(float x, float y) const;
 
     /**

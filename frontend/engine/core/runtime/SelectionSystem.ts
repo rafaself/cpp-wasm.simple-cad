@@ -1,4 +1,4 @@
-import { EntityId, SelectionMode, OverlayBufferMeta } from '../protocol';
+import { EntityId, SelectionMode, OverlayBufferMeta, EntityAabb } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 import type { PickResult } from '@/types/picking';
@@ -85,5 +85,12 @@ export class SelectionSystem {
       throw new Error('[EngineRuntime] getSelectionHandleMeta() missing in WASM build.');
     }
     return this.engine.getSelectionHandleMeta();
+  }
+
+  public getSelectionBounds(): EntityAabb {
+    if (!this.engine.getSelectionBounds) {
+      throw new Error('[EngineRuntime] getSelectionBounds() missing in WASM build.');
+    }
+    return this.engine.getSelectionBounds();
   }
 }

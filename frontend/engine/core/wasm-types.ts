@@ -86,7 +86,9 @@ export type CadEngineInstance = {
   hasPendingEvents?: () => boolean;
   getSelectionOutlineMeta?: () => OverlayBufferMeta;
   getSelectionHandleMeta?: () => OverlayBufferMeta;
+  getSnapOverlayMeta?: () => OverlayBufferMeta;
   getEntityAabb?: (entityId: EntityId) => EntityAabb;
+  getSelectionBounds?: () => EntityAabb;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
@@ -182,7 +184,16 @@ export type CadEngineInstance = {
   getCommitResultPayloadsPtr?: () => number;
 
   // Snapping
-  setSnapOptions?: (enabled: boolean, gridEnabled: boolean, gridSize: number) => void;
+  setSnapOptions?: (
+    enabled: boolean,
+    gridEnabled: boolean,
+    gridSize: number,
+    tolerancePx: number,
+    endpointEnabled: boolean,
+    midpointEnabled: boolean,
+    centerEnabled: boolean,
+    nearestEnabled: boolean,
+  ) => void;
   getSnappedPoint?: (x: number, y: number) => Float32Array;
 
   // Draft System

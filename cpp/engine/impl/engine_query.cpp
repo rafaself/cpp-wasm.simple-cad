@@ -278,4 +278,35 @@ CadEngine::EntityAabb CadEngine::getEntityAabb(std::uint32_t entityId) const {
     return EntityAabb{0, 0, 0, 0, 0};
 }
 
+CadEngine::EntityAabb CadEngine::getSelectionBounds() const {
+    const auto& ids = selectionManager_.getOrdered();
+    if (ids.empty()) return EntityAabb{0, 0, 0, 0, 0};
+
+    bool has = false;
+    float minX = 0.0f;
+    float minY = 0.0f;
+    float maxX = 0.0f;
+    float maxY = 0.0f;
+
+    for (const std::uint32_t id : ids) {
+        const EntityAabb aabb = getEntityAabb(id);
+        if (!aabb.valid) continue;
+        if (!has) {
+            minX = aabb.minX;
+            minY = aabb.minY;
+            maxX = aabb.maxX;
+            maxY = aabb.maxY;
+            has = true;
+            continue;
+        }
+        minX = std::min(minX, aabb.minX);
+        minY = std::min(minY, aabb.minY);
+        maxX = std::max(maxX, aabb.maxX);
+        maxY = std::max(maxY, aabb.maxY);
+    }
+
+    if (!has) return EntityAabb{0, 0, 0, 0, 0};
+    return EntityAabb{minX, minY, maxX, maxY, 1};
+}
+
 #include "engine/internal/engine_state_aliases_undef.h"

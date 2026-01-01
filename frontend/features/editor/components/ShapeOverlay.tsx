@@ -37,6 +37,7 @@ const ShapeOverlay: React.FC = () => {
   const [runtime, setRuntime] = useState<EngineRuntime | null>(null);
   const [interactionTick, setInteractionTick] = useState(0);
   const rafIdRef = useRef<number | null>(null);
+  const interactionActiveRef = useRef(false);
   const [draftDimensions, setDraftDimensions] = useState<DraftDimensions | null>(null);
 
   useEffect(() => {
@@ -58,9 +59,11 @@ const ShapeOverlay: React.FC = () => {
       const dims = runtime.draft.getDraftDimensions();
       setDraftDimensions(dims);
 
-      if (runtime.isInteractionActive() || dims) {
+      const interactionActive = runtime.isInteractionActive();
+      if (interactionActive || dims || interactionActiveRef.current !== interactionActive) {
         setInteractionTick((t) => (t + 1) >>> 0);
       }
+      interactionActiveRef.current = interactionActive;
       rafIdRef.current = requestAnimationFrame(tick);
     };
 
@@ -96,67 +99,84 @@ const ShapeOverlay: React.FC = () => {
       return pts;
     };
 
-    // Selection overlay (only when not in draft mode and not editing appearance)
-    let selectionElements: React.ReactNode[] = [];
-    if (!isEditingAppearance && !engineInteractionActive && selectionCount > 0 && !draftDimensions) {
-      const outlineMeta = runtime.getSelectionOutlineMeta();
-      const handleMeta = runtime.getSelectionHandleMeta();
-      const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
-      const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+    const interactionActive = runtime.isInteractionActive();
 
-      // Render selection outlines
-      outline.primitives.forEach((prim, idx) => {
+    // Snap guides overlay
+    let snapElements: React.ReactNode[] = [];
+    if (interactionActive) {
+      const snapMeta = runtime.getSnapOverlayMeta();
+      const snap = decodeOverlayBuffer(runtime.module.HEAPU8, snapMeta);
+
+      snap.primitives.forEach((prim, idx) => {
         if (prim.count < 2) return;
-        const pts = renderPoints(prim, outline.data);
-        const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-
+        const pts = renderPoints(prim, snap.data);
         if (prim.kind === OverlayKind.Segment) {
           const a = pts[0];
           const b = pts[1];
           if (!a || !b) return;
-          selectionElements.push(
+          snapElements.push(
             <line
-              key={`sel-seg-${idx}`}
+              key={`snap-seg-${idx}`}
               x1={a.x}
               y1={a.y}
               x2={b.x}
               y2={b.y}
-              className="stroke-primary"
+              stroke="#ff5d5d"
               strokeWidth={1}
             />,
           );
         } else if (prim.kind === OverlayKind.Polyline) {
-          selectionElements.push(
+          const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+          snapElements.push(
             <polyline
-              key={`sel-poly-${idx}`}
+              key={`snap-poly-${idx}`}
               points={pointsAttr}
               fill="transparent"
-              className="stroke-primary"
-              strokeWidth={1}
-            />,
-          );
-        } else {
-          selectionElements.push(
-            <polygon
-              key={`sel-pgon-${idx}`}
-              points={pointsAttr}
-              fill="transparent"
-              className="stroke-primary"
+              stroke="#ff5d5d"
               strokeWidth={1}
             />,
           );
         }
       });
+    }
 
-      // Render selection handles
-      if (engineResizeEnabled || handles.primitives.length > 0) {
-        handles.primitives.forEach((prim, idx) => {
-          if (prim.count < 1) return;
-          const pts = renderPoints(prim, handles.data);
-          pts.forEach((p, i) => {
+    // Selection overlay (only when not in draft mode and not editing appearance)
+    let selectionElements: React.ReactNode[] = [];
+    if (!isEditingAppearance && !engineInteractionActive && selectionCount > 0 && !draftDimensions) {
+      if (selectionCount > 1) {
+        const bounds = runtime.getSelectionBounds();
+        if (bounds.valid) {
+          const p1 = worldToScreen({ x: bounds.minX, y: bounds.minY }, viewTransform);
+          const p2 = worldToScreen({ x: bounds.maxX, y: bounds.maxY }, viewTransform);
+          const minX = Math.min(p1.x, p2.x);
+          const minY = Math.min(p1.y, p2.y);
+          const maxX = Math.max(p1.x, p2.x);
+          const maxY = Math.max(p1.y, p2.y);
+
+          selectionElements.push(
+            <rect
+              key="sel-group-bbox"
+              x={minX}
+              y={minY}
+              width={maxX - minX}
+              height={maxY - minY}
+              fill="transparent"
+              className="stroke-primary"
+              strokeWidth={1}
+            />,
+          );
+
+          const corners = [
+            { x: minX, y: minY },
+            { x: maxX, y: minY },
+            { x: maxX, y: maxY },
+            { x: minX, y: maxY },
+          ];
+
+          corners.forEach((p, i) => {
             selectionElements.push(
               <rect
-                key={`sel-handle-${idx}-${i}`}
+                key={`sel-group-handle-${i}`}
                 x={p.x - hh}
                 y={p.y - hh}
                 width={hs}
@@ -166,7 +186,77 @@ const ShapeOverlay: React.FC = () => {
               />,
             );
           });
+        }
+      } else {
+        const outlineMeta = runtime.getSelectionOutlineMeta();
+        const handleMeta = runtime.getSelectionHandleMeta();
+        const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
+        const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+
+        // Render selection outlines
+        outline.primitives.forEach((prim, idx) => {
+          if (prim.count < 2) return;
+          const pts = renderPoints(prim, outline.data);
+          const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
+          if (prim.kind === OverlayKind.Segment) {
+            const a = pts[0];
+            const b = pts[1];
+            if (!a || !b) return;
+            selectionElements.push(
+              <line
+                key={`sel-seg-${idx}`}
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+                className="stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+          } else if (prim.kind === OverlayKind.Polyline) {
+            selectionElements.push(
+              <polyline
+                key={`sel-poly-${idx}`}
+                points={pointsAttr}
+                fill="transparent"
+                className="stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+          } else {
+            selectionElements.push(
+              <polygon
+                key={`sel-pgon-${idx}`}
+                points={pointsAttr}
+                fill="transparent"
+                className="stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+          }
         });
+
+        // Render selection handles
+        if (engineResizeEnabled || handles.primitives.length > 0) {
+          handles.primitives.forEach((prim, idx) => {
+            if (prim.count < 1) return;
+            const pts = renderPoints(prim, handles.data);
+            pts.forEach((p, i) => {
+              selectionElements.push(
+                <rect
+                  key={`sel-handle-${idx}-${i}`}
+                  x={p.x - hh}
+                  y={p.y - hh}
+                  width={hs}
+                  height={hs}
+                  className="fill-white stroke-primary"
+                  strokeWidth={1}
+                />,
+              );
+            });
+          });
+        }
       }
     }
 
@@ -260,7 +350,7 @@ const ShapeOverlay: React.FC = () => {
       );
     }
 
-    if (selectionElements.length === 0 && draftElements.length === 0) {
+    if (selectionElements.length === 0 && draftElements.length === 0 && snapElements.length === 0) {
       return null;
     }
 
@@ -270,6 +360,7 @@ const ShapeOverlay: React.FC = () => {
         height={canvasSize.height}
         style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
       >
+        {snapElements}
         {selectionElements}
         {draftElements}
       </svg>

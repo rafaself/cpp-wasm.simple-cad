@@ -48,6 +48,7 @@ describe('TextSystem Cache Optimization', () => {
       allocateEntityId: vi.fn(() => 999),
       getSelectionOutlineMeta: vi.fn(),
       getSelectionHandleMeta: vi.fn(),
+      getSnapOverlayMeta: vi.fn(),
       getEntityAabb: vi.fn(),
       getHistoryMeta: vi.fn(),
       canUndo: vi.fn(),

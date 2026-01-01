@@ -131,16 +131,10 @@ export function useInteractionManager() {
     const clientY = e.clientY;
     const world = screenToWorld({ x: clientX - rect.left, y: clientY - rect.top }, viewTransform);
 
-    // Snapping Logic (if Runtime available)
-    let snapped = { x: world.x, y: world.y };
-    if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
-      snapped = runtimeRef.current.getSnappedPoint(world.x, world.y);
-    }
-
     return {
       event: e,
       worldPoint: world,
-      snappedPoint: snapped,
+      snappedPoint: world,
       runtime: runtimeRef.current,
       viewTransform,
       canvasSize,
@@ -205,6 +199,7 @@ export function useInteractionManager() {
       onPointerMove,
       onPointerUp,
       onDoubleClick,
+      onCancel: () => handlerRef.current.onCancel?.(),
     },
     overlay,
     activeHandlerName: handlerRef.current.name,

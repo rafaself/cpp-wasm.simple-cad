@@ -3,8 +3,11 @@
 #include "engine/interaction/interaction_types.h"
 #include "engine/core/types.h"
 #include "engine/history/history_types.h"
+#include "engine/interaction/snap_types.h"
 #include <vector>
 #include <cstdint>
+#include <array>
+#include <cmath>
 
 // Forward declarations
 class CadEngine; // "God" object
@@ -12,6 +15,17 @@ class EntityManager; // Data access
 class PickSystem; // Spatial index
 class TextSystem; // Text rendering
 class HistoryManager; // Undo/Redo
+
+inline bool isGridSnapEnabled(const SnapOptions& options) {
+    return options.enabled && options.gridEnabled && options.gridSize > 0.0001f;
+}
+
+inline void applyGridSnap(float& x, float& y, const SnapOptions& options) {
+    if (!isGridSnapEnabled(options)) return;
+    const float s = options.gridSize;
+    x = std::round(x / s) * s;
+    y = std::round(y / s) * s;
+}
 
 class InteractionSession {
 public:
@@ -24,6 +38,8 @@ public:
     bool isDraftActive() const noexcept { return draft_.active; }
 
     SnapOptions snapOptions;
+
+    const std::vector<SnapGuide>& getSnapGuides() const { return snapGuides_; }
 
     // ==============================================================================
     // Accessors for Commit Results (for WASM binding)
@@ -76,6 +92,13 @@ private:
         int32_t vertexIndex = -1;
         float startX = 0.0f;
         float startY = 0.0f;
+        float dragThresholdWU = 0.0f;
+        bool dragging = false;
+        bool historyActive = false;
+        float baseMinX = 0.0f;
+        float baseMinY = 0.0f;
+        float baseMaxX = 0.0f;
+        float baseMaxY = 0.0f;
         std::vector<TransformSnapshot> snapshots;
     };
 
@@ -95,6 +118,8 @@ private:
 
     SessionState session_;
     DraftState draft_;
+    std::vector<SnapGuide> snapGuides_;
+    std::vector<std::uint32_t> snapCandidates_;
 
     // Commit Result Buffers
     std::vector<std::uint32_t> commitResultIds;

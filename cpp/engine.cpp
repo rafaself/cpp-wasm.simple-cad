@@ -723,10 +723,15 @@ void CadEngine::cancelTransform() {
     interactionSession_.cancelTransform();
 }
 
-void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize) {
+void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize, float tolerancePx, bool endpointEnabled, bool midpointEnabled, bool centerEnabled, bool nearestEnabled) {
     interactionSession_.snapOptions.enabled = enabled;
     interactionSession_.snapOptions.gridEnabled = gridEnabled;
     interactionSession_.snapOptions.gridSize = gridSize;
+    interactionSession_.snapOptions.tolerancePx = tolerancePx;
+    interactionSession_.snapOptions.endpointEnabled = endpointEnabled;
+    interactionSession_.snapOptions.midpointEnabled = midpointEnabled;
+    interactionSession_.snapOptions.centerEnabled = centerEnabled;
+    interactionSession_.snapOptions.nearestEnabled = nearestEnabled;
 }
 
 std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {

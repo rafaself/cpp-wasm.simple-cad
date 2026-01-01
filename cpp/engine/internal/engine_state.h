@@ -75,6 +75,8 @@ struct EngineState {
     mutable std::vector<float> selectionOutlineData_{};
     mutable std::vector<engine::protocol::OverlayPrimitive> selectionHandlePrimitives_{};
     mutable std::vector<float> selectionHandleData_{};
+    mutable std::vector<engine::protocol::OverlayPrimitive> snapGuidePrimitives_{};
+    mutable std::vector<float> snapGuideData_{};
 
     mutable EngineError lastError{EngineError::Ok};
 

@@ -97,6 +97,7 @@ export class EngineRuntime {
       'allocateEntityId',
       'getSelectionOutlineMeta',
       'getSelectionHandleMeta',
+      'getSnapOverlayMeta',
       'getEntityAabb',
       'getHistoryMeta',
       'canUndo',
@@ -315,6 +316,14 @@ export class EngineRuntime {
     return this.selectionSystem.getSelectionHandleMeta();
   }
 
+  public getSelectionBounds(): EntityAabb {
+    return this.selectionSystem.getSelectionBounds();
+  }
+
+  public getSnapOverlayMeta(): OverlayBufferMeta {
+    return this.transformSystem.getSnapOverlayMeta();
+  }
+
   // --- Transform System ---
   public beginTransform(
     ids: EntityId[],
@@ -347,8 +356,26 @@ export class EngineRuntime {
     return this.transformSystem.isInteractionActive();
   }
 
-  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
-    this.transformSystem.setSnapOptions(enabled, gridEnabled, gridSize);
+  public setSnapOptions(
+    enabled: boolean,
+    gridEnabled: boolean,
+    gridSize: number,
+    tolerancePx: number,
+    endpointEnabled: boolean,
+    midpointEnabled: boolean,
+    centerEnabled: boolean,
+    nearestEnabled: boolean,
+  ): void {
+    this.transformSystem.setSnapOptions(
+      enabled,
+      gridEnabled,
+      gridSize,
+      tolerancePx,
+      endpointEnabled,
+      midpointEnabled,
+      centerEnabled,
+      nearestEnabled,
+    );
   }
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {

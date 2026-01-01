@@ -1,4 +1,4 @@
-import { EntityId } from '../protocol';
+import { EntityId, OverlayBufferMeta } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class TransformSystem {
@@ -71,8 +71,26 @@ export class TransformSystem {
     };
   }
 
-  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
-    this.engine.setSnapOptions?.(enabled, gridEnabled, gridSize);
+  public setSnapOptions(
+    enabled: boolean,
+    gridEnabled: boolean,
+    gridSize: number,
+    tolerancePx: number,
+    endpointEnabled: boolean,
+    midpointEnabled: boolean,
+    centerEnabled: boolean,
+    nearestEnabled: boolean,
+  ): void {
+    this.engine.setSnapOptions?.(
+      enabled,
+      gridEnabled,
+      gridSize,
+      tolerancePx,
+      endpointEnabled,
+      midpointEnabled,
+      centerEnabled,
+      nearestEnabled,
+    );
   }
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {
@@ -86,5 +104,12 @@ export class TransformSystem {
       }
     }
     return { x, y };
+  }
+
+  public getSnapOverlayMeta(): OverlayBufferMeta {
+    if (!this.engine.getSnapOverlayMeta) {
+      throw new Error('[EngineRuntime] getSnapOverlayMeta() missing in WASM build.');
+    }
+    return this.engine.getSnapOverlayMeta();
   }
 }

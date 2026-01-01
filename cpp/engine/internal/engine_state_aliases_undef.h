@@ -44,6 +44,7 @@
 #undef selectionOutlineData_
 #undef selectionHandlePrimitives_
 #undef selectionHandleData_
+#undef snapGuidePrimitives_
+#undef snapGuideData_
 #undef lastError
 #undef interactionSession_
-

@@ -60,9 +60,27 @@ const EngineInteractionLayer: React.FC = () => {
   // Engine Sync Effects (View/Grid)
   useEffect(() => {
     getEngineRuntime().then((rt) => {
-      rt.setSnapOptions?.(snapOptions.enabled, snapOptions.grid, gridSize);
+      rt.setSnapOptions?.(
+        snapOptions.enabled,
+        snapOptions.grid,
+        gridSize,
+        snapOptions.tolerancePx,
+        snapOptions.endpoint,
+        snapOptions.midpoint,
+        snapOptions.center,
+        snapOptions.nearest,
+      );
     });
-  }, [snapOptions.enabled, snapOptions.grid, gridSize]);
+  }, [
+    snapOptions.enabled,
+    snapOptions.grid,
+    snapOptions.tolerancePx,
+    snapOptions.endpoint,
+    snapOptions.midpoint,
+    snapOptions.center,
+    snapOptions.nearest,
+    gridSize,
+  ]);
 
   useEffect(() => {
     getEngineRuntime().then((rt) => {
@@ -132,7 +150,7 @@ const EngineInteractionLayer: React.FC = () => {
       endPan();
       return;
     }
-    // Handlers might need an onCancel
+    handlers.onCancel?.();
   };
 
   // Center Icon Calculation
