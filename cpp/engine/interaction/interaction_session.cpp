@@ -678,6 +678,122 @@ void InteractionSession::cancelDraft() {
     engine_.state().renderDirty = true;
 }
 
+void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertices) const {
+    if (!draft_.active) return;
+
+    const bool useStroke = draft_.strokeEnabled > 0.5f;
+    const float r = useStroke ? draft_.strokeR : draft_.fillR;
+    const float g = useStroke ? draft_.strokeG : draft_.fillG;
+    const float b = useStroke ? draft_.strokeB : draft_.fillB;
+    const float a = useStroke ? draft_.strokeA : draft_.fillA;
+    if (!(a > 0.0f)) return;
+
+    auto pushVertex = [&](float x, float y) {
+        lineVertices.push_back(x);
+        lineVertices.push_back(y);
+        lineVertices.push_back(0.0f);
+        lineVertices.push_back(r);
+        lineVertices.push_back(g);
+        lineVertices.push_back(b);
+        lineVertices.push_back(a);
+    };
+    auto pushSegment = [&](float x0, float y0, float x1, float y1) {
+        pushVertex(x0, y0);
+        pushVertex(x1, y1);
+    };
+
+    constexpr float pi = 3.14159265358979323846f;
+    constexpr float twoPi = pi * 2.0f;
+
+    switch (static_cast<EntityKind>(draft_.kind)) {
+        case EntityKind::Line:
+        case EntityKind::Arrow: {
+            pushSegment(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            break;
+        }
+        case EntityKind::Polyline: {
+            if (draft_.points.empty()) {
+                pushSegment(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+                break;
+            }
+            Point2 prev = draft_.points.front();
+            for (std::size_t i = 1; i < draft_.points.size(); i++) {
+                const Point2& curr = draft_.points[i];
+                pushSegment(prev.x, prev.y, curr.x, curr.y);
+                prev = curr;
+            }
+            pushSegment(prev.x, prev.y, draft_.currentX, draft_.currentY);
+            break;
+        }
+        case EntityKind::Rect: {
+            const float x0 = std::min(draft_.startX, draft_.currentX);
+            const float y0 = std::min(draft_.startY, draft_.currentY);
+            const float x1 = std::max(draft_.startX, draft_.currentX);
+            const float y1 = std::max(draft_.startY, draft_.currentY);
+            pushSegment(x0, y0, x1, y0);
+            pushSegment(x1, y0, x1, y1);
+            pushSegment(x1, y1, x0, y1);
+            pushSegment(x0, y1, x0, y0);
+            break;
+        }
+        case EntityKind::Polygon: {
+            const std::uint32_t sides = std::max<std::uint32_t>(3u, static_cast<std::uint32_t>(draft_.sides));
+            if (sides < 3) break;
+            const float rx = std::abs(draft_.currentX - draft_.startX) * 0.5f;
+            const float ry = std::abs(draft_.currentY - draft_.startY) * 0.5f;
+            if (!(rx > 0.0f) || !(ry > 0.0f)) break;
+            const float cx = (draft_.startX + draft_.currentX) * 0.5f;
+            const float cy = (draft_.startY + draft_.currentY) * 0.5f;
+            const float rot = (sides == 3) ? pi : 0.0f;
+
+            Point2 first{};
+            Point2 prev{};
+            for (std::uint32_t i = 0; i < sides; ++i) {
+                const float t =
+                    (static_cast<float>(i) / static_cast<float>(sides)) * twoPi - (pi * 0.5f) + rot;
+                const float x = cx + std::cos(t) * rx;
+                const float y = cy + std::sin(t) * ry;
+                const Point2 curr{x, y};
+                if (i == 0) {
+                    first = curr;
+                } else {
+                    pushSegment(prev.x, prev.y, curr.x, curr.y);
+                }
+                prev = curr;
+            }
+            pushSegment(prev.x, prev.y, first.x, first.y);
+            break;
+        }
+        case EntityKind::Circle: {
+            const float rx = std::abs(draft_.currentX - draft_.startX) * 0.5f;
+            const float ry = std::abs(draft_.currentY - draft_.startY) * 0.5f;
+            if (!(rx > 0.0f) || !(ry > 0.0f)) break;
+            const float cx = (draft_.startX + draft_.currentX) * 0.5f;
+            const float cy = (draft_.startY + draft_.currentY) * 0.5f;
+            constexpr std::uint32_t segments = 64;
+
+            Point2 first{};
+            Point2 prev{};
+            for (std::uint32_t i = 0; i < segments; ++i) {
+                const float t = (static_cast<float>(i) / static_cast<float>(segments)) * twoPi;
+                const float x = cx + std::cos(t) * rx;
+                const float y = cy + std::sin(t) * ry;
+                const Point2 curr{x, y};
+                if (i == 0) {
+                    first = curr;
+                } else {
+                    pushSegment(prev.x, prev.y, curr.x, curr.y);
+                }
+                prev = curr;
+            }
+            pushSegment(prev.x, prev.y, first.x, first.y);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 // ==============================================================================
 // Phantom Entity Helpers
 // ==============================================================================
@@ -847,4 +963,3 @@ DraftDimensions InteractionSession::getDraftDimensions() const {
     
     return dims;
 }
-
