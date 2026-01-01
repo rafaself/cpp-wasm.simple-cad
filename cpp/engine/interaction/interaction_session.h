@@ -198,8 +198,26 @@ private:
     void upsertPhantomEntity();   // Create or update phantom entity from draft state
     void removePhantomEntity();   // Remove phantom entity from EntityManager
 
-    void recordTransformBegin(float screenX, float screenY, std::uint32_t modifiers);
-    void recordTransformUpdate(float screenX, float screenY, std::uint32_t modifiers);
+    void recordTransformBegin(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        const SnapOptions& options,
+        std::uint32_t modifiers);
+    void recordTransformUpdate(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        const SnapOptions& options,
+        std::uint32_t modifiers);
     void recordTransformCommit();
     void recordTransformCancel();
 };

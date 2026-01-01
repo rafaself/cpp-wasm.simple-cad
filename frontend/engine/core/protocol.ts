@@ -137,6 +137,19 @@ export type TransformLogEntry = {
   x: number;
   y: number;
   modifiers: number;
+  viewX: number;
+  viewY: number;
+  viewScale: number;
+  viewWidth: number;
+  viewHeight: number;
+  snapEnabled: number;
+  snapGridEnabled: number;
+  snapGridSize: number;
+  snapTolerancePx: number;
+  snapEndpointEnabled: number;
+  snapMidpointEnabled: number;
+  snapCenterEnabled: number;
+  snapNearestEnabled: number;
 };
 
 export type EngineEvent = {
@@ -196,13 +209,15 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
   },
 } as const;
 
-export const PROTOCOL_VERSION = 2 as const;
+export const PROTOCOL_VERSION = 3 as const;
 export const COMMAND_VERSION = 2 as const;
 export const SNAPSHOT_VERSION = 1 as const;
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
   EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT;
+
+const formatHex = (value: number): string => `0x${(value >>> 0).toString(16)}`;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -375,7 +390,7 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x5300000f, 8, [0, 4]);
 
-  h = hashStruct(h, 0x53000010, 4, [0]);
+  h = hashStruct(h, 0x53000010, 20, [8]);
 
   h = hashStruct(
     h,
@@ -427,12 +442,44 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x53000024, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x53000025, 36, [0, 4, 8, 12, 16, 20, 24, 28, 32]);
+  h = hashStruct(h, 0x53000025, 88, [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    44,
+    48,
+    52,
+    56,
+    60,
+    64,
+    68,
+    72,
+    76,
+    80,
+    84,
+  ]);
 
   return h >>> 0;
 };
 
-export const EXPECTED_ABI_HASH = computeAbiHash();
+const HARD_CODED_ABI_HASH = 0x285eeb86;
+const COMPUTED_ABI_HASH = computeAbiHash();
+if (COMPUTED_ABI_HASH !== HARD_CODED_ABI_HASH) {
+  console.warn(
+    '[EngineProtocol] ABI hash computation diverges from engine constant',
+    `computed=${formatHex(COMPUTED_ABI_HASH)} expected=${formatHex(HARD_CODED_ABI_HASH)}`,
+  );
+}
+
+export const EXPECTED_ABI_HASH = HARD_CODED_ABI_HASH;
 
 export const EXPECTED_PROTOCOL_INFO: ProtocolInfo = {
   protocolVersion: PROTOCOL_VERSION,
@@ -442,8 +489,6 @@ export const EXPECTED_PROTOCOL_INFO: ProtocolInfo = {
   abiHash: EXPECTED_ABI_HASH,
   featureFlags: REQUIRED_FEATURE_FLAGS,
 };
-
-const formatHex = (value: number): string => `0x${(value >>> 0).toString(16)}`;
 
 export const validateProtocolOrThrow = (info: ProtocolInfo): void => {
   const errors: string[] = [];

@@ -314,7 +314,7 @@ void InteractionSession::beginTransform(
         session_.baseMaxY = maxY;
     }
 
-    recordTransformBegin(screenX, screenY, modifiers);
+    recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
 
     session_.historyActive = engine_.beginHistoryEntry();
     if (session_.historyActive) {
@@ -337,7 +337,7 @@ void InteractionSession::updateTransform(
     snapGuides_.clear();
 
     const double t0 = emscripten_get_now();
-    recordTransformUpdate(screenX, screenY, modifiers);
+    recordTransformUpdate(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
     std::uint32_t snapCandidateCount = 0;
     std::uint32_t snapHitCount = 0;
     auto finalizeStats = [&]() {

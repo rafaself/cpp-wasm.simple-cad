@@ -49,7 +49,7 @@ struct EngineProtocolTypes {
     using TextContentMeta = engine::protocol::TextContentMeta;
 
     // Protocol versions (must be non-zero; keep in sync with TS).
-    static constexpr std::uint32_t kProtocolVersion = 2;      // Handshake schema version
+    static constexpr std::uint32_t kProtocolVersion = 3;      // Handshake schema version
     static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
     static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version (ESNP v1)
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
@@ -613,6 +613,19 @@ protected:
             static_cast<std::uint32_t>(offsetof(TransformLogEntry, x)),
             static_cast<std::uint32_t>(offsetof(TransformLogEntry, y)),
             static_cast<std::uint32_t>(offsetof(TransformLogEntry, modifiers)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewX)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewY)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewScale)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewWidth)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewHeight)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapGridEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapGridSize)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapTolerancePx)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapEndpointEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapMidpointEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapCenterEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapNearestEnabled)),
         });
 
         return h;
@@ -623,5 +636,5 @@ public:
     // We hardcode it here because dynamic computation via constexpr std::initializer_list 
     // is failing on the current Emscripten compiler environment.
     // If you change the ABI (structs, enums), update this hash or fix computeAbiHash().
-    static constexpr std::uint32_t kAbiHash = 0xf3a98e35;
+    static constexpr std::uint32_t kAbiHash = 0x285eeb86;
 };

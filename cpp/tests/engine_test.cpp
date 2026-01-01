@@ -561,3 +561,42 @@ TEST_F(CadEngineTest, AltDragDuplicatesSelection) {
     EXPECT_NE(emAfter.getRect(id), nullptr);
     EXPECT_EQ(emAfter.getRect(dupId), nullptr);
 }
+
+TEST_F(CadEngineTest, TransformReplayOverridesViewAndSnapContext) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
+    engine.setTransformLogEnabled(true, 32, 32);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
+        0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
+    engine.updateTransform(9.5f, 0.0f,
+        0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
+    engine.commitTransform();
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* moved = em.getRect(id);
+    ASSERT_NE(moved, nullptr);
+    EXPECT_FLOAT_EQ(moved->x, 10.0f);
+
+    engine.undo();
+    const RectRec* reset = em.getRect(id);
+    ASSERT_NE(reset, nullptr);
+    EXPECT_FLOAT_EQ(reset->x, 0.0f);
+
+    engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
+    CadEngineTestAccessor::setViewTransform(engine, 10.0f, -5.0f, 2.0f, 800.0f, 600.0f);
+
+    EXPECT_TRUE(engine.replayTransformLog());
+
+    const RectRec* replayed = em.getRect(id);
+    ASSERT_NE(replayed, nullptr);
+    EXPECT_FLOAT_EQ(replayed->x, 10.0f);
+    EXPECT_FLOAT_EQ(CadEngineTestAccessor::viewScale(engine), 2.0f);
+
+    const auto snapped = engine.getSnappedPoint(9.5f, 0.0f);
+    EXPECT_FLOAT_EQ(snapped.first, 9.5f);
+    EXPECT_FLOAT_EQ(snapped.second, 0.0f);
+}

@@ -104,6 +104,19 @@ public:
         engine.deleteEntity(id);
     }
 
+    static void setViewTransform(CadEngine& engine, float x, float y, float scale, float width, float height) {
+        auto& state = engine.state();
+        state.viewX = x;
+        state.viewY = y;
+        state.viewScale = scale;
+        state.viewWidth = width;
+        state.viewHeight = height;
+    }
+
+    static float viewScale(const CadEngine& engine) {
+        return engine.state().viewScale;
+    }
+
     static TextSystem& textSystem(CadEngine& engine) {
         return engine.state().textSystem_;
     }

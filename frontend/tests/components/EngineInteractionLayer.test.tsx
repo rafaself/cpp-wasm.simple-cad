@@ -9,6 +9,7 @@ const mockGetRuntime = vi.fn();
 
 vi.mock('@/engine/core/singleton', () => ({
   getEngineRuntime: () => mockGetRuntime(),
+  getEngineRuntimeSync: () => null,
 }));
 
 describe('EngineInteractionLayer snap sync', () => {
@@ -43,6 +44,10 @@ describe('EngineInteractionLayer snap sync', () => {
     const runtime = {
       setSnapOptions: vi.fn(),
       apply: vi.fn(),
+      getSelectionIds: () => [],
+      isInteractionActive: () => false,
+      draft: { getDraftDimensions: () => null },
+      module: { HEAPU8: new Uint8Array() },
     };
 
     mockGetRuntime.mockResolvedValue(runtime);

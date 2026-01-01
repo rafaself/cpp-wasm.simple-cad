@@ -280,6 +280,19 @@ struct TransformLogEntry {
     float x;
     float y;
     std::uint32_t modifiers;
+    float viewX;
+    float viewY;
+    float viewScale;
+    float viewWidth;
+    float viewHeight;
+    std::uint32_t snapEnabled;
+    std::uint32_t snapGridEnabled;
+    float snapGridSize;
+    float snapTolerancePx;
+    std::uint32_t snapEndpointEnabled;
+    std::uint32_t snapMidpointEnabled;
+    std::uint32_t snapCenterEnabled;
+    std::uint32_t snapNearestEnabled;
 };
 
 // =============================================================================
