@@ -75,6 +75,7 @@ public:
     
     // Draft overlay data for frontend (computed from phantom entity)
     DraftDimensions getDraftDimensions() const;
+    void appendDraftLineVertices(std::vector<float>& lineVertices) const;
 
 private:
     CadEngine& engine_;
