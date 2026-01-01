@@ -688,19 +688,15 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
     const float a = useStroke ? draft_.strokeA : draft_.fillA;
     if (!(a > 0.0f)) return;
 
-    auto pushVertex = [&](float x, float y) {
-        lineVertices.push_back(x);
-        lineVertices.push_back(y);
-        lineVertices.push_back(0.0f);
-        lineVertices.push_back(r);
-        lineVertices.push_back(g);
-        lineVertices.push_back(b);
-        lineVertices.push_back(a);
+    struct Segment {
+        float x0;
+        float y0;
+        float x1;
+        float y1;
     };
-    auto pushSegment = [&](float x0, float y0, float x1, float y1) {
-        pushVertex(x0, y0);
-        pushVertex(x1, y1);
-    };
+
+    std::vector<Segment> segments;
+    segments.reserve(8); // small shapes cap; polyline will grow below as needed
 
     constexpr float pi = 3.14159265358979323846f;
     constexpr float twoPi = pi * 2.0f;
@@ -708,21 +704,21 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
     switch (static_cast<EntityKind>(draft_.kind)) {
         case EntityKind::Line:
         case EntityKind::Arrow: {
-            pushSegment(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            segments.push_back({draft_.startX, draft_.startY, draft_.currentX, draft_.currentY});
             break;
         }
         case EntityKind::Polyline: {
             if (draft_.points.empty()) {
-                pushSegment(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+                segments.push_back({draft_.startX, draft_.startY, draft_.currentX, draft_.currentY});
                 break;
             }
             Point2 prev = draft_.points.front();
             for (std::size_t i = 1; i < draft_.points.size(); i++) {
                 const Point2& curr = draft_.points[i];
-                pushSegment(prev.x, prev.y, curr.x, curr.y);
+                segments.push_back({prev.x, prev.y, curr.x, curr.y});
                 prev = curr;
             }
-            pushSegment(prev.x, prev.y, draft_.currentX, draft_.currentY);
+            segments.push_back({prev.x, prev.y, draft_.currentX, draft_.currentY});
             break;
         }
         case EntityKind::Rect: {
@@ -730,10 +726,10 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
             const float y0 = std::min(draft_.startY, draft_.currentY);
             const float x1 = std::max(draft_.startX, draft_.currentX);
             const float y1 = std::max(draft_.startY, draft_.currentY);
-            pushSegment(x0, y0, x1, y0);
-            pushSegment(x1, y0, x1, y1);
-            pushSegment(x1, y1, x0, y1);
-            pushSegment(x0, y1, x0, y0);
+            segments.push_back({x0, y0, x1, y0});
+            segments.push_back({x1, y0, x1, y1});
+            segments.push_back({x1, y1, x0, y1});
+            segments.push_back({x0, y1, x0, y0});
             break;
         }
         case EntityKind::Polygon: {
@@ -757,11 +753,11 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
                 if (i == 0) {
                     first = curr;
                 } else {
-                    pushSegment(prev.x, prev.y, curr.x, curr.y);
+                    segments.push_back({prev.x, prev.y, curr.x, curr.y});
                 }
                 prev = curr;
             }
-            pushSegment(prev.x, prev.y, first.x, first.y);
+            segments.push_back({prev.x, prev.y, first.x, first.y});
             break;
         }
         case EntityKind::Circle: {
@@ -782,15 +778,37 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
                 if (i == 0) {
                     first = curr;
                 } else {
-                    pushSegment(prev.x, prev.y, curr.x, curr.y);
+                    segments.push_back({prev.x, prev.y, curr.x, curr.y});
                 }
                 prev = curr;
             }
-            pushSegment(prev.x, prev.y, first.x, first.y);
+            segments.push_back({prev.x, prev.y, first.x, first.y});
             break;
         }
         default:
             break;
+    }
+
+    if (segments.empty()) {
+        return;
+    }
+
+    constexpr std::size_t floatsPerVertex = 7;
+    lineVertices.reserve(lineVertices.size() + segments.size() * 2 * floatsPerVertex);
+
+    auto pushVertex = [&](float x, float y) {
+        lineVertices.push_back(x);
+        lineVertices.push_back(y);
+        lineVertices.push_back(0.0f);
+        lineVertices.push_back(r);
+        lineVertices.push_back(g);
+        lineVertices.push_back(b);
+        lineVertices.push_back(a);
+    };
+
+    for (const auto& seg : segments) {
+        pushVertex(seg.x0, seg.y0);
+        pushVertex(seg.x1, seg.y1);
     }
 }
 
