@@ -173,35 +173,41 @@ const ShapeOverlay: React.FC = () => {
     // Draft overlay
     let draftElements: React.ReactNode[] = [];
     if (draftDimensions && draftDimensions.active) {
-      const { minX, minY, maxX, maxY, width, height, centerY } = draftDimensions;
+      const { minX, minY, maxX, maxY, width, height } = draftDimensions;
 
-      // Transform to screen coordinates
-      const topLeft = worldToScreen({ x: minX, y: minY }, viewTransform);
-      const bottomRight = worldToScreen({ x: maxX, y: maxY }, viewTransform);
-      const screenWidth = bottomRight.x - topLeft.x;
-      const screenHeight = bottomRight.y - topLeft.y;
+      // Transform world bounds to screen rect robustly
+      // We process both corners to define the screen-space bounding box
+      const p1 = worldToScreen({ x: minX, y: minY }, viewTransform);
+      const p2 = worldToScreen({ x: maxX, y: maxY }, viewTransform);
+
+      const screenMinX = Math.min(p1.x, p2.x);
+      const screenMinY = Math.min(p1.y, p2.y);
+      const screenMaxX = Math.max(p1.x, p2.x);
+      const screenMaxY = Math.max(p1.y, p2.y);
+
+      const screenW = screenMaxX - screenMinX;
+      const screenH = screenMaxY - screenMinY;
 
       // Bounding box
       draftElements.push(
         <rect
           key="draft-bbox"
-          x={topLeft.x}
-          y={topLeft.y}
-          width={screenWidth}
-          height={screenHeight}
+          x={screenMinX}
+          y={screenMinY}
+          width={screenW}
+          height={screenH}
           fill="transparent"
           stroke="#0d99ff"
           strokeWidth={1}
-          strokeDasharray="4 2"
         />,
       );
 
       // Corner handles
       const corners = [
-        { x: topLeft.x, y: topLeft.y }, // TL
-        { x: bottomRight.x, y: topLeft.y }, // TR
-        { x: bottomRight.x, y: bottomRight.y }, // BR
-        { x: topLeft.x, y: bottomRight.y }, // BL
+        { x: screenMinX, y: screenMinY }, // TL
+        { x: screenMaxX, y: screenMinY }, // TR
+        { x: screenMaxX, y: screenMaxY }, // BR
+        { x: screenMinX, y: screenMaxY }, // BL
       ];
 
       corners.forEach((corner, i) => {
@@ -220,27 +226,33 @@ const ShapeOverlay: React.FC = () => {
       });
 
       // Dimension label (width × height)
-      const labelCenter = worldToScreen({ x: (minX + maxX) / 2, y: maxY }, viewTransform);
-      const dimText = `${Math.round(width)} × ${Math.round(height)}`;
+      // Positioned below the shape (at screenMaxY)
+      const labelX = screenMinX + screenW / 2;
+      const labelY = screenMaxY + 8; // Start offset below shape
 
+      const dimText = `${Math.round(width)} × ${Math.round(height)}`;
+      // Assuming approx text width, centering the background rect
+      const textWidth = dimText.length * 7 + 16; 
+      
       draftElements.push(
         <g key="draft-dim-label">
           <rect
-            x={labelCenter.x - 40}
-            y={labelCenter.y + 8}
-            width={80}
+            x={labelX - textWidth / 2}
+            y={labelY}
+            width={textWidth}
             height={20}
             rx={4}
             fill="#0d99ff"
             fillOpacity={0.9}
           />
           <text
-            x={labelCenter.x}
-            y={labelCenter.y + 22}
+            x={labelX}
+            y={labelY + 14}
             textAnchor="middle"
             fontSize={11}
             fontFamily="Inter, system-ui, sans-serif"
             fill="white"
+            fontWeight={500}
           >
             {dimText}
           </text>

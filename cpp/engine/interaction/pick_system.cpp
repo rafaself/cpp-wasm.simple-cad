@@ -170,8 +170,22 @@ AABB PickSystem::computeRectAABB(const RectRec& r) {
 }
 
 AABB PickSystem::computeCircleAABB(const CircleRec& c) {
-    float maxR = std::max(c.rx, c.ry); // Simplification for rotated ellipse
-    return { c.cx - maxR, c.cy - maxR, c.cx + maxR, c.cy + maxR };
+    const float rx = std::abs(c.rx * c.sx);
+    const float ry = std::abs(c.ry * c.sy);
+    
+    if (c.rot == 0.0f) {
+        return { c.cx - rx, c.cy - ry, c.cx + rx, c.cy + ry };
+    }
+    
+    const float cost = std::cos(c.rot);
+    const float sint = std::sin(c.rot);
+    
+    // Calculate axis-aligned bounding box extents for rotated ellipse
+    // ex = sqrt((rx*cos(t))^2 + (ry*sin(t))^2)
+    const float ex = std::sqrt((rx * cost) * (rx * cost) + (ry * sint) * (ry * sint));
+    const float ey = std::sqrt((rx * sint) * (rx * sint) + (ry * cost) * (ry * cost));
+    
+    return { c.cx - ex, c.cy - ey, c.cx + ex, c.cy + ey };
 }
 
 AABB PickSystem::computeLineAABB(const LineRec& l) {
@@ -199,9 +213,21 @@ AABB PickSystem::computePolylineAABB(const PolyRec& pl, const std::vector<Point2
 }
 
 AABB PickSystem::computePolygonAABB(const PolygonRec& p) {
-    // Conservative
-    float maxR = std::max(p.rx, p.ry);
-    return { p.cx - maxR, p.cy - maxR, p.cx + maxR, p.cy + maxR };
+    // Conservative approximation using circumscribed ellipse bounds
+    const float rx = std::abs(p.rx * p.sx);
+    const float ry = std::abs(p.ry * p.sy);
+    
+    if (p.rot == 0.0f) {
+        return { p.cx - rx, p.cy - ry, p.cx + rx, p.cy + ry };
+    }
+    
+    const float cost = std::cos(p.rot);
+    const float sint = std::sin(p.rot);
+    
+    const float ex = std::sqrt((rx * cost) * (rx * cost) + (ry * sint) * (ry * sint));
+    const float ey = std::sqrt((rx * sint) * (rx * sint) + (ry * cost) * (ry * cost));
+    
+    return { p.cx - ex, p.cy - ey, p.cx + ex, p.cy + ey };
 }
 
 AABB PickSystem::computeArrowAABB(const ArrowRec& a) {

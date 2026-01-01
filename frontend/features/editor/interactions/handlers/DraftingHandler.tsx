@@ -8,6 +8,7 @@ import * as DEFAULTS from '@/theme/defaults';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
+import { useUIStore } from '@/stores/useUIStore';
 
 // Reusing types from previous implementation or defining locally
 interface DraftState {
@@ -233,6 +234,7 @@ export class DraftingHandler extends BaseInteractionHandler {
           y: snapped.y,
         }));
         this.resetDraftState();
+    useUIStore.getState().setTool('select');
         return;
       }
       this.linePendingCommit = true;
@@ -258,6 +260,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       y: snapped.y,
     }));
     this.resetDraftState();
+    useUIStore.getState().setTool('select');
   }
 
   onCancel(): void {
@@ -271,6 +274,7 @@ export class DraftingHandler extends BaseInteractionHandler {
     if (runtime && this.draft.kind === 'polyline') runtime.apply([{ op: CommandOp.CommitDraft }]);
     cadDebugLog('draft', 'polyline-commit');
     this.resetDraftState();
+    useUIStore.getState().setTool('select');
   }
 
   cancelDraft(runtime: any) {
@@ -329,5 +333,6 @@ export class DraftingHandler extends BaseInteractionHandler {
     this.polygonModalOpen = false;
     this.polygonModalCenter = null;
     this.notifyChange();
+    useUIStore.getState().setTool('select');
   }
 }

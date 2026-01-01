@@ -647,6 +647,16 @@ std::uint32_t InteractionSession::commitDraft() {
         case EntityKind::Text: break;
     }
 
+    // If we just committed a polyline, the phantom entity points generated during draft
+    // are now garbage (the new entity has its own fresh points).
+    // We must compact to avoid leaking thousands of points in the active session.
+    if (static_cast<EntityKind>(draft_.kind) == EntityKind::Polyline) {
+        engine_.compactPolylinePoints();
+    }
+
+    // Auto-select the newly created entity
+    engine_.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
     draft_.active = false;
     draft_.points.clear();
     engine_.state().renderDirty = true;
@@ -657,6 +667,11 @@ void InteractionSession::cancelDraft() {
     if (!draft_.active) return;
     
     removePhantomEntity();
+    
+    // If we cancelled a polyline, the phantom points are garbage.
+    if (static_cast<EntityKind>(draft_.kind) == EntityKind::Polyline) {
+        engine_.compactPolylinePoints();
+    }
     
     draft_.active = false;
     draft_.points.clear();
