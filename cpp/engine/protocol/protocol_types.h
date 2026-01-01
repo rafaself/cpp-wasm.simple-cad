@@ -6,8 +6,8 @@
  * Extracted from engine.h to reduce the "God Object" size.
  * 
  * IMPORTANT: Changes to these types require ABI hash update in both:
- * - cpp/engine/engine.h (kAbiHash constant)
- * - frontend/engine/core/protocol.ts (computeAbiHash function)
+ * - cpp/engine/engine_protocol_types.h (computeAbiHash)
+ * - frontend/engine/core/protocol.ts (computeAbiHash)
  * 
  * @see AGENTS.md section "Engine-First Architecture"
  * @see docs/agents/audit-action-plan.md

@@ -632,9 +632,8 @@ protected:
     }
 
 public:
-    // ABI Hash matches frontend/engine/core/protocol.ts EXPECTED_ABI_HASH.
-    // We hardcode it here because dynamic computation via constexpr std::initializer_list 
-    // is failing on the current Emscripten compiler environment.
-    // If you change the ABI (structs, enums), update this hash or fix computeAbiHash().
-    static constexpr std::uint32_t kAbiHash = 0x285eeb86;
+    static std::uint32_t getAbiHash() noexcept {
+        static const std::uint32_t hash = computeAbiHash();
+        return hash;
+    }
 };

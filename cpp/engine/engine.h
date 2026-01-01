@@ -88,7 +88,7 @@ public:
             kCommandVersion,
             kSnapshotVersion,
             kEventStreamVersion,
-            kAbiHash,
+            getAbiHash(),
             kFeatureFlags
         };
     }

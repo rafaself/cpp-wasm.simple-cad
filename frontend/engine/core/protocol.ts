@@ -470,16 +470,8 @@ const computeAbiHash = (): number => {
   return h >>> 0;
 };
 
-const HARD_CODED_ABI_HASH = 0x285eeb86;
 const COMPUTED_ABI_HASH = computeAbiHash();
-if (COMPUTED_ABI_HASH !== HARD_CODED_ABI_HASH) {
-  console.warn(
-    '[EngineProtocol] ABI hash computation diverges from engine constant',
-    `computed=${formatHex(COMPUTED_ABI_HASH)} expected=${formatHex(HARD_CODED_ABI_HASH)}`,
-  );
-}
-
-export const EXPECTED_ABI_HASH = HARD_CODED_ABI_HASH;
+export const EXPECTED_ABI_HASH = COMPUTED_ABI_HASH;
 
 export const EXPECTED_PROTOCOL_INFO: ProtocolInfo = {
   protocolVersion: PROTOCOL_VERSION,
