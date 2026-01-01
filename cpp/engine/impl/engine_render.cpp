@@ -154,9 +154,11 @@ void CadEngine::rebuildRenderBuffers() const {
         &isEntityVisibleForRenderThunk,
         &renderRanges_
     );
+
+    interactionSession_.appendDraftLineVertices(lineVertices);
     
     // Grid rendering is handled by the WebGL GridPass (frontend).
-    // Draft rendering is now handled by the phantom entity system (no addDraftToBuffers needed).
+    // Draft preview lines are appended from the interaction session after geometry rebuild.
     renderDirty = false;
     pendingFullRebuild_ = false;
     
@@ -205,4 +207,3 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
 }
 
 #include "engine/internal/engine_state_aliases_undef.h"
-
