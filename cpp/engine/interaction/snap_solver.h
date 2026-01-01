@@ -33,5 +33,7 @@ SnapResult computeObjectSnap(
     float viewY,
     float viewWidth,
     float viewHeight,
+    bool allowSnapX,
+    bool allowSnapY,
     std::vector<SnapGuide>& outGuides,
     std::vector<std::uint32_t>& candidatesScratch);

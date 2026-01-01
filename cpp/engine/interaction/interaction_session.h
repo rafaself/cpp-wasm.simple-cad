@@ -4,6 +4,7 @@
 #include "engine/core/types.h"
 #include "engine/history/history_types.h"
 #include "engine/interaction/snap_types.h"
+#include "engine/protocol/protocol_types.h"
 #include <vector>
 #include <cstdint>
 #include <array>
@@ -49,6 +50,20 @@ public:
     const std::vector<float>& getCommitResultPayloads() const { return commitResultPayloads; }
 
     // ==============================================================================
+    // Transform Logging / Replay
+    // ==============================================================================
+    void setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds);
+    void clearTransformLog();
+    bool replayTransformLog();
+    bool isTransformLogOverflowed() const { return transformLogOverflowed_; }
+    const std::vector<engine::protocol::TransformLogEntry>& getTransformLogEntries() const { return transformLogEntries_; }
+    const std::vector<std::uint32_t>& getTransformLogIds() const { return transformLogIds_; }
+
+    float getLastTransformUpdateMs() const { return transformStats_.lastUpdateMs; }
+    std::uint32_t getLastSnapCandidateCount() const { return transformStats_.lastSnapCandidateCount; }
+    std::uint32_t getLastSnapHitCount() const { return transformStats_.lastSnapHitCount; }
+
+    // ==============================================================================
     // Transform API
     // ==============================================================================
     void beginTransform(
@@ -58,9 +73,10 @@ public:
         std::uint32_t specificId, 
         int32_t vertexIndex, 
         float startX, 
-        float startY
+        float startY,
+        std::uint32_t modifiers
     );
-    void updateTransform(float worldX, float worldY);
+    void updateTransform(float worldX, float worldY, std::uint32_t modifiers);
     void commitTransform();
     void cancelTransform();
 
@@ -85,6 +101,12 @@ private:
     HistoryManager& historyManager_;
 
     // Internal State Structs
+    enum class AxisLock : std::uint8_t {
+        None = 0,
+        X = 1,
+        Y = 2
+    };
+
     struct SessionState {
         bool active = false;
         TransformMode mode = TransformMode::Move;
@@ -101,6 +123,10 @@ private:
         float baseMaxX = 0.0f;
         float baseMaxY = 0.0f;
         std::vector<TransformSnapshot> snapshots;
+        std::uint32_t nextEntityIdBefore = 0;
+        AxisLock axisLock = AxisLock::None;
+        bool duplicated = false;
+        std::vector<std::uint32_t> originalIds;
     };
 
     struct DraftState {
@@ -117,8 +143,15 @@ private:
         std::vector<Point2> points;
     };
 
+    struct TransformStats {
+        float lastUpdateMs = 0.0f;
+        std::uint32_t lastSnapCandidateCount = 0;
+        std::uint32_t lastSnapHitCount = 0;
+    };
+
     SessionState session_;
     DraftState draft_;
+    TransformStats transformStats_;
     std::vector<SnapGuide> snapGuides_;
     std::vector<std::uint32_t> snapCandidates_;
 
@@ -127,8 +160,19 @@ private:
     std::vector<std::uint8_t> commitResultOpCodes;
     std::vector<float> commitResultPayloads; 
 
+    std::vector<engine::protocol::TransformLogEntry> transformLogEntries_;
+    std::vector<std::uint32_t> transformLogIds_;
+    std::size_t transformLogCapacity_ = 0;
+    std::size_t transformLogIdCapacity_ = 0;
+    bool transformLogEnabled_ = false;
+    bool transformLogActive_ = false;
+    bool transformLogOverflowed_ = false;
+    bool replaying_ = false;
+
     // Helper to build a snapshot from current entity state
     EntitySnapshot buildSnapshotFromTransform(const TransformSnapshot& snap) const;
+
+    bool duplicateSelectionForDrag();
 
     // Helper to refresh render range in engine
     void refreshEntityRenderRange(std::uint32_t id);
@@ -138,4 +182,9 @@ private:
     // ==============================================================================
     void upsertPhantomEntity();   // Create or update phantom entity from draft state
     void removePhantomEntity();   // Remove phantom entity from EntityManager
+
+    void recordTransformBegin(float startX, float startY, std::uint32_t modifiers);
+    void recordTransformUpdate(float worldX, float worldY, std::uint32_t modifiers);
+    void recordTransformCommit();
+    void recordTransformCancel();
 };

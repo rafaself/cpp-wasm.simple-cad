@@ -173,8 +173,9 @@ export type CadEngineInstance = {
     vertexIndex: number,
     startX: number,
     startY: number,
+    modifiers: number,
   ) => void;
-  updateTransform?: (worldX: number, worldY: number) => void;
+  updateTransform?: (worldX: number, worldY: number, modifiers: number) => void;
   commitTransform?: () => void;
   cancelTransform?: () => void;
   isInteractionActive?: () => boolean;
@@ -182,6 +183,14 @@ export type CadEngineInstance = {
   getCommitResultIdsPtr?: () => number;
   getCommitResultOpCodesPtr?: () => number;
   getCommitResultPayloadsPtr?: () => number;
+  setTransformLogEnabled: (enabled: boolean, maxEntries: number, maxIds: number) => void;
+  clearTransformLog: () => void;
+  replayTransformLog: () => boolean;
+  isTransformLogOverflowed: () => boolean;
+  getTransformLogCount: () => number;
+  getTransformLogPtr: () => number;
+  getTransformLogIdCount: () => number;
+  getTransformLogIdsPtr: () => number;
 
   // Snapping
   setSnapOptions?: (

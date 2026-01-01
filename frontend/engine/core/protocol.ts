@@ -105,17 +105,38 @@ export type EngineStats = {
   pointCount: number;
   triangleVertexCount: number;
   lineVertexCount: number;
+  rebuildAllGeometryCount: number;
   lastLoadMs: number;
   lastRebuildMs: number;
-  textCount?: number;
-  rebuildAllGeometryCount?: number;
-  lastApplyMs?: number;
+  lastApplyMs: number;
+  lastTransformUpdateMs: number;
+  lastSnapCandidateCount: number;
+  lastSnapHitCount: number;
 };
 
 export type HistoryMeta = {
   depth: number;
   cursor: number;
   generation: number;
+};
+
+export enum TransformLogEvent {
+  Begin = 1,
+  Update = 2,
+  Commit = 3,
+  Cancel = 4,
+}
+
+export type TransformLogEntry = {
+  type: TransformLogEvent;
+  mode: number;
+  idOffset: number;
+  idCount: number;
+  specificId: number;
+  vertexIndex: number;
+  x: number;
+  y: number;
+  modifiers: number;
 };
 
 export type EngineEvent = {
@@ -302,13 +323,35 @@ const computeAbiHash = (): number => {
     OverlayKind.Point,
   ]);
 
+  h = hashEnum(h, 0xe0000015, [
+    TransformLogEvent.Begin,
+    TransformLogEvent.Update,
+    TransformLogEvent.Commit,
+    TransformLogEvent.Cancel,
+  ]);
+
   h = hashStruct(h, 0x53000001, 24, [0, 4, 8, 12, 16, 20]);
 
   h = hashStruct(h, 0x53000002, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000003, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x53000004, 44, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40]);
+  h = hashStruct(h, 0x53000004, 56, [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    44,
+    48,
+    52,
+  ]);
 
   h = hashStruct(h, 0x53000005, 24, [0, 4, 6, 8, 12, 16, 20]);
 
@@ -383,6 +426,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x53000023, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000024, 12, [0, 4, 8]);
+
+  h = hashStruct(h, 0x53000025, 36, [0, 4, 8, 12, 16, 20, 24, 28, 32]);
 
   return h >>> 0;
 };

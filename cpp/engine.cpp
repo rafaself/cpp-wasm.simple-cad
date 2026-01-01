@@ -106,6 +106,38 @@ std::uintptr_t CadEngine::getCommitResultPayloadsPtr() const {
     return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultPayloads().data());
 }
 
+void CadEngine::setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds) {
+    interactionSession_.setTransformLogEnabled(enabled, maxEntries, maxIds);
+}
+
+void CadEngine::clearTransformLog() {
+    interactionSession_.clearTransformLog();
+}
+
+bool CadEngine::replayTransformLog() {
+    return interactionSession_.replayTransformLog();
+}
+
+bool CadEngine::isTransformLogOverflowed() const {
+    return interactionSession_.isTransformLogOverflowed();
+}
+
+std::uint32_t CadEngine::getTransformLogCount() const {
+    return static_cast<std::uint32_t>(interactionSession_.getTransformLogEntries().size());
+}
+
+std::uintptr_t CadEngine::getTransformLogPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getTransformLogEntries().data());
+}
+
+std::uint32_t CadEngine::getTransformLogIdCount() const {
+    return static_cast<std::uint32_t>(interactionSession_.getTransformLogIds().size());
+}
+
+std::uintptr_t CadEngine::getTransformLogIdsPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getTransformLogIds().data());
+}
+
 void CadEngine::clear() noexcept {
     clearWorld();
     clearHistory();
@@ -226,7 +258,10 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
         rebuildAllGeometryCount_,
         lastLoadMs,
         lastRebuildMs,
-        lastApplyMs
+        lastApplyMs,
+        interactionSession_.getLastTransformUpdateMs(),
+        interactionSession_.getLastSnapCandidateCount(),
+        interactionSession_.getLastSnapHitCount()
     };
 }
 
@@ -678,9 +713,10 @@ void CadEngine::beginTransform(
     std::uint32_t specificId, 
     int32_t vertexIndex, 
     float startX, 
-    float startY
+    float startY,
+    std::uint32_t modifiers
 ) {
-    interactionSession_.beginTransform(ids, idCount, mode, specificId, vertexIndex, startX, startY);
+    interactionSession_.beginTransform(ids, idCount, mode, specificId, vertexIndex, startX, startY, modifiers);
 }
 
 // ==============================================================================
@@ -711,8 +747,8 @@ DraftDimensions CadEngine::getDraftDimensions() const {
     return interactionSession_.getDraftDimensions();
 }
 
-void CadEngine::updateTransform(float worldX, float worldY) {
-    interactionSession_.updateTransform(worldX, worldY);
+void CadEngine::updateTransform(float worldX, float worldY, std::uint32_t modifiers) {
+    interactionSession_.updateTransform(worldX, worldY, modifiers);
 }
 
 void CadEngine::commitTransform() {

@@ -19,6 +19,20 @@ const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
   );
 };
 
+const buildModifierMask = (event: {
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}): number => {
+  let mask = 0;
+  if (event.shiftKey) mask |= SelectionModifier.Shift;
+  if (event.ctrlKey) mask |= SelectionModifier.Ctrl;
+  if (event.altKey) mask |= SelectionModifier.Alt;
+  if (event.metaKey) mask |= SelectionModifier.Meta;
+  return mask;
+};
+
 type InteractionState =
   | { kind: 'none' }
   | { kind: 'marquee'; box: SelectionBoxState; startScreen: { x: number; y: number } }
@@ -74,6 +88,7 @@ export class SelectionHandler extends BaseInteractionHandler {
 
       const activeIds = Array.from(runtime.getSelectionIds());
       if (activeIds.length > 0) {
+        const modifiers = buildModifierMask(event);
         // Use beginTransform instead of beginSession
         runtime.beginTransform(
           activeIds,
@@ -82,6 +97,7 @@ export class SelectionHandler extends BaseInteractionHandler {
           res.subIndex, // Pass subIndex (vertex/handle index)
           snapped.x,
           snapped.y,
+          modifiers,
         );
         cadDebugLog('transform', 'begin', () => ({
           ids: activeIds,
@@ -116,7 +132,8 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (this.state.kind === 'transform') {
       // Update Engine Transform
       if (runtime.updateTransform) {
-        runtime.updateTransform(snapped.x, snapped.y);
+        const modifiers = buildModifierMask(event);
+        runtime.updateTransform(snapped.x, snapped.y, modifiers);
         cadDebugLog('transform', 'update', () => ({ x: snapped.x, y: snapped.y }));
       }
     } else if (this.state.kind === 'marquee' && this.pointerDown) {

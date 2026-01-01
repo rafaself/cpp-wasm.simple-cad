@@ -171,8 +171,8 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
             return TextBoundsResult{0,0,0,0, false};
         }))
         // Interaction Session
-        .function("beginTransform", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode, std::uint32_t specificId, int32_t vertexIndex, float startX, float startY) {
-            self.beginTransform(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::TransformMode>(mode), specificId, vertexIndex, startX, startY);
+        .function("beginTransform", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode, std::uint32_t specificId, int32_t vertexIndex, float startX, float startY, std::uint32_t modifiers) {
+            self.beginTransform(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::TransformMode>(mode), specificId, vertexIndex, startX, startY, modifiers);
         }))
         .function("updateTransform", &CadEngine::updateTransform)
         .function("commitTransform", &CadEngine::commitTransform)
@@ -182,6 +182,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getCommitResultIdsPtr", &CadEngine::getCommitResultIdsPtr)
         .function("getCommitResultOpCodesPtr", &CadEngine::getCommitResultOpCodesPtr)
         .function("getCommitResultPayloadsPtr", &CadEngine::getCommitResultPayloadsPtr)
+        .function("setTransformLogEnabled", &CadEngine::setTransformLogEnabled)
+        .function("clearTransformLog", &CadEngine::clearTransformLog)
+        .function("replayTransformLog", &CadEngine::replayTransformLog)
+        .function("isTransformLogOverflowed", &CadEngine::isTransformLogOverflowed)
+        .function("getTransformLogCount", &CadEngine::getTransformLogCount)
+        .function("getTransformLogPtr", &CadEngine::getTransformLogPtr)
+        .function("getTransformLogIdCount", &CadEngine::getTransformLogIdCount)
+        .function("getTransformLogIdsPtr", &CadEngine::getTransformLogIdsPtr)
         // Draft System
         .function("getDraftDimensions", &CadEngine::getDraftDimensions);
     
@@ -254,7 +262,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("rebuildAllGeometryCount", &CadEngine::EngineStats::rebuildAllGeometryCount)
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
         .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
-        .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
+        .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs)
+        .field("lastTransformUpdateMs", &CadEngine::EngineStats::lastTransformUpdateMs)
+        .field("lastSnapCandidateCount", &CadEngine::EngineStats::lastSnapCandidateCount)
+        .field("lastSnapHitCount", &CadEngine::EngineStats::lastSnapHitCount);
 
     emscripten::value_object<CadEngine::OverlayBufferMeta>("OverlayBufferMeta")
         .field("generation", &CadEngine::OverlayBufferMeta::generation)

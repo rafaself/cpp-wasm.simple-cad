@@ -56,7 +56,25 @@ describe('EngineRuntime public API surface', () => {
       canRedo: vi.fn(() => false),
       undo: vi.fn(),
       redo: vi.fn(),
-      getStats: vi.fn(() => ({ generation: 0 }) as any),
+      getStats: vi.fn(
+        () =>
+          ({
+            generation: 0,
+            rectCount: 0,
+            lineCount: 0,
+            polylineCount: 0,
+            pointCount: 0,
+            triangleVertexCount: 0,
+            lineVertexCount: 0,
+            rebuildAllGeometryCount: 0,
+            lastLoadMs: 0,
+            lastRebuildMs: 0,
+            lastApplyMs: 0,
+            lastTransformUpdateMs: 0,
+            lastSnapCandidateCount: 0,
+            lastSnapHitCount: 0,
+          }) as any,
+      ),
     } as unknown as CadEngineInstance;
 
     const MockCadEngine = class {

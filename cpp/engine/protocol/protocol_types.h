@@ -254,6 +254,32 @@ struct EngineStats {
     float lastLoadMs;
     float lastRebuildMs;
     float lastApplyMs;
+    float lastTransformUpdateMs;
+    std::uint32_t lastSnapCandidateCount;
+    std::uint32_t lastSnapHitCount;
+};
+
+// =============================================================================
+// Transform Log
+// =============================================================================
+
+enum class TransformLogEvent : std::uint32_t {
+    Begin = 1,
+    Update = 2,
+    Commit = 3,
+    Cancel = 4,
+};
+
+struct TransformLogEntry {
+    std::uint32_t type;
+    std::uint32_t mode;
+    std::uint32_t idOffset;
+    std::uint32_t idCount;
+    std::uint32_t specificId;
+    std::int32_t vertexIndex;
+    float x;
+    float y;
+    std::uint32_t modifiers;
 };
 
 // =============================================================================

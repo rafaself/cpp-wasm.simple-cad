@@ -530,6 +530,7 @@ public:
      * @param vertexIndex Index of vertex if applicable, -1 otherwise
      * @param startX World X start position
      * @param startY World Y start position
+     * @param modifiers Modifier bitmask (Shift/Ctrl/Alt/Meta)
      */
     void beginTransform(
         const std::uint32_t* ids, 
@@ -538,15 +539,17 @@ public:
         std::uint32_t specificId, 
         int32_t vertexIndex, 
         float startX, 
-        float startY
+        float startY,
+        std::uint32_t modifiers
     );
 
     /**
      * Update the current transform session.
      * @param worldX Current pointer World X
      * @param worldY Current pointer World Y
+     * @param modifiers Modifier bitmask (Shift/Ctrl/Alt/Meta)
      */
-    void updateTransform(float worldX, float worldY);
+    void updateTransform(float worldX, float worldY, std::uint32_t modifiers);
 
     /**
      * Commit changes and end the session.
@@ -570,6 +573,15 @@ public:
     std::uintptr_t getCommitResultIdsPtr() const;
     std::uintptr_t getCommitResultOpCodesPtr() const;
     std::uintptr_t getCommitResultPayloadsPtr() const;
+
+    void setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds);
+    void clearTransformLog();
+    bool replayTransformLog();
+    bool isTransformLogOverflowed() const;
+    std::uint32_t getTransformLogCount() const;
+    std::uintptr_t getTransformLogPtr() const;
+    std::uint32_t getTransformLogIdCount() const;
+    std::uintptr_t getTransformLogIdsPtr() const;
 
 private:
     EngineState& state() noexcept;

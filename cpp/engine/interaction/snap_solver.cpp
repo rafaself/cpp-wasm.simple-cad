@@ -97,20 +97,28 @@ namespace {
         return false;
     }
 
-    inline void addEndpointCandidates(std::uint32_t id, const EntityManager& em, SnapAxisBest& bestX, SnapAxisBest& bestY, const float* targetsX, std::uint32_t countX, const float* targetsY, std::uint32_t countY, float tol) {
+    inline void addEndpointCandidates(std::uint32_t id, const EntityManager& em, SnapAxisBest& bestX, SnapAxisBest& bestY, const float* targetsX, std::uint32_t countX, const float* targetsY, std::uint32_t countY, bool allowSnapX, bool allowSnapY, float tol) {
         if (const LineRec* l = em.getLine(id)) {
-            considerAxis(l->x0, targetsX, countX, tol, bestX);
-            considerAxis(l->x1, targetsX, countX, tol, bestX);
-            considerAxis(l->y0, targetsY, countY, tol, bestY);
-            considerAxis(l->y1, targetsY, countY, tol, bestY);
+            if (allowSnapX) {
+                considerAxis(l->x0, targetsX, countX, tol, bestX);
+                considerAxis(l->x1, targetsX, countX, tol, bestX);
+            }
+            if (allowSnapY) {
+                considerAxis(l->y0, targetsY, countY, tol, bestY);
+                considerAxis(l->y1, targetsY, countY, tol, bestY);
+            }
             return;
         }
 
         if (const ArrowRec* a = em.getArrow(id)) {
-            considerAxis(a->ax, targetsX, countX, tol, bestX);
-            considerAxis(a->bx, targetsX, countX, tol, bestX);
-            considerAxis(a->ay, targetsY, countY, tol, bestY);
-            considerAxis(a->by, targetsY, countY, tol, bestY);
+            if (allowSnapX) {
+                considerAxis(a->ax, targetsX, countX, tol, bestX);
+                considerAxis(a->bx, targetsX, countX, tol, bestX);
+            }
+            if (allowSnapY) {
+                considerAxis(a->ay, targetsY, countY, tol, bestY);
+                considerAxis(a->by, targetsY, countY, tol, bestY);
+            }
             return;
         }
 
@@ -118,27 +126,39 @@ namespace {
             if (pl->count < 1 || pl->offset + pl->count > em.points.size()) return;
             for (std::uint32_t i = 0; i < pl->count; i++) {
                 const Point2& p = em.points[pl->offset + i];
-                considerAxis(p.x, targetsX, countX, tol, bestX);
-                considerAxis(p.y, targetsY, countY, tol, bestY);
+                if (allowSnapX) {
+                    considerAxis(p.x, targetsX, countX, tol, bestX);
+                }
+                if (allowSnapY) {
+                    considerAxis(p.y, targetsY, countY, tol, bestY);
+                }
             }
             return;
         }
     }
 
-    inline void addMidpointCandidates(std::uint32_t id, const EntityManager& em, SnapAxisBest& bestX, SnapAxisBest& bestY, const float* targetsX, std::uint32_t countX, const float* targetsY, std::uint32_t countY, float tol) {
+    inline void addMidpointCandidates(std::uint32_t id, const EntityManager& em, SnapAxisBest& bestX, SnapAxisBest& bestY, const float* targetsX, std::uint32_t countX, const float* targetsY, std::uint32_t countY, bool allowSnapX, bool allowSnapY, float tol) {
         if (const LineRec* l = em.getLine(id)) {
             const float mx = (l->x0 + l->x1) * 0.5f;
             const float my = (l->y0 + l->y1) * 0.5f;
-            considerAxis(mx, targetsX, countX, tol, bestX);
-            considerAxis(my, targetsY, countY, tol, bestY);
+            if (allowSnapX) {
+                considerAxis(mx, targetsX, countX, tol, bestX);
+            }
+            if (allowSnapY) {
+                considerAxis(my, targetsY, countY, tol, bestY);
+            }
             return;
         }
 
         if (const ArrowRec* a = em.getArrow(id)) {
             const float mx = (a->ax + a->bx) * 0.5f;
             const float my = (a->ay + a->by) * 0.5f;
-            considerAxis(mx, targetsX, countX, tol, bestX);
-            considerAxis(my, targetsY, countY, tol, bestY);
+            if (allowSnapX) {
+                considerAxis(mx, targetsX, countX, tol, bestX);
+            }
+            if (allowSnapY) {
+                considerAxis(my, targetsY, countY, tol, bestY);
+            }
             return;
         }
 
@@ -149,8 +169,12 @@ namespace {
                 const Point2& p1 = em.points[pl->offset + i + 1];
                 const float mx = (p0.x + p1.x) * 0.5f;
                 const float my = (p0.y + p1.y) * 0.5f;
-                considerAxis(mx, targetsX, countX, tol, bestX);
-                considerAxis(my, targetsY, countY, tol, bestY);
+                if (allowSnapX) {
+                    considerAxis(mx, targetsX, countX, tol, bestX);
+                }
+                if (allowSnapY) {
+                    considerAxis(my, targetsY, countY, tol, bestY);
+                }
             }
             return;
         }
@@ -174,13 +198,15 @@ SnapResult computeObjectSnap(
     float viewY,
     float viewWidth,
     float viewHeight,
+    bool allowSnapX,
+    bool allowSnapY,
     std::vector<SnapGuide>& outGuides,
     std::vector<std::uint32_t>& candidatesScratch) {
     SnapResult result;
     outGuides.clear();
     candidatesScratch.clear();
 
-    if (!isObjectSnapEnabled(options)) {
+    if (!isObjectSnapEnabled(options) || (!allowSnapX && !allowSnapY)) {
         return result;
     }
 
@@ -217,33 +243,41 @@ SnapResult computeObjectSnap(
         AABB aabb{};
         if (!computeEntityAabb(id, entityManager, textSystem, aabb)) continue;
 
-        considerAxis(aabb.minX, targetXs, targetXCount, tol, bestX);
-        considerAxis(aabb.maxX, targetXs, targetXCount, tol, bestX);
-        considerAxis(aabb.minY, targetYs, targetYCount, tol, bestY);
-        considerAxis(aabb.maxY, targetYs, targetYCount, tol, bestY);
+        if (allowSnapX) {
+            considerAxis(aabb.minX, targetXs, targetXCount, tol, bestX);
+            considerAxis(aabb.maxX, targetXs, targetXCount, tol, bestX);
+        }
+        if (allowSnapY) {
+            considerAxis(aabb.minY, targetYs, targetYCount, tol, bestY);
+            considerAxis(aabb.maxY, targetYs, targetYCount, tol, bestY);
+        }
 
         if (options.centerEnabled) {
             const float cx = (aabb.minX + aabb.maxX) * 0.5f;
             const float cy = (aabb.minY + aabb.maxY) * 0.5f;
-            considerAxis(cx, targetXs, targetXCount, tol, bestX);
-            considerAxis(cy, targetYs, targetYCount, tol, bestY);
+            if (allowSnapX) {
+                considerAxis(cx, targetXs, targetXCount, tol, bestX);
+            }
+            if (allowSnapY) {
+                considerAxis(cy, targetYs, targetYCount, tol, bestY);
+            }
         }
 
         if (options.endpointEnabled) {
-            addEndpointCandidates(id, entityManager, bestX, bestY, targetXs, targetXCount, targetYs, targetYCount, tol);
+            addEndpointCandidates(id, entityManager, bestX, bestY, targetXs, targetXCount, targetYs, targetYCount, allowSnapX, allowSnapY, tol);
         }
 
         if (options.midpointEnabled) {
-            addMidpointCandidates(id, entityManager, bestX, bestY, targetXs, targetXCount, targetYs, targetYCount, tol);
+            addMidpointCandidates(id, entityManager, bestX, bestY, targetXs, targetXCount, targetYs, targetYCount, allowSnapX, allowSnapY, tol);
         }
     }
 
-    if (bestX.snapped) {
+    if (allowSnapX && bestX.snapped) {
         result.snappedX = true;
         result.dx = bestX.delta;
     }
 
-    if (bestY.snapped) {
+    if (allowSnapY && bestY.snapped) {
         result.snappedY = true;
         result.dy = bestY.delta;
     }

@@ -131,6 +131,7 @@ export class FakeRuntime {
     subIndex: number,
     startX: number,
     startY: number,
+    _modifiers: number,
   ): void {
     this.transformSessions.begun += 1;
     this.transformSessions.lastBegin = {
@@ -142,7 +143,7 @@ export class FakeRuntime {
     };
   }
 
-  updateTransform(x: number, y: number): void {
+  updateTransform(x: number, y: number, _modifiers: number): void {
     this.transformSessions.updates += 1;
     this.transformSessions.lastUpdate = { x, y };
   }
@@ -189,8 +190,23 @@ export class FakeRuntime {
     this.generation += 1;
   }
 
-  getStats(): { generation: number } {
-    return { generation: this.generation };
+  getStats() {
+    return {
+      generation: this.generation,
+      rectCount: 0,
+      lineCount: 0,
+      polylineCount: 0,
+      pointCount: 0,
+      triangleVertexCount: 0,
+      lineVertexCount: 0,
+      rebuildAllGeometryCount: 0,
+      lastLoadMs: 0,
+      lastRebuildMs: 0,
+      lastApplyMs: 0,
+      lastTransformUpdateMs: 0,
+      lastSnapCandidateCount: 0,
+      lastSnapHitCount: 0,
+    };
   }
 
   saveSnapshotBytes(): Uint8Array {

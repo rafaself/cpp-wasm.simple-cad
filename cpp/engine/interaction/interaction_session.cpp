@@ -2,11 +2,23 @@
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
 #include "engine/history/history_manager.h"
+#include "engine/core/util.h"
 #include "engine/interaction/snap_solver.h"
 #include "engine/text_system.h"
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+
+namespace {
+    constexpr std::uint32_t kShiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    constexpr std::uint32_t kCtrlMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Ctrl);
+    constexpr std::uint32_t kAltMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Alt);
+    constexpr std::uint32_t kMetaMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Meta);
+
+    inline bool isSnapSuppressed(std::uint32_t modifiers) {
+        return (modifiers & (kCtrlMask | kMetaMask)) != 0;
+    }
+}
 
 InteractionSession::InteractionSession(CadEngine& engine, EntityManager& entityManager, PickSystem& pickSystem, TextSystem& textSystem, HistoryManager& historyManager)
     : engine_(engine), entityManager_(entityManager), pickSystem_(pickSystem), textSystem_(textSystem), historyManager_(historyManager)
@@ -78,6 +90,56 @@ EntitySnapshot InteractionSession::buildSnapshotFromTransform(const TransformSna
     return out;
 }
 
+bool InteractionSession::duplicateSelectionForDrag() {
+    if (session_.duplicated || session_.snapshots.empty()) return false;
+
+    std::vector<std::uint32_t> newIds;
+    std::vector<TransformSnapshot> newSnaps;
+    newIds.reserve(session_.snapshots.size());
+    newSnaps.reserve(session_.snapshots.size());
+
+    for (const auto& snap : session_.snapshots) {
+        EntitySnapshot entitySnap{};
+        if (!historyManager_.captureEntitySnapshot(snap.id, entitySnap)) {
+            if (!newIds.empty()) {
+                const bool prevSuppressed = historyManager_.isSuppressed();
+                historyManager_.setSuppressed(true);
+                for (const std::uint32_t id : newIds) {
+                    engine_.deleteEntity(id);
+                }
+                historyManager_.setSuppressed(prevSuppressed);
+                engine_.setNextEntityId(session_.nextEntityIdBefore);
+            }
+            return false;
+        }
+
+        const std::uint32_t newId = engine_.allocateEntityId();
+        entitySnap.id = newId;
+        historyManager_.applyEntitySnapshot(entitySnap, engine_);
+
+        TransformSnapshot dupSnap = snap;
+        dupSnap.id = newId;
+        newSnaps.push_back(std::move(dupSnap));
+        newIds.push_back(newId);
+    }
+
+    if (newIds.empty()) {
+        return false;
+    }
+
+    session_.duplicated = true;
+    session_.originalIds = session_.initialIds;
+    session_.initialIds = std::move(newIds);
+    session_.snapshots = std::move(newSnaps);
+
+    engine_.setSelection(
+        session_.initialIds.data(),
+        static_cast<std::uint32_t>(session_.initialIds.size()),
+        engine::protocol::SelectionMode::Replace);
+
+    return true;
+}
+
 void InteractionSession::beginTransform(
     const std::uint32_t* ids, 
     std::uint32_t idCount, 
@@ -85,7 +147,8 @@ void InteractionSession::beginTransform(
     std::uint32_t specificId, 
     int32_t vertexIndex, 
     float startX, 
-    float startY
+    float startY,
+    std::uint32_t modifiers
 ) {
     if (session_.active) return;
     
@@ -99,8 +162,15 @@ void InteractionSession::beginTransform(
     session_.startY = startY;
     session_.dragging = false;
     session_.historyActive = false;
+    session_.nextEntityIdBefore = engine_.state().nextEntityId_;
+    session_.axisLock = AxisLock::None;
+    session_.duplicated = false;
+    session_.originalIds.clear();
+    transformStats_ = TransformStats{};
     snapGuides_.clear();
-    applyGridSnap(session_.startX, session_.startY, snapOptions);
+    if (!isSnapSuppressed(modifiers)) {
+        applyGridSnap(session_.startX, session_.startY, snapOptions);
+    }
     {
         const float scale = engine_.state().viewScale;
         constexpr float kDragThresholdPx = 3.0f;
@@ -223,6 +293,8 @@ void InteractionSession::beginTransform(
         session_.baseMaxY = maxY;
     }
 
+    recordTransformBegin(startX, startY, modifiers);
+
     session_.historyActive = engine_.beginHistoryEntry();
     if (session_.historyActive) {
         for (const std::uint32_t id : session_.initialIds) {
@@ -231,52 +303,96 @@ void InteractionSession::beginTransform(
     }
 }
 
-void InteractionSession::updateTransform(float worldX, float worldY) {
+void InteractionSession::updateTransform(float worldX, float worldY, std::uint32_t modifiers) {
     if (!session_.active) return;
     snapGuides_.clear();
 
-    // Apply Snapping
-    applyGridSnap(worldX, worldY, snapOptions);
+    const double t0 = emscripten_get_now();
+    recordTransformUpdate(worldX, worldY, modifiers);
+    std::uint32_t snapCandidateCount = 0;
+    std::uint32_t snapHitCount = 0;
+    auto finalizeStats = [&]() {
+        transformStats_.lastUpdateMs = static_cast<float>(emscripten_get_now() - t0);
+        transformStats_.lastSnapCandidateCount = snapCandidateCount;
+        transformStats_.lastSnapHitCount = snapHitCount;
+    };
+
+    const bool snapSuppressed = isSnapSuppressed(modifiers);
+    if (!snapSuppressed) {
+        applyGridSnap(worldX, worldY, snapOptions);
+    }
 
     bool updated = false;
     float totalDx = worldX - session_.startX;
     float totalDy = worldY - session_.startY;
 
+    bool dragStarted = false;
     if (!session_.dragging) {
         const float threshold = session_.dragThresholdWU;
         const float distSq = totalDx * totalDx + totalDy * totalDy;
         if (distSq < threshold * threshold) {
+            finalizeStats();
             return;
         }
         session_.dragging = true;
+        dragStarted = true;
     }
     
     if (session_.mode == TransformMode::Move) {
-        const SnapResult snapResult = computeObjectSnap(
-            snapOptions,
-            session_.initialIds,
-            session_.baseMinX,
-            session_.baseMinY,
-            session_.baseMaxX,
-            session_.baseMaxY,
-            totalDx,
-            totalDy,
-            entityManager_,
-            textSystem_,
-            pickSystem_,
-            engine_.state().viewScale,
-            engine_.state().viewX,
-            engine_.state().viewY,
-            engine_.state().viewWidth,
-            engine_.state().viewHeight,
-            snapGuides_,
-            snapCandidates_);
+        const bool shiftDown = (modifiers & kShiftMask) != 0;
+        const bool altDown = (modifiers & kAltMask) != 0;
 
-        if (snapResult.snappedX) {
-            totalDx += snapResult.dx;
+        if (dragStarted && altDown) {
+            duplicateSelectionForDrag();
         }
-        if (snapResult.snappedY) {
-            totalDy += snapResult.dy;
+
+        if (!shiftDown) {
+            session_.axisLock = AxisLock::None;
+        } else if (session_.axisLock == AxisLock::None) {
+            session_.axisLock = (std::abs(totalDx) >= std::abs(totalDy)) ? AxisLock::X : AxisLock::Y;
+        }
+
+        if (session_.axisLock == AxisLock::X) {
+            totalDy = 0.0f;
+        } else if (session_.axisLock == AxisLock::Y) {
+            totalDx = 0.0f;
+        }
+
+        const bool allowSnapX = !snapSuppressed && session_.axisLock != AxisLock::Y;
+        const bool allowSnapY = !snapSuppressed && session_.axisLock != AxisLock::X;
+
+        if (!snapSuppressed) {
+            const SnapResult snapResult = computeObjectSnap(
+                snapOptions,
+                session_.initialIds,
+                session_.baseMinX,
+                session_.baseMinY,
+                session_.baseMaxX,
+                session_.baseMaxY,
+                totalDx,
+                totalDy,
+                entityManager_,
+                textSystem_,
+                pickSystem_,
+                engine_.state().viewScale,
+                engine_.state().viewX,
+                engine_.state().viewY,
+                engine_.state().viewWidth,
+                engine_.state().viewHeight,
+                allowSnapX,
+                allowSnapY,
+                snapGuides_,
+                snapCandidates_);
+
+            snapCandidateCount = static_cast<std::uint32_t>(snapCandidates_.size());
+            if (snapResult.snappedX && allowSnapX) {
+                totalDx += snapResult.dx;
+                snapHitCount++;
+            }
+            if (snapResult.snappedY && allowSnapY) {
+                totalDy += snapResult.dy;
+                snapHitCount++;
+            }
         }
 
         for (const auto& snap : session_.snapshots) {
@@ -482,12 +598,15 @@ void InteractionSession::updateTransform(float worldX, float worldY) {
     if (updated) {
         engine_.state().generation++;
     }
+
+    finalizeStats();
 }
 
 void InteractionSession::commitTransform() {
     if (!session_.active) return;
 
     snapGuides_.clear();
+    recordTransformCommit();
     
     commitResultIds.clear();
     commitResultOpCodes.clear();
@@ -604,9 +723,29 @@ void InteractionSession::cancelTransform() {
     if (!session_.active) return;
 
     snapGuides_.clear();
+    recordTransformCancel();
 
     if (session_.historyActive) {
         engine_.discardHistoryEntry();
+    }
+
+    if (session_.duplicated) {
+        const bool prevSuppressed = historyManager_.isSuppressed();
+        historyManager_.setSuppressed(true);
+        for (const std::uint32_t id : session_.initialIds) {
+            engine_.deleteEntity(id);
+        }
+        historyManager_.setSuppressed(prevSuppressed);
+        engine_.setNextEntityId(session_.nextEntityIdBefore);
+
+        engine_.setSelection(
+            session_.originalIds.data(),
+            static_cast<std::uint32_t>(session_.originalIds.size()),
+            engine::protocol::SelectionMode::Replace);
+
+        session_ = SessionState{};
+        engine_.state().renderDirty = true;
+        return;
     }
 
     for (const auto& snap : session_.snapshots) {
@@ -652,437 +791,4 @@ void InteractionSession::cancelTransform() {
 
     session_ = SessionState{};
     engine_.state().renderDirty = true;
-}
-
-// ==============================================================================
-// Draft Implementation (Phantom Entity System)
-// ==============================================================================
-// The draft system now creates a real temporary entity (phantom) with a reserved ID
-// that gets rendered by the normal render pipeline. This ensures consistent visuals
-// between draft preview and final entity.
-
-void InteractionSession::beginDraft(const BeginDraftPayload& p) {
-    // Cancel any existing draft first
-    if (draft_.active) {
-        removePhantomEntity();
-    }
-    
-    draft_.active = true;
-    draft_.kind = p.kind;
-    draft_.startX = p.x;
-    draft_.startY = p.y;
-    draft_.currentX = p.x;
-    draft_.currentY = p.y;
-    draft_.fillR = p.fillR; draft_.fillG = p.fillG; draft_.fillB = p.fillB; draft_.fillA = p.fillA;
-    draft_.strokeR = p.strokeR; draft_.strokeG = p.strokeG; draft_.strokeB = p.strokeB; draft_.strokeA = p.strokeA;
-    draft_.strokeEnabled = p.strokeEnabled;
-    draft_.strokeWidthPx = p.strokeWidthPx;
-    draft_.sides = p.sides;
-    draft_.head = p.head;
-    draft_.points.clear();
-    
-    if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
-        draft_.points.push_back({p.x, p.y});
-    }
-    
-    // Create the phantom entity for immediate visual feedback
-    upsertPhantomEntity();
-    engine_.state().renderDirty = true;
-}
-
-void InteractionSession::updateDraft(float x, float y) {
-    if (!draft_.active) return;
-    draft_.currentX = x;
-    draft_.currentY = y;
-    
-    // Update the phantom entity to reflect new position
-    upsertPhantomEntity();
-    engine_.state().renderDirty = true;
-}
-
-void InteractionSession::appendDraftPoint(float x, float y) {
-    if (!draft_.active) return;
-    draft_.points.push_back({x, y});
-    draft_.currentX = x; 
-    draft_.currentY = y;
-    
-    // Update phantom entity with new point
-    upsertPhantomEntity();
-    engine_.state().renderDirty = true;
-}
-
-std::uint32_t InteractionSession::commitDraft() {
-    if (!draft_.active) return 0;
-    
-    // Remove the phantom entity first
-    removePhantomEntity();
-    
-    // Allocate a real entity ID
-    const std::uint32_t id = engine_.allocateEntityId();
-    
-    // Create the final entity via CadEngine (which handles history)
-    switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Rect: {
-            float x0 = std::min(draft_.startX, draft_.currentX);
-            float y0 = std::min(draft_.startY, draft_.currentY);
-            float w = std::abs(draft_.currentX - draft_.startX);
-            float h = std::abs(draft_.currentY - draft_.startY);
-            if (w > 0.001f && h > 0.001f)
-                engine_.upsertRect(id, x0, y0, w, h, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Line:
-            engine_.upsertLine(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        case EntityKind::Circle: {
-            float x0 = std::min(draft_.startX, draft_.currentX);
-            float y0 = std::min(draft_.startY, draft_.currentY);
-            float w = std::abs(draft_.currentX - draft_.startX);
-            float h = std::abs(draft_.currentY - draft_.startY);
-            if (w > 0.001f && h > 0.001f)
-                engine_.upsertCircle(id, x0 + w/2, y0 + h/2, w/2, h/2, 0, 1, 1, draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Polygon: {
-            float x0 = std::min(draft_.startX, draft_.currentX);
-            float y0 = std::min(draft_.startY, draft_.currentY);
-            float w = std::abs(draft_.currentX - draft_.startX);
-            float h = std::abs(draft_.currentY - draft_.startY);
-            if (w > 0.001f && h > 0.001f) {
-                float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
-                engine_.upsertPolygon(id, x0 + w/2, y0 + h/2, w/2, h/2, rot, 1, 1, static_cast<std::uint32_t>(draft_.sides), draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-            }
-            break;
-        }
-        case EntityKind::Polyline: {
-            if (draft_.points.size() < 2) break;
-            std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
-            for (const auto& p : draft_.points) {
-                entityManager_.points.push_back({p.x, p.y});
-            }
-            engine_.upsertPolyline(id, offset, static_cast<std::uint32_t>(draft_.points.size()), draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Arrow: {
-            engine_.upsertArrow(id, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Text: break;
-    }
-
-    // If we just committed a polyline, the phantom entity points generated during draft
-    // are now garbage (the new entity has its own fresh points).
-    // We must compact to avoid leaking thousands of points in the active session.
-    if (static_cast<EntityKind>(draft_.kind) == EntityKind::Polyline) {
-        engine_.compactPolylinePoints();
-    }
-
-    // Auto-select the newly created entity
-    engine_.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
-
-    draft_.active = false;
-    draft_.points.clear();
-    engine_.state().renderDirty = true;
-    return id;
-}
-
-void InteractionSession::cancelDraft() {
-    if (!draft_.active) return;
-    
-    removePhantomEntity();
-    
-    // If we cancelled a polyline, the phantom points are garbage.
-    if (static_cast<EntityKind>(draft_.kind) == EntityKind::Polyline) {
-        engine_.compactPolylinePoints();
-    }
-    
-    draft_.active = false;
-    draft_.points.clear();
-    engine_.state().renderDirty = true;
-}
-
-void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertices) const {
-    if (!draft_.active) return;
-
-    const bool useStroke = draft_.strokeEnabled > 0.5f;
-    const float r = useStroke ? draft_.strokeR : draft_.fillR;
-    const float g = useStroke ? draft_.strokeG : draft_.fillG;
-    const float b = useStroke ? draft_.strokeB : draft_.fillB;
-    const float a = useStroke ? draft_.strokeA : draft_.fillA;
-    if (!(a > 0.0f)) return;
-
-    auto pushVertex = [&](float x, float y) {
-        lineVertices.push_back(x);
-        lineVertices.push_back(y);
-        lineVertices.push_back(0.0f);
-        lineVertices.push_back(r);
-        lineVertices.push_back(g);
-        lineVertices.push_back(b);
-        lineVertices.push_back(a);
-    };
-    auto pushSegment = [&](float x0, float y0, float x1, float y1) {
-        pushVertex(x0, y0);
-        pushVertex(x1, y1);
-    };
-
-    constexpr float pi = 3.14159265358979323846f;
-    constexpr float twoPi = pi * 2.0f;
-
-    switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Line:
-        case EntityKind::Arrow: {
-            pushSegment(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
-            break;
-        }
-        case EntityKind::Polyline: {
-            if (draft_.points.empty()) {
-                pushSegment(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
-                break;
-            }
-            Point2 prev = draft_.points.front();
-            for (std::size_t i = 1; i < draft_.points.size(); i++) {
-                const Point2& curr = draft_.points[i];
-                pushSegment(prev.x, prev.y, curr.x, curr.y);
-                prev = curr;
-            }
-            pushSegment(prev.x, prev.y, draft_.currentX, draft_.currentY);
-            break;
-        }
-        case EntityKind::Rect: {
-            const float x0 = std::min(draft_.startX, draft_.currentX);
-            const float y0 = std::min(draft_.startY, draft_.currentY);
-            const float x1 = std::max(draft_.startX, draft_.currentX);
-            const float y1 = std::max(draft_.startY, draft_.currentY);
-            pushSegment(x0, y0, x1, y0);
-            pushSegment(x1, y0, x1, y1);
-            pushSegment(x1, y1, x0, y1);
-            pushSegment(x0, y1, x0, y0);
-            break;
-        }
-        case EntityKind::Polygon: {
-            const std::uint32_t sides = std::max<std::uint32_t>(3u, static_cast<std::uint32_t>(draft_.sides));
-            if (sides < 3) break;
-            const float rx = std::abs(draft_.currentX - draft_.startX) * 0.5f;
-            const float ry = std::abs(draft_.currentY - draft_.startY) * 0.5f;
-            if (!(rx > 0.0f) || !(ry > 0.0f)) break;
-            const float cx = (draft_.startX + draft_.currentX) * 0.5f;
-            const float cy = (draft_.startY + draft_.currentY) * 0.5f;
-            const float rot = (sides == 3) ? pi : 0.0f;
-
-            Point2 first{};
-            Point2 prev{};
-            for (std::uint32_t i = 0; i < sides; ++i) {
-                const float t =
-                    (static_cast<float>(i) / static_cast<float>(sides)) * twoPi - (pi * 0.5f) + rot;
-                const float x = cx + std::cos(t) * rx;
-                const float y = cy + std::sin(t) * ry;
-                const Point2 curr{x, y};
-                if (i == 0) {
-                    first = curr;
-                } else {
-                    pushSegment(prev.x, prev.y, curr.x, curr.y);
-                }
-                prev = curr;
-            }
-            pushSegment(prev.x, prev.y, first.x, first.y);
-            break;
-        }
-        case EntityKind::Circle: {
-            const float rx = std::abs(draft_.currentX - draft_.startX) * 0.5f;
-            const float ry = std::abs(draft_.currentY - draft_.startY) * 0.5f;
-            if (!(rx > 0.0f) || !(ry > 0.0f)) break;
-            const float cx = (draft_.startX + draft_.currentX) * 0.5f;
-            const float cy = (draft_.startY + draft_.currentY) * 0.5f;
-            constexpr std::uint32_t segments = 64;
-
-            Point2 first{};
-            Point2 prev{};
-            for (std::uint32_t i = 0; i < segments; ++i) {
-                const float t = (static_cast<float>(i) / static_cast<float>(segments)) * twoPi;
-                const float x = cx + std::cos(t) * rx;
-                const float y = cy + std::sin(t) * ry;
-                const Point2 curr{x, y};
-                if (i == 0) {
-                    first = curr;
-                } else {
-                    pushSegment(prev.x, prev.y, curr.x, curr.y);
-                }
-                prev = curr;
-            }
-            pushSegment(prev.x, prev.y, first.x, first.y);
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-// ==============================================================================
-// Phantom Entity Helpers
-// ==============================================================================
-
-void InteractionSession::upsertPhantomEntity() {
-    if (!draft_.active) return;
-    
-    const std::uint32_t phantomId = DRAFT_ENTITY_ID;
-    
-    switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Rect: {
-            float x0 = std::min(draft_.startX, draft_.currentX);
-            float y0 = std::min(draft_.startY, draft_.currentY);
-            float w = std::abs(draft_.currentX - draft_.startX);
-            float h = std::abs(draft_.currentY - draft_.startY);
-            // Always create, even if small (will be filtered at commit)
-            entityManager_.upsertRect(phantomId, x0, y0, std::max(w, 0.1f), std::max(h, 0.1f), 
-                draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, 
-                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, 
-                draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Line: {
-            entityManager_.upsertLine(phantomId, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY, 
-                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, 
-                draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Circle: {
-            float x0 = std::min(draft_.startX, draft_.currentX);
-            float y0 = std::min(draft_.startY, draft_.currentY);
-            float w = std::abs(draft_.currentX - draft_.startX);
-            float h = std::abs(draft_.currentY - draft_.startY);
-            entityManager_.upsertCircle(phantomId, x0 + w/2, y0 + h/2, std::max(w/2, 0.1f), std::max(h/2, 0.1f), 0, 1, 1,
-                draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA,
-                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
-                draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Polygon: {
-            float x0 = std::min(draft_.startX, draft_.currentX);
-            float y0 = std::min(draft_.startY, draft_.currentY);
-            float w = std::abs(draft_.currentX - draft_.startX);
-            float h = std::abs(draft_.currentY - draft_.startY);
-            float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
-            entityManager_.upsertPolygon(phantomId, x0 + w/2, y0 + h/2, std::max(w/2, 0.1f), std::max(h/2, 0.1f), rot, 1, 1,
-                static_cast<std::uint32_t>(draft_.sides),
-                draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA,
-                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
-                draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Polyline: {
-            // For polyline, we need to handle the points specially
-            // First, find and remove any existing phantom polyline points
-            auto it = entityManager_.entities.find(phantomId);
-            if (it != entityManager_.entities.end() && it->second.kind == EntityKind::Polyline) {
-                // Remove old polyline - points will be orphaned but that's ok for phantom
-            }
-            
-            // Calculate how many points we have (draft points + current cursor)
-            size_t totalPoints = draft_.points.size() + 1; // +1 for current position
-            if (totalPoints < 2) {
-                totalPoints = 2; // Need at least 2 for a valid polyline
-            }
-            
-            // Use a reserved area at the end of points for phantom
-            // This is a simplification - in production you'd want proper point management
-            std::uint32_t offset = static_cast<std::uint32_t>(entityManager_.points.size());
-            for (const auto& p : draft_.points) {
-                entityManager_.points.push_back({p.x, p.y});
-            }
-            // Add current cursor position
-            entityManager_.points.push_back({draft_.currentX, draft_.currentY});
-            
-            entityManager_.upsertPolyline(phantomId, offset, static_cast<std::uint32_t>(totalPoints),
-                draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
-                draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Arrow: {
-            entityManager_.upsertArrow(phantomId, draft_.startX, draft_.startY, draft_.currentX, draft_.currentY,
-                draft_.head, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA,
-                draft_.strokeEnabled, draft_.strokeWidthPx);
-            break;
-        }
-        case EntityKind::Text: break;
-    }
-    
-    // Remove phantom entity from draw order - it should not be included in normal draw order
-    // (it's rendered separately, at the end, on top of all other entities)
-    auto& drawOrder = entityManager_.drawOrderIds;
-    for (auto it = drawOrder.begin(); it != drawOrder.end(); ++it) {
-        if (*it == phantomId) {
-            drawOrder.erase(it);
-            break;
-        }
-    }
-}
-
-void InteractionSession::removePhantomEntity() {
-    const std::uint32_t phantomId = DRAFT_ENTITY_ID;
-    
-    // Simply delete the phantom entity from the entity manager
-    entityManager_.deleteEntity(phantomId);
-    
-    // Trigger a full rebuild since we removed an entity
-    engine_.state().renderDirty = true;
-}
-
-DraftDimensions InteractionSession::getDraftDimensions() const {
-    DraftDimensions dims{};
-    dims.active = draft_.active;
-    dims.kind = draft_.kind;
-    
-    if (!draft_.active) {
-        return dims;
-    }
-    
-    // Calculate bounding box based on entity kind
-    switch (static_cast<EntityKind>(draft_.kind)) {
-        case EntityKind::Rect:
-        case EntityKind::Circle:
-        case EntityKind::Polygon: {
-            dims.minX = std::min(draft_.startX, draft_.currentX);
-            dims.minY = std::min(draft_.startY, draft_.currentY);
-            dims.maxX = std::max(draft_.startX, draft_.currentX);
-            dims.maxY = std::max(draft_.startY, draft_.currentY);
-            break;
-        }
-        case EntityKind::Line:
-        case EntityKind::Arrow: {
-            dims.minX = std::min(draft_.startX, draft_.currentX);
-            dims.minY = std::min(draft_.startY, draft_.currentY);
-            dims.maxX = std::max(draft_.startX, draft_.currentX);
-            dims.maxY = std::max(draft_.startY, draft_.currentY);
-            break;
-        }
-        case EntityKind::Polyline: {
-            if (draft_.points.empty()) {
-                dims.minX = dims.minY = dims.maxX = dims.maxY = 0;
-            } else {
-                dims.minX = dims.maxX = draft_.points[0].x;
-                dims.minY = dims.maxY = draft_.points[0].y;
-                for (const auto& p : draft_.points) {
-                    dims.minX = std::min(dims.minX, p.x);
-                    dims.minY = std::min(dims.minY, p.y);
-                    dims.maxX = std::max(dims.maxX, p.x);
-                    dims.maxY = std::max(dims.maxY, p.y);
-                }
-                // Include current cursor position
-                dims.minX = std::min(dims.minX, draft_.currentX);
-                dims.minY = std::min(dims.minY, draft_.currentY);
-                dims.maxX = std::max(dims.maxX, draft_.currentX);
-                dims.maxY = std::max(dims.maxY, draft_.currentY);
-            }
-            break;
-        }
-        default:
-            break;
-    }
-    
-    dims.width = dims.maxX - dims.minX;
-    dims.height = dims.maxY - dims.minY;
-    dims.centerX = (dims.minX + dims.maxX) / 2.0f;
-    dims.centerY = (dims.minY + dims.maxY) / 2.0f;
-    
-    return dims;
 }

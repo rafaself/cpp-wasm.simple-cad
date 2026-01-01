@@ -99,6 +99,7 @@ export class EngineRuntime {
       'getSelectionHandleMeta',
       'getSnapOverlayMeta',
       'getEntityAabb',
+      'getStats',
       'getHistoryMeta',
       'canUndo',
       'canRedo',
@@ -328,16 +329,17 @@ export class EngineRuntime {
   public beginTransform(
     ids: EntityId[],
     mode: number,
-    specificId: EntityId = 0,
-    vertexIndex: number = -1,
-    startX: number = 0,
-    startY: number = 0,
+    specificId: EntityId,
+    vertexIndex: number,
+    startX: number,
+    startY: number,
+    modifiers: number,
   ): void {
-    this.transformSystem.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+    this.transformSystem.beginTransform(ids, mode, specificId, vertexIndex, startX, startY, modifiers);
   }
 
-  public updateTransform(worldX: number, worldY: number): void {
-    this.transformSystem.updateTransform(worldX, worldY);
+  public updateTransform(worldX: number, worldY: number, modifiers: number): void {
+    this.transformSystem.updateTransform(worldX, worldY, modifiers);
   }
 
   public commitTransform(): {

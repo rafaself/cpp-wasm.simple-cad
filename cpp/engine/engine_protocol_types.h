@@ -44,6 +44,8 @@ struct EngineProtocolTypes {
     using OverlayBufferMeta = engine::protocol::OverlayBufferMeta;
     using EntityAabb = engine::protocol::EntityAabb;
     using EngineStats = engine::protocol::EngineStats;
+    using TransformLogEvent = engine::protocol::TransformLogEvent;
+    using TransformLogEntry = engine::protocol::TransformLogEntry;
     using TextContentMeta = engine::protocol::TextContentMeta;
 
     // Protocol versions (must be non-zero; keep in sync with TS).
@@ -280,6 +282,13 @@ protected:
             static_cast<std::uint32_t>(OverlayKind::Point),
         });
 
+        h = hashEnum(h, 0xE0000015u, {
+            static_cast<std::uint32_t>(TransformLogEvent::Begin),
+            static_cast<std::uint32_t>(TransformLogEvent::Update),
+            static_cast<std::uint32_t>(TransformLogEvent::Commit),
+            static_cast<std::uint32_t>(TransformLogEvent::Cancel),
+        });
+
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, protocolVersion)),
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, commandVersion)),
@@ -315,6 +324,9 @@ protected:
             static_cast<std::uint32_t>(offsetof(EngineStats, lastLoadMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastRebuildMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastApplyMs)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastTransformUpdateMs)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastSnapCandidateCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastSnapHitCount)),
         });
 
         h = hashStruct(h, 0x53000005u, sizeof(PickResult), {
@@ -591,6 +603,18 @@ protected:
             static_cast<std::uint32_t>(offsetof(HistoryMeta, generation)),
         });
 
+        h = hashStruct(h, 0x53000025u, sizeof(TransformLogEntry), {
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, type)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, mode)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, idOffset)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, idCount)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, specificId)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, vertexIndex)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, x)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, y)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, modifiers)),
+        });
+
         return h;
     }
 
@@ -599,5 +623,5 @@ public:
     // We hardcode it here because dynamic computation via constexpr std::initializer_list 
     // is failing on the current Emscripten compiler environment.
     // If you change the ABI (structs, enums), update this hash or fix computeAbiHash().
-    static constexpr std::uint32_t kAbiHash = 0x96ec015d;
+    static constexpr std::uint32_t kAbiHash = 0xf3a98e35;
 };
