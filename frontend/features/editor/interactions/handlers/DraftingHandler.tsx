@@ -37,6 +37,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   private draft: DraftState = { kind: 'none' };
   // Screen-space pointer down to detect click vs drag
   private pointerDownScreen: { x: number; y: number } | null = null;
+  private linePendingCommit = false;
 
   // Polygon Modal State
   private polygonModalOpen = false;
@@ -77,6 +78,12 @@ export class DraftingHandler extends BaseInteractionHandler {
     return { r: rgb.r / 255, g: rgb.g / 255, b: rgb.b / 255 };
   }
 
+  private resetDraftState(): void {
+    this.draft = { kind: 'none' };
+    this.pointerDownScreen = null;
+    this.linePendingCommit = false;
+  }
+
   private runtime: EngineRuntime | null = null; // Store runtime for keyboard events
   private static readonly DRAG_THRESHOLD_PX = 2;
 
@@ -93,6 +100,16 @@ export class DraftingHandler extends BaseInteractionHandler {
     // Polyline multi-segment logic: don't restart if already drafting
     if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
       cadDebugLog('draft', 'polyline-continue', () => ({
+        tool: this.activeTool,
+        x: snapped.x,
+        y: snapped.y,
+      }));
+      this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
+      return;
+    }
+
+    if (this.activeTool === 'line' && this.draft.kind === 'line') {
+      cadDebugLog('draft', 'line-continue', () => ({
         tool: this.activeTool,
         x: snapped.x,
         y: snapped.y,
@@ -119,6 +136,7 @@ export class DraftingHandler extends BaseInteractionHandler {
     } else return;
 
     const style = this.buildDraftStyle();
+    this.linePendingCommit = false;
 
     runtime.apply([
       {
@@ -174,14 +192,16 @@ export class DraftingHandler extends BaseInteractionHandler {
     const { runtime, snappedPoint: snapped, event } = ctx;
     if (!runtime) return;
 
-    const down =
-      (this.draft as any).start ||
-      (this.draft.points ? this.draft.points[this.draft.points.length - 1] : snapped);
-
-    // For now, I'll rely on the logic that regular shapes commit on Up.
     const isPolyline = this.activeTool === 'polyline';
+    const isLine = this.activeTool === 'line';
 
     if (isPolyline) {
+      if (this.draft.kind !== 'polyline') return;
+      if (event.button === 2) {
+        this.commitPolyline(runtime);
+        return;
+      }
+      if (event.button !== 0) return;
       runtime.appendDraftPoint(snapped.x, snapped.y);
       cadDebugLog('draft', 'polyline-append', () => ({
         x: snapped.x,
@@ -202,6 +222,24 @@ export class DraftingHandler extends BaseInteractionHandler {
       : 0;
     const isClick = dragDistance <= DraftingHandler.DRAG_THRESHOLD_PX;
 
+    if (isLine) {
+      if (event.button !== 0) return;
+      if (this.draft.kind !== 'line') return;
+      if (!isClick || this.linePendingCommit) {
+        runtime.apply([{ op: CommandOp.CommitDraft }]);
+        cadDebugLog('draft', 'commit', () => ({
+          tool: this.activeTool,
+          x: snapped.x,
+          y: snapped.y,
+        }));
+        this.resetDraftState();
+        return;
+      }
+      this.linePendingCommit = true;
+      this.pointerDownScreen = null;
+      return;
+    }
+
     if (this.activeTool === 'polygon' && this.draft.start && isClick) {
       // Was a simple click
       this.cancelDraft(runtime);
@@ -219,8 +257,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       x: snapped.x,
       y: snapped.y,
     }));
-    this.draft = { kind: 'none' };
-    this.pointerDownScreen = null;
+    this.resetDraftState();
   }
 
   onCancel(): void {
@@ -231,23 +268,36 @@ export class DraftingHandler extends BaseInteractionHandler {
   }
 
   commitPolyline(runtime: any) {
-    if (runtime) runtime.apply([{ op: CommandOp.CommitDraft }]);
+    if (runtime && this.draft.kind === 'polyline') runtime.apply([{ op: CommandOp.CommitDraft }]);
     cadDebugLog('draft', 'polyline-commit');
-    this.draft = { kind: 'none' };
+    this.resetDraftState();
   }
 
   cancelDraft(runtime: any) {
     if (runtime) runtime.apply([{ op: CommandOp.CancelDraft }]);
     cadDebugLog('draft', 'cancel');
-    this.draft = { kind: 'none' };
-    this.pointerDownScreen = null;
+    this.resetDraftState();
   }
 
   onLeave(): void {
     if (this.runtime) {
-      this.cancelDraft(this.runtime);
+      if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
+        this.commitPolyline(this.runtime);
+      } else {
+        this.cancelDraft(this.runtime);
+      }
     }
     cadDebugLog('draft', 'leave');
+  }
+
+  onKeyDown(e: KeyboardEvent): void {
+    if (!this.runtime) return;
+    if (this.activeTool !== 'polyline' || this.draft.kind !== 'polyline') return;
+    if (e.key === 'Enter') {
+      this.commitPolyline(this.runtime);
+    } else if (e.key === 'Escape') {
+      this.cancelDraft(this.runtime);
+    }
   }
 
   // --- Modal Logic ---
