@@ -468,7 +468,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       onConfirm: this.handlePolygonConfirm,
       onCancel: this.handlePolygonCancel,
       minSides: 3,
-      maxSides: 24,
+      maxSides: 30, // Updated max as requested
     });
   }
 }

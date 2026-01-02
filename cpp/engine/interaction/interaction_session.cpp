@@ -1241,7 +1241,7 @@ std::uint32_t InteractionSession::commitDraft() {
             float w = std::abs(draft_.currentX - draft_.startX);
             float h = std::abs(draft_.currentY - draft_.startY);
             if (w > 0.001f && h > 0.001f) {
-                float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
+                float rot = 3.14159f;
                 engine_.upsertPolygon(id, x0 + w/2, y0 + h/2, w/2, h/2, rot, 1, 1, static_cast<std::uint32_t>(draft_.sides), draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA, draft_.strokeR, draft_.strokeG, draft_.strokeB, draft_.strokeA, draft_.strokeEnabled, draft_.strokeWidthPx);
             }
             break;
@@ -1471,7 +1471,7 @@ void InteractionSession::upsertPhantomEntity() {
             float y0 = std::min(draft_.startY, draft_.currentY);
             float w = std::abs(draft_.currentX - draft_.startX);
             float h = std::abs(draft_.currentY - draft_.startY);
-            float rot = (draft_.sides == 3) ? 3.14159f : 0.0f;
+            float rot = 3.14159f;
             entityManager_.upsertPolygon(phantomId, x0 + w/2, y0 + h/2, std::max(w/2, 0.1f), std::max(h/2, 0.1f), rot, 1, 1,
                 static_cast<std::uint32_t>(draft_.sides),
                 draft_.fillR, draft_.fillG, draft_.fillB, draft_.fillA,
