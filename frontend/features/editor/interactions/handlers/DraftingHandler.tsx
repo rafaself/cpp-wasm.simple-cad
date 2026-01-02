@@ -139,6 +139,16 @@ export class DraftingHandler extends BaseInteractionHandler {
       return;
     }
 
+    if (this.activeTool === 'arrow' && this.draft.kind === 'arrow') {
+      cadDebugLog('draft', 'arrow-continue', () => ({
+        tool: this.activeTool,
+        x: snapped.x,
+        y: snapped.y,
+      }));
+      this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
+      return;
+    }
+
     // ...
     let kind = 0;
     let sides = 0;
