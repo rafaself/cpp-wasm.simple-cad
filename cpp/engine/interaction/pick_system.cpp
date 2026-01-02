@@ -369,17 +369,21 @@ bool PickSystem::checkCandidate(
 
         hit = (outCandidate.subTarget != PickSubTarget::None);
     }
-    // 2. CIRCLE
+    // 2. CIRCLE (actually ellipse)
     else if (const CircleRec* c = entities.getCircle(id)) {
         outCandidate.kind = PickEntityKind::Circle;
-        // Ellipse math is hard, treat as circle for MVP if sx=sy
-        // Assuming uniform scale for now or just simple radius check
-        // Check types.h: cx, cy, rx, ry.
+
+        // Effective radii including scale
+        const float rx = std::abs(c->rx * c->sx);
+        const float ry = std::abs(c->ry * c->sy);
+        
+        // Guard against degenerate ellipse
+        if (rx < 1e-6f || ry < 1e-6f) {
+            return false;
+        }
 
         // Resize Handles (BBox corners)
         if (pickMask & PICK_HANDLES) {
-            const float rx = std::abs(c->rx * c->sx);
-            const float ry = std::abs(c->ry * c->sy);
             const float minX = c->cx - rx;
             const float maxX = c->cx + rx;
             const float minY = c->cy - ry;
@@ -390,25 +394,45 @@ bool PickSystem::checkCandidate(
             }
         }
 
-        // Transform point to local unit circle
-        // But let's assume circle for now (rx approx ry)
-        float dist = std::sqrt(distSq(x, y, c->cx, c->cy));
-        float radius = c->rx; // use rx
+        // Transform pick point to local ellipse space (undo rotation)
+        float localX = x - c->cx;
+        float localY = y - c->cy;
+        
+        if (c->rot != 0.0f) {
+            const float cosR = std::cos(-c->rot);
+            const float sinR = std::sin(-c->rot);
+            const float tx = localX * cosR - localY * sinR;
+            const float ty = localX * sinR + localY * cosR;
+            localX = tx;
+            localY = ty;
+        }
+        
+        // Normalize to unit circle space: divide by radii
+        const float nx = localX / rx;
+        const float ny = localY / ry;
+        
+        // Distance from origin in normalized space = distance to unit circle
+        const float normDist = std::sqrt(nx * nx + ny * ny);
+        
+        // Approximate distance to ellipse edge in world space
+        // For a point on ellipse edge, normDist = 1.0
+        // Distance to edge ≈ |normDist - 1| * average_radius
+        const float avgRadius = (rx + ry) * 0.5f;
+        const float distToEdge = std::abs(normDist - 1.0f) * avgRadius;
 
-        // Edge
+        // Edge hit
         if (pickMask & PICK_EDGE) {
-            float dEdge = std::abs(dist - radius);
-            if (dEdge <= tol) {
-                bestDist = dEdge;
+            if (distToEdge <= tol) {
+                bestDist = distToEdge;
                 outCandidate.subTarget = PickSubTarget::Edge;
                 hit = true;
             }
         }
 
-        // Body
+        // Body hit (inside ellipse)
         if (!hit && (pickMask & PICK_BODY)) {
-            if (dist <= radius + tol) {
-                bestDist = dist; // Inside
+            if (normDist <= 1.0f + tol / avgRadius) {
+                bestDist = distToEdge;
                 outCandidate.subTarget = PickSubTarget::Body;
                 hit = true;
             }
