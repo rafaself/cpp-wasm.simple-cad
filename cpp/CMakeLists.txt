@@ -102,6 +102,7 @@ set(ENGINE_SOURCES
   engine/interaction/pick_system.cpp
   engine/interaction/snap_solver.cpp
   engine/interaction/interaction_session.cpp
+  engine/interaction/interaction_draft.cpp
   engine/interaction/interaction_log.cpp
   # Persistence
   engine/persistence/snapshot.cpp

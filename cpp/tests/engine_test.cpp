@@ -478,6 +478,30 @@ TEST_F(CadEngineTest, DraftLineShiftSnapsTo45Degrees) {
     EXPECT_NEAR(line->y1, 8.246211f, 1e-3f);
 }
 
+TEST_F(CadEngineTest, DraftArrowShiftSnapsTo45Degrees) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Arrow);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    payload.head = 6.0f; // Arrow head size
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.updateDraft(10.0f, 6.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const ArrowRec* arrow = CadEngineTestAccessor::entityManager(engine).getArrow(id);
+    ASSERT_NE(arrow, nullptr);
+    // Origin at (0,0), target at 10,6 with shift should snap to 45 degrees
+    // Same as line: should be approximately (8.246, 8.246)
+    EXPECT_NEAR(arrow->ax, 0.0f, 1e-3f);
+    EXPECT_NEAR(arrow->ay, 0.0f, 1e-3f);
+    EXPECT_NEAR(arrow->bx, 8.246211f, 1e-3f);
+    EXPECT_NEAR(arrow->by, 8.246211f, 1e-3f);
+}
+
 TEST_F(CadEngineTest, DraftPolylineShiftSnapsAppendPointTo45Degrees) {
     BeginDraftPayload payload{};
     payload.kind = static_cast<std::uint32_t>(EntityKind::Polyline);
@@ -569,6 +593,24 @@ TEST_F(CadEngineTest, DraftPolygonShiftCreatesProportional) {
     EXPECT_NEAR(polygon->cy, 50.0f, 1e-3f);
     EXPECT_NEAR(polygon->rx, 50.0f, 1e-3f);
     EXPECT_NEAR(polygon->ry, 50.0f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, VertexDragShiftSnapsArrowEndpointTo45Degrees) {
+    // Create an arrow from (0,0) to (10,0)
+    CadEngineTestAccessor::upsertArrow(engine, 18, 0.0f, 0.0f, 10.0f, 0.0f, 6.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    // Drag endpoint (vertex 1) to (10, -6) with shift should snap to 45 degrees
+    vertexDragByScreenWithModifiers(engine, 18, 1, 10.0f, -6.0f, shift);
+
+    const ArrowRec* arrow = CadEngineTestAccessor::entityManager(engine).getArrow(18);
+    ASSERT_NE(arrow, nullptr);
+    // Anchor is (0, 0), dragged point snaps to 45 degree angle
+    EXPECT_NEAR(arrow->ax, 0.0f, 1e-3f);
+    EXPECT_NEAR(arrow->ay, 0.0f, 1e-3f);
+    EXPECT_NEAR(arrow->bx, 8.246211f, 1e-3f);
+    EXPECT_NEAR(arrow->by, 8.246211f, 1e-3f);
 }
 
 TEST_F(CadEngineTest, VertexDragShiftSnapsPolylineEndpointTo45Degrees) {
