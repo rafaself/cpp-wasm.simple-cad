@@ -14,6 +14,9 @@ namespace {
     constexpr std::uint32_t kCtrlMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Ctrl);
     constexpr std::uint32_t kAltMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Alt);
     constexpr std::uint32_t kMetaMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Meta);
+    constexpr float kAxisLockMinDeltaPx = 4.0f;
+    constexpr float kAxisLockEnterRatio = 1.1f;
+    constexpr float kAxisLockSwitchRatio = 1.2f;
 
     inline bool isSnapSuppressed(std::uint32_t modifiers) {
         return (modifiers & (kCtrlMask | kMetaMask)) != 0;
@@ -189,6 +192,12 @@ void InteractionSession::beginTransform(
     session_.historyActive = false;
     session_.nextEntityIdBefore = engine_.state().nextEntityId_;
     session_.axisLock = AxisLock::None;
+    session_.resizeAnchorValid = false;
+    session_.resizeAnchorX = 0.0f;
+    session_.resizeAnchorY = 0.0f;
+    session_.resizeAspect = 1.0f;
+    session_.resizeBaseW = 0.0f;
+    session_.resizeBaseH = 0.0f;
     session_.duplicated = false;
     session_.originalIds.clear();
     transformStats_ = TransformStats{};
@@ -314,6 +323,61 @@ void InteractionSession::beginTransform(
         session_.baseMaxY = maxY;
     }
 
+    if (session_.mode == TransformMode::Resize && session_.specificId != 0 &&
+        session_.vertexIndex >= 0 && session_.vertexIndex <= 3) {
+        const TransformSnapshot* snap = nullptr;
+        for (const auto& s : session_.snapshots) {
+            if (s.id == session_.specificId) {
+                snap = &s;
+                break;
+            }
+        }
+        if (snap) {
+            auto it = entityManager_.entities.find(session_.specificId);
+            if (it != entityManager_.entities.end()) {
+                float origMinX = 0.0f;
+                float origMinY = 0.0f;
+                float origMaxX = 0.0f;
+                float origMaxY = 0.0f;
+                bool valid = false;
+
+                if (it->second.kind == EntityKind::Rect) {
+                    origMinX = snap->x;
+                    origMinY = snap->y;
+                    origMaxX = snap->x + snap->w;
+                    origMaxY = snap->y + snap->h;
+                    valid = true;
+                } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
+                    origMinX = snap->x - snap->w;
+                    origMaxX = snap->x + snap->w;
+                    origMinY = snap->y - snap->h;
+                    origMaxY = snap->y + snap->h;
+                    valid = true;
+                }
+
+                if (valid) {
+                    float anchorX = 0.0f;
+                    float anchorY = 0.0f;
+                    switch (session_.vertexIndex) {
+                        case 0: anchorX = origMaxX; anchorY = origMaxY; break;
+                        case 1: anchorX = origMinX; anchorY = origMaxY; break;
+                        case 2: anchorX = origMinX; anchorY = origMinY; break;
+                        case 3: anchorX = origMaxX; anchorY = origMinY; break;
+                    }
+
+                    const float baseW = std::abs(origMaxX - origMinX);
+                    const float baseH = std::abs(origMaxY - origMinY);
+                    session_.resizeBaseW = baseW;
+                    session_.resizeBaseH = baseH;
+                    session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
+                    session_.resizeAnchorX = anchorX;
+                    session_.resizeAnchorY = anchorY;
+                    session_.resizeAnchorValid = true;
+                }
+            }
+        }
+    }
+
     recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
 
     session_.historyActive = engine_.beginHistoryEntry();
@@ -384,8 +448,27 @@ void InteractionSession::updateTransform(
 
         if (!shiftDown) {
             session_.axisLock = AxisLock::None;
-        } else if (session_.axisLock == AxisLock::None) {
-            session_.axisLock = (std::abs(screenDx) >= std::abs(screenDy)) ? AxisLock::X : AxisLock::Y;
+        } else {
+            const float absDx = std::abs(screenDx);
+            const float absDy = std::abs(screenDy);
+            const float maxDelta = std::max(absDx, absDy);
+            if (maxDelta >= kAxisLockMinDeltaPx) {
+                if (session_.axisLock == AxisLock::None) {
+                    if (absDx >= absDy * kAxisLockEnterRatio) {
+                        session_.axisLock = AxisLock::X;
+                    } else if (absDy >= absDx * kAxisLockEnterRatio) {
+                        session_.axisLock = AxisLock::Y;
+                    }
+                } else if (session_.axisLock == AxisLock::X) {
+                    if (absDy >= absDx * kAxisLockSwitchRatio) {
+                        session_.axisLock = AxisLock::Y;
+                    }
+                } else if (session_.axisLock == AxisLock::Y) {
+                    if (absDx >= absDy * kAxisLockSwitchRatio) {
+                        session_.axisLock = AxisLock::X;
+                    }
+                }
+            }
         }
 
         if (session_.axisLock == AxisLock::X) {
@@ -573,7 +656,7 @@ void InteractionSession::updateTransform(
         }
     } else if (session_.mode == TransformMode::Resize) {
         std::uint32_t id = session_.specificId;
-        const int32_t handleIndex = session_.vertexIndex;
+        int32_t handleIndex = session_.vertexIndex;
         const TransformSnapshot* snap = nullptr;
         for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
 
@@ -593,18 +676,69 @@ void InteractionSession::updateTransform(
                 }
 
                 if (valid) {
-                    float anchorX = 0, anchorY = 0;
-                    switch (handleIndex) {
-                        case 0: anchorX = origMaxX; anchorY = origMaxY; break;
-                        case 1: anchorX = origMinX; anchorY = origMaxY; break;
-                        case 2: anchorX = origMinX; anchorY = origMinY; break;
-                        case 3: anchorX = origMaxX; anchorY = origMinY; break;
+                    float anchorX = 0.0f;
+                    float anchorY = 0.0f;
+                    if (session_.resizeAnchorValid) {
+                        anchorX = session_.resizeAnchorX;
+                        anchorY = session_.resizeAnchorY;
+                    } else {
+                        switch (handleIndex) {
+                            case 0: anchorX = origMaxX; anchorY = origMaxY; break;
+                            case 1: anchorX = origMinX; anchorY = origMaxY; break;
+                            case 2: anchorX = origMinX; anchorY = origMinY; break;
+                            case 3: anchorX = origMaxX; anchorY = origMinY; break;
+                        }
                     }
 
-                    const float minX = std::min(anchorX, worldX);
-                    const float maxX = std::max(anchorX, worldX);
-                    const float minY = std::min(anchorY, worldY);
-                    const float maxY = std::max(anchorY, worldY);
+                    float dx = worldX - anchorX;
+                    float dy = worldY - anchorY;
+
+                    const bool shiftDown = (modifiers & kShiftMask) != 0;
+                    if (shiftDown) {
+                        float baseW = session_.resizeAnchorValid ? session_.resizeBaseW : std::abs(origMaxX - origMinX);
+                        float baseH = session_.resizeAnchorValid ? session_.resizeBaseH : std::abs(origMaxY - origMinY);
+                        float aspect = session_.resizeAnchorValid
+                            ? session_.resizeAspect
+                            : ((baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f);
+
+                        if (!std::isfinite(aspect) || aspect <= 1e-6f) {
+                            aspect = 1.0f;
+                        }
+
+                        const float absDx = std::abs(dx);
+                        const float absDy = std::abs(dy);
+                        bool useX = false;
+                        if (baseW > 1e-6f && baseH > 1e-6f) {
+                            useX = (absDx / baseW) >= (absDy / baseH);
+                        } else {
+                            useX = absDx >= absDy;
+                        }
+
+                        if (useX) {
+                            const float signY = (dy < 0.0f) ? -1.0f : 1.0f;
+                            dy = signY * (absDx / aspect);
+                        } else {
+                            const float signX = (dx < 0.0f) ? -1.0f : 1.0f;
+                            dx = signX * (absDy * aspect);
+                        }
+                    }
+
+                    if (session_.resizeAnchorValid) {
+                        const bool right = dx >= 0.0f;
+                        const bool top = dy >= 0.0f;
+                        int32_t nextHandle = 0;
+                        if (right && top) nextHandle = 2;
+                        else if (right && !top) nextHandle = 1;
+                        else if (!right && top) nextHandle = 3;
+                        else nextHandle = 0;
+                        session_.vertexIndex = nextHandle;
+                        handleIndex = nextHandle;
+                    }
+
+                    const float minX = std::min(anchorX, anchorX + dx);
+                    const float maxX = std::max(anchorX, anchorX + dx);
+                    const float minY = std::min(anchorY, anchorY + dy);
+                    const float maxY = std::max(anchorY, anchorY + dy);
                     const float w = std::max(1e-3f, maxX - minX);
                     const float h = std::max(1e-3f, maxY - minY);
 

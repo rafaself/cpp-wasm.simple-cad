@@ -4,7 +4,7 @@ import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/pro
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useUIStore } from '@/stores/useUIStore';
-import { PickEntityKind } from '@/types/picking';
+import { PickEntityKind, PickSubTarget } from '@/types/picking';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
@@ -89,10 +89,18 @@ export class SelectionHandler extends BaseInteractionHandler {
       const activeIds = Array.from(runtime.getSelectionIds());
       if (activeIds.length > 0) {
         const modifiers = buildModifierMask(event);
+        let mode = TransformMode.Move;
+        if (res.subTarget === PickSubTarget.ResizeHandle) {
+          mode = TransformMode.Resize;
+        } else if (res.subTarget === PickSubTarget.Vertex) {
+          mode = TransformMode.VertexDrag;
+        } else if (res.subTarget === PickSubTarget.Edge) {
+          mode = TransformMode.EdgeDrag;
+        }
         // Use beginTransform instead of beginSession
         runtime.beginTransform(
           activeIds,
-          TransformMode.Move,
+          mode,
           res.id,
           res.subIndex, // Pass subIndex (vertex/handle index)
           screen.x,
@@ -106,13 +114,13 @@ export class SelectionHandler extends BaseInteractionHandler {
         );
         cadDebugLog('transform', 'begin', () => ({
           ids: activeIds,
-          mode: TransformMode.Move,
+          mode,
           specificId: res.id,
           subIndex: res.subIndex,
           x: screen.x,
           y: screen.y,
         }));
-        this.state = { kind: 'transform', startScreen: screen, mode: TransformMode.Move };
+        this.state = { kind: 'transform', startScreen: screen, mode };
         return;
       }
     }

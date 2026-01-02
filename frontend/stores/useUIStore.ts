@@ -34,6 +34,7 @@ interface UIState {
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
+  overlayTick: number;
 
   history: {
     canUndo: boolean;
@@ -69,6 +70,7 @@ interface UIState {
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
+  bumpOverlayTick: () => void;
 
   setHistoryMeta: (meta: HistoryMeta) => void;
 
@@ -125,6 +127,7 @@ export const useUIStore = create<UIState>((set) => ({
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
+  overlayTick: 0,
 
   history: {
     canUndo: false,
@@ -224,6 +227,7 @@ export const useUIStore = create<UIState>((set) => ({
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),
+  bumpOverlayTick: () => set((state) => ({ overlayTick: (state.overlayTick + 1) >>> 0 })),
 
   setHistoryMeta: (meta) =>
     set({

@@ -73,6 +73,40 @@ void moveByScreenWithModifiers(
     engine.commitTransform();
 }
 
+void resizeByScreenWithModifiers(
+    CadEngine& engine,
+    std::uint32_t id,
+    std::int32_t handleIndex,
+    float screenX,
+    float screenY,
+    std::uint32_t modifiers) {
+    std::uint32_t ids[] = { id };
+    engine.beginTransform(
+        ids,
+        1,
+        CadEngine::TransformMode::Resize,
+        id,
+        handleIndex,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.updateTransform(
+        screenX,
+        screenY,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.commitTransform();
+}
+
 PickResult pickAt(const CadEngine& engine, float x, float y) {
     return engine.pickEx(x, y, kPickTolerance, kPickMask);
 }
@@ -532,6 +566,46 @@ TEST_F(CadEngineTest, AxisLockWithShiftUsesScreenDelta) {
     ASSERT_NE(rect, nullptr);
     EXPECT_FLOAT_EQ(rect->x, 10.0f);
     EXPECT_FLOAT_EQ(rect->y, 0.0f);
+}
+
+TEST_F(CadEngineTest, AxisLockWithShiftAllowsSwitch) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    const std::uint32_t shiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
+        0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, shiftMask);
+    engine.updateTransform(10.0f, 2.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, shiftMask);
+    engine.updateTransform(10.0f, -30.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, shiftMask);
+    engine.commitTransform();
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* rect = em.getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->x, 0.0f);
+    EXPECT_FLOAT_EQ(rect->y, 30.0f);
+}
+
+TEST_F(CadEngineTest, ResizeWithShiftPreservesAspectRatio) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 20.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
+
+    const std::uint32_t id = 1;
+    const std::uint32_t shiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    resizeByScreenWithModifiers(engine, id, 2, 40.0f, -10.0f, shiftMask);
+
+    const auto& em = CadEngineTestAccessor::entityManager(engine);
+    const RectRec* rect = em.getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->x, 0.0f);
+    EXPECT_FLOAT_EQ(rect->y, 0.0f);
+    EXPECT_FLOAT_EQ(rect->w, 40.0f);
+    EXPECT_FLOAT_EQ(rect->h, 20.0f);
 }
 
 TEST_F(CadEngineTest, AltDragDuplicatesSelection) {

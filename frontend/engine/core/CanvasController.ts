@@ -3,6 +3,7 @@ import type { AxesSettings } from '@/engine/renderer/webgl2/passes/AxesPass';
 import type { GridRenderSettings } from '@/engine/renderer/types';
 
 import { getEngineRuntime } from './singleton';
+import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 
 import type { BufferMeta, EngineRuntime } from './EngineRuntime';
@@ -20,6 +21,7 @@ export class CanvasController {
   private axesSettings?: AxesSettings;
   private gridSettings?: GridRenderSettings;
   private lastRenderLogKey: string | null = null;
+  private overlayActive = false;
   private visibilityHandler = () => {
     if (document.hidden) {
       this.stop();
@@ -164,6 +166,18 @@ export class CanvasController {
       gridSettings: this.gridSettings,
       axesSettings: this.axesSettings,
     });
+
+    const interactionActive = this.runtime.isInteractionActive();
+    const draftActive = interactionActive ? false : this.runtime.draft.getDraftDimensions() !== null;
+    const nextOverlayActive = interactionActive || draftActive;
+    if (nextOverlayActive || nextOverlayActive !== this.overlayActive) {
+      const store = useUIStore.getState();
+      store.bumpOverlayTick();
+      if (store.engineInteractionActive !== nextOverlayActive) {
+        store.setEngineInteractionActive(nextOverlayActive);
+      }
+    }
+    this.overlayActive = nextOverlayActive;
 
     this.rafId = requestAnimationFrame(this.loop);
   };

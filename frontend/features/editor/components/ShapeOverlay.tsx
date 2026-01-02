@@ -8,7 +8,7 @@
  * All data comes from the C++ engine via OverlayBufferMeta (selection) and
  * DraftDimensions (draft), following the engine-first architecture.
  */
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { supportsEngineResize } from '@/engine/core/capabilities';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
@@ -20,14 +20,13 @@ import { useUIStore } from '@/stores/useUIStore';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
-import type { DraftDimensions } from '@/engine/core/wasm-types';
 
 const HANDLE_SIZE_PX = 8;
 
 const ShapeOverlay: React.FC = () => {
   const selectionCount = useEngineSelectionCount();
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
-  const engineInteractionActive = useUIStore((s) => s.engineInteractionActive);
+  const overlayTick = useUIStore((s) => s.overlayTick);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const enableEngineResize = useSettingsStore((s) => s.featureFlags.enableEngineResize);
@@ -35,10 +34,6 @@ const ShapeOverlay: React.FC = () => {
   const engineResizeEnabled = enableEngineResize && supportsEngineResize(engineCapabilitiesMask);
 
   const [runtime, setRuntime] = useState<EngineRuntime | null>(null);
-  const [interactionTick, setInteractionTick] = useState(0);
-  const rafIdRef = useRef<number | null>(null);
-  const interactionActiveRef = useRef(false);
-  const [draftDimensions, setDraftDimensions] = useState<DraftDimensions | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -50,35 +45,11 @@ const ShapeOverlay: React.FC = () => {
     };
   }, []);
 
-  // RAF loop to update overlay during interaction and draft
-  useEffect(() => {
-    if (!runtime) return;
-
-    const tick = () => {
-      // Check for active interaction or draft
-      const dims = runtime.draft.getDraftDimensions();
-      setDraftDimensions(dims);
-
-      const interactionActive = runtime.isInteractionActive();
-      if (interactionActive || dims || interactionActiveRef.current !== interactionActive) {
-        setInteractionTick((t) => (t + 1) >>> 0);
-      }
-      interactionActiveRef.current = interactionActive;
-      rafIdRef.current = requestAnimationFrame(tick);
-    };
-
-    rafIdRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-    };
-  }, [runtime]);
-
   const overlayContent = useMemo(() => {
     if (!runtime) return null;
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
+
+    const draftDimensions = runtime.draft.getDraftDimensions();
 
     const hs = HANDLE_SIZE_PX;
     const hh = hs / 2;
@@ -142,7 +113,7 @@ const ShapeOverlay: React.FC = () => {
 
     // Selection overlay (only when not in draft mode and not editing appearance)
     let selectionElements: React.ReactNode[] = [];
-    if (!isEditingAppearance && !engineInteractionActive && selectionCount > 0 && !draftDimensions) {
+    if (!isEditingAppearance && selectionCount > 0 && !draftDimensions) {
       if (selectionCount > 1) {
         const bounds = runtime.getSelectionBounds();
         if (bounds.valid) {
@@ -368,10 +339,8 @@ const ShapeOverlay: React.FC = () => {
   }, [
     canvasSize.height,
     canvasSize.width,
-    draftDimensions,
-    engineInteractionActive,
     engineResizeEnabled,
-    interactionTick,
+    overlayTick,
     isEditingAppearance,
     runtime,
     selectionCount,

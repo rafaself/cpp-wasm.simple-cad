@@ -140,6 +140,12 @@ private:
         std::vector<TransformSnapshot> snapshots;
         std::uint32_t nextEntityIdBefore = 0;
         AxisLock axisLock = AxisLock::None;
+        bool resizeAnchorValid = false;
+        float resizeAnchorX = 0.0f;
+        float resizeAnchorY = 0.0f;
+        float resizeAspect = 1.0f;
+        float resizeBaseW = 0.0f;
+        float resizeBaseH = 0.0f;
         bool duplicated = false;
         std::vector<std::uint32_t> originalIds;
     };
