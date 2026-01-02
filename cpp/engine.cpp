@@ -446,7 +446,7 @@ PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pi
     constexpr std::uint32_t kPickHandlesMask = 1u << 3;
     if ((pickMask & kPickHandlesMask) != 0) {
         const auto& selection = selectionManager_.getOrdered();
-        if (selection.size() > 1) {
+        if (selection.size() >= 1) {
             const EntityAabb bounds = getSelectionBounds();
             if (bounds.valid) {
                 const float corners[4][2] = {
