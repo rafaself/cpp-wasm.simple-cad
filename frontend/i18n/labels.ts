@@ -44,6 +44,9 @@ export const LABELS = {
     arrow: 'Seta',
     text: 'Texto',
     eraser: 'Borracha',
+    polygonSides: 'Lados do Polígono',
+    polygonSidesHint: 'Enter para confirmar • Esc para cancelar',
+    polygonSidesSuffix: 'lados',
   },
   statusbar: {
     zoomIn: 'Aumentar Zoom',

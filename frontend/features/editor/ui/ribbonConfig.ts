@@ -156,7 +156,7 @@ export const RIBBON_TABS: RibbonTab[] = [
             label: LABELS.tools.arrow,
             icon: ArrowUpRight,
             toolId: 'arrow',
-            status: 'stub',
+            status: 'ready',
           },
           {
             id: 'rect',
@@ -180,7 +180,7 @@ export const RIBBON_TABS: RibbonTab[] = [
             label: LABELS.tools.polygon,
             icon: Shapes,
             toolId: 'polygon',
-            status: 'stub',
+            status: 'ready',
           },
         ],
       },

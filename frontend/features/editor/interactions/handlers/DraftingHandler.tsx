@@ -10,6 +10,8 @@ import * as DEFAULTS from '@/theme/defaults';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 import { useUIStore } from '@/stores/useUIStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 
 // Reusing types from previous implementation or defining locally
 interface DraftState {
@@ -54,10 +56,12 @@ export class DraftingHandler extends BaseInteractionHandler {
   // Screen-space pointer down to detect click vs drag
   private pointerDownScreen: { x: number; y: number } | null = null;
   private linePendingCommit = false;
+  private arrowPendingCommit = false; // Arrow click-click flow (Phase 2)
 
   // Polygon Modal State
   private polygonModalOpen = false;
   private polygonModalCenter: { x: number; y: number } | null = null;
+  private polygonModalScreenPos: { x: number; y: number } | null = null;
   private polygonSidesValue: number = 3;
 
   constructor(activeTool: string, toolDefaults: ToolDefaults) {
@@ -98,10 +102,11 @@ export class DraftingHandler extends BaseInteractionHandler {
     this.draft = { kind: 'none' };
     this.pointerDownScreen = null;
     this.linePendingCommit = false;
+    this.arrowPendingCommit = false;
   }
 
   private runtime: EngineRuntime | null = null; // Store runtime for keyboard events
-  private static readonly DRAG_THRESHOLD_PX = 2;
+  private static readonly DRAG_THRESHOLD_PX = 5;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     if (this.polygonModalOpen) return;
@@ -144,7 +149,7 @@ export class DraftingHandler extends BaseInteractionHandler {
     else if (this.activeTool === 'circle') kind = EntityKind.Circle;
     else if (this.activeTool === 'polygon') {
       kind = EntityKind.Polygon;
-      sides = this.polygonSidesValue;
+      sides = 3; // Drag always creates triangle (Phase 3 spec)
     } else if (this.activeTool === 'polyline') kind = EntityKind.Polyline;
     else if (this.activeTool === 'arrow') {
       kind = EntityKind.Arrow;
@@ -263,15 +268,39 @@ export class DraftingHandler extends BaseInteractionHandler {
       return;
     }
 
+    // Arrow: click-click flow (Phase 2 - same pattern as Line)
+    const isArrow = this.activeTool === 'arrow';
+    if (isArrow) {
+      if (event.button !== 0) return;
+      if (this.draft.kind !== 'arrow') return;
+      if (!isClick || this.arrowPendingCommit) {
+        runtime.apply([{ op: CommandOp.CommitDraft }]);
+        cadDebugLog('draft', 'commit', () => ({
+          tool: this.activeTool,
+          x: snapped.x,
+          y: snapped.y,
+        }));
+        this.resetDraftState();
+        useUIStore.getState().setTool('select');
+        return;
+      }
+      this.arrowPendingCommit = true;
+      this.pointerDownScreen = null;
+      return;
+    }
+
     if (this.activeTool === 'polygon' && this.draft.start && isClick) {
-      // Was a simple click
+      // Was a simple click → open inline input
       this.cancelDraft(runtime);
       this.polygonModalOpen = true;
       this.polygonModalCenter = snapped;
+      this.polygonModalScreenPos = { x: event.clientX, y: event.clientY };
       cadDebugLog('draft', 'polygon-modal', () => ({ x: snapped.x, y: snapped.y }));
       this.notifyChange(); // Trigger React Render for Modal
       return;
     }
+
+    // Polygon drag → triangle is already enforced in BeginDraft (sides=3)
 
     // Commit
     runtime.apply([{ op: CommandOp.CommitDraft }]);
@@ -353,7 +382,46 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     this.polygonModalOpen = false;
     this.polygonModalCenter = null;
+    this.polygonModalScreenPos = null;
     this.notifyChange();
     useUIStore.getState().setTool('select');
+  }
+
+  // --- Polygon Modal Callbacks ---
+
+  private handlePolygonConfirm = (sides: number) => {
+    // Update local value
+    this.polygonSidesValue = sides;
+    // Persist to global toolDefaults for future polygons
+    useSettingsStore.getState().setPolygonSides(sides);
+    // Commit the polygon
+    if (this.runtime) {
+      this.commitDefaultPolygon(this.runtime);
+    }
+  };
+
+  private handlePolygonCancel = () => {
+    this.polygonModalOpen = false;
+    this.polygonModalCenter = null;
+    this.polygonModalScreenPos = null;
+    cadDebugLog('draft', 'polygon-modal-cancel');
+    this.notifyChange();
+  };
+
+  // --- Render Overlay (Phase 1: inline numeric input) ---
+
+  renderOverlay(): React.ReactNode {
+    if (!this.polygonModalOpen || !this.polygonModalScreenPos) {
+      return null;
+    }
+
+    return React.createElement(InlinePolygonInput, {
+      screenPosition: this.polygonModalScreenPos,
+      initialValue: this.polygonSidesValue,
+      onConfirm: this.handlePolygonConfirm,
+      onCancel: this.handlePolygonCancel,
+      minSides: 3,
+      maxSides: 24,
+    });
   }
 }

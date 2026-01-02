@@ -686,14 +686,35 @@ void InteractionSession::updateTransform(
                           }
                       }
                  } else if (it->second.kind == EntityKind::Arrow) {
+                      // Arrow vertex drag with shift angle snapping (same as Line)
+                      const bool shiftDown = (modifiers & kShiftMask) != 0;
+                      float arrowDx = totalDx;
+                      float arrowDy = totalDy;
+                      if (shiftDown && snap->points.size() >= 2 && (idx == 0 || idx == 1)) {
+                          const Point2& anchor = snap->points[idx == 0 ? 1 : 0];
+                          const float vecX = worldX - anchor.x;
+                          const float vecY = worldY - anchor.y;
+                          const float len = std::sqrt(vecX * vecX + vecY * vecY);
+                          if (len > 1e-6f) {
+                              constexpr float kPi = 3.14159265358979323846f;
+                              constexpr float kStep = kPi * 0.25f;
+                              const float angle = std::atan2(vecY, vecX);
+                              const float snapped = std::round(angle / kStep) * kStep;
+                              const float snappedX = anchor.x + std::cos(snapped) * len;
+                              const float snappedY = anchor.y + std::sin(snapped) * len;
+                              const Point2& base = snap->points[idx];
+                              arrowDx = snappedX - base.x;
+                              arrowDy = snappedY - base.y;
+                          }
+                      }
                       for (auto& a : entityManager_.arrows) {
                           if (a.id == id) {
                               if (idx == 0 && snap->points.size() > 0) {
-                                  a.ax = snap->points[0].x + totalDx; a.ay = snap->points[0].y + totalDy;
+                                  a.ax = snap->points[0].x + arrowDx; a.ay = snap->points[0].y + arrowDy;
                                   pickSystem_.update(id, PickSystem::computeArrowAABB(a));
                                   refreshEntityRenderRange(id); updated = true;
                               } else if (idx == 1 && snap->points.size() > 1) {
-                                  a.bx = snap->points[1].x + totalDx; a.by = snap->points[1].y + totalDy;
+                                  a.bx = snap->points[1].x + arrowDx; a.by = snap->points[1].y + arrowDy;
                                   pickSystem_.update(id, PickSystem::computeArrowAABB(a));
                                   refreshEntityRenderRange(id); updated = true;
                               }
@@ -809,8 +830,68 @@ void InteractionSession::updateTransform(
                         }
                     } else if (it->second.kind == EntityKind::Polygon) {
                         for (auto& p : entityManager_.polygons) {
-                            if (p.id == id) { 
-                                p.cx = (minX + maxX) * 0.5f; p.cy = (minY + maxY) * 0.5f; p.rx = w * 0.5f; p.ry = h * 0.5f;
+                            if (p.id == id) {
+                                p.cx = (minX + maxX) * 0.5f; p.cy = (minY + maxY) * 0.5f; 
+                                p.rx = w * 0.5f; p.ry = h * 0.5f;
+                                
+                                // Flip detection: check if the bbox has been "flipped" relative to anchor
+                                // Original center was at snap->x, snap->y
+                                // If dx changed sign relative to originally being positive/negative from anchor
+                                // we have a flip.
+                                
+                                // Simpler approach: check if minX/maxX crossed the anchor point
+                                // When handle crosses anchor, the "direction" from anchor to current point reverses
+                                const bool flippedHorizontally = dx < 0.0f; // Current handle is left of anchor (was right)
+                                const bool flippedVertically = dy < 0.0f;   // Current handle is below anchor (was above)
+                                
+                                // But we need to know the ORIGINAL direction. 
+                                // Original handle position relative to anchor determines initial direction.
+                                // For resize, anchor is always opposite corner, so:
+                                // - If initially dragging from right (handles 1,2), dx starts positive
+                                // - If initially dragging from left (handles 0,3), dx starts negative
+                                // The initial handleIndex tells us the original direction.
+                                
+                                // Get the ORIGINAL handleIndex from session start
+                                // Since vertexIndex may have changed, we compute original direction from snap geometry
+                                const float origCenterX = snap->x; // For Circle/Polygon, snap->x is cx
+                                const float origCenterY = snap->y;
+                                
+                                // The anchor was computed from the OPPOSITE corner of original handle
+                                // Anchor position is stored in session_.resizeAnchorX/Y
+                                // Original handle was on the opposite side of anchor from current
+                                
+                                // Simply: if current bbox center is on opposite side of anchor from original center
+                                const float newCenterX = (minX + maxX) * 0.5f;
+                                const float newCenterY = (minY + maxY) * 0.5f;
+                                
+                                // Original: center was at origCenterX, anchor at anchorX
+                                // If origCenterX was to the left of anchor (origCenterX < anchorX means handle was on left)
+                                // and now newCenterX is to the right of anchor (newCenterX > anchorX) -> flipped
+                                
+                                // Actually even simpler: check if the vector from anchor to center changed direction
+                                const float origDeltaX = origCenterX - anchorX;
+                                const float origDeltaY = origCenterY - anchorY;
+                                const float newDeltaX = newCenterX - anchorX;
+                                const float newDeltaY = newCenterY - anchorY;
+                                
+                                // Flip if sign changed
+                                const bool hFlip = (origDeltaX * newDeltaX) < 0.0f;
+                                const bool vFlip = (origDeltaY * newDeltaY) < 0.0f;
+                                
+                                // Apply flips using scale sign
+                                float newSx = std::abs(p.sx);
+                                float newSy = std::abs(p.sy);
+                                
+                                if (hFlip) {
+                                    newSx = -newSx;
+                                }
+                                if (vFlip) {
+                                    newSy = -newSy;
+                                }
+                                
+                                p.sx = newSx;
+                                p.sy = newSy;
+                                
                                 pickSystem_.update(id, PickSystem::computePolygonAABB(p));
                                 refreshEntityRenderRange(id); updated = true; break; 
                             }
