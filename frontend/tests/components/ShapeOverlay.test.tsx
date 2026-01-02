@@ -2,6 +2,7 @@ import { render, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import ShapeOverlay from '@/features/editor/components/ShapeOverlay';
+import { EntityKind } from '@/engine/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -75,6 +76,45 @@ describe('ShapeOverlay', () => {
     await waitFor(() => {
       const rects = container.querySelectorAll('rect.stroke-primary');
       expect(rects.length).toBe(5);
+    });
+  });
+
+  it('does not render draft bbox for polyline draft', async () => {
+    const runtime = {
+      getSelectionIds: () => [],
+      isInteractionActive: () => false,
+      getSnapOverlayMeta: () => ({
+        generation: 0,
+        primitiveCount: 0,
+        floatCount: 0,
+        primitivesPtr: 0,
+        dataPtr: 0,
+      }),
+      draft: {
+        getDraftDimensions: () => ({
+          minX: 0,
+          minY: 0,
+          maxX: 10,
+          maxY: 10,
+          width: 10,
+          height: 10,
+          centerX: 5,
+          centerY: 5,
+          kind: EntityKind.Polyline,
+          active: true,
+        }),
+      },
+      module: {
+        HEAPU8: new Uint8Array(1),
+      },
+    };
+
+    mockGetRuntime.mockResolvedValue(runtime);
+
+    const { container } = render(<ShapeOverlay />);
+
+    await waitFor(() => {
+      expect(container.querySelector('svg')).toBeNull();
     });
   });
 });

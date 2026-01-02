@@ -40,6 +40,34 @@ void moveByScreen(CadEngine& engine, std::uint32_t id, float screenX, float scre
     engine.commitTransform();
 }
 
+void edgeDragByScreen(CadEngine& engine, std::uint32_t id, float screenX, float screenY) {
+    std::uint32_t ids[] = { id };
+    engine.beginTransform(
+        ids,
+        1,
+        CadEngine::TransformMode::EdgeDrag,
+        id,
+        -1,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        0);
+    engine.updateTransform(
+        screenX,
+        screenY,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        0);
+    engine.commitTransform();
+}
+
 void moveByScreenWithModifiers(
     CadEngine& engine,
     std::uint32_t id,
@@ -87,6 +115,40 @@ void resizeByScreenWithModifiers(
         CadEngine::TransformMode::Resize,
         id,
         handleIndex,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.updateTransform(
+        screenX,
+        screenY,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.commitTransform();
+}
+
+void vertexDragByScreenWithModifiers(
+    CadEngine& engine,
+    std::uint32_t id,
+    std::int32_t vertexIndex,
+    float screenX,
+    float screenY,
+    std::uint32_t modifiers) {
+    std::uint32_t ids[] = { id };
+    engine.beginTransform(
+        ids,
+        1,
+        CadEngine::TransformMode::VertexDrag,
+        id,
+        vertexIndex,
         0.0f,
         0.0f,
         0.0f,
@@ -376,6 +438,89 @@ TEST_F(CadEngineTest, MoveUpdatesPickIndexForLine) {
     expectPickMoved(engine, 4, 55.0f, 0.0f, 5.0f, 0.0f);
 }
 
+TEST_F(CadEngineTest, EdgeDragMovesLine) {
+    CadEngineTestAccessor::upsertLine(engine, 14, 0.0f, 0.0f, 10.0f, 0.0f);
+    edgeDragByScreen(engine, 14, kMoveScreenX, kMoveScreenY);
+    expectPickMoved(engine, 14, 55.0f, 0.0f, 5.0f, 0.0f);
+}
+
+TEST_F(CadEngineTest, VertexDragShiftSnapsLineTo45Degrees) {
+    CadEngineTestAccessor::upsertLine(engine, 15, 0.0f, 0.0f, 10.0f, 0.0f);
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    vertexDragByScreenWithModifiers(engine, 15, 1, 10.0f, -6.0f, shift);
+
+    const LineRec* line = CadEngineTestAccessor::entityManager(engine).getLine(15);
+    ASSERT_NE(line, nullptr);
+    EXPECT_NEAR(line->x0, 0.0f, 1e-3f);
+    EXPECT_NEAR(line->y0, 0.0f, 1e-3f);
+    EXPECT_NEAR(line->x1, 8.246211f, 1e-3f);
+    EXPECT_NEAR(line->y1, 8.246211f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, DraftLineShiftSnapsTo45Degrees) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Line);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.updateDraft(10.0f, 6.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const LineRec* line = CadEngineTestAccessor::entityManager(engine).getLine(id);
+    ASSERT_NE(line, nullptr);
+    EXPECT_NEAR(line->x0, 0.0f, 1e-3f);
+    EXPECT_NEAR(line->y0, 0.0f, 1e-3f);
+    EXPECT_NEAR(line->x1, 8.246211f, 1e-3f);
+    EXPECT_NEAR(line->y1, 8.246211f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, DraftPolylineShiftSnapsAppendPointTo45Degrees) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Polyline);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.appendDraftPoint(10.0f, 6.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const EntityManager& em = CadEngineTestAccessor::entityManager(engine);
+    const PolyRec* poly = em.getPolyline(id);
+    ASSERT_NE(poly, nullptr);
+    ASSERT_GE(poly->count, 2u);
+    const std::vector<Point2>& points = em.getPoints();
+    const std::uint32_t idx = poly->offset + 1;
+    ASSERT_LT(idx, points.size());
+    EXPECT_NEAR(points[idx].x, 8.246211f, 1e-3f);
+    EXPECT_NEAR(points[idx].y, 8.246211f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, VertexDragShiftSnapsPolylineEndpointTo45Degrees) {
+    std::vector<Point2> points = { {0.0f, 0.0f}, {10.0f, 0.0f} };
+    const std::uint32_t id = 17;
+    upsertPolyline(engine, id, points);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    vertexDragByScreenWithModifiers(engine, id, 1, 10.0f, -6.0f, shift);
+
+    const EntityManager& em = CadEngineTestAccessor::entityManager(engine);
+    const PolyRec* poly = em.getPolyline(id);
+    ASSERT_NE(poly, nullptr);
+    ASSERT_GE(poly->count, 2u);
+    const std::vector<Point2>& updated = em.getPoints();
+    const std::uint32_t idx = poly->offset + 1;
+    ASSERT_LT(idx, updated.size());
+    EXPECT_NEAR(updated[idx].x, 8.246211f, 1e-3f);
+    EXPECT_NEAR(updated[idx].y, 8.246211f, 1e-3f);
+}
+
 TEST_F(CadEngineTest, MoveUpdatesPickIndexForArrow) {
     CadEngineTestAccessor::upsertArrow(engine, 5, 0.0f, 0.0f, 10.0f, 0.0f, 6.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
@@ -388,6 +533,16 @@ TEST_F(CadEngineTest, MoveUpdatesPickIndexForPolyline) {
     upsertPolyline(engine, 6, points);
     moveByScreen(engine, 6, kMoveScreenX, kMoveScreenY);
     expectPickMoved(engine, 6, 55.0f, 0.0f, 5.0f, 0.0f);
+}
+
+TEST_F(CadEngineTest, PickPolylinePrefersVertexWithinTolerance) {
+    std::vector<Point2> points = { {0.0f, 0.0f}, {10.0f, 0.0f} };
+    const std::uint32_t id = 16;
+    upsertPolyline(engine, id, points);
+    PickResult res = pickAt(engine, 1.0f, 0.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(res.subTarget, static_cast<std::uint8_t>(PickSubTarget::Vertex));
+    EXPECT_EQ(res.subIndex, 0);
 }
 
 #if ENGINE_TEXT_ENABLED

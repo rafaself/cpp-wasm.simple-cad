@@ -2,6 +2,7 @@ import React from 'react';
 
 import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
 import { EntityKind } from '@/engine/types';
+import { SelectionModifier } from '@/engine/core/protocol';
 import { hexToRgb } from '@/utils/color';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import * as DEFAULTS from '@/theme/defaults';
@@ -26,6 +27,20 @@ interface ToolDefaults {
   strokeWidth?: number;
   polygonSides?: number;
 }
+
+const buildModifierMask = (event: {
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}): number => {
+  let mask = 0;
+  if (event.shiftKey) mask |= SelectionModifier.Shift;
+  if (event.ctrlKey) mask |= SelectionModifier.Ctrl;
+  if (event.altKey) mask |= SelectionModifier.Alt;
+  if (event.metaKey) mask |= SelectionModifier.Meta;
+  return mask;
+};
 
 export class DraftingHandler extends BaseInteractionHandler {
   name = 'drafting';
@@ -176,7 +191,8 @@ export class DraftingHandler extends BaseInteractionHandler {
     const { runtime, snappedPoint: snapped } = ctx;
     if (!runtime || this.draft.kind === 'none') return;
 
-    runtime.updateDraft(snapped.x, snapped.y);
+    const modifiers = buildModifierMask(ctx.event);
+    runtime.updateDraft(snapped.x, snapped.y, modifiers);
     cadDebugLog('draft', 'update', () => ({
       tool: this.activeTool,
       kind: this.draft.kind,
@@ -203,7 +219,12 @@ export class DraftingHandler extends BaseInteractionHandler {
         return;
       }
       if (event.button !== 0) return;
-      runtime.appendDraftPoint(snapped.x, snapped.y);
+      if (event.detail >= 2) {
+        this.commitPolyline(runtime);
+        return;
+      }
+      const modifiers = buildModifierMask(event);
+      runtime.appendDraftPoint(snapped.x, snapped.y, modifiers);
       cadDebugLog('draft', 'polyline-append', () => ({
         x: snapped.x,
         y: snapped.y,
@@ -325,7 +346,7 @@ export class DraftingHandler extends BaseInteractionHandler {
           ...style,
         },
       },
-      { op: CommandOp.UpdateDraft, pos: { x: center.x + r, y: center.y + r } },
+      { op: CommandOp.UpdateDraft, pos: { x: center.x + r, y: center.y + r, modifiers: 0 } },
       { op: CommandOp.CommitDraft },
     ]);
     cadDebugLog('draft', 'polygon-commit', () => ({ x: center.x, y: center.y, sides }));

@@ -362,7 +362,11 @@ struct BeginDraftPayload {
     float head;
 };
 
-struct UpdateDraftPayload { float x, y; };
+struct UpdateDraftPayload {
+    float x;
+    float y;
+    std::uint32_t modifiers;
+};
 
 struct SnapOptions {
     bool enabled = false;

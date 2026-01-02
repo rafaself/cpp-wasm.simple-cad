@@ -182,16 +182,19 @@ export class FakeRuntime {
     this.setSelection(this.marqueeReturnIds, mode);
   }
 
-  updateDraft(x: number, y: number): void {
+  updateDraft(x: number, y: number, _modifiers: number): void {
     this.draftUpdateCalls += 1;
     // Simulate lightweight path; no command enqueue
     this.transformSessions.lastUpdate = { x, y };
   }
 
-  appendDraftPoint(x: number, y: number): void {
+  appendDraftPoint(x: number, y: number, modifiers: number): void {
     this.appendDraftPointCalls += 1;
     // Mirror command push for visibility
-    this.commands.push({ op: CommandOp.AppendDraftPoint, pos: { x, y } } as EngineCommand);
+    this.commands.push({
+      op: CommandOp.AppendDraftPoint,
+      pos: { x, y, modifiers },
+    } as EngineCommand);
   }
 
   getSnappedPoint(x: number, y: number): { x: number; y: number } {

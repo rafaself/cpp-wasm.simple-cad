@@ -97,8 +97,8 @@ public:
     // Draft API (Phantom Entity System)
     // ==============================================================================
     void beginDraft(const BeginDraftPayload& p);
-    void updateDraft(float x, float y);
-    void appendDraftPoint(float x, float y);
+    void updateDraft(float x, float y, std::uint32_t modifiers);
+    void appendDraftPoint(float x, float y, std::uint32_t modifiers);
     void cancelDraft();
     std::uint32_t commitDraft();
     

@@ -784,12 +784,12 @@ void CadEngine::beginDraft(const BeginDraftPayload& p) {
     interactionSession_.beginDraft(p);
 }
 
-void CadEngine::updateDraft(float x, float y) {
-    interactionSession_.updateDraft(x, y);
+void CadEngine::updateDraft(float x, float y, std::uint32_t modifiers) {
+    interactionSession_.updateDraft(x, y, modifiers);
 }
 
-void CadEngine::appendDraftPoint(float x, float y) {
-    interactionSession_.appendDraftPoint(x, y);
+void CadEngine::appendDraftPoint(float x, float y, std::uint32_t modifiers) {
+    interactionSession_.appendDraftPoint(x, y, modifiers);
 }
 
 void CadEngine::cancelDraft() {

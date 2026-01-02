@@ -230,14 +230,14 @@ EngineError dispatchCommand(
             if (payloadByteCount != sizeof(UpdateDraftPayload)) return EngineError::InvalidPayloadSize;
             UpdateDraftPayload p;
             std::memcpy(&p, payload, sizeof(UpdateDraftPayload));
-            self->updateDraft(p.x, p.y);
+            self->updateDraft(p.x, p.y, p.modifiers);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::AppendDraftPoint): {
             if (payloadByteCount != sizeof(UpdateDraftPayload)) return EngineError::InvalidPayloadSize;
             UpdateDraftPayload p;
             std::memcpy(&p, payload, sizeof(UpdateDraftPayload));
-            self->appendDraftPoint(p.x, p.y);
+            self->appendDraftPoint(p.x, p.y, p.modifiers);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::CommitDraft): {

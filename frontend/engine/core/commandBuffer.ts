@@ -180,7 +180,7 @@ export type BeginDraftPayload = {
   sides: number;
   head: number;
 };
-export type UpdateDraftPayload = { x: number; y: number };
+export type UpdateDraftPayload = { x: number; y: number; modifiers: number };
 
 // Text style apply payload (logical indices; engine maps to UTF-8 internally)
 export type ApplyTextStylePayload = {
@@ -282,7 +282,7 @@ const payloadByteLength = (cmd: EngineCommand): number => {
       return 60; // 15 floats (x,y, fills, strokes, params) * 4
     case CommandOp.UpdateDraft:
     case CommandOp.AppendDraftPoint:
-      return 8; // x, y
+      return 12; // x, y, modifiers
     case CommandOp.CommitDraft:
     case CommandOp.CancelDraft:
       return 0;
@@ -530,6 +530,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
       case CommandOp.AppendDraftPoint:
         o = writeF32(view, o, cmd.pos.x);
         o = writeF32(view, o, cmd.pos.y);
+        o = writeU32(view, o, cmd.pos.modifiers >>> 0);
         break;
     }
   }

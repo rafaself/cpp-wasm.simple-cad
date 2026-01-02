@@ -37,31 +37,8 @@ export class PickSystem {
     };
   }
 
-  public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
-    const stats = this.engine.getStats();
-    const totalEntities =
-      stats.rectCount + stats.lineCount + stats.polylineCount + stats.pointCount;
-
-    if (totalEntities === 0) {
-      return false;
-    }
-    return true;
-  }
-
   public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     const profiler = getPickProfiler();
-
-    if (!this.quickBoundsCheck(x, y, tolerance)) {
-      profiler.recordSkip();
-      return {
-        id: 0,
-        kind: PickEntityKind.Unknown,
-        subTarget: PickSubTarget.None,
-        subIndex: -1,
-        distance: Infinity,
-      };
-    }
-
     const wrappedPick = profiler.wrap(this.pickEx.bind(this));
     return wrappedPick(x, y, tolerance, pickMask);
   }

@@ -117,6 +117,20 @@ describe('DraftingHandler', () => {
     expect(commits).toHaveLength(1);
   });
 
+  it('commits polyline on double click without adding an extra point', () => {
+    harness.setTool('polyline');
+
+    harness.pointerDown({ x: 1, y: 1, detail: 1 });
+    harness.pointerUp({ x: 1, y: 1, detail: 1 });
+    harness.pointerDown({ x: 10, y: 10, detail: 2 });
+    harness.pointerUp({ x: 10, y: 10, detail: 2 });
+
+    const appendOps = harness.getCommands().filter((c) => c.op === CommandOp.AppendDraftPoint);
+    const commits = harness.getCommands().filter((c) => c.op === CommandOp.CommitDraft);
+    expect(appendOps).toHaveLength(1);
+    expect(commits).toHaveLength(1);
+  });
+
   it('commits polyline when switching tools', () => {
     harness.setTool('polyline');
 

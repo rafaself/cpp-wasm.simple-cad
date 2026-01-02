@@ -42,9 +42,30 @@ void InteractionSession::beginDraft(const BeginDraftPayload& p) {
     engine_.state().renderDirty = true;
 }
 
-void InteractionSession::updateDraft(float x, float y) {
+void InteractionSession::updateDraft(float x, float y, std::uint32_t modifiers) {
     if (!draft_.active) return;
     applyGridSnap(x, y, snapOptions);
+    const bool shiftDown = (modifiers & static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift)) != 0;
+    if (shiftDown) {
+        auto snapAngle = [&](float anchorX, float anchorY) {
+            const float vecX = x - anchorX;
+            const float vecY = y - anchorY;
+            const float len = std::sqrt(vecX * vecX + vecY * vecY);
+            if (len <= 1e-6f) return;
+            constexpr float kPi = 3.14159265358979323846f;
+            constexpr float kStep = kPi * 0.25f;
+            const float angle = std::atan2(vecY, vecX);
+            const float snapped = std::round(angle / kStep) * kStep;
+            x = anchorX + std::cos(snapped) * len;
+            y = anchorY + std::sin(snapped) * len;
+        };
+        if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Line)) {
+            snapAngle(draft_.startX, draft_.startY);
+        } else if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
+            const Point2& anchor = draft_.points.back();
+            snapAngle(anchor.x, anchor.y);
+        }
+    }
     draft_.currentX = x;
     draft_.currentY = y;
 
@@ -53,9 +74,24 @@ void InteractionSession::updateDraft(float x, float y) {
     engine_.state().renderDirty = true;
 }
 
-void InteractionSession::appendDraftPoint(float x, float y) {
+void InteractionSession::appendDraftPoint(float x, float y, std::uint32_t modifiers) {
     if (!draft_.active) return;
     applyGridSnap(x, y, snapOptions);
+    const bool shiftDown = (modifiers & static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift)) != 0;
+    if (shiftDown && draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
+        const Point2& anchor = draft_.points.back();
+        const float vecX = x - anchor.x;
+        const float vecY = y - anchor.y;
+        const float len = std::sqrt(vecX * vecX + vecY * vecY);
+        if (len > 1e-6f) {
+            constexpr float kPi = 3.14159265358979323846f;
+            constexpr float kStep = kPi * 0.25f;
+            const float angle = std::atan2(vecY, vecX);
+            const float snapped = std::round(angle / kStep) * kStep;
+            x = anchor.x + std::cos(snapped) * len;
+            y = anchor.y + std::sin(snapped) * len;
+        }
+    }
     draft_.points.push_back({x, y});
     draft_.currentX = x;
     draft_.currentY = y;

@@ -209,7 +209,7 @@ void InteractionSession::beginTransform(
 
     std::vector<std::uint32_t> activeIds;
 
-    if (mode != TransformMode::Move && specificId != 0) {
+    if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && specificId != 0) {
         if (!entityManager_.isEntityPickable(specificId)) {
             session_.active = false;
             return;
@@ -438,7 +438,7 @@ void InteractionSession::updateTransform(
     float totalDx = worldX - session_.startX;
     float totalDy = worldY - session_.startY;
     
-    if (session_.mode == TransformMode::Move) {
+    if (session_.mode == TransformMode::Move || session_.mode == TransformMode::EdgeDrag) {
         const bool shiftDown = (modifiers & kShiftMask) != 0;
         const bool altDown = (modifiers & kAltMask) != 0;
 
@@ -611,8 +611,37 @@ void InteractionSession::updateTransform(
                       for (auto& pl : entityManager_.polylines) {
                           if (pl.id == id) {
                               if (static_cast<std::uint32_t>(idx) < pl.count && static_cast<std::uint32_t>(idx) < snap->points.size()) {
-                                  float nx = snap->points[idx].x + totalDx;
-                                  float ny = snap->points[idx].y + totalDy;
+                                  float vertexDx = totalDx;
+                                  float vertexDy = totalDy;
+                                  const bool shiftDown = (modifiers & kShiftMask) != 0;
+                                  if (shiftDown && snap->points.size() >= 2) {
+                                      const std::int32_t lastIndex = static_cast<std::int32_t>(snap->points.size() - 1);
+                                      std::int32_t anchorIndex = -1;
+                                      if (idx == 0) {
+                                          anchorIndex = 1;
+                                      } else if (idx == lastIndex) {
+                                          anchorIndex = lastIndex - 1;
+                                      }
+                                      if (anchorIndex >= 0 && anchorIndex < static_cast<std::int32_t>(snap->points.size())) {
+                                          const Point2& anchor = snap->points[anchorIndex];
+                                          const float vecX = worldX - anchor.x;
+                                          const float vecY = worldY - anchor.y;
+                                          const float len = std::sqrt(vecX * vecX + vecY * vecY);
+                                          if (len > 1e-6f) {
+                                              constexpr float kPi = 3.14159265358979323846f;
+                                              constexpr float kStep = kPi * 0.25f;
+                                              const float angle = std::atan2(vecY, vecX);
+                                              const float snapped = std::round(angle / kStep) * kStep;
+                                              const float snappedX = anchor.x + std::cos(snapped) * len;
+                                              const float snappedY = anchor.y + std::sin(snapped) * len;
+                                              const Point2& base = snap->points[idx];
+                                              vertexDx = snappedX - base.x;
+                                              vertexDy = snappedY - base.y;
+                                          }
+                                      }
+                                  }
+                                  float nx = snap->points[idx].x + vertexDx;
+                                  float ny = snap->points[idx].y + vertexDy;
                                   entityManager_.points[pl.offset + idx].x = nx;
                                   entityManager_.points[pl.offset + idx].y = ny;
                                   pickSystem_.update(id, PickSystem::computePolylineAABB(pl, entityManager_.points));
@@ -622,14 +651,34 @@ void InteractionSession::updateTransform(
                           }
                       }
                  } else if (it->second.kind == EntityKind::Line) {
+                      const bool shiftDown = (modifiers & kShiftMask) != 0;
+                      float lineDx = totalDx;
+                      float lineDy = totalDy;
+                      if (shiftDown && snap->points.size() >= 2 && (idx == 0 || idx == 1)) {
+                          const Point2& anchor = snap->points[idx == 0 ? 1 : 0];
+                          const float vecX = worldX - anchor.x;
+                          const float vecY = worldY - anchor.y;
+                          const float len = std::sqrt(vecX * vecX + vecY * vecY);
+                          if (len > 1e-6f) {
+                              constexpr float kPi = 3.14159265358979323846f;
+                              constexpr float kStep = kPi * 0.25f;
+                              const float angle = std::atan2(vecY, vecX);
+                              const float snapped = std::round(angle / kStep) * kStep;
+                              const float snappedX = anchor.x + std::cos(snapped) * len;
+                              const float snappedY = anchor.y + std::sin(snapped) * len;
+                              const Point2& base = snap->points[idx];
+                              lineDx = snappedX - base.x;
+                              lineDy = snappedY - base.y;
+                          }
+                      }
                       for (auto& l : entityManager_.lines) {
                           if (l.id == id) {
                               if (idx == 0 && snap->points.size() > 0) {
-                                  l.x0 = snap->points[0].x + totalDx; l.y0 = snap->points[0].y + totalDy;
+                                  l.x0 = snap->points[0].x + lineDx; l.y0 = snap->points[0].y + lineDy;
                                   pickSystem_.update(id, PickSystem::computeLineAABB(l));
                                   refreshEntityRenderRange(id); updated = true;
                               } else if (idx == 1 && snap->points.size() > 1) {
-                                  l.x1 = snap->points[1].x + totalDx; l.y1 = snap->points[1].y + totalDy;
+                                  l.x1 = snap->points[1].x + lineDx; l.y1 = snap->points[1].y + lineDy;
                                   pickSystem_.update(id, PickSystem::computeLineAABB(l));
                                   refreshEntityRenderRange(id); updated = true;
                               }
@@ -804,7 +853,7 @@ void InteractionSession::commitTransform() {
     
     // ... Fill commit buffers (simplified copy from engine.cpp) ...
     // Since this buffer logic is identical and long, I'll copy the core parts
-    if (session_.mode == TransformMode::Move) {
+    if (session_.mode == TransformMode::Move || session_.mode == TransformMode::EdgeDrag) {
         for (const auto& snap : session_.snapshots) {
             std::uint32_t id = snap.id;
             float curX = 0, curY = 0;
@@ -1015,8 +1064,30 @@ void InteractionSession::beginDraft(const BeginDraftPayload& p) {
     engine_.state().renderDirty = true;
 }
 
-void InteractionSession::updateDraft(float x, float y) {
+void InteractionSession::updateDraft(float x, float y, std::uint32_t modifiers) {
     if (!draft_.active) return;
+    const bool shiftDown = (modifiers & kShiftMask) != 0;
+    if (shiftDown) {
+        auto snapAngle = [&](float anchorX, float anchorY) {
+            const float vecX = x - anchorX;
+            const float vecY = y - anchorY;
+            const float len = std::sqrt(vecX * vecX + vecY * vecY);
+            if (len <= 1e-6f) return;
+            constexpr float kPi = 3.14159265358979323846f;
+            constexpr float kStep = kPi * 0.25f;
+            const float angle = std::atan2(vecY, vecX);
+            const float snapped = std::round(angle / kStep) * kStep;
+            x = anchorX + std::cos(snapped) * len;
+            y = anchorY + std::sin(snapped) * len;
+        };
+
+        if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Line)) {
+            snapAngle(draft_.startX, draft_.startY);
+        } else if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
+            const Point2& anchor = draft_.points.back();
+            snapAngle(anchor.x, anchor.y);
+        }
+    }
     draft_.currentX = x;
     draft_.currentY = y;
     
@@ -1025,8 +1096,23 @@ void InteractionSession::updateDraft(float x, float y) {
     engine_.state().renderDirty = true;
 }
 
-void InteractionSession::appendDraftPoint(float x, float y) {
+void InteractionSession::appendDraftPoint(float x, float y, std::uint32_t modifiers) {
     if (!draft_.active) return;
+    const bool shiftDown = (modifiers & kShiftMask) != 0;
+    if (shiftDown && draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
+        const Point2& anchor = draft_.points.back();
+        const float vecX = x - anchor.x;
+        const float vecY = y - anchor.y;
+        const float len = std::sqrt(vecX * vecX + vecY * vecY);
+        if (len > 1e-6f) {
+            constexpr float kPi = 3.14159265358979323846f;
+            constexpr float kStep = kPi * 0.25f;
+            const float angle = std::atan2(vecY, vecX);
+            const float snapped = std::round(angle / kStep) * kStep;
+            x = anchor.x + std::cos(snapped) * len;
+            y = anchor.y + std::sin(snapped) * len;
+        }
+    }
     draft_.points.push_back({x, y});
     draft_.currentX = x; 
     draft_.currentY = y;

@@ -15,6 +15,7 @@ type PointerOpts = {
   x: number;
   y: number;
   button?: number;
+  detail?: number;
   shiftKey?: boolean;
   ctrlKey?: boolean;
   metaKey?: boolean;
@@ -39,6 +40,7 @@ const buildPointerEvent = (
     clientX: opts.x,
     clientY: opts.y,
     button: opts.button ?? 0,
+    detail: opts.detail ?? 0,
     shiftKey: !!opts.shiftKey,
     ctrlKey: !!opts.ctrlKey,
     metaKey: !!opts.metaKey,

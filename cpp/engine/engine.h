@@ -507,8 +507,8 @@ public:
     void rebuildRenderBuffers() const;
     void addGridToBuffers() const;
     void beginDraft(const BeginDraftPayload& p);
-    void updateDraft(float x, float y);
-    void appendDraftPoint(float x, float y);
+    void updateDraft(float x, float y, std::uint32_t modifiers);
+    void appendDraftPoint(float x, float y, std::uint32_t modifiers);
     std::uint32_t commitDraft();
     void cancelDraft();
     DraftDimensions getDraftDimensions() const;

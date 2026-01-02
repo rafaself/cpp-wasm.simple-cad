@@ -179,12 +179,12 @@ export class EngineRuntime {
   }
 
   // --- Draft System (hot path) ---
-  public updateDraft(x: number, y: number): void {
-    this.draftSystem.updateDraft(x, y);
+  public updateDraft(x: number, y: number, modifiers: number): void {
+    this.draftSystem.updateDraft(x, y, modifiers);
   }
 
-  public appendDraftPoint(x: number, y: number): void {
-    this.draftSystem.appendDraftPoint(x, y);
+  public appendDraftPoint(x: number, y: number, modifiers: number): void {
+    this.draftSystem.appendDraftPoint(x, y, modifiers);
   }
 
   // --- Event System ---

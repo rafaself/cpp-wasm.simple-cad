@@ -452,6 +452,7 @@ bool PickSystem::checkCandidate(
     else if (const PolyRec* pl = entities.getPolyline(id)) {
         outCandidate.kind = PickEntityKind::Polyline;
         const auto& pts = entities.getPoints(); // Shared buffer
+        bool vertexHit = false;
 
         // Vertex Check
         if (pickMask & PICK_VERTEX) {
@@ -462,6 +463,7 @@ bool PickSystem::checkCandidate(
                     bestDist = d;
                     outCandidate.subTarget = PickSubTarget::Vertex;
                     outCandidate.subIndex = static_cast<int>(i);
+                    vertexHit = true;
                 }
             }
         }
@@ -470,7 +472,7 @@ bool PickSystem::checkCandidate(
         // If we found a vertex, bestDist is small. Edge might be smaller? No, vertex is 0 dist.
         // Actually vertex hit has priority in operator<.
 
-        if (pickMask & PICK_EDGE) {
+        if (!vertexHit && (pickMask & PICK_EDGE)) {
             float effectiveTol = tol + (pl->strokeWidthPx * 0.5f / viewScale);
             for(size_t i=0; i<pl->count - 1; ++i) {
                 const Point2& p0 = pts[pl->offset + i];
