@@ -643,6 +643,18 @@ TEST_F(CadEngineTest, PickExUsesSelectionBoundsHandles) {
     EXPECT_EQ(res.id, 1u);
 }
 
+TEST_F(CadEngineTest, PickLineEndpointPrefersVertexOverSelectionHandles) {
+    const std::uint32_t id = 20;
+    CadEngineTestAccessor::upsertLine(engine, id, 0.0f, 0.0f, 10.0f, 10.0f);
+
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+    const PickResult res = engine.pickEx(0.0f, 0.0f, kPickTolerance, kPickMask);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::Vertex);
+    EXPECT_EQ(res.subIndex, 0);
+}
+
 TEST_F(CadEngineTest, SnapToGridUsesSnapOptions) {
     engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
     const auto snapped = engine.getSnappedPoint(12.4f, 18.9f);
