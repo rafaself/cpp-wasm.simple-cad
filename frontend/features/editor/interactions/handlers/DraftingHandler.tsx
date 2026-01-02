@@ -300,6 +300,53 @@ export class DraftingHandler extends BaseInteractionHandler {
       return;
     }
 
+    // Rect/Circle: simple click → create 100x100 centered shape
+    if ((this.activeTool === 'rect' || this.activeTool === 'circle') && isClick) {
+      const kind = this.activeTool === 'rect' ? EntityKind.Rect : EntityKind.Circle;
+      const r = 50; // 100x100 total size -> 50 radius/half-size
+      const cx = snapped.x;
+      const cy = snapped.y;
+
+      const style = this.buildDraftStyle();
+      
+      // Cancel the tiny draft created on pointer down
+      this.cancelDraft(runtime);
+
+      // Create and commit the full-size shape
+      runtime.apply([
+        {
+          op: CommandOp.BeginDraft,
+          draft: {
+            kind,
+            x: cx - r,
+            y: cy - r,
+            sides: 0,
+            head: 0,
+            ...style,
+          },
+        },
+        {
+          op: CommandOp.UpdateDraft,
+          pos: {
+            x: cx + r,
+            y: cy + r,
+            modifiers: 0,
+          },
+        },
+        { op: CommandOp.CommitDraft },
+      ]);
+      
+      cadDebugLog('draft', 'click-create', () => ({
+        tool: this.activeTool,
+        x: cx,
+        y: cy,
+      }));
+      
+      this.resetDraftState();
+      useUIStore.getState().setTool('select');
+      return;
+    }
+
     // Polygon drag → triangle is already enforced in BeginDraft (sides=3)
 
     // Commit

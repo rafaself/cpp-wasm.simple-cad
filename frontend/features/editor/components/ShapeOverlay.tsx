@@ -292,37 +292,43 @@ const ShapeOverlay: React.FC = () => {
 
         // Dimension label (width × height)
         // Positioned below the shape (at screenMaxY)
-        const labelX = screenMinX + screenW / 2;
-        const labelY = screenMaxY + 8; // Start offset below shape
+        // Only show if dimensions are non-zero (avoids 0x0 flickering on click-create)
+        const rw = Math.round(width);
+        const rh = Math.round(height);
 
-        const dimText = `${Math.round(width)} × ${Math.round(height)}`;
-        // Assuming approx text width, centering the background rect
-        const textWidth = dimText.length * 7 + 16;
+        if (rw > 0 || rh > 0) {
+          const labelX = screenMinX + screenW / 2;
+          const labelY = screenMaxY + 8; // Start offset below shape
 
-        draftElements.push(
-          <g key="draft-dim-label">
-            <rect
-              x={labelX - textWidth / 2}
-              y={labelY}
-              width={textWidth}
-              height={20}
-              rx={4}
-              fill="#0d99ff"
-              fillOpacity={0.9}
-            />
-            <text
-              x={labelX}
-              y={labelY + 14}
-              textAnchor="middle"
-              fontSize={11}
-              fontFamily="Inter, system-ui, sans-serif"
-              fill="white"
-              fontWeight={500}
-            >
-              {dimText}
-            </text>
-          </g>,
-        );
+          const dimText = `${rw} × ${rh}`;
+          // Assuming approx text width, centering the background rect
+          const textWidth = dimText.length * 7 + 16;
+
+          draftElements.push(
+            <g key="draft-dim-label">
+              <rect
+                x={labelX - textWidth / 2}
+                y={labelY}
+                width={textWidth}
+                height={20}
+                rx={4}
+                fill="#0d99ff"
+                fillOpacity={0.9}
+              />
+              <text
+                x={labelX}
+                y={labelY + 14}
+                textAnchor="middle"
+                fontSize={11}
+                fontFamily="Inter, system-ui, sans-serif"
+                fill="white"
+                fontWeight={500}
+              >
+                {dimText}
+              </text>
+            </g>,
+          );
+        }
       }
     }
 
