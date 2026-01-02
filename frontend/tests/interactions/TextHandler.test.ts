@@ -36,8 +36,9 @@ describe('TextHandler', () => {
     const event = makePointer(10, 20);
     const ctx = {
       event,
+      screenPoint: { x: 10, y: 20 },
       worldPoint: screenToWorld({ x: 10, y: 20 }, { x: 0, y: 0, scale: 1 }),
-      snappedPoint: { x: 10, y: 20 },
+      snappedPoint: screenToWorld({ x: 10, y: 20 }, { x: 0, y: 0, scale: 1 }),
       runtime,
       viewTransform: { x: 0, y: 0, scale: 1 },
       canvasSize: { width: 800, height: 600 },

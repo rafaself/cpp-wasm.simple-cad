@@ -320,6 +320,7 @@ void CadEngine::rebuildSnapshotBytes() const {
     engine::SnapshotData sd;
     sd.rects.reserve(entityManager_.rects.size());
     for (const auto& rec : entityManager_.rects) {
+        if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::RectSnapshot snap{};
         snap.rec = rec;
         snap.layerId = entityManager_.getEntityLayer(rec.id);
@@ -329,6 +330,7 @@ void CadEngine::rebuildSnapshotBytes() const {
 
     sd.lines.reserve(entityManager_.lines.size());
     for (const auto& rec : entityManager_.lines) {
+        if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::LineSnapshot snap{};
         snap.rec = rec;
         snap.layerId = entityManager_.getEntityLayer(rec.id);
@@ -338,6 +340,7 @@ void CadEngine::rebuildSnapshotBytes() const {
 
     sd.polylines.reserve(entityManager_.polylines.size());
     for (const auto& rec : entityManager_.polylines) {
+        if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::PolySnapshot snap{};
         snap.rec = rec;
         snap.layerId = entityManager_.getEntityLayer(rec.id);
@@ -349,6 +352,7 @@ void CadEngine::rebuildSnapshotBytes() const {
 
     sd.circles.reserve(entityManager_.circles.size());
     for (const auto& rec : entityManager_.circles) {
+        if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::CircleSnapshot snap{};
         snap.rec = rec;
         snap.layerId = entityManager_.getEntityLayer(rec.id);
@@ -358,6 +362,7 @@ void CadEngine::rebuildSnapshotBytes() const {
 
     sd.polygons.reserve(entityManager_.polygons.size());
     for (const auto& rec : entityManager_.polygons) {
+        if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::PolygonSnapshot snap{};
         snap.rec = rec;
         snap.layerId = entityManager_.getEntityLayer(rec.id);
@@ -367,6 +372,7 @@ void CadEngine::rebuildSnapshotBytes() const {
 
     sd.arrows.reserve(entityManager_.arrows.size());
     for (const auto& rec : entityManager_.arrows) {
+        if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::ArrowSnapshot snap{};
         snap.rec = rec;
         snap.layerId = entityManager_.getEntityLayer(rec.id);
@@ -385,12 +391,13 @@ void CadEngine::rebuildSnapshotBytes() const {
         sd.layers.push_back(std::move(snap));
     }
 
-    sd.drawOrder = entityManager_.drawOrderIds;
+    sd.drawOrder = entityManager_.drawOrderIds; // drawOrderIds already has phantom removed in InteractionSession
     sd.selection = selectionManager_.getOrdered();
 
     const auto textIds = textSystem_.store.getAllTextIds();
     sd.texts.reserve(textIds.size());
     for (const std::uint32_t textId : textIds) {
+        if (textId == DRAFT_ENTITY_ID) continue;
         const TextRec* rec = textSystem_.store.getText(textId);
         if (!rec) continue;
         engine::TextSnapshot snap{};

@@ -24,8 +24,13 @@ describe('TextSystem Cache Optimization', () => {
     pointCount: 0,
     triangleVertexCount: 0,
     lineVertexCount: 0,
+    rebuildAllGeometryCount: 0,
     lastLoadMs: 0,
     lastRebuildMs: 0,
+    lastApplyMs: 0,
+    lastTransformUpdateMs: 0,
+    lastSnapCandidateCount: 0,
+    lastSnapHitCount: 0,
   };
   let textMetas = [
     { id: 10, boxMode: 0, constraintWidth: 100 },
@@ -48,6 +53,7 @@ describe('TextSystem Cache Optimization', () => {
       allocateEntityId: vi.fn(() => 999),
       getSelectionOutlineMeta: vi.fn(),
       getSelectionHandleMeta: vi.fn(),
+      getSnapOverlayMeta: vi.fn(),
       getEntityAabb: vi.fn(),
       getHistoryMeta: vi.fn(),
       canUndo: vi.fn(),

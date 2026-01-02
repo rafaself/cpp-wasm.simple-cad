@@ -50,6 +50,7 @@
 #define selectionOutlineData_ state_->selectionOutlineData_
 #define selectionHandlePrimitives_ state_->selectionHandlePrimitives_
 #define selectionHandleData_ state_->selectionHandleData_
+#define snapGuidePrimitives_ state_->snapGuidePrimitives_
+#define snapGuideData_ state_->snapGuideData_
 #define lastError state_->lastError
 #define interactionSession_ state_->interactionSession_
-

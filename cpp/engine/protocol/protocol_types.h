@@ -6,8 +6,8 @@
  * Extracted from engine.h to reduce the "God Object" size.
  * 
  * IMPORTANT: Changes to these types require ABI hash update in both:
- * - cpp/engine/engine.h (kAbiHash constant)
- * - frontend/engine/core/protocol.ts (computeAbiHash function)
+ * - cpp/engine/engine_protocol_types.h (computeAbiHash)
+ * - frontend/engine/core/protocol.ts (computeAbiHash)
  * 
  * @see AGENTS.md section "Engine-First Architecture"
  * @see docs/agents/audit-action-plan.md
@@ -254,6 +254,45 @@ struct EngineStats {
     float lastLoadMs;
     float lastRebuildMs;
     float lastApplyMs;
+    float lastTransformUpdateMs;
+    std::uint32_t lastSnapCandidateCount;
+    std::uint32_t lastSnapHitCount;
+};
+
+// =============================================================================
+// Transform Log
+// =============================================================================
+
+enum class TransformLogEvent : std::uint32_t {
+    Begin = 1,
+    Update = 2,
+    Commit = 3,
+    Cancel = 4,
+};
+
+struct TransformLogEntry {
+    std::uint32_t type;
+    std::uint32_t mode;
+    std::uint32_t idOffset;
+    std::uint32_t idCount;
+    std::uint32_t specificId;
+    std::int32_t vertexIndex;
+    float x;
+    float y;
+    std::uint32_t modifiers;
+    float viewX;
+    float viewY;
+    float viewScale;
+    float viewWidth;
+    float viewHeight;
+    std::uint32_t snapEnabled;
+    std::uint32_t snapGridEnabled;
+    float snapGridSize;
+    float snapTolerancePx;
+    std::uint32_t snapEndpointEnabled;
+    std::uint32_t snapMidpointEnabled;
+    std::uint32_t snapCenterEnabled;
+    std::uint32_t snapNearestEnabled;
 };
 
 // =============================================================================

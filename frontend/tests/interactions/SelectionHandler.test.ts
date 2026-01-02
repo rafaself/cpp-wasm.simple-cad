@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { TransformMode } from '@/engine/core/interactionSession';
 import { SelectionMode } from '@/engine/core/protocol';
 import { InteractionHarness } from '@/test-utils/interactionHarness';
+import { PickSubTarget } from '@/types/picking';
 
 describe('SelectionHandler', () => {
   let harness: InteractionHarness;
@@ -21,6 +22,19 @@ describe('SelectionHandler', () => {
     expect(harness.runtime.transformSessions.begun).toBe(1);
     expect(harness.runtime.transformSessions.lastBegin?.mode).toBe(TransformMode.Move);
     expect(harness.runtime.transformSessions.committed).toBe(1);
+  });
+
+  it('starts resize when dragging a resize handle', () => {
+    harness.runtime.setPickResult({
+      id: 42,
+      subIndex: 2,
+      subTarget: PickSubTarget.ResizeHandle,
+    });
+
+    harness.pointerDown({ x: 10, y: 10 });
+
+    expect(harness.runtime.transformSessions.begun).toBe(1);
+    expect(harness.runtime.transformSessions.lastBegin?.mode).toBe(TransformMode.Resize);
   });
 
   it('uses add mode when dragging marquee with shift held', () => {

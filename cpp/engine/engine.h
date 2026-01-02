@@ -88,7 +88,7 @@ public:
             kCommandVersion,
             kSnapshotVersion,
             kEventStreamVersion,
-            kAbiHash,
+            getAbiHash(),
             kFeatureFlags
         };
     }
@@ -123,7 +123,9 @@ public:
 
     OverlayBufferMeta getSelectionOutlineMeta() const;
     OverlayBufferMeta getSelectionHandleMeta() const;
+    OverlayBufferMeta getSnapOverlayMeta() const;
     EntityAabb getEntityAabb(std::uint32_t entityId) const;
+    EntityAabb getSelectionBounds() const;
 
     EngineStats getStats() const noexcept;
 
@@ -407,7 +409,7 @@ public:
     // Snapping System (Phase 3)
     // =================================================================*********
     
-    void setSnapOptions(bool enabled, bool gridEnabled, float gridSize);
+    void setSnapOptions(bool enabled, bool gridEnabled, float gridSize, float tolerancePx, bool endpointEnabled, bool midpointEnabled, bool centerEnabled, bool nearestEnabled);
     std::pair<float, float> getSnappedPoint(float x, float y) const;
 
     /**
@@ -504,12 +506,12 @@ public:
 
     void rebuildRenderBuffers() const;
     void addGridToBuffers() const;
-    void addDraftToBuffers() const;
     void beginDraft(const BeginDraftPayload& p);
-    void updateDraft(float x, float y);
-    void appendDraftPoint(float x, float y);
+    void updateDraft(float x, float y, std::uint32_t modifiers);
+    void appendDraftPoint(float x, float y, std::uint32_t modifiers);
     std::uint32_t commitDraft();
     void cancelDraft();
+    DraftDimensions getDraftDimensions() const;
 
     bool refreshEntityRenderRange(std::uint32_t id) const;
 
@@ -526,8 +528,14 @@ public:
      * @param mode Transform mode (Move, VertexDrag, etc)
      * @param specificId ID of the specific sub-element being dragged (e.g. vertex owner)
      * @param vertexIndex Index of vertex if applicable, -1 otherwise
-     * @param startX World X start position
-     * @param startY World Y start position
+     * @param screenX Screen-space X (canvas local)
+     * @param screenY Screen-space Y (canvas local)
+     * @param viewX View translate X (screen space)
+     * @param viewY View translate Y (screen space)
+     * @param viewScale View scale (world->screen)
+     * @param viewWidth Viewport width (screen space)
+     * @param viewHeight Viewport height (screen space)
+     * @param modifiers Modifier bitmask (Shift/Ctrl/Alt/Meta)
      */
     void beginTransform(
         const std::uint32_t* ids, 
@@ -535,16 +543,36 @@ public:
         TransformMode mode, 
         std::uint32_t specificId, 
         int32_t vertexIndex, 
-        float startX, 
-        float startY
+        float screenX, 
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        std::uint32_t modifiers
     );
 
     /**
      * Update the current transform session.
-     * @param worldX Current pointer World X
-     * @param worldY Current pointer World Y
+     * @param screenX Current pointer Screen X (canvas local)
+     * @param screenY Current pointer Screen Y (canvas local)
+     * @param viewX View translate X (screen space)
+     * @param viewY View translate Y (screen space)
+     * @param viewScale View scale (world->screen)
+     * @param viewWidth Viewport width (screen space)
+     * @param viewHeight Viewport height (screen space)
+     * @param modifiers Modifier bitmask (Shift/Ctrl/Alt/Meta)
      */
-    void updateTransform(float worldX, float worldY);
+    void updateTransform(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        std::uint32_t modifiers);
 
     /**
      * Commit changes and end the session.
@@ -568,6 +596,15 @@ public:
     std::uintptr_t getCommitResultIdsPtr() const;
     std::uintptr_t getCommitResultOpCodesPtr() const;
     std::uintptr_t getCommitResultPayloadsPtr() const;
+
+    void setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds);
+    void clearTransformLog();
+    bool replayTransformLog();
+    bool isTransformLogOverflowed() const;
+    std::uint32_t getTransformLogCount() const;
+    std::uintptr_t getTransformLogPtr() const;
+    std::uint32_t getTransformLogIdCount() const;
+    std::uintptr_t getTransformLogIdsPtr() const;
 
 private:
     EngineState& state() noexcept;

@@ -37,32 +37,25 @@ export class PickSystem {
     };
   }
 
-  public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
-    const stats = this.engine.getStats();
-    const totalEntities =
-      stats.rectCount + stats.lineCount + stats.polylineCount + stats.pointCount;
-
-    if (totalEntities === 0) {
-      return false;
-    }
-    return true;
-  }
-
   public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     const profiler = getPickProfiler();
-
-    if (!this.quickBoundsCheck(x, y, tolerance)) {
-      profiler.recordSkip();
-      return {
-        id: 0,
-        kind: PickEntityKind.Unknown,
-        subTarget: PickSubTarget.None,
-        subIndex: -1,
-        distance: Infinity,
-      };
-    }
-
     const wrappedPick = profiler.wrap(this.pickEx.bind(this));
     return wrappedPick(x, y, tolerance, pickMask);
+  }
+
+  /**
+   * Quick bounds check to see if there are any entities near the given point.
+   * This is a fast early-out check before performing more expensive operations.
+   * Returns true if there might be something to pick, false if definitely nothing.
+   */
+  public quickBoundsCheck(x: number, y: number, tolerance: number): boolean {
+    // Check if engine has native quickBoundsCheck
+    if (typeof (this.engine as any).quickBoundsCheck === 'function') {
+      return (this.engine as any).quickBoundsCheck(x, y, tolerance);
+    }
+    // Fallback: do a quick pick and check if we hit anything
+    // Using a broad mask (0xFFFF) to detect any entity type
+    const result = this.pickEx(x, y, tolerance, 0xffff);
+    return result.id !== 0;
   }
 }

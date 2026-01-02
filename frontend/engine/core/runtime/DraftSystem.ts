@@ -1,6 +1,6 @@
 import { COMMAND_BUFFER_MAGIC, CommandOp } from '../commandBuffer';
 
-import type { CadEngineInstance, WasmModule } from '../wasm-types';
+import type { CadEngineInstance, DraftDimensions, WasmModule } from '../wasm-types';
 
 /**
  * DraftSystem
@@ -9,7 +9,7 @@ import type { CadEngineInstance, WasmModule } from '../wasm-types';
  * Preallocates a fixed-size command buffer for UpdateDraft/AppendDraftPoint and writes coordinates in place.
  */
 export class DraftSystem {
-  private readonly updateBufferByteLength = 40; // 16-byte header + 16-byte cmd header + 8-byte payload
+  private readonly updateBufferByteLength = 44; // 16-byte header + 16-byte cmd header + 12-byte payload
   private updateBufferPtr: number | null = null;
   private updateView: DataView | null = null;
   private appendBufferPtr: number | null = null;
@@ -36,21 +36,34 @@ export class DraftSystem {
   /**
    * Update draft position using a reusable binary buffer.
    */
-  public updateDraft(x: number, y: number): void {
+  public updateDraft(x: number, y: number, modifiers: number): void {
     if (!this.ensureUpdateBuffer()) return;
     this.updateView!.setFloat32(32, x, true);
     this.updateView!.setFloat32(36, y, true);
+    this.updateView!.setUint32(40, modifiers >>> 0, true);
     this.engine.applyCommandBuffer(this.updateBufferPtr!, this.updateBufferByteLength);
   }
 
   /**
    * Append a draft point (polyline/polygon) using the same zero-allocation path.
    */
-  public appendDraftPoint(x: number, y: number): void {
+  public appendDraftPoint(x: number, y: number, modifiers: number): void {
     if (!this.ensureAppendBuffer()) return;
     this.appendView!.setFloat32(32, x, true);
     this.appendView!.setFloat32(36, y, true);
+    this.appendView!.setUint32(40, modifiers >>> 0, true);
     this.engine.applyCommandBuffer(this.appendBufferPtr!, this.updateBufferByteLength);
+  }
+
+  /**
+   * Get the current draft dimensions (bounding box, width, height) from the engine.
+   * Returns null if no draft is active.
+   */
+  public getDraftDimensions(): DraftDimensions | null {
+    if (!this.engine.getDraftDimensions) return null;
+    const dims = this.engine.getDraftDimensions();
+    if (!dims || !dims.active) return null;
+    return dims as DraftDimensions;
   }
 
   private ensureUpdateBuffer(): boolean {
@@ -88,7 +101,7 @@ export class DraftSystem {
 
     o = this.writeU32(view, o, op); // op
     o = this.writeU32(view, o, 0); // id unused
-    o = this.writeU32(view, o, 8); // payload bytes
+    o = this.writeU32(view, o, 12); // payload bytes
     o = this.writeU32(view, o, 0); // reserved
 
     // Payload is at offset 32 (two f32 values), initialized to zero by default.

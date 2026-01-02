@@ -66,6 +66,13 @@ describe('EngineRuntime', () => {
         primitivesPtr: 0,
         dataPtr: 0,
       })),
+      getSnapOverlayMeta: vi.fn(() => ({
+        generation: 0,
+        primitiveCount: 0,
+        floatCount: 0,
+        primitivesPtr: 0,
+        dataPtr: 0,
+      })),
       getEntityAabb: vi.fn(() => ({ minX: 0, minY: 0, maxX: 0, maxY: 0, valid: 0 })),
       getSelectionIds: vi.fn(() => makeVector(selectionIds)),
       clearSelection: vi.fn(() => {
@@ -126,8 +133,24 @@ describe('EngineRuntime', () => {
   it('initializes correctly', async () => {
     const runtime = await EngineRuntime.create();
     expect(initCadEngineModule).toHaveBeenCalled();
-    mockEngine.getStats = vi.fn(() => ({ generation: 1 }) as any);
-    expect(runtime.getStats()).toEqual({ generation: 1 });
+    const stats = {
+      generation: 1,
+      rectCount: 0,
+      lineCount: 0,
+      polylineCount: 0,
+      pointCount: 0,
+      triangleVertexCount: 0,
+      lineVertexCount: 0,
+      rebuildAllGeometryCount: 0,
+      lastLoadMs: 0,
+      lastRebuildMs: 0,
+      lastApplyMs: 0,
+      lastTransformUpdateMs: 0,
+      lastSnapCandidateCount: 0,
+      lastSnapHitCount: 0,
+    };
+    mockEngine.getStats = vi.fn(() => stats as any);
+    expect(runtime.getStats()).toEqual(stats);
   });
 
   it('clears the engine', async () => {

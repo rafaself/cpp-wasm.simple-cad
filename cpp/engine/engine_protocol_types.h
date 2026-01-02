@@ -44,10 +44,12 @@ struct EngineProtocolTypes {
     using OverlayBufferMeta = engine::protocol::OverlayBufferMeta;
     using EntityAabb = engine::protocol::EntityAabb;
     using EngineStats = engine::protocol::EngineStats;
+    using TransformLogEvent = engine::protocol::TransformLogEvent;
+    using TransformLogEntry = engine::protocol::TransformLogEntry;
     using TextContentMeta = engine::protocol::TextContentMeta;
 
     // Protocol versions (must be non-zero; keep in sync with TS).
-    static constexpr std::uint32_t kProtocolVersion = 1;      // Handshake schema version
+    static constexpr std::uint32_t kProtocolVersion = 3;      // Handshake schema version
     static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
     static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version (ESNP v1)
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
@@ -280,6 +282,13 @@ protected:
             static_cast<std::uint32_t>(OverlayKind::Point),
         });
 
+        h = hashEnum(h, 0xE0000015u, {
+            static_cast<std::uint32_t>(TransformLogEvent::Begin),
+            static_cast<std::uint32_t>(TransformLogEvent::Update),
+            static_cast<std::uint32_t>(TransformLogEvent::Commit),
+            static_cast<std::uint32_t>(TransformLogEvent::Cancel),
+        });
+
         h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, protocolVersion)),
             static_cast<std::uint32_t>(offsetof(ProtocolInfo, commandVersion)),
@@ -315,6 +324,9 @@ protected:
             static_cast<std::uint32_t>(offsetof(EngineStats, lastLoadMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastRebuildMs)),
             static_cast<std::uint32_t>(offsetof(EngineStats, lastApplyMs)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastTransformUpdateMs)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastSnapCandidateCount)),
+            static_cast<std::uint32_t>(offsetof(EngineStats, lastSnapHitCount)),
         });
 
         h = hashStruct(h, 0x53000005u, sizeof(PickResult), {
@@ -591,13 +603,37 @@ protected:
             static_cast<std::uint32_t>(offsetof(HistoryMeta, generation)),
         });
 
+        h = hashStruct(h, 0x53000025u, sizeof(TransformLogEntry), {
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, type)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, mode)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, idOffset)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, idCount)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, specificId)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, vertexIndex)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, x)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, y)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, modifiers)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewX)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewY)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewScale)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewWidth)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewHeight)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapGridEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapGridSize)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapTolerancePx)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapEndpointEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapMidpointEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapCenterEnabled)),
+            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapNearestEnabled)),
+        });
+
         return h;
     }
 
 public:
-    // ABI Hash matches frontend/engine/core/protocol.ts EXPECTED_ABI_HASH.
-    // We hardcode it here because dynamic computation via constexpr std::initializer_list 
-    // is failing on the current Emscripten compiler environment.
-    // If you change the ABI (structs, enums), update this hash or fix computeAbiHash().
-    static constexpr std::uint32_t kAbiHash = 0x96ec015d;
+    static std::uint32_t getAbiHash() noexcept {
+        static const std::uint32_t hash = computeAbiHash();
+        return hash;
+    }
 };

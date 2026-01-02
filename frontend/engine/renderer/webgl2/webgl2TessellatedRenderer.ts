@@ -1,4 +1,5 @@
 import { GeometryPass } from './passes/GeometryPass';
+import { LinePass } from './passes/LinePass';
 import { TextRenderPass } from './passes/TextRenderPass';
 import { AxesPass } from './passes/AxesPass';
 import { GridPass } from './passes/GridPass';
@@ -108,6 +109,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
   private ssaa: SsaaResources;
   private gridPass: GridPass;
   private geometryPass: GeometryPass;
+  private linePass: LinePass;
   private textPass: TextRenderPass;
   private axesPass: AxesPass;
   private offscreenSize: { width: number; height: number } = { width: 0, height: 0 };
@@ -129,6 +131,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     this.ssaa = initSsaaResources(gl);
     this.gridPass = new GridPass(gl);
     this.geometryPass = new GeometryPass(gl);
+    this.linePass = new LinePass(gl);
     this.textPass = new TextRenderPass(gl);
     this.axesPass = new AxesPass(gl);
     this.aaScale = Math.max(1, Math.floor(opts?.aaScale ?? 2));
@@ -148,6 +151,7 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     // Dispose passes
     this.gridPass.dispose();
     this.geometryPass.dispose();
+    this.linePass.dispose();
     this.textPass.dispose();
     this.axesPass.dispose();
   }
@@ -204,9 +208,13 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
 
     // Initialize passes on first use
     if (!this.geometryPass.isInitialized()) this.geometryPass.initialize();
+    if (input.lineMeta && !this.linePass.isInitialized()) this.linePass.initialize();
 
     // Update buffers
     this.geometryPass.updateBuffer(input.module, input.positionMeta);
+    const lineVertexCount = input.lineMeta
+      ? this.linePass.updateBuffer(input.module, input.lineMeta)
+      : 0;
 
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
@@ -262,6 +270,20 @@ export class Webgl2TessellatedRenderer implements TessellatedRenderer {
     // -------------------------------------------------------------------------
     if (input.textQuadMeta && input.textAtlasMeta) {
       this.renderText(input, offW, offH, pixelRatio);
+    }
+
+    if (lineVertexCount > 0 && input.lineMeta) {
+      this.linePass.render(
+        {
+          module: input.module,
+          lineMeta: input.lineMeta,
+          viewTransform: input.viewTransform,
+          canvasSizeCss: input.canvasSizeCss,
+          canvasSizeDevice: { width: offW, height: offH },
+          pixelRatio: effectivePixelRatio,
+        },
+        lineVertexCount,
+      );
     }
 
     if (this.aaScale <= 1) return;

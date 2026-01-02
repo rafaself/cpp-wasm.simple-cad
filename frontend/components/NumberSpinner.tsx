@@ -11,7 +11,9 @@ interface NumberSpinnerProps {
   className?: string;
   suffix?: string;
   autoFocus?: boolean;
+  selectOnFocus?: boolean;
   onBlur?: () => void;
+  onRawChange?: (val: string) => void;
 }
 
 const NumberSpinner: React.FC<NumberSpinnerProps> = ({
@@ -24,7 +26,9 @@ const NumberSpinner: React.FC<NumberSpinnerProps> = ({
   className,
   suffix,
   autoFocus,
+  selectOnFocus,
   onBlur,
+  onRawChange,
 }) => {
   const [tempValue, setTempValue] = useState(value.toString());
   const [isFocused, setIsFocused] = useState(false);
@@ -66,12 +70,21 @@ const NumberSpinner: React.FC<NumberSpinnerProps> = ({
       <input
         type="text"
         value={tempValue}
-        onChange={(e) => setTempValue(e.target.value)}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          setTempValue(newValue);
+          onRawChange?.(newValue);
+        }}
         onBlur={() => {
           setIsFocused(false);
           handleCommit();
         }}
-        onFocus={() => setIsFocused(true)}
+        onFocus={(e) => {
+          setIsFocused(true);
+          if (selectOnFocus) {
+            e.target.select();
+          }
+        }}
         onKeyDown={handleKeyDown}
         autoFocus={autoFocus}
         className="w-full h-full bg-transparent text-[10px] text-center text-text font-mono focus:outline-none px-1 pl-2"

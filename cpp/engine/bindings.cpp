@@ -104,7 +104,9 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("hasPendingEvents", &CadEngine::hasPendingEvents)
         .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
         .function("getSelectionHandleMeta", &CadEngine::getSelectionHandleMeta)
+        .function("getSnapOverlayMeta", &CadEngine::getSnapOverlayMeta)
         .function("getEntityAabb", &CadEngine::getEntityAabb)
+        .function("getSelectionBounds", &CadEngine::getSelectionBounds)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("setLayerProps", &CadEngine::setLayerProps)
@@ -169,8 +171,35 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
             return TextBoundsResult{0,0,0,0, false};
         }))
         // Interaction Session
-        .function("beginTransform", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode, std::uint32_t specificId, int32_t vertexIndex, float startX, float startY) {
-            self.beginTransform(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::TransformMode>(mode), specificId, vertexIndex, startX, startY);
+        .function("beginTransform", emscripten::optional_override([](
+            CadEngine& self,
+            std::uintptr_t idsPtr,
+            std::uint32_t idCount,
+            int mode,
+            std::uint32_t specificId,
+            int32_t vertexIndex,
+            float screenX,
+            float screenY,
+            float viewX,
+            float viewY,
+            float viewScale,
+            float viewWidth,
+            float viewHeight,
+            std::uint32_t modifiers) {
+            self.beginTransform(
+                reinterpret_cast<const std::uint32_t*>(idsPtr),
+                idCount,
+                static_cast<CadEngine::TransformMode>(mode),
+                specificId,
+                vertexIndex,
+                screenX,
+                screenY,
+                viewX,
+                viewY,
+                viewScale,
+                viewWidth,
+                viewHeight,
+                modifiers);
         }))
         .function("updateTransform", &CadEngine::updateTransform)
         .function("commitTransform", &CadEngine::commitTransform)
@@ -179,7 +208,17 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getCommitResultCount", &CadEngine::getCommitResultCount)
         .function("getCommitResultIdsPtr", &CadEngine::getCommitResultIdsPtr)
         .function("getCommitResultOpCodesPtr", &CadEngine::getCommitResultOpCodesPtr)
-        .function("getCommitResultPayloadsPtr", &CadEngine::getCommitResultPayloadsPtr);
+        .function("getCommitResultPayloadsPtr", &CadEngine::getCommitResultPayloadsPtr)
+        .function("setTransformLogEnabled", &CadEngine::setTransformLogEnabled)
+        .function("clearTransformLog", &CadEngine::clearTransformLog)
+        .function("replayTransformLog", &CadEngine::replayTransformLog)
+        .function("isTransformLogOverflowed", &CadEngine::isTransformLogOverflowed)
+        .function("getTransformLogCount", &CadEngine::getTransformLogCount)
+        .function("getTransformLogPtr", &CadEngine::getTransformLogPtr)
+        .function("getTransformLogIdCount", &CadEngine::getTransformLogIdCount)
+        .function("getTransformLogIdsPtr", &CadEngine::getTransformLogIdsPtr)
+        // Draft System
+        .function("getDraftDimensions", &CadEngine::getDraftDimensions);
     
     // ... values ...
 
@@ -250,7 +289,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("rebuildAllGeometryCount", &CadEngine::EngineStats::rebuildAllGeometryCount)
         .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
         .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
-        .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs);
+        .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs)
+        .field("lastTransformUpdateMs", &CadEngine::EngineStats::lastTransformUpdateMs)
+        .field("lastSnapCandidateCount", &CadEngine::EngineStats::lastSnapCandidateCount)
+        .field("lastSnapHitCount", &CadEngine::EngineStats::lastSnapHitCount);
 
     emscripten::value_object<CadEngine::OverlayBufferMeta>("OverlayBufferMeta")
         .field("generation", &CadEngine::OverlayBufferMeta::generation)
@@ -265,6 +307,18 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("maxX", &CadEngine::EntityAabb::maxX)
         .field("maxY", &CadEngine::EntityAabb::maxY)
         .field("valid", &CadEngine::EntityAabb::valid);
+
+    emscripten::value_object<DraftDimensions>("DraftDimensions")
+        .field("minX", &DraftDimensions::minX)
+        .field("minY", &DraftDimensions::minY)
+        .field("maxX", &DraftDimensions::maxX)
+        .field("maxY", &DraftDimensions::maxY)
+        .field("width", &DraftDimensions::width)
+        .field("height", &DraftDimensions::height)
+        .field("centerX", &DraftDimensions::centerX)
+        .field("centerY", &DraftDimensions::centerY)
+        .field("kind", &DraftDimensions::kind)
+        .field("active", &DraftDimensions::active);
 
     // Text-related value objects
     emscripten::value_object<TextHitResult>("TextHitResult")

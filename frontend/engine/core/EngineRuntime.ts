@@ -97,7 +97,9 @@ export class EngineRuntime {
       'allocateEntityId',
       'getSelectionOutlineMeta',
       'getSelectionHandleMeta',
+      'getSnapOverlayMeta',
       'getEntityAabb',
+      'getStats',
       'getHistoryMeta',
       'canUndo',
       'canRedo',
@@ -177,12 +179,12 @@ export class EngineRuntime {
   }
 
   // --- Draft System (hot path) ---
-  public updateDraft(x: number, y: number): void {
-    this.draftSystem.updateDraft(x, y);
+  public updateDraft(x: number, y: number, modifiers: number): void {
+    this.draftSystem.updateDraft(x, y, modifiers);
   }
 
-  public appendDraftPoint(x: number, y: number): void {
-    this.draftSystem.appendDraftPoint(x, y);
+  public appendDraftPoint(x: number, y: number, modifiers: number): void {
+    this.draftSystem.appendDraftPoint(x, y, modifiers);
   }
 
   // --- Event System ---
@@ -315,20 +317,65 @@ export class EngineRuntime {
     return this.selectionSystem.getSelectionHandleMeta();
   }
 
+  public getSelectionBounds(): EntityAabb {
+    return this.selectionSystem.getSelectionBounds();
+  }
+
+  public getSnapOverlayMeta(): OverlayBufferMeta {
+    return this.transformSystem.getSnapOverlayMeta();
+  }
+
   // --- Transform System ---
   public beginTransform(
     ids: EntityId[],
     mode: number,
-    specificId: EntityId = 0,
-    vertexIndex: number = -1,
-    startX: number = 0,
-    startY: number = 0,
+    specificId: EntityId,
+    vertexIndex: number,
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
   ): void {
-    this.transformSystem.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+    this.transformSystem.beginTransform(
+      ids,
+      mode,
+      specificId,
+      vertexIndex,
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
   }
 
-  public updateTransform(worldX: number, worldY: number): void {
-    this.transformSystem.updateTransform(worldX, worldY);
+  public updateTransform(
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
+  ): void {
+    this.transformSystem.updateTransform(
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
   }
 
   public commitTransform(): {
@@ -347,8 +394,26 @@ export class EngineRuntime {
     return this.transformSystem.isInteractionActive();
   }
 
-  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
-    this.transformSystem.setSnapOptions(enabled, gridEnabled, gridSize);
+  public setSnapOptions(
+    enabled: boolean,
+    gridEnabled: boolean,
+    gridSize: number,
+    tolerancePx: number,
+    endpointEnabled: boolean,
+    midpointEnabled: boolean,
+    centerEnabled: boolean,
+    nearestEnabled: boolean,
+  ): void {
+    this.transformSystem.setSnapOptions(
+      enabled,
+      gridEnabled,
+      gridSize,
+      tolerancePx,
+      endpointEnabled,
+      midpointEnabled,
+      centerEnabled,
+      nearestEnabled,
+    );
   }
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {

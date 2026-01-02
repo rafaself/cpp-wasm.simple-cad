@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { screenToWorld } from '@/utils/viewportMath';
 
 import { DraftingHandler } from './handlers/DraftingHandler';
@@ -49,14 +50,21 @@ export function useInteractionManager() {
 
       if (isInput && e.key !== 'Escape') return;
 
+      cadDebugLog('tool', 'keydown', () => ({
+        key: e.key,
+        code: e.code,
+        target: (e.target as HTMLElement | null)?.tagName ?? null,
+      }));
       handlerRef.current.onKeyDown?.(e);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      cadDebugLog('tool', 'keyup', () => ({ key: e.key, code: e.code }));
       handlerRef.current.onKeyUp?.(e);
     };
 
     const handleBlur = () => {
+      cadDebugLog('tool', 'window-blur');
       handlerRef.current.onBlur?.();
     };
 
@@ -100,6 +108,12 @@ export function useInteractionManager() {
         break;
     }
 
+    cadDebugLog('tool', 'tool-switch', () => ({
+      tool: activeTool,
+      from: prev.name,
+      to: next.name,
+    }));
+
     // Bind Update Listener
     if (next.setOnUpdate) {
       next.setOnUpdate(forceUpdate);
@@ -115,18 +129,14 @@ export function useInteractionManager() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const clientX = e.clientX;
     const clientY = e.clientY;
-    const world = screenToWorld({ x: clientX - rect.left, y: clientY - rect.top }, viewTransform);
-
-    // Snapping Logic (if Runtime available)
-    let snapped = { x: world.x, y: world.y };
-    if (runtimeRef.current && runtimeRef.current.getSnappedPoint) {
-      snapped = runtimeRef.current.getSnappedPoint(world.x, world.y);
-    }
+    const screen = { x: clientX - rect.left, y: clientY - rect.top };
+    const world = screenToWorld(screen, viewTransform);
 
     return {
       event: e,
+      screenPoint: screen,
       worldPoint: world,
-      snappedPoint: snapped,
+      snappedPoint: world,
       runtime: runtimeRef.current,
       viewTransform,
       canvasSize,
@@ -138,6 +148,12 @@ export function useInteractionManager() {
     const ctx = buildContext(e);
     const result = handlerRef.current.onPointerDown(ctx);
     if (result) {
+      const prevName = handlerRef.current.name;
+      cadDebugLog('tool', 'handler-transition', () => ({
+        from: prevName,
+        to: result.name,
+        reason: 'pointerdown',
+      }));
       if (handlerRef.current.onLeave) handlerRef.current.onLeave();
       handlerRef.current = result;
       if (result.setOnUpdate) result.setOnUpdate(forceUpdate);
@@ -155,6 +171,12 @@ export function useInteractionManager() {
     const ctx = buildContext(e);
     const result = handlerRef.current.onPointerUp(ctx);
     if (result) {
+      const prevName = handlerRef.current.name;
+      cadDebugLog('tool', 'handler-transition', () => ({
+        from: prevName,
+        to: result.name,
+        reason: 'pointerup',
+      }));
       if (handlerRef.current.onLeave) handlerRef.current.onLeave();
       handlerRef.current = result;
       if (result.setOnUpdate) result.setOnUpdate(forceUpdate);
@@ -179,6 +201,7 @@ export function useInteractionManager() {
       onPointerMove,
       onPointerUp,
       onDoubleClick,
+      onCancel: () => handlerRef.current.onCancel?.(),
     },
     overlay,
     activeHandlerName: handlerRef.current.name,

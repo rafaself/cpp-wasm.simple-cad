@@ -3,8 +3,12 @@
 #include "engine/interaction/interaction_types.h"
 #include "engine/core/types.h"
 #include "engine/history/history_types.h"
+#include "engine/interaction/snap_types.h"
+#include "engine/protocol/protocol_types.h"
 #include <vector>
 #include <cstdint>
+#include <array>
+#include <cmath>
 
 // Forward declarations
 class CadEngine; // "God" object
@@ -12,6 +16,17 @@ class EntityManager; // Data access
 class PickSystem; // Spatial index
 class TextSystem; // Text rendering
 class HistoryManager; // Undo/Redo
+
+inline bool isGridSnapEnabled(const SnapOptions& options) {
+    return options.enabled && options.gridEnabled && options.gridSize > 0.0001f;
+}
+
+inline void applyGridSnap(float& x, float& y, const SnapOptions& options) {
+    if (!isGridSnapEnabled(options)) return;
+    const float s = options.gridSize;
+    x = std::round(x / s) * s;
+    y = std::round(y / s) * s;
+}
 
 class InteractionSession {
 public:
@@ -25,12 +40,28 @@ public:
 
     SnapOptions snapOptions;
 
+    const std::vector<SnapGuide>& getSnapGuides() const { return snapGuides_; }
+
     // ==============================================================================
     // Accessors for Commit Results (for WASM binding)
     // ==============================================================================
     const std::vector<std::uint32_t>& getCommitResultIds() const { return commitResultIds; }
     const std::vector<std::uint8_t>& getCommitResultOpCodes() const { return commitResultOpCodes; }
     const std::vector<float>& getCommitResultPayloads() const { return commitResultPayloads; }
+
+    // ==============================================================================
+    // Transform Logging / Replay
+    // ==============================================================================
+    void setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds);
+    void clearTransformLog();
+    bool replayTransformLog();
+    bool isTransformLogOverflowed() const { return transformLogOverflowed_; }
+    const std::vector<engine::protocol::TransformLogEntry>& getTransformLogEntries() const { return transformLogEntries_; }
+    const std::vector<std::uint32_t>& getTransformLogIds() const { return transformLogIds_; }
+
+    float getLastTransformUpdateMs() const { return transformStats_.lastUpdateMs; }
+    std::uint32_t getLastSnapCandidateCount() const { return transformStats_.lastSnapCandidateCount; }
+    std::uint32_t getLastSnapHitCount() const { return transformStats_.lastSnapHitCount; }
 
     // ==============================================================================
     // Transform API
@@ -41,22 +72,39 @@ public:
         TransformMode mode, 
         std::uint32_t specificId, 
         int32_t vertexIndex, 
-        float startX, 
-        float startY
+        float screenX, 
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        std::uint32_t modifiers
     );
-    void updateTransform(float worldX, float worldY);
+    void updateTransform(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        std::uint32_t modifiers);
     void commitTransform();
     void cancelTransform();
 
     // ==============================================================================
-    // Draft API
+    // Draft API (Phantom Entity System)
     // ==============================================================================
     void beginDraft(const BeginDraftPayload& p);
-    void updateDraft(float x, float y);
-    void appendDraftPoint(float x, float y);
+    void updateDraft(float x, float y, std::uint32_t modifiers);
+    void appendDraftPoint(float x, float y, std::uint32_t modifiers);
     void cancelDraft();
     std::uint32_t commitDraft();
-    void addDraftToBuffers(std::vector<float>& lineVertices); // Helper to draw draft
+    
+    // Draft overlay data for frontend (computed from phantom entity)
+    DraftDimensions getDraftDimensions() const;
+    void appendDraftLineVertices(std::vector<float>& lineVertices) const;
 
 private:
     CadEngine& engine_;
@@ -66,15 +114,40 @@ private:
     HistoryManager& historyManager_;
 
     // Internal State Structs
+    enum class AxisLock : std::uint8_t {
+        None = 0,
+        X = 1,
+        Y = 2
+    };
+
     struct SessionState {
         bool active = false;
         TransformMode mode = TransformMode::Move;
         std::vector<std::uint32_t> initialIds;
         std::uint32_t specificId = 0;
         int32_t vertexIndex = -1;
+        float startScreenX = 0.0f;
+        float startScreenY = 0.0f;
         float startX = 0.0f;
         float startY = 0.0f;
+        float dragThresholdPx = 0.0f;
+        bool dragging = false;
+        bool historyActive = false;
+        float baseMinX = 0.0f;
+        float baseMinY = 0.0f;
+        float baseMaxX = 0.0f;
+        float baseMaxY = 0.0f;
         std::vector<TransformSnapshot> snapshots;
+        std::uint32_t nextEntityIdBefore = 0;
+        AxisLock axisLock = AxisLock::None;
+        bool resizeAnchorValid = false;
+        float resizeAnchorX = 0.0f;
+        float resizeAnchorY = 0.0f;
+        float resizeAspect = 1.0f;
+        float resizeBaseW = 0.0f;
+        float resizeBaseH = 0.0f;
+        bool duplicated = false;
+        std::vector<std::uint32_t> originalIds;
     };
 
     struct DraftState {
@@ -91,17 +164,66 @@ private:
         std::vector<Point2> points;
     };
 
+    struct TransformStats {
+        float lastUpdateMs = 0.0f;
+        std::uint32_t lastSnapCandidateCount = 0;
+        std::uint32_t lastSnapHitCount = 0;
+    };
+
     SessionState session_;
     DraftState draft_;
+    TransformStats transformStats_;
+    std::vector<SnapGuide> snapGuides_;
+    std::vector<std::uint32_t> snapCandidates_;
 
     // Commit Result Buffers
     std::vector<std::uint32_t> commitResultIds;
     std::vector<std::uint8_t> commitResultOpCodes;
     std::vector<float> commitResultPayloads; 
 
+    std::vector<engine::protocol::TransformLogEntry> transformLogEntries_;
+    std::vector<std::uint32_t> transformLogIds_;
+    std::size_t transformLogCapacity_ = 0;
+    std::size_t transformLogIdCapacity_ = 0;
+    bool transformLogEnabled_ = false;
+    bool transformLogActive_ = false;
+    bool transformLogOverflowed_ = false;
+    bool replaying_ = false;
+
     // Helper to build a snapshot from current entity state
     EntitySnapshot buildSnapshotFromTransform(const TransformSnapshot& snap) const;
 
+    bool duplicateSelectionForDrag();
+
     // Helper to refresh render range in engine
     void refreshEntityRenderRange(std::uint32_t id);
+    
+    // ==============================================================================
+    // Phantom Entity Helpers (Draft System)
+    // ==============================================================================
+    void upsertPhantomEntity();   // Create or update phantom entity from draft state
+    void removePhantomEntity();   // Remove phantom entity from EntityManager
+
+    void recordTransformBegin(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        const SnapOptions& options,
+        std::uint32_t modifiers);
+    void recordTransformUpdate(
+        float screenX,
+        float screenY,
+        float viewX,
+        float viewY,
+        float viewScale,
+        float viewWidth,
+        float viewHeight,
+        const SnapOptions& options,
+        std::uint32_t modifiers);
+    void recordTransformCommit();
+    void recordTransformCancel();
 };

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "engine/engine.h"
 #include "tests/test_accessors.h"
+#include <cmath>
 
 TEST(OverlayQueryTest, SelectionOutlineAndHandles) {
     CadEngine engine;
@@ -48,4 +49,43 @@ TEST(OverlayQueryTest, SelectionOutlineAndHandles) {
     EXPECT_FLOAT_EQ(handleData[5], 5.0f);
     EXPECT_FLOAT_EQ(handleData[6], 0.0f);
     EXPECT_FLOAT_EQ(handleData[7], 5.0f);
+}
+
+TEST(OverlayQueryTest, SnapOverlayForObjectSnap) {
+    CadEngine engine;
+    engine.clear();
+
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 30.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.6f, 0.9f, 1.0f);
+    engine.setSnapOptions(true, false, 10.0f, 5.0f, false, false, true, false);
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
+        0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
+    engine.updateTransform(19.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
+
+    const auto snap = engine.getSnapOverlayMeta();
+    EXPECT_GT(snap.primitiveCount, 0u);
+
+    const auto* prim = reinterpret_cast<const CadEngine::OverlayPrimitive*>(snap.primitivesPtr);
+    const auto* data = reinterpret_cast<const float*>(snap.dataPtr);
+    ASSERT_NE(prim, nullptr);
+    ASSERT_NE(data, nullptr);
+
+    bool foundVertical = false;
+    for (std::uint32_t i = 0; i < snap.primitiveCount; ++i) {
+        if (prim[i].kind != static_cast<std::uint16_t>(CadEngine::OverlayKind::Segment)) continue;
+        const std::uint32_t offset = prim[i].offset;
+        if (offset + 3 >= snap.floatCount) continue;
+        const float x0 = data[offset];
+        const float x1 = data[offset + 2];
+        if (std::fabs(x0 - 30.0f) < 1e-4f && std::fabs(x1 - 30.0f) < 1e-4f) {
+            foundVertical = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundVertical);
 }

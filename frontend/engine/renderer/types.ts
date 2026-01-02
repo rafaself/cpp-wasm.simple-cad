@@ -20,6 +20,7 @@ export type GridRenderSettings = {
 export type TessellatedRenderInput = {
   module: WasmModule;
   positionMeta: BufferMeta;
+  lineMeta?: BufferMeta;
   viewTransform: ViewTransform;
   canvasSizeCss: { width: number; height: number };
   clearColor: { r: number; g: number; b: number; a: number };

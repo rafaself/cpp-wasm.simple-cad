@@ -134,7 +134,7 @@ void CadEngine::upsertCircle(
     markEntityChange(id);
     entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
 
-    CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry;
+    CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
     pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
     if (isNew) {
@@ -182,7 +182,7 @@ void CadEngine::upsertPolygon(
     markEntityChange(id);
     entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
 
-    PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot;
+    PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
     pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
     if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
     if (isNew) {

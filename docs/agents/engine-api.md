@@ -177,7 +177,7 @@ interface CommitResult {
 runtime.beginDraft(entityType: EntityType, startX: number, startY: number): void
 
 // 2. Update — update draft geometry (each pointermove)
-runtime.updateDraft(currentX: number, currentY: number): void
+runtime.updateDraft(currentX: number, currentY: number, modifiers: number): void
 
 // 3. Commit — convert draft to permanent entity
 runtime.commitDraft(): EntityId

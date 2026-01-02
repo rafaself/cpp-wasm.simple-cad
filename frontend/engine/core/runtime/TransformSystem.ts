@@ -1,4 +1,4 @@
-import { EntityId } from '../protocol';
+import { EntityId, OverlayBufferMeta } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class TransformSystem {
@@ -10,10 +10,16 @@ export class TransformSystem {
   public beginTransform(
     ids: EntityId[],
     mode: number,
-    specificId: EntityId = 0,
-    vertexIndex: number = -1,
-    startX: number = 0,
-    startY: number = 0,
+    specificId: EntityId,
+    vertexIndex: number,
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
   ): void {
     if (!this.engine.beginTransform || !this.engine.allocBytes || !this.engine.freeBytes) {
       console.warn('WASM engine does not support beginTransform');
@@ -24,7 +30,21 @@ export class TransformSystem {
     try {
       const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
       u32.set(ids);
-      this.engine.beginTransform(ptr, ids.length, mode, specificId, vertexIndex, startX, startY);
+    this.engine.beginTransform(
+      ptr,
+      ids.length,
+      mode,
+      specificId,
+      vertexIndex,
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
     } catch (e) {
       console.error(e);
     } finally {
@@ -32,8 +52,26 @@ export class TransformSystem {
     }
   }
 
-  public updateTransform(worldX: number, worldY: number): void {
-    this.engine.updateTransform?.(worldX, worldY);
+  public updateTransform(
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
+  ): void {
+    this.engine.updateTransform?.(
+      screenX,
+      screenY,
+      viewX,
+      viewY,
+      viewScale,
+      viewWidth,
+      viewHeight,
+      modifiers,
+    );
   }
 
   public cancelTransform(): void {
@@ -42,6 +80,38 @@ export class TransformSystem {
 
   public isInteractionActive(): boolean {
     return !!this.engine.isInteractionActive?.();
+  }
+
+  public setTransformLogEnabled(
+    enabled: boolean,
+    maxEntries = 2048,
+    maxIds = 4096,
+  ): void {
+    this.engine.setTransformLogEnabled(enabled, maxEntries, maxIds);
+  }
+
+  public clearTransformLog(): void {
+    this.engine.clearTransformLog();
+  }
+
+  public replayTransformLog(): boolean {
+    return this.engine.replayTransformLog();
+  }
+
+  public getTransformLogMeta(): {
+    entryCount: number;
+    entryPtr: number;
+    idCount: number;
+    idPtr: number;
+    overflowed: boolean;
+  } {
+    return {
+      entryCount: this.engine.getTransformLogCount(),
+      entryPtr: this.engine.getTransformLogPtr(),
+      idCount: this.engine.getTransformLogIdCount(),
+      idPtr: this.engine.getTransformLogIdsPtr(),
+      overflowed: this.engine.isTransformLogOverflowed(),
+    };
   }
 
   public commitTransform(): {
@@ -71,8 +141,26 @@ export class TransformSystem {
     };
   }
 
-  public setSnapOptions(enabled: boolean, gridEnabled: boolean, gridSize: number): void {
-    this.engine.setSnapOptions?.(enabled, gridEnabled, gridSize);
+  public setSnapOptions(
+    enabled: boolean,
+    gridEnabled: boolean,
+    gridSize: number,
+    tolerancePx: number,
+    endpointEnabled: boolean,
+    midpointEnabled: boolean,
+    centerEnabled: boolean,
+    nearestEnabled: boolean,
+  ): void {
+    this.engine.setSnapOptions?.(
+      enabled,
+      gridEnabled,
+      gridSize,
+      tolerancePx,
+      endpointEnabled,
+      midpointEnabled,
+      centerEnabled,
+      nearestEnabled,
+    );
   }
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {
@@ -86,5 +174,12 @@ export class TransformSystem {
       }
     }
     return { x, y };
+  }
+
+  public getSnapOverlayMeta(): OverlayBufferMeta {
+    if (!this.engine.getSnapOverlayMeta) {
+      throw new Error('[EngineRuntime] getSnapOverlayMeta() missing in WASM build.');
+    }
+    return this.engine.getSnapOverlayMeta();
   }
 }

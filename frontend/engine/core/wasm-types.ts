@@ -86,7 +86,9 @@ export type CadEngineInstance = {
   hasPendingEvents?: () => boolean;
   getSelectionOutlineMeta?: () => OverlayBufferMeta;
   getSelectionHandleMeta?: () => OverlayBufferMeta;
+  getSnapOverlayMeta?: () => OverlayBufferMeta;
   getEntityAabb?: (entityId: EntityId) => EntityAabb;
+  getSelectionBounds?: () => EntityAabb;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
@@ -169,10 +171,25 @@ export type CadEngineInstance = {
     mode: number,
     specificId: EntityId,
     vertexIndex: number,
-    startX: number,
-    startY: number,
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
   ) => void;
-  updateTransform?: (worldX: number, worldY: number) => void;
+  updateTransform?: (
+    screenX: number,
+    screenY: number,
+    viewX: number,
+    viewY: number,
+    viewScale: number,
+    viewWidth: number,
+    viewHeight: number,
+    modifiers: number,
+  ) => void;
   commitTransform?: () => void;
   cancelTransform?: () => void;
   isInteractionActive?: () => boolean;
@@ -180,10 +197,47 @@ export type CadEngineInstance = {
   getCommitResultIdsPtr?: () => number;
   getCommitResultOpCodesPtr?: () => number;
   getCommitResultPayloadsPtr?: () => number;
+  setTransformLogEnabled: (enabled: boolean, maxEntries: number, maxIds: number) => void;
+  clearTransformLog: () => void;
+  replayTransformLog: () => boolean;
+  isTransformLogOverflowed: () => boolean;
+  getTransformLogCount: () => number;
+  getTransformLogPtr: () => number;
+  getTransformLogIdCount: () => number;
+  getTransformLogIdsPtr: () => number;
 
   // Snapping
-  setSnapOptions?: (enabled: boolean, gridEnabled: boolean, gridSize: number) => void;
+  setSnapOptions?: (
+    enabled: boolean,
+    gridEnabled: boolean,
+    gridSize: number,
+    tolerancePx: number,
+    endpointEnabled: boolean,
+    midpointEnabled: boolean,
+    centerEnabled: boolean,
+    nearestEnabled: boolean,
+  ) => void;
   getSnappedPoint?: (x: number, y: number) => Float32Array;
+
+  // Draft System
+  getDraftDimensions?: () => DraftDimensions;
+};
+
+/**
+ * Draft dimensions returned from the engine during shape creation.
+ * Contains bounding box and computed dimensions for overlay rendering.
+ */
+export type DraftDimensions = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+  kind: number;
+  active: boolean;
 };
 
 export type WasmModule = {

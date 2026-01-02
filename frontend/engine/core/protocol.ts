@@ -105,17 +105,51 @@ export type EngineStats = {
   pointCount: number;
   triangleVertexCount: number;
   lineVertexCount: number;
+  rebuildAllGeometryCount: number;
   lastLoadMs: number;
   lastRebuildMs: number;
-  textCount?: number;
-  rebuildAllGeometryCount?: number;
-  lastApplyMs?: number;
+  lastApplyMs: number;
+  lastTransformUpdateMs: number;
+  lastSnapCandidateCount: number;
+  lastSnapHitCount: number;
 };
 
 export type HistoryMeta = {
   depth: number;
   cursor: number;
   generation: number;
+};
+
+export enum TransformLogEvent {
+  Begin = 1,
+  Update = 2,
+  Commit = 3,
+  Cancel = 4,
+}
+
+export type TransformLogEntry = {
+  type: TransformLogEvent;
+  mode: number;
+  idOffset: number;
+  idCount: number;
+  specificId: number;
+  vertexIndex: number;
+  x: number;
+  y: number;
+  modifiers: number;
+  viewX: number;
+  viewY: number;
+  viewScale: number;
+  viewWidth: number;
+  viewHeight: number;
+  snapEnabled: number;
+  snapGridEnabled: number;
+  snapGridSize: number;
+  snapTolerancePx: number;
+  snapEndpointEnabled: number;
+  snapMidpointEnabled: number;
+  snapCenterEnabled: number;
+  snapNearestEnabled: number;
 };
 
 export type EngineEvent = {
@@ -175,13 +209,15 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
   },
 } as const;
 
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 3 as const;
 export const COMMAND_VERSION = 2 as const;
 export const SNAPSHOT_VERSION = 1 as const;
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
   EngineFeatureFlags.FEATURE_PROTOCOL | EngineFeatureFlags.FEATURE_ENGINE_DOCUMENT_SOT;
+
+const formatHex = (value: number): string => `0x${(value >>> 0).toString(16)}`;
 
 const ABI_HASH_OFFSET = 2166136261;
 const ABI_HASH_PRIME = 16777619;
@@ -302,13 +338,35 @@ const computeAbiHash = (): number => {
     OverlayKind.Point,
   ]);
 
+  h = hashEnum(h, 0xe0000015, [
+    TransformLogEvent.Begin,
+    TransformLogEvent.Update,
+    TransformLogEvent.Commit,
+    TransformLogEvent.Cancel,
+  ]);
+
   h = hashStruct(h, 0x53000001, 24, [0, 4, 8, 12, 16, 20]);
 
   h = hashStruct(h, 0x53000002, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000003, 12, [0, 4, 8]);
 
-  h = hashStruct(h, 0x53000004, 44, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40]);
+  h = hashStruct(h, 0x53000004, 56, [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    44,
+    48,
+    52,
+  ]);
 
   h = hashStruct(h, 0x53000005, 24, [0, 4, 6, 8, 12, 16, 20]);
 
@@ -332,7 +390,7 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x5300000f, 8, [0, 4]);
 
-  h = hashStruct(h, 0x53000010, 4, [0]);
+  h = hashStruct(h, 0x53000010, 20, [8]);
 
   h = hashStruct(
     h,
@@ -384,10 +442,36 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x53000024, 12, [0, 4, 8]);
 
+  h = hashStruct(h, 0x53000025, 88, [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    44,
+    48,
+    52,
+    56,
+    60,
+    64,
+    68,
+    72,
+    76,
+    80,
+    84,
+  ]);
+
   return h >>> 0;
 };
 
-export const EXPECTED_ABI_HASH = computeAbiHash();
+const COMPUTED_ABI_HASH = computeAbiHash();
+export const EXPECTED_ABI_HASH = COMPUTED_ABI_HASH;
 
 export const EXPECTED_PROTOCOL_INFO: ProtocolInfo = {
   protocolVersion: PROTOCOL_VERSION,
@@ -397,8 +481,6 @@ export const EXPECTED_PROTOCOL_INFO: ProtocolInfo = {
   abiHash: EXPECTED_ABI_HASH,
   featureFlags: REQUIRED_FEATURE_FLAGS,
 };
-
-const formatHex = (value: number): string => `0x${(value >>> 0).toString(16)}`;
 
 export const validateProtocolOrThrow = (info: ProtocolInfo): void => {
   const errors: string[] = [];

@@ -65,7 +65,17 @@ bool CadEngine::isEntityVisibleForRender(std::uint32_t id) const noexcept {
 }
 
 bool CadEngine::hasPendingEvents() const noexcept {
-    return eventCount_ > 0;
+    // Check both flushed events (eventCount_) and pending events that haven't been flushed yet
+    return eventCount_ > 0 
+        || pendingDocMask_ != 0 
+        || !pendingEntityChanges_.empty()
+        || !pendingEntityCreates_.empty()
+        || !pendingEntityDeletes_.empty()
+        || !pendingLayerChanges_.empty()
+        || pendingSelectionChanged_
+        || pendingOrderChanged_
+        || pendingHistoryChanged_
+        || eventOverflowed_;
 }
 
 bool CadEngine::isTextQuadsDirty() const {
@@ -94,6 +104,38 @@ std::uintptr_t CadEngine::getCommitResultOpCodesPtr() const {
 
 std::uintptr_t CadEngine::getCommitResultPayloadsPtr() const {
     return reinterpret_cast<std::uintptr_t>(interactionSession_.getCommitResultPayloads().data());
+}
+
+void CadEngine::setTransformLogEnabled(bool enabled, std::uint32_t maxEntries, std::uint32_t maxIds) {
+    interactionSession_.setTransformLogEnabled(enabled, maxEntries, maxIds);
+}
+
+void CadEngine::clearTransformLog() {
+    interactionSession_.clearTransformLog();
+}
+
+bool CadEngine::replayTransformLog() {
+    return interactionSession_.replayTransformLog();
+}
+
+bool CadEngine::isTransformLogOverflowed() const {
+    return interactionSession_.isTransformLogOverflowed();
+}
+
+std::uint32_t CadEngine::getTransformLogCount() const {
+    return static_cast<std::uint32_t>(interactionSession_.getTransformLogEntries().size());
+}
+
+std::uintptr_t CadEngine::getTransformLogPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getTransformLogEntries().data());
+}
+
+std::uint32_t CadEngine::getTransformLogIdCount() const {
+    return static_cast<std::uint32_t>(interactionSession_.getTransformLogIds().size());
+}
+
+std::uintptr_t CadEngine::getTransformLogIdsPtr() const {
+    return reinterpret_cast<std::uintptr_t>(interactionSession_.getTransformLogIds().data());
 }
 
 void CadEngine::clear() noexcept {
@@ -216,7 +258,10 @@ CadEngine::EngineStats CadEngine::getStats() const noexcept {
         rebuildAllGeometryCount_,
         lastLoadMs,
         lastRebuildMs,
-        lastApplyMs
+        lastApplyMs,
+        interactionSession_.getLastTransformUpdateMs(),
+        interactionSession_.getLastSnapCandidateCount(),
+        interactionSession_.getLastSnapHitCount()
     };
 }
 
@@ -398,6 +443,45 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
 }
 
 PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept {
+    constexpr std::uint32_t kPickHandlesMask = 1u << 3;
+    if ((pickMask & kPickHandlesMask) != 0) {
+        const auto& selection = selectionManager_.getOrdered();
+        if (selection.size() >= 1) {
+            const EntityAabb bounds = getSelectionBounds();
+            if (bounds.valid) {
+                const float corners[4][2] = {
+                    {bounds.minX, bounds.minY},
+                    {bounds.maxX, bounds.minY},
+                    {bounds.maxX, bounds.maxY},
+                    {bounds.minX, bounds.maxY},
+                };
+                float bestDist = std::numeric_limits<float>::infinity();
+                int bestIndex = -1;
+                for (int i = 0; i < 4; ++i) {
+                    const float dx = x - corners[i][0];
+                    const float dy = y - corners[i][1];
+                    const float dist = std::sqrt(dx * dx + dy * dy);
+                    if (dist <= tolerance && dist < bestDist) {
+                        bestDist = dist;
+                        bestIndex = i;
+                    }
+                }
+
+                if (bestIndex >= 0) {
+                    return {
+                        selection.front(),
+                        static_cast<std::uint16_t>(PickEntityKind::Unknown),
+                        static_cast<std::uint8_t>(PickSubTarget::ResizeHandle),
+                        bestIndex,
+                        bestDist,
+                        x,
+                        y
+                    };
+                }
+            }
+        }
+    }
+
     return pickSystem_.pickEx(x, y, tolerance, viewScale, pickMask, entityManager_, textSystem_);
 }
 
@@ -662,15 +746,34 @@ void CadEngine::decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCo
 // ==============================================================================
 
 void CadEngine::beginTransform(
-    const std::uint32_t* ids, 
-    std::uint32_t idCount, 
-    TransformMode mode, 
-    std::uint32_t specificId, 
-    int32_t vertexIndex, 
-    float startX, 
-    float startY
+    const std::uint32_t* ids,
+    std::uint32_t idCount,
+    TransformMode mode,
+    std::uint32_t specificId,
+    int32_t vertexIndex,
+    float screenX,
+    float screenY,
+    float viewXParam,
+    float viewYParam,
+    float viewScaleParam,
+    float viewWidthParam,
+    float viewHeightParam,
+    std::uint32_t modifiers
 ) {
-    interactionSession_.beginTransform(ids, idCount, mode, specificId, vertexIndex, startX, startY);
+    interactionSession_.beginTransform(
+        ids,
+        idCount,
+        mode,
+        specificId,
+        vertexIndex,
+        screenX,
+        screenY,
+        viewXParam,
+        viewYParam,
+        viewScaleParam,
+        viewWidthParam,
+        viewHeightParam,
+        modifiers);
 }
 
 // ==============================================================================
@@ -681,12 +784,12 @@ void CadEngine::beginDraft(const BeginDraftPayload& p) {
     interactionSession_.beginDraft(p);
 }
 
-void CadEngine::updateDraft(float x, float y) {
-    interactionSession_.updateDraft(x, y);
+void CadEngine::updateDraft(float x, float y, std::uint32_t modifiers) {
+    interactionSession_.updateDraft(x, y, modifiers);
 }
 
-void CadEngine::appendDraftPoint(float x, float y) {
-    interactionSession_.appendDraftPoint(x, y);
+void CadEngine::appendDraftPoint(float x, float y, std::uint32_t modifiers) {
+    interactionSession_.appendDraftPoint(x, y, modifiers);
 }
 
 void CadEngine::cancelDraft() {
@@ -697,10 +800,28 @@ std::uint32_t CadEngine::commitDraft() {
     return interactionSession_.commitDraft();
 }
 
-// addDraftToBuffers moved to engine_render.cpp
+DraftDimensions CadEngine::getDraftDimensions() const {
+    return interactionSession_.getDraftDimensions();
+}
 
-void CadEngine::updateTransform(float worldX, float worldY) {
-    interactionSession_.updateTransform(worldX, worldY);
+void CadEngine::updateTransform(
+    float screenX,
+    float screenY,
+    float viewXParam,
+    float viewYParam,
+    float viewScaleParam,
+    float viewWidthParam,
+    float viewHeightParam,
+    std::uint32_t modifiers) {
+    interactionSession_.updateTransform(
+        screenX,
+        screenY,
+        viewXParam,
+        viewYParam,
+        viewScaleParam,
+        viewWidthParam,
+        viewHeightParam,
+        modifiers);
 }
 
 void CadEngine::commitTransform() {
@@ -711,10 +832,15 @@ void CadEngine::cancelTransform() {
     interactionSession_.cancelTransform();
 }
 
-void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize) {
+void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize, float tolerancePx, bool endpointEnabled, bool midpointEnabled, bool centerEnabled, bool nearestEnabled) {
     interactionSession_.snapOptions.enabled = enabled;
     interactionSession_.snapOptions.gridEnabled = gridEnabled;
     interactionSession_.snapOptions.gridSize = gridSize;
+    interactionSession_.snapOptions.tolerancePx = tolerancePx;
+    interactionSession_.snapOptions.endpointEnabled = endpointEnabled;
+    interactionSession_.snapOptions.midpointEnabled = midpointEnabled;
+    interactionSession_.snapOptions.centerEnabled = centerEnabled;
+    interactionSession_.snapOptions.nearestEnabled = nearestEnabled;
 }
 
 std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {

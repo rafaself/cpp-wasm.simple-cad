@@ -362,12 +362,33 @@ struct BeginDraftPayload {
     float head;
 };
 
-struct UpdateDraftPayload { float x, y; };
+struct UpdateDraftPayload {
+    float x;
+    float y;
+    std::uint32_t modifiers;
+};
 
 struct SnapOptions {
     bool enabled = false;
     bool gridEnabled = false;
+    bool endpointEnabled = false;
+    bool midpointEnabled = false;
+    bool centerEnabled = false;
+    bool nearestEnabled = false;
     float gridSize = 10.0f;
+    float tolerancePx = 10.0f;
+};
+
+// Reserved entity ID for the phantom draft entity (never allocated normally)
+static constexpr std::uint32_t DRAFT_ENTITY_ID = 0xFFFFFFFE;
+
+// Draft dimensions for frontend overlay rendering
+struct DraftDimensions {
+    float minX, minY, maxX, maxY;  // Bounding box
+    float width, height;           // Computed dimensions
+    float centerX, centerY;        // Center point for label positioning
+    std::uint32_t kind;            // EntityKind
+    bool active;                   // Whether draft is active
 };
 
 #endif // ELETROCAD_ENGINE_TYPES_H

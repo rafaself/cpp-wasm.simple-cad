@@ -2,11 +2,16 @@ import React from 'react';
 
 import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
 import { EntityKind } from '@/engine/types';
+import { SelectionModifier } from '@/engine/core/protocol';
 import { hexToRgb } from '@/utils/color';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 import * as DEFAULTS from '@/theme/defaults';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
+import { useUIStore } from '@/stores/useUIStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 
 // Reusing types from previous implementation or defining locally
 interface DraftState {
@@ -25,6 +30,20 @@ interface ToolDefaults {
   polygonSides?: number;
 }
 
+const buildModifierMask = (event: {
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}): number => {
+  let mask = 0;
+  if (event.shiftKey) mask |= SelectionModifier.Shift;
+  if (event.ctrlKey) mask |= SelectionModifier.Ctrl;
+  if (event.altKey) mask |= SelectionModifier.Alt;
+  if (event.metaKey) mask |= SelectionModifier.Meta;
+  return mask;
+};
+
 export class DraftingHandler extends BaseInteractionHandler {
   name = 'drafting';
 
@@ -36,10 +55,13 @@ export class DraftingHandler extends BaseInteractionHandler {
   private draft: DraftState = { kind: 'none' };
   // Screen-space pointer down to detect click vs drag
   private pointerDownScreen: { x: number; y: number } | null = null;
+  private linePendingCommit = false;
+  private arrowPendingCommit = false; // Arrow click-click flow (Phase 2)
 
   // Polygon Modal State
   private polygonModalOpen = false;
   private polygonModalCenter: { x: number; y: number } | null = null;
+  private polygonModalScreenPos: { x: number; y: number } | null = null;
   private polygonSidesValue: number = 3;
 
   constructor(activeTool: string, toolDefaults: ToolDefaults) {
@@ -76,8 +98,15 @@ export class DraftingHandler extends BaseInteractionHandler {
     return { r: rgb.r / 255, g: rgb.g / 255, b: rgb.b / 255 };
   }
 
+  private resetDraftState(): void {
+    this.draft = { kind: 'none' };
+    this.pointerDownScreen = null;
+    this.linePendingCommit = false;
+    this.arrowPendingCommit = false;
+  }
+
   private runtime: EngineRuntime | null = null; // Store runtime for keyboard events
-  private static readonly DRAG_THRESHOLD_PX = 2;
+  private static readonly DRAG_THRESHOLD_PX = 5;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     if (this.polygonModalOpen) return;
@@ -91,6 +120,31 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     // Polyline multi-segment logic: don't restart if already drafting
     if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
+      cadDebugLog('draft', 'polyline-continue', () => ({
+        tool: this.activeTool,
+        x: snapped.x,
+        y: snapped.y,
+      }));
+      this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
+      return;
+    }
+
+    if (this.activeTool === 'line' && this.draft.kind === 'line') {
+      cadDebugLog('draft', 'line-continue', () => ({
+        tool: this.activeTool,
+        x: snapped.x,
+        y: snapped.y,
+      }));
+      this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
+      return;
+    }
+
+    if (this.activeTool === 'arrow' && this.draft.kind === 'arrow') {
+      cadDebugLog('draft', 'arrow-continue', () => ({
+        tool: this.activeTool,
+        x: snapped.x,
+        y: snapped.y,
+      }));
       this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
       return;
     }
@@ -105,7 +159,7 @@ export class DraftingHandler extends BaseInteractionHandler {
     else if (this.activeTool === 'circle') kind = EntityKind.Circle;
     else if (this.activeTool === 'polygon') {
       kind = EntityKind.Polygon;
-      sides = this.polygonSidesValue;
+      sides = 3; // Drag always creates triangle (Phase 3 spec)
     } else if (this.activeTool === 'polyline') kind = EntityKind.Polyline;
     else if (this.activeTool === 'arrow') {
       kind = EntityKind.Arrow;
@@ -113,6 +167,7 @@ export class DraftingHandler extends BaseInteractionHandler {
     } else return;
 
     const style = this.buildDraftStyle();
+    this.linePendingCommit = false;
 
     runtime.apply([
       {
@@ -127,6 +182,12 @@ export class DraftingHandler extends BaseInteractionHandler {
         },
       },
     ]);
+    cadDebugLog('draft', 'begin', () => ({
+      tool: this.activeTool,
+      kind,
+      x: snapped.x,
+      y: snapped.y,
+    }));
 
     this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
 
@@ -145,7 +206,14 @@ export class DraftingHandler extends BaseInteractionHandler {
     const { runtime, snappedPoint: snapped } = ctx;
     if (!runtime || this.draft.kind === 'none') return;
 
-    runtime.updateDraft(snapped.x, snapped.y);
+    const modifiers = buildModifierMask(ctx.event);
+    runtime.updateDraft(snapped.x, snapped.y, modifiers);
+    cadDebugLog('draft', 'update', () => ({
+      tool: this.activeTool,
+      kind: this.draft.kind,
+      x: snapped.x,
+      y: snapped.y,
+    }));
 
     this.draft.current = snapped;
   }
@@ -156,15 +224,27 @@ export class DraftingHandler extends BaseInteractionHandler {
     const { runtime, snappedPoint: snapped, event } = ctx;
     if (!runtime) return;
 
-    const down =
-      (this.draft as any).start ||
-      (this.draft.points ? this.draft.points[this.draft.points.length - 1] : snapped);
-
-    // For now, I'll rely on the logic that regular shapes commit on Up.
     const isPolyline = this.activeTool === 'polyline';
+    const isLine = this.activeTool === 'line';
 
     if (isPolyline) {
-      runtime.appendDraftPoint(snapped.x, snapped.y);
+      if (this.draft.kind !== 'polyline') return;
+      if (event.button === 2) {
+        this.commitPolyline(runtime);
+        return;
+      }
+      if (event.button !== 0) return;
+      if (event.detail >= 2) {
+        this.commitPolyline(runtime);
+        return;
+      }
+      const modifiers = buildModifierMask(event);
+      runtime.appendDraftPoint(snapped.x, snapped.y, modifiers);
+      cadDebugLog('draft', 'polyline-append', () => ({
+        x: snapped.x,
+        y: snapped.y,
+        points: this.draft.points?.length ?? 0,
+      }));
       if (this.draft.kind === 'polyline' && this.draft.points) {
         this.draft.points.push(snapped);
       }
@@ -179,19 +259,115 @@ export class DraftingHandler extends BaseInteractionHandler {
       : 0;
     const isClick = dragDistance <= DraftingHandler.DRAG_THRESHOLD_PX;
 
+    if (isLine) {
+      if (event.button !== 0) return;
+      if (this.draft.kind !== 'line') return;
+      if (!isClick || this.linePendingCommit) {
+        runtime.apply([{ op: CommandOp.CommitDraft }]);
+        cadDebugLog('draft', 'commit', () => ({
+          tool: this.activeTool,
+          x: snapped.x,
+          y: snapped.y,
+        }));
+        this.resetDraftState();
+    useUIStore.getState().setTool('select');
+        return;
+      }
+      this.linePendingCommit = true;
+      this.pointerDownScreen = null;
+      return;
+    }
+
+    // Arrow: click-click flow (Phase 2 - same pattern as Line)
+    const isArrow = this.activeTool === 'arrow';
+    if (isArrow) {
+      if (event.button !== 0) return;
+      if (this.draft.kind !== 'arrow') return;
+      if (!isClick || this.arrowPendingCommit) {
+        runtime.apply([{ op: CommandOp.CommitDraft }]);
+        cadDebugLog('draft', 'commit', () => ({
+          tool: this.activeTool,
+          x: snapped.x,
+          y: snapped.y,
+        }));
+        this.resetDraftState();
+        useUIStore.getState().setTool('select');
+        return;
+      }
+      this.arrowPendingCommit = true;
+      this.pointerDownScreen = null;
+      return;
+    }
+
     if (this.activeTool === 'polygon' && this.draft.start && isClick) {
-      // Was a simple click
+      // Was a simple click → open inline input
       this.cancelDraft(runtime);
       this.polygonModalOpen = true;
       this.polygonModalCenter = snapped;
+      this.polygonModalScreenPos = { x: event.clientX, y: event.clientY };
+      cadDebugLog('draft', 'polygon-modal', () => ({ x: snapped.x, y: snapped.y }));
       this.notifyChange(); // Trigger React Render for Modal
       return;
     }
 
+    // Rect/Circle: simple click → create 100x100 centered shape
+    if ((this.activeTool === 'rect' || this.activeTool === 'circle') && isClick) {
+      const kind = this.activeTool === 'rect' ? EntityKind.Rect : EntityKind.Circle;
+      const r = 50; // 100x100 total size -> 50 radius/half-size
+      const cx = snapped.x;
+      const cy = snapped.y;
+
+      const style = this.buildDraftStyle();
+      
+      // Cancel the tiny draft created on pointer down
+      this.cancelDraft(runtime);
+
+      // Create and commit the full-size shape
+      runtime.apply([
+        {
+          op: CommandOp.BeginDraft,
+          draft: {
+            kind,
+            x: cx - r,
+            y: cy - r,
+            sides: 0,
+            head: 0,
+            ...style,
+          },
+        },
+        {
+          op: CommandOp.UpdateDraft,
+          pos: {
+            x: cx + r,
+            y: cy + r,
+            modifiers: 0,
+          },
+        },
+        { op: CommandOp.CommitDraft },
+      ]);
+      
+      cadDebugLog('draft', 'click-create', () => ({
+        tool: this.activeTool,
+        x: cx,
+        y: cy,
+      }));
+      
+      this.resetDraftState();
+      useUIStore.getState().setTool('select');
+      return;
+    }
+
+    // Polygon drag → triangle is already enforced in BeginDraft (sides=3)
+
     // Commit
     runtime.apply([{ op: CommandOp.CommitDraft }]);
-    this.draft = { kind: 'none' };
-    this.pointerDownScreen = null;
+    cadDebugLog('draft', 'commit', () => ({
+      tool: this.activeTool,
+      x: snapped.x,
+      y: snapped.y,
+    }));
+    this.resetDraftState();
+    useUIStore.getState().setTool('select');
   }
 
   onCancel(): void {
@@ -202,18 +378,35 @@ export class DraftingHandler extends BaseInteractionHandler {
   }
 
   commitPolyline(runtime: any) {
-    if (runtime) runtime.apply([{ op: CommandOp.CommitDraft }]);
-    this.draft = { kind: 'none' };
+    if (runtime && this.draft.kind === 'polyline') runtime.apply([{ op: CommandOp.CommitDraft }]);
+    cadDebugLog('draft', 'polyline-commit');
+    this.resetDraftState();
+    useUIStore.getState().setTool('select');
   }
 
   cancelDraft(runtime: any) {
     if (runtime) runtime.apply([{ op: CommandOp.CancelDraft }]);
-    this.draft = { kind: 'none' };
-    this.pointerDownScreen = null;
+    cadDebugLog('draft', 'cancel');
+    this.resetDraftState();
   }
 
   onLeave(): void {
     if (this.runtime) {
+      if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
+        this.commitPolyline(this.runtime);
+      } else {
+        this.cancelDraft(this.runtime);
+      }
+    }
+    cadDebugLog('draft', 'leave');
+  }
+
+  onKeyDown(e: KeyboardEvent): void {
+    if (!this.runtime) return;
+    if (this.activeTool !== 'polyline' || this.draft.kind !== 'polyline') return;
+    if (e.key === 'Enter') {
+      this.commitPolyline(this.runtime);
+    } else if (e.key === 'Escape') {
       this.cancelDraft(this.runtime);
     }
   }
@@ -239,12 +432,53 @@ export class DraftingHandler extends BaseInteractionHandler {
           ...style,
         },
       },
-      { op: CommandOp.UpdateDraft, pos: { x: center.x + r, y: center.y + r } },
+      { op: CommandOp.UpdateDraft, pos: { x: center.x + r, y: center.y + r, modifiers: 0 } },
       { op: CommandOp.CommitDraft },
     ]);
+    cadDebugLog('draft', 'polygon-commit', () => ({ x: center.x, y: center.y, sides }));
 
     this.polygonModalOpen = false;
     this.polygonModalCenter = null;
+    this.polygonModalScreenPos = null;
     this.notifyChange();
+    useUIStore.getState().setTool('select');
+  }
+
+  // --- Polygon Modal Callbacks ---
+
+  private handlePolygonConfirm = (sides: number) => {
+    // Update local value
+    this.polygonSidesValue = sides;
+    // Persist to global toolDefaults for future polygons
+    useSettingsStore.getState().setPolygonSides(sides);
+    // Commit the polygon
+    if (this.runtime) {
+      this.commitDefaultPolygon(this.runtime);
+    }
+  };
+
+  private handlePolygonCancel = () => {
+    this.polygonModalOpen = false;
+    this.polygonModalCenter = null;
+    this.polygonModalScreenPos = null;
+    cadDebugLog('draft', 'polygon-modal-cancel');
+    this.notifyChange();
+  };
+
+  // --- Render Overlay (Phase 1: inline numeric input) ---
+
+  renderOverlay(): React.ReactNode {
+    if (!this.polygonModalOpen || !this.polygonModalScreenPos) {
+      return null;
+    }
+
+    return React.createElement(InlinePolygonInput, {
+      screenPosition: this.polygonModalScreenPos,
+      initialValue: this.polygonSidesValue,
+      onConfirm: this.handlePolygonConfirm,
+      onCancel: this.handlePolygonCancel,
+      minSides: 3,
+      maxSides: 30, // Updated max as requested
+    });
   }
 }

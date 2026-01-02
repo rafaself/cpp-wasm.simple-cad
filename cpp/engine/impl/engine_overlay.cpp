@@ -159,4 +159,36 @@ CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
     };
 }
 
+CadEngine::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
+    snapGuidePrimitives_.clear();
+    snapGuideData_.clear();
+
+    const auto& guides = interactionSession_.getSnapGuides();
+    if (!guides.empty()) {
+        snapGuidePrimitives_.reserve(guides.size());
+        snapGuideData_.reserve(guides.size() * 4);
+        for (const SnapGuide& guide : guides) {
+            const std::uint32_t offset = static_cast<std::uint32_t>(snapGuideData_.size());
+            snapGuidePrimitives_.push_back(OverlayPrimitive{
+                static_cast<std::uint16_t>(OverlayKind::Segment),
+                0,
+                2,
+                offset
+            });
+            snapGuideData_.push_back(guide.x0);
+            snapGuideData_.push_back(guide.y0);
+            snapGuideData_.push_back(guide.x1);
+            snapGuideData_.push_back(guide.y1);
+        }
+    }
+
+    return OverlayBufferMeta{
+        generation,
+        static_cast<std::uint32_t>(snapGuidePrimitives_.size()),
+        static_cast<std::uint32_t>(snapGuideData_.size()),
+        reinterpret_cast<std::uintptr_t>(snapGuidePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(snapGuideData_.data()),
+    };
+}
+
 #include "engine/internal/engine_state_aliases_undef.h"

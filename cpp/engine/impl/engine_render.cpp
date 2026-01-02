@@ -112,8 +112,25 @@ void CadEngine::addGridToBuffers() const {
 }
 
 void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) const {
-    pushVertex(x0, y0, z, lineVertices);
-    pushVertex(x1, y1, z, lineVertices);
+    // Default color for legacy line helpers (not used by main render path).
+    constexpr float r = 1.0f;
+    constexpr float g = 1.0f;
+    constexpr float b = 1.0f;
+    constexpr float a = 1.0f;
+    lineVertices.push_back(x0);
+    lineVertices.push_back(y0);
+    lineVertices.push_back(z);
+    lineVertices.push_back(r);
+    lineVertices.push_back(g);
+    lineVertices.push_back(b);
+    lineVertices.push_back(a);
+    lineVertices.push_back(x1);
+    lineVertices.push_back(y1);
+    lineVertices.push_back(z);
+    lineVertices.push_back(r);
+    lineVertices.push_back(g);
+    lineVertices.push_back(b);
+    lineVertices.push_back(a);
 }
 
 void CadEngine::rebuildRenderBuffers() const {
@@ -137,9 +154,11 @@ void CadEngine::rebuildRenderBuffers() const {
         &isEntityVisibleForRenderThunk,
         &renderRanges_
     );
+
+    interactionSession_.appendDraftLineVertices(lineVertices);
     
-    addGridToBuffers();
-    addDraftToBuffers();
+    // Grid rendering is handled by the WebGL GridPass (frontend).
+    // Draft preview lines are appended from the interaction session after geometry rebuild.
     renderDirty = false;
     pendingFullRebuild_ = false;
     
@@ -185,13 +204,6 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
 
     std::copy(temp.begin(), temp.end(), triangleVertices.begin() + static_cast<std::ptrdiff_t>(start));
     return true;
-}
-
-void CadEngine::addDraftToBuffers() const {
-    // Cast away constness if needed to call interactionSession methods
-    // InteractionSession::addDraftToBuffers is NOT const because it calls pushL.
-    // engine_.lineVertices is mutable.
-    const_cast<InteractionSession&>(interactionSession_).addDraftToBuffers(const_cast<std::vector<float>&>(lineVertices));
 }
 
 #include "engine/internal/engine_state_aliases_undef.h"

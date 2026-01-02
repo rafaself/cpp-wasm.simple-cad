@@ -21,8 +21,100 @@ public:
         engine.upsertLine(id, x0, y0, x1, y1);
     }
 
+    static void clearHistory(CadEngine& engine) {
+        engine.clearHistory();
+    }
+
+    static void upsertCircle(
+        CadEngine& engine,
+        std::uint32_t id,
+        float cx,
+        float cy,
+        float rx,
+        float ry,
+        float rot,
+        float sx,
+        float sy,
+        float fillR,
+        float fillG,
+        float fillB,
+        float fillA,
+        float strokeR,
+        float strokeG,
+        float strokeB,
+        float strokeA,
+        float strokeEnabled,
+        float strokeWidthPx) {
+        engine.upsertCircle(
+            id, cx, cy, rx, ry, rot, sx, sy,
+            fillR, fillG, fillB, fillA,
+            strokeR, strokeG, strokeB, strokeA,
+            strokeEnabled, strokeWidthPx);
+    }
+
+    static void upsertPolygon(
+        CadEngine& engine,
+        std::uint32_t id,
+        float cx,
+        float cy,
+        float rx,
+        float ry,
+        float rot,
+        float sx,
+        float sy,
+        std::uint32_t sides,
+        float fillR,
+        float fillG,
+        float fillB,
+        float fillA,
+        float strokeR,
+        float strokeG,
+        float strokeB,
+        float strokeA,
+        float strokeEnabled,
+        float strokeWidthPx) {
+        engine.upsertPolygon(
+            id, cx, cy, rx, ry, rot, sx, sy, sides,
+            fillR, fillG, fillB, fillA,
+            strokeR, strokeG, strokeB, strokeA,
+            strokeEnabled, strokeWidthPx);
+    }
+
+    static void upsertArrow(
+        CadEngine& engine,
+        std::uint32_t id,
+        float ax,
+        float ay,
+        float bx,
+        float by,
+        float head,
+        float strokeR,
+        float strokeG,
+        float strokeB,
+        float strokeA,
+        float strokeEnabled,
+        float strokeWidthPx) {
+        engine.upsertArrow(
+            id, ax, ay, bx, by, head,
+            strokeR, strokeG, strokeB, strokeA,
+            strokeEnabled, strokeWidthPx);
+    }
+
     static void deleteEntity(CadEngine& engine, std::uint32_t id) {
         engine.deleteEntity(id);
+    }
+
+    static void setViewTransform(CadEngine& engine, float x, float y, float scale, float width, float height) {
+        auto& state = engine.state();
+        state.viewX = x;
+        state.viewY = y;
+        state.viewScale = scale;
+        state.viewWidth = width;
+        state.viewHeight = height;
+    }
+
+    static float viewScale(const CadEngine& engine) {
+        return engine.state().viewScale;
     }
 
     static TextSystem& textSystem(CadEngine& engine) {

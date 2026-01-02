@@ -378,8 +378,15 @@ describe('PickResultCache', () => {
         lineCount: 0,
         polylineCount: 0,
         pointCount: 0,
-        textCount: 0,
         triangleVertexCount: 0,
+        lineVertexCount: 0,
+        rebuildAllGeometryCount: 0,
+        lastLoadMs: 0,
+        lastRebuildMs: 0,
+        lastApplyMs: 0,
+        lastTransformUpdateMs: 0,
+        lastSnapCandidateCount: 0,
+        lastSnapHitCount: 0,
       });
 
       // Trigger invalidation check

@@ -3,6 +3,8 @@ import type { AxesSettings } from '@/engine/renderer/webgl2/passes/AxesPass';
 import type { GridRenderSettings } from '@/engine/renderer/types';
 
 import { getEngineRuntime } from './singleton';
+import { useUIStore } from '@/stores/useUIStore';
+import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 
 import type { BufferMeta, EngineRuntime } from './EngineRuntime';
 import type { TessellatedRenderer } from '@/engine/renderer/types';
@@ -18,6 +20,8 @@ export class CanvasController {
   private clearColor = { r: 0x0b / 255, g: 0x10 / 255, b: 0x21 / 255, a: 1 };
   private axesSettings?: AxesSettings;
   private gridSettings?: GridRenderSettings;
+  private lastRenderLogKey: string | null = null;
+  private overlayActive = false;
   private visibilityHandler = () => {
     if (document.hidden) {
       this.stop();
@@ -104,6 +108,7 @@ export class CanvasController {
     }
 
     const meta = this.runtime.getPositionBufferMeta();
+    const lineMeta = this.runtime.getLineBufferMeta();
 
     // Engine-native text: rebuild quad buffer (if supported) and feed meta to renderer.
     if (this.runtime.isTextQuadsDirty() !== false) {
@@ -113,10 +118,45 @@ export class CanvasController {
 
     const textQuadMeta = this.runtime.getTextQuadBufferMeta();
     const textAtlasMeta = this.runtime.getAtlasTextureMeta();
+    if (isCadDebugEnabled('render')) {
+      const key = [
+        meta.generation,
+        meta.vertexCount,
+        meta.floatCount,
+        textQuadMeta?.generation ?? 0,
+        textQuadMeta?.vertexCount ?? 0,
+        textQuadMeta?.floatCount ?? 0,
+      ].join(':');
+      if (this.lastRenderLogKey !== key) {
+        this.lastRenderLogKey = key;
+        cadDebugLog('render', 'buffers', () => ({
+          position: {
+            generation: meta.generation,
+            vertexCount: meta.vertexCount,
+            floatCount: meta.floatCount,
+          },
+          line: {
+            generation: lineMeta.generation,
+            vertexCount: lineMeta.vertexCount,
+            floatCount: lineMeta.floatCount,
+          },
+          text: textQuadMeta
+            ? {
+                generation: textQuadMeta.generation,
+                vertexCount: textQuadMeta.vertexCount,
+                floatCount: textQuadMeta.floatCount,
+              }
+            : null,
+          canvas: this.canvasSize,
+          viewScale: this.viewTransform.scale,
+        }));
+      }
+    }
 
     this.renderer.render({
       module: this.runtime.module,
       positionMeta: meta as BufferMeta,
+      lineMeta,
       viewTransform: this.viewTransform,
       canvasSizeCss: this.canvasSize,
       clearColor: this.clearColor,
@@ -126,6 +166,18 @@ export class CanvasController {
       gridSettings: this.gridSettings,
       axesSettings: this.axesSettings,
     });
+
+    const interactionActive = this.runtime.isInteractionActive();
+    const draftActive = interactionActive ? false : this.runtime.draft.getDraftDimensions() !== null;
+    const nextOverlayActive = interactionActive || draftActive;
+    if (nextOverlayActive || nextOverlayActive !== this.overlayActive) {
+      const store = useUIStore.getState();
+      store.bumpOverlayTick();
+      if (store.engineInteractionActive !== nextOverlayActive) {
+        store.setEngineInteractionActive(nextOverlayActive);
+      }
+    }
+    this.overlayActive = nextOverlayActive;
 
     this.rafId = requestAnimationFrame(this.loop);
   };
