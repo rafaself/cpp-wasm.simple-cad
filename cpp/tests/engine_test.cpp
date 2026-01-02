@@ -502,6 +502,75 @@ TEST_F(CadEngineTest, DraftPolylineShiftSnapsAppendPointTo45Degrees) {
     EXPECT_NEAR(points[idx].y, 8.246211f, 1e-3f);
 }
 
+TEST_F(CadEngineTest, DraftRectShiftCreatesSquare) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Rect);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.fillA = 1.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.updateDraft(100.0f, 60.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const RectRec* rect = CadEngineTestAccessor::entityManager(engine).getRect(id);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_NEAR(rect->x, 0.0f, 1e-3f);
+    EXPECT_NEAR(rect->y, 0.0f, 1e-3f);
+    EXPECT_NEAR(rect->w, 100.0f, 1e-3f);
+    EXPECT_NEAR(rect->h, 100.0f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, DraftCircleShiftCreatesCircle) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Circle);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.fillA = 1.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.updateDraft(80.0f, 50.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    // With shift, max(80, 50) = 80, so bbox is 80x80, circle is centered
+    EXPECT_NEAR(circle->cx, 40.0f, 1e-3f);
+    EXPECT_NEAR(circle->cy, 40.0f, 1e-3f);
+    EXPECT_NEAR(circle->rx, 40.0f, 1e-3f);
+    EXPECT_NEAR(circle->ry, 40.0f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, DraftPolygonShiftCreatesProportional) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Polygon);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.fillA = 1.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    payload.sides = 3.0f;
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.updateDraft(70.0f, 100.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const PolygonRec* polygon = CadEngineTestAccessor::entityManager(engine).getPolygon(id);
+    ASSERT_NE(polygon, nullptr);
+    // With shift, max(70, 100) = 100, so bbox is 100x100
+    EXPECT_NEAR(polygon->cx, 50.0f, 1e-3f);
+    EXPECT_NEAR(polygon->cy, 50.0f, 1e-3f);
+    EXPECT_NEAR(polygon->rx, 50.0f, 1e-3f);
+    EXPECT_NEAR(polygon->ry, 50.0f, 1e-3f);
+}
+
 TEST_F(CadEngineTest, VertexDragShiftSnapsPolylineEndpointTo45Degrees) {
     std::vector<Point2> points = { {0.0f, 0.0f}, {10.0f, 0.0f} };
     const std::uint32_t id = 17;

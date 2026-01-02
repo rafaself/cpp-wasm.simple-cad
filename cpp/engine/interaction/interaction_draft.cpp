@@ -65,6 +65,15 @@ void InteractionSession::updateDraft(float x, float y, std::uint32_t modifiers) 
         } else if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
             const Point2& anchor = draft_.points.back();
             snapAngle(anchor.x, anchor.y);
+        } else if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Rect) ||
+                   draft_.kind == static_cast<std::uint32_t>(EntityKind::Circle) ||
+                   draft_.kind == static_cast<std::uint32_t>(EntityKind::Polygon)) {
+            // Proportional constraint: force 1:1 aspect ratio (square bounding box)
+            const float dx = x - draft_.startX;
+            const float dy = y - draft_.startY;
+            const float size = std::max(std::abs(dx), std::abs(dy));
+            x = draft_.startX + (dx >= 0.0f ? size : -size);
+            y = draft_.startY + (dy >= 0.0f ? size : -size);
         }
     }
     draft_.currentX = x;
