@@ -235,10 +235,11 @@ const ShapeOverlay: React.FC = () => {
     // Draft overlay
     let draftElements: React.ReactNode[] = [];
     if (draftDimensions && draftDimensions.active) {
+      const isLineDraft = draftDimensions.kind === EntityKind.Line;
       const isPolylineDraft = draftDimensions.kind === EntityKind.Polyline;
       const { minX, minY, maxX, maxY, width, height } = draftDimensions;
 
-      if (!isPolylineDraft) {
+      if (!isLineDraft && !isPolylineDraft) {
         // Transform world bounds to screen rect robustly
         // We process both corners to define the screen-space bounding box
         const p1 = worldToScreen({ x: minX, y: minY }, viewTransform);
