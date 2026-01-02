@@ -85,8 +85,20 @@ export class TextBridge {
    * @returns True if font loaded successfully
    */
   loadFont(fontId: number, fontData: Uint8Array): boolean {
+    return this.loadFontEx(fontId, fontData, false, false);
+  }
+
+  /**
+   * Load a font with style variant flags.
+   * @param fontId Font identifier to use
+   * @param fontData Raw TTF/OTF font data
+   * @param bold Whether this is a bold variant
+   * @param italic Whether this is an italic variant
+   * @returns True if font loaded successfully
+   */
+  loadFontEx(fontId: number, fontData: Uint8Array, bold: boolean, italic: boolean): boolean {
     if (!this.isAvailable()) return false;
-    return this.textApi.loadFont(fontId, fontData);
+    return this.textApi.loadFontEx(fontId, fontData, bold, italic);
   }
 
   /**

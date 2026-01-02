@@ -10,22 +10,74 @@ import type { TextAlign } from '@/types/text';
 
 type TextToolListener = Partial<TextToolCallbacks>;
 
-type FontRegistryEntry = {
+// =============================================================================
+// Font Family System with Real Variants
+// =============================================================================
+
+type FontStyle = 'regular' | 'bold' | 'italic' | 'boldItalic';
+
+interface FontVariant {
   fontId: number;
   url: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+interface FontFamilyConfig {
+  baseId: number;
+  variants: Record<FontStyle, FontVariant>;
+}
+
+// Font families with real bold/italic variants for professional quality rendering.
+// Each variant is a separate TTF file with proper typographic design.
+const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
+  'DejaVu Sans': {
+    baseId: 4,
+    variants: {
+      regular:    { fontId: 4,  url: '/fonts/DejaVuSans.ttf', bold: false, italic: false },
+      bold:       { fontId: 10, url: '/fonts/DejaVuSans-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 11, url: '/fonts/DejaVuSans-Oblique.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 12, url: '/fonts/DejaVuSans-BoldOblique.ttf', bold: true, italic: true },
+    },
+  },
+  'DejaVu Serif': {
+    baseId: 5,
+    variants: {
+      regular:    { fontId: 5,  url: '/fonts/DejaVuSerif.ttf', bold: false, italic: false },
+      bold:       { fontId: 13, url: '/fonts/DejaVuSerif-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 14, url: '/fonts/DejaVuSerif-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 15, url: '/fonts/DejaVuSerif-BoldItalic.ttf', bold: true, italic: true },
+    },
+  },
+  'Roboto': {
+    baseId: 20,
+    variants: {
+      regular:    { fontId: 20, url: '/fonts/Roboto-Regular.ttf', bold: false, italic: false },
+      bold:       { fontId: 21, url: '/fonts/Roboto-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 22, url: '/fonts/Roboto-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 23, url: '/fonts/Roboto-BoldItalic.ttf', bold: true, italic: true },
+    },
+  },
+  'Open Sans': {
+    baseId: 30,
+    variants: {
+      regular:    { fontId: 30, url: '/fonts/OpenSans-Regular.ttf', bold: false, italic: false },
+      bold:       { fontId: 31, url: '/fonts/OpenSans-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 32, url: '/fonts/OpenSans-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 33, url: '/fonts/OpenSans-BoldItalic.ttf', bold: true, italic: true },
+    },
+  },
 };
 
-// Each font family uses a unique fontId and local font file.
-// Currently using DejaVu fonts which are bundled with the app.
-const FONT_REGISTRY: Record<string, FontRegistryEntry> = {
-  // Sans-serif fonts
-  Inter: { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
-  Arial: { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
-  Roboto: { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
-  'DejaVu Sans': { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
-  // Serif fonts
-  Times: { fontId: 5, url: '/fonts/DejaVuSerif.ttf' },
-  'DejaVu Serif': { fontId: 5, url: '/fonts/DejaVuSerif.ttf' },
+// Map familiar font names to available fonts
+const FAMILY_ALIASES: Record<string, string> = {
+  'Inter': 'DejaVu Sans',
+  'Times': 'DejaVu Serif',
+  // Legacy aliases
+  'Arial': 'DejaVu Sans',
+  'Helvetica': 'DejaVu Sans',
+  'Times New Roman': 'DejaVu Serif',
+  'Georgia': 'DejaVu Serif',
 };
 
 const listeners = new Set<TextToolListener>();
@@ -86,14 +138,13 @@ async function ensureInitialized(runtime?: EngineRuntime): Promise<EngineRuntime
   return rt;
 }
 
-async function loadFont(
-  fontId: number,
-  entry: FontRegistryEntry,
+async function loadFontVariant(
+  variant: FontVariant,
   _runtime: EngineRuntime,
 ): Promise<boolean> {
-  if (loadedFonts.has(fontId)) return true;
-  if (pendingFontLoads.has(fontId)) {
-    return pendingFontLoads.get(fontId)!;
+  if (loadedFonts.has(variant.fontId)) return true;
+  if (pendingFontLoads.has(variant.fontId)) {
+    return pendingFontLoads.get(variant.fontId)!;
   }
 
   if (import.meta.env.MODE === 'test' || typeof window === 'undefined' || typeof fetch === 'undefined') {
@@ -102,41 +153,84 @@ async function loadFont(
 
   const promise = (async () => {
     try {
-      const res = await fetch(entry.url);
+      const res = await fetch(variant.url);
       if (!res.ok) return false;
       const buffer = await res.arrayBuffer();
-      const ok = textTool.loadFont(fontId, new Uint8Array(buffer));
+      const ok = textTool.loadFontEx(variant.fontId, new Uint8Array(buffer), variant.bold, variant.italic);
       if (ok) {
-        loadedFonts.add(fontId);
+        loadedFonts.add(variant.fontId);
       }
       return ok;
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.warn('[textToolController] failed to load font', { fontId, url: entry.url, err });
+        console.warn('[textToolController] failed to load font', { fontId: variant.fontId, url: variant.url, err });
       }
       return false;
     } finally {
-      pendingFontLoads.delete(fontId);
+      pendingFontLoads.delete(variant.fontId);
     }
   })();
 
-  pendingFontLoads.set(fontId, promise);
+  pendingFontLoads.set(variant.fontId, promise);
   return promise;
 }
 
+/**
+ * Resolve a font family name to our internal family config.
+ */
+function resolveFamily(fontFamily: string | undefined): FontFamilyConfig {
+  if (!fontFamily) return FONT_FAMILIES['DejaVu Sans'];
+  const aliased = FAMILY_ALIASES[fontFamily] ?? fontFamily;
+  return FONT_FAMILIES[aliased] ?? FONT_FAMILIES['DejaVu Sans'];
+}
+
+/**
+ * Get the font variant for a family based on bold/italic state.
+ */
+function getFontStyle(bold: boolean, italic: boolean): FontStyle {
+  if (bold && italic) return 'boldItalic';
+  if (bold) return 'bold';
+  if (italic) return 'italic';
+  return 'regular';
+}
+
+/**
+ * Resolve family + style to the specific font variant.
+ */
+export function resolveFontVariant(fontFamily: string | undefined, bold: boolean, italic: boolean): FontVariant {
+  const family = resolveFamily(fontFamily);
+  const style = getFontStyle(bold, italic);
+  return family.variants[style];
+}
+
+/**
+ * Get fontId for a family (regular variant).
+ * @deprecated Use resolveFontVariant for style-aware resolution.
+ */
 export function mapFontFamilyToId(fontFamily: string | undefined): number {
-  if (!fontFamily) return 4;
-  const entry = FONT_REGISTRY[fontFamily];
-  return entry?.fontId ?? 4;
+  return resolveFamily(fontFamily).baseId;
+}
+
+/**
+ * Ensure a specific font variant is loaded.
+ */
+export async function ensureFontVariantLoaded(
+  fontFamily: string | undefined,
+  bold: boolean,
+  italic: boolean,
+  runtime?: EngineRuntime
+): Promise<number> {
+  const rt = await ensureInitialized(runtime);
+  const variant = resolveFontVariant(fontFamily, bold, italic);
+  await loadFontVariant(variant, rt);
+  return variant.fontId;
 }
 
 export async function ensureTextToolReady(runtime?: EngineRuntime, fontFamily?: string): Promise<TextTool> {
   const rt = await ensureInitialized(runtime);
-  const activeFontId = mapFontFamilyToId(fontFamily);
-  const fontEntry = FONT_REGISTRY[fontFamily ?? ''] ?? Object.values(FONT_REGISTRY).find((entry) => entry.fontId === activeFontId);
-  if (fontEntry) {
-    void loadFont(activeFontId, fontEntry, rt);
-  }
+  // Load the regular variant by default
+  const variant = resolveFontVariant(fontFamily, false, false);
+  void loadFontVariant(variant, rt);
   return textTool;
 }
 
@@ -148,7 +242,24 @@ export function applyTextDefaultsFromSettings(): TextStyleDefaults {
   const { fontSize, fontFamily, align, bold, italic, underline, strike } =
     useSettingsStore.getState().toolDefaults.text;
 
-  const fontId = mapFontFamilyToId(fontFamily);
+  // Get the base family config - we use the BASE fontId, not the variant!
+  // The Engine will resolve to the correct variant based on style flags.
+  // This avoids the "font not found" error when creating text with bold active
+  // before the bold variant is loaded.
+  const family = resolveFamily(fontFamily);
+  const baseVariant = family.variants.regular;
+  
+  // Preload the variant that matches current style (async, for when user types)
+  const styleVariant = resolveFontVariant(fontFamily, bold, italic);
+  void getEngineRuntime().then((rt) => {
+    // Load base first, then the styled variant
+    void loadFontVariant(baseVariant, rt);
+    if (styleVariant.fontId !== baseVariant.fontId) {
+      void loadFontVariant(styleVariant, rt);
+    }
+  });
+
+  // Use BASE fontId with style FLAGS - Engine resolves to variant internally
   const flags =
     (bold ? TextStyleFlags.Bold : 0) |
     (italic ? TextStyleFlags.Italic : 0) |
@@ -156,10 +267,10 @@ export function applyTextDefaultsFromSettings(): TextStyleDefaults {
     (strike ? TextStyleFlags.Strikethrough : 0);
 
   const defaults: Partial<TextStyleDefaults> = {
-    fontId,
+    fontId: baseVariant.fontId,  // Always use base font ID!
     fontSize,
     align: align as TextAlign,
-    flags,
+    flags,  // Engine uses flags to resolve to variant
   };
 
   textTool.setStyleDefaults(defaults);

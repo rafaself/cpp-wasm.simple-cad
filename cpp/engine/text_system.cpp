@@ -59,10 +59,12 @@ void TextSystem::initialize() {
 }
 
 bool TextSystem::loadFont(std::uint32_t fontId, const void* data, std::size_t size) {
+    return loadFontEx(fontId, data, size, false, false);
+}
+
+bool TextSystem::loadFontEx(std::uint32_t fontId, const void* data, std::size_t size, bool bold, bool italic) {
     if (!initialized) initialize();
-    // Assuming external data is passed. We use "External" as family name for now.
-    // Ideally family name should be parsed or passed.
-    return fontManager.registerFont(fontId, static_cast<const std::uint8_t*>(data), size, "External");
+    return fontManager.registerFont(fontId, static_cast<const std::uint8_t*>(data), size, "External", bold, italic);
 }
 
 bool TextSystem::upsertText(

@@ -140,6 +140,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         // Text system methods
         .function("initializeTextSystem", &CadEngine::initializeTextSystem)
         .function("loadFont", &CadEngine::loadFont)
+        .function("loadFontEx", &CadEngine::loadFontEx)
         .function("hitTestText", &CadEngine::hitTestText)
         .function("getTextCaretPosition", &CadEngine::getTextCaretPosition)
         .function("rebuildTextQuadBuffer", &CadEngine::rebuildTextQuadBuffer)

@@ -72,7 +72,7 @@ int ftCubicTo(const FT_Vector* control1, const FT_Vector* control2, const FT_Vec
     return 0;
 }
 
-bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId, TextStyleFlags style) {
+bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId, TextStyleFlags style, bool fontIsBold, bool fontIsItalic) {
     FT_Error error = FT_Load_Glyph(face, glyphId, FT_LOAD_NO_SCALE);
     if (error) {
         return false;
@@ -82,9 +82,12 @@ bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId,
         return false;  // Not an outline glyph (e.g., bitmap glyph)
     }
 
-    // Apply synthetic italic/bold if requested and variants are not provided separately.
-    // This keeps layout unchanged while giving a visual cue in the MSDF output.
-    if (hasFlag(style, TextStyleFlags::Italic)) {
+    // Apply synthetic styles ONLY if the font itself doesn't have the variant.
+    // Real bold/italic fonts have proper outlines designed by typographers.
+    const bool needsSyntheticItalic = hasFlag(style, TextStyleFlags::Italic) && !fontIsItalic;
+    const bool needsSyntheticBold = hasFlag(style, TextStyleFlags::Bold) && !fontIsBold;
+
+    if (needsSyntheticItalic) {
         constexpr double italicShear = 0.2; // ~11 degrees
         const FT_Fixed one = 1 << 16;
         FT_Matrix shear = {one, static_cast<FT_Fixed>(italicShear * static_cast<double>(one)), 0, one};
@@ -92,10 +95,9 @@ bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId,
         face->glyph->advance.x += static_cast<FT_Pos>(face->glyph->advance.y * italicShear);
     }
 
-    if (hasFlag(style, TextStyleFlags::Bold)) {
-        // Strength proportional to EM size; /32 is the safe maximum for MSDF.
-        // Higher values cause outline self-intersection in glyphs with counters (a, d, e, o, etc).
-        // For truly bold text, use an actual bold font variant instead of synthetic bold.
+    if (needsSyntheticBold) {
+        // Synthetic bold as fallback; /32 is safe for MSDF but subtle.
+        // Prefer loading a real bold font variant for better quality.
         const FT_Pos strength = std::max<FT_Pos>(1, static_cast<FT_Pos>(face->units_per_EM / 32));
         FT_Outline_Embolden(&face->glyph->outline, strength);
         face->glyph->advance.x += strength;
@@ -205,15 +207,40 @@ const GlyphAtlasEntry* GlyphAtlas::getGlyph(std::uint32_t fontId, std::uint32_t 
         static_cast<std::uint8_t>(TextStyleFlags::Italic)
     );
     const TextStyleFlags normalizedStyle = static_cast<TextStyleFlags>(masked);
-    GlyphKey key = makeKey(fontId, glyphId, normalizedStyle);
+    
+    // Resolve to actual font variant if available.
+    // If style requests Bold/Italic, try to find a real font variant first.
+    const bool wantsBold = hasFlag(normalizedStyle, TextStyleFlags::Bold);
+    const bool wantsItalic = hasFlag(normalizedStyle, TextStyleFlags::Italic);
+    std::uint32_t resolvedFontId = fontManager_->getFontVariant(fontId, wantsBold, wantsItalic);
+    
+    // Check if resolved font actually has the variant we want
+    const FontHandle* resolvedFont = fontManager_->getFont(resolvedFontId);
+    TextStyleFlags effectiveStyle = normalizedStyle;
+    
+    if (resolvedFont) {
+        // Clear style flags that are natively provided by the resolved font
+        if (resolvedFont->bold && wantsBold) {
+            effectiveStyle = static_cast<TextStyleFlags>(
+                static_cast<std::uint8_t>(effectiveStyle) & ~static_cast<std::uint8_t>(TextStyleFlags::Bold)
+            );
+        }
+        if (resolvedFont->italic && wantsItalic) {
+            effectiveStyle = static_cast<TextStyleFlags>(
+                static_cast<std::uint8_t>(effectiveStyle) & ~static_cast<std::uint8_t>(TextStyleFlags::Italic)
+            );
+        }
+    }
+    
+    GlyphKey key = makeKey(resolvedFontId, glyphId, effectiveStyle);
     
     auto it = glyphCache_.find(key);
     if (it != glyphCache_.end()) {
         return &it->second;
     }
     
-    // Generate the glyph
-    return generateGlyph(fontId, glyphId, normalizedStyle);
+    // Generate the glyph using resolved font
+    return generateGlyph(resolvedFontId, glyphId, effectiveStyle);
 }
 
 bool GlyphAtlas::hasGlyph(std::uint32_t fontId, std::uint32_t glyphId, TextStyleFlags style) const {
@@ -341,9 +368,10 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(
     
     FT_Face face = font->ftFace;
     
-    // Load glyph shape from FreeType
+    // Load glyph shape from FreeType, passing font's native bold/italic state
+    // to skip synthetic processing when real variant is loaded
     msdfgen::Shape shape;
-    if (!loadGlyphShape(shape, face, glyphId, style)) {
+    if (!loadGlyphShape(shape, face, glyphId, style, font->bold, font->italic)) {
         // Glyph has no outline (e.g., space character)
         // Create a valid but empty entry
         GlyphKey key = makeKey(fontId, glyphId, style);

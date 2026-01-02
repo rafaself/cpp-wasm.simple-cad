@@ -12,14 +12,18 @@ bool CadEngine::initializeTextSystem() {
 }
 
 bool CadEngine::loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize) {
+    return loadFontEx(fontId, fontDataPtr, dataSize, false, false);
+}
+
+bool CadEngine::loadFontEx(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize, bool bold, bool italic) {
     const std::uint8_t* fontData = reinterpret_cast<const std::uint8_t*>(fontDataPtr);
     if (!textSystem_.initialized) {
         if (!initializeTextSystem()) {
             return false;
         }
     }
-    // Use registerFont to associate with specific fontId
-    bool ok = textSystem_.fontManager.registerFont(fontId, fontData, dataSize, "", false, false);
+    // Use registerFont to associate with specific fontId and style flags
+    bool ok = textSystem_.fontManager.registerFont(fontId, fontData, dataSize, "", bold, italic);
     if (ok) markTextQuadsDirty();
     return ok;
 }

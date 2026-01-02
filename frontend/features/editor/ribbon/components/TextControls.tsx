@@ -24,11 +24,12 @@ import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
 import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
 import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 
+// Familiar font names users recognize
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
-  { value: 'Arial', label: 'Arial' },
-  { value: 'Times', label: 'Times' },
   { value: 'Roboto', label: 'Roboto' },
+  { value: 'Open Sans', label: 'Open Sans' },
+  { value: 'Times', label: 'Times' },
 ];
 
 type StyleState = 'off' | 'on' | 'mixed';
