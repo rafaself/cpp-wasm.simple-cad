@@ -31,22 +31,22 @@ interface FontFamilyConfig {
 // Font families with real bold/italic variants for professional quality rendering.
 // Each variant is a separate TTF file with proper typographic design.
 const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
-  'DejaVu Sans': {
+  'Inter': {
     baseId: 4,
     variants: {
-      regular:    { fontId: 4,  url: '/fonts/DejaVuSans.ttf', bold: false, italic: false },
-      bold:       { fontId: 10, url: '/fonts/DejaVuSans-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 11, url: '/fonts/DejaVuSans-Oblique.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 12, url: '/fonts/DejaVuSans-BoldOblique.ttf', bold: true, italic: true },
+      regular:    { fontId: 4,  url: '/fonts/Inter-Regular.ttf', bold: false, italic: false },
+      bold:       { fontId: 10, url: '/fonts/Inter-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 11, url: '/fonts/Inter-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 12, url: '/fonts/Inter-BoldItalic.ttf', bold: true, italic: true },
     },
   },
-  'DejaVu Serif': {
+  'Noto Serif': {
     baseId: 5,
     variants: {
-      regular:    { fontId: 5,  url: '/fonts/DejaVuSerif.ttf', bold: false, italic: false },
-      bold:       { fontId: 13, url: '/fonts/DejaVuSerif-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 14, url: '/fonts/DejaVuSerif-Italic.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 15, url: '/fonts/DejaVuSerif-BoldItalic.ttf', bold: true, italic: true },
+      regular:    { fontId: 5,  url: '/fonts/NotoSerif-Regular.ttf', bold: false, italic: false },
+      bold:       { fontId: 13, url: '/fonts/NotoSerif-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 14, url: '/fonts/NotoSerif-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 15, url: '/fonts/NotoSerif-BoldItalic.ttf', bold: true, italic: true },
     },
   },
   'Roboto': {
@@ -71,13 +71,14 @@ const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
 
 // Map familiar font names to available fonts
 const FAMILY_ALIASES: Record<string, string> = {
-  'Inter': 'DejaVu Sans',
-  'Times': 'DejaVu Serif',
+  'Times': 'Noto Serif',
   // Legacy aliases
-  'Arial': 'DejaVu Sans',
-  'Helvetica': 'DejaVu Sans',
-  'Times New Roman': 'DejaVu Serif',
-  'Georgia': 'DejaVu Serif',
+  'Arial': 'Inter',
+  'Helvetica': 'Inter',
+  'DejaVu Sans': 'Inter',
+  'Times New Roman': 'Noto Serif',
+  'Georgia': 'Noto Serif',
+  'DejaVu Serif': 'Noto Serif',
 };
 
 const listeners = new Set<TextToolListener>();
@@ -179,9 +180,9 @@ async function loadFontVariant(
  * Resolve a font family name to our internal family config.
  */
 function resolveFamily(fontFamily: string | undefined): FontFamilyConfig {
-  if (!fontFamily) return FONT_FAMILIES['DejaVu Sans'];
+  if (!fontFamily) return FONT_FAMILIES['Inter'];
   const aliased = FAMILY_ALIASES[fontFamily] ?? fontFamily;
-  return FONT_FAMILIES[aliased] ?? FONT_FAMILIES['DejaVu Sans'];
+  return FONT_FAMILIES[aliased] ?? FONT_FAMILIES['Inter'];
 }
 
 /**

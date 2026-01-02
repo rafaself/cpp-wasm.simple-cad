@@ -33,10 +33,10 @@ protected:
         // Try loading project font (relative to build dir or repo root)
         // This ensures the test runs reliably without depending on system fonts.
         std::vector<std::string> fontPaths = {
-            "../../frontend/public/fonts/DejaVuSans.ttf",       // From cpp/build
-            "../../../frontend/public/fonts/DejaVuSans.ttf",    // From cpp/build/Debug
-            "frontend/public/fonts/DejaVuSans.ttf",             // From repo root
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"   // System fallback
+            "../../frontend/public/fonts/Inter-Regular.ttf",       // From cpp/build
+            "../../../frontend/public/fonts/Inter-Regular.ttf",    // From cpp/build/Debug
+            "frontend/public/fonts/Inter-Regular.ttf",             // From repo root
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"      // System fallback
         };
         
         for (const auto& path : fontPaths) {

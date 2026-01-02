@@ -31,7 +31,7 @@ public:
     struct Config {
         std::uint16_t width = 2048;     // Atlas width in pixels
         std::uint16_t height = 2048;    // Atlas height in pixels
-        std::uint16_t padding = 2;      // Padding between glyphs
+        std::uint16_t padding = 8;      // Padding between glyphs (must be >= msdfPixelRange to avoid bleeding)
         float msdfPixelRange = 8.0f;    // MSDF distance range in pixels (increased for smoother gradients)
         std::uint32_t msdfSize = 96;    // MSDF bitmap size (square) - High quality
     };
