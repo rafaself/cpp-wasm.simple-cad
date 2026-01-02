@@ -24,10 +24,6 @@ import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
 import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
 import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 
-// Stub for now, as textEngineSync is deprecated
-// TODO: Refactor to use EngineRuntime directly if this component is revived.
-const getTextTool = () => null as any;
-
 const FONT_OPTIONS = [
   { value: 'Inter', label: 'Inter' },
   { value: 'Arial', label: 'Arial' },
@@ -54,7 +50,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   const setTextFontFamily = useSettingsStore((s) => s.setTextFontFamily);
   const handleChange = (val: string) => {
     setTextFontFamily(val);
-    if (selectedTextIds.length > 0) applyTextUpdate({ fontFamily: val }, true);
+    applyTextUpdate({ fontFamily: val }, true);
   };
   return (
     <RibbonControlWrapper>
@@ -74,24 +70,13 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
 }) => {
   const textFontSize = useSettingsStore((s) => s.toolDefaults.text.fontSize);
   const setTextFontSize = useSettingsStore((s) => s.setTextFontSize);
-  const engineEditState = useUIStore((s) => s.engineTextEditState);
-  const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
 
   // Font size presets (Figma-like)
   const fontSizePresets = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 32, 48, 64, 96, 128];
 
   const handleCommit = (val: number) => {
     setTextFontSize(val);
-
-    if (applyViaEngine) {
-      const tool = getTextTool();
-      if (tool && tool.isReady()) {
-        tool.applyFontSize(val);
-        return;
-      }
-    }
-
-    if (selectedTextIds.length > 0) applyTextUpdate({ fontSize: val }, true);
+    applyTextUpdate({ fontSize: val }, true);
   };
 
   return (
@@ -143,17 +128,7 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
 
   const handleClick = (align: 'left' | 'center' | 'right') => {
     setTextAlignShortcut(align);
-
-    if (engineEditState.active && engineEditState.textId !== null) {
-      const tool = getTextTool();
-      if (tool) {
-        const alignMap: Record<string, number> = { left: 0, center: 1, right: 2 };
-        tool.applyTextAlign(alignMap[align]);
-      }
-      return;
-    }
-
-    if (selectedTextIds.length > 0) applyTextUpdate({ align }, false);
+    applyTextUpdate({ align }, false);
   };
   return (
     <RibbonControlWrapper align="center">
@@ -212,7 +187,6 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   };
 
   const styleStates = engineStyles ?? fallbackStyles;
-  const applyViaEngine = engineEditState.active && engineEditState.textId !== null;
 
   const options: Array<{
     key: StyleKey;
@@ -268,24 +242,12 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
     logger.debug('[TextControls] handleClick', {
       key: option.key,
       nextIntent,
-      applyViaEngine,
+      applyViaEngine: engineEditState.active,
       textId: engineEditState.textId,
     });
 
-    if (applyViaEngine) {
-      const tool = getTextTool();
-      if (tool) {
-        tool.applyStyle(option.mask, nextIntent);
-      } else {
-        logger.warn('[TextControls] Tool not found!');
-      }
-      return;
-    }
-
-    if (selectedTextIds.length > 0) {
-      const diff: TextUpdateDiff = { [option.key]: nextIntent === 'set' };
-      applyTextUpdate(diff, option.recalc);
-    }
+    const diff: TextUpdateDiff = { [option.key]: nextIntent === 'set' };
+    applyTextUpdate(diff, option.recalc);
   };
 
   return (

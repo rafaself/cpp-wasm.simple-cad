@@ -238,6 +238,13 @@ export class TextTool {
    */
   setStyleDefaults(defaults: Partial<TextStyleDefaults>): void {
     this.stateManager.setStyleDefaults(defaults);
+    const updated = this.stateManager.getStyleDefaults();
+    this.inputCoordinator.setStyleDefaults({
+      fontId: updated.fontId,
+      fontSize: updated.fontSize,
+      colorRGBA: updated.colorRGBA,
+      flags: updated.flags,
+    });
   }
 
   /**

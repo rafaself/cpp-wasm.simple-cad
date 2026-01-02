@@ -15,11 +15,16 @@ export class FakeTextTool {
   public clicks: Array<{ x: number; y: number }> = [];
   public selectionRange = { start: 0, end: 0 };
   public caretIndex = 0;
+  public activeTextId = 1;
   public initializedWith: unknown = null;
   public undoCount = 0;
   public redoCount = 0;
 
   constructor(callbacks: TextToolCallbacks) {
+    this.callbacks = callbacks;
+  }
+
+  setCallbacks(callbacks: TextToolCallbacks): void {
     this.callbacks = callbacks;
   }
 
@@ -37,6 +42,9 @@ export class FakeTextTool {
     this.caretIndex = this.content.length;
     const state = {
       mode: 'creating',
+      activeTextId: this.activeTextId,
+      boxMode: 0,
+      constraintWidth: 0,
       anchorX: x,
       anchorY: y,
       rotation: 0,
@@ -53,6 +61,9 @@ export class FakeTextTool {
     this.caretIndex = this.content.length;
     this.callbacks.onStateChange({
       mode: 'editing',
+      activeTextId: this.activeTextId,
+      boxMode: 0,
+      constraintWidth: 0,
       anchorX: 0,
       anchorY: 0,
       rotation: 0,
@@ -66,6 +77,9 @@ export class FakeTextTool {
     this.selectionRange = { start, end };
     this.callbacks.onStateChange({
       mode: 'editing',
+      activeTextId: this.activeTextId,
+      boxMode: 0,
+      constraintWidth: 0,
       anchorX: 0,
       anchorY: 0,
       rotation: 0,
@@ -81,6 +95,9 @@ export class FakeTextTool {
     if (key === 'redo') this.redoCount += 1;
     this.callbacks.onStateChange({
       mode: 'editing',
+      activeTextId: this.activeTextId,
+      boxMode: 0,
+      constraintWidth: 0,
       anchorX: 0,
       anchorY: 0,
       rotation: 0,
@@ -96,6 +113,37 @@ export class FakeTextTool {
 
   emitEditEnd(): void {
     this.callbacks.onEditEnd();
+  }
+
+  commitAndExit(): void {
+    this.callbacks.onStateChange({
+      mode: 'idle',
+      activeTextId: null,
+      boxMode: 0,
+      constraintWidth: 0,
+      anchorX: 0,
+      anchorY: 0,
+      rotation: 0,
+      caretIndex: 0,
+      selectionStart: 0,
+      selectionEnd: 0,
+    } as any);
+    this.callbacks.onEditEnd();
+  }
+
+  handlePointerDown(): void {
+    this.callbacks.onStateChange({
+      mode: 'editing',
+      activeTextId: this.activeTextId,
+      boxMode: 0,
+      constraintWidth: 0,
+      anchorX: 0,
+      anchorY: 0,
+      rotation: 0,
+      caretIndex: this.caretIndex,
+      selectionStart: this.selectionRange.start,
+      selectionEnd: this.selectionRange.end,
+    });
   }
 
   resetEditingState(): void {

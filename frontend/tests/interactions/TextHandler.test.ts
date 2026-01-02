@@ -4,6 +4,7 @@ import { TextHandler } from '@/features/editor/interactions/handlers/TextHandler
 import { FakeRuntime } from '@/test-utils/fakeRuntime';
 import { createFakeTextTool, FakeTextTool } from '@/test-utils/fakeTextTool';
 import { screenToWorld } from '@/utils/viewportMath';
+import { useUIStore } from '@/stores/useUIStore';
 
 const makePointer = (x: number, y: number): any => ({
   clientX: x,
@@ -30,6 +31,17 @@ describe('TextHandler', () => {
       onStyleSnapshot: () => undefined,
     });
     handler = new TextHandler(fakeTool as any);
+    useUIStore.setState({
+      activeTool: 'text',
+      viewTransform: { x: 0, y: 0, scale: 1 },
+      canvasSize: { width: 800, height: 600 },
+      engineTextEditState: {
+        active: false,
+        textId: null,
+        editGeneration: 0,
+        caretPosition: null,
+      },
+    } as any);
   });
 
   it('initializes tool on first pointer down and records caret anchor', () => {
@@ -85,5 +97,59 @@ describe('TextHandler', () => {
     expect(fakeTool.undoCount).toBe(1);
     fakeTool.handleSpecialKey('redo');
     expect(fakeTool.redoCount).toBe(1);
+  });
+
+  it('marks engine text edit state active while editing', () => {
+    (handler as any).state = {
+      mode: 'editing',
+      activeTextId: 42,
+      boxMode: 0,
+      constraintWidth: 0,
+      anchorX: 0,
+      anchorY: 0,
+      rotation: 0,
+      caretIndex: 0,
+      selectionStart: 0,
+      selectionEnd: 0,
+    };
+
+    (handler as any).syncEngineTextState();
+    expect(useUIStore.getState().engineTextEditState).toMatchObject({
+      active: true,
+      textId: 42,
+    });
+
+    (handler as any).syncEngineTextState(true);
+    expect(useUIStore.getState().engineTextEditState.active).toBe(false);
+  });
+
+  it('commits and switches to selection on click outside while editing', () => {
+    handler.state = {
+      mode: 'editing',
+      activeTextId: 7,
+      boxMode: 0,
+      constraintWidth: 0,
+      anchorX: 0,
+      anchorY: 0,
+      rotation: 0,
+      caretIndex: 0,
+      selectionStart: 0,
+      selectionEnd: 0,
+    };
+    const event = makePointer(30, 40);
+    const ctx = {
+      event,
+      screenPoint: { x: 30, y: 40 },
+      worldPoint: screenToWorld({ x: 30, y: 40 }, { x: 0, y: 0, scale: 1 }),
+      snappedPoint: screenToWorld({ x: 30, y: 40 }, { x: 0, y: 0, scale: 1 }),
+      runtime,
+      viewTransform: { x: 0, y: 0, scale: 1 },
+      canvasSize: { width: 800, height: 600 },
+    };
+
+    handler.onPointerDown(ctx as any);
+
+    expect(useUIStore.getState().activeTool).toBe('select');
+    expect(runtime.getSelectionIds()).toEqual([7]);
   });
 });

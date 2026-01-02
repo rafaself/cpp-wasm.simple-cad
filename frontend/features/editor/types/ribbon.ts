@@ -10,7 +10,7 @@ import type { RefObject, MouseEvent } from 'react';
 
 export interface TextControlProps {
   selectedTextIds: number[];
-  applyTextUpdate: (diff: TextUpdateDiff, recalcSize: boolean) => void;
+  applyTextUpdate: (diff: TextUpdateDiff, recalcSize: boolean) => void | Promise<void>;
 }
 
 export interface TextUpdateDiff {
