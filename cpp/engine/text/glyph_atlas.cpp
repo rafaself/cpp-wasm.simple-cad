@@ -93,7 +93,9 @@ bool loadGlyphShape(msdfgen::Shape& output, FT_Face face, std::uint32_t glyphId,
     }
 
     if (hasFlag(style, TextStyleFlags::Bold)) {
-        // Strength proportional to EM size; slightly heavier to make bold visually clear in MSDF output.
+        // Strength proportional to EM size; /32 is the safe maximum for MSDF.
+        // Higher values cause outline self-intersection in glyphs with counters (a, d, e, o, etc).
+        // For truly bold text, use an actual bold font variant instead of synthetic bold.
         const FT_Pos strength = std::max<FT_Pos>(1, static_cast<FT_Pos>(face->units_per_EM / 32));
         FT_Outline_Embolden(&face->glyph->outline, strength);
         face->glyph->advance.x += strength;

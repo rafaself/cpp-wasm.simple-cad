@@ -15,12 +15,15 @@ type FontRegistryEntry = {
   url: string;
 };
 
+// Each font family uses a unique fontId and local font file.
+// Currently using DejaVu fonts which are bundled with the app.
 const FONT_REGISTRY: Record<string, FontRegistryEntry> = {
-  // Map common UI labels to engine font ids.
+  // Sans-serif fonts
   Inter: { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
   Arial: { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
   Roboto: { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
   'DejaVu Sans': { fontId: 4, url: '/fonts/DejaVuSans.ttf' },
+  // Serif fonts
   Times: { fontId: 5, url: '/fonts/DejaVuSerif.ttf' },
   'DejaVu Serif': { fontId: 5, url: '/fonts/DejaVuSerif.ttf' },
 };
@@ -130,7 +133,7 @@ export function mapFontFamilyToId(fontFamily: string | undefined): number {
 export async function ensureTextToolReady(runtime?: EngineRuntime, fontFamily?: string): Promise<TextTool> {
   const rt = await ensureInitialized(runtime);
   const activeFontId = mapFontFamilyToId(fontFamily);
-  const fontEntry = Object.values(FONT_REGISTRY).find((entry) => entry.fontId === activeFontId);
+  const fontEntry = FONT_REGISTRY[fontFamily ?? ''] ?? Object.values(FONT_REGISTRY).find((entry) => entry.fontId === activeFontId);
   if (fontEntry) {
     void loadFont(activeFontId, fontEntry, rt);
   }

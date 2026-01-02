@@ -231,11 +231,29 @@ export class TextHandler extends BaseInteractionHandler {
   }
 
   onPointerMove(ctx: InputEventContext): void {
-    // Pass move to TextTool?
-    // `handlePointerMove` used for drag select text.
-    if (this.state?.mode === 'editing' || this.state?.mode === 'creating') {
-      // We need local coords.
+    const { worldPoint: world, runtime } = ctx;
+    if (!runtime) return;
+
+    // Handle drag text selection
+    if (
+      (this.state?.mode === 'editing' || this.state?.mode === 'creating') &&
+      this.state?.activeTextId !== null
+    ) {
+      const textId = this.state.activeTextId;
+      const bounds = runtime.text.getTextBounds(textId);
+      if (bounds && bounds.valid) {
+        // Compute local coordinates relative to text anchor (top-left in Y-up world)
+        const anchorX = bounds.minX;
+        const anchorY = bounds.maxY;
+        const localX = world.x - anchorX;
+        const localY = world.y - anchorY;
+        this.textTool.handlePointerMove(textId, localX, localY);
+      }
     }
+  }
+
+  onPointerUp(ctx: InputEventContext): void {
+    this.textTool.handlePointerUp();
   }
 
   private syncEngineTextState(forceClear = false): void {

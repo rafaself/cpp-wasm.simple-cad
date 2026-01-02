@@ -41,7 +41,20 @@ describe('useInteractionManager', () => {
       viewTransform: { x: 0, y: 0, scale: 1 },
       canvasSize: { width: 300, height: 300 },
     } as any);
-    useSettingsStore.setState({ toolDefaults: { polygonSides: 3 } } as any);
+    useSettingsStore.setState({
+      toolDefaults: {
+        polygonSides: 3,
+        text: {
+          fontSize: 16,
+          fontFamily: 'Inter',
+          align: 'left',
+          bold: false,
+          italic: false,
+          underline: false,
+          strike: false,
+        },
+      },
+    } as any);
   });
 
   it('creates the right handler per tool selection', async () => {

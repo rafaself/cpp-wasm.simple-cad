@@ -201,9 +201,11 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
           className="absolute rounded-[1px] border border-primary/70"
           style={{
             left: 0,
-            top: -editingBounds.height,
+            top: 0,
             width: editingBounds.width,
             height: editingBounds.height,
+            cursor: 'text',
+            pointerEvents: 'auto',
           }}
         />
       ) : null}
