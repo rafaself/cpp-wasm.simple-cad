@@ -33,23 +33,52 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
   maxSides = 24,
 }) => {
   const [val, setVal] = useState(initialValue);
-  const valRef = useRef(initialValue); // Track latest value to avoid stale closures
+  const [isValid, setIsValid] = useState(true);
+  const valRef = useRef(initialValue); // Track latest value
+  const isValidRef = useRef(true); // Track latest validity
   const [isExiting, setIsExiting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync ref when value changes (e.g. from props)
   useEffect(() => {
     valRef.current = val;
-  }, [val]);
+    // Initial validation
+    const valid = val >= minSides && val <= maxSides;
+    setIsValid(valid);
+    isValidRef.current = valid;
+  }, [val, minSides, maxSides]);
 
   // Handle value change from spinner
   const handleChange = useCallback((newVal: number) => {
     setVal(newVal);
     valRef.current = newVal;
-  }, []);
+    const valid = newVal >= minSides && newVal <= maxSides;
+    setIsValid(valid);
+    isValidRef.current = valid;
+  }, [minSides, maxSides]);
+
+  // Handle raw text change for immediate feedback
+  const handleRawChange = useCallback((raw: string) => {
+    const n = parseFloat(raw);
+    let valid = true;
+    if (isNaN(n)) {
+      valid = false;
+    } else {
+      valid = n >= minSides && n <= maxSides;
+    }
+    setIsValid(valid);
+    isValidRef.current = valid;
+    
+    // If valid number, update valRef to allow confirmation to pick it up immediately
+    // even if NumberSpinner hasn't committed it yet.
+    if (!isNaN(n)) {
+       valRef.current = n;
+    }
+  }, [minSides, maxSides]);
 
   // Handle confirm
   const handleConfirm = useCallback(() => {
+    if (!isValidRef.current) return;
     setIsExiting(true);
     setTimeout(() => onConfirm(Math.floor(valRef.current)), 80);
   }, [onConfirm]);
@@ -63,11 +92,13 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Check if click is outside the NumberSpinner (which is inside containerRef)
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        // Confirm on outside click
-        // Note: mousedown happens after input blur, ensuring value is committed
-        handleConfirm();
+        // If valid, confirm; otherwise cancel
+        if (isValidRef.current) {
+          handleConfirm();
+        } else {
+          handleCancel();
+        }
       }
     };
 
@@ -79,20 +110,19 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
       clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [handleConfirm]);
+  }, [handleConfirm, handleCancel]);
 
-  // Handle keyboard events at container level (for Escape)
-  // Enter is handled by NumberSpinner
+  // Handle keyboard events at container level
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         handleCancel();
       } else if (e.key === 'Enter') {
-         // NumberSpinner handles Enter -> calls onChange synchronously
-         // Event bubbles to here, so we just confirm with latest value
          e.preventDefault();
-         handleConfirm();
+         if (isValidRef.current) {
+           handleConfirm();
+         }
       }
     },
     [handleCancel, handleConfirm],
@@ -101,8 +131,8 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
   // Calculate position to keep input in viewport
   const getPosition = useCallback(() => {
     const padding = 8;
-    const width = 120; // Increased width for label + input container
-    const height = 64; // Increased height for label + input
+    const width = 120;
+    const height = isValid ? 64 : 84; // Adjust height for error message
 
     let x = screenPosition.x - width / 2;
     let y = screenPosition.y + 16;
@@ -119,7 +149,7 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
     }
 
     return { x, y };
-  }, [screenPosition]);
+  }, [screenPosition, isValid]);
 
   const pos = getPosition();
 
@@ -133,8 +163,9 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
         transition-all duration-100 ease-out
         ${isExiting ? 'opacity-0 scale-90' : 'opacity-100 scale-100'}
         flex flex-col gap-1.5 p-3 rounded-lg
-        bg-surface-strong border border-border/50 shadow-2xl
+        bg-surface-strong border shadow-2xl
         cursor-default select-none
+        ${isValid ? 'border-border/50' : 'border-red-500/80 ring-1 ring-red-500/20'}
       `}
       style={{
         left: pos.x,
@@ -143,27 +174,31 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
       onKeyDown={handleKeyDown}
       onMouseDown={(e) => e.stopPropagation()} 
       onPointerDown={(e) => {
-        // Critical: Stop pointer down from reaching global listeners (like interactions)
-        // that might interpret this as a start of a shape creation or selection drag.
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
       }}
     >
-      <label className="text-xs text-text font-medium ml-0.5 select-none">
+      <label className={`text-xs font-medium ml-0.5 select-none ${isValid ? 'text-text' : 'text-red-400'}`}>
         Número de lados
       </label>
       <div className="cursor-text">
         <NumberSpinner
           value={val}
           onChange={handleChange}
-          min={minSides}
-          max={maxSides}
+          min={0} // Allow typing freely to validate
+          max={99} // Allow typing freely to validate
           step={1}
           autoFocus
           selectOnFocus
-          className="w-full h-8 shadow-inner bg-surface-2"
+          onRawChange={handleRawChange}
+          className={`w-full h-8 shadow-inner bg-surface-2 ${!isValid ? 'border-red-500/50' : ''}`}
         />
       </div>
+      {!isValid && (
+        <div className="text-[10px] text-red-400 leading-tight px-0.5 -mt-0.5">
+          Valor deve ser entre {minSides} e {maxSides}
+        </div>
+      )}
     </div>,
     document.body,
   );
