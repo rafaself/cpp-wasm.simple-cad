@@ -121,6 +121,7 @@ bool TextSystem::setTextAlign(std::uint32_t textId, TextAlign align) {
     if (rec->align == align) return true;
     
     rec->align = align;
+    store.markDirty(textId); // Force layout to recompute offsets for new alignment
     // layoutEngine.layoutText(textId); // Lazy
     quadsDirty = true;
     return true;

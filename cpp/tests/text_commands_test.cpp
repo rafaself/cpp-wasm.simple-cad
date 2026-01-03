@@ -772,6 +772,34 @@ TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
     EXPECT_GT(CadEngineTestAccessor::generation(*engine_), genBefore);
 }
 
+TEST_F(TextCommandsTest, SetTextAlignMarksTextDirtyForRelayout) {
+    ASSERT_TRUE(upsertSimpleText(400, "Hello"));
+    auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+
+    // Consume initial dirty state from creation
+    EXPECT_EQ(textSystem.layoutEngine.layoutDirtyTexts(), 1u);
+    EXPECT_EQ(textSystem.layoutEngine.layoutDirtyTexts(), 0u);
+
+    CommandBufferBuilder builder;
+    builder.writeHeader(1);
+    TextAlignmentPayload alignPayload{};
+    alignPayload.textId = 400;
+    alignPayload.align = static_cast<std::uint8_t>(TextAlign::Center);
+
+    builder.writeCommandHeader(CommandOp::SetTextAlign, 0, sizeof(TextAlignmentPayload));
+    builder.pushBytes(&alignPayload, sizeof(alignPayload));
+
+    EXPECT_EQ(applyCommands(builder), EngineError::Ok);
+
+    const TextRec* rec = textSystem.store.getText(400);
+    ASSERT_NE(rec, nullptr);
+    EXPECT_EQ(rec->align, TextAlign::Center);
+
+    // Alignment changes must force layout recomputation
+    EXPECT_TRUE(textSystem.store.isDirty(400));
+    EXPECT_EQ(textSystem.layoutEngine.layoutDirtyTexts(), 1u);
+}
+
 // =============================================================================
 // PR1 Verification Tests
 // =============================================================================
