@@ -114,7 +114,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
       {/* Left Overflow Button */}
       {showIndicators && showLeftArrow && (
         <button
-          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/50 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
           onClick={(e) => { e.stopPropagation(); scrollByAmount(-100); }}
           title="Rolar para esquerda"
           aria-hidden="true"
@@ -169,7 +169,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
        {/* Right Overflow Button */}
        {showIndicators && showRightArrow && (
         <button
-          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/50 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
           onClick={(e) => { e.stopPropagation(); scrollByAmount(100); }}
           title="Rolar para direita"
           aria-hidden="true"
