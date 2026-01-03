@@ -190,6 +190,21 @@ EngineError dispatchCommand(
             }
             break;
         }
+        case static_cast<std::uint32_t>(CommandOp::ReplaceTextContent): {
+            if (payloadByteCount < sizeof(TextReplacePayloadHeader)) return EngineError::InvalidPayloadSize;
+
+            TextReplacePayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(TextReplacePayloadHeader));
+
+            const std::size_t expected = sizeof(TextReplacePayloadHeader) + hdr.byteLength;
+            if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
+
+            const char* content = reinterpret_cast<const char*>(payload + sizeof(TextReplacePayloadHeader));
+            if (!self->replaceTextContent(hdr.textId, hdr.startIndex, hdr.endIndex, content, hdr.byteLength)) {
+                return EngineError::InvalidOperation;
+            }
+            break;
+        }
         case static_cast<std::uint32_t>(CommandOp::ApplyTextStyle): {
             using engine::text::ApplyTextStylePayload;
             if (payloadByteCount < engine::text::applyTextStyleHeaderBytes) {

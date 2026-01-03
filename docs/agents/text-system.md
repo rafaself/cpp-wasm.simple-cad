@@ -171,6 +171,58 @@ const hit = runtime.hitTestText(textId, localX, localY);
 
 ---
 
+## 6.1 Indexing Semantics (Logical vs UTF-16)
+
+Text APIs use two different index domains. All callers MUST convert correctly.
+
+### Definitions
+
+- Byte index: UTF-8 byte offset into the content buffer.
+- Logical index: count of Unicode code points (UTF-8 non-continuation bytes).
+  - NOT UTF-16 code units (JS string length).
+  - NOT grapheme clusters (user-perceived characters).
+
+### Engine Contract
+
+- Engine snapshot fields named `*Logical` are logical indices (code point count).
+- Engine fields named `*Byte` are UTF-8 byte indices.
+- Hit-test returns byte indices (see `TextHitResult.byteIndex`).
+
+### JS/DOM Contract
+
+- DOM selection and `textarea` indices are UTF-16 code units.
+- Before sending caret/selection/style ranges to the engine, convert from UTF-16
+  to logical indices (or to byte indices if the API expects bytes).
+- When reading snapshot values, treat them as logical indices, not UTF-16.
+
+### Example
+
+```
+content = "A😊B"
+UTF-16 length = 4 (surrogate pair)
+Logical length = 3 (A, 😊, B)
+```
+
+If this mismatch is ignored, selection, caret, and style ranges will drift on
+emoji, CJK, and other multi-byte characters.
+
+---
+
+## 6.2 Undo/Redo Contract (Text Editing)
+
+Undo/redo during text editing MUST be handled by the engine history system.
+
+- While a text edit session is active, intercept Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z
+  and call `runtime.undo()` / `runtime.redo()`; do NOT let the hidden textarea
+  perform its own undo stack.
+- After undo/redo, the editing session must resync from engine snapshots
+  (content, caret, selection, style tri-state).
+- If undo removes the active text entity, the UI must exit edit mode cleanly.
+- Text input operations should be coalesced (time window or per edit session)
+  to avoid one history entry per keystroke.
+
+---
+
 ## 7. TextTool (Frontend)
 
 Location: `frontend/engine/tools/TextTool.ts`

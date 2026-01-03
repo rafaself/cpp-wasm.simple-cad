@@ -137,6 +137,7 @@ bool CadEngine::insertTextContent(
 ) {
     const bool historyStarted = beginHistoryEntry();
     markEntityChange(textId);
+    historyManager_.markTextEdit(textId);
     if (!textSystem_.insertContent(textId, insertIndex, content, byteLength)) {
         if (historyStarted) discardHistoryEntry();
         return false;
@@ -162,6 +163,7 @@ bool CadEngine::insertTextContent(
 bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex) {
     const bool historyStarted = beginHistoryEntry();
     markEntityChange(textId);
+    historyManager_.markTextEdit(textId);
     if (!textSystem_.deleteContent(textId, startIndex, endIndex)) {
         if (historyStarted) discardHistoryEntry();
         return false;
@@ -180,6 +182,38 @@ bool CadEngine::deleteTextContent(std::uint32_t textId, std::uint32_t startIndex
         static_cast<std::uint32_t>(ChangeMask::Text)
         | static_cast<std::uint32_t>(ChangeMask::Bounds));
     
+    if (historyStarted) commitHistoryEntry();
+    return true;
+}
+
+bool CadEngine::replaceTextContent(
+    std::uint32_t textId,
+    std::uint32_t startIndex,
+    std::uint32_t endIndex,
+    const char* content,
+    std::uint32_t byteLength
+) {
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(textId);
+    historyManager_.markTextEdit(textId);
+    if (!textSystem_.replaceContent(textId, startIndex, endIndex, content, byteLength)) {
+        if (historyStarted) discardHistoryEntry();
+        return false;
+    }
+
+    renderDirty = true;
+    snapshotDirty = true;
+    markTextQuadsDirty();
+    generation++;
+
+    float minX, minY, maxX, maxY;
+    if (textSystem_.getBounds(textId, minX, minY, maxX, maxY)) {
+        pickSystem_.update(textId, {minX, minY, maxX, maxY});
+    }
+    recordEntityChanged(textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds));
+
     if (historyStarted) commitHistoryEntry();
     return true;
 }
@@ -368,7 +402,8 @@ std::vector<CadEngine::TextEntityMeta> CadEngine::getAllTextMetas() const {
                 result.push_back(TextEntityMeta{
                     id,
                     r->boxMode,
-                    r->constraintWidth
+                    r->constraintWidth,
+                    r->rotation
                 });
             }
         }

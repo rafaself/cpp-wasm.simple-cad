@@ -1,39 +1,9 @@
 #include "engine/text_system.h"
+#include "engine/core/string_utils.h"
 #include <cstring>
 #include <cmath>
 #include <algorithm>
 #include <iostream>
-
-namespace {
-// Map logical index (grapheme/codepoint approximation) to UTF-8 byte offset.
-std::uint32_t logicalToByteIndex(std::string_view content, std::uint32_t logicalIndex) {
-    std::uint32_t bytePos = 0;
-    std::uint32_t logicalCount = 0;
-    const std::size_t n = content.size();
-    while (bytePos < n && logicalCount < logicalIndex) {
-        const unsigned char c = static_cast<unsigned char>(content[bytePos]);
-        // Continuation bytes have top bits 10xxxxxx
-        if ((c & 0xC0) != 0x80) {
-            logicalCount++;
-        }
-        bytePos++;
-    }
-    return static_cast<std::uint32_t>(bytePos);
-}
-
-std::uint32_t byteToLogicalIndex(std::string_view content, std::uint32_t byteIndex) {
-    std::uint32_t logicalCount = 0;
-    const std::size_t n = content.size();
-    const std::size_t limit = std::min<std::size_t>(n, byteIndex);
-    for (std::size_t i = 0; i < limit; ++i) {
-        const unsigned char c = static_cast<unsigned char>(content[i]);
-        if ((c & 0xC0) != 0x80) {
-            logicalCount++;
-        }
-    }
-    return logicalCount;
-}
-}
 
 TextSystem::TextSystem() 
 {
@@ -92,6 +62,7 @@ bool TextSystem::deleteText(std::uint32_t id) {
     store.deleteText(id);
     layoutEngine.clearLayout(id);
     quadsDirty = true;
+    quadCache.erase(id);
     return true;
 }
 
@@ -106,6 +77,25 @@ bool TextSystem::insertContent(std::uint32_t textId, std::uint32_t insertIndex, 
 
 bool TextSystem::deleteContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex) {
     if (!store.deleteContent(textId, startIndex, endIndex)) {
+        return false;
+    }
+    // layoutEngine.layoutText(textId); // Lazy
+    quadsDirty = true;
+    return true;
+}
+
+bool TextSystem::replaceContent(
+    std::uint32_t textId,
+    std::uint32_t startIndex,
+    std::uint32_t endIndex,
+    const char* content,
+    std::uint32_t byteLen
+) {
+    if (startIndex > endIndex) std::swap(startIndex, endIndex);
+    if (!store.deleteContent(textId, startIndex, endIndex)) {
+        return false;
+    }
+    if (!store.insertContent(textId, startIndex, content, byteLen)) {
         return false;
     }
     // layoutEngine.layoutText(textId); // Lazy
@@ -153,6 +143,265 @@ bool TextSystem::getBounds(std::uint32_t textId, float& minX, float& minY, float
     return true;
 }
 
+namespace {
+struct RunStyle {
+    std::uint32_t start;
+    std::uint32_t end;
+    std::uint32_t fontId;
+    float fontSize;
+    TextStyleFlags flags;
+    float r;
+    float g;
+    float b;
+    float a;
+};
+
+std::vector<RunStyle> buildRunStyles(const std::vector<TextRun>& runs) {
+    std::vector<RunStyle> styles;
+    styles.reserve(runs.size());
+    for (const auto& run : runs) {
+        if (run.length == 0) {
+            continue;
+        }
+        RunStyle style{};
+        style.start = run.startIndex;
+        style.end = run.startIndex + run.length;
+        style.fontId = run.fontId;
+        style.fontSize = run.fontSize;
+        style.flags = run.flags;
+        const std::uint32_t rgba = run.colorRGBA;
+        style.r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
+        style.g = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
+        style.b = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
+        style.a = static_cast<float>(rgba & 0xFF) / 255.0f;
+        styles.push_back(style);
+    }
+    return styles;
+}
+
+const RunStyle* resolveRunStyle(
+    const std::vector<RunStyle>& styles,
+    std::size_t& cursor,
+    std::uint32_t clusterIndex
+) {
+    if (styles.empty()) {
+        return nullptr;
+    }
+    if (cursor >= styles.size()) {
+        cursor = styles.size() - 1;
+    }
+    const RunStyle* current = &styles[cursor];
+    if (clusterIndex >= current->start && clusterIndex < current->end) {
+        return current;
+    }
+    if (clusterIndex >= current->end) {
+        while (cursor + 1 < styles.size() && clusterIndex >= styles[cursor].end) {
+            cursor++;
+        }
+        current = &styles[cursor];
+        if (clusterIndex >= current->start && clusterIndex < current->end) {
+            return current;
+        }
+    }
+
+    auto it = std::upper_bound(
+        styles.begin(),
+        styles.end(),
+        clusterIndex,
+        [](std::uint32_t value, const RunStyle& style) { return value < style.start; }
+    );
+    if (it == styles.begin()) {
+        return nullptr;
+    }
+    --it;
+    if (clusterIndex >= it->start && clusterIndex < it->end) {
+        cursor = static_cast<std::size_t>(it - styles.begin());
+        return &(*it);
+    }
+    return nullptr;
+}
+
+void appendGlyphQuad(
+    std::vector<float>& buffer,
+    float x,
+    float y,
+    float z,
+    float w,
+    float h,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float r,
+    float g,
+    float b,
+    float a
+) {
+    buffer.push_back(x);         buffer.push_back(y);         buffer.push_back(z);
+    buffer.push_back(u0);        buffer.push_back(v1);
+    buffer.push_back(r);         buffer.push_back(g);         buffer.push_back(b);         buffer.push_back(a);
+
+    buffer.push_back(x + w);     buffer.push_back(y);         buffer.push_back(z);
+    buffer.push_back(u1);        buffer.push_back(v1);
+    buffer.push_back(r);         buffer.push_back(g);         buffer.push_back(b);         buffer.push_back(a);
+
+    buffer.push_back(x + w);     buffer.push_back(y + h);     buffer.push_back(z);
+    buffer.push_back(u1);        buffer.push_back(v0);
+    buffer.push_back(r);         buffer.push_back(g);         buffer.push_back(b);         buffer.push_back(a);
+
+    buffer.push_back(x);         buffer.push_back(y);         buffer.push_back(z);
+    buffer.push_back(u0);        buffer.push_back(v1);
+    buffer.push_back(r);         buffer.push_back(g);         buffer.push_back(b);         buffer.push_back(a);
+
+    buffer.push_back(x + w);     buffer.push_back(y + h);     buffer.push_back(z);
+    buffer.push_back(u1);        buffer.push_back(v0);
+    buffer.push_back(r);         buffer.push_back(g);         buffer.push_back(b);         buffer.push_back(a);
+
+    buffer.push_back(x);         buffer.push_back(y + h);     buffer.push_back(z);
+    buffer.push_back(u0);        buffer.push_back(v0);
+    buffer.push_back(r);         buffer.push_back(g);         buffer.push_back(b);         buffer.push_back(a);
+}
+
+void appendSolidQuad(
+    std::vector<float>& buffer,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    float z,
+    float u,
+    float v,
+    float r,
+    float g,
+    float b,
+    float a
+) {
+    buffer.push_back(x0); buffer.push_back(y0); buffer.push_back(z);
+    buffer.push_back(u);  buffer.push_back(v);
+    buffer.push_back(r);  buffer.push_back(g);  buffer.push_back(b);  buffer.push_back(a);
+
+    buffer.push_back(x1); buffer.push_back(y0); buffer.push_back(z);
+    buffer.push_back(u);  buffer.push_back(v);
+    buffer.push_back(r);  buffer.push_back(g);  buffer.push_back(b);  buffer.push_back(a);
+
+    buffer.push_back(x1); buffer.push_back(y1); buffer.push_back(z);
+    buffer.push_back(u);  buffer.push_back(v);
+    buffer.push_back(r);  buffer.push_back(g);  buffer.push_back(b);  buffer.push_back(a);
+
+    buffer.push_back(x0); buffer.push_back(y0); buffer.push_back(z);
+    buffer.push_back(u);  buffer.push_back(v);
+    buffer.push_back(r);  buffer.push_back(g);  buffer.push_back(b);  buffer.push_back(a);
+
+    buffer.push_back(x1); buffer.push_back(y1); buffer.push_back(z);
+    buffer.push_back(u);  buffer.push_back(v);
+    buffer.push_back(r);  buffer.push_back(g);  buffer.push_back(b);  buffer.push_back(a);
+
+    buffer.push_back(x0); buffer.push_back(y1); buffer.push_back(z);
+    buffer.push_back(u);  buffer.push_back(v);
+    buffer.push_back(r);  buffer.push_back(g);  buffer.push_back(b);  buffer.push_back(a);
+}
+
+bool buildTextQuads(
+    engine::text::GlyphAtlas& glyphAtlas,
+    const engine::text::TextLayout& layout,
+    const TextRec& text,
+    const std::vector<RunStyle>& runStyles,
+    std::vector<float>& out,
+    std::uint32_t expectedAtlasResetVersion,
+    bool& restartRequested
+) {
+    if (runStyles.empty() || layout.lines.empty()) {
+        return true;
+    }
+
+    const auto& whiteRect = glyphAtlas.getWhitePixelRect();
+    const float whiteU = (whiteRect.x + 0.5f) / static_cast<float>(glyphAtlas.getWidth());
+    const float whiteV = (whiteRect.y + 0.5f) / static_cast<float>(glyphAtlas.getHeight());
+
+    const float baseX = text.x;
+    const float baseY = text.y;
+    constexpr float z = 0.0f;
+
+    std::size_t runCursor = 0;
+    float yOffset = 0.0f;
+
+    for (const auto& line : layout.lines) {
+        const float baseline = yOffset - line.ascent;
+        float penX = line.xOffset;
+
+        for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
+            if (gi >= layout.glyphs.size()) break;
+            const auto& glyph = layout.glyphs[gi];
+
+            const RunStyle* style = resolveRunStyle(runStyles, runCursor, glyph.clusterIndex);
+            if (!style) {
+                penX += glyph.xAdvance;
+                continue;
+            }
+
+            const auto* atlasEntry = glyphAtlas.getGlyph(style->fontId, glyph.glyphId, style->flags);
+
+            if (glyphAtlas.getResetVersion() != expectedAtlasResetVersion) {
+                restartRequested = true;
+                return false;
+            }
+
+            if (atlasEntry && atlasEntry->width > 0.0f && atlasEntry->height > 0.0f) {
+                const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * style->fontSize;
+                const float glyphY = baseY + baseline + glyph.yOffset +
+                    (atlasEntry->bearingY - atlasEntry->height) * style->fontSize;
+                const float glyphW = atlasEntry->width * style->fontSize;
+                const float glyphH = atlasEntry->height * style->fontSize;
+
+                appendGlyphQuad(
+                    out,
+                    glyphX,
+                    glyphY,
+                    z,
+                    glyphW,
+                    glyphH,
+                    atlasEntry->u0,
+                    atlasEntry->v0,
+                    atlasEntry->u1,
+                    atlasEntry->v1,
+                    style->r,
+                    style->g,
+                    style->b,
+                    style->a
+                );
+            }
+
+            if (hasFlag(style->flags, TextStyleFlags::Underline) || hasFlag(style->flags, TextStyleFlags::Strike)) {
+                const float decStartX = baseX + penX;
+                const float decWidth = glyph.xAdvance + 0.5f;
+
+                auto drawLine = [&](float localY, float thickness) {
+                    const float x0 = decStartX;
+                    const float x1 = decStartX + decWidth;
+                    const float y0 = baseY + baseline + localY;
+                    const float y1 = y0 + thickness;
+
+                    appendSolidQuad(out, x0, y0, x1, y1, z, whiteU, whiteV, style->r, style->g, style->b, style->a);
+                };
+
+                if (hasFlag(style->flags, TextStyleFlags::Underline)) {
+                    drawLine(-style->fontSize * 0.15f, style->fontSize * 0.06f);
+                }
+                if (hasFlag(style->flags, TextStyleFlags::Strike)) {
+                    drawLine(style->fontSize * 0.3f, style->fontSize * 0.06f);
+                }
+            }
+
+            penX += glyph.xAdvance;
+        }
+
+        yOffset -= line.lineHeight;
+    }
+
+    return true;
+}
+} // namespace
+
 void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible) {
     const auto textIds = store.getAllTextIds();
     rebuildQuadBuffer(isVisible, textIds);
@@ -165,222 +414,83 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
     }
     
     // Ensure all dirty text layouts are updated
-    std::size_t laidOutCount = layoutEngine.layoutDirtyTexts();
+    const auto dirtyIds = layoutEngine.layoutDirtyTexts();
+    const bool atlasReset = glyphAtlas.getResetVersion() != quadCacheAtlasResetVersion;
     
-    // If nothing changed in layout, atlas, or explicit dirty flag, skip rebuilding
-    if (laidOutCount == 0 && !glyphAtlas.isDirty() && !quadsDirty) {
+    // If nothing changed in layout or explicit dirty flag, skip rebuilding
+    if (!atlasReset && dirtyIds.empty() && !quadsDirty) {
         return;
     }
 
-    quadBuffer.clear();
-    quadsDirty = false;
-    
-    // Capture initial atlas version to detect resets
-    std::uint32_t initialAtlasVersion = glyphAtlas.getVersion();
-    
-    // We might need to restart if atlas resets
+    const bool forceFullRebuild = atlasReset || quadCache.empty() || (quadsDirty && dirtyIds.empty());
+    std::vector<std::uint32_t> rebuildIds;
+    if (forceFullRebuild) {
+        quadCache.clear();
+        quadCacheAtlasResetVersion = glyphAtlas.getResetVersion();
+        rebuildIds = store.getAllTextIds();
+    } else {
+        rebuildIds = dirtyIds;
+    }
+
     bool restart = false;
-    
     do {
         if (restart) {
-            quadBuffer.clear();
-            initialAtlasVersion = glyphAtlas.getVersion();
+            quadCache.clear();
+            quadCacheAtlasResetVersion = glyphAtlas.getResetVersion();
+            rebuildIds = store.getAllTextIds();
             restart = false;
         }
 
-        // For each text entity, generate quads for its glyphs
-        for (std::uint32_t textId : drawOrder) {
-            if (isVisible && !isVisible(textId)) {
+        for (std::uint32_t textId : rebuildIds) {
+            const TextRec* text = store.getText(textId);
+            if (!text) {
+                quadCache.erase(textId);
                 continue;
             }
-            if (restart) break; // Break inner loop to restart outer loop
 
-            const TextRec* text = store.getText(textId);
-            if (!text) continue;
-            
-            // Ensure layout if somehow missed (though layoutDirtyTexts above covers most)
-            // But layoutDirtyTexts relies on consuming dirty IDs. ensureLayout is safer if mixed.
             layoutEngine.ensureLayout(textId);
-
             const auto* layout = layoutEngine.getLayout(textId);
-            if (!layout) continue;
-            
-
-        
-        // Get the runs for color info
-        const auto& runs = store.getRuns(textId);
-        
-        const float baseX = text->x;
-        const float baseY = text->y;
-        constexpr float z = 0.0f; // Text at z=0 for now
-        
-        // Track Y offset for lines (Y grows upward in this coordinate system)
-        // First line starts at baseY, subsequent lines go DOWN (decreasing Y)
-        float yOffset = 0.0f;
-        
-        // Process each line
-        for (const auto& line : layout->lines) {
-            // Baseline is at yOffset - line.ascent (ascent goes UP from baseline)
-            // For Y-up: baseline is below the top of the line
-            const float baseline = yOffset - line.ascent;
-            
-            // Accumulated pen position for glyph X (horizontal advance)
-            float penX = line.xOffset;
-            
-            // Process glyphs in this line using the index range
-            for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
-                if (gi >= layout->glyphs.size()) break;
-                const auto& glyph = layout->glyphs[gi];
-                
-                // Get atlas entry for this glyph
-                // Note: We need to know the fontId for the glyph, which requires looking up the run
-                std::uint32_t fontId = 0;
-                float fontSize = 16.0f;
-                float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
-                TextStyleFlags styleFlags = TextStyleFlags::None;
-                
-                // Find the run this glyph belongs to for font and color
-                for (const auto& run : runs) {
-                    if (glyph.clusterIndex >= run.startIndex && glyph.clusterIndex < run.startIndex + run.length) {
-                        fontId = run.fontId;
-                        fontSize = run.fontSize;
-                        styleFlags = run.flags;
-                        // Extract color from RGBA packed value
-                        std::uint32_t rgba = run.colorRGBA;
-                        r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
-                        g = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-                        b = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
-                        a = static_cast<float>(rgba & 0xFF) / 255.0f;
-                        break;
-                    }
-                }
-                
-                const auto* atlasEntry = glyphAtlas.getGlyph(fontId, glyph.glyphId, styleFlags);
-                
-                // version check
-                if (glyphAtlas.getVersion() != initialAtlasVersion) {
-                    restart = true;
-                    break;
-                }
-
-                if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
-                    // Still advance penX for whitespace/missing glyphs
-                    // We might still need to render decorations (underline/strike) for spaces!
-                    if (hasFlag(styleFlags, TextStyleFlags::Underline) || hasFlag(styleFlags, TextStyleFlags::Strike)) {
-                        // handled below
-                    } else {
-                        // Skip quad generation for whitespace if no decoration
-                        // But MUST advance penX regardless
-                    }
-                }
-                
-                if (atlasEntry && atlasEntry->width > 0.0f && atlasEntry->height > 0.0f) {
-                    // Use actual scale for glyph bitmap sizing
-                    const float scale = fontSize / atlasEntry->fontSize;
-                    // Note: engine.cpp used fontSize directly if atlasEntry sizes are normalized?
-                    // engine.cpp: const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * fontSize;
-                    // engine.cpp: const float glyphW = atlasEntry->width * fontSize;
-                    // This assumes atlasEntry->width is in Ems or similar?
-                    // Let's assume engine.cpp logic is correct.
-                    
-                    const float glyphX = baseX + (penX + glyph.xOffset) + atlasEntry->bearingX * fontSize;
-                    const float glyphY = baseY + baseline + glyph.yOffset + (atlasEntry->bearingY - atlasEntry->height) * fontSize;
-                    const float glyphW = atlasEntry->width * fontSize;
-                    const float glyphH = atlasEntry->height * fontSize;
-                    
-                    const float u0 = atlasEntry->u0;
-                    const float v0 = atlasEntry->v0;
-                    const float u1 = atlasEntry->u1;
-                    const float v1 = atlasEntry->v1;
-
-                    // Triangle 1: (X, Y), (X+W, Y), (X+W, Y+H) -> BL, BR, TR
-                    quadBuffer.push_back(glyphX);          quadBuffer.push_back(glyphY);          quadBuffer.push_back(z);
-                    quadBuffer.push_back(u0);              quadBuffer.push_back(v1);              // BL -> Bottom UV
-                    quadBuffer.push_back(r);               quadBuffer.push_back(g);               quadBuffer.push_back(b);               quadBuffer.push_back(a);
-                    
-                    quadBuffer.push_back(glyphX + glyphW); quadBuffer.push_back(glyphY);          quadBuffer.push_back(z);
-                    quadBuffer.push_back(u1);              quadBuffer.push_back(v1);              // BR -> Bottom UV
-                    quadBuffer.push_back(r);               quadBuffer.push_back(g);               quadBuffer.push_back(b);               quadBuffer.push_back(a);
-                    
-                    quadBuffer.push_back(glyphX + glyphW); quadBuffer.push_back(glyphY + glyphH); quadBuffer.push_back(z);
-                    quadBuffer.push_back(u1);              quadBuffer.push_back(v0);              // TR -> Top UV
-                    quadBuffer.push_back(r);               quadBuffer.push_back(g);               quadBuffer.push_back(b);               quadBuffer.push_back(a);
-                    
-                    // Triangle 2: (X, Y), (X+W, Y+H), (X, Y+H) -> BL, TR, TL
-                    quadBuffer.push_back(glyphX);          quadBuffer.push_back(glyphY);          quadBuffer.push_back(z);
-                    quadBuffer.push_back(u0);              quadBuffer.push_back(v1);              // BL -> Bottom UV
-                    quadBuffer.push_back(r);               quadBuffer.push_back(g);               quadBuffer.push_back(b);               quadBuffer.push_back(a);
-                    
-                    quadBuffer.push_back(glyphX + glyphW); quadBuffer.push_back(glyphY + glyphH); quadBuffer.push_back(z);
-                    quadBuffer.push_back(u1);              quadBuffer.push_back(v0);              // TR -> Top UV
-                    quadBuffer.push_back(r);               quadBuffer.push_back(g);               quadBuffer.push_back(b);               quadBuffer.push_back(a);
-
-                    quadBuffer.push_back(glyphX);          quadBuffer.push_back(glyphY + glyphH); quadBuffer.push_back(z);
-                    quadBuffer.push_back(u0);              quadBuffer.push_back(v0);              // TL -> Top UV
-                    quadBuffer.push_back(r);               quadBuffer.push_back(g);               quadBuffer.push_back(b);               quadBuffer.push_back(a);
-                }
-                
-                // --- DECORATION RENDERING (Underline / Strikethrough) ---
-                if (hasFlag(styleFlags, TextStyleFlags::Underline) || hasFlag(styleFlags, TextStyleFlags::Strike)) {
-                    const auto& whiteRect = glyphAtlas.getWhitePixelRect();
-                    const float whiteU = (whiteRect.x + 0.5f) / static_cast<float>(glyphAtlas.getWidth());
-                    const float whiteV = (whiteRect.y + 0.5f) / static_cast<float>(glyphAtlas.getHeight());
-                    
-                    const float decStartX = baseX + penX;
-                    // Extend slightly (0.5px) to ensure overlap and continuous line, avoiding subpixel gaps
-                    const float decWidth = glyph.xAdvance + 0.5f; 
-                    
-                    auto drawLine = [&](float localY, float thickness) {
-                        const float x0 = decStartX;
-                        const float x1 = decStartX + decWidth;
-                        // Correction: baseline already includes yOffset. Do NOT add yOffset again!
-                        const float y0 = baseY + baseline + localY;
-                        const float y1 = y0 + thickness;
-                        
-                        // BL
-                        quadBuffer.push_back(x0); quadBuffer.push_back(y0); quadBuffer.push_back(z);
-                        quadBuffer.push_back(whiteU); quadBuffer.push_back(whiteV);
-                        quadBuffer.push_back(r); quadBuffer.push_back(g); quadBuffer.push_back(b); quadBuffer.push_back(a);
-                        // BR
-                        quadBuffer.push_back(x1); quadBuffer.push_back(y0); quadBuffer.push_back(z);
-                        quadBuffer.push_back(whiteU); quadBuffer.push_back(whiteV);
-                        quadBuffer.push_back(r); quadBuffer.push_back(g); quadBuffer.push_back(b); quadBuffer.push_back(a);
-                        // TR
-                        quadBuffer.push_back(x1); quadBuffer.push_back(y1); quadBuffer.push_back(z);
-                        quadBuffer.push_back(whiteU); quadBuffer.push_back(whiteV);
-                        quadBuffer.push_back(r); quadBuffer.push_back(g); quadBuffer.push_back(b); quadBuffer.push_back(a);
-                        
-                        // BL
-                        quadBuffer.push_back(x0); quadBuffer.push_back(y0); quadBuffer.push_back(z);
-                        quadBuffer.push_back(whiteU); quadBuffer.push_back(whiteV);
-                        quadBuffer.push_back(r); quadBuffer.push_back(g); quadBuffer.push_back(b); quadBuffer.push_back(a);
-                        // TR
-                        quadBuffer.push_back(x1); quadBuffer.push_back(y1); quadBuffer.push_back(z);
-                        quadBuffer.push_back(whiteU); quadBuffer.push_back(whiteV);
-                        quadBuffer.push_back(r); quadBuffer.push_back(g); quadBuffer.push_back(b); quadBuffer.push_back(a);
-                        // TL
-                        quadBuffer.push_back(x0); quadBuffer.push_back(y1); quadBuffer.push_back(z);
-                        quadBuffer.push_back(whiteU); quadBuffer.push_back(whiteV);
-                        quadBuffer.push_back(r); quadBuffer.push_back(g); quadBuffer.push_back(b); quadBuffer.push_back(a);
-                    };
-                    
-                    if (hasFlag(styleFlags, TextStyleFlags::Underline)) {
-                        drawLine(-fontSize * 0.15f, fontSize * 0.06f);
-                    }
-                    if (hasFlag(styleFlags, TextStyleFlags::Strike)) {
-                        drawLine(fontSize * 0.3f, fontSize * 0.06f);
-                    }
-                }
-                
-                // Advance pen position by glyph advance
-                penX += glyph.xAdvance;
+            if (!layout) {
+                quadCache.erase(textId);
+                continue;
             }
-            
-            // Move yOffset to next line (decreasing Y for Y-up system)
-            yOffset -= line.lineHeight;
+
+            const auto& runs = store.getRuns(textId);
+            const auto runStyles = buildRunStyles(runs);
+
+            auto& entry = quadCache[textId];
+            entry.quads.clear();
+            if (!runStyles.empty() && !layout->glyphs.empty()) {
+                entry.quads.reserve(layout->glyphs.size() * 54);
+                if (!buildTextQuads(
+                        glyphAtlas,
+                        *layout,
+                        *text,
+                        runStyles,
+                        entry.quads,
+                        quadCacheAtlasResetVersion,
+                        restart
+                    )) {
+                    if (restart) break;
+                }
+            }
         }
-    }
     } while (restart);
+
+    quadBuffer.clear();
+    for (std::uint32_t textId : drawOrder) {
+        if (isVisible && !isVisible(textId)) {
+            continue;
+        }
+        auto it = quadCache.find(textId);
+        if (it == quadCache.end() || it->second.quads.empty()) {
+            continue;
+        }
+        const auto& quads = it->second.quads;
+        quadBuffer.insert(quadBuffer.end(), quads.begin(), quads.end());
+    }
+
+    quadsDirty = false;
 }
 
 bool TextSystem::isAtlasDirty() const {
@@ -398,6 +508,8 @@ void TextSystem::clear() {
     if (initialized) {
         glyphAtlas.clearAtlas();
     }
+    quadCache.clear();
+    quadCacheAtlasResetVersion = 0;
     quadBuffer.clear();
     quadsDirty = true;
 }
@@ -498,8 +610,8 @@ bool TextSystem::applyTextStyle(const engine::text::ApplyTextStylePayload& paylo
     std::uint32_t endLogical = payload.rangeEndLogical;
     if (startLogical > endLogical) std::swap(startLogical, endLogical);
     
-    const std::uint32_t byteStart = logicalToByteIndex(content, startLogical);
-    const std::uint32_t byteEnd = logicalToByteIndex(content, endLogical);
+    const std::uint32_t byteStart = engine::logicalToByteIndex(content, startLogical);
+    const std::uint32_t byteEnd = engine::logicalToByteIndex(content, endLogical);
 
     if (byteStart > byteEnd) return true;
 

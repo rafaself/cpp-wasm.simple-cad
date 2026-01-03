@@ -557,7 +557,7 @@ void InteractionSession::updateTransform(
                        tr->minY = newY + offsetMinY;
                        tr->maxX = newX + offsetMaxX;
                        tr->maxY = newY + offsetMaxY;
-                      engine_.state().textQuadsDirty_ = true;
+                      engine_.markTextQuadsDirty();
                       pickSystem_.update(id, {tr->minX, tr->minY, tr->maxX, tr->maxY});
                        updated = true;
                    }
@@ -1024,7 +1024,7 @@ void InteractionSession::cancelTransform() {
                  tr->minY = tr->y + offsetMinY;
                  tr->maxX = tr->x + offsetMaxX;
                  tr->maxY = tr->y + offsetMaxY;
-                 engine_.state().textQuadsDirty_ = true;
+                 engine_.markTextQuadsDirty();
                  pickSystem_.update(id, {tr->minX, tr->minY, tr->maxX, tr->maxY});
              }
         } else if (it->second.kind == EntityKind::Polyline) {

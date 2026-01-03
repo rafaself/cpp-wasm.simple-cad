@@ -51,6 +51,7 @@ export type TextEntityMeta = {
   id: number;
   boxMode: number;
   constraintWidth: number;
+  rotation: number;
 };
 
 type WasmTextMetaVector = {

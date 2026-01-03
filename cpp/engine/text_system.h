@@ -7,6 +7,7 @@
 #include "engine/text/text_style_contract.h"
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 class TextSystem {
 public:
@@ -18,6 +19,11 @@ public:
     bool initialized{false};
     mutable std::vector<float> quadBuffer;
     mutable bool quadsDirty{true};
+    struct QuadCacheEntry {
+        std::vector<float> quads;
+    };
+    mutable std::unordered_map<std::uint32_t, QuadCacheEntry> quadCache;
+    mutable std::uint32_t quadCacheAtlasResetVersion{0};
 
     TextSystem();
 
@@ -30,6 +36,7 @@ public:
     bool deleteText(std::uint32_t id);
     bool insertContent(std::uint32_t textId, std::uint32_t insertIndex, const char* content, std::uint32_t byteLen);
     bool deleteContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex);
+    bool replaceContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex, const char* content, std::uint32_t byteLen);
     
     // Styling
     bool applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen);

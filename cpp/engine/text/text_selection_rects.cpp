@@ -1,6 +1,7 @@
 #include "engine/text/text_layout.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace engine::text {
 
@@ -42,10 +43,12 @@ std::vector<TextLayoutEngine::SelectionRect> TextLayoutEngine::getSelectionRects
             TextCaretPosition startPos = getCaretPosition(textId, selStart);
             TextCaretPosition endPos = getCaretPosition(textId, selEnd);
             
+            const float x0 = startPos.x;
+            const float x1 = endPos.x;
             SelectionRect rect;
-            rect.x = startPos.x;
+            rect.x = std::min(x0, x1);
             rect.y = nextY; // Rect Y is the BOTTOM of the rectangle in Y-Up (standard for our rects?)
-            rect.width = endPos.x - startPos.x;
+            rect.width = std::fabs(x1 - x0);
             rect.height = line.lineHeight;
             rect.lineIndex = lineIdx;
             
@@ -61,4 +64,3 @@ std::vector<TextLayoutEngine::SelectionRect> TextLayoutEngine::getSelectionRects
 }
 
 } // namespace engine::text
-

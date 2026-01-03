@@ -141,6 +141,7 @@ GlyphAtlas::GlyphAtlas()
     : fontManager_(nullptr)
     , dirty_(false)
     , version_(0)
+    , resetVersion_(0)
 {
 }
 
@@ -188,6 +189,7 @@ bool GlyphAtlas::initialize(FontManager* fontManager, const Config& config) {
 
     dirty_ = true;
     version_ = 1;
+    resetVersion_ = 0;
     
     return true;
 }
@@ -199,6 +201,7 @@ void GlyphAtlas::shutdown() {
     fontManager_ = nullptr;
     dirty_ = false;
     version_ = 0;
+    resetVersion_ = 0;
 }
 
 const GlyphAtlasEntry* GlyphAtlas::getGlyph(std::uint32_t fontId, std::uint32_t glyphId, TextStyleFlags style) {
@@ -587,6 +590,7 @@ void GlyphAtlas::clearAtlas() {
     glyphCache_.clear();
     dirty_ = true;
     ++version_;
+    ++resetVersion_;
 }
 
 } // namespace engine::text

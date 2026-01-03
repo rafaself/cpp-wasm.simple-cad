@@ -248,7 +248,27 @@ const hashStruct = (h: number, tag: number, size: number, offsets: readonly numb
 const computeAbiHash = (): number => {
   let h = ABI_HASH_OFFSET;
 
-  h = hashEnum(h, 0xe0000001, [1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 42, 43]);
+  h = hashEnum(h, 0xe0000001, [
+    1,
+    2,
+    3,
+    4,
+    5,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    25,
+    42,
+    43,
+  ]);
 
   h = hashEnum(h, 0xe0000002, [0, 1, 2, 3, 4, 5, 6, 7]);
 
@@ -433,6 +453,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x53000018, 16, [0, 4, 8, 12]);
 
   h = hashStruct(h, 0x53000019, 16, [0, 4, 8, 12]);
+
+  h = hashStruct(h, 0x5300001e, 16, [0, 4, 8, 12]);
 
   h = hashStruct(h, 0x5300001a, 8, [0, 4]);
 

@@ -31,6 +31,7 @@ describe('TextInputCoordinator', () => {
       getTextContent: vi.fn(() => 'Hello'),
       insertContentByteIndex: vi.fn(),
       deleteContentByteIndex: vi.fn(),
+      replaceContentByteIndex: vi.fn(),
       setCaretByteIndex: vi.fn(),
       setSelectionByteIndex: vi.fn(),
       getTextStyleSnapshot: vi.fn(() => ({

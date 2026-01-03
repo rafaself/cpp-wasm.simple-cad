@@ -133,6 +133,7 @@ protected:
             static_cast<std::uint32_t>(CommandOp::SetTextSelection),
             static_cast<std::uint32_t>(CommandOp::InsertTextContent),
             static_cast<std::uint32_t>(CommandOp::DeleteTextContent),
+            static_cast<std::uint32_t>(CommandOp::ReplaceTextContent),
             static_cast<std::uint32_t>(CommandOp::ApplyTextStyle),
             static_cast<std::uint32_t>(CommandOp::SetTextAlign),
         });
@@ -529,6 +530,13 @@ protected:
             static_cast<std::uint32_t>(offsetof(TextDeletePayload, startIndex)),
             static_cast<std::uint32_t>(offsetof(TextDeletePayload, endIndex)),
             static_cast<std::uint32_t>(offsetof(TextDeletePayload, reserved)),
+        });
+
+        h = hashStruct(h, 0x5300001Eu, sizeof(TextReplacePayloadHeader), {
+            static_cast<std::uint32_t>(offsetof(TextReplacePayloadHeader, textId)),
+            static_cast<std::uint32_t>(offsetof(TextReplacePayloadHeader, startIndex)),
+            static_cast<std::uint32_t>(offsetof(TextReplacePayloadHeader, endIndex)),
+            static_cast<std::uint32_t>(offsetof(TextReplacePayloadHeader, byteLength)),
         });
 
         h = hashStruct(h, 0x5300001Au, sizeof(TextAlignmentPayload), {

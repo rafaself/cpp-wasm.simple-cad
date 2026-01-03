@@ -14,6 +14,7 @@ import {
   charIndexToByteIndex,
   type TextPayload,
   type TextInputDelta,
+  type TextCompositionState,
   type TextStyleSnapshot,
 } from '@/types/text';
 
@@ -302,6 +303,7 @@ export class TextTool {
     rotation: number,
     boxMode?: TextBoxMode,
     constraintWidth?: number,
+    viewScale = 1,
     startDrag = true,
   ): void {
     if (!this.isReady()) return;
@@ -315,6 +317,7 @@ export class TextTool {
       rotation,
       boxMode,
       constraintWidth,
+      viewScale,
       startDrag,
     );
   }
@@ -396,6 +399,13 @@ export class TextTool {
   handleInputDelta(delta: TextInputDelta): void {
     // Delegate to input coordinator
     this.inputCoordinator.handleInputDelta(delta);
+  }
+
+  /**
+   * Handle IME composition updates from TextInputProxy.
+   */
+  handleComposition(state: TextCompositionState): void {
+    this.inputCoordinator.handleComposition(state);
   }
 
   /**

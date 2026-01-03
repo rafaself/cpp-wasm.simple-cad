@@ -14,6 +14,7 @@ import {
   type TextSelectionPayload,
   type TextInsertPayload,
   type TextDeletePayload,
+  type TextReplacePayload,
 } from '@/engine/core/commandBuffer';
 import {
   TextHitResult,
@@ -38,6 +39,12 @@ export class TextBridge {
   private textApi: TextSystem;
   private initialized = false;
   private navigator: TextNavigator;
+  private contentCache = new Map<
+    number,
+    { generation: number; ptr: number; byteCount: number; content: string }
+  >();
+  private contentCacheGeneration = -1;
+  private contentDecoder = new TextDecoder('utf-8');
 
   /**
    * Get engine-authoritative style snapshot (selection, caret, tri-state flags).
@@ -302,6 +309,42 @@ export class TextBridge {
   }
 
   /**
+   * Replace text content in a range.
+   */
+  replaceContent(textId: number, startChar: number, endChar: number, text: string, currentContent: string): void {
+    const startByte = charToByteIndex(currentContent, startChar);
+    const endByte = charToByteIndex(currentContent, endChar);
+    this.runtime.apply([
+      {
+        op: CommandOp.ReplaceTextContent,
+        replace: {
+          textId,
+          startIndex: startByte,
+          endIndex: endByte,
+          content: text,
+        } as TextReplacePayload,
+      },
+    ]);
+  }
+
+  /**
+   * Replace text content using byte indices directly.
+   */
+  replaceContentByteIndex(textId: number, startByte: number, endByte: number, text: string): void {
+    this.runtime.apply([
+      {
+        op: CommandOp.ReplaceTextContent,
+        replace: {
+          textId,
+          startIndex: startByte,
+          endIndex: endByte,
+          content: text,
+        } as TextReplacePayload,
+      },
+    ]);
+  }
+
+  /**
    * Hit test a point against a text entity.
    * @param textId Text entity ID
    * @param localX X coordinate in text-local space
@@ -333,15 +376,50 @@ export class TextBridge {
   getTextContent(textId: number): string | null {
     if (!this.isAvailable()) return null;
 
-    const meta = this.textApi.getTextContentMeta(textId);
-    if (!meta.exists || meta.byteCount === 0) {
-      return meta.exists ? '' : null;
+    const stats = this.runtime.getStats();
+    if (stats.generation !== this.contentCacheGeneration) {
+      this.contentCache.clear();
+      this.contentCacheGeneration = stats.generation;
     }
 
-    // Read UTF-8 bytes from WASM memory
+    const meta = this.textApi.getTextContentMeta(textId);
+    if (!meta.exists || meta.byteCount === 0) {
+      if (!meta.exists) {
+        this.contentCache.delete(textId);
+        return null;
+      }
+      const cached = this.contentCache.get(textId);
+      if (cached && cached.byteCount === 0 && cached.ptr === meta.ptr) {
+        return cached.content;
+      }
+      this.contentCache.set(textId, {
+        generation: stats.generation,
+        ptr: meta.ptr,
+        byteCount: 0,
+        content: '',
+      });
+      return '';
+    }
+
+    const cached = this.contentCache.get(textId);
+    if (
+      cached &&
+      cached.generation === stats.generation &&
+      cached.ptr === meta.ptr &&
+      cached.byteCount === meta.byteCount
+    ) {
+      return cached.content;
+    }
+
     const bytes = this.runtime.module.HEAPU8.subarray(meta.ptr, meta.ptr + meta.byteCount);
-    const decoder = new TextDecoder('utf-8');
-    return decoder.decode(bytes);
+    const content = this.contentDecoder.decode(bytes);
+    this.contentCache.set(textId, {
+      generation: stats.generation,
+      ptr: meta.ptr,
+      byteCount: meta.byteCount,
+      content,
+    });
+    return content;
   }
 
   /**
@@ -471,7 +549,7 @@ export class TextBridge {
   getAtlasTextureData(): Uint8Array | null {
     if (!this.isAvailable()) return null;
 
-    const meta = this.textEngine.getAtlasTextureMeta();
+    const meta = this.textApi.getAtlasTextureMeta();
     if (!meta || meta.byteCount === 0) return null;
 
     // Return a view into the WASM heap
@@ -485,7 +563,7 @@ export class TextBridge {
   getQuadBufferData(): Float32Array | null {
     if (!this.isAvailable()) return null;
 
-    const meta = this.textEngine.getTextQuadBufferMeta();
+    const meta = this.textApi.getTextQuadBufferMeta();
     if (!meta || meta.floatCount === 0) return null;
 
     // Return a view into the WASM heap

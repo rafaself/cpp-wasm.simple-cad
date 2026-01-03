@@ -169,10 +169,13 @@ export interface TextCaretPosition {
  * Engine-authoritative text style snapshot (preferred over queries).
  */
 export interface TextStyleSnapshot {
+  /** UTF-16 code unit index */
   selectionStartLogical: number;
+  /** UTF-16 code unit index */
   selectionEndLogical: number;
   selectionStartByte: number;
   selectionEndByte: number;
+  /** UTF-16 code unit index */
   caretLogical: number;
   caretByte: number;
   lineIndex: number;
@@ -261,6 +264,8 @@ export type TextInputDelta =
 export interface TextCompositionState {
   /** Whether we're in an IME composition */
   composing: boolean;
+  /** Composition lifecycle phase */
+  phase: 'start' | 'update' | 'end';
   /** Composition preview text */
   compositionText: string;
   /** Where the composition started */

@@ -9,6 +9,7 @@ import {
   charIndexToByteIndex,
   byteIndexToCharIndex,
   type TextInputDelta,
+  type TextCompositionState,
 } from '@/types/text';
 
 import type { TextBridge } from '@/engine/bridge/textBridge';
@@ -79,6 +80,7 @@ export class TextInputCoordinator {
     y: 0,
     count: 0,
   };
+  private compositionState: { start: number; end: number; text: string } | null = null;
 
   constructor(callbacks: CoordinatorCallbacks, styleDefaults: StyleDefaults) {
     this.callbacks = callbacks;
@@ -130,6 +132,7 @@ export class TextInputCoordinator {
     this.state = this.createInitialState();
     this.selectionDragAnchor = null;
     this.isDragging = false;
+    this.compositionState = null;
   }
 
   /**
@@ -295,6 +298,7 @@ export class TextInputCoordinator {
     rotation: number,
     boxMode?: TextBoxMode,
     constraintWidth?: number,
+    viewScale = 1,
     startDrag = true,
   ): void {
     if (!this.isReady() || !this.bridge) return;
@@ -317,7 +321,7 @@ export class TextInputCoordinator {
     // Multi-click detection (word / all selection)
     const now = performance.now();
     const CLICK_THRESHOLD_MS = 500;
-    const CLICK_DIST_THRESH = 4;
+    const CLICK_DIST_THRESH = 4 / (viewScale || 1);
     let clickCount = 1;
 
     if (
@@ -500,9 +504,7 @@ export class TextInputCoordinator {
     }
 
     // Update state from engine snapshot
-    // Note: Engine provides 'Logical' indices which correspond to JS char indices (usually)
-    // If mismatch proves to be an issue with emojis, we might need byte-to-char conversion
-    // but TextStyleSnapshot.caretLogical is designed for this.
+    // Engine logical indices are UTF-16 code units (aligned with JS string indices).
     this.state = {
       ...this.state,
       caretIndex,
@@ -521,6 +523,29 @@ export class TextInputCoordinator {
     this.lastDiagnosticTs = now;
   }
 
+  private notifyTextUpdated(textId: number): void {
+    if (!this.bridge) return;
+    const bounds = this.bridge.getTextBounds(textId);
+    let estimatedWidth = 100;
+    let estimatedHeight = 16;
+
+    if (bounds && bounds.valid) {
+      estimatedWidth = bounds.maxX - bounds.minX;
+      estimatedHeight = bounds.maxY - bounds.minY;
+    } else {
+      estimatedWidth =
+        this.state.boxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 50;
+      estimatedHeight = this.styleDefaults.fontSize;
+    }
+
+    this.callbacks.onTextUpdated?.(
+      textId,
+      { width: estimatedWidth, height: estimatedHeight },
+      this.state.boxMode,
+      this.state.constraintWidth,
+    );
+  }
+
   /**
    * Handle text input delta from TextInputProxy.
    */
@@ -528,6 +553,7 @@ export class TextInputCoordinator {
     if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
       return;
     }
+    if (this.compositionState) return;
 
     const textId = this.state.activeTextId;
 
@@ -553,8 +579,7 @@ export class TextInputCoordinator {
         const startByte = charIndexToByteIndex(currentContent, delta.start);
         const endByte = charIndexToByteIndex(currentContent, delta.end);
 
-        this.bridge.deleteContentByteIndex(textId, startByte, endByte);
-        this.bridge.insertContentByteIndex(textId, startByte, delta.text);
+        this.bridge.replaceContentByteIndex(textId, startByte, endByte, delta.text);
         break;
       }
     }
@@ -589,26 +614,7 @@ export class TextInputCoordinator {
 
     this.syncStateFromEngine();
 
-    // 3. Notify JS side for shape bounds (estimated or computed)
-    const bounds = this.bridge.getTextBounds(textId);
-    let estimatedWidth = 100;
-    let estimatedHeight = 16;
-
-    if (bounds && bounds.valid) {
-      estimatedWidth = bounds.maxX - bounds.minX;
-      estimatedHeight = bounds.maxY - bounds.minY;
-    } else {
-      estimatedWidth =
-        this.state.boxMode === TextBoxMode.FixedWidth ? this.state.constraintWidth : 50;
-      estimatedHeight = this.styleDefaults.fontSize;
-    }
-
-    this.callbacks.onTextUpdated?.(
-      textId,
-      { width: estimatedWidth, height: estimatedHeight },
-      this.state.boxMode,
-      this.state.constraintWidth,
-    );
+    this.notifyTextUpdated(textId);
   }
 
   /**
@@ -616,6 +622,7 @@ export class TextInputCoordinator {
    */
   handleSelectionChange(start: number, end: number): void {
     if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return;
+    if (this.compositionState) return;
 
     const textId = this.state.activeTextId;
     const currentContent = this.getPooledContent();
@@ -630,5 +637,60 @@ export class TextInputCoordinator {
     }
 
     this.syncStateFromEngine();
+  }
+
+  /**
+   * Handle IME composition updates from TextInputProxy.
+   */
+  handleComposition(state: TextCompositionState): void {
+    if (!this.isReady() || !this.bridge || this.state.activeTextId === null) return;
+
+    const textId = this.state.activeTextId;
+    if (state.phase === 'start') {
+      const start = Math.min(this.state.selectionStart, this.state.selectionEnd);
+      const end = Math.max(this.state.selectionStart, this.state.selectionEnd);
+      this.compositionState = { start, end, text: '' };
+    } else if (!this.compositionState) {
+      const start = Math.min(this.state.selectionStart, this.state.selectionEnd);
+      const end = Math.max(this.state.selectionStart, this.state.selectionEnd);
+      this.compositionState = { start, end, text: '' };
+    }
+
+    if (!this.compositionState) return;
+
+    const currentContent = this.getPooledContent();
+    const newText = state.compositionText ?? '';
+    const replaceStart = Math.min(this.compositionState.start, currentContent.length);
+    const replaceEndBase =
+      this.compositionState.text.length > 0
+        ? this.compositionState.start + this.compositionState.text.length
+        : this.compositionState.end;
+    const replaceEnd = Math.min(replaceEndBase, currentContent.length);
+
+    const startByte = charIndexToByteIndex(currentContent, replaceStart);
+    const endByte = charIndexToByteIndex(currentContent, replaceEnd);
+    this.bridge.replaceContentByteIndex(textId, startByte, endByte, newText);
+
+    this.compositionState.text = newText;
+    this.compositionState.end = this.compositionState.start + newText.length;
+
+    const nextLength = currentContent.length - (replaceEnd - replaceStart) + newText.length;
+    const caretIndex = Math.min(this.compositionState.start + newText.length, nextLength);
+
+    this.state = {
+      ...this.state,
+      caretIndex,
+      selectionStart: caretIndex,
+      selectionEnd: caretIndex,
+    };
+
+    this.callbacks.onStateChange(this.state);
+    this.callbacks.updateCaretPosition();
+    this.notifyTextUpdated(textId);
+
+    if (state.phase === 'end') {
+      this.compositionState = null;
+      this.syncStateFromEngine();
+    }
   }
 }

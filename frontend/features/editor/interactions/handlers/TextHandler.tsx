@@ -198,9 +198,10 @@ export class TextHandler extends BaseInteractionHandler {
         event.shiftKey,
         anchorX,
         anchorY,
-        0,
+        meta?.rotation ?? 0,
         meta?.boxMode,
         meta?.constraintWidth ?? 0,
+        ctx.viewTransform.scale,
         true,
       );
     } else {
@@ -223,7 +224,12 @@ export class TextHandler extends BaseInteractionHandler {
   }
 
   onLeave(): void {
-    this.textTool.resetEditingState('tool-switch');
+    const isEditing = this.state?.mode === 'creating' || this.state?.mode === 'editing';
+    if (isEditing) {
+      this.textTool.commitAndExit();
+    } else {
+      this.textTool.resetEditingState('tool-switch');
+    }
     if (this.removeListener) {
       this.removeListener();
       this.removeListener = null;
@@ -376,9 +382,7 @@ const TextHandlerOverlay: React.FC<{ handler: TextHandler }> = ({ handler }) => 
         positionHint={caretScreen}
         onInput={(d) => handler.textTool.handleInputDelta(d)}
         onSelectionChange={(s, e) => handler.textTool.handleSelectionChange(s, e)}
-        onCompositionChange={(c) => {
-          /* Optional: handler.textTool.handleComposition(c) */
-        }}
+        onCompositionChange={(c) => handler.textTool.handleComposition(c)}
         onSpecialKey={(k, e) => handler.textTool.handleSpecialKey(k, e as any)}
       />
     </>

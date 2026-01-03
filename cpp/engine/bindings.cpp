@@ -383,7 +383,8 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
     emscripten::value_object<CadEngine::TextEntityMeta>("TextEntityMeta")
         .field("id", &CadEngine::TextEntityMeta::id)
         .field("boxMode", &CadEngine::TextEntityMeta::boxMode)
-        .field("constraintWidth", &CadEngine::TextEntityMeta::constraintWidth);
+        .field("constraintWidth", &CadEngine::TextEntityMeta::constraintWidth)
+        .field("rotation", &CadEngine::TextEntityMeta::rotation);
 
     emscripten::register_vector<std::uint32_t>("VectorUInt32");
     emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");

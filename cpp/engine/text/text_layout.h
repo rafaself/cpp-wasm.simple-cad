@@ -65,9 +65,9 @@ public:
     
     /**
      * Layout all dirty text entities.
-     * @return Number of texts laid out
+     * @return IDs of texts that were laid out
      */
-    std::size_t layoutDirtyTexts();
+    std::vector<std::uint32_t> layoutDirtyTexts();
     
     /**
      * Force re-layout of all texts.

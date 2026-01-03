@@ -10,7 +10,7 @@ const spies = vi.hoisted(() => ({
 
 vi.mock('@/engine/core/singleton', () => ({
   getEngineRuntime: vi.fn().mockResolvedValue({
-    getAllTextMetas: () => [{ id: 1, boxMode: 0, constraintWidth: 0 }],
+    getAllTextMetas: () => [{ id: 1, boxMode: 0, constraintWidth: 0, rotation: 0 }],
   }),
 }));
 

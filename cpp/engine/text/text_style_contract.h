@@ -45,8 +45,8 @@ static constexpr std::uint8_t textStyleTagUnderlineThick  = 0x41; // f32 (reserv
 #pragma pack(push, 1)
 struct ApplyTextStylePayload {
     std::uint32_t textId;
-    std::uint32_t rangeStartLogical; // grapheme index, inclusive
-    std::uint32_t rangeEndLogical;   // grapheme index, end-exclusive
+    std::uint32_t rangeStartLogical; // UTF-16 code unit index, inclusive
+    std::uint32_t rangeEndLogical;   // UTF-16 code unit index, end-exclusive
     std::uint8_t  flagsMask;         // bits: bold/italic/underline/strike
     std::uint8_t  flagsValue;        // applied where mask=1; ignored when mode=toggle
     std::uint8_t  mode;              // 0=set, 1=clear, 2=toggle

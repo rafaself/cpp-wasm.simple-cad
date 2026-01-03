@@ -84,6 +84,9 @@ bool CadEngine::isTextQuadsDirty() const {
 
 void CadEngine::markTextQuadsDirty() const {
     textQuadsDirty_ = true;
+    if (textSystem_.initialized) {
+        textSystem_.quadsDirty = true;
+    }
 }
 
 bool CadEngine::isInteractionActive() const {

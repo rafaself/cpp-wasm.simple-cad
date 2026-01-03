@@ -209,6 +209,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         composingRef.current = true;
         onCompositionChange?.({
           composing: true,
+          phase: 'start',
           compositionText: e.data || '',
           compositionStart: e.currentTarget.selectionStart ?? 0,
         });
@@ -220,6 +221,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
       (e: React.CompositionEvent<HTMLTextAreaElement>) => {
         onCompositionChange?.({
           composing: true,
+          phase: 'update',
           compositionText: e.data || '',
           compositionStart: e.currentTarget.selectionStart ?? 0,
         });
@@ -231,29 +233,16 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
       (e: React.CompositionEvent<HTMLTextAreaElement>) => {
         composingRef.current = false;
 
-        // Emit the final composed text as an insert
-        const composedText = e.data;
-        if (composedText) {
-          const target = e.currentTarget;
-          const insertAt = (target.selectionStart ?? 0) - composedText.length;
-
-          onInput({
-            type: 'insert',
-            text: composedText,
-            at: Math.max(0, insertAt),
-          });
-        }
-
         onCompositionChange?.({
           composing: false,
-          compositionText: '',
-          compositionStart: 0,
+          phase: 'end',
+          compositionText: e.data || '',
+          compositionStart: e.currentTarget.selectionStart ?? 0,
         });
 
-        // Update our tracking
         lastContentRef.current = e.currentTarget.value;
       },
-      [onInput, onCompositionChange],
+      [onCompositionChange],
     );
 
     const handlePaste = useCallback(

@@ -222,6 +222,7 @@ enum class CommandOp : std::uint32_t {
     SetTextSelection = 17,
     InsertTextContent = 18,   // Insert text at caret position
     DeleteTextContent = 19,   // Delete text range
+    ReplaceTextContent = 25,  // Replace text range
     BeginDraft = 20,
     UpdateDraft = 21,
     CommitDraft = 22,
@@ -342,6 +343,15 @@ struct TextDeletePayload {
     std::uint32_t startIndex;   // UTF-8 byte start (inclusive)
     std::uint32_t endIndex;     // UTF-8 byte end (exclusive)
     std::uint32_t reserved;
+};
+
+// ReplaceTextContent payload (variable-length)
+// Layout: [TextReplacePayloadHeader][UTF-8 bytes]
+struct TextReplacePayloadHeader {
+    std::uint32_t textId;
+    std::uint32_t startIndex;   // UTF-8 byte start (inclusive)
+    std::uint32_t endIndex;     // UTF-8 byte end (exclusive)
+    std::uint32_t byteLength;   // Length of UTF-8 content following
 };
 
 // SetTextAlign payload

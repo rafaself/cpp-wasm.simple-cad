@@ -124,7 +124,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
             entityManager_.entityFlags[rec.id] = rec.flags;
             entityManager_.entityLayers[rec.id] = rec.layerId;
         }
-        textQuadsDirty_ = true;
+        markTextQuadsDirty();
     }
 
     entityManager_.drawOrderIds.clear();

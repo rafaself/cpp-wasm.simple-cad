@@ -35,6 +35,7 @@ public:
     void markLayerChange();
     void markDrawOrderChange();
     void markSelectionChange(const std::vector<std::uint32_t>& currentSelection);
+    void markTextEdit(std::uint32_t textId);
 
     // Serialization
     std::vector<std::uint8_t> encodeBytes() const;
