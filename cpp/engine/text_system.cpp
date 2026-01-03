@@ -378,10 +378,7 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
             // Move yOffset to next line (decreasing Y for Y-up system)
             yOffset -= line.lineHeight;
         }
-            yOffset -= line.lineHeight;
-        }
     }
-    
     } while (restart);
 }
 

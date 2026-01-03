@@ -126,15 +126,6 @@ public:
      */
     std::uint32_t getCharIndexAtX(std::uint32_t textId, std::uint32_t lineIndex, float localX) const;
     
-    /**
-     * Get the character index at a given X position on a specific line.
-     * @param textId Text entity ID
-     * @param lineIndex Line number (0-based)
-     * @param localX X coordinate in text-local space
-     * @return Character index (byte offset)
-     */
-    std::uint32_t getCharIndexAtX(std::uint32_t textId, std::uint32_t lineIndex, float localX) const;
-    
     // =========================================================================
     // Caret Operations
     // =========================================================================

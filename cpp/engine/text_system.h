@@ -12,7 +12,7 @@ class TextSystem {
 public:
     engine::text::TextStore store;
     engine::text::FontManager fontManager;
-    engine::text::TextLayoutEngine layoutEngine;
+    mutable engine::text::TextLayoutEngine layoutEngine;
     engine::text::GlyphAtlas glyphAtlas;
 
     bool initialized{false};
