@@ -192,7 +192,8 @@ private:
     const GlyphAtlasEntry* generateGlyph(
         std::uint32_t fontId,
         std::uint32_t glyphId,
-        TextStyleFlags style
+        TextStyleFlags style,
+        bool isRetry = false
     );
     
     /**

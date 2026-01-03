@@ -355,7 +355,8 @@ float GlyphAtlas::getUsageRatio() const {
 const GlyphAtlasEntry* GlyphAtlas::generateGlyph(
     std::uint32_t fontId,
     std::uint32_t glyphId,
-    TextStyleFlags style
+    TextStyleFlags style,
+    bool isRetry
 ) {
     if (!isInitialized()) {
         return nullptr;
@@ -456,13 +457,19 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(
     );
     
     if (!packResult) {
+        if (isRetry) {
+            // Already tried clearing and it still won't fit.
+            // This means the glyph is larger than the empty atlas.
+            return nullptr;
+        }
+
         // Atlas is full!
         // Clear everything to free space
         clearAtlas();
         
         // Retry packing (recursive call, assuming it will fit in empty atlas)
         // We must re-fetch pointers because clearAtlas invalidates everything
-        return generateGlyph(fontId, glyphId, style);
+        return generateGlyph(fontId, glyphId, style, true);
     }
     
     // Generate MSDF
