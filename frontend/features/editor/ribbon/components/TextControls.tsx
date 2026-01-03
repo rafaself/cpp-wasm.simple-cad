@@ -26,10 +26,8 @@ import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 
 // Familiar font names users recognize
 const FONT_OPTIONS = [
-  { value: 'Inter', label: 'Inter' },
-  { value: 'Roboto', label: 'Roboto' },
   { value: 'Open Sans', label: 'Open Sans' },
-  { value: 'Times', label: 'Times' },
+  { value: 'Noto Serif', label: 'Noto Serif' },
 ];
 
 type StyleState = 'off' | 'on' | 'mixed';

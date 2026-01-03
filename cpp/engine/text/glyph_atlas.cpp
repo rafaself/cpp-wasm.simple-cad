@@ -410,9 +410,26 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(
         return &result.first->second;
     }
     
-    // Normalize shape and assign edge colors
+    // Validate and normalize shape geometry
+    if (!shape.validate()) {
+        // Malformed shape, create empty entry
+        GlyphKey key = makeKey(fontId, glyphId, style);
+        GlyphAtlasEntry entry = {};
+        entry.glyphId = glyphId;
+        entry.fontId = fontId;
+        entry.fontSize = static_cast<float>(config_.msdfSize);
+        FT_Load_Glyph(face, glyphId, FT_LOAD_NO_SCALE);
+        entry.advance = static_cast<float>(face->glyph->advance.x) / static_cast<float>(face->units_per_EM);
+        auto result = glyphCache_.emplace(key, entry);
+        return &result.first->second;
+    }
+    
     shape.normalize();
-    msdfgen::edgeColoringSimple(shape, 3.0);
+    
+    // Use edgeColoringByDistance for more robust handling of complex glyphs
+    // This algorithm better handles self-intersecting paths and complex curves
+    // The angle threshold (3.0 radians ~= 171 degrees) determines corner detection
+    msdfgen::edgeColoringByDistance(shape, 3.0);
     
     // Get glyph bounds
     msdfgen::Shape::Bounds bounds = shape.getBounds();

@@ -31,40 +31,22 @@ interface FontFamilyConfig {
 // Font families with real bold/italic variants for professional quality rendering.
 // Each variant is a separate TTF file with proper typographic design.
 const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
-  'Inter': {
-    baseId: 4,
+  'Open Sans': {
+    baseId: 1,
     variants: {
-      regular:    { fontId: 4,  url: '/fonts/Inter-Regular.ttf', bold: false, italic: false },
-      bold:       { fontId: 10, url: '/fonts/Inter-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 11, url: '/fonts/Inter-Italic.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 12, url: '/fonts/Inter-BoldItalic.ttf', bold: true, italic: true },
+      regular:    { fontId: 1,  url: '/fonts/OpenSans-Regular.ttf', bold: false, italic: false },
+      bold:       { fontId: 2,  url: '/fonts/OpenSans-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 3,  url: '/fonts/OpenSans-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 4,  url: '/fonts/OpenSans-BoldItalic.ttf', bold: true, italic: true },
     },
   },
   'Noto Serif': {
-    baseId: 5,
+    baseId: 10,
     variants: {
-      regular:    { fontId: 5,  url: '/fonts/NotoSerif-Regular.ttf', bold: false, italic: false },
-      bold:       { fontId: 13, url: '/fonts/NotoSerif-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 14, url: '/fonts/NotoSerif-Italic.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 15, url: '/fonts/NotoSerif-BoldItalic.ttf', bold: true, italic: true },
-    },
-  },
-  'Roboto': {
-    baseId: 20,
-    variants: {
-      regular:    { fontId: 20, url: '/fonts/Roboto-Regular.ttf', bold: false, italic: false },
-      bold:       { fontId: 21, url: '/fonts/Roboto-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 22, url: '/fonts/Roboto-Italic.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 23, url: '/fonts/Roboto-BoldItalic.ttf', bold: true, italic: true },
-    },
-  },
-  'Open Sans': {
-    baseId: 30,
-    variants: {
-      regular:    { fontId: 30, url: '/fonts/OpenSans-Regular.ttf', bold: false, italic: false },
-      bold:       { fontId: 31, url: '/fonts/OpenSans-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 32, url: '/fonts/OpenSans-Italic.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 33, url: '/fonts/OpenSans-BoldItalic.ttf', bold: true, italic: true },
+      regular:    { fontId: 10, url: '/fonts/NotoSerif-Regular.ttf', bold: false, italic: false },
+      bold:       { fontId: 11, url: '/fonts/NotoSerif-Bold.ttf', bold: true, italic: false },
+      italic:     { fontId: 12, url: '/fonts/NotoSerif-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 13, url: '/fonts/NotoSerif-BoldItalic.ttf', bold: true, italic: true },
     },
   },
 };
@@ -72,13 +54,15 @@ const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
 // Map familiar font names to available fonts
 const FAMILY_ALIASES: Record<string, string> = {
   'Times': 'Noto Serif',
-  // Legacy aliases
-  'Arial': 'Inter',
-  'Helvetica': 'Inter',
-  'DejaVu Sans': 'Inter',
   'Times New Roman': 'Noto Serif',
   'Georgia': 'Noto Serif',
   'DejaVu Serif': 'Noto Serif',
+  // Sans-serif aliases now point to Open Sans
+  'Arial': 'Open Sans',
+  'Helvetica': 'Open Sans',
+  'Inter': 'Open Sans',
+  'Roboto': 'Open Sans',
+  'DejaVu Sans': 'Open Sans',
 };
 
 const listeners = new Set<TextToolListener>();
@@ -180,9 +164,9 @@ async function loadFontVariant(
  * Resolve a font family name to our internal family config.
  */
 function resolveFamily(fontFamily: string | undefined): FontFamilyConfig {
-  if (!fontFamily) return FONT_FAMILIES['Inter'];
+  if (!fontFamily) return FONT_FAMILIES['Open Sans'];
   const aliased = FAMILY_ALIASES[fontFamily] ?? fontFamily;
-  return FONT_FAMILIES[aliased] ?? FONT_FAMILIES['Inter'];
+  return FONT_FAMILIES[aliased] ?? FONT_FAMILIES['Open Sans'];
 }
 
 /**

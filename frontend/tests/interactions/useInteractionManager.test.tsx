@@ -46,7 +46,7 @@ describe('useInteractionManager', () => {
         polygonSides: 3,
         text: {
           fontSize: 16,
-          fontFamily: 'Inter',
+          fontFamily: 'Open Sans',
           align: 'left',
           bold: false,
           italic: false,
