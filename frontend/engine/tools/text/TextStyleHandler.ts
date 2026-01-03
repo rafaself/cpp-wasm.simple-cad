@@ -57,9 +57,14 @@ export class TextStyleHandler {
 
     // Handle collapsed selection: use caret for typing attributes
     if (rangeStart === rangeEnd) {
-      const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
-      rangeStart = caret;
-      rangeEnd = caret;
+      if (contentLength > 0) {
+        rangeStart = 0;
+        rangeEnd = contentLength;
+      } else {
+        const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
+        rangeStart = caret;
+        rangeEnd = caret;
+      }
     }
 
     const payload: ApplyTextStylePayload = {
@@ -238,9 +243,14 @@ export class TextStyleHandler {
     rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
 
     if (rangeStart === rangeEnd) {
-      const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
-      rangeStart = caret;
-      rangeEnd = caret;
+      if (contentLength > 0) {
+        rangeStart = 0;
+        rangeEnd = contentLength;
+      } else {
+        const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
+        rangeStart = caret;
+        rangeEnd = caret;
+      }
     }
 
     const payload: ApplyTextStylePayload = {
@@ -259,6 +269,8 @@ export class TextStyleHandler {
     const caretByte = charIndexToByteIndex(styleContent, state.caretIndex);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
+    this.syncBoundsAndNotify(textId, styleContent, state.boxMode, state.constraintWidth);
+    this.callbacks.onCaretUpdate?.();
     return true;
   }
 

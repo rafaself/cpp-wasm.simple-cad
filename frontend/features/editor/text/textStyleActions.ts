@@ -19,10 +19,10 @@ async function filterTextIds(ids: number[], runtime: EngineRuntime): Promise<num
 }
 
 async function getContext(selectedIds: number[], fontFamilyHint?: string) {
-  const runtime = await getEngineRuntime();
-  const tool = await ensureTextToolReady(runtime, fontFamilyHint);
   const editingState = useUIStore.getState().engineTextEditState;
   const editingTextId = editingState.active ? editingState.textId : null;
+  const runtime = await getEngineRuntime();
+  const tool = await ensureTextToolReady(runtime, fontFamilyHint);
   const targetIds = editingTextId === null ? await filterTextIds(selectedIds, runtime) : [];
 
   return { tool, editingTextId, targetIds };
