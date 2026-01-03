@@ -59,10 +59,12 @@ void TextSystem::initialize() {
 }
 
 bool TextSystem::loadFont(std::uint32_t fontId, const void* data, std::size_t size) {
+    return loadFontEx(fontId, data, size, false, false);
+}
+
+bool TextSystem::loadFontEx(std::uint32_t fontId, const void* data, std::size_t size, bool bold, bool italic) {
     if (!initialized) initialize();
-    // Assuming external data is passed. We use "External" as family name for now.
-    // Ideally family name should be parsed or passed.
-    return fontManager.registerFont(fontId, static_cast<const std::uint8_t*>(data), size, "External");
+    return fontManager.registerFont(fontId, static_cast<const std::uint8_t*>(data), size, "External", bold, italic);
 }
 
 bool TextSystem::upsertText(
@@ -79,7 +81,7 @@ bool TextSystem::upsertText(
         return false;
     }
     
-    layoutEngine.layoutText(id);
+    // layoutEngine.layoutText(id); // Lazy: moved to ensureLayout
     quadsDirty = true;
     return true;
 }
@@ -97,7 +99,7 @@ bool TextSystem::insertContent(std::uint32_t textId, std::uint32_t insertIndex, 
     if (!store.insertContent(textId, insertIndex, content, byteLen)) {
         return false;
     }
-    layoutEngine.layoutText(textId);
+    // layoutEngine.layoutText(textId); // Lazy
     quadsDirty = true;
     return true;
 }
@@ -106,7 +108,7 @@ bool TextSystem::deleteContent(std::uint32_t textId, std::uint32_t startIndex, s
     if (!store.deleteContent(textId, startIndex, endIndex)) {
         return false;
     }
-    layoutEngine.layoutText(textId);
+    // layoutEngine.layoutText(textId); // Lazy
     quadsDirty = true;
     return true;
 }
@@ -119,13 +121,14 @@ bool TextSystem::setTextAlign(std::uint32_t textId, TextAlign align) {
     if (rec->align == align) return true;
     
     rec->align = align;
-    layoutEngine.layoutText(textId);
+    // layoutEngine.layoutText(textId); // Lazy
     quadsDirty = true;
     return true;
 }
 
 TextHitResult TextSystem::hitTest(std::uint32_t textId, float localX, float localY) const {
     if (!initialized) return TextHitResult{0, 0, true};
+    // hitTest internally calls ensureLayout now
     return layoutEngine.hitTest(textId, localX, localY);
 }
 
@@ -136,7 +139,8 @@ TextCaretPosition TextSystem::getCaretPosition(std::uint32_t textId, std::uint32
 
 bool TextSystem::getBounds(std::uint32_t textId, float& minX, float& minY, float& maxX, float& maxY) {
     // Ensure layout is up-to-date
-    layoutEngine.layoutDirtyTexts();
+    // Ensure layout is up-to-date for this text
+    layoutEngine.ensureLayout(textId);
     
     const TextRec*text = store.getText(textId);
     if (!text) return false;
@@ -170,16 +174,37 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
     quadBuffer.clear();
     quadsDirty = false;
     
-    // For each text entity, generate quads for its glyphs
-    for (std::uint32_t textId : drawOrder) {
-        if (isVisible && !isVisible(textId)) {
-            continue;
+    // Capture initial atlas version to detect resets
+    std::uint32_t initialAtlasVersion = glyphAtlas.getVersion();
+    
+    // We might need to restart if atlas resets
+    bool restart = false;
+    
+    do {
+        if (restart) {
+            quadBuffer.clear();
+            initialAtlasVersion = glyphAtlas.getVersion();
+            restart = false;
         }
-        const TextRec* text = store.getText(textId);
-        if (!text) continue;
-        
-        const auto* layout = layoutEngine.getLayout(textId);
-        if (!layout) continue;
+
+        // For each text entity, generate quads for its glyphs
+        for (std::uint32_t textId : drawOrder) {
+            if (isVisible && !isVisible(textId)) {
+                continue;
+            }
+            if (restart) break; // Break inner loop to restart outer loop
+
+            const TextRec* text = store.getText(textId);
+            if (!text) continue;
+            
+            // Ensure layout if somehow missed (though layoutDirtyTexts above covers most)
+            // But layoutDirtyTexts relies on consuming dirty IDs. ensureLayout is safer if mixed.
+            layoutEngine.ensureLayout(textId);
+
+            const auto* layout = layoutEngine.getLayout(textId);
+            if (!layout) continue;
+            
+
         
         // Get the runs for color info
         const auto& runs = store.getRuns(textId);
@@ -230,6 +255,13 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
                 }
                 
                 const auto* atlasEntry = glyphAtlas.getGlyph(fontId, glyph.glyphId, styleFlags);
+                
+                // version check
+                if (glyphAtlas.getVersion() != initialAtlasVersion) {
+                    restart = true;
+                    break;
+                }
+
                 if (!atlasEntry || atlasEntry->width == 0.0f || atlasEntry->height == 0.0f) {
                     // Still advance penX for whitespace/missing glyphs
                     // We might still need to render decorations (underline/strike) for spaces!
@@ -346,7 +378,11 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
             // Move yOffset to next line (decreasing Y for Y-up system)
             yOffset -= line.lineHeight;
         }
+            yOffset -= line.lineHeight;
+        }
     }
+    
+    } while (restart);
 }
 
 bool TextSystem::isAtlasDirty() const {

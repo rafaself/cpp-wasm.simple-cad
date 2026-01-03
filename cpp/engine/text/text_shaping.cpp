@@ -160,6 +160,31 @@ void TextLayoutEngine::layoutAllTexts() {
     }
 }
 
+bool TextLayoutEngine::ensureLayout(std::uint32_t textId) {
+    if (!textStore_->hasText(textId)) return false;
+
+    // Check if dirty in store OR dirty in layout cache (or missing from cache)
+    bool needsLayout = textStore_->isDirty(textId);
+    if (!needsLayout) {
+        auto it = layoutCache_.find(textId);
+        if (it != layoutCache_.end() && it->second.dirty) {
+            needsLayout = true;
+        } else if (it == layoutCache_.end()) {
+            needsLayout = true; // Never laid out
+        }
+    }
+
+    if (needsLayout) {
+        bool result = layoutText(textId);
+        if (result) {
+            // Clear store dirty flag as we've handled it eagerly
+            textStore_->clearDirty(textId);
+        }
+        return result;
+    }
+    return true;
+}
+
 bool TextLayoutEngine::shapeRun(
     std::string_view content,
     const TextRun& run,
@@ -279,6 +304,10 @@ void TextLayoutEngine::breakLines(
         currentLine.lineHeight = std::max(currentLine.lineHeight, m.ascender - m.descender + m.lineGap);
     };
 
+    // Optimization: avoid re-searching runs from scratch if we wrapped
+    // But wrapping logic is complex, for safety we can reset currentRunIdx when line wraps if needed.
+    // However, since we process glyphs linearly, currentRunIdx should only increase.
+    
     for (std::uint32_t i = 0; i < glyphs.size(); ++i) {
         const ShapedGlyph& glyph = glyphs[i];
         float glyphWidth = glyph.xAdvance;

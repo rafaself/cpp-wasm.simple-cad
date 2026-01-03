@@ -8,10 +8,14 @@ std::vector<TextLayoutEngine::SelectionRect> TextLayoutEngine::getSelectionRects
     std::uint32_t textId,
     std::uint32_t startIndex,
     std::uint32_t endIndex
-) const {
+) {
     std::vector<SelectionRect> rects;
     
     if (startIndex >= endIndex) {
+        return rects;
+    }
+    
+    if (!ensureLayout(textId)) {
         return rects;
     }
     

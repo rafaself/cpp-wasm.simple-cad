@@ -179,7 +179,16 @@ bool FontManager::registerFont(
         return false;
     }
     
-    auto handle = createFontHandle(fontId, face, std::move(dataCopy), familyName, bold, italic);
+    // Determine family name from font file if not provided
+    std::string family = familyName;
+    if (family.empty() && face->family_name) {
+        family = face->family_name;
+    }
+    if (family.empty()) {
+        family = "Unknown";
+    }
+    
+    auto handle = createFontHandle(fontId, face, std::move(dataCopy), family, bold, italic);
     
     if (!handle) {
         FT_Done_Face(face);
@@ -187,6 +196,13 @@ bool FontManager::registerFont(
     }
     
     fonts_[fontId] = std::move(handle);
+    
+    // Register in family map for variant lookup (use resolved family name)
+    if (!family.empty()) {
+        familyMap_[family].push_back(fontId);
+        printf("[FontManager] registerFont: fontId=%u family='%s' bold=%d italic=%d (familyMapSize=%zu)\n", 
+               fontId, family.c_str(), bold, italic, familyMap_[family].size());
+    }
     
     // Update nextFontId if necessary
     if (fontId >= nextFontId_) {
@@ -262,29 +278,43 @@ std::vector<std::uint32_t> FontManager::getLoadedFontIds() const {
 std::uint32_t FontManager::getFontVariant(std::uint32_t baseFontId, bool bold, bool italic) const {
     // 1. Get base family
     const FontHandle* base = getFont(baseFontId);
-    if (!base) return baseFontId;
+    if (!base) {
+        printf("[FontManager] getFontVariant: base font %u not found\n", baseFontId);
+        return baseFontId;
+    }
 
     const std::string& family = base->familyName;
-    if (family.empty()) return baseFontId;
+    if (family.empty()) {
+        printf("[FontManager] getFontVariant: base font %u has empty family\n", baseFontId);
+        return baseFontId;
+    }
 
     // 2. Look up family variants
     auto it = familyMap_.find(family);
-    if (it == familyMap_.end()) return baseFontId;
+    if (it == familyMap_.end()) {
+        printf("[FontManager] getFontVariant: family '%s' not in familyMap (mapSize=%zu)\n", family.c_str(), familyMap_.size());
+        return baseFontId;
+    }
 
     // 3. Find best match
     // Priority: Exact match > Partial match (e.g. Bold requested, but found BoldItalic? No, usually strict on traits)
     // We want the font that matches the expected traits.
+    printf("[FontManager] getFontVariant: searching family '%s' with %zu fonts for bold=%d italic=%d\n", 
+           family.c_str(), it->second.size(), bold, italic);
     
     for (std::uint32_t id : it->second) {
         const FontHandle* h = getFont(id);
+        if (h) {
+            printf("[FontManager]   font %u: bold=%d italic=%d\n", id, h->bold, h->italic);
+        }
         if (h && h->bold == bold && h->italic == italic) {
+            printf("[FontManager]   MATCH: returning font %u\n", id);
             return id;
         }
     }
     
     // Fallback: If we can't find exact match, return base.
-    // (Could potentially look for "closest", e.g. if BoldItalic requested but only Bold exists, might return Bold?)
-    // For now, strict match or fallback to base.
+    printf("[FontManager]   NO MATCH: returning base %u\n", baseFontId);
     return baseFontId;
 }
 

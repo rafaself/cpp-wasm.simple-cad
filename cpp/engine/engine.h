@@ -283,6 +283,17 @@ public:
     bool loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize);
     
     /**
+     * Load a font with style variant flags.
+     * @param fontId Font identifier
+     * @param fontDataPtr Pointer to font file data
+     * @param dataSize Size of font data in bytes
+     * @param bold Whether this is a bold variant
+     * @param italic Whether this is an italic variant
+     * @return True if font loaded successfully
+     */
+    bool loadFontEx(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize, bool bold, bool italic);
+    
+    /**
      * Upsert (create or update) a text entity.
      * @param id Entity ID
      * @param header Text payload header with properties

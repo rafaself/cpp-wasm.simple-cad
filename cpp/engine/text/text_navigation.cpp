@@ -49,7 +49,8 @@ static bool isWordChar(std::uint32_t cp) {
 std::uint32_t TextLayoutEngine::getVisualPrevCharIndex(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
+    if (!ensureLayout(textId)) return 0;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) return 0;
 
@@ -114,7 +115,8 @@ std::uint32_t TextLayoutEngine::getVisualPrevCharIndex(
 std::uint32_t TextLayoutEngine::getVisualNextCharIndex(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
+    if (!ensureLayout(textId)) return charIndex;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) return charIndex;
     
@@ -161,7 +163,8 @@ std::uint32_t TextLayoutEngine::getVisualNextCharIndex(
 std::uint32_t TextLayoutEngine::getWordLeftIndex(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
+    if (!ensureLayout(textId)) return 0;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) return 0;
     
@@ -243,7 +246,8 @@ std::uint32_t TextLayoutEngine::getWordLeftIndex(
 std::uint32_t TextLayoutEngine::getWordRightIndex(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
+    if (!ensureLayout(textId)) return charIndex;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) return charIndex;
     
@@ -319,7 +323,8 @@ std::uint32_t TextLayoutEngine::getWordRightIndex(
 std::uint32_t TextLayoutEngine::getLineStartIndex(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
+    if (!ensureLayout(textId)) return 0;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) {
         return 0;
@@ -337,7 +342,8 @@ std::uint32_t TextLayoutEngine::getLineStartIndex(
 std::uint32_t TextLayoutEngine::getLineEndIndex(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
+    if (!ensureLayout(textId)) return charIndex;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) {
         return 0;
@@ -353,7 +359,8 @@ std::uint32_t TextLayoutEngine::getLineEndIndex(
     return last.startByte + last.byteCount;
 }
 
-std::uint32_t TextLayoutEngine::getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+std::uint32_t TextLayoutEngine::getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) {
+    if (!ensureLayout(textId)) return charIndex;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) return charIndex;
 
@@ -367,7 +374,8 @@ std::uint32_t TextLayoutEngine::getLineUpIndex(std::uint32_t textId, std::uint32
     return getCharIndexAtX(textId, targetLineIndex, currentPos.x);
 }
 
-std::uint32_t TextLayoutEngine::getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const {
+std::uint32_t TextLayoutEngine::getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) {
+    if (!ensureLayout(textId)) return charIndex;
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) return charIndex;
 

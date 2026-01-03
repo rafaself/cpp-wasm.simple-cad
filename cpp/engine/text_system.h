@@ -23,6 +23,7 @@ public:
 
     void initialize();
     bool loadFont(std::uint32_t fontId, const void* data, std::size_t size);
+    bool loadFontEx(std::uint32_t fontId, const void* data, std::size_t size, bool bold, bool italic);
     
     // Core text operations (delegates to store/layout)
     bool upsertText(std::uint32_t id, const TextPayloadHeader& hdr, const TextRunPayload* runs, std::uint32_t runCount, const char* content, std::uint32_t contentLen);

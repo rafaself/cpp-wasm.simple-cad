@@ -71,7 +71,7 @@ bool TextStore::upsertText(
         TextRun defaultRun;
         defaultRun.startIndex = 0;
         defaultRun.length = contentLength;
-        defaultRun.fontId = 4;  // Use fontId=4 (Inter/DejaVu Sans) as default
+        defaultRun.fontId = 4;  // Use fontId=4 (Inter) as default
         defaultRun.fontSize = 16.0f;
         defaultRun.colorRGBA = 0xFFFFFFFF;  // White
         defaultRun.flags = TextStyleFlags::None;
@@ -172,7 +172,7 @@ bool TextStore::insertContent(
     auto& runsVec = runs_[id];
     if (runsVec.empty() && !content.empty()) {
         // Create a default run covering all content
-        // Use fontId=4 (Inter/DejaVu Sans) as default since fontId=0 has no font loaded
+        // Use fontId=4 (Inter) as default since fontId=0 has no font loaded
         TextRun defaultRun;
         defaultRun.startIndex = 0;
         defaultRun.length = static_cast<std::uint32_t>(content.size());
@@ -344,6 +344,14 @@ std::vector<std::uint32_t> TextStore::consumeDirtyIds() {
 
 bool TextStore::hasDirtyEntities() const {
     return !dirtyIds_.empty();
+}
+
+bool TextStore::isDirty(std::uint32_t id) const {
+    return dirtyIds_.find(id) != dirtyIds_.end();
+}
+
+void TextStore::clearDirty(std::uint32_t id) {
+    dirtyIds_.erase(id);
 }
 
 // =============================================================================

@@ -65,6 +65,15 @@ export class FakeRuntime {
   draftUpdateCalls = 0;
   appendDraftPointCalls = 0;
   generation = 0;
+  text = {
+    getTextBounds: (_id: number) => ({
+      minX: 0,
+      minY: 0,
+      maxX: 0,
+      maxY: 0,
+      valid: false,
+    }),
+  };
 
   engine = {
     queryMarquee: (_x1: number, _y1: number, _x2: number, _y2: number, _hitMode: number) => {
@@ -79,6 +88,11 @@ export class FakeRuntime {
 
   addTextEntity(id: number): void {
     this.textEntities.add(id);
+  }
+
+  getTextEntityMeta(id: number) {
+    if (!this.textEntities.has(id)) return null;
+    return { id, boxMode: 0, constraintWidth: 0 };
   }
 
   setPickResult(result: Partial<PickResult>): void {

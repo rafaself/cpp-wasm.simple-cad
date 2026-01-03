@@ -73,6 +73,14 @@ public:
      * Force re-layout of all texts.
      */
     void layoutAllTexts();
+
+    /**
+     * Ensure a specific text entity is laid out and up-to-date.
+     * Checks dirty flags and re-layouts if necessary.
+     * @param textId Text entity ID
+     * @return True if text exists and is valid (freshly laid out or was already valid)
+     */
+    bool ensureLayout(std::uint32_t textId);
     
     /**
      * Get the layout result for a text entity.
@@ -107,7 +115,16 @@ public:
      * @param localY Y coordinate in text-local space
      * @return Hit result with character index
      */
-    TextHitResult hitTest(std::uint32_t textId, float localX, float localY) const;
+    TextHitResult hitTest(std::uint32_t textId, float localX, float localY);
+    
+    /**
+     * Get the character index at a given X position on a specific line.
+     * @param textId Text entity ID
+     * @param lineIndex Line number (0-based)
+     * @param localX X coordinate in text-local space
+     * @return Character index (byte offset)
+     */
+    std::uint32_t getCharIndexAtX(std::uint32_t textId, std::uint32_t lineIndex, float localX) const;
     
     /**
      * Get the character index at a given X position on a specific line.
@@ -128,7 +145,7 @@ public:
      * @param charIndex Character index (byte offset)
      * @return Caret position in text-local space
      */
-    TextCaretPosition getCaretPosition(std::uint32_t textId, std::uint32_t charIndex) const;
+    TextCaretPosition getCaretPosition(std::uint32_t textId, std::uint32_t charIndex);
     
     /**
      * Get selection rectangles for a text range.
@@ -145,7 +162,7 @@ public:
         std::uint32_t textId,
         std::uint32_t startIndex,
         std::uint32_t endIndex
-    ) const;
+    );
     
     // =========================================================================
     // Navigation
@@ -163,7 +180,7 @@ public:
      * @param charIndex Current character index
      * @return New character index aligned to cluster boundary
      */
-    std::uint32_t getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getVisualPrevCharIndex(std::uint32_t textId, std::uint32_t charIndex);
     
     /**
      * Get the next character index visually (right).
@@ -171,37 +188,37 @@ public:
      * @param charIndex Current character index
      * @return New character index aligned to cluster boundary
      */
-    std::uint32_t getVisualNextCharIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getVisualNextCharIndex(std::uint32_t textId, std::uint32_t charIndex);
 
     /**
      * Get the word boundary to the left.
      */
-    std::uint32_t getWordLeftIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getWordLeftIndex(std::uint32_t textId, std::uint32_t charIndex);
 
     /**
      * Get the word boundary to the right.
      */
-    std::uint32_t getWordRightIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getWordRightIndex(std::uint32_t textId, std::uint32_t charIndex);
     
     /**
      * Get the character index at the start of the line containing charIndex.
      */
-    std::uint32_t getLineStartIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineStartIndex(std::uint32_t textId, std::uint32_t charIndex);
     
     /**
      * Get the character index at the end of the line containing charIndex.
      */
-    std::uint32_t getLineEndIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineEndIndex(std::uint32_t textId, std::uint32_t charIndex);
 
     /**
      * Get the character index one line up from the current visual position.
      */
-    std::uint32_t getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineUpIndex(std::uint32_t textId, std::uint32_t charIndex);
 
     /**
      * Get the character index one line down from the current visual position.
      */
-    std::uint32_t getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex) const;
+    std::uint32_t getLineDownIndex(std::uint32_t textId, std::uint32_t charIndex);
     
 private:
     FontManager* fontManager_ = nullptr;

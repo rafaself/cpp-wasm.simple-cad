@@ -30,52 +30,12 @@ import {
 import { TextNavigator, charToByteIndex, byteToCharIndex } from './textNavigation';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
-
-/** Extended CadEngine instance with text methods exposed via Embind. */
-export interface TextEnabledCadEngine {
-  clear: () => void;
-  allocBytes: (byteCount: number) => number;
-  freeBytes: (ptr: number) => void;
-  applyCommandBuffer: (ptr: number, byteCount: number) => void;
-  initializeTextSystem: () => boolean;
-  loadFont: (fontId: number, fontDataPtr: number, dataSize: number) => boolean;
-  hitTestText: (textId: number, localX: number, localY: number) => TextHitResult;
-  getTextCaretPosition: (textId: number, charIndex: number) => TextCaretPosition;
-  rebuildTextQuadBuffer: () => void;
-  getTextQuadBufferMeta: () => TextQuadBufferMeta;
-  getAtlasTextureMeta: () => TextureBufferMeta;
-  isAtlasDirty: () => boolean;
-  clearAtlasDirty: () => void;
-  getTextContentMeta: (textId: number) => TextContentMeta;
-  getTextBounds: (textId: number) => TextBoundsResult;
-  getTextSelectionRects: (
-    textId: number,
-    start: number,
-    end: number,
-  ) => { size: () => number; get: (i: number) => TextSelectionRect; delete: () => void };
-  setTextConstraintWidth: (textId: number, width: number) => boolean;
-  setTextPosition: (
-    textId: number,
-    x: number,
-    y: number,
-    boxMode: TextBoxMode,
-    constraintWidth: number,
-  ) => boolean;
-  getTextStyleSnapshot: (textId: number) => TextStyleSnapshot;
-  getVisualPrevCharIndex: (textId: number, charIndex: number) => number;
-  getVisualNextCharIndex: (textId: number, charIndex: number) => number;
-  getWordLeftIndex: (textId: number, charIndex: number) => number;
-  getWordRightIndex: (textId: number, charIndex: number) => number;
-  getLineStartIndex: (textId: number, charIndex: number) => number;
-  getLineEndIndex: (textId: number, charIndex: number) => number;
-  getLineUpIndex: (textId: number, charIndex: number) => number;
-  getLineDownIndex: (textId: number, charIndex: number) => number;
-}
+import type { TextSystem } from '@/engine/core/runtime/TextSystem';
 
 /** TextBridge provides high-level text operations. */
 export class TextBridge {
   private runtime: EngineRuntime;
-  private textEngine: TextEnabledCadEngine;
+  private textApi: TextSystem;
   private initialized = false;
   private navigator: TextNavigator;
 
@@ -83,13 +43,13 @@ export class TextBridge {
    * Get engine-authoritative style snapshot (selection, caret, tri-state flags).
    */
   getTextStyleSnapshot(textId: number): TextStyleSnapshot {
-    return this.textEngine.getTextStyleSnapshot(textId);
+    return this.textApi.getTextStyleSnapshot(textId);
   }
   constructor(runtime: EngineRuntime) {
     this.runtime = runtime;
-    // Text system facade implements the native bindings we need
-    this.textEngine = runtime.text as unknown as TextEnabledCadEngine;
-    this.navigator = new TextNavigator(this.textEngine, () => this.isAvailable());
+    this.textApi = runtime.text as unknown as TextSystem;
+    // Navigator works on the engine-facing api, TextSystem forwards it.
+    this.navigator = new TextNavigator(this.textApi as any, () => this.isAvailable());
   }
 
   /**
@@ -99,12 +59,12 @@ export class TextBridge {
   initialize(): boolean {
     if (this.initialized) return true;
 
-    if (typeof this.textEngine.initializeTextSystem !== 'function') {
+    if (typeof (this.textApi as any).initializeTextSystem !== 'function') {
       console.warn('TextBridge: Text system not available in this WASM build');
       return false;
     }
 
-    const success = this.textEngine.initializeTextSystem();
+    const success = this.textApi.initializeTextSystem();
     if (success) {
       this.initialized = true;
     }
@@ -115,7 +75,7 @@ export class TextBridge {
    * Check if text system is available and initialized.
    */
   isAvailable(): boolean {
-    return typeof this.textEngine.initializeTextSystem === 'function' && this.initialized;
+    return typeof (this.textApi as any).initializeTextSystem === 'function' && this.initialized;
   }
 
   /**
@@ -125,15 +85,20 @@ export class TextBridge {
    * @returns True if font loaded successfully
    */
   loadFont(fontId: number, fontData: Uint8Array): boolean {
-    if (!this.isAvailable()) return false;
+    return this.loadFontEx(fontId, fontData, false, false);
+  }
 
-    const ptr = this.textEngine.allocBytes(fontData.byteLength);
-    try {
-      this.runtime.module.HEAPU8.set(fontData, ptr);
-      return this.textEngine.loadFont(fontId, ptr, fontData.byteLength);
-    } finally {
-      this.textEngine.freeBytes(ptr);
-    }
+  /**
+   * Load a font with style variant flags.
+   * @param fontId Font identifier to use
+   * @param fontData Raw TTF/OTF font data
+   * @param bold Whether this is a bold variant
+   * @param italic Whether this is an italic variant
+   * @returns True if font loaded successfully
+   */
+  loadFontEx(fontId: number, fontData: Uint8Array, bold: boolean, italic: boolean): boolean {
+    if (!this.isAvailable()) return false;
+    return this.textApi.loadFontEx(fontId, fontData, bold, italic);
   }
 
   /**
@@ -352,7 +317,7 @@ export class TextBridge {
    */
   hitTest(textId: number, localX: number, localY: number): TextHitResult | null {
     if (!this.isAvailable()) return null;
-    return this.textEngine.hitTestText(textId, localX, localY);
+    return this.textApi.hitTestText(textId, localX, localY);
   }
 
   /**
@@ -363,7 +328,7 @@ export class TextBridge {
    */
   getCaretPosition(textId: number, byteIndex: number): TextCaretPosition | null {
     if (!this.isAvailable()) return null;
-    return this.textEngine.getTextCaretPosition(textId, byteIndex);
+    return this.textApi.getTextCaretPosition(textId, byteIndex);
   }
 
   /**
@@ -375,7 +340,7 @@ export class TextBridge {
   getTextContent(textId: number): string | null {
     if (!this.isAvailable()) return null;
 
-    const meta = this.textEngine.getTextContentMeta(textId);
+    const meta = this.textApi.getTextContentMeta(textId);
     if (!meta.exists || meta.byteCount === 0) {
       return meta.exists ? '' : null;
     }
@@ -400,7 +365,7 @@ export class TextBridge {
    */
   getTextBounds(textId: number): TextBoundsResult | null {
     if (!this.isAvailable()) return null;
-    return this.textEngine.getTextBounds(textId);
+    return this.textApi.getTextBounds(textId);
   }
 
   /**
@@ -422,7 +387,7 @@ export class TextBridge {
     const endByte = charToByteIndex(content, endChar);
 
     // Engine returns a C++ vector wrapper
-    const vector = this.textEngine.getTextSelectionRects(textId, startByte, endByte);
+    const vector = this.textApi.getTextSelectionRects(textId, startByte, endByte);
 
     const result: TextSelectionRect[] = [];
     const size = vector.size();
@@ -442,7 +407,7 @@ export class TextBridge {
    */
   setTextConstraintWidth(textId: number, width: number): boolean {
     if (!this.isAvailable()) return false;
-    return this.textEngine.setTextConstraintWidth(textId, width);
+    return this.textApi.setTextConstraintWidth(textId, width);
   }
 
   /**
@@ -460,8 +425,8 @@ export class TextBridge {
     boxMode: TextBoxMode = TextBoxMode.AutoWidth,
     constraintWidth = 0,
   ): boolean {
-    if (!this.isAvailable() || typeof this.textEngine.setTextPosition !== 'function') return false;
-    return this.textEngine.setTextPosition(textId, x, y, boxMode, constraintWidth);
+    if (!this.isAvailable() || typeof (this.textApi as any).setTextPosition !== 'function') return false;
+    return this.textApi.setTextPosition(textId, x, y, boxMode, constraintWidth);
   }
 
   /**
@@ -470,7 +435,7 @@ export class TextBridge {
    */
   rebuildQuadBuffer(): void {
     if (!this.isAvailable()) return;
-    this.textEngine.rebuildTextQuadBuffer();
+    this.textApi.rebuildTextQuadBuffer();
   }
 
   /**
@@ -479,7 +444,7 @@ export class TextBridge {
    */
   getQuadBufferMeta(): TextQuadBufferMeta | null {
     if (!this.isAvailable()) return null;
-    return this.textEngine.getTextQuadBufferMeta();
+    return this.textApi.getTextQuadBufferMeta();
   }
 
   /**
@@ -487,7 +452,7 @@ export class TextBridge {
    */
   getAtlasTextureMeta(): TextureBufferMeta | null {
     if (!this.isAvailable()) return null;
-    return this.textEngine.getAtlasTextureMeta();
+    return this.textApi.getAtlasTextureMeta();
   }
 
   /**
@@ -495,7 +460,7 @@ export class TextBridge {
    */
   isAtlasDirty(): boolean {
     if (!this.isAvailable()) return false;
-    return this.textEngine.isAtlasDirty();
+    return this.textApi.isAtlasDirty();
   }
 
   /**
@@ -503,7 +468,7 @@ export class TextBridge {
    */
   clearAtlasDirty(): void {
     if (!this.isAvailable()) return;
-    this.textEngine.clearAtlasDirty();
+    this.textApi.clearAtlasDirty();
   }
 
   /**

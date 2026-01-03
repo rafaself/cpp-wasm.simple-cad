@@ -41,6 +41,8 @@ export interface TextCaretOverlayProps {
   anchor: { x: number; y: number };
   /** Text rotation (radians) */
   rotation: number;
+  /** Active editing bounds (local space), draws an outline when present */
+  editingBounds?: { width: number; height: number } | null;
   /** Caret color */
   caretColor?: string;
   /** Selection highlight color */
@@ -59,6 +61,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   viewTransform,
   anchor,
   rotation,
+  editingBounds,
   caretColor = DEFAULTS.DEFAULT_STROKE_COLOR,
   selectionColor = DEFAULTS.DEFAULT_TEXT_SELECTION_COLOR,
   blinkInterval = 530,
@@ -86,6 +89,8 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   if (!caret.visible && selectionRects.length === 0) {
     return null;
   }
+
+  const devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
   // Transform Logic:
   // 1. Position container at Anchor (Screen Coords)
@@ -147,6 +152,8 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
     if (selectionRects.length > 0) return null;
     if (!caret.visible || !caretVisible) return null;
 
+    const caretCssWidth = 1 / devicePixelRatio;
+
     return (
       <div
         className="absolute"
@@ -155,7 +162,7 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
           // Engine Y is Y-Up world coords. pos.y is the top of the line.
           // CSS is Y-Down. So we negate it.
           top: -caret.y,
-          width: 2 / viewTransform.scale, // keep screen-thin caret
+          width: caretCssWidth,
           height: caret.height,
           backgroundColor: caretColor,
           transform: `scaleX(${1 / viewTransform.scale})`,
@@ -189,6 +196,19 @@ export const TextCaretOverlay: React.FC<TextCaretOverlayProps> = ({
   return (
     <div style={style}>
       {debugRender()}
+      {editingBounds && editingBounds.width > 0 && editingBounds.height > 0 ? (
+        <div
+          className="absolute rounded-[1px] border border-primary/70"
+          style={{
+            left: 0,
+            top: 0,
+            width: editingBounds.width,
+            height: editingBounds.height,
+            cursor: 'text',
+            pointerEvents: 'auto',
+          }}
+        />
+      ) : null}
       {renderSelectionRects()}
       {renderCaret()}
     </div>

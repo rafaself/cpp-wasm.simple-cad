@@ -118,7 +118,7 @@ export class TextStateManager {
 
   private createDefaultStyles(): TextStyleDefaults {
     return {
-      fontId: 4, // Inter/DejaVu Sans - fontId=0 is reserved
+      fontId: 4, // Inter - fontId=0 is reserved
       fontSize: 16,
       colorRGBA: packColorRGBA(1, 1, 1, 1), // White
       flags: TextStyleFlags.None,

@@ -202,6 +202,16 @@ public:
      */
     bool hasDirtyEntities() const;
 
+    /**
+     * Check if a specific text entity is dirty.
+     */
+    bool isDirty(std::uint32_t id) const;
+
+    /**
+     * Remove a specific text entity from the dirty set.
+     */
+    void clearDirty(std::uint32_t id);
+
     // ==========================================================================
     // Layout Results (written by TextLayoutEngine)
     // ==========================================================================

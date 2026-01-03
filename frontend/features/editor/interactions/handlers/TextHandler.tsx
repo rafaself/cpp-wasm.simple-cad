@@ -1,10 +1,22 @@
 import React from 'react';
 
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
-import { TextInputProxy } from '@/components/TextInputProxy';
-import { TextTool, TextToolState, createTextTool } from '@/engine/tools/TextTool';
+import { TextInputProxy, TextInputProxyRef } from '@/components/TextInputProxy';
+import { TextTool, TextToolState } from '@/engine/tools/TextTool';
+import type { TextToolCallbacks } from '@/engine/tools/TextTool';
+import { getEngineRuntime } from '@/engine/core/singleton';
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
+import {
+  addTextToolListener,
+  applyTextDefaultsFromSettings,
+  ensureTextToolReady,
+  getSharedTextTool,
+} from '@/features/editor/text/textToolController';
+import { SelectionMode } from '@/engine/core/protocol';
+import { PickEntityKind } from '@/types/picking';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextBoxMode } from '@/types/text';
+import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler } from '../types';
@@ -20,39 +32,105 @@ export class TextHandler extends BaseInteractionHandler {
   public content: string = '';
   public caretState = { x: 0, y: 0, height: 0, rotation: 0, anchorX: 0, anchorY: 0 };
   public selectionRects: any[] = [];
+  public editingBounds: { width: number; height: number } | null = null;
+  public inputRef = React.createRef<TextInputProxyRef>();
+
+  private engineTextSessionActive = false;
+  private engineTextId: number | null = null;
+  private removeListener: (() => void) | null = null;
+  private runtime: EngineRuntime | null = null;
+  private usingSharedTool = false;
+
+  private focusInputProxy(): void {
+    // Focus after the current frame to avoid being overridden by pointer capture focus.
+    requestAnimationFrame(() => {
+      this.inputRef.current?.focus();
+    });
+  }
+
+  private refreshEditingBounds(): void {
+    const activeId = this.state?.activeTextId ?? null;
+    if (!activeId || !this.runtime || !this.runtime.text) {
+      this.editingBounds = null;
+      return;
+    }
+
+    const bounds = this.runtime.text.getTextBounds(activeId);
+    if (bounds && bounds.valid) {
+      this.editingBounds = {
+        width: bounds.maxX - bounds.minX,
+        height: bounds.maxY - bounds.minY,
+      };
+    } else {
+      this.editingBounds = null;
+    }
+  }
+
+  private createListenerCallbacks(): TextToolCallbacks {
+    return {
+      onStateChange: (s) => {
+        this.state = s;
+        this.content = this.textTool.getContent();
+        this.syncEngineTextState();
+        if (this.state && (this.state.mode === 'creating' || this.state.mode === 'editing')) {
+          this.focusInputProxy();
+        }
+        this.refreshEditingBounds();
+        this.notifyChange();
+      },
+      onCaretUpdate: (x, y, h, rot, ax, ay) => {
+        this.caretState = { x, y, height: h, rotation: rot, anchorX: ax, anchorY: ay };
+        this.syncEngineCaretState();
+        this.notifyChange(); // Update Overlay
+      },
+      onSelectionUpdate: (rects) => {
+        this.selectionRects = rects;
+        this.notifyChange();
+      },
+      onEditEnd: () => {
+        this.syncEngineTextState(true);
+        this.editingBounds = null;
+        this.notifyChange();
+      },
+      onTextCreated: (_shapeId, _textId, _x, _y, _boxMode, _constraintWidth) => {
+        // IdRegistry sync is handled by engine events; no-op here.
+      },
+      onTextUpdated: (_textId, bounds) => {
+        if (bounds && typeof bounds.width === 'number' && typeof bounds.height === 'number') {
+          this.editingBounds = bounds;
+        } else {
+          this.refreshEditingBounds();
+        }
+        this.notifyChange();
+      },
+      onStyleSnapshot: (_tid, _snap) => {
+        // Style snapshot is broadcast via controller for ribbon consumers.
+      },
+      onTextDeleted: () => {},
+    };
+  }
 
   constructor(textTool?: TextTool) {
     super();
-    this.textTool =
-      textTool ??
-      createTextTool({
-        onStateChange: (s) => {
-          this.state = s;
-          this.content = this.textTool.getContent();
-          this.notifyChange();
-        },
-        onCaretUpdate: (x, y, h, rot, ax, ay) => {
-          this.caretState = { x, y, height: h, rotation: rot, anchorX: ax, anchorY: ay };
-          this.notifyChange(); // Update Overlay
-        },
-        onSelectionUpdate: (rects) => {
-          this.selectionRects = rects;
-          this.notifyChange();
-        },
-        onEditEnd: () => {
-          // Logic to exit tool? Or just update state?
-          // Usually we stay in Text Tool but go to Idle mode.
-          this.notifyChange();
-        },
-        onTextCreated: (shapeId, textId, x, y, boxMode, constraintWidth) => {
-          // Sync Logic if needed. Often handled by IdRegistry syncing automatically via engine events.
-        },
-        onTextUpdated: () => {},
-        onStyleSnapshot: (tid, snap) => {
-          // Notify UI about style changes (bold/italic)
-          // We might need to expose this state to toolbar.
-        },
+    this.textTool = textTool ?? getSharedTextTool();
+    this.usingSharedTool = !textTool;
+    const listener = this.createListenerCallbacks();
+
+    if (textTool && typeof (textTool as any).setCallbacks === 'function') {
+      (textTool as any).setCallbacks(listener);
+    } else if (!textTool) {
+      this.removeListener = addTextToolListener(listener);
+      applyTextDefaultsFromSettings();
+    }
+
+    if (this.usingSharedTool) {
+      void getEngineRuntime().then((rt) => {
+        if (!this.runtime) {
+          this.runtime = rt;
+          this.refreshEditingBounds();
+        }
       });
+    }
   }
 
   onEnter(): void {
@@ -64,78 +142,72 @@ export class TextHandler extends BaseInteractionHandler {
   }
 
   private checkInit(runtime: any) {
-    if (!this.textTool.isReady() && runtime) {
+    if (!runtime) return;
+    this.runtime = runtime;
+
+    if (!this.textTool.isReady()) {
       this.textTool.initialize(runtime);
+      if (this.usingSharedTool) {
+        applyTextDefaultsFromSettings();
+      }
+    }
+
+    if (this.usingSharedTool) {
+      const { fontFamily } = useSettingsStore.getState().toolDefaults.text;
+      void ensureTextToolReady(runtime, fontFamily);
     }
   }
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, worldPoint: world, event } = ctx;
     if (!runtime || event.button !== 0) return;
+    this.runtime = runtime;
     this.textTool.resyncFromEngine();
     this.checkInit(runtime);
 
-    // Hit Test Text
-    // TextTool handles hit testing logic internally via `inputCoordinator` usually?
-    // Reviewing TextTool: `handleClick` takes world coords. `handlePointerDown` triggers editing.
-    // If we click on existing text, we must pass `textId`.
-    // `TextTool` doesn't do "Pick" itself for selection usually?
-
-    // Use optimized pick with bounds checking
     const tolerance = 10 / (ctx.viewTransform.scale || 1);
-    const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+    const pick = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+    const state = this.state;
+    const activeId = state?.activeTextId ?? null;
+    const editing = state?.mode === 'creating' || state?.mode === 'editing';
+    const hitAnyText = pick.id !== 0 && pick.kind === PickEntityKind.Text;
+    const hitActiveText = hitAnyText && activeId !== null && pick.id === activeId;
 
-    // If Picked Text?
-    // How do we know it is text?
-    // `res.kind` ?
-    // Or check `runtime.getEntityFlags(res.id)`?
-
-    // Assuming we treat it as Text Creator if nothing hit, or Text Editor if text hit.
-    // Logic:
-    /*
-      if (res.id !== 0 && isText(res.id)) {
-          textTool.handlePointerDown(res.id, ...localCoords...)
-      } else {
-          textTool.handleClick(world.x, world.y);
+    if (editing && !hitActiveText) {
+      const selectionTarget = pick.id !== 0 ? pick.id : activeId;
+      this.textTool.commitAndExit();
+      if (selectionTarget !== null) {
+        runtime.setSelection([selectionTarget], SelectionMode.Replace);
       }
-    */
+      useUIStore.getState().setTool('select');
+      return;
+    }
 
-    // Currently `TextTool` has `handleClick` (Create) and `handlePointerDown` (Edit existing).
-    // We need to know if `res.id` is text.
-    // `EngineRuntime` might not expose `getType(id)`.
-    // But `TextTool` has access to `getAllTextMetas`.
-    // Efficient check: `textTool.bridge.hasText(id)`?
+    if (hitAnyText) {
+      const meta = runtime.getTextEntityMeta(pick.id);
+      const bounds = runtime.text.getTextBounds(pick.id);
+      const anchorX = bounds && bounds.valid ? bounds.minX : world.x;
+      const anchorY = bounds && bounds.valid ? bounds.maxY : world.y;
+      const localX = (pick.hitX ?? world.x) - anchorX;
+      const localY = (pick.hitY ?? world.y) - anchorY;
 
-    // Simplification: Always try passing to tool if we clicked something?
-    // Actually `TextTool` logic in `EngineInteractionLayer` was:
-    // User clicks -> If hit text, edit. If not, create.
-
-    // Hack: Try to start edit.
-    // We need `localX, localY`. `runtime.transformPoint(world, invMatrix)`?
-    // `TextTool` calculates this?
-
-    // For now, I'll assume Creation Mode if unrelated entity or void.
-    // Implementation Detail: We need strict check.
-    // Check `runtime.getTextContentMeta(id)`. If exists, it's text.
-
-    // Check if we clicked on existing text
-    // We use the raw engine binding if available, or our wrapper
-    const engine = (runtime as any).engine;
-    const textMeta = engine && engine.getTextContentMeta ? engine.getTextContentMeta(res.id) : null;
-
-    // Note: getTextContentMeta returns { exists, ptr, byteCount }
-    if (res.id !== 0 && textMeta && textMeta.exists) {
-      // It is text.
-      // TODO: Implement local coordinate calculation and start editing.
-      // For now, we fallback to create new text at click location if we can't edit yet.
-      // But to prevent creating text ON TOP of text, we should probably do nothing or select it?
-      // If we are in 'Refactoring' mode, we might just log "Edit Text Not Implemented".
-
-      // Assuming we want to create new text for now as fail-safe for this step.
-      this.textTool.handleClick(world.x, world.y);
+      this.textTool.handlePointerDown(
+        pick.id,
+        localX,
+        localY,
+        event.shiftKey,
+        anchorX,
+        anchorY,
+        0,
+        meta?.boxMode,
+        meta?.constraintWidth ?? 0,
+        true,
+      );
     } else {
       this.textTool.handleClick(world.x, world.y);
     }
+
+    this.focusInputProxy();
   }
 
   onKeyDown(e: KeyboardEvent): void {
@@ -152,14 +224,88 @@ export class TextHandler extends BaseInteractionHandler {
 
   onLeave(): void {
     this.textTool.resetEditingState('tool-switch');
+    if (this.removeListener) {
+      this.removeListener();
+      this.removeListener = null;
+    }
   }
 
   onPointerMove(ctx: InputEventContext): void {
-    // Pass move to TextTool?
-    // `handlePointerMove` used for drag select text.
-    if (this.state?.mode === 'editing' || this.state?.mode === 'creating') {
-      // We need local coords.
+    const { worldPoint: world, runtime } = ctx;
+    if (!runtime) return;
+
+    // Handle drag text selection
+    if (
+      (this.state?.mode === 'editing' || this.state?.mode === 'creating') &&
+      this.state?.activeTextId !== null
+    ) {
+      const textId = this.state.activeTextId;
+      const bounds = runtime.text.getTextBounds(textId);
+      if (bounds && bounds.valid) {
+        // Compute local coordinates relative to text anchor (top-left in Y-up world)
+        const anchorX = bounds.minX;
+        const anchorY = bounds.maxY;
+        const localX = world.x - anchorX;
+        const localY = world.y - anchorY;
+        this.textTool.handlePointerMove(textId, localX, localY);
+      }
     }
+  }
+
+  onPointerUp(ctx: InputEventContext): void {
+    this.textTool.handlePointerUp();
+  }
+
+  private syncEngineTextState(forceClear = false): void {
+    const store = useUIStore.getState();
+    const active =
+      !forceClear &&
+      this.state !== null &&
+      (this.state.mode === 'creating' || this.state.mode === 'editing') &&
+      this.state.activeTextId !== null;
+
+    const nextId = active ? this.state?.activeTextId ?? null : null;
+
+    if (active) {
+      if (!this.engineTextSessionActive || this.engineTextId !== nextId) {
+        store.setEngineTextEditActive(true, nextId);
+      }
+      this.engineTextSessionActive = true;
+      this.engineTextId = nextId;
+      // Proactively focus the proxy if it is mounted.
+      this.focusInputProxy();
+    } else if (this.engineTextSessionActive) {
+      store.clearEngineTextEdit();
+      this.engineTextSessionActive = false;
+      this.engineTextId = null;
+      this.inputRef.current?.blur();
+    }
+  }
+
+  private syncEngineCaretState(): void {
+    if (!this.engineTextSessionActive || this.state === null || this.state.activeTextId === null) {
+      return;
+    }
+
+    const store = useUIStore.getState();
+    // Convert caret from local to world space (Y-Up).
+    const { rotation } = this.caretState;
+    const cosR = Math.cos(rotation);
+    const sinR = Math.sin(rotation);
+    const worldX =
+      this.state.anchorX +
+      this.caretState.x * cosR -
+      this.caretState.y * sinR;
+    const worldY =
+      this.state.anchorY +
+      this.caretState.x * sinR +
+      this.caretState.y * cosR;
+
+    store.setEngineTextEditCaretPosition({
+      x: worldX,
+      y: worldY,
+      height: this.caretState.height,
+    });
   }
 
   renderOverlay(): React.ReactNode {
@@ -170,15 +316,39 @@ export class TextHandler extends BaseInteractionHandler {
 
 const TextHandlerOverlay: React.FC<{ handler: TextHandler }> = ({ handler }) => {
   const viewTransform = useUIStore((s) => s.viewTransform);
-  const canvasSize = useUIStore((s) => s.canvasSize);
 
-  // We assume handler.state is up to date (triggered notifyChange)
   const state = handler.state;
-  if (!state || state.mode === 'idle') return null;
+  const hasState = !!state && state.mode !== 'idle';
+  const caretState = hasState
+    ? handler.caretState
+    : { x: 0, y: 0, height: 0, rotation: 0, anchorX: 0, anchorY: 0 };
+  const selectionRects = hasState ? handler.selectionRects || [] : [];
+  const content = hasState ? handler.content || '' : '';
+  const isEditing = hasState && (state!.mode === 'creating' || state!.mode === 'editing');
+  const editingBounds = isEditing ? handler.editingBounds : null;
 
-  const caretState = handler.caretState;
-  const selectionRects = handler.selectionRects || [];
-  const content = handler.content || '';
+  const caretWorld = hasState
+    ? {
+        x:
+          state!.anchorX +
+          caretState.x * Math.cos(caretState.rotation) -
+          caretState.y * Math.sin(caretState.rotation),
+        y:
+          state!.anchorY +
+          caretState.x * Math.sin(caretState.rotation) +
+          caretState.y * Math.cos(caretState.rotation),
+      }
+    : { x: 0, y: 0 };
+
+  const caretScreen = worldToScreen(caretWorld, viewTransform);
+
+  React.useEffect(() => {
+    if (isEditing) {
+      handler.inputRef.current?.focus();
+    }
+  }, [isEditing, handler]);
+
+  if (!hasState) return null;
 
   return (
     <>
@@ -193,14 +363,17 @@ const TextHandlerOverlay: React.FC<{ handler: TextHandler }> = ({ handler }) => 
         viewTransform={viewTransform}
         anchor={{ x: state.anchorX, y: state.anchorY }}
         rotation={state.rotation}
+        editingBounds={editingBounds}
       />
 
       <TextInputProxy
-        active={true}
+        ref={handler.inputRef}
+        active={isEditing}
         content={content}
         caretIndex={state.caretIndex}
         selectionStart={state.selectionStart}
         selectionEnd={state.selectionEnd}
+        positionHint={caretScreen}
         onInput={(d) => handler.textTool.handleInputDelta(d)}
         onSelectionChange={(s, e) => handler.textTool.handleSelectionChange(s, e)}
         onCompositionChange={(c) => {

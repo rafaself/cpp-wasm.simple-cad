@@ -27,6 +27,7 @@ const HANDLE_SIZE_PX = 8;
 const ShapeOverlay: React.FC = () => {
   const selectionCount = useEngineSelectionCount();
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
+  const isTextEditing = useUIStore((s) => s.engineTextEditState.active);
   const overlayTick = useUIStore((s) => s.overlayTick);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const viewTransform = useUIStore((s) => s.viewTransform);
@@ -112,9 +113,9 @@ const ShapeOverlay: React.FC = () => {
       });
     }
 
-    // Selection overlay (only when not in draft mode and not editing appearance)
+    // Selection overlay (only when not in draft mode, not editing appearance, and not editing text)
     let selectionElements: React.ReactNode[] = [];
-    if (!isEditingAppearance && selectionCount > 0 && !draftDimensions) {
+    if (!isEditingAppearance && !isTextEditing && selectionCount > 0 && !draftDimensions) {
       if (selectionCount > 1) {
         const bounds = runtime.getSelectionBounds();
         if (bounds.valid) {
@@ -353,6 +354,7 @@ const ShapeOverlay: React.FC = () => {
     engineResizeEnabled,
     overlayTick,
     isEditingAppearance,
+    isTextEditing,
     runtime,
     selectionCount,
     viewTransform,

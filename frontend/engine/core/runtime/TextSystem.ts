@@ -53,11 +53,19 @@ export class TextSystem {
   }
 
   public loadFont(fontId: number, fontData: Uint8Array): boolean {
-    if (!this.engine.loadFont || !this.engine.allocBytes || !this.engine.freeBytes) return false;
+    return this.loadFontEx(fontId, fontData, false, false);
+  }
+
+  public loadFontEx(fontId: number, fontData: Uint8Array, bold: boolean, italic: boolean): boolean {
+    const loader = this.engine.loadFontEx || this.engine.loadFont;
+    if (!loader || !this.engine.allocBytes || !this.engine.freeBytes) return false;
     const ptr = this.engine.allocBytes(fontData.byteLength);
     try {
       this.module.HEAPU8.set(fontData, ptr);
-      return this.engine.loadFont(fontId, ptr, fontData.byteLength);
+      if (this.engine.loadFontEx) {
+        return this.engine.loadFontEx(fontId, ptr, fontData.byteLength, bold, italic);
+      }
+      return this.engine.loadFont!(fontId, ptr, fontData.byteLength);
     } finally {
       this.engine.freeBytes(ptr);
     }

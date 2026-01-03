@@ -22,6 +22,7 @@ import EditableNumber from '../../../components/EditableNumber';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
 import { SnapOptions } from '../../../types';
+import { RIBBON_TABS } from '../ui/ribbonConfig';
 
 const EditorStatusBar: React.FC = () => {
   const mousePos = useUIStore((s) => s.mousePos);
@@ -37,13 +38,28 @@ const EditorStatusBar: React.FC = () => {
 
   const toggleSnap = () => setSnapEnabled(!snapSettings.enabled);
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
+  
+  const activeTool = useUIStore((s) => s.activeTool);
+
+  const ToolIcon = React.useMemo(() => {
+    for (const tab of RIBBON_TABS) {
+      for (const group of tab.groups) {
+        for (const item of group.items) {
+          if (item.kind === 'tool' && item.toolId === activeTool) {
+            return item.icon || MousePointer2;
+          }
+        }
+      }
+    }
+    return MousePointer2;
+  }, [activeTool]);
 
   return (
     <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">
       <div className="w-56 font-mono flex items-center gap-4 text-text-muted text-[10px]">
         {mousePos ? (
           <>
-            <MousePointer2 size={12} />
+            <ToolIcon size={12} />
             <div className="flex gap-3">
               <span>
                 <span className="mr-1">X:</span>
@@ -57,7 +73,7 @@ const EditorStatusBar: React.FC = () => {
           </>
         ) : (
           <div className="flex items-center gap-2 opacity-50">
-            <MousePointer2 size={12} />
+            <ToolIcon size={12} />
             <span>—</span>
           </div>
         )}
