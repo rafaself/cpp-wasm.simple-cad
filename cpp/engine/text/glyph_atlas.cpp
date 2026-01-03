@@ -456,8 +456,13 @@ const GlyphAtlasEntry* GlyphAtlas::generateGlyph(
     );
     
     if (!packResult) {
-        // Atlas is full
-        return nullptr;
+        // Atlas is full!
+        // Clear everything to free space
+        clearAtlas();
+        
+        // Retry packing (recursive call, assuming it will fit in empty atlas)
+        // We must re-fetch pointers because clearAtlas invalidates everything
+        return generateGlyph(fontId, glyphId, style);
     }
     
     // Generate MSDF

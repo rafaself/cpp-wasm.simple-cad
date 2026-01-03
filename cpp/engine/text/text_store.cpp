@@ -346,6 +346,14 @@ bool TextStore::hasDirtyEntities() const {
     return !dirtyIds_.empty();
 }
 
+bool TextStore::isDirty(std::uint32_t id) const {
+    return dirtyIds_.find(id) != dirtyIds_.end();
+}
+
+void TextStore::clearDirty(std::uint32_t id) {
+    dirtyIds_.erase(id);
+}
+
 // =============================================================================
 // Layout Results
 // =============================================================================

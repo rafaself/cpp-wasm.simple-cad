@@ -2,11 +2,15 @@
 
 namespace engine::text {
 
-TextHitResult TextLayoutEngine::hitTest(std::uint32_t textId, float localX, float localY) const {
+TextHitResult TextLayoutEngine::hitTest(std::uint32_t textId, float localX, float localY) {
     TextHitResult result{};
     result.charIndex = 0;
     result.lineIndex = 0;
     result.isLeadingEdge = true;
+    
+    if (!ensureLayout(textId)) {
+        return result;
+    }
     
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) {
@@ -75,12 +79,16 @@ std::uint32_t TextLayoutEngine::getCharIndexAtX(
 TextCaretPosition TextLayoutEngine::getCaretPosition(
     std::uint32_t textId,
     std::uint32_t charIndex
-) const {
+) {
     TextCaretPosition pos{};
     pos.x = 0.0f;
     pos.y = 0.0f;
     pos.height = 16.0f;
     pos.lineIndex = 0;
+    
+    if (!ensureLayout(textId)) {
+        return pos;
+    }
     
     const TextLayout* layout = getLayout(textId);
     if (!layout || layout->lines.empty()) {
