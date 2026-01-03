@@ -153,6 +153,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getTextSelectionRects", &CadEngine::getTextSelectionRects)
         .function("getAllTextMetas", &CadEngine::getAllTextMetas)
         .function("getTextStyleSnapshot", &CadEngine::getTextStyleSnapshot)
+        .function("getTextStyleSummary", &CadEngine::getTextStyleSummary)
         .function("setTextConstraintWidth", &CadEngine::setTextConstraintWidth)
         .function("setTextPosition", &CadEngine::setTextPosition)
         .function("getVisualPrevCharIndex", &CadEngine::getVisualPrevCharIndex)
@@ -358,6 +359,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("lineHeight", &engine::text::TextStyleSnapshot::lineHeight)
         .field("styleTriStateFlags", &engine::text::TextStyleSnapshot::styleTriStateFlags)
         .field("align", &engine::text::TextStyleSnapshot::align)
+        .field("fontIdTriState", &engine::text::TextStyleSnapshot::fontIdTriState)
+        .field("fontSizeTriState", &engine::text::TextStyleSnapshot::fontSizeTriState)
+        .field("fontId", &engine::text::TextStyleSnapshot::fontId)
+        .field("fontSize", &engine::text::TextStyleSnapshot::fontSize)
         .field("textGeneration", &engine::text::TextStyleSnapshot::textGeneration)
         .field("styleTriStateParamsLen", &engine::text::TextStyleSnapshot::styleTriStateParamsLen);
 

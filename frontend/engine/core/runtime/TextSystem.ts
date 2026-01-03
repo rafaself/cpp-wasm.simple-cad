@@ -135,6 +135,10 @@ export class TextSystem {
     return this.engine.getTextStyleSnapshot?.(textId) ?? null;
   }
 
+  public getTextStyleSummary(textId: number) {
+    return this.engine.getTextStyleSummary(textId);
+  }
+
   public getVisualPrevCharIndex(textId: number, charIndex: number) {
     return this.engine.getVisualPrevCharIndex?.(textId, charIndex) ?? charIndex;
   }

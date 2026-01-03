@@ -152,11 +152,15 @@ const pos = runtime.getTextCaretPosition(textId, charIndex);
 ```typescript
 const snapshot = runtime.getTextStyleSnapshot(textId);
 // {
-//   fontId, fontSize, bold, italic, underline, strike,
-//   align, boxMode, caretLogical, selectionStartLogical, selectionEndLogical,
+//   fontId, fontSize, fontIdTriState, fontSizeTriState,
+//   styleTriStateFlags, align,
+//   caretLogical, selectionStartLogical, selectionEndLogical,
 //   ...
 // }
 ```
+
+For non-editing selection, use `runtime.getTextStyleSummary(textId)` to
+summarize the full text range (including mixed states).
 
 ### Hit Testing
 

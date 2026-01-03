@@ -176,11 +176,7 @@ export class TextInputCoordinator {
       constraintWidth: number,
     ) => void,
   ): void {
-    if (import.meta.env.DEV) {
-      console.warn('[DEBUG] TextInputCoordinator: handleClick', { worldX, worldY });
-    }
     if (!this.isReady() || !this.runtime) {
-      console.warn('TextInputCoordinator.handleClick: Not ready');
       return;
     }
 
@@ -523,9 +519,6 @@ export class TextInputCoordinator {
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (now - this.lastDiagnosticTs < 200) return; // prevent log spam
     this.lastDiagnosticTs = now;
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[text-sync]', reason, payload);
-    }
   }
 
   /**
@@ -533,12 +526,7 @@ export class TextInputCoordinator {
    */
   handleInputDelta(delta: TextInputDelta): void {
     if (!this.isReady() || !this.bridge || this.state.activeTextId === null) {
-      console.warn('[DEBUG] TextInputCoordinator: handleInputDelta skipped');
       return;
-    }
-
-    if (import.meta.env.DEV) {
-      console.warn('[DEBUG] TextInputCoordinator: handleInputDelta', delta);
     }
 
     const textId = this.state.activeTextId;

@@ -10,11 +10,10 @@ import {
 import React from 'react';
 
 import { LABELS } from '@/i18n/labels';
-import { createLogger } from '@/utils/logger';
 
 import CustomSelect from '../../../../components/CustomSelect';
 import { NumericComboField } from '../../../../components/NumericComboField';
-import { BUTTON_STYLES, INPUT_STYLES } from '../../../../src/styles/recipes';
+import { INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { TextStyleFlags } from '../../../../types/text';
@@ -22,7 +21,8 @@ import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 import { RibbonControlWrapper } from '../../components/ribbon/RibbonControlWrapper';
 import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
 import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
-import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
+import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
+import { mapFontIdToFamily } from '@/features/editor/text/textToolController';
 
 // Familiar font names users recognize
 const FONT_OPTIONS = [
@@ -39,7 +39,32 @@ const triStateFor = (flags: number, shift: number): StyleState => {
   return 'off';
 };
 
-const logger = createLogger('textControls', { minLevel: 'debug' });
+const isUniformTriState = (state: number | null | undefined): boolean => state === 1;
+const isMixedTriState = (state: number | null | undefined): boolean => state === 2;
+
+const useResolvedTextStyleSnapshot = (selectedTextIds: number[]) => {
+  const runtime = useEngineRuntime();
+  const engineEditState = useUIStore((s) => s.engineTextEditState);
+  const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
+  const overlayTick = useUIStore((s) => s.overlayTick);
+
+  return React.useMemo(() => {
+    if (engineEditState.active) {
+      if (
+        engineStyleSnapshot &&
+        engineEditState.textId === engineStyleSnapshot.textId
+      ) {
+        return engineStyleSnapshot.snapshot;
+      }
+      return null;
+    }
+
+    if (!runtime || selectedTextIds.length !== 1) return null;
+    const textId = selectedTextIds[0];
+    if (!runtime.getTextEntityMeta(textId)) return null;
+    return runtime.text.getTextStyleSummary(textId);
+  }, [engineEditState.active, engineEditState.textId, engineStyleSnapshot, runtime, selectedTextIds, overlayTick]);
+};
 
 export const FontFamilyControl: React.FC<TextControlProps> = ({
   selectedTextIds,
@@ -47,6 +72,14 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
 }) => {
   const textFontFamily = useSettingsStore((s) => s.toolDefaults.text.fontFamily);
   const setTextFontFamily = useSettingsStore((s) => s.setTextFontFamily);
+  const snapshot = useResolvedTextStyleSnapshot(selectedTextIds);
+  const isMixed = snapshot ? isMixedTriState(snapshot.fontIdTriState) : false;
+  const resolvedFamily = snapshot && isUniformTriState(snapshot.fontIdTriState)
+    ? mapFontIdToFamily(snapshot.fontId)
+    : null;
+  const displayFamily = resolvedFamily ?? textFontFamily;
+  const selectValue = isMixed ? '' : displayFamily;
+  const placeholder = isMixed ? LABELS.text.mixed : undefined;
   const handleChange = (val: string) => {
     setTextFontFamily(val);
     applyTextUpdate({ fontFamily: val }, true);
@@ -54,9 +87,10 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   return (
     <RibbonControlWrapper>
       <CustomSelect
-        value={textFontFamily}
+        value={selectValue}
         onChange={handleChange}
         options={FONT_OPTIONS}
+        placeholder={placeholder}
         className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
       />
     </RibbonControlWrapper>
@@ -69,6 +103,14 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
 }) => {
   const textFontSize = useSettingsStore((s) => s.toolDefaults.text.fontSize);
   const setTextFontSize = useSettingsStore((s) => s.setTextFontSize);
+  const snapshot = useResolvedTextStyleSnapshot(selectedTextIds);
+  const fontSizeValue = snapshot
+    ? isMixedTriState(snapshot.fontSizeTriState)
+      ? 'mixed'
+      : isUniformTriState(snapshot.fontSizeTriState)
+        ? snapshot.fontSize
+        : textFontSize
+    : textFontSize;
 
   // Font size presets (Figma-like)
   const fontSizePresets = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 32, 48, 64, 96, 128];
@@ -81,7 +123,7 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
   return (
     <RibbonControlWrapper align="center">
       <NumericComboField
-        value={textFontSize}
+        value={fontSizeValue}
         onCommit={handleCommit}
         presets={fontSizePresets}
         min={1}
@@ -113,15 +155,10 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
 }) => {
   const textAlign = useSettingsStore((s) => s.toolDefaults.text.align);
   const setTextAlignShortcut = useSettingsStore((s) => s.setTextAlign);
-  const engineEditState = useUIStore((s) => s.engineTextEditState);
-  const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
-
-  const engineAlign: 'left' | 'center' | 'right' | null =
-    engineEditState.active &&
-    engineStyleSnapshot &&
-    engineEditState.textId === engineStyleSnapshot.textId
-      ? (['left', 'center', 'right'] as const)[engineStyleSnapshot.snapshot.align]
-      : null;
+  const snapshot = useResolvedTextStyleSnapshot(selectedTextIds);
+  const engineAlign: 'left' | 'center' | 'right' | null = snapshot
+    ? (['left', 'center', 'right'] as const)[snapshot.align]
+    : null;
 
   const activeAlign = engineAlign ?? textAlign;
 
@@ -163,20 +200,16 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   const setUnderline = useSettingsStore((s) => s.setTextUnderline);
   const setStrike = useSettingsStore((s) => s.setTextStrike);
 
-  const engineEditState = useUIStore((s) => s.engineTextEditState);
-  const engineStyleSnapshot = useUIStore((s) => s.engineTextStyleSnapshot);
+  const snapshot = useResolvedTextStyleSnapshot(selectedTextIds);
 
-  const engineStyles: Record<StyleKey, StyleState> | null =
-    engineEditState.active &&
-    engineStyleSnapshot &&
-    engineEditState.textId === engineStyleSnapshot.textId
-      ? {
-          bold: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 0),
-          italic: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 2),
-          underline: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 4),
-          strike: triStateFor(engineStyleSnapshot.snapshot.styleTriStateFlags, 6),
-        }
-      : null;
+  const engineStyles: Record<StyleKey, StyleState> | null = snapshot
+    ? {
+        bold: triStateFor(snapshot.styleTriStateFlags, 0),
+        italic: triStateFor(snapshot.styleTriStateFlags, 2),
+        underline: triStateFor(snapshot.styleTriStateFlags, 4),
+        strike: triStateFor(snapshot.styleTriStateFlags, 6),
+      }
+    : null;
 
   const fallbackStyles: Record<StyleKey, StyleState> = {
     bold: textBold ? 'on' : 'off',
@@ -237,13 +270,6 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   const handleClick = (option: (typeof options)[number]) => {
     const nextIntent: 'set' | 'clear' = option.state === 'on' ? 'clear' : 'set';
     option.setter(nextIntent === 'set');
-
-    logger.debug('[TextControls] handleClick', {
-      key: option.key,
-      nextIntent,
-      applyViaEngine: engineEditState.active,
-      textId: engineEditState.textId,
-    });
 
     const diff: TextUpdateDiff = { [option.key]: nextIntent === 'set' };
     applyTextUpdate(diff, option.recalc);

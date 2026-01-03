@@ -6,6 +6,7 @@
 #include "engine/persistence/snapshot.h"
 #include "engine/core/string_utils.h"
 #include <unordered_set>
+#include <cmath>
 
 void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount) {
     clearError();
@@ -222,9 +223,10 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
     }
 
     const TextRec* rec = textSystem_.store.getText(textId);
-    if (rec) {
-        out.align = static_cast<std::uint8_t>(rec->align);
+    if (!rec) {
+        return out;
     }
+    out.align = static_cast<std::uint8_t>(rec->align);
 
     auto cs = *caretOpt;
     std::uint32_t selStart = cs.selectionStart;
@@ -256,7 +258,15 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
                     return hasFlag(r.flags, flag) ? 1 : 0;
                 }
             }
-            // 2. Check for run containing caret
+            // 2. If caret is at start of content, inherit from first run
+            if (selStart == 0) {
+                for (const auto& r : runs) {
+                    if (r.startIndex == 0 && r.length > 0) {
+                        return hasFlag(r.flags, flag) ? 1 : 0;
+                    }
+                }
+            }
+            // 3. Check for run containing caret
             for (const auto& r : runs) {
                 if (selStart > r.startIndex && selStart < (r.startIndex + r.length)) {
                      return hasFlag(r.flags, flag) ? 1 : 0;
@@ -288,6 +298,134 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
         return state;
     };
 
+    auto resolveCaretFontId = [&](std::uint32_t& value) -> bool {
+        for (const auto& r : runs) {
+            if (r.length == 0 && r.startIndex == selStart) {
+                value = r.fontId;
+                return true;
+            }
+        }
+        if (selStart == 0) {
+            for (const auto& r : runs) {
+                if (r.startIndex == 0 && r.length > 0) {
+                    value = r.fontId;
+                    return true;
+                }
+            }
+        }
+        for (const auto& r : runs) {
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            if (selStart > r.startIndex && selStart < rEnd) {
+                value = r.fontId;
+                return true;
+            }
+            if (selStart > 0 && selStart == rEnd) {
+                value = r.fontId;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto resolveCaretFontSize = [&](float& value) -> bool {
+        for (const auto& r : runs) {
+            if (r.length == 0 && r.startIndex == selStart) {
+                value = r.fontSize;
+                return true;
+            }
+        }
+        if (selStart == 0) {
+            for (const auto& r : runs) {
+                if (r.startIndex == 0 && r.length > 0) {
+                    value = r.fontSize;
+                    return true;
+                }
+            }
+        }
+        for (const auto& r : runs) {
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            if (selStart > r.startIndex && selStart < rEnd) {
+                value = r.fontSize;
+                return true;
+            }
+            if (selStart > 0 && selStart == rEnd) {
+                value = r.fontSize;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto resolveFontIdState = [&]() -> std::pair<std::uint8_t, std::uint32_t> {
+        if (selStart == selEnd) {
+            std::uint32_t value = 0;
+            if (resolveCaretFontId(value)) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+            }
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0u };
+        }
+
+        bool found = false;
+        std::uint32_t value = 0;
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            if (oStart >= oEnd) continue;
+
+            if (!found) {
+                value = r.fontId;
+                found = true;
+                continue;
+            }
+
+            if (value != r.fontId) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Mixed), value };
+            }
+        }
+
+        if (!found) {
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0u };
+        }
+        return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+    };
+
+    auto resolveFontSizeState = [&]() -> std::pair<std::uint8_t, float> {
+        if (selStart == selEnd) {
+            float value = 0.0f;
+            if (resolveCaretFontSize(value)) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+            }
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0.0f };
+        }
+
+        bool found = false;
+        float value = 0.0f;
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            if (oStart >= oEnd) continue;
+
+            if (!found) {
+                value = r.fontSize;
+                found = true;
+                continue;
+            }
+
+            if (std::fabs(value - r.fontSize) > 0.01f) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Mixed), value };
+            }
+        }
+
+        if (!found) {
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0.0f };
+        }
+        return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+    };
+
     const int boldState = triStateAttr(TextStyleFlags::Bold);
     const int italicState = triStateAttr(TextStyleFlags::Italic);
     const int underlineState = triStateAttr(TextStyleFlags::Underline);
@@ -311,6 +449,248 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
             ((pack2bits(strikeState) & 0x3) << 6)
         );
 
+    const auto [fontIdState, fontIdValue] = resolveFontIdState();
+    const auto [fontSizeState, fontSizeValue] = resolveFontSizeState();
+    out.fontIdTriState = fontIdState;
+    out.fontSizeTriState = fontSizeState;
+    out.fontId = fontIdValue;
+    out.fontSize = fontSizeValue;
+    out.textGeneration = generation;
+    out.styleTriStateParamsLen = 0;
+    return out;
+}
+
+engine::text::TextStyleSnapshot CadEngine::getTextStyleSummary(std::uint32_t textId) const {
+    engine::text::TextStyleSnapshot out{};
+    if (!textSystem_.initialized) {
+        return out;
+    }
+
+    const_cast<CadEngine*>(this)->textSystem_.layoutEngine.layoutDirtyTexts();
+
+    const std::string_view content = textSystem_.store.getContent(textId);
+    const auto runs = textSystem_.store.getRuns(textId);
+
+    const TextRec* rec = textSystem_.store.getText(textId);
+    if (rec) {
+        out.align = static_cast<std::uint8_t>(rec->align);
+    }
+
+    std::uint32_t selStart = 0;
+    std::uint32_t selEnd = static_cast<std::uint32_t>(content.size());
+
+    out.selectionStartLogical = engine::byteToLogicalIndex(content, selStart);
+    out.selectionEndLogical = engine::byteToLogicalIndex(content, selEnd);
+    out.selectionStartByte = selStart;
+    out.selectionEndByte = selEnd;
+    out.caretByte = selStart;
+    out.caretLogical = engine::byteToLogicalIndex(content, selStart);
+
+    const TextCaretPosition cp = getTextCaretPosition(textId, selStart);
+    out.x = cp.x;
+    out.y = cp.y;
+    out.lineHeight = cp.height;
+    out.lineIndex = static_cast<std::uint16_t>(cp.lineIndex);
+
+    auto triStateAttr = [&](TextStyleFlags flag) -> int {
+        if (selStart == selEnd) {
+            for (const auto& r : runs) {
+                if (r.length == 0 && r.startIndex == selStart) {
+                    return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+            }
+            if (selStart == 0) {
+                for (const auto& r : runs) {
+                    if (r.startIndex == 0 && r.length > 0) {
+                        return hasFlag(r.flags, flag) ? 1 : 0;
+                    }
+                }
+            }
+            for (const auto& r : runs) {
+                if (selStart > r.startIndex && selStart < (r.startIndex + r.length)) {
+                     return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+                if (selStart > 0 && selStart == (r.startIndex + r.length)) {
+                     return hasFlag(r.flags, flag) ? 1 : 0;
+                }
+            }
+            return 0;
+        }
+
+        int state = -1;
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            
+            if (oStart >= oEnd) continue;
+            
+            const bool on = hasFlag(r.flags, flag);
+            const int v = on ? 1 : 0;
+            if (state == -1) state = v; else if (state != v) state = 2;
+            if (state == 2) break;
+        }
+        if (state == -1) state = 0;
+        return state;
+    };
+
+    auto resolveCaretFontId = [&](std::uint32_t& value) -> bool {
+        for (const auto& r : runs) {
+            if (r.length == 0 && r.startIndex == selStart) {
+                value = r.fontId;
+                return true;
+            }
+        }
+        if (selStart == 0) {
+            for (const auto& r : runs) {
+                if (r.startIndex == 0 && r.length > 0) {
+                    value = r.fontId;
+                    return true;
+                }
+            }
+        }
+        for (const auto& r : runs) {
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            if (selStart > r.startIndex && selStart < rEnd) {
+                value = r.fontId;
+                return true;
+            }
+            if (selStart > 0 && selStart == rEnd) {
+                value = r.fontId;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto resolveCaretFontSize = [&](float& value) -> bool {
+        for (const auto& r : runs) {
+            if (r.length == 0 && r.startIndex == selStart) {
+                value = r.fontSize;
+                return true;
+            }
+        }
+        if (selStart == 0) {
+            for (const auto& r : runs) {
+                if (r.startIndex == 0 && r.length > 0) {
+                    value = r.fontSize;
+                    return true;
+                }
+            }
+        }
+        for (const auto& r : runs) {
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            if (selStart > r.startIndex && selStart < rEnd) {
+                value = r.fontSize;
+                return true;
+            }
+            if (selStart > 0 && selStart == rEnd) {
+                value = r.fontSize;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto resolveFontIdState = [&]() -> std::pair<std::uint8_t, std::uint32_t> {
+        if (selStart == selEnd) {
+            std::uint32_t value = 0;
+            if (resolveCaretFontId(value)) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+            }
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0u };
+        }
+
+        bool found = false;
+        std::uint32_t value = 0;
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            if (oStart >= oEnd) continue;
+
+            if (!found) {
+                value = r.fontId;
+                found = true;
+                continue;
+            }
+
+            if (value != r.fontId) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Mixed), value };
+            }
+        }
+
+        if (!found) {
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0u };
+        }
+        return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+    };
+
+    auto resolveFontSizeState = [&]() -> std::pair<std::uint8_t, float> {
+        if (selStart == selEnd) {
+            float value = 0.0f;
+            if (resolveCaretFontSize(value)) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+            }
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0.0f };
+        }
+
+        bool found = false;
+        float value = 0.0f;
+        for (const auto& r : runs) {
+            const std::uint32_t rStart = r.startIndex;
+            const std::uint32_t rEnd = r.startIndex + r.length;
+            const std::uint32_t oStart = std::max(rStart, selStart);
+            const std::uint32_t oEnd = std::min(rEnd, selEnd);
+            if (oStart >= oEnd) continue;
+
+            if (!found) {
+                value = r.fontSize;
+                found = true;
+                continue;
+            }
+
+            if (std::fabs(value - r.fontSize) > 0.01f) {
+                return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Mixed), value };
+            }
+        }
+
+        if (!found) {
+            return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::Off), 0.0f };
+        }
+        return { static_cast<std::uint8_t>(engine::text::TextStyleTriState::On), value };
+    };
+
+    const int boldState = triStateAttr(TextStyleFlags::Bold);
+    const int italicState = triStateAttr(TextStyleFlags::Italic);
+    const int underlineState = triStateAttr(TextStyleFlags::Underline);
+    const int strikeState = triStateAttr(TextStyleFlags::Strike);
+
+    auto pack2bits = [](int s) -> std::uint8_t {
+        switch (s) {
+            case 0: return 0;
+            case 1: return 1;
+            case 2: return 2;
+            default: return 0;
+        }
+    };
+
+    out.styleTriStateFlags =
+        static_cast<std::uint8_t>(
+            (pack2bits(boldState) & 0x3) |
+            ((pack2bits(italicState) & 0x3) << 2) |
+            ((pack2bits(underlineState) & 0x3) << 4) |
+            ((pack2bits(strikeState) & 0x3) << 6)
+        );
+
+    const auto [fontIdState, fontIdValue] = resolveFontIdState();
+    const auto [fontSizeState, fontSizeValue] = resolveFontSizeState();
+    out.fontIdTriState = fontIdState;
+    out.fontSizeTriState = fontSizeState;
+    out.fontId = fontIdValue;
+    out.fontSize = fontSizeValue;
     out.textGeneration = generation;
     out.styleTriStateParamsLen = 0;
     return out;

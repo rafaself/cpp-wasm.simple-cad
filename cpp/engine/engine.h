@@ -406,6 +406,7 @@ public:
 
     // Style snapshot for ribbon/state (engine-authoritative)
     engine::text::TextStyleSnapshot getTextStyleSnapshot(std::uint32_t textId) const;
+    engine::text::TextStyleSnapshot getTextStyleSummary(std::uint32_t textId) const;
     
     /**
      * Get text entity bounds.

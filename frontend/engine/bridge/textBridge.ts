@@ -60,7 +60,6 @@ export class TextBridge {
     if (this.initialized) return true;
 
     if (typeof (this.textApi as any).initializeTextSystem !== 'function') {
-      console.warn('TextBridge: Text system not available in this WASM build');
       return false;
     }
 
@@ -213,9 +212,6 @@ export class TextBridge {
    * Apply text style to a logical range.
    */
   applyTextStyle(textId: number, style: ApplyTextStylePayload): void {
-    if (import.meta.env.DEV) {
-      console.warn('[DEBUG] TextBridge.applyTextStyle sending command', { textId, style });
-    }
     this.runtime.apply([
       {
         op: CommandOp.ApplyTextStyle,
@@ -263,9 +259,6 @@ export class TextBridge {
    * Insert text content using byte index directly.
    */
   insertContentByteIndex(textId: number, byteIndex: number, text: string): void {
-    if (import.meta.env.DEV) {
-      console.warn('[DEBUG] TextBridge: insertContentByteIndex', { textId, byteIndex, text });
-    }
     this.runtime.apply([
       {
         op: CommandOp.InsertTextContent,

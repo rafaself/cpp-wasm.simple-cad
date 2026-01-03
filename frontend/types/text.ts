@@ -182,6 +182,12 @@ export interface TextStyleSnapshot {
   /** 2 bits per attr: bold bits0-1, italic bits2-3, underline bits4-5, strike bits6-7 */
   styleTriStateFlags: number;
   align: number;
+  /** 0=off/unknown, 1=uniform, 2=mixed */
+  fontIdTriState: number;
+  /** 0=off/unknown, 1=uniform, 2=mixed */
+  fontSizeTriState: number;
+  fontId: number;
+  fontSize: number;
   textGeneration: number;
   styleTriStateParamsLen: number;
 }

@@ -51,7 +51,12 @@ export const STYLE_SNAPSHOT_OFFSETS = {
   y: 30, // f32
   lineHeight: 34, // f32
   styleTriStateFlags: 38, // u8 (2 bits per attr)
-  textGeneration: 39, // u32
-  styleTriStateParamsLen: 43, // u16
-  headerBytes: 45, // bytes before params TLV
+  align: 39, // u8
+  fontIdTriState: 40, // u8
+  fontSizeTriState: 41, // u8
+  fontId: 42, // u32
+  fontSize: 46, // f32
+  textGeneration: 50, // u32
+  styleTriStateParamsLen: 54, // u16
+  headerBytes: 56, // bytes before params TLV
 } as const;

@@ -19,6 +19,7 @@ vi.mock('./textToolController', () => ({
     applyFontSize: spies.applyFontSizeSpy,
     applyFontSizeToText: spies.applyFontSizeToTextSpy,
   }),
+  ensureFontFamilyLoaded: vi.fn().mockResolvedValue(undefined),
   applyTextDefaultsFromSettings: vi.fn(),
   mapFontFamilyToId: vi.fn((family?: string) => (family ? 5 : 4)),
 }));

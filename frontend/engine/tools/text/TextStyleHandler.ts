@@ -39,7 +39,6 @@ export class TextStyleHandler {
   applyStyle(flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
     const state = this.stateManager.getState();
     if (state.activeTextId === null) {
-      console.warn('[TextStyleHandler] applyStyle: No active text');
       return false;
     }
 
@@ -57,14 +56,9 @@ export class TextStyleHandler {
 
     // Handle collapsed selection: use caret for typing attributes
     if (rangeStart === rangeEnd) {
-      if (contentLength > 0) {
-        rangeStart = 0;
-        rangeEnd = contentLength;
-      } else {
-        const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
-        rangeStart = caret;
-        rangeEnd = caret;
-      }
+      const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
+      rangeStart = caret;
+      rangeEnd = caret;
     }
 
     const payload: ApplyTextStylePayload = {
@@ -243,14 +237,9 @@ export class TextStyleHandler {
     rangeEnd = Math.max(0, Math.min(rangeEnd, contentLength));
 
     if (rangeStart === rangeEnd) {
-      if (contentLength > 0) {
-        rangeStart = 0;
-        rangeEnd = contentLength;
-      } else {
-        const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
-        rangeStart = caret;
-        rangeEnd = caret;
-      }
+      const caret = Math.max(0, Math.min(state.caretIndex, contentLength));
+      rangeStart = caret;
+      rangeEnd = caret;
     }
 
     const payload: ApplyTextStylePayload = {

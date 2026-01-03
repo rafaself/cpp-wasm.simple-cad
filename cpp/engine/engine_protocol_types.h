@@ -379,6 +379,10 @@ protected:
             static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, lineHeight)),
             static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, styleTriStateFlags)),
             static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, align)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, fontIdTriState)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, fontSizeTriState)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, fontId)),
+            static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, fontSize)),
             static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, textGeneration)),
             static_cast<std::uint32_t>(offsetof(engine::text::TextStyleSnapshot, styleTriStateParamsLen)),
         });

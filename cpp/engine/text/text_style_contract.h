@@ -76,6 +76,10 @@ struct TextStyleSnapshot {
     float lineHeight;
     std::uint8_t styleTriStateFlags; // 2 bits per attr (bold/italic/underline/strike)
     std::uint8_t align;              // 0=Left, 1=Center, 2=Right
+    std::uint8_t fontIdTriState;     // 0=off/unknown, 1=uniform, 2=mixed
+    std::uint8_t fontSizeTriState;   // 0=off/unknown, 1=uniform, 2=mixed
+    std::uint32_t fontId;
+    float fontSize;
     std::uint32_t textGeneration;
     std::uint16_t styleTriStateParamsLen; // bytes following the header
     // [styleTriStateParams bytes...]

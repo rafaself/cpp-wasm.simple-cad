@@ -178,7 +178,6 @@ export class TextTool {
     // Initialize text system in engine
     const success = this.bridge.initialize();
     if (!success) {
-      console.warn('TextTool: Failed to initialize text system');
       return false;
     }
 
@@ -271,15 +270,7 @@ export class TextTool {
    * @param worldY World Y coordinate
    */
   handleClick(worldX: number, worldY: number): void {
-    if (import.meta.env.DEV) {
-      console.warn('[DEBUG] TextTool: handleClick', { worldX, worldY });
-    }
     if (!this.isReady()) {
-      console.warn('TextTool.handleClick: Tool not ready', {
-        initialized: this.initialized,
-        bridge: !!this.bridge,
-        bridgeAvailable: this.bridge?.isAvailable(),
-      });
       return;
     }
     this.inputCoordinator.handleClick(worldX, worldY, (textId, x, y, boxMode, constraintWidth) =>
