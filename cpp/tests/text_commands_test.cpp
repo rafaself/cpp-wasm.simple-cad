@@ -800,6 +800,91 @@ TEST_F(TextCommandsTest, SetTextAlignMarksTextDirtyForRelayout) {
     EXPECT_EQ(textSystem.layoutEngine.layoutDirtyTexts(), 1u);
 }
 
+TEST_F(TextCommandsTest, ApplyTextStyleEmitsEntityChangedWithBounds) {
+    // Create text through command pipeline to exercise event emission
+    CommandBufferBuilder builder;
+    builder.writeHeader(1);
+
+    const char* content = "Hello";
+    TextPayloadHeader header{};
+    header.x = 0.0f;
+    header.y = 0.0f;
+    header.rotation = 0.0f;
+    header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
+    header.align = static_cast<std::uint8_t>(TextAlign::Left);
+    header.constraintWidth = 0.0f;
+    header.runCount = 1;
+    header.contentLength = static_cast<std::uint32_t>(std::strlen(content));
+
+    TextRunPayload run{};
+    run.startIndex = 0;
+    run.length = header.contentLength;
+    run.fontId = 0;
+    run.fontSize = 16.0f;
+    run.colorRGBA = 0xFFFFFFFFu;
+    run.flags = 0;
+
+    const std::size_t upsertPayloadSize =
+        sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength;
+    builder.writeCommandHeader(
+        CommandOp::UpsertText,
+        1,
+        static_cast<std::uint32_t>(upsertPayloadSize));
+    builder.pushBytes(&header, sizeof(header));
+    builder.pushBytes(&run, sizeof(run));
+    builder.pushBytes(content, header.contentLength);
+    EXPECT_EQ(applyCommands(builder), EngineError::Ok);
+    engine_->pollEvents(32); // Drain creation events
+
+    // Apply a font size change via ApplyTextStyle command
+    std::uint8_t params[1 + sizeof(float)];
+    params[0] = engine::text::textStyleTagFontSize;
+    float newSize = 24.0f;
+    std::memcpy(params + 1, &newSize, sizeof(float));
+
+    engine::text::ApplyTextStylePayload payload{};
+    payload.textId = 1;
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = header.contentLength;
+    payload.flagsMask = 0;
+    payload.flagsValue = 0;
+    payload.mode = 0; // set
+    payload.styleParamsVersion = 1;
+    payload.styleParamsLen = static_cast<std::uint16_t>(sizeof(params));
+
+    builder.clear();
+    builder.writeHeader(1);
+    builder.writeCommandHeader(
+        CommandOp::ApplyTextStyle,
+        payload.textId,
+        static_cast<std::uint32_t>(engine::text::applyTextStyleHeaderBytes + sizeof(params)));
+    builder.pushBytes(&payload, sizeof(payload));
+    builder.pushBytes(params, sizeof(params));
+
+    EXPECT_EQ(applyCommands(builder), EngineError::Ok);
+
+    auto meta = engine_->pollEvents(16);
+    ASSERT_GE(meta.count, 1u);
+    const auto* events = reinterpret_cast<const CadEngine::EngineEvent*>(meta.ptr);
+    ASSERT_NE(events, nullptr);
+
+    const std::uint32_t expectedMask =
+        static_cast<std::uint32_t>(CadEngine::ChangeMask::Text)
+        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Style)
+        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Bounds);
+
+    bool foundEntityChanged = false;
+    for (std::uint32_t i = 0; i < meta.count; ++i) {
+        if (events[i].type == static_cast<std::uint16_t>(CadEngine::EventType::EntityChanged)
+            && events[i].a == payload.textId) {
+            foundEntityChanged = true;
+            EXPECT_EQ(events[i].b & expectedMask, expectedMask);
+        }
+    }
+
+    EXPECT_TRUE(foundEntityChanged);
+}
+
 // =============================================================================
 // PR1 Verification Tests
 // =============================================================================

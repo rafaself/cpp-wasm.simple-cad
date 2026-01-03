@@ -81,6 +81,7 @@ export const useEngineEvents = (): void => {
       let needsSelection = false;
       let needsOrder = false;
       let needsHistory = false;
+      let needsOverlay = false;
 
       for (const ev of events) {
         switch (ev.type) {
@@ -100,6 +101,12 @@ export const useEngineEvents = (): void => {
             const mask = ev.a >>> 0;
             if ((mask & ChangeMask.Layer) !== 0) needsLayers = true;
             if ((mask & ChangeMask.Order) !== 0) needsOrder = true;
+            if (
+              (mask & (ChangeMask.Bounds | ChangeMask.Style | ChangeMask.Text | ChangeMask.Geometry | ChangeMask.RenderData)) !==
+              0
+            ) {
+              needsOverlay = true;
+            }
             break;
           }
           default:
@@ -114,11 +121,15 @@ export const useEngineEvents = (): void => {
       if (needsSelection) bumpDocumentSignal('selection');
       if (needsOrder) bumpDocumentSignal('order');
       if (needsHistory) syncHistoryMetaFromEngine(runtime);
+      if (needsOverlay) {
+        useUIStore.getState().bumpOverlayTick();
+      }
       cadDebugLog('events', 'signals', () => ({
         layers: needsLayers,
         selection: needsSelection,
         order: needsOrder,
         history: needsHistory,
+        overlay: needsOverlay,
       }));
 
       rafId = requestAnimationFrame(tick);
