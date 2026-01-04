@@ -1,4 +1,5 @@
 import { hexToRgb } from '@/utils/color';
+
 import type { ViewTransform } from '@/types';
 
 type AxesPassResources = {
@@ -217,10 +218,10 @@ export class AxesPass {
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    
+
     // Draw 4 vertices (Triangle Strip)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    
+
     gl.bindVertexArray(null);
   }
 
@@ -240,7 +241,7 @@ export class AxesPass {
     gl.attachShader(p, fs);
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)!);
-    
+
     gl.deleteShader(vs);
     gl.deleteShader(fs);
     return p;

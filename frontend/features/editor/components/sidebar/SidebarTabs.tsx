@@ -32,7 +32,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   const checkOverflow = useCallback(() => {
     if (!containerRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = containerRef.current;
-    
+
     // Use a small threshold (e.g. 1px) to avoid precision issues
     setShowLeftArrow(scrollLeft > 1);
     setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
@@ -71,15 +71,15 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
     if (!isDragging || !containerRef.current) return;
     e.preventDefault();
     const x = e.pageX - containerRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5; 
-    
+    const walk = (x - startX) * 1.5;
+
     if (Math.abs(x - (startX + scrollLeftState)) > 3) {
       setHasMoved(true);
     }
-    
+
     containerRef.current.scrollLeft = scrollLeftState - walk;
-    // We don't checkOverflow here continuously to avoid trash, 
-    // but onScroll will handle update visually. 
+    // We don't checkOverflow here continuously to avoid trash,
+    // but onScroll will handle update visually.
     // Actually dragging modifies scrollLeft which triggers onScroll.
   };
 
@@ -107,15 +107,15 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   };
 
   return (
-    <div 
-      className="relative flex bg-surface1 select-none group"
-      style={{ height: '56px' }}
-    >
+    <div className="relative flex bg-surface1 select-none group" style={{ height: '56px' }}>
       {/* Left Overflow Button */}
       {showIndicators && showLeftArrow && (
         <button
           className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
-          onClick={(e) => { e.stopPropagation(); scrollByAmount(-100); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            scrollByAmount(-100);
+          }}
           title="Rolar para esquerda"
           aria-hidden="true"
         >
@@ -139,7 +139,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           const Icon = tab.icon;
-          
+
           return (
             <div
               key={tab.id}
@@ -147,9 +147,10 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
               className={`
                 flex-shrink-0 flex flex-col items-center justify-center gap-1
                 min-w-[60px] h-[48px] rounded-md transition-colors
-                ${isActive 
-                  ? 'bg-primary/20 text-text active-tab-shadow' 
-                  : 'text-text-muted hover:bg-surface2 hover:text-text'
+                ${
+                  isActive
+                    ? 'bg-primary/20 text-text active-tab-shadow'
+                    : 'text-text-muted hover:bg-surface2 hover:text-text'
                 }
               `}
               title={tab.label}
@@ -166,11 +167,14 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
         <div className="min-w-[4px] flex-shrink-0" />
       </div>
 
-       {/* Right Overflow Button */}
-       {showIndicators && showRightArrow && (
+      {/* Right Overflow Button */}
+      {showIndicators && showRightArrow && (
         <button
           className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
-          onClick={(e) => { e.stopPropagation(); scrollByAmount(100); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            scrollByAmount(100);
+          }}
           title="Rolar para direita"
           aria-hidden="true"
         >

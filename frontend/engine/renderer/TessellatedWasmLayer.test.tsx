@@ -4,9 +4,11 @@
 import { render, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import TessellatedWasmLayer from './TessellatedWasmLayer';
+
 import { CanvasController } from '@/engine/core/CanvasController';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+
+import TessellatedWasmLayer from './TessellatedWasmLayer';
 
 // Mock CanvasController class
 vi.mock('@/engine/core/CanvasController', () => {
@@ -50,7 +52,8 @@ describe('TessellatedWasmLayer', () => {
     render(<TessellatedWasmLayer />);
 
     await waitFor(() => {
-      const instances = (CanvasController as unknown as { mock: { instances: any[] } }).mock.instances;
+      const instances = (CanvasController as unknown as { mock: { instances: any[] } }).mock
+        .instances;
       const instance = instances[instances.length - 1];
       expect(instance.setClearColor).toHaveBeenCalledWith({
         r: 25 / 255,
@@ -67,13 +70,13 @@ describe('TessellatedWasmLayer', () => {
       if (el === document.documentElement) {
         return {
           getPropertyValue: (prop: string) => {
-             if (prop === '--canvas-bg') return '#666666'; // Simulating resolved hex
-             return '';
-          }
+            if (prop === '--canvas-bg') return '#666666'; // Simulating resolved hex
+            return '';
+          },
         } as unknown as CSSStyleDeclaration;
       }
       return {
-         getPropertyValue: () => ''
+        getPropertyValue: () => '',
       } as unknown as CSSStyleDeclaration;
     });
 
@@ -88,7 +91,8 @@ describe('TessellatedWasmLayer', () => {
 
     // Initial check
     await waitFor(() => {
-      const instances = (CanvasController as unknown as { mock: { instances: any[] } }).mock.instances;
+      const instances = (CanvasController as unknown as { mock: { instances: any[] } }).mock
+        .instances;
       const instance = instances[instances.length - 1];
       expect(instance.setClearColor).toHaveBeenCalledWith({
         r: 0.4, // 102/255 approx -> 0x66 = 102. 102/255 = 0.4
@@ -100,16 +104,16 @@ describe('TessellatedWasmLayer', () => {
 
     // Update mock for next call (simulate theme change affecting the variable value)
     window.getComputedStyle = vi.fn((el: Element) => {
-       if (el === document.documentElement) {
+      if (el === document.documentElement) {
         return {
           getPropertyValue: (prop: string) => {
-             if (prop === '--canvas-bg') return '#CCCCCC'; // Simulating new resolved hex
-             return '';
-          }
+            if (prop === '--canvas-bg') return '#CCCCCC'; // Simulating new resolved hex
+            return '';
+          },
         } as unknown as CSSStyleDeclaration;
       }
       return {
-         getPropertyValue: () => ''
+        getPropertyValue: () => '',
       } as unknown as CSSStyleDeclaration;
     });
 
@@ -119,7 +123,8 @@ describe('TessellatedWasmLayer', () => {
     });
 
     await waitFor(() => {
-      const instances = (CanvasController as unknown as { mock: { instances: any[] } }).mock.instances;
+      const instances = (CanvasController as unknown as { mock: { instances: any[] } }).mock
+        .instances;
       const instance = instances[instances.length - 1];
       expect(instance.setClearColor).toHaveBeenCalledWith({
         r: 0.8, // 204/255 = 0.8

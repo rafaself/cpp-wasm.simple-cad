@@ -27,11 +27,11 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
 
   // Fixed height for small buttons, forced to override defaults
   const heightClass = '!h-[24px] min-h-[24px] max-h-[24px]';
-  
+
   // Flex layout
   const flexClass = 'flex flex-row items-center gap-2';
   const justifyClass = 'justify-start px-2.5';
-  
+
   // Typography
   const textClass = 'text-xs whitespace-nowrap truncate text-left flex-1';
 

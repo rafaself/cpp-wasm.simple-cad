@@ -14,8 +14,8 @@ import React from 'react';
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 import ThemeToggle from '@/features/editor/components/ThemeToggle';
-import { useProjectStore } from '@/stores/useProjectStore';
 import { LABELS } from '@/i18n/labels';
+import { useProjectStore } from '@/stores/useProjectStore';
 
 const Header: React.FC = () => {
   const [isFullScreen, setIsFullScreen] = React.useState(false);
@@ -51,7 +51,12 @@ const Header: React.FC = () => {
     <div className="relative h-[26px] py-[2px] bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
       <div className="flex items-center gap-1.5">
         <div className="flex items-center justify-center">
-          <svg width="0" height="0" className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
+          <svg
+            width="0"
+            height="0"
+            className="absolute w-0 h-0 pointer-events-none"
+            aria-hidden="true"
+          >
             <defs>
               <linearGradient id="blazar-gradient-header" x1="10%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#0ea5e9" /> {/* Electric Sky Blue */}
@@ -60,7 +65,12 @@ const Header: React.FC = () => {
               </linearGradient>
             </defs>
           </svg>
-          <Zap size={20} className="text-transparent" fill="url(#blazar-gradient-header)" stroke="url(#blazar-gradient-header)" />
+          <Zap
+            size={20}
+            className="text-transparent"
+            fill="url(#blazar-gradient-header)"
+            stroke="url(#blazar-gradient-header)"
+          />
         </div>
         <div className="font-semibold text-xs tracking-wide mr-1">Blazar</div>
         <div className="h-4 w-px bg-border mx-0.5"></div>

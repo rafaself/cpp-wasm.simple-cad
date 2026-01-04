@@ -1,12 +1,11 @@
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { TextTool, createTextTool } from '@/engine/tools/TextTool';
-import { TextStyleFlags } from '@/types/text';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { TextStyleFlags, TextAlign } from '@/types/text';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { TextToolCallbacks, TextToolState, TextStyleDefaults } from '@/engine/tools/TextTool';
-import type { TextAlign } from '@/types/text';
 
 type TextToolListener = Partial<TextToolCallbacks>;
 
@@ -34,18 +33,18 @@ const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
   'Open Sans': {
     baseId: 1,
     variants: {
-      regular:    { fontId: 1,  url: '/fonts/OpenSans-Regular.ttf', bold: false, italic: false },
-      bold:       { fontId: 2,  url: '/fonts/OpenSans-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 3,  url: '/fonts/OpenSans-Italic.ttf', bold: false, italic: true },
-      boldItalic: { fontId: 4,  url: '/fonts/OpenSans-BoldItalic.ttf', bold: true, italic: true },
+      regular: { fontId: 1, url: '/fonts/OpenSans-Regular.ttf', bold: false, italic: false },
+      bold: { fontId: 2, url: '/fonts/OpenSans-Bold.ttf', bold: true, italic: false },
+      italic: { fontId: 3, url: '/fonts/OpenSans-Italic.ttf', bold: false, italic: true },
+      boldItalic: { fontId: 4, url: '/fonts/OpenSans-BoldItalic.ttf', bold: true, italic: true },
     },
   },
   'Noto Serif': {
     baseId: 10,
     variants: {
-      regular:    { fontId: 10, url: '/fonts/NotoSerif-Regular.ttf', bold: false, italic: false },
-      bold:       { fontId: 11, url: '/fonts/NotoSerif-Bold.ttf', bold: true, italic: false },
-      italic:     { fontId: 12, url: '/fonts/NotoSerif-Italic.ttf', bold: false, italic: true },
+      regular: { fontId: 10, url: '/fonts/NotoSerif-Regular.ttf', bold: false, italic: false },
+      bold: { fontId: 11, url: '/fonts/NotoSerif-Bold.ttf', bold: true, italic: false },
+      italic: { fontId: 12, url: '/fonts/NotoSerif-Italic.ttf', bold: false, italic: true },
       boldItalic: { fontId: 13, url: '/fonts/NotoSerif-BoldItalic.ttf', bold: true, italic: true },
     },
   },
@@ -53,15 +52,15 @@ const FONT_FAMILIES: Record<string, FontFamilyConfig> = {
 
 // Map familiar font names to available fonts
 const FAMILY_ALIASES: Record<string, string> = {
-  'Times': 'Noto Serif',
+  Times: 'Noto Serif',
   'Times New Roman': 'Noto Serif',
-  'Georgia': 'Noto Serif',
+  Georgia: 'Noto Serif',
   'DejaVu Serif': 'Noto Serif',
   // Sans-serif aliases now point to Open Sans
-  'Arial': 'Open Sans',
-  'Helvetica': 'Open Sans',
-  'Inter': 'Open Sans',
-  'Roboto': 'Open Sans',
+  Arial: 'Open Sans',
+  Helvetica: 'Open Sans',
+  Inter: 'Open Sans',
+  Roboto: 'Open Sans',
   'DejaVu Sans': 'Open Sans',
 };
 
@@ -123,16 +122,17 @@ async function ensureInitialized(runtime?: EngineRuntime): Promise<EngineRuntime
   return rt;
 }
 
-async function loadFontVariant(
-  variant: FontVariant,
-  _runtime: EngineRuntime,
-): Promise<boolean> {
+async function loadFontVariant(variant: FontVariant, _runtime: EngineRuntime): Promise<boolean> {
   if (loadedFonts.has(variant.fontId)) return true;
   if (pendingFontLoads.has(variant.fontId)) {
     return pendingFontLoads.get(variant.fontId)!;
   }
 
-  if (import.meta.env.MODE === 'test' || typeof window === 'undefined' || typeof fetch === 'undefined') {
+  if (
+    import.meta.env.MODE === 'test' ||
+    typeof window === 'undefined' ||
+    typeof fetch === 'undefined'
+  ) {
     return false;
   }
 
@@ -141,7 +141,12 @@ async function loadFontVariant(
       const res = await fetch(variant.url);
       if (!res.ok) return false;
       const buffer = await res.arrayBuffer();
-      const ok = textTool.loadFontEx(variant.fontId, new Uint8Array(buffer), variant.bold, variant.italic);
+      const ok = textTool.loadFontEx(
+        variant.fontId,
+        new Uint8Array(buffer),
+        variant.bold,
+        variant.italic,
+      );
       if (ok) {
         loadedFonts.add(variant.fontId);
       }
@@ -179,7 +184,11 @@ function getFontStyle(bold: boolean, italic: boolean): FontStyle {
 /**
  * Resolve family + style to the specific font variant.
  */
-export function resolveFontVariant(fontFamily: string | undefined, bold: boolean, italic: boolean): FontVariant {
+export function resolveFontVariant(
+  fontFamily: string | undefined,
+  bold: boolean,
+  italic: boolean,
+): FontVariant {
   const family = resolveFamily(fontFamily);
   const style = getFontStyle(bold, italic);
   return family.variants[style];
@@ -210,7 +219,7 @@ export async function ensureFontVariantLoaded(
   fontFamily: string | undefined,
   bold: boolean,
   italic: boolean,
-  runtime?: EngineRuntime
+  runtime?: EngineRuntime,
 ): Promise<number> {
   const rt = await ensureInitialized(runtime);
   const variant = resolveFontVariant(fontFamily, bold, italic);
@@ -227,7 +236,10 @@ export async function ensureFontFamilyLoaded(
   await Promise.all(Object.values(family.variants).map((variant) => loadFontVariant(variant, rt)));
 }
 
-export async function ensureTextToolReady(runtime?: EngineRuntime, fontFamily?: string): Promise<TextTool> {
+export async function ensureTextToolReady(
+  runtime?: EngineRuntime,
+  fontFamily?: string,
+): Promise<TextTool> {
   const rt = await ensureInitialized(runtime);
   // Load the regular variant by default
   const variant = resolveFontVariant(fontFamily, false, false);
@@ -249,7 +261,7 @@ export function applyTextDefaultsFromSettings(): TextStyleDefaults {
   // before the bold variant is loaded.
   const family = resolveFamily(fontFamily);
   const baseVariant = family.variants.regular;
-  
+
   // Preload the variant that matches current style (async, for when user types)
   const styleVariant = resolveFontVariant(fontFamily, bold, italic);
   void getEngineRuntime().then((rt) => {
@@ -267,11 +279,17 @@ export function applyTextDefaultsFromSettings(): TextStyleDefaults {
     (underline ? TextStyleFlags.Underline : 0) |
     (strike ? TextStyleFlags.Strikethrough : 0);
 
+  const alignMap: Record<string, TextAlign> = {
+    left: TextAlign.Left,
+    center: TextAlign.Center,
+    right: TextAlign.Right,
+  };
+
   const defaults: Partial<TextStyleDefaults> = {
-    fontId: baseVariant.fontId,  // Always use base font ID!
+    fontId: baseVariant.fontId, // Always use base font ID!
     fontSize,
-    align: align as TextAlign,
-    flags,  // Engine uses flags to resolve to variant
+    align: alignMap[align] ?? TextAlign.Left,
+    flags, // Engine uses flags to resolve to variant
   };
 
   textTool.setStyleDefaults(defaults);

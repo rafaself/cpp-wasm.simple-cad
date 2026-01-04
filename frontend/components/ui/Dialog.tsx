@@ -269,9 +269,7 @@ export const DialogCard: React.FC<DialogCardProps> = ({
           <h2 className="text-lg font-semibold text-text leading-none">{title}</h2>
         </div>
       )}
-      <div className={`px-6 py-4 text-text flex-grow min-h-0 ${contentClassName}`}>
-        {children}
-      </div>
+      <div className={`px-6 py-4 text-text flex-grow min-h-0 ${contentClassName}`}>{children}</div>
       {actions && (
         <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface2/50">
           {actions}

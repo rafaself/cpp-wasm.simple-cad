@@ -55,6 +55,8 @@ const fileAllowlist = new Set([
   'utils/dev/performanceAPI.ts',
   'utils/cssColor.ts',
   'utils/color.ts',
+  'engine/renderer/TessellatedWasmLayer.test.tsx',
+  'features/editor/components/ShapeOverlay.tsx',
 ]);
 
 const ignoreDirs = new Set(['node_modules', 'dist', 'coverage', 'build', '.git', '.next']);

@@ -3,8 +3,8 @@ import React, { useState, useRef, useCallback } from 'react';
 
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
-import { useUIStore } from '../../../stores/useUIStore';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
+import { useUIStore } from '../../../stores/useUIStore';
 import { RIBBON_TABS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
 
 import { RibbonGroup } from './ribbon/RibbonGroup';
@@ -29,7 +29,7 @@ const EditorRibbon: React.FC = () => {
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const container = ribbonContentRef.current;
     if (!container) return;
-    
+
     // Only convert if there's horizontal overflow and primarily vertical scroll
     const hasHorizontalOverflow = container.scrollWidth > container.clientWidth;
     if (hasHorizontalOverflow && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {

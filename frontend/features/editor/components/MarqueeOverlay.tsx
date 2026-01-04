@@ -37,7 +37,6 @@ export const MarqueeOverlay: React.FC<MarqueeOverlayProps> = ({
     const w = Math.abs(a.x - b.x);
     const h = Math.abs(a.y - b.y);
 
-
     // Crossing (RTL) uses dashed stroke, Window (LTR) uses solid
     const strokeDash = selectionBox.direction === 'RTL' ? '5 5' : undefined;
     const isRTL = selectionBox.direction === 'RTL';

@@ -16,4 +16,3 @@ export const DEFAULT_CENTER_ICON_COLOR = 'rgba(100, 116, 139, 0.25)'; // Slate/5
 export const DEFAULT_STROKE_COLOR = '#FFFFFF';
 export const DEFAULT_FILL_COLOR = '#D9D9D9';
 export const DEFAULT_TEXT_SELECTION_COLOR = 'rgba(59, 130, 246, 0.3)';
-

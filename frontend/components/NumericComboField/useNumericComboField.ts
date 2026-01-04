@@ -143,7 +143,11 @@ export function useNumericComboField(
   // Derive display value from controlled value
   const isMixed = value === 'mixed';
   const numericValue = typeof value === 'number' ? value : null;
-  const displayValue = isMixed ? '' : numericValue !== null ? formatNumber(numericValue, decimals) : '';
+  const displayValue = isMixed
+    ? ''
+    : numericValue !== null
+      ? formatNumber(numericValue, decimals)
+      : '';
 
   // Internal state
   const [draftValue, setDraftValueInternal] = useState(displayValue);
@@ -366,12 +370,12 @@ export function useNumericComboField(
     (e: React.WheelEvent) => {
       // Allow scroll wheel even if not focused, as long as it's enabled
       if (!allowScrollWheel) return;
-      
+
       // Prevent default scroll behavior of the page
       e.preventDefault();
       // Stop propagation to prevent parent containers (like Ribbon) from scrolling
       e.stopPropagation();
-      
+
       if (e.deltaY < 0) {
         increment(e.shiftKey);
       } else {

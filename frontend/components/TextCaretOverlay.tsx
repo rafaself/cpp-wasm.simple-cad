@@ -11,9 +11,10 @@
 
 import React, { useEffect, useState } from 'react';
 
+import * as DEFAULTS from '@/theme/defaults';
+
 import type { ViewTransform } from '@/types';
 import type { TextSelectionRect } from '@/types/text';
-import * as DEFAULTS from '@/theme/defaults';
 
 // =============================================================================
 // Types

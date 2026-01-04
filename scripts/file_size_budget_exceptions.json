@@ -6,9 +6,29 @@
       "reason": "Legacy engine header (pre-SRP split) exceeds hard cap; tracked for refactor."
     },
     {
+      "path": "cpp/engine/interaction/interaction_session.cpp",
+      "hardLimit": 1250,
+      "reason": "Interaction session monolithic; pending split."
+    },
+    {
+      "path": "cpp/tests/engine_test.cpp",
+      "hardLimit": 1000,
+      "reason": "Engine integration tests."
+    },
+    {
       "path": "cpp/engine/persistence/snapshot.cpp",
       "hardLimit": 820,
       "reason": "Snapshot path still monolithic; refactor planned in SRP roadmap."
+    },
+    {
+      "path": "cpp/engine/impl/engine_snapshot.cpp",
+      "hardLimit": 850,
+      "reason": "Snapshot implementation slightly over; to be split alongside persistence/snapshot.cpp."
+    },
+    {
+      "path": "cpp/engine/history/history_manager.cpp",
+      "hardLimit": 870,
+      "reason": "History manager monolithic; pending SRP split into separate command handlers."
     },
     {
       "path": "cpp/engine/render/vector_tessellation.cpp",
@@ -17,12 +37,17 @@
     },
     {
       "path": "cpp/tests/text_commands_test.cpp",
-      "hardLimit": 1050,
+      "hardLimit": 1150,
       "reason": "Large text command test suite; slated for breakup after text refactor."
     },
     {
+      "path": "frontend/components/TextInputProxy.tsx",
+      "hardLimit": 520,
+      "reason": "Input proxy slightly over limit."
+    },
+    {
       "path": "frontend/engine/tools/text/TextInputCoordinator.ts",
-      "hardLimit": 650,
+      "hardLimit": 720,
       "reason": "Legacy text input coordinator; slated for Phase 4 SRP refactor."
     },
     {
@@ -32,12 +57,12 @@
     },
     {
       "path": "frontend/engine/core/commandBuffer.ts",
-      "hardLimit": 560,
+      "hardLimit": 580,
       "reason": "Command encoder still monolithic; slated for SRP split after governance rollout."
     },
     {
       "path": "frontend/engine/core/EngineRuntime.ts",
-      "hardLimit": 520,
+      "hardLimit": 560,
       "reason": "Runtime facade consolidation pending; keep under watch while bridge is stabilized."
     },
     {

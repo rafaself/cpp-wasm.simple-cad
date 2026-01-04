@@ -1,8 +1,8 @@
+import { AxesPass } from './passes/AxesPass';
 import { GeometryPass } from './passes/GeometryPass';
+import { GridPass } from './passes/GridPass';
 import { LinePass } from './passes/LinePass';
 import { TextRenderPass } from './passes/TextRenderPass';
-import { AxesPass } from './passes/AxesPass';
-import { GridPass } from './passes/GridPass';
 
 import type { TessellatedRenderer, TessellatedRenderInput } from '../types';
 

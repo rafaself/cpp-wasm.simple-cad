@@ -1,4 +1,3 @@
-
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InteractionHandler } from '../types';
 

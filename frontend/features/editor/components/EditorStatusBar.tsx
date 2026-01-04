@@ -38,7 +38,7 @@ const EditorStatusBar: React.FC = () => {
 
   const toggleSnap = () => setSnapEnabled(!snapSettings.enabled);
   const toggleOption = (key: keyof SnapOptions) => setSnapOption(key, !snapSettings[key]);
-  
+
   const activeTool = useUIStore((s) => s.activeTool);
 
   const ToolIcon = React.useMemo(() => {

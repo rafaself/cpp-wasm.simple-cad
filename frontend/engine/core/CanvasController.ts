@@ -1,13 +1,12 @@
 import { Webgl2TessellatedRenderer } from '@/engine/renderer/webgl2/webgl2TessellatedRenderer';
-import type { AxesSettings } from '@/engine/renderer/webgl2/passes/AxesPass';
-import type { GridRenderSettings } from '@/engine/renderer/types';
-
-import { getEngineRuntime } from './singleton';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 
+import { getEngineRuntime } from './singleton';
+
 import type { BufferMeta, EngineRuntime } from './EngineRuntime';
-import type { TessellatedRenderer } from '@/engine/renderer/types';
+import type { GridRenderSettings, TessellatedRenderer } from '@/engine/renderer/types';
+import type { AxesSettings } from '@/engine/renderer/webgl2/passes/AxesPass';
 import type { ViewTransform } from '@/types';
 
 export class CanvasController {
@@ -168,7 +167,9 @@ export class CanvasController {
     });
 
     const interactionActive = this.runtime.isInteractionActive();
-    const draftActive = interactionActive ? false : this.runtime.draft.getDraftDimensions() !== null;
+    const draftActive = interactionActive
+      ? false
+      : this.runtime.draft.getDraftDimensions() !== null;
     const nextOverlayActive = interactionActive || draftActive;
     if (nextOverlayActive || nextOverlayActive !== this.overlayActive) {
       const store = useUIStore.getState();

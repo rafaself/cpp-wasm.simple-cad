@@ -1,6 +1,7 @@
+import { cadDebugLog } from '@/utils/dev/cadDebug';
+
 import { encodeCommandBuffer } from '../commandBuffer';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
-import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 import type { EngineCommand } from '../commandBuffer';
 

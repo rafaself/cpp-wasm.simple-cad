@@ -30,21 +30,21 @@ export class TransformSystem {
     try {
       const u32 = new Uint32Array(this.module.HEAPU8.buffer, ptr, ids.length);
       u32.set(ids);
-    this.engine.beginTransform(
-      ptr,
-      ids.length,
-      mode,
-      specificId,
-      vertexIndex,
-      screenX,
-      screenY,
-      viewX,
-      viewY,
-      viewScale,
-      viewWidth,
-      viewHeight,
-      modifiers,
-    );
+      this.engine.beginTransform(
+        ptr,
+        ids.length,
+        mode,
+        specificId,
+        vertexIndex,
+        screenX,
+        screenY,
+        viewX,
+        viewY,
+        viewScale,
+        viewWidth,
+        viewHeight,
+        modifiers,
+      );
     } catch (e) {
       console.error(e);
     } finally {
@@ -82,11 +82,7 @@ export class TransformSystem {
     return !!this.engine.isInteractionActive?.();
   }
 
-  public setTransformLogEnabled(
-    enabled: boolean,
-    maxEntries = 2048,
-    maxIds = 4096,
-  ): void {
+  public setTransformLogEnabled(enabled: boolean, maxEntries = 2048, maxIds = 4096): void {
     this.engine.setTransformLogEnabled(enabled, maxEntries, maxIds);
   }
 

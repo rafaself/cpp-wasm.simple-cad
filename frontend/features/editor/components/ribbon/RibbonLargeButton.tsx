@@ -56,4 +56,3 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
     </button>
   );
 };
-

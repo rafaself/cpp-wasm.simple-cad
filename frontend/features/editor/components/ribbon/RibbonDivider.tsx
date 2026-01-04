@@ -9,13 +9,12 @@ interface RibbonDividerProps {
  * Visual divider for separating elements within the ribbon.
  * Supports both vertical (default) and horizontal orientations.
  */
-export const RibbonDivider: React.FC<RibbonDividerProps> = ({ 
+export const RibbonDivider: React.FC<RibbonDividerProps> = ({
   orientation = 'vertical',
   className = '',
 }) => {
-  const baseClass = orientation === 'vertical' 
-    ? 'h-4/5 w-px bg-border/50 mx-0.5'
-    : 'w-full h-px bg-border/50 my-1';
+  const baseClass =
+    orientation === 'vertical' ? 'h-4/5 w-px bg-border/50 mx-0.5' : 'w-full h-px bg-border/50 my-1';
 
   return <div className={`${baseClass} ${className}`} aria-hidden="true" />;
 };

@@ -5,7 +5,7 @@ CPP_BUILD_DIR := cpp_build_test
 PNPM := pnpm --dir $(FRONTEND_DIR)
 DC := docker compose
 
-.PHONY: fbuild up install test wasm build dev all ctest ctest-clean checks bundle-report
+.PHONY: fbuild up install test test-view wasm build dev all ctest ctest-clean checks bundle-report
 
 fbuild:
 	$(PNPM) install --frozen-lockfile
@@ -40,6 +40,9 @@ checks:
 	$(PNPM) test
 	$(PNPM) build
 	$(PNPM) governance:check
+
+test-view:
+	cd $(FRONTEND_DIR) && npx vite preview --outDir coverage --port 4173
 
 # C++ engine tests
 ctest:

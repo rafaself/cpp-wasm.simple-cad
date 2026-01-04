@@ -174,7 +174,8 @@ TEST_F(TextLayoutTest, LayoutDirtyTracking) {
     createText(2, "World");
     
     // Should have 2 dirty texts
-    std::size_t count = layoutEngine.layoutDirtyTexts();
+    auto dirty = layoutEngine.layoutDirtyTexts();
+    std::size_t count = dirty.size();
     EXPECT_EQ(count, 2u);
     
     // Both should now be laid out
@@ -182,7 +183,8 @@ TEST_F(TextLayoutTest, LayoutDirtyTracking) {
     EXPECT_NE(layoutEngine.getLayout(2), nullptr);
     
     // No more dirty texts
-    count = layoutEngine.layoutDirtyTexts();
+    dirty = layoutEngine.layoutDirtyTexts();
+    count = dirty.size();
     EXPECT_EQ(count, 0u);
 }
 

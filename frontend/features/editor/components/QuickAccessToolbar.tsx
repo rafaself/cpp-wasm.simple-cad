@@ -34,7 +34,9 @@ const QuickAccessToolbar: React.FC = () => {
   return (
     <div
       className={`absolute z-50 bg-surface-strong/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
-      style={{ boxShadow: '0 8px 32px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(255, 255, 255, 0.02)' }}
+      style={{
+        boxShadow: '0 8px 32px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(255, 255, 255, 0.02)',
+      }}
       role="toolbar"
       aria-label="Barra de ferramentas de acesso rápido"
     >
@@ -44,7 +46,9 @@ const QuickAccessToolbar: React.FC = () => {
         title="Alternar orientacao da barra"
         aria-label="Alternar orientação da barra"
       >
-        <div className={`flex items-center justify-center transition-transform duration-200 overflow-visible ${orientation === 'vertical' ? 'rotate-90' : ''}`}>
+        <div
+          className={`flex items-center justify-center transition-transform duration-200 overflow-visible ${orientation === 'vertical' ? 'rotate-90' : ''}`}
+        >
           <LayoutPanelLeft size={12} />
         </div>
       </button>
@@ -70,7 +74,6 @@ const QuickAccessToolbar: React.FC = () => {
           </div>
         </button>
       ))}
-
     </div>
   );
 };

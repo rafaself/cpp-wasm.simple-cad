@@ -1,17 +1,17 @@
 import React from 'react';
 
 import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
-import { EntityKind } from '@/engine/types';
 import { SelectionModifier } from '@/engine/core/protocol';
+import { EntityKind } from '@/engine/types';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
+import * as DEFAULTS from '@/theme/defaults';
 import { hexToRgb } from '@/utils/color';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
-import * as DEFAULTS from '@/theme/defaults';
 
+import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
-import { useUIStore } from '@/stores/useUIStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
-import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 
 // Reusing types from previous implementation or defining locally
 interface DraftState {
@@ -83,7 +83,9 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   // Helper to build draft styling
   private buildDraftStyle(): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> {
-    const stroke = this.colorToRgb01(this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR);
+    const stroke = this.colorToRgb01(
+      this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR,
+    );
     const fill = this.colorToRgb01(this.toolDefaults.fillColor ?? DEFAULTS.DEFAULT_FILL_COLOR);
     return {
       fillR: fill.r,
@@ -277,7 +279,7 @@ export class DraftingHandler extends BaseInteractionHandler {
           y: snapped.y,
         }));
         this.resetDraftState();
-    useUIStore.getState().setTool('select');
+        useUIStore.getState().setTool('select');
         return;
       }
       this.linePendingCommit = true;
@@ -325,7 +327,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       const cy = snapped.y;
 
       const style = this.buildDraftStyle();
-      
+
       // Cancel the tiny draft created on pointer down
       this.cancelDraft(runtime);
 
@@ -352,13 +354,13 @@ export class DraftingHandler extends BaseInteractionHandler {
         },
         { op: CommandOp.CommitDraft },
       ]);
-      
+
       cadDebugLog('draft', 'click-create', () => ({
         tool: this.activeTool,
         x: cx,
         y: cy,
       }));
-      
+
       this.resetDraftState();
       useUIStore.getState().setTool('select');
       return;

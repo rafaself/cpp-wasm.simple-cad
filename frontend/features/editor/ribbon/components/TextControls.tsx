@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import React from 'react';
 
+import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
+import { mapFontIdToFamily } from '@/features/editor/text/textToolController';
 import { LABELS } from '@/i18n/labels';
 
 import CustomSelect from '../../../../components/CustomSelect';
@@ -17,12 +19,10 @@ import { INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
 import { useUIStore } from '../../../../stores/useUIStore';
 import { TextStyleFlags } from '../../../../types/text';
-import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 import { RibbonControlWrapper } from '../../components/ribbon/RibbonControlWrapper';
 import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
 import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
-import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
-import { mapFontIdToFamily } from '@/features/editor/text/textToolController';
+import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 
 // Familiar font names users recognize
 const FONT_OPTIONS = [
@@ -50,10 +50,7 @@ const useResolvedTextStyleSnapshot = (selectedTextIds: number[]) => {
 
   return React.useMemo(() => {
     if (engineEditState.active) {
-      if (
-        engineStyleSnapshot &&
-        engineEditState.textId === engineStyleSnapshot.textId
-      ) {
+      if (engineStyleSnapshot && engineEditState.textId === engineStyleSnapshot.textId) {
         return engineStyleSnapshot.snapshot;
       }
       return null;
@@ -63,7 +60,14 @@ const useResolvedTextStyleSnapshot = (selectedTextIds: number[]) => {
     const textId = selectedTextIds[0];
     if (!runtime.getTextEntityMeta(textId)) return null;
     return runtime.text.getTextStyleSummary(textId);
-  }, [engineEditState.active, engineEditState.textId, engineStyleSnapshot, runtime, selectedTextIds, overlayTick]);
+  }, [
+    engineEditState.active,
+    engineEditState.textId,
+    engineStyleSnapshot,
+    runtime,
+    selectedTextIds,
+    overlayTick,
+  ]);
 };
 
 export const FontFamilyControl: React.FC<TextControlProps> = ({
@@ -74,9 +78,10 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   const setTextFontFamily = useSettingsStore((s) => s.setTextFontFamily);
   const snapshot = useResolvedTextStyleSnapshot(selectedTextIds);
   const isMixed = snapshot ? isMixedTriState(snapshot.fontIdTriState) : false;
-  const resolvedFamily = snapshot && isUniformTriState(snapshot.fontIdTriState)
-    ? mapFontIdToFamily(snapshot.fontId)
-    : null;
+  const resolvedFamily =
+    snapshot && isUniformTriState(snapshot.fontIdTriState)
+      ? mapFontIdToFamily(snapshot.fontId)
+      : null;
   const displayFamily = resolvedFamily ?? textFontFamily;
   const selectValue = isMixed ? '' : displayFamily;
   const placeholder = isMixed ? LABELS.text.mixed : undefined;

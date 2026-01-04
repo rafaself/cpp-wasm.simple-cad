@@ -1,10 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 
-import { hexToRgb } from '@/utils/color';
-
 import { CanvasController } from '@/engine/core/CanvasController';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { hexToRgb } from '@/utils/color';
 
 /**
  * TessellatedWasmLayer
@@ -77,7 +76,9 @@ const TessellatedWasmLayer: React.FC = () => {
       if (colorStr.startsWith('var(')) {
         const varName = colorStr.match(/var\(([^)]+)\)/)?.[1];
         if (varName) {
-          const resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+          const resolved = getComputedStyle(document.documentElement)
+            .getPropertyValue(varName)
+            .trim();
           if (resolved) colorStr = resolved;
         }
       }

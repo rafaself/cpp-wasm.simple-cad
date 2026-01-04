@@ -49,7 +49,7 @@ export class TextBridge {
   /**
    * Get engine-authoritative style snapshot (selection, caret, tri-state flags).
    */
-  getTextStyleSnapshot(textId: number): TextStyleSnapshot {
+  getTextStyleSnapshot(textId: number): TextStyleSnapshot | null {
     return this.textApi.getTextStyleSnapshot(textId);
   }
   constructor(runtime: EngineRuntime) {
@@ -311,7 +311,13 @@ export class TextBridge {
   /**
    * Replace text content in a range.
    */
-  replaceContent(textId: number, startChar: number, endChar: number, text: string, currentContent: string): void {
+  replaceContent(
+    textId: number,
+    startChar: number,
+    endChar: number,
+    text: string,
+    currentContent: string,
+  ): void {
     const startByte = charToByteIndex(currentContent, startChar);
     const endByte = charToByteIndex(currentContent, endChar);
     this.runtime.apply([
@@ -496,7 +502,8 @@ export class TextBridge {
     boxMode: TextBoxMode = TextBoxMode.AutoWidth,
     constraintWidth = 0,
   ): boolean {
-    if (!this.isAvailable() || typeof (this.textApi as any).setTextPosition !== 'function') return false;
+    if (!this.isAvailable() || typeof (this.textApi as any).setTextPosition !== 'function')
+      return false;
     return this.textApi.setTextPosition(textId, x, y, boxMode, constraintWidth);
   }
 
@@ -515,7 +522,7 @@ export class TextBridge {
    */
   getQuadBufferMeta(): TextQuadBufferMeta | null {
     if (!this.isAvailable()) return null;
-    return this.textApi.getTextQuadBufferMeta();
+    return this.textApi.getTextQuadBufferMeta() ?? null;
   }
 
   /**
@@ -523,7 +530,7 @@ export class TextBridge {
    */
   getAtlasTextureMeta(): TextureBufferMeta | null {
     if (!this.isAvailable()) return null;
-    return this.textApi.getAtlasTextureMeta();
+    return this.textApi.getAtlasTextureMeta() ?? null;
   }
 
   /**

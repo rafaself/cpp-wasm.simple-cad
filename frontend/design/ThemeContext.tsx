@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+
 import { applyTheme, ThemeName, THEME_STORAGE_KEY } from '../theme/applyTheme';
 
 type Theme = ThemeName | 'system';
@@ -40,13 +41,13 @@ export function ThemeProvider({
 
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      
+
       const applySystemTheme = () => {
         apply(mediaQuery.matches ? 'dark' : 'light');
       };
 
       applySystemTheme();
-      
+
       mediaQuery.addEventListener('change', applySystemTheme);
       return () => mediaQuery.removeEventListener('change', applySystemTheme);
     }
@@ -62,20 +63,13 @@ export function ThemeProvider({
     },
   };
 
-  return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
-
-
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
 
-  if (context === undefined)
-    throw new Error('useTheme must be used within a ThemeProvider');
+  if (context === undefined) throw new Error('useTheme must be used within a ThemeProvider');
 
   return context;
 };
