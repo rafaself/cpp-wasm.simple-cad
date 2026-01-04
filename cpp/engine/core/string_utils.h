@@ -92,8 +92,19 @@ inline std::uint32_t byteToLogicalIndex(std::string_view content, std::uint32_t 
     while (pos < limit) {
         std::uint32_t byteLen = 0;
         const std::uint32_t cp = decodeUtf8Codepoint(content, pos, byteLen);
-        if (byteLen == 0 || pos + byteLen > limit) break;
-        logicalCount += cp > 0xFFFF ? 2u : 1u;
+        if (byteLen == 0) break;
+
+        const std::uint32_t units = cp > 0xFFFF ? 2u : 1u;
+
+        // If the target byte index falls inside this codepoint, advance
+        // proportionally to preserve caret positions within surrogate pairs.
+        if (pos + byteLen > limit) {
+            const std::uint32_t delta = static_cast<std::uint32_t>(limit - pos);
+            const std::uint32_t partialUnits = static_cast<std::uint32_t>((delta * units) / byteLen);
+            return logicalCount + partialUnits;
+        }
+
+        logicalCount += units;
         pos += byteLen;
     }
     return logicalCount;
