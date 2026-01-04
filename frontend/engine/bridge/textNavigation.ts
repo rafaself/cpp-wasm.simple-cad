@@ -28,7 +28,7 @@
 
 import { utf8ByteLength } from '@/types/text';
 
-import type { TextEnabledCadEngine } from './textBridge';
+import type { TextSystem } from '../core/runtime/TextSystem';
 
 /**
  * Text navigation helper that wraps engine navigation methods
@@ -36,7 +36,7 @@ import type { TextEnabledCadEngine } from './textBridge';
  */
 export class TextNavigator {
   constructor(
-    private textEngine: TextEnabledCadEngine,
+    private textEngine: TextSystem,
     private isAvailable: () => boolean,
   ) {}
 

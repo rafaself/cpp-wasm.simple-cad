@@ -130,7 +130,13 @@ export type CadEngineInstance = {
 
   initializeTextSystem?: () => boolean;
   loadFont?: (fontId: number, fontDataPtr: number, dataSize: number) => boolean;
-  loadFontEx?: (fontId: number, fontDataPtr: number, dataSize: number, bold: boolean, italic: boolean) => boolean;
+  loadFontEx?: (
+    fontId: number,
+    fontDataPtr: number,
+    dataSize: number,
+    bold: boolean,
+    italic: boolean,
+  ) => boolean;
   hitTestText?: (textId: number, localX: number, localY: number) => TextHitResult;
   getTextCaretPosition?: (textId: number, charIndex: number) => TextCaretPosition;
   rebuildTextQuadBuffer?: () => void;

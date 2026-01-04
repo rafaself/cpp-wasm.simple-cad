@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyFontSizeUpdate } from './textStyleActions';
 import { useUIStore } from '@/stores/useUIStore';
+
+import { applyFontSizeUpdate } from './textStyleActions';
 
 const spies = vi.hoisted(() => ({
   applyFontSizeSpy: vi.fn(),

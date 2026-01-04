@@ -1,4 +1,3 @@
-
 export type ThemeName = 'dark' | 'light';
 
 export const THEME_STORAGE_KEY = 'vite-ui-theme';
@@ -28,7 +27,7 @@ export function applyTheme(theme: ThemeName, persist: boolean = false) {
 
   const root = document.documentElement;
   root.setAttribute('data-theme', theme);
-  
+
   // For compatibility with Tailwind 'class' mode if actively used
   root.classList.remove('light', 'dark');
   root.classList.add(theme);

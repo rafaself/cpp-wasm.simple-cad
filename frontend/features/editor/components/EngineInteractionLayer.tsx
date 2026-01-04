@@ -29,7 +29,7 @@ const EngineInteractionLayer: React.FC = () => {
 
   // Cursor Logic
   const DEFAULT_CANVAS_CURSOR = 'url(/assets/cursor-canva-default.svg) 3 3, auto';
-  const cursor = isPanning ? 'grabbing' : (handlerCursor || DEFAULT_CANVAS_CURSOR);
+  const cursor = isPanning ? 'grabbing' : handlerCursor || DEFAULT_CANVAS_CURSOR;
 
   const logPointer = (
     label: string,
@@ -101,7 +101,10 @@ const EngineInteractionLayer: React.FC = () => {
 
   // Pointer Events Wrapper
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    logPointer('pointerdown', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
+    logPointer('pointerdown', e, () => ({
+      handler: activeHandlerName,
+      isPanning: isPanningRef.current,
+    }));
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
     cadDebugLog('pointer', 'setPointerCapture', () => ({ pointerId: e.pointerId }));
 
@@ -118,7 +121,10 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    logPointer('pointermove', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
+    logPointer('pointermove', e, () => ({
+      handler: activeHandlerName,
+      isPanning: isPanningRef.current,
+    }));
     // Update Global Mouse Pos
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const world = screenToWorld(
@@ -136,7 +142,10 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    logPointer('pointerup', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
+    logPointer('pointerup', e, () => ({
+      handler: activeHandlerName,
+      isPanning: isPanningRef.current,
+    }));
     if (isPanningRef.current) {
       endPan();
       return;
@@ -145,7 +154,10 @@ const EngineInteractionLayer: React.FC = () => {
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-    logPointer('pointercancel', e, () => ({ handler: activeHandlerName, isPanning: isPanningRef.current }));
+    logPointer('pointercancel', e, () => ({
+      handler: activeHandlerName,
+      isPanning: isPanningRef.current,
+    }));
     if (isPanningRef.current) {
       endPan();
       return;
@@ -176,7 +188,7 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerLeave={() => setIsMouseOverCanvas(false)}
     >
       <ShapeOverlay />
-      
+
       {/* Center Icon */}
       {centerIconSettings.show && (
         <div

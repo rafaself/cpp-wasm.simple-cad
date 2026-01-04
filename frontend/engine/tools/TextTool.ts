@@ -665,7 +665,9 @@ export class TextTool {
 
     if (this.callbacks.onStyleSnapshot && this.bridge && this.state.activeTextId !== null) {
       const snapshot = this.bridge.getTextStyleSnapshot(this.state.activeTextId);
-      this.callbacks.onStyleSnapshot(this.state.activeTextId, snapshot);
+      if (snapshot) {
+        this.callbacks.onStyleSnapshot(this.state.activeTextId, snapshot);
+      }
     }
   }
 }

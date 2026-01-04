@@ -14,13 +14,14 @@ void TextSystem::initialize() {
     
     // Initialize sub-systems
     if (!fontManager.initialize()) {
-        // Handle error?
+        printf("[DEBUG] TextSystem::initialize failed: fontManager init failed\n");
         return; 
     }
     
     layoutEngine.initialize(&fontManager, &store);
     
     if (!glyphAtlas.initialize(&fontManager)) {
+        printf("[DEBUG] TextSystem::initialize failed: glyphAtlas init failed\n");
         fontManager.shutdown();
         return;
     }
@@ -46,6 +47,7 @@ bool TextSystem::upsertText(
     std::uint32_t contentLen
 ) {
     if (!initialized) initialize();
+    if (!initialized) return false;
     
     if (!store.upsertText(id, header, runs, runCount, content, contentLen)) {
         return false;
@@ -104,9 +106,14 @@ bool TextSystem::replaceContent(
 }
 
 bool TextSystem::setTextAlign(std::uint32_t textId, TextAlign align) {
-    if (!initialized) return false;
+    if (!initialized) {
+        return false;
+    }
     TextRec* rec = store.getTextMutable(textId);
-    if (!rec) return false;
+    if (!rec) {
+        printf("[DEBUG] setTextAlign failed: text %u not found\n", textId);
+        return false;
+    }
     
     if (rec->align == align) return true;
     

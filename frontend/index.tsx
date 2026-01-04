@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom/client';
 
 import './design/index.css';
 import './theme/theme.css';
-import { applyTheme, getInitialTheme } from './theme/applyTheme';
 import { ThemeProvider } from './design/ThemeContext';
+import { applyTheme, getInitialTheme } from './theme/applyTheme';
 
 // Apply theme immediately to avoid flicker
 applyTheme(getInitialTheme());

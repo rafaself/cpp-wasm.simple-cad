@@ -37,9 +37,7 @@
 export { NumericComboField, default } from './NumericComboField';
 export { useNumericComboField } from './useNumericComboField';
 
-export type {
-  NumericComboFieldProps,
-} from './NumericComboField';
+export type { NumericComboFieldProps } from './NumericComboField';
 
 export type {
   NumericComboValue,

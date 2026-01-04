@@ -16,12 +16,10 @@ describe('computeInputDelta', () => {
   });
 
   it('inserts repeated prefix at the start without duplication', () => {
-    const delta = computeInputDelta(
-      'teste hola mundo',
-      'testeteste hola mundo',
-      5,
-      { start: 0, end: 0 },
-    );
+    const delta = computeInputDelta('teste hola mundo', 'testeteste hola mundo', 5, {
+      start: 0,
+      end: 0,
+    });
 
     expect(delta).toEqual({ type: 'insert', at: 0, text: 'teste' });
   });

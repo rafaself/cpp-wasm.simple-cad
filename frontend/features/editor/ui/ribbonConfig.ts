@@ -121,8 +121,6 @@ export const RIBBON_TABS: RibbonTab[] = [
           },
         ],
       },
-
-
     ],
   },
   {

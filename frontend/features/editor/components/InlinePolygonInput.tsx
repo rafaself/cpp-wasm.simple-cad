@@ -7,6 +7,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+
 import NumberSpinner from '@/components/NumberSpinner';
 
 interface InlinePolygonInputProps {
@@ -49,32 +50,38 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
   }, [val, minSides, maxSides]);
 
   // Handle value change from spinner
-  const handleChange = useCallback((newVal: number) => {
-    setVal(newVal);
-    valRef.current = newVal;
-    const valid = newVal >= minSides && newVal <= maxSides;
-    setIsValid(valid);
-    isValidRef.current = valid;
-  }, [minSides, maxSides]);
+  const handleChange = useCallback(
+    (newVal: number) => {
+      setVal(newVal);
+      valRef.current = newVal;
+      const valid = newVal >= minSides && newVal <= maxSides;
+      setIsValid(valid);
+      isValidRef.current = valid;
+    },
+    [minSides, maxSides],
+  );
 
   // Handle raw text change for immediate feedback
-  const handleRawChange = useCallback((raw: string) => {
-    const n = parseFloat(raw);
-    let valid = true;
-    if (isNaN(n)) {
-      valid = false;
-    } else {
-      valid = n >= minSides && n <= maxSides;
-    }
-    setIsValid(valid);
-    isValidRef.current = valid;
-    
-    // If valid number, update valRef to allow confirmation to pick it up immediately
-    // even if NumberSpinner hasn't committed it yet.
-    if (!isNaN(n)) {
-       valRef.current = n;
-    }
-  }, [minSides, maxSides]);
+  const handleRawChange = useCallback(
+    (raw: string) => {
+      const n = parseFloat(raw);
+      let valid = true;
+      if (isNaN(n)) {
+        valid = false;
+      } else {
+        valid = n >= minSides && n <= maxSides;
+      }
+      setIsValid(valid);
+      isValidRef.current = valid;
+
+      // If valid number, update valRef to allow confirmation to pick it up immediately
+      // even if NumberSpinner hasn't committed it yet.
+      if (!isNaN(n)) {
+        valRef.current = n;
+      }
+    },
+    [minSides, maxSides],
+  );
 
   // Handle confirm
   const handleConfirm = useCallback(() => {
@@ -119,10 +126,10 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
         e.preventDefault();
         handleCancel();
       } else if (e.key === 'Enter') {
-         e.preventDefault();
-         if (isValidRef.current) {
-           handleConfirm();
-         }
+        e.preventDefault();
+        if (isValidRef.current) {
+          handleConfirm();
+        }
       }
     },
     [handleCancel, handleConfirm],
@@ -172,13 +179,15 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
         top: pos.y,
       }}
       onKeyDown={handleKeyDown}
-      onMouseDown={(e) => e.stopPropagation()} 
+      onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
       }}
     >
-      <label className={`text-xs font-medium ml-0.5 select-none ${isValid ? 'text-text' : 'text-red-400'}`}>
+      <label
+        className={`text-xs font-medium ml-0.5 select-none ${isValid ? 'text-text' : 'text-red-400'}`}
+      >
         Número de lados
       </label>
       <div className="cursor-text">

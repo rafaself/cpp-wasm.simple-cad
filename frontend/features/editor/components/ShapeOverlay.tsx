@@ -14,8 +14,8 @@ import { supportsEngineResize } from '@/engine/core/capabilities';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { OverlayKind } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { EntityKind } from '@/engine/types';
 import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
+import { EntityKind } from '@/engine/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { worldToScreen } from '@/utils/viewportMath';
@@ -75,7 +75,7 @@ const ShapeOverlay: React.FC = () => {
     const interactionActive = runtime.isInteractionActive();
 
     // Snap guides overlay
-    let snapElements: React.ReactNode[] = [];
+    const snapElements: React.ReactNode[] = [];
     if (interactionActive) {
       const snapMeta = runtime.getSnapOverlayMeta();
       const snap = decodeOverlayBuffer(runtime.module.HEAPU8, snapMeta);
@@ -114,7 +114,7 @@ const ShapeOverlay: React.FC = () => {
     }
 
     // Selection overlay (only when not in draft mode, not editing appearance, and not editing text)
-    let selectionElements: React.ReactNode[] = [];
+    const selectionElements: React.ReactNode[] = [];
     if (!isEditingAppearance && !isTextEditing && selectionCount > 0 && !draftDimensions) {
       if (selectionCount > 1) {
         const bounds = runtime.getSelectionBounds();
@@ -234,7 +234,7 @@ const ShapeOverlay: React.FC = () => {
     }
 
     // Draft overlay
-    let draftElements: React.ReactNode[] = [];
+    const draftElements: React.ReactNode[] = [];
     if (draftDimensions && draftDimensions.active) {
       const isLineDraft = draftDimensions.kind === EntityKind.Line;
       const isPolylineDraft = draftDimensions.kind === EntityKind.Polyline;

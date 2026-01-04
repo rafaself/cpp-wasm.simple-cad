@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { TextHandler } from '@/features/editor/interactions/handlers/TextHandler';
+import { useUIStore } from '@/stores/useUIStore';
 import { FakeRuntime } from '@/test-utils/fakeRuntime';
 import { createFakeTextTool, FakeTextTool } from '@/test-utils/fakeTextTool';
 import { screenToWorld } from '@/utils/viewportMath';
-import { useUIStore } from '@/stores/useUIStore';
 
 const makePointer = (x: number, y: number): any => ({
   clientX: x,

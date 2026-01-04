@@ -8,7 +8,7 @@
 bool CadEngine::initializeTextSystem() {
     textSystem_.initialize();
     markTextQuadsDirty();
-    return true;
+    return textSystem_.initialized;
 }
 
 bool CadEngine::loadFont(std::uint32_t fontId, std::uintptr_t fontDataPtr, std::size_t dataSize) {

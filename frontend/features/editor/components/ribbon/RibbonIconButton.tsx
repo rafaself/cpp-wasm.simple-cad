@@ -25,8 +25,8 @@ interface RibbonIconButtonProps {
 }
 
 const SIZE_CLASSES: Record<RibbonIconButtonSize, string> = {
-  sm: 'w-7',  // 28px
-  md: 'w-8',  // 32px
+  sm: 'w-7', // 28px
+  md: 'w-8', // 32px
 };
 
 const VARIANT_CLASSES: Record<RibbonIconButtonVariant, { active: string; default: string }> = {
@@ -65,7 +65,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
   const sizeClass = SIZE_CLASSES[size];
   const variantConfig = VARIANT_CLASSES[variant];
   const stateClass = isActive ? variantConfig.active : variantConfig.default;
-  
+
   return (
     <button
       onClick={onClick}
@@ -83,7 +83,9 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
         ${stateClass}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${className}
-      `.replace(/\s+/g, ' ').trim()}
+      `
+        .replace(/\s+/g, ' ')
+        .trim()}
       title={title}
       disabled={disabled}
       aria-pressed={isActive}

@@ -1,12 +1,12 @@
 import React from 'react';
 
+import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import {
   applyFontFamilyUpdate,
   applyFontSizeUpdate,
   applyStyleFlagUpdate,
   applyTextAlignUpdate,
 } from '@/features/editor/text/textStyleActions';
-import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { TextStyleFlags } from '@/types/text';
 
 import { TextFormatGroup } from '../../ribbon/components/TextControls';
@@ -26,11 +26,7 @@ export const TextFormattingControls: React.FC = () => {
       await applyTextAlignUpdate(diff.align, selectedTextIds);
     }
     if (diff.bold !== undefined) {
-      await applyStyleFlagUpdate(
-        TextStyleFlags.Bold,
-        diff.bold ? 'set' : 'clear',
-        selectedTextIds,
-      );
+      await applyStyleFlagUpdate(TextStyleFlags.Bold, diff.bold ? 'set' : 'clear', selectedTextIds);
     }
     if (diff.italic !== undefined) {
       await applyStyleFlagUpdate(

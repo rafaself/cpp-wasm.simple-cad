@@ -1,8 +1,8 @@
 import { render, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import ShapeOverlay from '@/features/editor/components/ShapeOverlay';
 import { EntityKind } from '@/engine/types';
+import ShapeOverlay from '@/features/editor/components/ShapeOverlay';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 

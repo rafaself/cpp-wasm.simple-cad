@@ -1,8 +1,8 @@
 /**
  * Ribbon Components - Barrel Export
- * 
+ *
  * This file exports all ribbon-related components for easy importing.
- * 
+ *
  * Usage:
  * import { RibbonButton, RibbonIconButton, RibbonToggleGroup } from '@/features/editor/components/ribbon';
  */
@@ -24,7 +24,7 @@ export { TextFormattingControls } from './TextFormattingControls';
 export { SelectionControls } from './SelectionControls';
 
 // Utilities
-export { 
+export {
   getTooltip,
   getBindingId,
   getRibbonButtonColorClasses,

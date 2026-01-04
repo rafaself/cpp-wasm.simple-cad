@@ -2,24 +2,25 @@ import React from 'react';
 
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import { TextInputProxy, TextInputProxyRef } from '@/components/TextInputProxy';
-import { TextTool, TextToolState } from '@/engine/tools/TextTool';
-import type { TextToolCallbacks } from '@/engine/tools/TextTool';
+import { SelectionMode } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import type { EngineRuntime } from '@/engine/core/EngineRuntime';
+import { TextTool, TextToolState } from '@/engine/tools/TextTool';
 import {
   addTextToolListener,
   applyTextDefaultsFromSettings,
   ensureTextToolReady,
   getSharedTextTool,
 } from '@/features/editor/text/textToolController';
-import { SelectionMode } from '@/engine/core/protocol';
-import { PickEntityKind } from '@/types/picking';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { PickEntityKind } from '@/types/picking';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler } from '../types';
+
+import type { EngineRuntime } from '@/engine/core/EngineRuntime';
+import type { TextToolCallbacks } from '@/engine/tools/TextTool';
 
 // We need to define the Overlay component that connects to the handler state
 // Since TextInputProxy needs the tool instance, we pass it.
@@ -270,7 +271,7 @@ export class TextHandler extends BaseInteractionHandler {
       (this.state.mode === 'creating' || this.state.mode === 'editing') &&
       this.state.activeTextId !== null;
 
-    const nextId = active ? this.state?.activeTextId ?? null : null;
+    const nextId = active ? (this.state?.activeTextId ?? null) : null;
 
     if (active) {
       if (!this.engineTextSessionActive || this.engineTextId !== nextId) {
@@ -298,14 +299,8 @@ export class TextHandler extends BaseInteractionHandler {
     const { rotation } = this.caretState;
     const cosR = Math.cos(rotation);
     const sinR = Math.sin(rotation);
-    const worldX =
-      this.state.anchorX +
-      this.caretState.x * cosR -
-      this.caretState.y * sinR;
-    const worldY =
-      this.state.anchorY +
-      this.caretState.x * sinR +
-      this.caretState.y * cosR;
+    const worldX = this.state.anchorX + this.caretState.x * cosR - this.caretState.y * sinR;
+    const worldY = this.state.anchorY + this.caretState.x * sinR + this.caretState.y * cosR;
 
     store.setEngineTextEditCaretPosition({
       x: worldX,

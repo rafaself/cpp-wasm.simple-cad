@@ -1,15 +1,5 @@
-import {
-
-  Settings2,
-  PenTool,
-  FolderOpen,
-  Building2,
-  MousePointer2,
-} from 'lucide-react';
+import { Settings2, PenTool, FolderOpen, Building2, MousePointer2 } from 'lucide-react';
 import React, { useState } from 'react';
-
-
-
 
 import SidebarTabs, { SidebarTabConfig } from './sidebar/SidebarTabs';
 
@@ -64,17 +54,11 @@ const EditorSidebar: React.FC = () => {
     <aside className="w-64 bg-surface1 text-text border-l border-border flex flex-col h-full overflow-hidden">
       {/* Tabs Navigation */}
       <div className="shrink-0 border-b border-border">
-        <SidebarTabs
-          tabs={SIDEBAR_TABS}
-          activeTabId={activeTabId}
-          onTabChange={setActiveTabId}
-        />
+        <SidebarTabs tabs={SIDEBAR_TABS} activeTabId={activeTabId} onTabChange={setActiveTabId} />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        {activeTab.component}
-      </div>
+      <div className="flex-1 flex flex-col overflow-hidden relative">{activeTab.component}</div>
     </aside>
   );
 };

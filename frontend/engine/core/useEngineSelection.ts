@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 
+import { cadDebugLog } from '@/utils/dev/cadDebug';
+
 import { useDocumentSignal } from './engineDocumentSignals';
 import { useEngineRuntime } from './useEngineRuntime';
-import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 import type { EntityId } from './protocol';
 

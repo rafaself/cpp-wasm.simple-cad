@@ -2,10 +2,10 @@ import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import React, { useMemo, useEffect } from 'react';
 
 import CustomSelect from '@/components/CustomSelect';
-import { INPUT_STYLES } from '@/src/styles/recipes';
 import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
+import { INPUT_STYLES } from '@/src/styles/recipes';
 import { useUIStore } from '@/stores/useUIStore';
 
 import { RibbonDivider } from './RibbonDivider';
@@ -75,7 +75,13 @@ export const LayerRibbonControls: React.FC = () => {
         <RibbonToggleGroup>
           {/* Visibility Toggle */}
           <RibbonIconButton
-            icon={activeLayer?.visible ? <Eye size={RIBBON_ICON_SIZES.sm} /> : <EyeOff size={RIBBON_ICON_SIZES.sm} />}
+            icon={
+              activeLayer?.visible ? (
+                <Eye size={RIBBON_ICON_SIZES.sm} />
+              ) : (
+                <EyeOff size={RIBBON_ICON_SIZES.sm} />
+              )
+            }
             onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
             isActive={activeLayer?.visible ?? false}
             variant={activeLayer?.visible ? 'primary' : 'default'}
@@ -113,4 +119,3 @@ export const LayerRibbonControls: React.FC = () => {
     </div>
   );
 };
-

@@ -38,16 +38,17 @@ export const getRibbonButtonColorClasses = ({
   if (isActive) {
     return 'bg-primary text-primary-contrast border-primary/20 shadow-sm focus-outline';
   }
-  
+
   if (isStub) {
     return 'bg-surface2/50 text-text-muted opacity-60 cursor-not-allowed focus-outline';
   }
-  
+
   // Default state with hover
-  const hoverClass = actionId === 'delete'
-    ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
-    : 'hover:bg-surface1 hover:text-text hover:border-border/50';
-  
+  const hoverClass =
+    actionId === 'delete'
+      ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
+      : 'hover:bg-surface1 hover:text-text hover:border-border/50';
+
   return `bg-surface2 text-text border border-transparent focus-outline ${hoverClass}`;
 };
 

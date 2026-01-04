@@ -42,11 +42,11 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
 
   const widthClass = item.width ? widthClasses[item.width] : 'w-auto';
   const heightClass = 'h-8';
-  
+
   // Flex Structure
   const flexClass = 'flex flex-row items-center gap-2';
   const justifyClass = 'justify-start px-2.5';
-  
+
   // Typography
   const textClass = 'text-xs whitespace-nowrap truncate text-left flex-1';
 
@@ -77,4 +77,3 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
     </button>
   );
 };
-

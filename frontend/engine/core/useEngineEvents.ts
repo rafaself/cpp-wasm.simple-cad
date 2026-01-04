@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 
 import { useUIStore } from '@/stores/useUIStore';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 import { bumpDocumentSignal } from './engineDocumentSignals';
 import { applyFullResync } from './engineEventResync';
 import { syncHistoryMetaFromEngine } from './engineStateSync';
 import { ChangeMask, EventType } from './protocol';
 import { getEngineRuntime } from './singleton';
-import { cadDebugLog } from '@/utils/dev/cadDebug';
 
 const readFirstLayerId = (runtime: Awaited<ReturnType<typeof getEngineRuntime>>): number | null => {
   const layers = runtime.getLayersSnapshot();
@@ -102,7 +102,12 @@ export const useEngineEvents = (): void => {
             if ((mask & ChangeMask.Layer) !== 0) needsLayers = true;
             if ((mask & ChangeMask.Order) !== 0) needsOrder = true;
             if (
-              (mask & (ChangeMask.Bounds | ChangeMask.Style | ChangeMask.Text | ChangeMask.Geometry | ChangeMask.RenderData)) !==
+              (mask &
+                (ChangeMask.Bounds |
+                  ChangeMask.Style |
+                  ChangeMask.Text |
+                  ChangeMask.Geometry |
+                  ChangeMask.RenderData)) !==
               0
             ) {
               needsOverlay = true;

@@ -20,9 +20,9 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
   width = 'auto',
 }) => {
   const widthClass = width === 'fit' ? 'w-fit' : '';
-  
+
   return (
-    <div 
+    <div
       className={`
         flex 
         bg-surface2 
@@ -35,7 +35,9 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
         items-center
         ${widthClass}
         ${className}
-      `.replace(/\s+/g, ' ').trim()}
+      `
+        .replace(/\s+/g, ' ')
+        .trim()}
     >
       {children}
     </div>

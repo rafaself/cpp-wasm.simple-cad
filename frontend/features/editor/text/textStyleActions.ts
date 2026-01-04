@@ -1,5 +1,8 @@
 import { getEngineRuntime } from '@/engine/core/singleton';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { TextAlign, TextStyleFlags } from '@/types/text';
+
 import {
   applyTextDefaultsFromSettings,
   ensureFontFamilyLoaded,
@@ -7,8 +10,6 @@ import {
   mapFontFamilyToId,
   mapFontIdToFamily,
 } from './textToolController';
-import { useUIStore } from '@/stores/useUIStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
@@ -35,7 +36,10 @@ async function getContext(selectedIds: number[], fontFamilyHint?: string) {
   return { tool, editingTextId, targetIds, runtime };
 }
 
-export async function applyFontFamilyUpdate(fontFamily: string, selectedIds: number[]): Promise<void> {
+export async function applyFontFamilyUpdate(
+  fontFamily: string,
+  selectedIds: number[],
+): Promise<void> {
   const { tool, editingTextId, targetIds, runtime } = await getContext(selectedIds, fontFamily);
   await ensureFontFamilyLoaded(fontFamily, runtime);
   const fontId = mapFontFamilyToId(fontFamily);
