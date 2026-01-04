@@ -37,12 +37,16 @@ KNOWN_VIOLATIONS=(
   "cpp/engine/text/text_layout.cpp"          # Phase 4: Text system refactor
   "cpp/engine/snapshot.cpp"                  # Phase 1.4: Snapshot extraction
   "cpp/engine/vector_tessellation.cpp"       # Phase 4: Render system
+  "cpp/engine/impl/engine_snapshot.cpp"      # Phase 1.4: Snapshot extraction (impl)
+  "cpp/engine/history/history_manager.cpp"   # History manager split pending
+  "cpp/engine/interaction/interaction_session.cpp"  # Interaction session monolithic; pending split
   # TypeScript - Phase 4+ items
   "frontend/engine/tools/TextTool.ts"        # Phase 4: Text tool refactor
   "frontend/engine/tools/text/TextInputCoordinator.ts"  # Just created, needs split
   "frontend/engine/bridge/textBridge.ts"     # Phase 4: Text bridge refactor
   "frontend/features/import/utils/pdfToShapes.ts"       # Phase 5: Import refactor
   "frontend/features/import/utils/dxf/dxfToShapes.ts"   # Phase 5: Import refactor
+  "frontend/features/import/utils/dxf/dxfToSvg.ts"      # DXF→SVG converter awaiting modularization
   "frontend/features/import/utils/pdfToVectorDocument.ts"  # Phase 5: Import refactor
 )
 

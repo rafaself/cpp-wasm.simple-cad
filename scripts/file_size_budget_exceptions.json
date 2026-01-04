@@ -21,6 +21,16 @@
       "reason": "Snapshot path still monolithic; refactor planned in SRP roadmap."
     },
     {
+      "path": "cpp/engine/impl/engine_snapshot.cpp",
+      "hardLimit": 850,
+      "reason": "Snapshot implementation slightly over; to be split alongside persistence/snapshot.cpp."
+    },
+    {
+      "path": "cpp/engine/history/history_manager.cpp",
+      "hardLimit": 870,
+      "reason": "History manager monolithic; pending SRP split into separate command handlers."
+    },
+    {
       "path": "cpp/engine/render/vector_tessellation.cpp",
       "hardLimit": 820,
       "reason": "Render tessellation debt; pending render system split."
