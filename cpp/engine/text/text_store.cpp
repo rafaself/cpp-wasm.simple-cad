@@ -410,16 +410,16 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
     
     // Check if there is a zero-length run at the insertion point (typing attribute)
     bool hasZeroLengthRun = false;
-    // Also check if there's any run starting at the insertion point
-    bool hasRunStartingAtIndex = false;
+    bool hasRunEndingAtIndex = false;
     for (const auto& r : it->second) {
         if (r.startIndex == byteIndex && r.length == 0) {
             hasZeroLengthRun = true;
         }
-        if (r.startIndex == byteIndex) {
-            hasRunStartingAtIndex = true;
+        if (r.length > 0 && r.startIndex + r.length == byteIndex) {
+            hasRunEndingAtIndex = true;
         }
     }
+    const bool preferPreviousRun = hasRunEndingAtIndex && !hasZeroLengthRun;
 
     for (TextRun& run : it->second) {
         // Special case: run with length=0 at insertion point should be expanded
@@ -435,9 +435,8 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
         } else if (run.startIndex == byteIndex && run.length > 0) {
             // Run starts exactly at insertion point (non-zero length)
             // If a zero-length run was expanded, we shift this.
-            // If there are multiple runs, and another run ends here, we also shift.
             // This handles "Hello|World" insertion where " World" should shift.
-            if (zeroLengthExpanded || hasRunStartingAtIndex) {
+            if (zeroLengthExpanded || hasZeroLengthRun || preferPreviousRun) {
                 run.startIndex += insertLength;
             } else {
                 // Single run starting at byteIndex - extend it
@@ -451,9 +450,9 @@ void TextStore::adjustRunsAfterInsert(std::uint32_t id, std::uint32_t byteIndex,
             run.length += insertLength;
         } else if (run.startIndex + run.length == byteIndex) {
             // Run ends exactly at insertion point: extend length (for contiguous insertion)
-            // BUT: do NOT extend if there's another run at this position (zero-length or otherwise)
-            // This prevents extending "Hello" when " World" starts at the same boundary.
-            if (!hasRunStartingAtIndex) {
+            // BUT: do NOT extend if there's a zero-length typing run at this position.
+            // This prevents extending "Hello" when an explicit typing run owns the insertion.
+            if (!zeroLengthExpanded && !hasZeroLengthRun) {
                 run.length += insertLength;
             }
         }

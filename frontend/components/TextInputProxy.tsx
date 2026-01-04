@@ -55,6 +55,8 @@ export interface TextInputProxyRef {
   setContent: (content: string, caretIndex: number) => void;
 }
 
+type SelectionRange = { start: number; end: number };
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -78,6 +80,10 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const composingRef = useRef(false);
     const lastContentRef = useRef(content);
+    const lastSelectionRef = useRef<SelectionRange>({
+      start: selectionStart,
+      end: selectionEnd,
+    });
 
     // Expose imperative methods
     useImperativeHandle(ref, () => ({
@@ -89,6 +95,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
           inputRef.current.value = newContent;
           inputRef.current.setSelectionRange(newCaretIndex, newCaretIndex);
           lastContentRef.current = newContent;
+          lastSelectionRef.current = { start: newCaretIndex, end: newCaretIndex };
         }
       },
     }));
@@ -109,6 +116,7 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
       if (inputRef.current.selectionStart !== start || inputRef.current.selectionEnd !== end) {
         inputRef.current.setSelectionRange(start, end);
       }
+      lastSelectionRef.current = { start, end };
     }, [content, selectionStart, selectionEnd]);
 
     // Auto-focus when active
@@ -129,12 +137,18 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         const target = e.currentTarget;
         const newValue = target.value;
         const oldValue = lastContentRef.current;
+        const selectionBefore = lastSelectionRef.current;
+        const caretAfter = target.selectionStart ?? 0;
 
         // Calculate the delta
-        const delta = computeInputDelta(oldValue, newValue, target.selectionStart ?? 0);
+        const delta = computeInputDelta(oldValue, newValue, caretAfter, selectionBefore);
 
         if (delta) {
           lastContentRef.current = newValue;
+          lastSelectionRef.current = {
+            start: target.selectionStart ?? 0,
+            end: target.selectionEnd ?? 0,
+          };
           onInput(delta);
         }
       },
@@ -241,6 +255,10 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         });
 
         lastContentRef.current = e.currentTarget.value;
+        lastSelectionRef.current = {
+          start: e.currentTarget.selectionStart ?? 0,
+          end: e.currentTarget.selectionEnd ?? 0,
+        };
       },
       [onCompositionChange],
     );
@@ -316,7 +334,10 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
 
     const handleSelect = useCallback(() => {
       if (inputRef.current && onSelectionChange) {
-        onSelectionChange(inputRef.current.selectionStart ?? 0, inputRef.current.selectionEnd ?? 0);
+        const start = inputRef.current.selectionStart ?? 0;
+        const end = inputRef.current.selectionEnd ?? 0;
+        lastSelectionRef.current = { start, end };
+        onSelectionChange(start, end);
       }
     }, [onSelectionChange]);
 
@@ -359,7 +380,6 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
         autoCorrect="off"
         spellCheck={false}
         onInput={handleInput}
-        onChange={handleInput}
         onKeyDown={handleKeyDown}
         onCompositionStart={handleCompositionStart}
         onCompositionUpdate={handleCompositionUpdate}
@@ -381,20 +401,66 @@ export const TextInputProxy = forwardRef<TextInputProxyRef, TextInputProxyProps>
  * Compute the input delta between old and new values.
  * Handles insert, delete, and replace operations.
  */
-function computeInputDelta(
+export function computeInputDelta(
   oldValue: string,
   newValue: string,
   caretAfter: number,
+  selectionBefore: SelectionRange,
 ): TextInputDelta | null {
   if (oldValue === newValue) return null;
 
   const oldLen = oldValue.length;
   const newLen = newValue.length;
+  const selectionStart = Math.max(
+    0,
+    Math.min(Math.min(selectionBefore.start, selectionBefore.end), oldLen),
+  );
+  const selectionEnd = Math.max(
+    0,
+    Math.min(Math.max(selectionBefore.start, selectionBefore.end), oldLen),
+  );
+  const selectionLen = selectionEnd - selectionStart;
+  const netDelta = newLen - oldLen;
+
+  if (selectionLen > 0) {
+    const insertedLen = newLen - (oldLen - selectionLen);
+    if (insertedLen <= 0) {
+      return { type: 'delete', start: selectionStart, end: selectionEnd };
+    }
+    const insertedText = newValue.slice(selectionStart, selectionStart + insertedLen);
+    return {
+      type: 'replace',
+      start: selectionStart,
+      end: selectionEnd,
+      text: insertedText,
+    };
+  }
+
+  if (netDelta > 0) {
+    const insertAt = Math.max(0, Math.min(selectionStart, oldLen));
+    const insertedText = newValue.slice(insertAt, insertAt + netDelta);
+    return { type: 'insert', at: insertAt, text: insertedText };
+  }
+
+  if (netDelta < 0) {
+    const deleteLen = -netDelta;
+    const caret = Math.max(0, Math.min(caretAfter, newLen));
+    let deleteStart = selectionStart;
+    if (caret < selectionStart) {
+      deleteStart = caret;
+    }
+    const deleteEnd = Math.min(oldLen, deleteStart + deleteLen);
+    return { type: 'delete', start: deleteStart, end: deleteEnd };
+  }
 
   // Find common prefix
   let prefixLen = 0;
   while (prefixLen < oldLen && prefixLen < newLen && oldValue[prefixLen] === newValue[prefixLen]) {
     prefixLen++;
+  }
+  if (netDelta > 0) {
+    const insertionPoint = Math.max(0, Math.min(caretAfter - netDelta, newLen));
+    prefixLen = Math.min(prefixLen, insertionPoint);
   }
 
   // Find common suffix (from the end, not overlapping with prefix)
