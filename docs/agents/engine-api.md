@@ -329,6 +329,7 @@ runtime.getTextContentMeta(textId): TextContentMeta
 runtime.getTextBounds(textId): TextBoundsResult
 runtime.getTextCaretPosition(textId, charIndex): TextCaretPosition
 runtime.getTextStyleSnapshot(textId): TextStyleSnapshot
+runtime.getTextStyleSummary(textId): TextStyleSnapshot
 runtime.hitTestText(textId, localX, localY): TextHitResult
 ```
 

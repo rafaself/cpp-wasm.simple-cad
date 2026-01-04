@@ -84,6 +84,9 @@ bool CadEngine::isTextQuadsDirty() const {
 
 void CadEngine::markTextQuadsDirty() const {
     textQuadsDirty_ = true;
+    if (textSystem_.initialized) {
+        textSystem_.quadsDirty = true;
+    }
 }
 
 bool CadEngine::isInteractionActive() const {
@@ -731,6 +734,13 @@ bool CadEngine::applyTextStyle(const engine::text::ApplyTextStylePayload& payloa
     if (textSystem_.getBounds(payload.textId, minX, minY, maxX, maxY)) {
         pickSystem_.update(payload.textId, {minX, minY, maxX, maxY});
     }
+
+    recordEntityChanged(
+        payload.textId,
+        static_cast<std::uint32_t>(ChangeMask::Text)
+        | static_cast<std::uint32_t>(ChangeMask::Style)
+        | static_cast<std::uint32_t>(ChangeMask::Bounds)
+    );
     
     if (historyStarted) commitHistoryEntry();
     return true;

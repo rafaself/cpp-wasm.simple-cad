@@ -146,6 +146,11 @@ public:
      * Get texture version number (increments on each modification).
      */
     std::uint32_t getVersion() const { return version_; }
+
+    /**
+     * Get atlas reset version (increments only when the atlas is cleared/repacked).
+     */
+    std::uint32_t getResetVersion() const { return resetVersion_; }
     
     // =========================================================================
     // Statistics
@@ -214,6 +219,7 @@ private:
     
     bool dirty_;
     std::uint32_t version_;
+    std::uint32_t resetVersion_;
     AtlasPacker::Rect whitePixelRect_{};
 };
 

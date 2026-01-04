@@ -51,6 +51,7 @@ export type TextEntityMeta = {
   id: number;
   boxMode: number;
   constraintWidth: number;
+  rotation: number;
 };
 
 type WasmTextMetaVector = {
@@ -145,6 +146,7 @@ export type CadEngineInstance = {
     end: number,
   ) => { size: () => number; get: (index: number) => TextSelectionRect; delete: () => void };
   getTextStyleSnapshot?: (textId: number) => TextStyleSnapshot | null;
+  getTextStyleSummary: (textId: number) => TextStyleSnapshot | null;
   getVisualPrevCharIndex?: (textId: number, charIndex: number) => number;
   getVisualNextCharIndex?: (textId: number, charIndex: number) => number;
   getWordLeftIndex?: (textId: number, charIndex: number) => number;

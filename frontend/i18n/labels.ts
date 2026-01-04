@@ -95,6 +95,7 @@ export const LABELS = {
     fontFamily: 'Fonte',
     color: 'Cor',
     editContent: 'Clique para editar',
+    mixed: '—',
   },
   disciplines: {
     architecture: 'Arquitetura',

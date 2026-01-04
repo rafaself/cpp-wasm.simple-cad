@@ -21,6 +21,7 @@ export const enum CommandOp {
   SetTextSelection = 17,
   InsertTextContent = 18,
   DeleteTextContent = 19,
+  ReplaceTextContent = 25,
   BeginDraft = 20,
   UpdateDraft = 21,
   CommitDraft = 22,
@@ -158,6 +159,13 @@ export type TextDeletePayload = {
   endIndex: number; // UTF-8 byte end (exclusive)
 };
 
+export type TextReplacePayload = {
+  textId: EntityId;
+  startIndex: number; // UTF-8 byte start (inclusive)
+  endIndex: number; // UTF-8 byte end (exclusive)
+  content: string; // UTF-8 text to insert
+};
+
 export type TextAlignmentPayload = {
   textId: EntityId;
   align: number; // TextAlign enum
@@ -182,7 +190,7 @@ export type BeginDraftPayload = {
 };
 export type UpdateDraftPayload = { x: number; y: number; modifiers: number };
 
-// Text style apply payload (logical indices; engine maps to UTF-8 internally)
+// Text style apply payload (logical indices are UTF-16 code units; engine maps to UTF-8 internally)
 export type ApplyTextStylePayload = {
   textId: EntityId;
   rangeStartLogical: number;
@@ -212,6 +220,7 @@ export type EngineCommand =
   | { op: CommandOp.SetTextSelection; selection: TextSelectionPayload }
   | { op: CommandOp.InsertTextContent; insert: TextInsertPayload }
   | { op: CommandOp.DeleteTextContent; del: TextDeletePayload }
+  | { op: CommandOp.ReplaceTextContent; replace: TextReplacePayload }
   | { op: CommandOp.ApplyTextStyle; id: EntityId; style: ApplyTextStylePayload }
   | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload }
   | { op: CommandOp.BeginDraft; draft: BeginDraftPayload }
@@ -272,6 +281,10 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     }
     case CommandOp.DeleteTextContent:
       return 16; // textId (u32) + startIndex (u32) + endIndex (u32) + reserved (u32)
+    case CommandOp.ReplaceTextContent: {
+      const replaceBytes = textEncoder.encode(cmd.replace.content).length;
+      return 16 + replaceBytes; // textId (u32) + startIndex (u32) + endIndex (u32) + byteLength (u32) + UTF-8
+    }
     case CommandOp.ApplyTextStyle: {
       const paramsLen = cmd.style.styleParams.byteLength;
       return 18 + paramsLen; // header (18 bytes) + TLV params
@@ -486,6 +499,16 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeU32(view, o, cmd.del.endIndex);
         o = writeU32(view, o, 0); // reserved
         break;
+      case CommandOp.ReplaceTextContent: {
+        const replaceBytes = textEncoder.encode(cmd.replace.content);
+        o = writeU32(view, o, cmd.replace.textId);
+        o = writeU32(view, o, cmd.replace.startIndex);
+        o = writeU32(view, o, cmd.replace.endIndex);
+        o = writeU32(view, o, replaceBytes.length);
+        new Uint8Array(buf, o, replaceBytes.length).set(replaceBytes);
+        o += replaceBytes.length;
+        break;
+      }
       case CommandOp.ApplyTextStyle: {
         const paramsLen = cmd.style.styleParams.byteLength;
         const totalLen = 18 + paramsLen;

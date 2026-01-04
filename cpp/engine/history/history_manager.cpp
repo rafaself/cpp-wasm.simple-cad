@@ -8,6 +8,37 @@
 #include <cstring>
 #include <cmath>
 
+namespace {
+constexpr double kTextMergeWindowMs = 750.0;
+
+bool isMergeableTextEntry(const HistoryEntry& entry) {
+    if (entry.mergeTag != HistoryMergeTag::TextEdit || entry.mergeEntityId == 0) return false;
+    if (entry.hasLayerChange || entry.hasDrawOrderChange || entry.hasSelectionChange) return false;
+    if (entry.entities.size() != 1) return false;
+    const auto& change = entry.entities.front();
+    if (!change.existedAfter || change.after.kind != EntityKind::Text) return false;
+    if (change.id != entry.mergeEntityId) return false;
+    return true;
+}
+
+bool canMergeTextEntries(const HistoryEntry& base, const HistoryEntry& next) {
+    if (!isMergeableTextEntry(base) || !isMergeableTextEntry(next)) return false;
+    if (base.mergeEntityId != next.mergeEntityId) return false;
+    if (next.mergeTimestampMs - base.mergeTimestampMs > kTextMergeWindowMs) return false;
+    return true;
+}
+
+void mergeTextEntries(HistoryEntry& base, HistoryEntry&& next) {
+    auto& baseChange = base.entities.front();
+    const auto& nextChange = next.entities.front();
+    baseChange.existedAfter = nextChange.existedAfter;
+    baseChange.after = nextChange.after;
+    base.nextIdAfter = next.nextIdAfter;
+    base.generation = next.generation;
+    base.mergeTimestampMs = next.mergeTimestampMs;
+}
+} // namespace
+
 HistoryManager::HistoryManager(EntityManager& em, TextSystem& ts)
     : entityManager_(em), textSystem_(ts) {}
 
@@ -100,6 +131,20 @@ void HistoryManager::markSelectionChange(const std::vector<std::uint32_t>& curre
     entry.hasSelectionChange = true;
 }
 
+void HistoryManager::markTextEdit(std::uint32_t textId) {
+    if (!transaction_.active || suppressed_) return;
+    auto& entry = transaction_.entry;
+    if (entry.mergeTag == HistoryMergeTag::None) {
+        entry.mergeTag = HistoryMergeTag::TextEdit;
+        entry.mergeEntityId = textId;
+        return;
+    }
+    if (entry.mergeTag != HistoryMergeTag::TextEdit || entry.mergeEntityId != textId) {
+        entry.mergeTag = HistoryMergeTag::None;
+        entry.mergeEntityId = 0;
+    }
+}
+
 void HistoryManager::finalizeHistoryEntry(HistoryEntry& entry, std::uint32_t nextEntityId, const std::vector<std::uint32_t>& currentSelection) {
     entry.nextIdAfter = nextEntityId;
     for (auto& change : entry.entities) {
@@ -175,6 +220,19 @@ bool HistoryManager::commitEntry(std::uint32_t nextEntityId, std::uint32_t curre
     });
 
     entry.generation = currentGeneration;
+    entry.mergeTimestampMs = emscripten_get_now();
+
+    if (cursor_ < history_.size()) {
+        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(cursor_), history_.end());
+    }
+
+    if (!history_.empty() && canMergeTextEntries(history_.back(), entry)) {
+        mergeTextEntries(history_.back(), std::move(entry));
+        cursor_ = history_.size();
+        historyGeneration_++;
+        return true;
+    }
+
     pushHistoryEntry(std::move(entry));
     return true;
 }
@@ -229,7 +287,7 @@ void HistoryManager::applyHistoryEntry(const HistoryEntry& entry, bool useAfter,
         applyLayerSnapshot(useAfter ? entry.layersAfter : entry.layersBefore);
         engine.state().renderDirty = true;
         engine.state().snapshotDirty = true;
-        engine.state().textQuadsDirty_ = true;
+        engine.markTextQuadsDirty();
         engine.recordDocChanged(static_cast<std::uint32_t>(CadEngine::ChangeMask::Layer));
     }
 

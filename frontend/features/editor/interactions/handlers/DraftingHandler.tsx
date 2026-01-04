@@ -75,6 +75,12 @@ export class DraftingHandler extends BaseInteractionHandler {
     return 'crosshair';
   }
 
+  private syncToolDefaults(): void {
+    const defaults = useSettingsStore.getState().toolDefaults;
+    this.toolDefaults = defaults;
+    this.polygonSidesValue = Math.max(3, Math.min(24, Math.floor(defaults.polygonSides ?? 3)));
+  }
+
   // Helper to build draft styling
   private buildDraftStyle(): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> {
     const stroke = this.colorToRgb01(this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR);
@@ -110,6 +116,7 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     if (this.polygonModalOpen) return;
+    this.syncToolDefaults();
     this.runtime = ctx.runtime; // Capture runtime
 
     // ... rest of function ...
@@ -415,6 +422,7 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   private commitDefaultPolygon(runtime: any) {
     if (!runtime || !this.polygonModalCenter) return;
+    this.syncToolDefaults();
     const center = this.polygonModalCenter;
     const sides = this.polygonSidesValue;
     const r = 50;

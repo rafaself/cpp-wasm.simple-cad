@@ -169,10 +169,13 @@ export interface TextCaretPosition {
  * Engine-authoritative text style snapshot (preferred over queries).
  */
 export interface TextStyleSnapshot {
+  /** UTF-16 code unit index */
   selectionStartLogical: number;
+  /** UTF-16 code unit index */
   selectionEndLogical: number;
   selectionStartByte: number;
   selectionEndByte: number;
+  /** UTF-16 code unit index */
   caretLogical: number;
   caretByte: number;
   lineIndex: number;
@@ -182,6 +185,12 @@ export interface TextStyleSnapshot {
   /** 2 bits per attr: bold bits0-1, italic bits2-3, underline bits4-5, strike bits6-7 */
   styleTriStateFlags: number;
   align: number;
+  /** 0=off/unknown, 1=uniform, 2=mixed */
+  fontIdTriState: number;
+  /** 0=off/unknown, 1=uniform, 2=mixed */
+  fontSizeTriState: number;
+  fontId: number;
+  fontSize: number;
   textGeneration: number;
   styleTriStateParamsLen: number;
 }
@@ -255,6 +264,8 @@ export type TextInputDelta =
 export interface TextCompositionState {
   /** Whether we're in an IME composition */
   composing: boolean;
+  /** Composition lifecycle phase */
+  phase: 'start' | 'update' | 'end';
   /** Composition preview text */
   compositionText: string;
   /** Where the composition started */

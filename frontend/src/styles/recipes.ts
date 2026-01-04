@@ -35,7 +35,7 @@ export const BUTTON_STYLES = {
   /** Centered flex button */
   centered: `flex items-center justify-center ${BUTTON_BASE}`,
   /** Active/selected state (primary variant) */
-  active: 'bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30',
+  active: 'bg-primary/20 text-primary hover:text-text border border-primary/30',
   /** Destructive/Delete action */
   danger: 'text-red-500 hover:bg-red-500/10 hover:border-red-500/20',
 } as const;

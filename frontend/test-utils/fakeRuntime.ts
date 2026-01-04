@@ -92,7 +92,7 @@ export class FakeRuntime {
 
   getTextEntityMeta(id: number) {
     if (!this.textEntities.has(id)) return null;
-    return { id, boxMode: 0, constraintWidth: 0 };
+    return { id, boxMode: 0, constraintWidth: 0, rotation: 0 };
   }
 
   setPickResult(result: Partial<PickResult>): void {

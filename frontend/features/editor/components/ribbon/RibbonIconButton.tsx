@@ -32,19 +32,19 @@ const SIZE_CLASSES: Record<RibbonIconButtonSize, string> = {
 const VARIANT_CLASSES: Record<RibbonIconButtonVariant, { active: string; default: string }> = {
   default: {
     active: BUTTON_STYLES.active,
-    default: 'text-text-muted hover:text-text',
+    default: 'text-text-muted hover:text-text hover:bg-surface2',
   },
   primary: {
     active: BUTTON_STYLES.active,
-    default: 'text-primary hover:text-primary-hover',
+    default: 'text-primary hover:text-primary-hover hover:bg-surface2',
   },
   danger: {
     active: 'bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/30',
-    default: 'text-red-500 hover:text-red-400',
+    default: 'text-red-500 hover:text-red-400 hover:bg-surface2',
   },
   warning: {
     active: 'bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 border border-yellow-500/30',
-    default: 'text-yellow-500 hover:text-yellow-400',
+    default: 'text-yellow-500 hover:text-yellow-400 hover:bg-surface2',
   },
 };
 
@@ -73,10 +73,11 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
       className={`
         ${sizeClass} 
         h-full 
-        ${BUTTON_STYLES.centered} 
+        flex items-center justify-center
+        border border-transparent
+        text-text-muted
         focus-outline 
         rounded 
-        hover:bg-surface2 
         transition-colors 
         shrink-0
         ${stateClass}

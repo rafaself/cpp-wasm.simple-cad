@@ -39,7 +39,6 @@ export class TextStyleHandler {
   applyStyle(flagsMask: TextStyleFlags, intent: 'set' | 'clear' | 'toggle'): boolean {
     const state = this.stateManager.getState();
     if (state.activeTextId === null) {
-      console.warn('[TextStyleHandler] applyStyle: No active text');
       return false;
     }
 
@@ -259,6 +258,8 @@ export class TextStyleHandler {
     const caretByte = charIndexToByteIndex(styleContent, state.caretIndex);
     this.bridge.setCaretByteIndex(textId, caretByte);
 
+    this.syncBoundsAndNotify(textId, styleContent, state.boxMode, state.constraintWidth);
+    this.callbacks.onCaretUpdate?.();
     return true;
   }
 

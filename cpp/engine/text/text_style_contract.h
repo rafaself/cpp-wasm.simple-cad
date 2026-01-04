@@ -45,8 +45,8 @@ static constexpr std::uint8_t textStyleTagUnderlineThick  = 0x41; // f32 (reserv
 #pragma pack(push, 1)
 struct ApplyTextStylePayload {
     std::uint32_t textId;
-    std::uint32_t rangeStartLogical; // grapheme index, inclusive
-    std::uint32_t rangeEndLogical;   // grapheme index, end-exclusive
+    std::uint32_t rangeStartLogical; // UTF-16 code unit index, inclusive
+    std::uint32_t rangeEndLogical;   // UTF-16 code unit index, end-exclusive
     std::uint8_t  flagsMask;         // bits: bold/italic/underline/strike
     std::uint8_t  flagsValue;        // applied where mask=1; ignored when mode=toggle
     std::uint8_t  mode;              // 0=set, 1=clear, 2=toggle
@@ -76,6 +76,10 @@ struct TextStyleSnapshot {
     float lineHeight;
     std::uint8_t styleTriStateFlags; // 2 bits per attr (bold/italic/underline/strike)
     std::uint8_t align;              // 0=Left, 1=Center, 2=Right
+    std::uint8_t fontIdTriState;     // 0=off/unknown, 1=uniform, 2=mixed
+    std::uint8_t fontSizeTriState;   // 0=off/unknown, 1=uniform, 2=mixed
+    std::uint32_t fontId;
+    float fontSize;
     std::uint32_t textGeneration;
     std::uint16_t styleTriStateParamsLen; // bytes following the header
     // [styleTriStateParams bytes...]

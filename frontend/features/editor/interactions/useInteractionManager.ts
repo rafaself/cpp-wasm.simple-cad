@@ -18,6 +18,7 @@ export function useInteractionManager() {
   const viewTransform = useUIStore((s) => s.viewTransform);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
+  const toolDefaultsRef = useRef(toolDefaults);
 
   // Runtime Ref
   const runtimeRef = useRef<EngineRuntime | null>(null);
@@ -26,6 +27,10 @@ export function useInteractionManager() {
       runtimeRef.current = rt;
     });
   }, []);
+
+  useEffect(() => {
+    toolDefaultsRef.current = toolDefaults;
+  }, [toolDefaults]);
 
   // Current Handler
   const handlerRef = useRef<InteractionHandler>(new IdleHandler());
@@ -98,7 +103,7 @@ export function useInteractionManager() {
       case 'polygon': // Polygon/Polyline logic is inside DraftingHandler
       case 'polyline':
       case 'arrow':
-        next = new DraftingHandler(activeTool, toolDefaults);
+        next = new DraftingHandler(activeTool, toolDefaultsRef.current);
         break;
       case 'text':
         next = new TextHandler();
@@ -122,7 +127,7 @@ export function useInteractionManager() {
     if (next.onEnter) next.onEnter();
     handlerRef.current = next;
     forceUpdate();
-  }, [activeTool, toolDefaults, forceUpdate]);
+  }, [activeTool, forceUpdate]);
 
   // Input Pipeline Helper
   const buildContext = (e: React.PointerEvent): InputEventContext => {

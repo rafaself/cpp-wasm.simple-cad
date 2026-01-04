@@ -286,9 +286,10 @@ export class SelectionHandler extends BaseInteractionHandler {
         false,
         anchorX,
         anchorY,
-        0,
+        meta?.rotation ?? 0,
         meta?.boxMode,
         meta?.constraintWidth ?? 0,
+        viewTransform.scale,
         false,
       );
       useUIStore.getState().setEngineTextEditActive(true, pick.id);

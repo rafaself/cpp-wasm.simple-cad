@@ -33,14 +33,14 @@ describe('TextSystem Cache Optimization', () => {
     lastSnapHitCount: 0,
   };
   let textMetas = [
-    { id: 10, boxMode: 0, constraintWidth: 100 },
-    { id: 20, boxMode: 1, constraintWidth: 200 },
+    { id: 10, boxMode: 0, constraintWidth: 100, rotation: 0 },
+    { id: 20, boxMode: 1, constraintWidth: 200, rotation: 0 },
   ];
 
   beforeEach(() => {
     textMetas = [
-      { id: 10, boxMode: 0, constraintWidth: 100 },
-      { id: 20, boxMode: 1, constraintWidth: 200 },
+      { id: 10, boxMode: 0, constraintWidth: 100, rotation: 0 },
+      { id: 20, boxMode: 1, constraintWidth: 200, rotation: 0 },
     ];
 
     mockEngine = {

@@ -41,6 +41,8 @@ struct EntitySnapshot {
 };
 
 // A single entry in the undo/redo stack
+enum class HistoryMergeTag : std::uint8_t { None = 0, TextEdit = 1 };
+
 struct HistoryEntry {
     bool hasLayerChange = false;
     std::vector<engine::LayerSnapshot> layersBefore;
@@ -67,6 +69,9 @@ struct HistoryEntry {
     std::uint32_t nextIdAfter = 0;
     
     std::uint32_t generation = 0;
+    HistoryMergeTag mergeTag = HistoryMergeTag::None;
+    std::uint32_t mergeEntityId = 0;
+    double mergeTimestampMs = 0.0;
 };
 
 // Transaction state for accumulating a HistoryEntry

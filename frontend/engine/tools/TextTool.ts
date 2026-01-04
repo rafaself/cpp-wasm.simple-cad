@@ -14,6 +14,7 @@ import {
   charIndexToByteIndex,
   type TextPayload,
   type TextInputDelta,
+  type TextCompositionState,
   type TextStyleSnapshot,
 } from '@/types/text';
 
@@ -178,7 +179,6 @@ export class TextTool {
     // Initialize text system in engine
     const success = this.bridge.initialize();
     if (!success) {
-      console.warn('TextTool: Failed to initialize text system');
       return false;
     }
 
@@ -271,15 +271,7 @@ export class TextTool {
    * @param worldY World Y coordinate
    */
   handleClick(worldX: number, worldY: number): void {
-    if (import.meta.env.DEV) {
-      console.warn('[DEBUG] TextTool: handleClick', { worldX, worldY });
-    }
     if (!this.isReady()) {
-      console.warn('TextTool.handleClick: Tool not ready', {
-        initialized: this.initialized,
-        bridge: !!this.bridge,
-        bridgeAvailable: this.bridge?.isAvailable(),
-      });
       return;
     }
     this.inputCoordinator.handleClick(worldX, worldY, (textId, x, y, boxMode, constraintWidth) =>
@@ -311,6 +303,7 @@ export class TextTool {
     rotation: number,
     boxMode?: TextBoxMode,
     constraintWidth?: number,
+    viewScale = 1,
     startDrag = true,
   ): void {
     if (!this.isReady()) return;
@@ -324,6 +317,7 @@ export class TextTool {
       rotation,
       boxMode,
       constraintWidth,
+      viewScale,
       startDrag,
     );
   }
@@ -405,6 +399,13 @@ export class TextTool {
   handleInputDelta(delta: TextInputDelta): void {
     // Delegate to input coordinator
     this.inputCoordinator.handleInputDelta(delta);
+  }
+
+  /**
+   * Handle IME composition updates from TextInputProxy.
+   */
+  handleComposition(state: TextCompositionState): void {
+    this.inputCoordinator.handleComposition(state);
   }
 
   /**

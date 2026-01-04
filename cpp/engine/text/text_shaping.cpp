@@ -136,18 +136,18 @@ bool TextLayoutEngine::layoutText(std::uint32_t textId) {
     return true;
 }
 
-std::size_t TextLayoutEngine::layoutDirtyTexts() {
+std::vector<std::uint32_t> TextLayoutEngine::layoutDirtyTexts() {
     if (!isInitialized()) {
-        return 0;
+        return {};
     }
-    
+
     std::vector<std::uint32_t> dirtyIds = textStore_->consumeDirtyIds();
-    
+
     for (std::uint32_t id : dirtyIds) {
         layoutText(id);
     }
-    
-    return dirtyIds.size();
+
+    return dirtyIds;
 }
 
 void TextLayoutEngine::layoutAllTexts() {

@@ -243,9 +243,94 @@ TEST_F(TextStoreTest, RunsAdjustedOnInsert) {
     const auto& storedRuns = store.getRuns(1);
     EXPECT_EQ(storedRuns.size(), 2);
     EXPECT_EQ(storedRuns[0].startIndex, 0);
-    EXPECT_EQ(storedRuns[0].length, 5);  // "Hello" unchanged
+    EXPECT_EQ(storedRuns[0].length, 8);  // "HelloXXX"
     EXPECT_EQ(storedRuns[1].startIndex, 8);  // Shifted by 3
     EXPECT_EQ(storedRuns[1].length, 6);  // " World" unchanged
+}
+
+TEST_F(TextStoreTest, TypingAfterSplitRunKeepsBoldSegmentContiguous) {
+    TextPayloadHeader header{};
+    header.runCount = 3;
+    header.contentLength = 4;  // "como"
+
+    TextRunPayload runs[3] = {};
+    runs[0].startIndex = 0;
+    runs[0].length = 2;
+    runs[0].fontId = 0;
+    runs[0].fontSize = 16.0f;
+    runs[0].colorRGBA = 0xFFFFFFFF;
+    runs[0].flags = 0;
+
+    runs[1].startIndex = 2;
+    runs[1].length = 0;  // Typing run (bold)
+    runs[1].fontId = 0;
+    runs[1].fontSize = 16.0f;
+    runs[1].colorRGBA = 0xFFFFFFFF;
+    runs[1].flags = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+
+    runs[2].startIndex = 2;
+    runs[2].length = 2;
+    runs[2].fontId = 0;
+    runs[2].fontSize = 16.0f;
+    runs[2].colorRGBA = 0xFFFFFFFF;
+    runs[2].flags = 0;
+
+    store.upsertText(1, header, runs, 3, "como", 4);
+
+    store.insertContent(1, 2, "t", 1);
+    store.insertContent(1, 3, "e", 1);
+
+    EXPECT_EQ(store.getContent(1), "cotemo");
+
+    const auto& storedRuns = store.getRuns(1);
+    ASSERT_EQ(storedRuns.size(), 3u);
+    EXPECT_EQ(storedRuns[0].startIndex, 0u);
+    EXPECT_EQ(storedRuns[0].length, 2u);
+    EXPECT_EQ(storedRuns[1].startIndex, 2u);
+    EXPECT_EQ(storedRuns[1].length, 2u);
+    EXPECT_TRUE(hasFlag(storedRuns[1].flags, TextStyleFlags::Bold));
+    EXPECT_EQ(storedRuns[2].startIndex, 4u);
+    EXPECT_EQ(storedRuns[2].length, 2u);
+    const auto endIndex = storedRuns.back().startIndex + storedRuns.back().length;
+    EXPECT_EQ(endIndex, store.getContent(1).size());
+}
+
+TEST_F(TextStoreTest, TypingAtStartAfterStyleToggleExtendsBoldRun) {
+    TextPayloadHeader header{};
+    header.runCount = 2;
+    header.contentLength = 4;  // "como"
+
+    TextRunPayload runs[2] = {};
+    runs[0].startIndex = 0;
+    runs[0].length = 0;  // Typing run (bold)
+    runs[0].fontId = 0;
+    runs[0].fontSize = 16.0f;
+    runs[0].colorRGBA = 0xFFFFFFFF;
+    runs[0].flags = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+
+    runs[1].startIndex = 0;
+    runs[1].length = 4;
+    runs[1].fontId = 0;
+    runs[1].fontSize = 16.0f;
+    runs[1].colorRGBA = 0xFFFFFFFF;
+    runs[1].flags = 0;
+
+    store.upsertText(2, header, runs, 2, "como", 4);
+
+    store.insertContent(2, 0, "a", 1);
+    store.insertContent(2, 1, "b", 1);
+
+    EXPECT_EQ(store.getContent(2), "abcomo");
+
+    const auto& storedRuns = store.getRuns(2);
+    ASSERT_EQ(storedRuns.size(), 2u);
+    EXPECT_EQ(storedRuns[0].startIndex, 0u);
+    EXPECT_EQ(storedRuns[0].length, 2u);
+    EXPECT_TRUE(hasFlag(storedRuns[0].flags, TextStyleFlags::Bold));
+    EXPECT_EQ(storedRuns[1].startIndex, 2u);
+    EXPECT_EQ(storedRuns[1].length, 4u);
+    const auto endIndex = storedRuns.back().startIndex + storedRuns.back().length;
+    EXPECT_EQ(endIndex, store.getContent(2).size());
 }
 
 // =============================================================================

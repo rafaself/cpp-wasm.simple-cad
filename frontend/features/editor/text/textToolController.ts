@@ -147,9 +147,6 @@ async function loadFontVariant(
       }
       return ok;
     } catch (err) {
-      if (import.meta.env.DEV) {
-        console.warn('[textToolController] failed to load font', { fontId: variant.fontId, url: variant.url, err });
-      }
       return false;
     } finally {
       pendingFontLoads.delete(variant.fontId);
@@ -196,6 +193,16 @@ export function mapFontFamilyToId(fontFamily: string | undefined): number {
   return resolveFamily(fontFamily).baseId;
 }
 
+export function mapFontIdToFamily(fontId: number | null | undefined): string | null {
+  if (!fontId) return null;
+  for (const [family, config] of Object.entries(FONT_FAMILIES)) {
+    for (const variant of Object.values(config.variants)) {
+      if (variant.fontId === fontId) return family;
+    }
+  }
+  return null;
+}
+
 /**
  * Ensure a specific font variant is loaded.
  */
@@ -209,6 +216,15 @@ export async function ensureFontVariantLoaded(
   const variant = resolveFontVariant(fontFamily, bold, italic);
   await loadFontVariant(variant, rt);
   return variant.fontId;
+}
+
+export async function ensureFontFamilyLoaded(
+  fontFamily: string | undefined,
+  runtime?: EngineRuntime,
+): Promise<void> {
+  const rt = await ensureInitialized(runtime);
+  const family = resolveFamily(fontFamily);
+  await Promise.all(Object.values(family.variants).map((variant) => loadFontVariant(variant, rt)));
 }
 
 export async function ensureTextToolReady(runtime?: EngineRuntime, fontFamily?: string): Promise<TextTool> {

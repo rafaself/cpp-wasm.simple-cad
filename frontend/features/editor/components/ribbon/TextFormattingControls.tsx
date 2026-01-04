@@ -7,19 +7,15 @@ import {
   applyTextAlignUpdate,
 } from '@/features/editor/text/textStyleActions';
 import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
-import { createLogger } from '@/utils/logger';
 import { TextStyleFlags } from '@/types/text';
 
 import { TextFormatGroup } from '../../ribbon/components/TextControls';
-
-const logger = createLogger('textFormattingControls', { minLevel: 'debug' });
 
 export const TextFormattingControls: React.FC = () => {
   const selectionIds = useEngineSelectionIds();
   const selectedTextIds = selectionIds;
 
   const applyTextUpdate = async (diff: any, _recalcBounds?: boolean) => {
-    logger.debug('[TextFormattingControls] applyTextUpdate', { diff, selectedTextIds });
     if (diff.fontFamily) {
       await applyFontFamilyUpdate(diff.fontFamily, selectedTextIds);
     }

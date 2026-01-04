@@ -358,6 +358,23 @@ public:
      * @return True if successful
      */
     bool deleteTextContent(std::uint32_t textId, std::uint32_t startIndex, std::uint32_t endIndex);
+
+    /**
+     * Replace text content in a range.
+     * @param textId Text entity ID
+     * @param startIndex Start byte index (inclusive)
+     * @param endIndex End byte index (exclusive)
+     * @param content UTF-8 text to insert
+     * @param byteLength Length of content in bytes
+     * @return True if successful
+     */
+    bool replaceTextContent(
+        std::uint32_t textId,
+        std::uint32_t startIndex,
+        std::uint32_t endIndex,
+        const char* content,
+        std::uint32_t byteLength
+    );
     
     /**
      * Set the alignment for a text entity.
@@ -406,6 +423,7 @@ public:
 
     // Style snapshot for ribbon/state (engine-authoritative)
     engine::text::TextStyleSnapshot getTextStyleSnapshot(std::uint32_t textId) const;
+    engine::text::TextStyleSnapshot getTextStyleSummary(std::uint32_t textId) const;
     
     /**
      * Get text entity bounds.
@@ -492,6 +510,7 @@ public:
         std::uint32_t id;
         TextBoxMode boxMode;
         float constraintWidth;
+        float rotation;
     };
     
     /**

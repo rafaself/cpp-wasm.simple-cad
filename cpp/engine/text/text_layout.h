@@ -65,9 +65,9 @@ public:
     
     /**
      * Layout all dirty text entities.
-     * @return Number of texts laid out
+     * @return IDs of texts that were laid out
      */
-    std::size_t layoutDirtyTexts();
+    std::vector<std::uint32_t> layoutDirtyTexts();
     
     /**
      * Force re-layout of all texts.
@@ -116,15 +116,6 @@ public:
      * @return Hit result with character index
      */
     TextHitResult hitTest(std::uint32_t textId, float localX, float localY);
-    
-    /**
-     * Get the character index at a given X position on a specific line.
-     * @param textId Text entity ID
-     * @param lineIndex Line number (0-based)
-     * @param localX X coordinate in text-local space
-     * @return Character index (byte offset)
-     */
-    std::uint32_t getCharIndexAtX(std::uint32_t textId, std::uint32_t lineIndex, float localX) const;
     
     /**
      * Get the character index at a given X position on a specific line.
