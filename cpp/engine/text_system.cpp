@@ -563,6 +563,7 @@ std::uint32_t TextSystem::getLineDownIndex(std::uint32_t textId, std::uint32_t c
 
 // ... applyTextStyle implementation ...
 bool TextSystem::applyTextStyle(const engine::text::ApplyTextStylePayload& payload, const std::uint8_t* params, std::uint32_t paramsLen) {
+    if (!initialized) return false;
     if (!store.hasText(payload.textId)) return false;
 
     // Parse style parameters (TLV)

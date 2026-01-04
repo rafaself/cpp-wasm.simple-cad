@@ -104,8 +104,8 @@ protected:
         run.colorRGBA = 0xFFFFFFFFu;
         run.flags = static_cast<std::uint8_t>(flags);
 
-        auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
-        return textSystem.store.upsertText(id, header, &run, 1, content.data(), header.contentLength);
+        // Must go through CadEngine to ensure TextSystem is initialized
+        return engine_->upsertText(id, header, &run, 1, content.data(), header.contentLength);
     }
     
     std::unique_ptr<CadEngine> engine_;
@@ -609,7 +609,7 @@ TEST_F(TextCommandsTest, DeleteTextRemovesFromEntityMap) {
 // ApplyTextStyle caret-only (collapsed selection) tests
 // =============================================================================
 
-TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_MidRunInsertsZeroLengthRun) {
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_MidRunInsertsZeroLengthRun) {
     ASSERT_TRUE(upsertSimpleText(100, "Hello"));
 
     engine::text::ApplyTextStylePayload payload{};
@@ -639,7 +639,7 @@ TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_MidRunInsertsZeroLeng
     EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
 }
 
-TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
     const std::string content = "HelloWorld"; // 10 chars
 
     TextPayloadHeader header{};
@@ -667,7 +667,8 @@ TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenR
     runs[1].colorRGBA = 0xFFFFFFFFu;
     runs[1].flags = static_cast<std::uint8_t>(TextStyleFlags::Italic);
 
-    ASSERT_TRUE(CadEngineTestAccessor::textSystem(*engine_).store.upsertText(101, header, runs, 2, content.data(), header.contentLength));
+    // Must go through CadEngine to ensure TextSystem is initialized
+    ASSERT_TRUE(engine_->upsertText(101, header, runs, 2, content.data(), header.contentLength));
 
     engine::text::ApplyTextStylePayload payload{};
     payload.textId = 101;
@@ -697,7 +698,7 @@ TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenR
     EXPECT_TRUE(hasFlag(storedRuns[2].flags, TextStyleFlags::Italic));
 }
 
-TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_AtContentEnd) {
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtContentEnd) {
     ASSERT_TRUE(upsertSimpleText(102, "Hello"));
 
     engine::text::ApplyTextStylePayload payload{};
@@ -723,7 +724,7 @@ TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_AtContentEnd) {
     EXPECT_TRUE(hasFlag(runs[1].flags, TextStyleFlags::Bold));
 }
 
-TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_CaretOnly_OnEmptyContent) {
+TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_OnEmptyContent) {
     ASSERT_TRUE(upsertSimpleText(103, ""));
 
     engine::text::ApplyTextStylePayload payload{};
@@ -772,7 +773,7 @@ TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
     EXPECT_GT(CadEngineTestAccessor::generation(*engine_), genBefore);
 }
 
-TEST_F(TextCommandsTest, DISABLED_SetTextAlignMarksTextDirtyForRelayout) {
+TEST_F(TextCommandsTest, SetTextAlignMarksTextDirtyForRelayout) {
     ASSERT_TRUE(upsertSimpleText(400, "Hello"));
     auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
 
@@ -795,9 +796,10 @@ TEST_F(TextCommandsTest, DISABLED_SetTextAlignMarksTextDirtyForRelayout) {
     ASSERT_NE(rec, nullptr);
     EXPECT_EQ(rec->align, TextAlign::Center);
 
-    // Alignment changes must force layout recomputation, but CadEngine consumes it immediately
-    // via getBounds -> ensureLayout. So check should see empty dirty list.
-    EXPECT_TRUE(textSystem.store.isDirty(400));
+    // Alignment changes force layout recomputation. CadEngine::setTextAlign calls
+    // getBounds which triggers ensureLayout, clearing the dirty flag.
+    // So after the command, the text should NOT be dirty.
+    EXPECT_FALSE(textSystem.store.isDirty(400));
     EXPECT_EQ(textSystem.layoutEngine.layoutDirtyTexts().size(), 0u);
 }
 
@@ -890,7 +892,7 @@ TEST_F(TextCommandsTest, ApplyTextStyleEmitsEntityChangedWithBounds) {
 // PR1 Verification Tests
 // =============================================================================
 
-TEST_F(TextCommandsTest, DISABLED_PR1_VerifyCaretStyling_WithInsertion) {
+TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
     // Recipe:
     // - Create text "hello"
     // - Move caret between "e|l"
@@ -948,7 +950,7 @@ TEST_F(TextCommandsTest, DISABLED_PR1_VerifyCaretStyling_WithInsertion) {
     EXPECT_FALSE(hasFlag(runs[2].flags, TextStyleFlags::Bold));
 }
 
-TEST_F(TextCommandsTest, DISABLED_ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
+TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
     // Regression test for text duplication bug:
     // When toggling multiple styles (Bold, Italic, Underline) at caret,
     // should create ONE zero-length run with combined styles, not multiple.
