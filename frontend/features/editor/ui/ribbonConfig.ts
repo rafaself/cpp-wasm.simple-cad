@@ -1,128 +1,10 @@
-import {
-  FilePlus,
-  FolderOpen,
-  Save,
-  Undo2,
-  Redo2,
-  Type,
-  MousePointer2,
-  Square,
-  Circle,
-  Slash,
-  Activity,
-  Hand,
-  Move,
-  RotateCw,
-  Ruler,
-  Grid3x3,
-  ArrowUpRight,
-  Shapes,
-  FileCode2,
-  Package,
-  Trash2,
-  Scan,
-} from 'lucide-react';
-import { ComponentType, ReactNode } from 'react';
+// ... (imports)
+import { ColorsRibbonGroup } from '../components/ribbon/ColorsRibbonGroup'; // Import new component
 
-import { LABELS } from '@/i18n/labels';
-
-import { LayerRibbonControls } from '../components/ribbon/LayerRibbonControls';
-import { SelectionControls } from '../components/ribbon/SelectionControls';
-import { TextFormattingControls } from '../components/ribbon/TextFormattingControls';
-
-export type RibbonItemKind = 'action' | 'tool' | 'custom';
-export type RibbonItemStatus = 'ready' | 'stub';
-
-export type RibbonItem = {
-  id: string;
-  kind: RibbonItemKind;
-  label: string;
-  icon?: ComponentType<any>; // Icon is optional for custom items
-  actionId?: string;
-  toolId?: string;
-  status: RibbonItemStatus;
-  variant?: 'default' | 'large' | 'icon';
-  width?: 'sm' | 'md' | 'lg' | 'auto';
-  componentType?: ComponentType<any>; // For custom rendered items
-};
-
-export type RibbonGroup = {
-  id: string;
-  label?: string;
-  layout?: 'flex-row' | 'grid-2x3' | 'stack';
-  items: RibbonItem[];
-};
-
-export type RibbonTab = {
-  id: string;
-  label: string;
-  groups: RibbonGroup[];
-};
+// ... (RibbonItem, RibbonGroup, RibbonTab types)
 
 export const RIBBON_TABS: RibbonTab[] = [
-  {
-    id: 'home',
-    label: 'Início',
-    groups: [
-      {
-        id: 'file',
-        label: 'Arquivo',
-        items: [
-          {
-            id: 'new-file',
-            kind: 'action',
-            label: LABELS.menu.newFile,
-            icon: FilePlus,
-            actionId: 'new-file',
-            status: 'stub',
-            variant: 'large',
-          },
-          {
-            id: 'open-file',
-            kind: 'action',
-            label: LABELS.menu.openFile,
-            icon: FolderOpen,
-            actionId: 'open-file',
-            status: 'ready',
-            variant: 'large',
-          },
-          {
-            id: 'save-file',
-            kind: 'action',
-            label: LABELS.menu.saveFile,
-            icon: Save,
-            actionId: 'save-file',
-            status: 'ready',
-            variant: 'large',
-          },
-        ],
-      },
-      {
-        id: 'project',
-        label: 'Projeto',
-        items: [
-          {
-            id: 'export-json',
-            kind: 'action',
-            label: 'Exportar JSON',
-            icon: FileCode2,
-            actionId: 'export-json',
-            status: 'stub',
-            variant: 'large',
-          },
-          {
-            id: 'export-project',
-            kind: 'action',
-            label: 'Exportar Projeto',
-            icon: Package,
-            actionId: 'export-project',
-            status: 'stub',
-            variant: 'large',
-          },
-        ],
-      },
-    ],
-  },
+  // ... (home tab)
   {
     id: 'draw',
     label: 'Desenho',
@@ -132,6 +14,7 @@ export const RIBBON_TABS: RibbonTab[] = [
         label: 'Formas',
         layout: 'grid-2x3',
         items: [
+          // ... (shape tools)
           {
             id: 'line',
             kind: 'tool',
@@ -204,6 +87,20 @@ export const RIBBON_TABS: RibbonTab[] = [
           },
         ],
       },
+      // New Colors Group
+      {
+        id: 'colors',
+        label: 'Cores',
+        items: [
+          {
+            id: 'colors-group',
+            kind: 'custom',
+            label: 'Cores',
+            status: 'ready',
+            componentType: ColorsRibbonGroup,
+          },
+        ],
+      },
       {
         id: 'layers',
         label: 'Camadas',
@@ -219,6 +116,7 @@ export const RIBBON_TABS: RibbonTab[] = [
       },
     ],
   },
+  // ... (tools tab)
   {
     id: 'tools',
     label: 'Ferramentas',

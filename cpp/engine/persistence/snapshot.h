@@ -13,6 +13,36 @@ struct LayerSnapshot {
     std::uint32_t order;
     std::uint32_t flags;
     std::string name;
+    // New Style Fields
+    float strokeR = 0.0f;
+    float strokeG = 0.0f;
+    float strokeB = 0.0f;
+    float strokeA = 1.0f;
+    float fillR = 0.0f;
+    float fillG = 0.0f;
+    float fillB = 0.0f;
+    float fillA = 0.0f;
+    float strokeWidth = 1.0f;
+};
+
+// Entity Styles could be saved within the entity record or in a separate list.
+// Since EntityStyleStore is a sparse map, saving it as a separate list is efficient.
+// This avoids changing RectSnapshot etc. if they are just wrapping RectRec.
+// However, the report mentioned "Sidecar".
+// Let's add a list of EntityStyleSnapshot to SnapshotData.
+
+struct EntityStyleSnapshot {
+    std::uint32_t entityId;
+    std::uint8_t strokeSource; // 0=ByLayer, 1=Override
+    std::uint8_t fillSource;   // 0=ByLayer, 1=Override, 2=None
+    float strokeR;
+    float strokeG;
+    float strokeB;
+    float strokeA;
+    float fillR;
+    float fillG;
+    float fillB;
+    float fillA;
 };
 
 struct RectSnapshot {
@@ -79,6 +109,9 @@ struct SnapshotData {
     std::vector<std::uint32_t> selection;
     std::vector<TextSnapshot> texts;
     std::vector<std::uint8_t> historyBytes;
+    // New: Styles
+    std::vector<EntityStyleSnapshot> styles;
+
     std::uint32_t nextId{1};
     std::uint32_t version{0};
 };
