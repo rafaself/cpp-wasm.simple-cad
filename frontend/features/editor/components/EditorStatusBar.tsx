@@ -22,7 +22,7 @@ import EditableNumber from '../../../components/EditableNumber';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
 import { SnapOptions } from '../../../types';
-import { RIBBON_TABS } from '../ui/ribbonConfig';
+import { getRibbonTabs } from '../ui/ribbonConfig';
 
 const EditorStatusBar: React.FC = () => {
   const mousePos = useUIStore((s) => s.mousePos);
@@ -33,6 +33,7 @@ const EditorStatusBar: React.FC = () => {
   const snapSettings = useSettingsStore((s) => s.snap);
   const setSnapEnabled = useSettingsStore((s) => s.setSnapEnabled);
   const setSnapOption = useSettingsStore((s) => s.setSnapOption);
+  const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
   const [showSnapMenu, setShowSnapMenu] = useState(false);
   const { executeAction } = useEditorCommands();
 
@@ -42,7 +43,8 @@ const EditorStatusBar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
 
   const ToolIcon = React.useMemo(() => {
-    for (const tab of RIBBON_TABS) {
+    const ribbonTabs = getRibbonTabs(enableColorsRibbon);
+    for (const tab of ribbonTabs) {
       for (const group of tab.groups) {
         for (const item of group.items) {
           if (item.kind === 'tool' && item.toolId === activeTool) {
@@ -52,7 +54,7 @@ const EditorStatusBar: React.FC = () => {
       }
     }
     return MousePointer2;
-  }, [activeTool]);
+  }, [activeTool, enableColorsRibbon]);
 
   return (
     <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">

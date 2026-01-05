@@ -6,7 +6,16 @@ using namespace engine;
 
 TEST(SnapshotTest, RoundTrip) {
     SnapshotData data;
-    LayerSnapshot layer{1, 0, static_cast<std::uint32_t>(LayerFlags::Visible), "Default"};
+    engine::protocol::LayerStyleSnapshot layerStyle{};
+    layerStyle.strokeRGBA = 0x112233FFu;
+    layerStyle.fillRGBA = 0x445566FFu;
+    layerStyle.textColorRGBA = 0x778899FFu;
+    layerStyle.textBackgroundRGBA = 0x00000080u;
+    layerStyle.strokeEnabled = 1;
+    layerStyle.fillEnabled = 0;
+    layerStyle.textBackgroundEnabled = 1;
+    layerStyle.reserved = 0;
+    LayerSnapshot layer{1, 0, static_cast<std::uint32_t>(LayerFlags::Visible), "Default", layerStyle};
     data.layers.push_back(layer);
 
     RectSnapshot rect{};
@@ -61,6 +70,17 @@ TEST(SnapshotTest, RoundTrip) {
     text.runs.push_back(run);
     data.texts.push_back(text);
 
+    StyleOverrideSnapshot overrideSnap{};
+    overrideSnap.id = 2;
+    overrideSnap.colorMask = 0x04;
+    overrideSnap.enabledMask = 0x08;
+    overrideSnap.reserved = 0;
+    overrideSnap.textColorRGBA = 0xFF00FFFFu;
+    overrideSnap.textBackgroundRGBA = 0x00FF00FFu;
+    overrideSnap.fillEnabled = 1;
+    overrideSnap.textBackgroundEnabled = 1;
+    data.styleOverrides.push_back(overrideSnap);
+
     auto bytes = buildSnapshotBytes(data);
     ASSERT_GT(bytes.size(), 0u);
 
@@ -76,4 +96,9 @@ TEST(SnapshotTest, RoundTrip) {
     EXPECT_EQ(parsed.selection, data.selection);
     EXPECT_EQ(parsed.nextId, data.nextId);
     EXPECT_EQ(parsed.texts.size(), data.texts.size());
+    EXPECT_EQ(parsed.layers[0].style.strokeRGBA, data.layers[0].style.strokeRGBA);
+    EXPECT_EQ(parsed.layers[0].style.fillRGBA, data.layers[0].style.fillRGBA);
+    EXPECT_EQ(parsed.layers[0].style.textColorRGBA, data.layers[0].style.textColorRGBA);
+    EXPECT_EQ(parsed.layers[0].style.textBackgroundRGBA, data.layers[0].style.textBackgroundRGBA);
+    EXPECT_EQ(parsed.styleOverrides.size(), data.styleOverrides.size());
 }

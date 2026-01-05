@@ -124,6 +124,53 @@ EngineError dispatchCommand(
             self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
             break;
         }
+        case static_cast<std::uint32_t>(CommandOp::SetLayerStyle): {
+            if (payloadByteCount != sizeof(LayerStylePayload)) return EngineError::InvalidPayloadSize;
+            LayerStylePayload p;
+            std::memcpy(&p, payload, sizeof(LayerStylePayload));
+            self->setLayerStyle(id, static_cast<CadEngine::StyleTarget>(p.target), p.colorRGBA);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetLayerStyleEnabled): {
+            if (payloadByteCount != sizeof(LayerStyleEnabledPayload)) return EngineError::InvalidPayloadSize;
+            LayerStyleEnabledPayload p;
+            std::memcpy(&p, payload, sizeof(LayerStyleEnabledPayload));
+            self->setLayerStyleEnabled(id, static_cast<CadEngine::StyleTarget>(p.target), p.enabled != 0);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetEntityStyleOverride): {
+            if (payloadByteCount < sizeof(EntityStylePayloadHeader)) return EngineError::InvalidPayloadSize;
+            EntityStylePayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(EntityStylePayloadHeader));
+            const std::uint32_t count = hdr.count;
+            const std::size_t expected = sizeof(EntityStylePayloadHeader) + static_cast<std::size_t>(count) * 4;
+            if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
+            const auto* ids = reinterpret_cast<const std::uint32_t*>(payload + sizeof(EntityStylePayloadHeader));
+            self->setEntityStyleOverride(ids, count, static_cast<CadEngine::StyleTarget>(hdr.target), hdr.colorRGBA);
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::ClearEntityStyleOverride): {
+            if (payloadByteCount < sizeof(EntityStyleClearPayloadHeader)) return EngineError::InvalidPayloadSize;
+            EntityStyleClearPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(EntityStyleClearPayloadHeader));
+            const std::uint32_t count = hdr.count;
+            const std::size_t expected = sizeof(EntityStyleClearPayloadHeader) + static_cast<std::size_t>(count) * 4;
+            if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
+            const auto* ids = reinterpret_cast<const std::uint32_t*>(payload + sizeof(EntityStyleClearPayloadHeader));
+            self->clearEntityStyleOverride(ids, count, static_cast<CadEngine::StyleTarget>(hdr.target));
+            break;
+        }
+        case static_cast<std::uint32_t>(CommandOp::SetEntityStyleEnabled): {
+            if (payloadByteCount < sizeof(EntityStyleEnabledPayloadHeader)) return EngineError::InvalidPayloadSize;
+            EntityStyleEnabledPayloadHeader hdr;
+            std::memcpy(&hdr, payload, sizeof(EntityStyleEnabledPayloadHeader));
+            const std::uint32_t count = hdr.count;
+            const std::size_t expected = sizeof(EntityStyleEnabledPayloadHeader) + static_cast<std::size_t>(count) * 4;
+            if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
+            const auto* ids = reinterpret_cast<const std::uint32_t*>(payload + sizeof(EntityStyleEnabledPayloadHeader));
+            self->setEntityStyleEnabled(ids, count, static_cast<CadEngine::StyleTarget>(hdr.target), hdr.enabled != 0);
+            break;
+        }
         // =======================================================================
         // Text Commands
         // =======================================================================

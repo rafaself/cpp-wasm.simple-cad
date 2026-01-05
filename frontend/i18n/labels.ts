@@ -97,6 +97,16 @@ export const LABELS = {
     editContent: 'Clique para editar',
     mixed: '—',
   },
+  colors: {
+    group: 'Cores',
+    stroke: 'Traço',
+    fill: 'Preenchimento',
+    noFill: 'Sem preenchimento',
+    inheritedTooltip: 'Cor herdada da camada “{nome}”',
+    overrideTooltip: 'Cor personalizada do elemento',
+    noneTooltip: 'Sem preenchimento',
+    mixedTooltip: 'Múltiplos valores',
+  },
   disciplines: {
     architecture: 'Arquitetura',
     electrical: 'Elétrica',

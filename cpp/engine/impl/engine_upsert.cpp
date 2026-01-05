@@ -5,6 +5,25 @@
 #include "engine/engine.h"
 #include "engine/internal/engine_state_aliases.h"
 
+namespace {
+    void initShapeStyleOverrides(EntityManager& em, std::uint32_t id, bool hasFill, bool hasStroke, float fillEnabled) {
+        EntityStyleOverrides& overrides = em.ensureEntityStyleOverrides(id);
+        overrides.colorMask = 0;
+        overrides.enabledMask = 0;
+        const std::uint8_t strokeBit = EntityManager::styleTargetMask(StyleTarget::Stroke);
+        const std::uint8_t fillBit = EntityManager::styleTargetMask(StyleTarget::Fill);
+        if (hasFill) {
+            overrides.colorMask |= fillBit;
+            overrides.enabledMask |= fillBit;
+            overrides.fillEnabled = fillEnabled;
+        }
+        if (hasStroke) {
+            overrides.colorMask |= strokeBit;
+            overrides.enabledMask |= strokeBit;
+        }
+    }
+}
+
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a) {
     upsertRect(id, x, y, w, h, r, g, b, a, r, g, b, 1.0f, 1.0f, 1.0f);
 }
@@ -22,6 +41,9 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
     }
     markEntityChange(id);
     entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx);
+    if (isNew) {
+        initShapeStyleOverrides(entityManager_, id, true, true, a > 0.5f ? 1.0f : 0.0f);
+    }
 
     RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
     pickSystem_.update(id, PickSystem::computeRectAABB(rec));
@@ -54,6 +76,9 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
     }
     markEntityChange(id);
     entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx);
+    if (isNew) {
+        initShapeStyleOverrides(entityManager_, id, false, true, 0.0f);
+    }
 
     LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
     pickSystem_.update(id, PickSystem::computeLineAABB(rec));
@@ -86,6 +111,9 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
     }
     markEntityChange(id);
     entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
+    if (isNew) {
+        initShapeStyleOverrides(entityManager_, id, false, true, 0.0f);
+    }
 
     PolyRec rec; rec.offset = offset; rec.count = count;
     pickSystem_.update(id, PickSystem::computePolylineAABB(rec, entityManager_.points));
@@ -133,6 +161,9 @@ void CadEngine::upsertCircle(
     }
     markEntityChange(id);
     entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    if (isNew) {
+        initShapeStyleOverrides(entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
+    }
 
     CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
     pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
@@ -181,6 +212,9 @@ void CadEngine::upsertPolygon(
     }
     markEntityChange(id);
     entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    if (isNew) {
+        initShapeStyleOverrides(entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
+    }
 
     PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
     pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
@@ -222,6 +256,9 @@ void CadEngine::upsertArrow(
     }
     markEntityChange(id);
     entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    if (isNew) {
+        initShapeStyleOverrides(entityManager_, id, false, true, 0.0f);
+    }
 
     ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
     pickSystem_.update(id, PickSystem::computeArrowAABB(rec));

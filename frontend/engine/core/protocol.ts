@@ -28,6 +28,26 @@ export enum LayerPropMask {
   Locked = 1 << 2,
 }
 
+export enum StyleTarget {
+  Stroke = 0,
+  Fill = 1,
+  TextColor = 2,
+  TextBackground = 3,
+}
+
+export enum StyleState {
+  None = 0,
+  Layer = 1,
+  Override = 2,
+  Mixed = 3,
+}
+
+export enum TriState {
+  Off = 0,
+  On = 1,
+  Mixed = 2,
+}
+
 export enum SelectionMode {
   Replace = 0,
   Add = 1,
@@ -81,6 +101,34 @@ export type LayerRecord = {
   id: number;
   order: number;
   flags: number;
+};
+
+export type StyleTargetSummary = {
+  state: number;
+  enabledState: number;
+  supportedState: number;
+  reserved: number;
+  colorRGBA: number;
+  layerId: number;
+};
+
+export type SelectionStyleSummary = {
+  selectionCount: number;
+  stroke: StyleTargetSummary;
+  fill: StyleTargetSummary;
+  textColor: StyleTargetSummary;
+  textBackground: StyleTargetSummary;
+};
+
+export type LayerStyleSnapshot = {
+  strokeRGBA: number;
+  fillRGBA: number;
+  textColorRGBA: number;
+  textBackgroundRGBA: number;
+  strokeEnabled: number;
+  fillEnabled: number;
+  textBackgroundEnabled: number;
+  reserved: number;
 };
 
 export type ProtocolInfo = {
@@ -209,9 +257,9 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
   },
 } as const;
 
-export const PROTOCOL_VERSION = 3 as const;
-export const COMMAND_VERSION = 2 as const;
-export const SNAPSHOT_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 4 as const;
+export const COMMAND_VERSION = 3 as const;
+export const SNAPSHOT_VERSION = 2 as const;
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
@@ -251,7 +299,7 @@ const computeAbiHash = (): number => {
   h = hashEnum(
     h,
     0xe0000001,
-    [1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 42, 43],
+    [1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 42, 43, 50, 51, 52, 53, 54],
   );
 
   h = hashEnum(h, 0xe0000002, [0, 1, 2, 3, 4, 5, 6, 7]);
@@ -287,6 +335,22 @@ const computeAbiHash = (): number => {
   h = hashEnum(h, 0xe000000c, [EngineEntityFlags.Visible, EngineEntityFlags.Locked]);
 
   h = hashEnum(h, 0xe000000d, [LayerPropMask.Name, LayerPropMask.Visible, LayerPropMask.Locked]);
+
+  h = hashEnum(h, 0xe0000010, [
+    StyleTarget.Stroke,
+    StyleTarget.Fill,
+    StyleTarget.TextColor,
+    StyleTarget.TextBackground,
+  ]);
+
+  h = hashEnum(h, 0xe0000011, [
+    StyleState.None,
+    StyleState.Layer,
+    StyleState.Override,
+    StyleState.Mixed,
+  ]);
+
+  h = hashEnum(h, 0xe0000012, [TriState.Off, TriState.On, TriState.Mixed]);
 
   h = hashEnum(h, 0xe000000e, [
     SelectionMode.Replace,
@@ -418,6 +482,12 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x5300001c, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x5300001d, 12, [0, 4, 8]);
+
+  h = hashStruct(h, 0x5300001e, 12, [0, 1, 2, 3, 4, 8]);
+
+  h = hashStruct(h, 0x5300001f, 52, [0, 4, 16, 28, 40]);
+
+  h = hashStruct(h, 0x53000020, 20, [0, 4, 8, 12, 16, 17, 18, 19]);
 
   h = hashStruct(h, 0x5300001e, 8, [0, 4]);
 

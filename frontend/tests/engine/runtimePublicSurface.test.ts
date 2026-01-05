@@ -105,6 +105,7 @@ describe('EngineRuntime public API surface', () => {
       'io',
       'render',
       'stats',
+      'style',
     ];
     const instanceKeys = Object.keys(runtime).filter((k) => allowedInstanceKeys.includes(k));
     const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(runtime)).filter(
@@ -122,6 +123,7 @@ describe('EngineRuntime public API surface', () => {
       'io',
       'render',
       'stats',
+      'style',
       'resetIds',
       'hasCapability',
       'clear',

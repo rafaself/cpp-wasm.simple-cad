@@ -109,6 +109,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getSelectionBounds", &CadEngine::getSelectionBounds)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
+        .function("getLayerStyle", &CadEngine::getLayerStyle)
         .function("setLayerProps", &CadEngine::setLayerProps)
         .function("deleteLayer", &CadEngine::deleteLayer)
         .function("getEntityFlags", &CadEngine::getEntityFlags)
@@ -117,6 +118,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getEntityLayer", &CadEngine::getEntityLayer)
         .function("getSelectionIds", &CadEngine::getSelectionIds)
         .function("getSelectionGeneration", &CadEngine::getSelectionGeneration)
+        .function("getSelectionStyleSummary", &CadEngine::getSelectionStyleSummary)
         .function("clearSelection", &CadEngine::clearSelection)
         .function("setSelection", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode) {
             self.setSelection(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::SelectionMode>(mode));
@@ -279,6 +281,31 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("depth", &CadEngine::HistoryMeta::depth)
         .field("cursor", &CadEngine::HistoryMeta::cursor)
         .field("generation", &CadEngine::HistoryMeta::generation);
+
+    emscripten::value_object<CadEngine::StyleTargetSummary>("StyleTargetSummary")
+        .field("state", &CadEngine::StyleTargetSummary::state)
+        .field("enabledState", &CadEngine::StyleTargetSummary::enabledState)
+        .field("supportedState", &CadEngine::StyleTargetSummary::supportedState)
+        .field("reserved", &CadEngine::StyleTargetSummary::reserved)
+        .field("colorRGBA", &CadEngine::StyleTargetSummary::colorRGBA)
+        .field("layerId", &CadEngine::StyleTargetSummary::layerId);
+
+    emscripten::value_object<CadEngine::SelectionStyleSummary>("SelectionStyleSummary")
+        .field("selectionCount", &CadEngine::SelectionStyleSummary::selectionCount)
+        .field("stroke", &CadEngine::SelectionStyleSummary::stroke)
+        .field("fill", &CadEngine::SelectionStyleSummary::fill)
+        .field("textColor", &CadEngine::SelectionStyleSummary::textColor)
+        .field("textBackground", &CadEngine::SelectionStyleSummary::textBackground);
+
+    emscripten::value_object<CadEngine::LayerStyleSnapshot>("LayerStyleSnapshot")
+        .field("strokeRGBA", &CadEngine::LayerStyleSnapshot::strokeRGBA)
+        .field("fillRGBA", &CadEngine::LayerStyleSnapshot::fillRGBA)
+        .field("textColorRGBA", &CadEngine::LayerStyleSnapshot::textColorRGBA)
+        .field("textBackgroundRGBA", &CadEngine::LayerStyleSnapshot::textBackgroundRGBA)
+        .field("strokeEnabled", &CadEngine::LayerStyleSnapshot::strokeEnabled)
+        .field("fillEnabled", &CadEngine::LayerStyleSnapshot::fillEnabled)
+        .field("textBackgroundEnabled", &CadEngine::LayerStyleSnapshot::textBackgroundEnabled)
+        .field("reserved", &CadEngine::LayerStyleSnapshot::reserved);
 
     emscripten::value_object<CadEngine::EngineStats>("EngineStats")
         .field("generation", &CadEngine::EngineStats::generation)

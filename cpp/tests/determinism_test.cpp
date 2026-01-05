@@ -35,7 +35,7 @@ protected:
 
         // Header
         pushU32(0x43445745); // magic "EWDC"
-        pushU32(2);          // version
+        pushU32(3);          // version
         pushU32(static_cast<uint32_t>(commands.size())); // count
         pushU32(0);          // padding
 
@@ -55,7 +55,7 @@ protected:
 
     // Helper to create rect payload
     std::vector<uint8_t> makeRectPayload(float x, float y, float w, float h) {
-        std::vector<uint8_t> payload(60, 0); // RectPayload size
+        std::vector<uint8_t> payload(56, 0); // RectPayload size
         float* f = reinterpret_cast<float*>(payload.data());
         f[0] = x;    // x
         f[1] = y;    // y
@@ -69,15 +69,14 @@ protected:
         f[9] = 0.0f; // strokeG
         f[10] = 0.0f; // strokeB
         f[11] = 1.0f; // strokeA
-        payload[48] = 1; // strokeEnabled
-        float* sw = reinterpret_cast<float*>(&payload[52]);
-        *sw = 1.0f; // strokeWidthPx
+        f[12] = 1.0f; // strokeEnabled
+        f[13] = 1.0f; // strokeWidthPx
         return payload;
     }
 
     // Helper to create line payload
     std::vector<uint8_t> makeLinePayload(float x0, float y0, float x1, float y1) {
-        std::vector<uint8_t> payload(36, 0); // LinePayload size
+        std::vector<uint8_t> payload(40, 0); // LinePayload size
         float* f = reinterpret_cast<float*>(payload.data());
         f[0] = x0;
         f[1] = y0;
@@ -87,7 +86,8 @@ protected:
         f[5] = 1.0f; // g
         f[6] = 1.0f; // b
         f[7] = 1.0f; // a
-        payload[32] = 1; // enabled
+        f[8] = 1.0f; // enabled
+        f[9] = 1.0f; // strokeWidthPx
         return payload;
     }
 

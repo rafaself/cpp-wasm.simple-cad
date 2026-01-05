@@ -1,9 +1,51 @@
 #include "engine/entity/entity_manager.h"
 #include <cmath>
 
+namespace {
+    constexpr float kColorByteScale = 1.0f / 255.0f;
+
+    StyleColor makeColor(float r, float g, float b, float a) {
+        return StyleColor{r, g, b, a};
+    }
+
+    LayerStyle makeDefaultLayerStyle() {
+        LayerStyle style{};
+        style.stroke.color = makeColor(1.0f, 1.0f, 1.0f, 1.0f);
+        style.stroke.enabled = 1.0f;
+        style.fill.color = makeColor(217.0f * kColorByteScale, 217.0f * kColorByteScale, 217.0f * kColorByteScale, 1.0f);
+        style.fill.enabled = 1.0f;
+        style.textColor.color = makeColor(1.0f, 1.0f, 1.0f, 1.0f);
+        style.textColor.enabled = 1.0f;
+        style.textBackground.color = makeColor(0.0f, 0.0f, 0.0f, 1.0f);
+        style.textBackground.enabled = 0.0f;
+        return style;
+    }
+
+    StyleEntry* selectStyleEntry(LayerStyle& style, StyleTarget target) {
+        switch (target) {
+            case StyleTarget::Stroke: return &style.stroke;
+            case StyleTarget::Fill: return &style.fill;
+            case StyleTarget::TextColor: return &style.textColor;
+            case StyleTarget::TextBackground: return &style.textBackground;
+            default: return nullptr;
+        }
+    }
+
+    const StyleEntry* selectStyleEntry(const LayerStyle& style, StyleTarget target) {
+        switch (target) {
+            case StyleTarget::Stroke: return &style.stroke;
+            case StyleTarget::Fill: return &style.fill;
+            case StyleTarget::TextColor: return &style.textColor;
+            case StyleTarget::TextBackground: return &style.textBackground;
+            default: return nullptr;
+        }
+    }
+}
+
 void LayerStore::clear() {
     layers_.clear();
     names_.clear();
+    styles_.clear();
     order_.clear();
     ensureLayer(kDefaultLayerId);
     names_[kDefaultLayerId] = "Default";
@@ -17,6 +59,9 @@ void LayerStore::ensureLayer(std::uint32_t id) {
     if (names_.find(id) == names_.end()) {
         names_.emplace(id, "Layer");
     }
+    if (styles_.find(id) == styles_.end()) {
+        styles_.emplace(id, makeDefaultLayerStyle());
+    }
 }
 
 bool LayerStore::deleteLayer(std::uint32_t id) {
@@ -25,6 +70,7 @@ bool LayerStore::deleteLayer(std::uint32_t id) {
     if (it == layers_.end()) return false;
     layers_.erase(it);
     names_.erase(id);
+    styles_.erase(id);
     for (std::size_t i = 0; i < order_.size(); ++i) {
         if (order_[i] == id) {
             order_.erase(order_.begin() + static_cast<std::ptrdiff_t>(i));
@@ -48,14 +94,44 @@ void LayerStore::setLayerName(std::uint32_t id, const std::string& name) {
     names_[id] = name;
 }
 
-void LayerStore::loadSnapshot(const std::vector<LayerRecord>& records, const std::vector<std::string>& names) {
+void LayerStore::setLayerStyleColor(std::uint32_t id, StyleTarget target, const StyleColor& color) {
+    ensureLayer(id);
+    auto it = styles_.find(id);
+    if (it == styles_.end()) return;
+    StyleEntry* entry = selectStyleEntry(it->second, target);
+    if (!entry) return;
+    entry->color = color;
+}
+
+void LayerStore::setLayerStyleEnabled(std::uint32_t id, StyleTarget target, bool enabled) {
+    ensureLayer(id);
+    auto it = styles_.find(id);
+    if (it == styles_.end()) return;
+    StyleEntry* entry = selectStyleEntry(it->second, target);
+    if (!entry) return;
+    entry->enabled = enabled ? 1.0f : 0.0f;
+}
+
+LayerStyle LayerStore::getLayerStyle(std::uint32_t id) const {
+    const auto it = styles_.find(id);
+    if (it != styles_.end()) return it->second;
+    return makeDefaultLayerStyle();
+}
+
+void LayerStore::loadSnapshot(
+    const std::vector<LayerRecord>& records,
+    const std::vector<std::string>& names,
+    const std::vector<LayerStyle>& styles
+) {
     layers_.clear();
     names_.clear();
+    styles_.clear();
     order_.clear();
 
     if (records.empty()) {
         ensureLayer(kDefaultLayerId);
         names_[kDefaultLayerId] = "Default";
+        styles_[kDefaultLayerId] = makeDefaultLayerStyle();
         return;
     }
 
@@ -75,6 +151,11 @@ void LayerStore::loadSnapshot(const std::vector<LayerRecord>& records, const std
         if (i < names.size()) {
             names_[rec.id] = names[i];
         }
+        if (i < styles.size()) {
+            styles_[rec.id] = styles[i];
+        } else {
+            styles_[rec.id] = makeDefaultLayerStyle();
+        }
     }
 
     if (layers_.find(kDefaultLayerId) == layers_.end()) {
@@ -82,6 +163,7 @@ void LayerStore::loadSnapshot(const std::vector<LayerRecord>& records, const std
         layers_.emplace(kDefaultLayerId, LayerRecord{kDefaultLayerId, order, kDefaultFlags});
         order_.push_back(kDefaultLayerId);
         names_[kDefaultLayerId] = "Default";
+        styles_[kDefaultLayerId] = makeDefaultLayerStyle();
     }
 }
 
@@ -135,6 +217,7 @@ void EntityManager::clear() noexcept {
     drawOrderIds.clear();
     entityFlags.clear();
     entityLayers.clear();
+    styleOverrides.clear();
     layerStore.clear();
 }
 
@@ -152,6 +235,7 @@ void EntityManager::deleteEntity(std::uint32_t id) noexcept {
     entities.erase(it);
     entityFlags.erase(id);
     entityLayers.erase(id);
+    styleOverrides.erase(id);
 
     if (!drawOrderIds.empty()) {
         for (std::size_t i = 0; i < drawOrderIds.size(); i++) {
@@ -394,6 +478,30 @@ void EntityManager::ensureEntityMetadata(std::uint32_t id) {
     }
 }
 
+EntityStyleOverrides* EntityManager::getEntityStyleOverrides(std::uint32_t id) {
+    auto it = styleOverrides.find(id);
+    if (it == styleOverrides.end()) return nullptr;
+    return &it->second;
+}
+
+const EntityStyleOverrides* EntityManager::getEntityStyleOverrides(std::uint32_t id) const {
+    auto it = styleOverrides.find(id);
+    if (it == styleOverrides.end()) return nullptr;
+    return &it->second;
+}
+
+EntityStyleOverrides& EntityManager::ensureEntityStyleOverrides(std::uint32_t id) {
+    auto it = styleOverrides.find(id);
+    if (it != styleOverrides.end()) return it->second;
+    EntityStyleOverrides entry{};
+    auto inserted = styleOverrides.emplace(id, entry);
+    return inserted.first->second;
+}
+
+void EntityManager::clearEntityStyleOverrides(std::uint32_t id) {
+    styleOverrides.erase(id);
+}
+
 void EntityManager::setEntityLayer(std::uint32_t id, std::uint32_t layerId) {
     layerStore.ensureLayer(layerId);
     entityLayers[id] = layerId;
@@ -431,6 +539,151 @@ bool EntityManager::isEntityLocked(std::uint32_t id) const {
 
 bool EntityManager::isEntityPickable(std::uint32_t id) const {
     return isEntityVisible(id) && !isEntityLocked(id);
+}
+
+std::uint8_t EntityManager::styleTargetMask(StyleTarget target) {
+    return static_cast<std::uint8_t>(1u << static_cast<std::uint8_t>(target));
+}
+
+std::uint8_t EntityManager::styleCapabilities(EntityKind kind) {
+    switch (kind) {
+        case EntityKind::Rect:
+        case EntityKind::Circle:
+        case EntityKind::Polygon:
+            return styleTargetMask(StyleTarget::Stroke) | styleTargetMask(StyleTarget::Fill);
+        case EntityKind::Line:
+        case EntityKind::Polyline:
+        case EntityKind::Arrow:
+            return styleTargetMask(StyleTarget::Stroke);
+        case EntityKind::Text:
+            return styleTargetMask(StyleTarget::TextColor) | styleTargetMask(StyleTarget::TextBackground);
+        default:
+            return 0;
+    }
+}
+
+ResolvedStyle EntityManager::resolveStyle(std::uint32_t id, EntityKind kind) const {
+    ResolvedStyle resolved{};
+    const std::uint32_t layerId = getEntityLayer(id);
+    const LayerStyle layerStyle = layerStore.getLayerStyle(layerId);
+    resolved.stroke = layerStyle.stroke;
+    resolved.fill = layerStyle.fill;
+    resolved.textColor = layerStyle.textColor;
+    resolved.textBackground = layerStyle.textBackground;
+
+    const EntityStyleOverrides* overrides = getEntityStyleOverrides(id);
+    if (!overrides) {
+        return resolved;
+    }
+
+    const std::uint8_t strokeBit = styleTargetMask(StyleTarget::Stroke);
+    const std::uint8_t fillBit = styleTargetMask(StyleTarget::Fill);
+    const std::uint8_t textColorBit = styleTargetMask(StyleTarget::TextColor);
+    const std::uint8_t textBgBit = styleTargetMask(StyleTarget::TextBackground);
+
+    if ((overrides->colorMask & textColorBit) != 0) {
+        resolved.textColor.color = overrides->textColor;
+    }
+    if ((overrides->colorMask & textBgBit) != 0) {
+        resolved.textBackground.color = overrides->textBackground;
+    }
+    if ((overrides->enabledMask & fillBit) != 0) {
+        resolved.fill.enabled = overrides->fillEnabled;
+    }
+    if ((overrides->enabledMask & textBgBit) != 0) {
+        resolved.textBackground.enabled = overrides->textBackgroundEnabled;
+    }
+
+    if ((overrides->colorMask & strokeBit) != 0 || (overrides->enabledMask & strokeBit) != 0 ||
+        (overrides->colorMask & fillBit) != 0 || (overrides->enabledMask & fillBit) != 0) {
+        switch (kind) {
+            case EntityKind::Rect: {
+                const RectRec* rec = getRect(id);
+                if (rec) {
+                    if ((overrides->colorMask & fillBit) != 0) {
+                        resolved.fill.color = StyleColor{rec->r, rec->g, rec->b, rec->a};
+                    }
+                    if ((overrides->colorMask & strokeBit) != 0) {
+                        resolved.stroke.color = StyleColor{rec->sr, rec->sg, rec->sb, rec->sa};
+                    }
+                    if ((overrides->enabledMask & strokeBit) != 0) {
+                        resolved.stroke.enabled = rec->strokeEnabled;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Circle: {
+                const CircleRec* rec = getCircle(id);
+                if (rec) {
+                    if ((overrides->colorMask & fillBit) != 0) {
+                        resolved.fill.color = StyleColor{rec->r, rec->g, rec->b, rec->a};
+                    }
+                    if ((overrides->colorMask & strokeBit) != 0) {
+                        resolved.stroke.color = StyleColor{rec->sr, rec->sg, rec->sb, rec->sa};
+                    }
+                    if ((overrides->enabledMask & strokeBit) != 0) {
+                        resolved.stroke.enabled = rec->strokeEnabled;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Polygon: {
+                const PolygonRec* rec = getPolygon(id);
+                if (rec) {
+                    if ((overrides->colorMask & fillBit) != 0) {
+                        resolved.fill.color = StyleColor{rec->r, rec->g, rec->b, rec->a};
+                    }
+                    if ((overrides->colorMask & strokeBit) != 0) {
+                        resolved.stroke.color = StyleColor{rec->sr, rec->sg, rec->sb, rec->sa};
+                    }
+                    if ((overrides->enabledMask & strokeBit) != 0) {
+                        resolved.stroke.enabled = rec->strokeEnabled;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Line: {
+                const LineRec* rec = getLine(id);
+                if (rec) {
+                    if ((overrides->colorMask & strokeBit) != 0) {
+                        resolved.stroke.color = StyleColor{rec->r, rec->g, rec->b, rec->a};
+                    }
+                    if ((overrides->enabledMask & strokeBit) != 0) {
+                        resolved.stroke.enabled = rec->enabled;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Polyline: {
+                const PolyRec* rec = getPolyline(id);
+                if (rec) {
+                    if ((overrides->colorMask & strokeBit) != 0) {
+                        resolved.stroke.color = StyleColor{rec->r, rec->g, rec->b, rec->a};
+                    }
+                    if ((overrides->enabledMask & strokeBit) != 0) {
+                        resolved.stroke.enabled = rec->enabled;
+                    }
+                }
+                break;
+            }
+            case EntityKind::Arrow: {
+                const ArrowRec* rec = getArrow(id);
+                if (rec) {
+                    if ((overrides->colorMask & strokeBit) != 0) {
+                        resolved.stroke.color = StyleColor{rec->sr, rec->sg, rec->sb, rec->sa};
+                    }
+                    if ((overrides->enabledMask & strokeBit) != 0) {
+                        resolved.stroke.enabled = rec->strokeEnabled;
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    return resolved;
 }
 
 void EntityManager::compactPolylinePoints() {

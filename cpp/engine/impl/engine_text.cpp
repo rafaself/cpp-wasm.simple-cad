@@ -66,6 +66,16 @@ bool CadEngine::upsertText(
     
     if (isNew) {
         entityManager_.registerTextEntity(id);
+        EntityStyleOverrides& overrides = entityManager_.ensureEntityStyleOverrides(id);
+        const LayerStyle layerStyle = entityManager_.layerStore.getLayerStyle(entityManager_.getEntityLayer(id));
+        overrides.colorMask = EntityManager::styleTargetMask(::StyleTarget::TextColor);
+        overrides.enabledMask = 0;
+        if (runCount > 0 && runs) {
+            unpackColorRGBA(runs[0].colorRGBA, overrides.textColor.r, overrides.textColor.g, overrides.textColor.b, overrides.textColor.a);
+        } else {
+            overrides.textColor = layerStyle.textColor.color;
+        }
+        overrides.textBackground = layerStyle.textBackground.color;
     } else {
         entityManager_.ensureEntityMetadata(id);
     }
@@ -335,9 +345,25 @@ bool CadEngine::getTextBounds(std::uint32_t textId, float& outMinX, float& outMi
 }
 
 void CadEngine::rebuildTextQuadBuffer() {
-    textSystem_.rebuildQuadBuffer([this](std::uint32_t textId) {
-        return entityManager_.isEntityVisible(textId);
-    }, entityManager_.drawOrderIds);
+    textSystem_.rebuildQuadBuffer(
+        [this](std::uint32_t textId) {
+            return entityManager_.isEntityVisible(textId);
+        },
+        entityManager_.drawOrderIds,
+        [this](std::uint32_t textId, TextSystem::ResolvedTextStyle& out) {
+            const ResolvedStyle style = entityManager_.resolveStyle(textId, EntityKind::Text);
+            out.textR = style.textColor.color.r;
+            out.textG = style.textColor.color.g;
+            out.textB = style.textColor.color.b;
+            out.textA = style.textColor.color.a;
+            out.backgroundR = style.textBackground.color.r;
+            out.backgroundG = style.textBackground.color.g;
+            out.backgroundB = style.textBackground.color.b;
+            out.backgroundA = style.textBackground.color.a;
+            out.backgroundEnabled = style.textBackground.enabled;
+            return true;
+        }
+    );
 }
 
 CadEngine::BufferMeta CadEngine::getTextQuadBufferMeta() const noexcept {

@@ -8,8 +8,22 @@
 
 namespace engine {
 
+struct ResolvedShapeStyle {
+    float fillR;
+    float fillG;
+    float fillB;
+    float fillA;
+    float strokeR;
+    float strokeG;
+    float strokeB;
+    float strokeA;
+    float fillEnabled;
+    float strokeEnabled;
+};
+
 using ResolveNodeCallback = bool(*)(void* ctx, std::uint32_t nodeId, Point2& out);
 using EntityVisibilityFn = bool(*)(void* ctx, std::uint32_t entityId);
+using ResolveStyleFn = bool(*)(void* ctx, std::uint32_t entityId, EntityKind kind, ResolvedShapeStyle& outStyle);
 
 struct RenderRange {
     std::uint32_t offset; // float offset into triangle buffer
@@ -31,7 +45,8 @@ bool buildEntityRenderData(
     float viewScale,
     std::vector<float>& triangleVertices,
     void* resolveCtx,
-    EntityVisibilityFn isVisible
+    EntityVisibilityFn isVisible,
+    ResolveStyleFn resolveStyle
 );
 
 // Rebuild triangle and line vertex buffers from world containers.
@@ -50,6 +65,7 @@ void rebuildRenderBuffers(
     std::vector<float>& lineVertices,
     void* resolveCtx,
     EntityVisibilityFn isVisible,
+    ResolveStyleFn resolveStyle,
     std::unordered_map<std::uint32_t, RenderRange>* outRanges
 );
 

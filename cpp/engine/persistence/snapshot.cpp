@@ -21,6 +21,7 @@ constexpr std::uint32_t TAG_SELC = fourCC('S', 'E', 'L', 'C');
 constexpr std::uint32_t TAG_TEXT = fourCC('T', 'E', 'X', 'T');
 constexpr std::uint32_t TAG_NIDX = fourCC('N', 'I', 'D', 'X');
 constexpr std::uint32_t TAG_HIST = fourCC('H', 'I', 'S', 'T');
+constexpr std::uint32_t TAG_STYL = fourCC('S', 'T', 'Y', 'L');
 
 constexpr std::size_t rectSnapshotBytes = 12 + 14 * 4;
 constexpr std::size_t lineSnapshotBytes = 12 + 10 * 4;
@@ -29,6 +30,8 @@ constexpr std::size_t circleSnapshotBytes = 12 + 17 * 4;
 constexpr std::size_t polygonSnapshotBytes = 12 + 17 * 4 + 4;
 constexpr std::size_t arrowSnapshotBytes = 12 + 11 * 4;
 constexpr std::size_t textSnapshotHeaderBytes = 64;
+constexpr std::size_t layerStyleSnapshotBytes = 4 * 4 + 4;
+constexpr std::size_t styleOverrideSnapshotBytes = 24;
 
 struct SectionView {
     const std::uint8_t* data{nullptr};
@@ -118,7 +121,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
     const SectionView* text = findSection(TAG_TEXT);
     const SectionView* nidx = findSection(TAG_NIDX);
     const SectionView* hist = findSection(TAG_HIST);
-    if (!ents || !layr || !ordr || !selc || !text || !nidx) {
+    const SectionView* styl = findSection(TAG_STYL);
+    if (!ents || !layr || !ordr || !selc || !text || !nidx || !styl) {
         return EngineError::InvalidPayloadSize;
     }
     out.historyBytes.clear();
@@ -308,9 +312,17 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.order = readU32(layr->data, o); o += 4;
             rec.flags = readU32(layr->data, o); o += 4;
             const std::uint32_t nameLen = readU32(layr->data, o); o += 4;
-            if (!requireBytes(o, nameLen, layr->size)) return EngineError::BufferTruncated;
+            if (!requireBytes(o, nameLen + layerStyleSnapshotBytes, layr->size)) return EngineError::BufferTruncated;
             rec.name.assign(reinterpret_cast<const char*>(layr->data + o), nameLen);
             o += nameLen;
+            rec.style.strokeRGBA = readU32(layr->data, o); o += 4;
+            rec.style.fillRGBA = readU32(layr->data, o); o += 4;
+            rec.style.textColorRGBA = readU32(layr->data, o); o += 4;
+            rec.style.textBackgroundRGBA = readU32(layr->data, o); o += 4;
+            rec.style.strokeEnabled = layr->data[o++];
+            rec.style.fillEnabled = layr->data[o++];
+            rec.style.textBackgroundEnabled = layr->data[o++];
+            rec.style.reserved = layr->data[o++];
             out.layers.push_back(rec);
         }
     }
@@ -410,6 +422,32 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         }
     }
 
+    // STYL
+    {
+        std::size_t o = 0;
+        if (!requireBytes(o, 4, styl->size)) return EngineError::BufferTruncated;
+        const std::uint32_t count = readU32(styl->data, o); o += 4;
+        if (!requireBytes(o, static_cast<std::size_t>(count) * styleOverrideSnapshotBytes, styl->size)) {
+            return EngineError::BufferTruncated;
+        }
+        out.styleOverrides.clear();
+        out.styleOverrides.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            StyleOverrideSnapshot rec{};
+            rec.id = readU32(styl->data, o); o += 4;
+            rec.colorMask = styl->data[o++];
+            rec.enabledMask = styl->data[o++];
+            rec.reserved = static_cast<std::uint16_t>(styl->data[o])
+                | static_cast<std::uint16_t>(styl->data[o + 1] << 8);
+            o += 2;
+            rec.textColorRGBA = readU32(styl->data, o); o += 4;
+            rec.textBackgroundRGBA = readU32(styl->data, o); o += 4;
+            rec.fillEnabled = readU32(styl->data, o); o += 4;
+            rec.textBackgroundEnabled = readU32(styl->data, o); o += 4;
+            out.styleOverrides.push_back(rec);
+        }
+    }
+
     return EngineError::Ok;
 }
 
@@ -422,7 +460,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
     };
 
     std::vector<SectionBytes> sections;
-    sections.reserve(7);
+    sections.reserve(8);
 
     // ENTS
     {
@@ -641,11 +679,19 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendU32(rec.order);
             appendU32(rec.flags);
             appendU32(static_cast<std::uint32_t>(rec.name.size()));
-            const std::size_t o = out.size();
-            out.resize(o + rec.name.size());
+            const std::size_t nameOffset = out.size();
+            out.resize(nameOffset + rec.name.size());
             if (!rec.name.empty()) {
-                std::memcpy(out.data() + o, rec.name.data(), rec.name.size());
+                std::memcpy(out.data() + nameOffset, rec.name.data(), rec.name.size());
             }
+            appendU32(rec.style.strokeRGBA);
+            appendU32(rec.style.fillRGBA);
+            appendU32(rec.style.textColorRGBA);
+            appendU32(rec.style.textBackgroundRGBA);
+            out.push_back(rec.style.strokeEnabled);
+            out.push_back(rec.style.fillEnabled);
+            out.push_back(rec.style.textBackgroundEnabled);
+            out.push_back(rec.style.reserved);
         }
 
         sections.push_back(std::move(sec));
@@ -749,6 +795,33 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             if (contentLength > 0) {
                 std::memcpy(out.data() + o, rec.content.data(), contentLength);
             }
+        }
+
+        sections.push_back(std::move(sec));
+    }
+
+    // STYL
+    {
+        SectionBytes sec{TAG_STYL, {}};
+        auto& out = sec.bytes;
+
+        auto appendU32 = [&](std::uint32_t v) {
+            const std::size_t o = out.size();
+            out.resize(o + 4);
+            writeU32LE(out.data(), o, v);
+        };
+
+        appendU32(static_cast<std::uint32_t>(data.styleOverrides.size()));
+        for (const auto& rec : data.styleOverrides) {
+            appendU32(rec.id);
+            out.push_back(rec.colorMask);
+            out.push_back(rec.enabledMask);
+            out.push_back(static_cast<std::uint8_t>(rec.reserved & 0xFF));
+            out.push_back(static_cast<std::uint8_t>((rec.reserved >> 8) & 0xFF));
+            appendU32(rec.textColorRGBA);
+            appendU32(rec.textBackgroundRGBA);
+            appendU32(rec.fillEnabled);
+            appendU32(rec.textBackgroundEnabled);
         }
 
         sections.push_back(std::move(sec));

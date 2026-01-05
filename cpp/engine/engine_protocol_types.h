@@ -32,12 +32,18 @@ struct EngineProtocolTypes {
     using EventType = engine::protocol::EventType;
     using ChangeMask = engine::protocol::ChangeMask;
     using OverlayKind = engine::protocol::OverlayKind;
+    using StyleTarget = engine::protocol::StyleTarget;
+    using StyleState = engine::protocol::StyleState;
+    using TriState = engine::protocol::TriState;
     using ProtocolInfo = engine::protocol::ProtocolInfo;
     using BufferMeta = engine::protocol::BufferMeta;
     using ByteBufferMeta = engine::protocol::ByteBufferMeta;
     using TextureBufferMeta = engine::protocol::TextureBufferMeta;
     using DocumentDigest = engine::protocol::DocumentDigest;
     using HistoryMeta = engine::protocol::HistoryMeta;
+    using StyleTargetSummary = engine::protocol::StyleTargetSummary;
+    using SelectionStyleSummary = engine::protocol::SelectionStyleSummary;
+    using LayerStyleSnapshot = engine::protocol::LayerStyleSnapshot;
     using EngineEvent = engine::protocol::EngineEvent;
     using EventBufferMeta = engine::protocol::EventBufferMeta;
     using OverlayPrimitive = engine::protocol::OverlayPrimitive;
@@ -49,9 +55,9 @@ struct EngineProtocolTypes {
     using TextContentMeta = engine::protocol::TextContentMeta;
 
     // Protocol versions (must be non-zero; keep in sync with TS).
-    static constexpr std::uint32_t kProtocolVersion = 3;      // Handshake schema version
-    static constexpr std::uint32_t kCommandVersion = 2;       // Command buffer version (EWDC v2)
-    static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version (ESNP v1)
+    static constexpr std::uint32_t kProtocolVersion = 4;      // Handshake schema version
+    static constexpr std::uint32_t kCommandVersion = 3;       // Command buffer version (EWDC v3)
+    static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
     static constexpr std::uint32_t kFeatureFlags =
         static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL)
@@ -136,6 +142,11 @@ protected:
             static_cast<std::uint32_t>(CommandOp::ReplaceTextContent),
             static_cast<std::uint32_t>(CommandOp::ApplyTextStyle),
             static_cast<std::uint32_t>(CommandOp::SetTextAlign),
+            static_cast<std::uint32_t>(CommandOp::SetLayerStyle),
+            static_cast<std::uint32_t>(CommandOp::SetLayerStyleEnabled),
+            static_cast<std::uint32_t>(CommandOp::SetEntityStyleOverride),
+            static_cast<std::uint32_t>(CommandOp::ClearEntityStyleOverride),
+            static_cast<std::uint32_t>(CommandOp::SetEntityStyleEnabled),
         });
 
         h = hashEnum(h, 0xE0000002u, {
@@ -224,6 +235,26 @@ protected:
             static_cast<std::uint32_t>(LayerPropMask::Name),
             static_cast<std::uint32_t>(LayerPropMask::Visible),
             static_cast<std::uint32_t>(LayerPropMask::Locked),
+        });
+
+        h = hashEnum(h, 0xE0000010u, {
+            static_cast<std::uint32_t>(StyleTarget::Stroke),
+            static_cast<std::uint32_t>(StyleTarget::Fill),
+            static_cast<std::uint32_t>(StyleTarget::TextColor),
+            static_cast<std::uint32_t>(StyleTarget::TextBackground),
+        });
+
+        h = hashEnum(h, 0xE0000011u, {
+            static_cast<std::uint32_t>(StyleState::None),
+            static_cast<std::uint32_t>(StyleState::Layer),
+            static_cast<std::uint32_t>(StyleState::Override),
+            static_cast<std::uint32_t>(StyleState::Mixed),
+        });
+
+        h = hashEnum(h, 0xE0000012u, {
+            static_cast<std::uint32_t>(TriState::Off),
+            static_cast<std::uint32_t>(TriState::On),
+            static_cast<std::uint32_t>(TriState::Mixed),
         });
 
         h = hashEnum(h, 0xE000000Eu, {
@@ -564,6 +595,34 @@ protected:
             static_cast<std::uint32_t>(offsetof(LayerRecord, id)),
             static_cast<std::uint32_t>(offsetof(LayerRecord, order)),
             static_cast<std::uint32_t>(offsetof(LayerRecord, flags)),
+        });
+
+        h = hashStruct(h, 0x5300001Eu, sizeof(StyleTargetSummary), {
+            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, state)),
+            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, enabledState)),
+            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, supportedState)),
+            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, reserved)),
+            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, colorRGBA)),
+            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, layerId)),
+        });
+
+        h = hashStruct(h, 0x5300001Fu, sizeof(SelectionStyleSummary), {
+            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, selectionCount)),
+            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, stroke)),
+            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, fill)),
+            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, textColor)),
+            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, textBackground)),
+        });
+
+        h = hashStruct(h, 0x53000020u, sizeof(LayerStyleSnapshot), {
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, strokeRGBA)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, fillRGBA)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, textColorRGBA)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, textBackgroundRGBA)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, strokeEnabled)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, fillEnabled)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, textBackgroundEnabled)),
+            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, reserved)),
         });
 
         h = hashStruct(h, 0x5300001Eu, sizeof(DocumentDigest), {

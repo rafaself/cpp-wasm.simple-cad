@@ -36,6 +36,67 @@ static float strokeWidthWorld(float strokeWidthPx, float viewScale) {
     return px / scale;
 }
 
+static void applyRectStyle(RectRec& r, const ResolvedShapeStyle& style) {
+    r.r = style.fillR;
+    r.g = style.fillG;
+    r.b = style.fillB;
+    r.a = style.fillEnabled > 0.5f ? style.fillA : 0.0f;
+    r.sr = style.strokeR;
+    r.sg = style.strokeG;
+    r.sb = style.strokeB;
+    r.sa = style.strokeA;
+    r.strokeEnabled = style.strokeEnabled;
+}
+
+static void applyCircleStyle(CircleRec& c, const ResolvedShapeStyle& style) {
+    c.r = style.fillR;
+    c.g = style.fillG;
+    c.b = style.fillB;
+    c.a = style.fillEnabled > 0.5f ? style.fillA : 0.0f;
+    c.sr = style.strokeR;
+    c.sg = style.strokeG;
+    c.sb = style.strokeB;
+    c.sa = style.strokeA;
+    c.strokeEnabled = style.strokeEnabled;
+}
+
+static void applyPolygonStyle(PolygonRec& p, const ResolvedShapeStyle& style) {
+    p.r = style.fillR;
+    p.g = style.fillG;
+    p.b = style.fillB;
+    p.a = style.fillEnabled > 0.5f ? style.fillA : 0.0f;
+    p.sr = style.strokeR;
+    p.sg = style.strokeG;
+    p.sb = style.strokeB;
+    p.sa = style.strokeA;
+    p.strokeEnabled = style.strokeEnabled;
+}
+
+static void applyLineStyle(LineRec& l, const ResolvedShapeStyle& style) {
+    l.r = style.strokeR;
+    l.g = style.strokeG;
+    l.b = style.strokeB;
+    l.a = style.strokeA;
+    l.enabled = style.strokeEnabled;
+}
+
+static void applyPolylineStyle(PolyRec& p, const ResolvedShapeStyle& style) {
+    p.sr = style.strokeR;
+    p.sg = style.strokeG;
+    p.sb = style.strokeB;
+    p.sa = style.strokeA;
+    p.strokeEnabled = style.strokeEnabled;
+    p.enabled = style.strokeEnabled;
+}
+
+static void applyArrowStyle(ArrowRec& a, const ResolvedShapeStyle& style) {
+    a.sr = style.strokeR;
+    a.sg = style.strokeG;
+    a.sb = style.strokeB;
+    a.sa = style.strokeA;
+    a.strokeEnabled = style.strokeEnabled;
+}
+
 static void addSegmentQuad(
     float x0,
     float y0,
@@ -493,19 +554,24 @@ bool buildEntityRenderData(
     float viewScale,
     std::vector<float>& triangleVertices,
     void* resolveCtx,
-    EntityVisibilityFn isVisible
+    EntityVisibilityFn isVisible,
+    ResolveStyleFn resolveStyle
 ) {
     if (isVisible && !isVisible(resolveCtx, entityId)) return false;
 
     const std::size_t start = triangleVertices.size();
     std::vector<Point2> tmpVerts;
+    ResolvedShapeStyle resolved{};
+    const bool hasResolved = resolveStyle && resolveStyle(resolveCtx, entityId, ref.kind, resolved);
 
     if (ref.kind == EntityKind::Rect) {
-        const RectRec& r = rects[ref.index];
+        RectRec r = rects[ref.index];
+        if (hasResolved) applyRectStyle(r, resolved);
         addRectFill(r, triangleVertices);
         addRectStroke(r, viewScale, triangleVertices);
     } else if (ref.kind == EntityKind::Line) {
-        const LineRec& l = lines[ref.index];
+        LineRec l = lines[ref.index];
+        if (hasResolved) applyLineStyle(l, resolved);
         if (l.enabled > 0.5f) {
             const float a = clamp01(l.a);
             if (a > 0.0f) {
@@ -514,20 +580,24 @@ bool buildEntityRenderData(
             }
         }
     } else if (ref.kind == EntityKind::Polyline) {
-        const PolyRec& pl = polylines[ref.index];
+        PolyRec pl = polylines[ref.index];
+        if (hasResolved) applyPolylineStyle(pl, resolved);
         if (pl.count >= 2 && pl.enabled > 0.5f) {
             addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
         }
     } else if (ref.kind == EntityKind::Circle) {
-        const CircleRec& c = circles[ref.index];
+        CircleRec c = circles[ref.index];
+        if (hasResolved) applyCircleStyle(c, resolved);
         addCircleFill(c, triangleVertices);
         addCircleStroke(c, viewScale, triangleVertices);
     } else if (ref.kind == EntityKind::Polygon) {
-        const PolygonRec& p = polygons[ref.index];
+        PolygonRec p = polygons[ref.index];
+        if (hasResolved) applyPolygonStyle(p, resolved);
         addPolygonFill(p, tmpVerts, triangleVertices);
         addPolygonStroke(p, viewScale, tmpVerts, triangleVertices);
     } else if (ref.kind == EntityKind::Arrow) {
-        const ArrowRec& a = arrows[ref.index];
+        ArrowRec a = arrows[ref.index];
+        if (hasResolved) applyArrowStyle(a, resolved);
         addArrow(a, viewScale, triangleVertices);
     }
 
@@ -549,6 +619,7 @@ void rebuildRenderBuffers(
     std::vector<float>& lineVertices,
     void* resolveCtx,
     EntityVisibilityFn isVisible,
+    ResolveStyleFn resolveStyle,
     std::unordered_map<std::uint32_t, RenderRange>* outRanges
 ) {
     triangleVertices.clear();
@@ -669,7 +740,8 @@ void rebuildRenderBuffers(
             viewScale,
             triangleVertices,
             resolveCtx,
-            isVisible
+            isVisible,
+            resolveStyle
         );
         if (outRanges && appended) {
             const std::size_t end = triangleVertices.size();

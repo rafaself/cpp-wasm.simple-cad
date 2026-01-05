@@ -58,6 +58,30 @@ enum class LayerPropMask : std::uint32_t {
 };
 
 // =============================================================================
+// Style Targets (engine-first styling)
+// =============================================================================
+
+enum class StyleTarget : std::uint8_t {
+    Stroke = 0,
+    Fill = 1,
+    TextColor = 2,
+    TextBackground = 3,
+};
+
+enum class StyleState : std::uint8_t {
+    None = 0,
+    Layer = 1,
+    Override = 2,
+    Mixed = 3,
+};
+
+enum class TriState : std::uint8_t {
+    Off = 0,
+    On = 1,
+    Mixed = 2,
+};
+
+// =============================================================================
 // Selection Types
 // =============================================================================
 
@@ -186,6 +210,38 @@ struct HistoryMeta {
     std::uint32_t depth;
     std::uint32_t cursor;
     std::uint32_t generation;
+};
+
+// =============================================================================
+// Style Summary (selection/layer)
+// =============================================================================
+
+struct StyleTargetSummary {
+    std::uint8_t state;
+    std::uint8_t enabledState;
+    std::uint8_t supportedState;
+    std::uint8_t reserved;
+    std::uint32_t colorRGBA;
+    std::uint32_t layerId;
+};
+
+struct SelectionStyleSummary {
+    std::uint32_t selectionCount;
+    StyleTargetSummary stroke;
+    StyleTargetSummary fill;
+    StyleTargetSummary textColor;
+    StyleTargetSummary textBackground;
+};
+
+struct LayerStyleSnapshot {
+    std::uint32_t strokeRGBA;
+    std::uint32_t fillRGBA;
+    std::uint32_t textColorRGBA;
+    std::uint32_t textBackgroundRGBA;
+    std::uint8_t strokeEnabled;
+    std::uint8_t fillEnabled;
+    std::uint8_t textBackgroundEnabled;
+    std::uint8_t reserved;
 };
 
 // =============================================================================

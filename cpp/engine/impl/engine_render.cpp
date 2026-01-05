@@ -10,6 +10,27 @@ namespace {
         const auto* engine = static_cast<const CadEngine*>(ctx);
         return engine ? engine->isEntityVisibleForRender(id) : true;
     }
+
+    bool resolveStyleForRenderThunk(void* ctx, std::uint32_t id, EntityKind kind, engine::ResolvedShapeStyle& out) {
+        const auto* engine = static_cast<const CadEngine*>(ctx);
+        if (!engine) return false;
+        const ResolvedStyle style = engine->resolveStyleForRender(id, kind);
+        out.fillR = style.fill.color.r;
+        out.fillG = style.fill.color.g;
+        out.fillB = style.fill.color.b;
+        out.fillA = style.fill.color.a;
+        out.strokeR = style.stroke.color.r;
+        out.strokeG = style.stroke.color.g;
+        out.strokeB = style.stroke.color.b;
+        out.strokeA = style.stroke.color.a;
+        out.fillEnabled = style.fill.enabled;
+        out.strokeEnabled = style.stroke.enabled;
+        return true;
+    }
+}
+
+ResolvedStyle CadEngine::resolveStyleForRender(std::uint32_t id, EntityKind kind) const {
+    return entityManager_.resolveStyle(id, kind);
 }
 
 void CadEngine::pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target) const {
@@ -152,6 +173,7 @@ void CadEngine::rebuildRenderBuffers() const {
         lineVertices,
         const_cast<CadEngine*>(this),
         &isEntityVisibleForRenderThunk,
+        &resolveStyleForRenderThunk,
         &renderRanges_
     );
 
@@ -188,7 +210,8 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
         viewScale,
         temp,
         const_cast<CadEngine*>(this),
-        &isEntityVisibleForRenderThunk
+        &isEntityVisibleForRenderThunk,
+        &resolveStyleForRenderThunk
     );
 
     if (!appended) return false;

@@ -11,15 +11,12 @@ import {
   Slash,
   Activity,
   Hand,
-  Move,
-  RotateCw,
   Ruler,
   Grid3x3,
   ArrowUpRight,
   Shapes,
   FileCode2,
   Package,
-  Trash2,
   Scan,
 } from 'lucide-react';
 import { ComponentType, ReactNode } from 'react';
@@ -29,6 +26,7 @@ import { LABELS } from '@/i18n/labels';
 import { LayerRibbonControls } from '../components/ribbon/LayerRibbonControls';
 import { SelectionControls } from '../components/ribbon/SelectionControls';
 import { TextFormattingControls } from '../components/ribbon/TextFormattingControls';
+import { ColorRibbonControls } from '../colors/ColorRibbonControls';
 
 export type RibbonItemKind = 'action' | 'tool' | 'custom';
 export type RibbonItemStatus = 'ready' | 'stub';
@@ -59,7 +57,121 @@ export type RibbonTab = {
   groups: RibbonGroup[];
 };
 
-export const RIBBON_TABS: RibbonTab[] = [
+const buildDrawGroups = (enableColorsRibbon: boolean): RibbonGroup[] => {
+  const groups: RibbonGroup[] = [
+    {
+      id: 'shapes',
+      label: 'Formas',
+      layout: 'grid-2x3',
+      items: [
+        {
+          id: 'line',
+          kind: 'tool',
+          label: LABELS.tools.line,
+          icon: Slash,
+          toolId: 'line',
+          status: 'ready',
+        },
+        {
+          id: 'polyline',
+          kind: 'tool',
+          label: LABELS.tools.polyline,
+          icon: Activity,
+          toolId: 'polyline',
+          status: 'ready',
+        },
+        {
+          id: 'arrow',
+          kind: 'tool',
+          label: LABELS.tools.arrow,
+          icon: ArrowUpRight,
+          toolId: 'arrow',
+          status: 'ready',
+        },
+        {
+          id: 'rect',
+          kind: 'tool',
+          label: LABELS.tools.rect,
+          icon: Square,
+          toolId: 'rect',
+          status: 'ready',
+        },
+        {
+          id: 'circle',
+          kind: 'tool',
+          label: LABELS.tools.circle,
+          icon: Circle,
+          toolId: 'circle',
+          status: 'ready',
+        },
+        {
+          id: 'polygon',
+          kind: 'tool',
+          label: LABELS.tools.polygon,
+          icon: Shapes,
+          toolId: 'polygon',
+          status: 'ready',
+        },
+      ],
+    },
+    {
+      id: 'annotation',
+      label: 'Anotação',
+      items: [
+        {
+          id: 'text',
+          kind: 'tool',
+          label: LABELS.tools.text,
+          icon: Type,
+          toolId: 'text',
+          status: 'ready',
+          variant: 'large',
+        },
+        {
+          id: 'text-formatting',
+          kind: 'custom',
+          label: 'Formatação',
+          status: 'ready',
+          componentType: TextFormattingControls,
+        },
+      ],
+    },
+  ];
+
+  if (enableColorsRibbon) {
+    groups.push({
+      id: 'colors',
+      label: LABELS.colors.group,
+      items: [
+        {
+          id: 'colors-controls',
+          kind: 'custom',
+          label: LABELS.colors.group,
+          status: 'ready',
+          componentType: ColorRibbonControls,
+        },
+      ],
+    });
+  }
+
+  groups.push({
+    id: 'layers',
+    label: 'Camadas',
+    items: [
+      {
+        id: 'layer-controls',
+        kind: 'custom',
+        label: 'Camadas',
+        status: 'ready',
+        componentType: LayerRibbonControls,
+      },
+    ],
+  });
+
+  return groups;
+};
+
+export const getRibbonTabs = (enableColorsRibbon: boolean): RibbonTab[] => [
   {
     id: 'home',
     label: 'Início',
@@ -126,98 +238,7 @@ export const RIBBON_TABS: RibbonTab[] = [
   {
     id: 'draw',
     label: 'Desenho',
-    groups: [
-      {
-        id: 'shapes',
-        label: 'Formas',
-        layout: 'grid-2x3',
-        items: [
-          {
-            id: 'line',
-            kind: 'tool',
-            label: LABELS.tools.line,
-            icon: Slash,
-            toolId: 'line',
-            status: 'ready',
-          },
-          {
-            id: 'polyline',
-            kind: 'tool',
-            label: LABELS.tools.polyline,
-            icon: Activity,
-            toolId: 'polyline',
-            status: 'ready',
-          },
-          {
-            id: 'arrow',
-            kind: 'tool',
-            label: LABELS.tools.arrow,
-            icon: ArrowUpRight,
-            toolId: 'arrow',
-            status: 'ready',
-          },
-          {
-            id: 'rect',
-            kind: 'tool',
-            label: LABELS.tools.rect,
-            icon: Square,
-            toolId: 'rect',
-            status: 'ready',
-          },
-          {
-            id: 'circle',
-            kind: 'tool',
-            label: LABELS.tools.circle,
-            icon: Circle,
-            toolId: 'circle',
-            status: 'ready',
-          },
-          {
-            id: 'polygon',
-            kind: 'tool',
-            label: LABELS.tools.polygon,
-            icon: Shapes,
-            toolId: 'polygon',
-            status: 'ready',
-          },
-        ],
-      },
-      {
-        id: 'annotation',
-        label: 'Anotação',
-        items: [
-          {
-            id: 'text',
-            kind: 'tool',
-            label: LABELS.tools.text,
-            icon: Type,
-            toolId: 'text',
-            status: 'ready',
-            variant: 'large',
-          },
-          {
-            id: 'text-formatting',
-            kind: 'custom',
-            label: 'Formatação',
-            status: 'ready',
-            componentType: TextFormattingControls,
-          },
-        ],
-      },
-      {
-        id: 'layers',
-        label: 'Camadas',
-        items: [
-          {
-            id: 'layer-controls',
-            kind: 'custom',
-            label: 'Camadas',
-            status: 'ready',
-            componentType: LayerRibbonControls,
-          },
-        ],
-      },
-    ],
+    groups: buildDrawGroups(enableColorsRibbon),
   },
   {
     id: 'tools',

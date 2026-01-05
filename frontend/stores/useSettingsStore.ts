@@ -52,6 +52,9 @@ export interface ToolDefaults {
     italic: boolean;
     underline: boolean;
     strike: boolean;
+    textColor: string;
+    textBackgroundColor: string;
+    textBackgroundEnabled: boolean;
   };
 }
 
@@ -61,6 +64,7 @@ interface SettingsState {
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
   featureFlags: {
+    enableColorsRibbon: boolean;
     enableEngineResize: boolean;
     enablePickProfiling: boolean;
     enablePickThrottling: boolean;
@@ -111,6 +115,9 @@ interface SettingsState {
   setTextItalic: (italic: boolean) => void;
   setTextUnderline: (underline: boolean) => void;
   setTextStrike: (strike: boolean) => void;
+  setTextColor: (color: string) => void;
+  setTextBackgroundColor: (color: string) => void;
+  setTextBackgroundEnabled: (enabled: boolean) => void;
 
   setEngineResizeEnabled: (enabled: boolean) => void;
   setEngineCapabilitiesMask: (mask: number) => void;
@@ -170,9 +177,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       italic: false,
       underline: false,
       strike: false,
+      textColor: DEFAULTS.DEFAULT_STROKE_COLOR,
+      textBackgroundColor: DEFAULTS.DEFAULT_FILL_COLOR,
+      textBackgroundEnabled: false,
     },
   },
   featureFlags: {
+    enableColorsRibbon: true,
     enableEngineResize: false,
     enablePickProfiling: process.env.NODE_ENV !== 'production',
     enablePickThrottling: false,
@@ -331,6 +342,24 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextStrike: (strike) =>
     set((state) => ({
       toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } },
+    })),
+  setTextColor: (color) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, textColor: color } },
+    })),
+  setTextBackgroundColor: (color) =>
+    set((state) => ({
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, textBackgroundColor: color },
+      },
+    })),
+  setTextBackgroundEnabled: (enabled) =>
+    set((state) => ({
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, textBackgroundEnabled: enabled },
+      },
     })),
   setEngineResizeEnabled: (enabled) =>
     set((state) => {

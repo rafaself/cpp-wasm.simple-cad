@@ -2,7 +2,8 @@ import React from 'react';
 
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import { TextInputProxy, TextInputProxyRef } from '@/components/TextInputProxy';
-import { SelectionMode } from '@/engine/core/protocol';
+import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
+import { SelectionMode, StyleTarget } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { TextTool, TextToolState } from '@/engine/tools/TextTool';
 import {
@@ -13,7 +14,9 @@ import {
 } from '@/features/editor/text/textToolController';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { packColorRGBA } from '@/types/text';
 import { PickEntityKind } from '@/types/picking';
+import { parseCssColorToHexAlpha } from '@/utils/cssColor';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
@@ -67,6 +70,49 @@ export class TextHandler extends BaseInteractionHandler {
     }
   }
 
+  private applyTextStyleDefaults(textId: number): void {
+    const runtime = this.runtime;
+    if (!runtime) return;
+    const { textColor, textBackgroundColor, textBackgroundEnabled } =
+      useSettingsStore.getState().toolDefaults.text;
+    const parseColor = (input: string): number | null => {
+      const parsed = parseCssColorToHexAlpha(input);
+      if (!parsed) return null;
+      return packColorRGBA(
+        Number.parseInt(parsed.hex.slice(1, 3), 16) / 255,
+        Number.parseInt(parsed.hex.slice(3, 5), 16) / 255,
+        Number.parseInt(parsed.hex.slice(5, 7), 16) / 255,
+        parsed.alpha,
+      );
+    };
+    const textColorRGBA = parseColor(textColor);
+    const backgroundRGBA = parseColor(textBackgroundColor);
+    const commands: EngineCommand[] = [];
+    if (textColorRGBA !== null) {
+      commands.push({
+        op: CommandOp.SetEntityStyleOverride,
+        style: { target: StyleTarget.TextColor, colorRGBA: textColorRGBA, ids: [textId] },
+      });
+    }
+    if (backgroundRGBA !== null) {
+      commands.push({
+        op: CommandOp.SetEntityStyleOverride,
+        style: { target: StyleTarget.TextBackground, colorRGBA: backgroundRGBA, ids: [textId] },
+      });
+    }
+    commands.push({
+      op: CommandOp.SetEntityStyleEnabled,
+      enabled: {
+        target: StyleTarget.TextBackground,
+        enabled: textBackgroundEnabled,
+        ids: [textId],
+      },
+    });
+    if (commands.length) {
+      runtime.apply(commands);
+    }
+  }
+
   private createListenerCallbacks(): TextToolCallbacks {
     return {
       onStateChange: (s) => {
@@ -95,6 +141,9 @@ export class TextHandler extends BaseInteractionHandler {
       },
       onTextCreated: (_shapeId, _textId, _x, _y, _boxMode, _constraintWidth) => {
         // IdRegistry sync is handled by engine events; no-op here.
+        if (_textId !== null && _textId !== undefined) {
+          this.applyTextStyleDefaults(_textId);
+        }
       },
       onTextUpdated: (_textId, bounds) => {
         if (bounds && typeof bounds.width === 'number' && typeof bounds.height === 'number') {
