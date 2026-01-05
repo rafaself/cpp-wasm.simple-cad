@@ -102,16 +102,6 @@ export type LayerRecord = {
   id: number;
   order: number;
   flags: number;
-  // Style fields (Engine-First Colors)
-  strokeR: number;
-  strokeG: number;
-  strokeB: number;
-  strokeA: number;
-  fillR: number;
-  fillG: number;
-  fillB: number;
-  fillA: number;
-  strokeWidth: number;
 };
 
 export type ProtocolInfo = {
@@ -448,12 +438,8 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x5300001c, 20, [0, 4, 8, 12, 16]);
 
-  // Updated LayerRecord (0x5300001d)
-  // Fields: id(4), order(4), flags(4), strokeR(4), strokeG(4), strokeB(4), strokeA(4), fillR(4), fillG(4), fillB(4), fillA(4), strokeWidth(4)
-  // Total Size: 12 + 8*4 = 44 bytes -> 48 bytes with padding/alignment?
-  // C++ struct size: 3*4 + 9*4 = 12*4 = 48 bytes.
-  // Offsets: 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44
-  h = hashStruct(h, 0x5300001d, 48, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44]);
+  // LayerRecord (0x5300001d)
+  h = hashStruct(h, 0x5300001d, 12, [0, 4, 8]);
 
   h = hashStruct(h, 0x5300001e, 8, [0, 4]);
 
@@ -480,26 +466,6 @@ const computeAbiHash = (): number => {
     88,
     [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84],
   );
-
-  // New SelectionStyleState (0x53000026)
-  // Fields: strokeSource(1), fillSource(1),
-  //         commonStrokeR(4), G(4), B(4), A(4)
-  //         commonFillR(4), G(4), B(4), A(4)
-  //         hasMixedStroke(1), hasMixedFill(1)
-  // Layout in C++ (assuming alignas(4) or standard packing):
-  // strokeSource(0), fillSource(1), pad(2 bytes),
-  // strokeR(4), G(8), B(12), A(16)
-  // fillR(20), G(24), B(28), A(32)
-  // mixedStroke(36), mixedFill(37), pad(2 bytes) -> Total 40 bytes?
-  // Let's check C++ offsetof logic or just standard alignment.
-  // Floats need 4-byte align.
-  // u8, u8 -> 2 bytes. Next float at 4. Padding 2.
-  // 4 * 8 floats = 32 bytes. Total 36 so far.
-  // bool, bool -> 2 bytes. Total 38. Padding to 40?
-  // Let's assume standard alignment.
-  // Offsets: 0, 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 37
-  // Size: 40
-  h = hashStruct(h, 0x53000026, 40, [0, 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 37]);
 
   return h >>> 0;
 };

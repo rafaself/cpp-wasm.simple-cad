@@ -5,6 +5,7 @@
 #include "engine/internal/engine_state_aliases.h"
 #include "engine/persistence/snapshot.h"
 #include "engine/core/string_utils.h"
+#include "engine/text/text_style_contract.h"
 #include <unordered_set>
 #include <cmath>
 
@@ -29,11 +30,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     std::uint32_t maxLayerId = 0;
     for (const auto& layer : sd.layers) {
         if (layer.id > maxLayerId) maxLayerId = layer.id;
-        LayerRecord lr{layer.id, layer.order, layer.flags,
-            layer.strokeR, layer.strokeG, layer.strokeB, layer.strokeA,
-            layer.fillR, layer.fillG, layer.fillB, layer.fillA,
-            layer.strokeWidth
-        };
+        LayerRecord lr{layer.id, layer.order, layer.flags};
         layerRecords.push_back(lr);
         layerNames.push_back(layer.name);
     }
@@ -132,23 +129,8 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         markTextQuadsDirty();
     }
 
-    // Load Styles
-    for (const auto& s : sd.styles) {
-        auto* rec = styleSystem_.getStore().ensureStyle(s.entityId);
-        rec->strokeSource = static_cast<engine::protocol::StyleSource>(s.strokeSource);
-        rec->fillSource = static_cast<engine::protocol::StyleSource>(s.fillSource);
-        rec->strokeR = s.strokeR; rec->strokeG = s.strokeG; rec->strokeB = s.strokeB; rec->strokeA = s.strokeA;
-        rec->fillR = s.fillR; rec->fillG = s.fillG; rec->fillB = s.fillB; rec->fillA = s.fillA;
-    }
-
-    styleSystem_.rebuildLayerIndex();
-    // Re-resolve all entities to ensure visual consistency
-    // Optimization: only resolve entities that have styles or are on layers?
-    // Actually, resolveAll is safer. Or just iterate all loaded IDs.
-    // For MVP, iterating entities map and resolving is robust.
-    for (const auto& kv : entityManager_.entities) {
-        styleSystem_.resolveEntity(kv.first);
-    }
+    // TODO: Load Styles when StyleSystem is implemented
+    // For now, sd.styles is parsed but not applied.
 
     entityManager_.drawOrderIds.clear();
     entityManager_.drawOrderIds.reserve(sd.drawOrder.size());
@@ -229,7 +211,80 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     generation++;
 }
 
-// ... (getTextStyleSnapshot, getTextStyleSummary)
+engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t textId) const {
+    engine::text::TextStyleSnapshot snap{};
+    
+    // Get caret state
+    auto caretState = textSystem_.store.getCaretState(textId);
+    if (caretState) {
+        snap.selectionStartByte = caretState->selectionStart;
+        snap.selectionEndByte = caretState->selectionEnd;
+        snap.caretByte = caretState->caretIndex;
+        // Logical indices need UTF-16 conversion - for now use byte indices
+        snap.selectionStartLogical = snap.selectionStartByte;
+        snap.selectionEndLogical = snap.selectionEndByte;
+        snap.caretLogical = snap.caretByte;
+    }
+    
+    // Get text entity for alignment and runs
+    const TextRec* textRec = textSystem_.store.getText(textId);
+    if (textRec) {
+        snap.align = static_cast<std::uint8_t>(textRec->align);
+        snap.x = textRec->x;
+        snap.y = textRec->y;
+        snap.lineHeight = textRec->layoutHeight;
+    }
+    
+    // Get style info from runs
+    const auto& runs = textSystem_.store.getRuns(textId);
+    if (!runs.empty()) {
+        const auto& firstRun = runs.front();
+        snap.fontId = firstRun.fontId;
+        snap.fontSize = firstRun.fontSize;
+        snap.fontIdTriState = 1; // uniform by default
+        snap.fontSizeTriState = 1; // uniform by default
+        
+        // Check if all runs have the same font/size
+        bool uniformFontId = true;
+        bool uniformFontSize = true;
+        TextStyleFlags commonFlags = firstRun.flags;
+        bool uniformFlags = true;
+        
+        for (std::size_t i = 1; i < runs.size(); ++i) {
+            if (runs[i].fontId != firstRun.fontId) uniformFontId = false;
+            if (runs[i].fontSize != firstRun.fontSize) uniformFontSize = false;
+            if (runs[i].flags != commonFlags) uniformFlags = false;
+        }
+        
+        snap.fontIdTriState = uniformFontId ? 1 : 2;
+        snap.fontSizeTriState = uniformFontSize ? 1 : 2;
+        
+        // Compute tri-state flags (2 bits per attribute: 00=off, 01=on, 10=mixed)
+        if (uniformFlags) {
+            // Set each attribute based on commonFlags
+            std::uint8_t triState = 0;
+            triState |= hasFlag(commonFlags, TextStyleFlags::Bold) ? 0x01 : 0x00;       // bold
+            triState |= hasFlag(commonFlags, TextStyleFlags::Italic) ? 0x04 : 0x00;    // italic
+            triState |= hasFlag(commonFlags, TextStyleFlags::Underline) ? 0x10 : 0x00; // underline
+            triState |= hasFlag(commonFlags, TextStyleFlags::Strike) ? 0x40 : 0x00;    // strike
+            snap.styleTriStateFlags = triState;
+        } else {
+            // Mixed state for all
+            snap.styleTriStateFlags = 0xAA; // all mixed (10 10 10 10)
+        }
+    }
+    
+    snap.textGeneration = generation;
+    snap.styleTriStateParamsLen = 0;
+    
+    return snap;
+}
+
+engine::text::TextStyleSnapshot CadEngine::getTextStyleSummary(std::uint32_t textId) const {
+    // For now, summary is the same as snapshot
+    // In the future, summary might compute style across selection range
+    return getTextStyleSnapshot(textId);
+}
 
 void CadEngine::rebuildSnapshotBytes() const {
     engine::SnapshotData sd;
@@ -303,9 +358,8 @@ void CadEngine::rebuildSnapshotBytes() const {
         snap.order = layer.order;
         snap.flags = layer.flags;
         snap.name = entityManager_.layerStore.getLayerName(layer.id);
-        snap.strokeR = layer.strokeR; snap.strokeG = layer.strokeG; snap.strokeB = layer.strokeB; snap.strokeA = layer.strokeA;
-        snap.fillR = layer.fillR; snap.fillG = layer.fillG; snap.fillB = layer.fillB; snap.fillA = layer.fillA;
-        snap.strokeWidth = layer.strokeWidth;
+        // TODO: Add layer style fields when StyleSystem is implemented
+        // For now, use defaults from LayerSnapshot struct
         sd.layers.push_back(std::move(snap));
     }
 
@@ -361,22 +415,8 @@ void CadEngine::rebuildSnapshotBytes() const {
         sd.texts.push_back(std::move(snap));
     }
 
-    // Save Styles
-    // Access StyleSystem's store.
-    // Wait, CadEngine doesn't expose StyleSystem directly? It's private.
-    // engine_snapshot.cpp is part of CadEngine impl so it has access.
-    // Need to include style_system.h if not already.
-    // Yes, engine.h includes it.
-    for (const auto& kv : styleSystem_.getStore().styles) {
-        engine::EntityStyleSnapshot s{};
-        s.entityId = kv.first;
-        const auto& rec = kv.second;
-        s.strokeSource = static_cast<std::uint8_t>(rec.strokeSource);
-        s.fillSource = static_cast<std::uint8_t>(rec.fillSource);
-        s.strokeR = rec.strokeR; s.strokeG = rec.strokeG; s.strokeB = rec.strokeB; s.strokeA = rec.strokeA;
-        s.fillR = rec.fillR; s.fillG = rec.fillG; s.fillB = rec.fillB; s.fillA = rec.fillA;
-        sd.styles.push_back(s);
-    }
+    // TODO: Save Styles when StyleSystem is implemented
+    // For now, sd.styles remains empty.
 
     sd.nextId = nextEntityId_;
     sd.historyBytes = encodeHistoryBytes();

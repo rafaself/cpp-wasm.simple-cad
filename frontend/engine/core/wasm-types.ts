@@ -230,6 +230,32 @@ export type CadEngineInstance = {
 
   // Draft System
   getDraftDimensions?: () => DraftDimensions;
+
+  // Style System
+  setLayerStyle?: (
+    layerId: number,
+    sr: number,
+    sg: number,
+    sb: number,
+    sa: number,
+    fr: number,
+    fg: number,
+    fb: number,
+    fa: number,
+    strokeWidth: number,
+  ) => void;
+  setEntityOverride?: (
+    idsPtr: number,
+    idCount: number,
+    isStroke: boolean,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
+  ) => void;
+  setFillEnabled?: (idsPtr: number, idCount: number, enabled: boolean) => void;
+  clearEntityOverride?: (idsPtr: number, idCount: number, isStroke: boolean) => void;
+  getSelectionStyleState?: () => import('./protocol').SelectionStyleState;
 };
 
 /**
