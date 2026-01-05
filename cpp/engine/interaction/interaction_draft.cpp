@@ -1,6 +1,7 @@
 #include "engine/interaction/interaction_session.h"
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
+#include <algorithm>
 
 // ============================================================================
 // Draft Implementation (Phantom Entity System)
@@ -290,14 +291,36 @@ void InteractionSession::upsertPhantomEntity() {
         case EntityKind::Text: break;
     }
 
-    // Remove phantom entity from draw order - it should not be included in normal draw order
-    // (it's rendered separately, at the end, on top of all other entities)
-    auto& drawOrder = entityManager_.drawOrderIds;
-    for (auto it = drawOrder.begin(); it != drawOrder.end(); ++it) {
-        if (*it == phantomId) {
-            drawOrder.erase(it);
-            break;
+    // Set up style overrides for phantom entity so it renders with correct colors
+    // (not layer defaults). This matches how committed entities work via initShapeStyleOverrides.
+    const EntityKind kind = static_cast<EntityKind>(draft_.kind);
+    const bool hasFill = (kind == EntityKind::Rect || kind == EntityKind::Circle || kind == EntityKind::Polygon);
+    const bool hasStroke = (kind != EntityKind::Text);
+
+    if (hasFill || hasStroke) {
+        EntityStyleOverrides& overrides = entityManager_.ensureEntityStyleOverrides(phantomId);
+        overrides.colorMask = 0;
+        overrides.enabledMask = 0;
+
+        if (hasFill) {
+            const std::uint8_t fillBit = EntityManager::styleTargetMask(StyleTarget::Fill);
+            overrides.colorMask |= fillBit;
+            overrides.enabledMask |= fillBit;
+            overrides.fillEnabled = draft_.fillA > 0.5f ? 1.0f : 0.0f;
         }
+        if (hasStroke) {
+            const std::uint8_t strokeBit = EntityManager::styleTargetMask(StyleTarget::Stroke);
+            overrides.colorMask |= strokeBit;
+            overrides.enabledMask |= strokeBit;
+        }
+    }
+
+    // Move phantom to end of draw order so it renders on top of all other entities
+    auto& drawOrder = entityManager_.drawOrderIds;
+    auto it = std::find(drawOrder.begin(), drawOrder.end(), phantomId);
+    if (it != drawOrder.end()) {
+        drawOrder.erase(it);
+        drawOrder.push_back(phantomId);
     }
 }
 
