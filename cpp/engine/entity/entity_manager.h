@@ -175,6 +175,7 @@ public:
     const std::vector<Point2>& getPoints() const { return points; }
 
     ResolvedStyle resolveStyle(std::uint32_t id, EntityKind kind) const;
+    bool resolveFillEnabled(std::uint32_t id) const;
     static std::uint8_t styleTargetMask(StyleTarget target);
     static std::uint8_t styleCapabilities(EntityKind kind);
 };

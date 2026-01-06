@@ -686,6 +686,21 @@ ResolvedStyle EntityManager::resolveStyle(std::uint32_t id, EntityKind kind) con
     return resolved;
 }
 
+bool EntityManager::resolveFillEnabled(std::uint32_t id) const {
+    // 1. Check for explicit overrides on the entity
+    const EntityStyleOverrides* overrides = getEntityStyleOverrides(id);
+    const std::uint8_t fillBit = styleTargetMask(StyleTarget::Fill);
+    
+    if (overrides && (overrides->enabledMask & fillBit) != 0) {
+        return overrides->fillEnabled > 0.5f;
+    }
+
+    // 2. Fallback to layer defaults
+    const std::uint32_t layerId = getEntityLayer(id);
+    const LayerStyle layerStyle = layerStore.getLayerStyle(layerId);
+    return layerStyle.fill.enabled > 0.5f;
+}
+
 void EntityManager::compactPolylinePoints() {
     std::size_t total = 0;
     for (const auto& pl : polylines) total += pl.count;
