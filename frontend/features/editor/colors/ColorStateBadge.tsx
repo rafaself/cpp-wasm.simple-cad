@@ -20,17 +20,32 @@ const renderIndicatorIcon = (indicator: ColorStateIndicator) => {
   }
 };
 
-export const ColorStateBadge: React.FC<{ indicator: ColorStateIndicator | null }> = ({
-  indicator,
-}) => {
+export const ColorStateBadge: React.FC<{
+  indicator: ColorStateIndicator | null;
+  onRestore?: () => void;
+}> = ({ indicator, onRestore }) => {
   if (!indicator) return null;
-  return (
+
+  const isOverride = indicator.kind === 'override';
+  const canRestore = isOverride && onRestore;
+
+  const content = (
     <span
-      className="flex items-center justify-center text-text-muted"
+      className={`flex items-center justify-center text-text-muted ${
+        canRestore ? 'cursor-pointer hover:text-text hover:bg-surface2 rounded p-0.5' : ''
+      }`}
       title={indicator.tooltip}
       aria-label={indicator.tooltip}
+      onClick={(e) => {
+        if (canRestore) {
+          e.stopPropagation();
+          onRestore();
+        }
+      }}
     >
       {renderIndicatorIcon(indicator)}
     </span>
   );
+
+  return content;
 };

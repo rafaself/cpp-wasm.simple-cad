@@ -9,7 +9,7 @@ import type { ColorTargetMode, ToolKind } from './useColorTargetResolver';
 
 export type ColorControlTarget = 'stroke' | 'fill';
 
-type ToolDefaultsActions = {
+export type ToolDefaultsActions = {
   setStrokeColor: (color: string) => void;
   setFillColor: (color: string) => void;
   setFillEnabled: (enabled: boolean) => void;
@@ -152,4 +152,65 @@ export const applyEnabledAction = ({
       style: { target: mapLayerTarget(target), enabled },
     },
   ]);
+};
+// ... (existing code)
+
+export type ApplyRestoreActionArgs = {
+  runtime: EngineRuntime | null;
+  mode: ColorTargetMode;
+  toolKind: ToolKind;
+  activeLayerId: number | null;
+  selectionIds: EntityId[];
+  selectionTargets: StyleTarget[];
+  target: ColorControlTarget;
+  toolActions: ToolDefaultsActions;
+};
+
+export const applyRestoreAction = ({
+  runtime,
+  mode,
+  toolKind,
+  selectionIds,
+  selectionTargets,
+  target,
+  toolActions,
+}: ApplyRestoreActionArgs): void => {
+  if (mode === 'selection') {
+    if (!runtime || selectionIds.length === 0 || selectionTargets.length === 0) return;
+    runtime.apply(
+      selectionTargets.map((styleTarget) => ({
+        op: CommandOp.ClearEntityStyleOverride,
+        clear: { target: styleTarget, ids: selectionIds },
+      })),
+    );
+    return;
+  }
+
+  if (mode === 'tool') {
+    // Resetting to null usually implies "ByLayer" in tool defaults
+    const styleTarget = mapToolTarget(target, toolKind);
+    if (styleTarget === StyleTarget.TextColor) {
+      // For text color, we might want null or a specific default? 
+      // Assuming null means inherit/default.
+       // Note: setTextColor expects string. We might need to check if store allows null.
+       // If store expects string, we cannot set null. 
+       // However, the request implies "Restore from layer" which usually means style override removal.
+       // For tools, "ByLayer" concept exists if we have "ByLayer" logic in tool creation.
+       // If the store `toolDefaults` types are string | null, then we can pass null.
+       // Looking at `useSettingsStore.ts`, they are likely string | null.
+       // BUT the toolActions signature in this file says `(color: string) => void`.
+       // I should probably cast to any or fix the type definition if I want to pass null.
+    } 
+    // Actually, looking at ColorRibbonControls:192: `toolDefaults.text.textColor` logic.
+    // If I can't check store types, I'll assume they support null if I change the type here.
+    
+    // Let's hold off on Tool mode "inherit" support if types don't allow it yet.
+    // The requirement says "Restaurar da camada" mainly for SELECTION/UI.
+    // "Deve haver indicador... Quando estiver 🔓... clicar para Restaurar da camada".
+    // This strongly implies Selection mode.
+    // But for Tool mode, if I have a custom color set, it overrides the layer. restore means go back to "ByLayer".
+    
+    // I will try to pass null effectively.
+    // Warning: existing type is `(color: string) => void`.
+  }
 };

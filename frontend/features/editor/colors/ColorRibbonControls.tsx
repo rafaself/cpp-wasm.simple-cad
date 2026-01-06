@@ -19,7 +19,7 @@ import * as DEFAULTS from '@/theme/defaults';
 import { unpackColorRGBA } from '@/types/text';
 import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 
-import { applyColorAction, applyEnabledAction, type ColorControlTarget } from './applyColorAction';
+import { applyColorAction, applyEnabledAction, applyRestoreAction, type ColorControlTarget } from './applyColorAction';
 import { ColorStateBadge } from './ColorStateBadge';
 import { getStateIndicator } from './colorState';
 import { useColorTargetResolver } from './useColorTargetResolver';
@@ -107,19 +107,37 @@ const NoFillToggle: React.FC<{
   disabled?: boolean;
   onToggle: () => void;
 }> = ({ enabled, mixed, disabled, onToggle }) => {
-  const isActive = !enabled || mixed;
-  const mixedClass = mixed ? 'bg-primary/10 text-primary border border-primary/20' : '';
-  const activeClass = !mixed && !enabled ? 'bg-primary/20 text-primary border border-primary/30' : '';
+  // Logic: When "No Fill" is active, enabled is false.
+  const isNoFill = !enabled;
+  
+  // Styles for the chip
+  // Active (No Fill is ON): Visible accent color or clear state? 
+  // User asked for "small compact toggle".
+  // Let's make it look like a tag/chip.
+  // If "No Fill", it should be highlighted to indicate the state is "None".
+  
+  const baseClass = "ml-2 h-5 px-2 rounded-full text-[9px] font-bold uppercase tracking-wide transition-all border flex items-center cursor-pointer select-none";
+  let stateClass = "";
+  
+  if (disabled) {
+    stateClass = "opacity-40 border-border bg-surface1 text-text-muted cursor-not-allowed";
+  } else if (mixed) {
+    stateClass = "border-primary/30 bg-primary/10 text-primary";
+  } else if (isNoFill) {
+    // Active state: The "No Fill" mode is ON.
+    stateClass = "border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500/20";
+  } else {
+    // Inactive state: Fill is ON. Button is just a toggler.
+    stateClass = "border-border bg-transparent text-text-muted hover:text-text hover:bg-surface2 hover:border-text-muted/50";
+  }
 
   return (
     <button
       type="button"
       onClick={onToggle}
       onMouseDown={(e) => e.preventDefault()}
-      className={`px-2 h-full rounded text-[10px] font-semibold transition-colors border ${
-        isActive ? activeClass : 'border-border/60 text-text-muted hover:text-text'
-      } ${mixedClass} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`.trim()}
-      aria-pressed={!enabled}
+      className={`${baseClass} ${stateClass}`}
+      aria-pressed={isNoFill}
       disabled={disabled}
       title={LABELS.colors.noFill}
     >
@@ -305,6 +323,19 @@ export const ColorRibbonControls: React.FC = () => {
     });
   };
 
+  const handleRestore = (target: ColorControlTarget) => {
+    applyRestoreAction({
+      runtime,
+      mode,
+      toolKind,
+      activeLayerId,
+      selectionIds,
+      selectionTargets: target === 'stroke' ? strokeState.applyTargets : fillState.applyTargets,
+      target,
+      toolActions
+    });
+  };
+
   const strokeIndicator =
     mode === 'selection'
       ? getStateIndicator(strokeState.state, layerNameById.get(strokeState.layerId))
@@ -318,11 +349,14 @@ export const ColorRibbonControls: React.FC = () => {
   const fillEnabled = fillState.enabledState === TriState.On;
 
   return (
-    <div className="ribbon-group-col px-1 min-w-[200px]">
-      <div className="ribbon-row">
-        <div className="flex items-center gap-2 w-[110px]">
+    <div className="ribbon-group-col px-1 min-w-[210px]">
+      <div className="ribbon-row items-center h-7">
+        <div className="flex items-center gap-2 w-[100px] shrink-0">
           <span className="text-[11px] text-text-muted font-semibold">{LABELS.colors.stroke}</span>
-          <ColorStateBadge indicator={strokeIndicator} />
+          <ColorStateBadge 
+            indicator={strokeIndicator} 
+            onRestore={() => handleRestore('stroke')}
+          />
         </div>
         <ColorSwatchButton
           color={strokeState.color}
@@ -330,10 +364,13 @@ export const ColorRibbonControls: React.FC = () => {
           disabled={strokeState.supportedState === TriState.Off}
         />
       </div>
-      <div className="ribbon-row">
-        <div className="flex items-center gap-2 w-[110px]">
+      <div className="ribbon-row items-center h-7 mt-0.5">
+        <div className="flex items-center gap-2 w-[100px] shrink-0">
           <span className="text-[11px] text-text-muted font-semibold">{LABELS.colors.fill}</span>
-          <ColorStateBadge indicator={fillIndicator} />
+          <ColorStateBadge 
+            indicator={fillIndicator} 
+            onRestore={() => handleRestore('fill')}
+          />
         </div>
         <ColorSwatchButton
           color={fillState.color}
