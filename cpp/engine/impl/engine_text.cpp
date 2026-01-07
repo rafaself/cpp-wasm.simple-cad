@@ -68,7 +68,7 @@ bool CadEngine::upsertText(
         entityManager_.registerTextEntity(id);
         EntityStyleOverrides& overrides = entityManager_.ensureEntityStyleOverrides(id);
         const LayerStyle layerStyle = entityManager_.layerStore.getLayerStyle(entityManager_.getEntityLayer(id));
-        overrides.colorMask = EntityManager::styleTargetMask(::StyleTarget::TextColor);
+        overrides.colorMask = 0;
         overrides.enabledMask = 0;
         if (runCount > 0 && runs) {
             unpackColorRGBA(runs[0].colorRGBA, overrides.textColor.r, overrides.textColor.g, overrides.textColor.b, overrides.textColor.a);

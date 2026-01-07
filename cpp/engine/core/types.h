@@ -333,6 +333,12 @@ struct EntityStyleEnabledPayloadHeader {
 // Text Command Payloads
 // ============================================================================
 
+enum class DraftFlags : std::uint32_t {
+    None = 0,
+    FillByLayer = 1 << 0,
+    StrokeByLayer = 1 << 1,
+};
+
 // Header for UpsertText command (variable-length payload follows)
 // Layout: [TextPayloadHeader][TextRunPayload * runCount][UTF-8 content bytes]
 struct TextPayloadHeader {
@@ -412,6 +418,7 @@ struct BeginDraftPayload {
     float strokeWidthPx;
     float sides;
     float head;
+    std::uint32_t flags;
 };
 
 struct UpdateDraftPayload {

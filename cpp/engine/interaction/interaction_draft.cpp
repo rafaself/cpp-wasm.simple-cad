@@ -32,6 +32,7 @@ void InteractionSession::beginDraft(const BeginDraftPayload& p) {
     draft_.strokeWidthPx = p.strokeWidthPx;
     draft_.sides = p.sides;
     draft_.head = p.head;
+    draft_.flags = p.flags;
     draft_.points.clear();
 
     if (p.kind == static_cast<std::uint32_t>(EntityKind::Polyline)) {
@@ -181,6 +182,14 @@ std::uint32_t InteractionSession::commitDraft() {
     // Auto-select the newly created entity
     engine_.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
+    // Apply ByLayer inheritance if requested
+    if (draft_.flags & static_cast<std::uint32_t>(DraftFlags::FillByLayer)) {
+        engine_.clearEntityStyleOverride(&id, 1, CadEngine::StyleTarget::Fill);
+    }
+    if (draft_.flags & static_cast<std::uint32_t>(DraftFlags::StrokeByLayer)) {
+        engine_.clearEntityStyleOverride(&id, 1, CadEngine::StyleTarget::Stroke);
+    }
+
     draft_.active = false;
     draft_.points.clear();
     engine_.state().renderDirty = true;
@@ -304,13 +313,17 @@ void InteractionSession::upsertPhantomEntity() {
 
         if (hasFill) {
             const std::uint8_t fillBit = EntityManager::styleTargetMask(StyleTarget::Fill);
-            overrides.colorMask |= fillBit;
+            if (!(draft_.flags & static_cast<std::uint32_t>(DraftFlags::FillByLayer))) {
+                overrides.colorMask |= fillBit;
+            }
             overrides.enabledMask |= fillBit;
             overrides.fillEnabled = draft_.fillA > 0.5f ? 1.0f : 0.0f;
         }
         if (hasStroke) {
             const std::uint8_t strokeBit = EntityManager::styleTargetMask(StyleTarget::Stroke);
-            overrides.colorMask |= strokeBit;
+            if (!(draft_.flags & static_cast<std::uint32_t>(DraftFlags::StrokeByLayer))) {
+                overrides.colorMask |= strokeBit;
+            }
             overrides.enabledMask |= strokeBit;
         }
     }

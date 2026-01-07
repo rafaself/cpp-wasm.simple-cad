@@ -219,6 +219,7 @@ export type BeginDraftPayload = {
   strokeWidthPx: number;
   sides: number;
   head: number;
+  flags: number;
 };
 export type UpdateDraftPayload = { x: number; y: number; modifiers: number };
 
@@ -339,7 +340,7 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.SetEntityStyleEnabled:
       return 12 + cmd.enabled.ids.length * 4; // header (12 bytes) + ids
     case CommandOp.BeginDraft:
-      return 60; // 15 floats (x,y, fills, strokes, params) * 4
+      return 64; // 16 floats/u32 * 4
     case CommandOp.UpdateDraft:
     case CommandOp.AppendDraftPoint:
       return 12; // x, y, modifiers
@@ -636,6 +637,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.draft.strokeWidthPx);
         o = writeF32(view, o, cmd.draft.sides);
         o = writeF32(view, o, cmd.draft.head);
+        o = writeU32(view, o, cmd.draft.flags);
         break;
       case CommandOp.UpdateDraft:
       case CommandOp.AppendDraftPoint:

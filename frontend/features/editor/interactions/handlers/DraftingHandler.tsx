@@ -14,6 +14,12 @@ import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 
 // Reusing types from previous implementation or defining locally
+const DraftFlags = {
+  None: 0,
+  FillByLayer: 1 << 0,
+  StrokeByLayer: 1 << 1,
+};
+
 interface DraftState {
   kind: 'none' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'polygon' | 'polyline';
   points?: { x: number; y: number }[];
@@ -83,6 +89,10 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   // Helper to build draft styling
   private buildDraftStyle(): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> {
+    let flags = DraftFlags.None;
+    if (this.toolDefaults.fillColor === null) flags |= DraftFlags.FillByLayer;
+    if (this.toolDefaults.strokeColor === null) flags |= DraftFlags.StrokeByLayer;
+
     const stroke = this.colorToRgb01(
       this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR,
     );
@@ -98,6 +108,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       strokeA: 1.0,
       strokeEnabled: this.toolDefaults.strokeEnabled !== false ? 1.0 : 0.0,
       strokeWidthPx: Math.max(1, Math.min(100, this.toolDefaults.strokeWidth ?? 1)),
+      flags,
     };
   }
 

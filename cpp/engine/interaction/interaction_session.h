@@ -161,6 +161,7 @@ private:
         float strokeWidthPx = 1.0f;
         float sides = 0;
         float head = 0;
+        std::uint32_t flags = 0;
         std::vector<Point2> points;
     };
 
