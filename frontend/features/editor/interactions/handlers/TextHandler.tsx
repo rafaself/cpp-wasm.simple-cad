@@ -75,7 +75,9 @@ export class TextHandler extends BaseInteractionHandler {
     if (!runtime) return;
     const { textColor, textBackgroundColor, textBackgroundEnabled } =
       useSettingsStore.getState().toolDefaults.text;
-    const parseColor = (input: string): number | null => {
+    const parseColor = (input: string | null): number | null => {
+      // null means ByLayer - don't apply override
+      if (input === null) return null;
       const parsed = parseCssColorToHexAlpha(input);
       if (!parsed) return null;
       return packColorRGBA(

@@ -167,6 +167,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
         zIndex: 2147483647,
       }}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.preventDefault()} // Prevent focus loss that could cause deselection
     >
       {/* Header with Title */}
       <div

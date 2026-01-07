@@ -1,5 +1,5 @@
 import { Eye, EyeOff, Link, Square } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
 import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
@@ -7,6 +7,7 @@ import {
   StyleState,
   StyleTarget,
   TriState,
+  type EntityId,
   type SelectionStyleSummary,
   type StyleTargetSummary,
 } from '@/engine/core/protocol';
@@ -15,7 +16,6 @@ import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { LABELS } from '@/i18n/labels';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { useUIStore } from '@/stores/useUIStore';
 import * as DEFAULTS from '@/theme/defaults';
 import { unpackColorRGBA } from '@/types/text';
 import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
@@ -29,8 +29,24 @@ import {
   type ColorControlTarget,
 } from './applyColorAction';
 import { formatInheritedTooltip } from './colorState';
-import { useColorTargetResolver } from './useColorTargetResolver';
+import {
+  type ColorTargetMode,
+  type ToolKind,
+  useColorTargetResolver,
+} from './useColorTargetResolver';
 import { useSelectionStyleSummary } from './useSelectionStyleSummary';
+
+/**
+ * Locked context captured when color picker opens.
+ * Ensures color changes apply to the original target even if selection changes.
+ */
+type LockedColorContext = {
+  mode: ColorTargetMode;
+  toolKind: ToolKind;
+  selectionIds: EntityId[];
+  strokeApplyTargets: StyleTarget[];
+  fillApplyTargets: StyleTarget[];
+};
 
 type ResolvedControlState = {
   color: string;
@@ -125,8 +141,7 @@ export const ColorRibbonControls: React.FC = () => {
   const selectionSummary = useSelectionStyleSummary();
   const selectionIds = useEngineSelectionIds();
   const { mode, toolKind } = useColorTargetResolver(selectionSummary.selectionCount);
-  const activeLayerId = useUIStore((s) => s.activeLayerId);
-  const styleGeneration = useDocumentSignal('style');
+  void useDocumentSignal('style'); // Subscribe to style changes
 
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const setStrokeColor = useSettingsStore((s) => s.setStrokeColor);
@@ -161,11 +176,11 @@ export const ColorRibbonControls: React.FC = () => {
     [layers],
   );
 
-  const layerStyle = useMemo(() => {
-    void styleGeneration;
-    if (!runtime || activeLayerId === null) return null;
-    return runtime.style.getLayerStyle(activeLayerId);
-  }, [runtime, activeLayerId, styleGeneration]);
+  // Context locking: when picker is open, use locked context for color changes
+  const lockedContextRef = useRef<LockedColorContext | null>(null);
+
+  // Check if controls should be disabled (mode === 'none')
+  const isDisabled = mode === 'none';
 
   const strokeState: ResolvedControlState = useMemo(() => {
     if (mode === 'selection') {
@@ -182,9 +197,12 @@ export const ColorRibbonControls: React.FC = () => {
 
     if (mode === 'tool') {
       const color = toolKind === 'text' ? toolDefaults.text.textColor : toolDefaults.strokeColor;
+      // Se a cor é null, significa ByLayer - mostrar como Layer state
+      // Se a cor tem valor, é override
+      const isByLayer = color === null;
       return {
         color: color ?? DEFAULTS.DEFAULT_STROKE_COLOR,
-        state: StyleState.Override,
+        state: isByLayer ? StyleState.Layer : StyleState.Override,
         enabledState: TriState.On,
         supportedState: TriState.On,
         layerId: 0,
@@ -192,18 +210,16 @@ export const ColorRibbonControls: React.FC = () => {
       };
     }
 
-    const color = layerStyle
-      ? packedToCssColor(layerStyle.strokeRGBA, DEFAULTS.DEFAULT_STROKE_COLOR)
-      : DEFAULTS.DEFAULT_STROKE_COLOR;
+    // Mode 'none': controls disabled, show placeholder state
     return {
-      color,
-      state: StyleState.Layer,
-      enabledState: layerStyle?.strokeEnabled ? TriState.On : TriState.Off,
-      supportedState: TriState.On,
-      layerId: activeLayerId ?? 0,
+      color: DEFAULTS.DEFAULT_STROKE_COLOR,
+      state: StyleState.None,
+      enabledState: TriState.Off,
+      supportedState: TriState.Off,
+      layerId: 0,
       applyTargets: [],
     };
-  }, [mode, selectionSummary, toolDefaults, toolKind, layerStyle, activeLayerId]);
+  }, [mode, selectionSummary, toolDefaults, toolKind]);
 
   const fillState: ResolvedControlState = useMemo(() => {
     if (mode === 'selection') {
@@ -223,9 +239,11 @@ export const ColorRibbonControls: React.FC = () => {
         toolKind === 'text' ? toolDefaults.text.textBackgroundColor : toolDefaults.fillColor;
       const enabled =
         toolKind === 'text' ? toolDefaults.text.textBackgroundEnabled : toolDefaults.fillEnabled;
+      // Se a cor é null, significa ByLayer - mostrar como Layer state (se enabled)
+      const isByLayer = color === null;
       return {
         color: color ?? DEFAULTS.DEFAULT_FILL_COLOR,
-        state: enabled ? StyleState.Override : StyleState.None,
+        state: !enabled ? StyleState.None : isByLayer ? StyleState.Layer : StyleState.Override,
         enabledState: enabled ? TriState.On : TriState.Off,
         supportedState: TriState.On,
         layerId: 0,
@@ -233,19 +251,16 @@ export const ColorRibbonControls: React.FC = () => {
       };
     }
 
-    const color = layerStyle
-      ? packedToCssColor(layerStyle.fillRGBA, DEFAULTS.DEFAULT_FILL_COLOR)
-      : DEFAULTS.DEFAULT_FILL_COLOR;
-    const enabled = layerStyle?.fillEnabled ?? 1;
+    // Mode 'none': controls disabled, show placeholder state
     return {
-      color,
-      state: enabled ? StyleState.Layer : StyleState.None,
-      enabledState: enabled ? TriState.On : TriState.Off,
-      supportedState: TriState.On,
-      layerId: activeLayerId ?? 0,
+      color: DEFAULTS.DEFAULT_FILL_COLOR,
+      state: StyleState.None,
+      enabledState: TriState.Off,
+      supportedState: TriState.Off,
+      layerId: 0,
       applyTargets: [],
     };
-  }, [mode, selectionSummary, toolDefaults, toolKind, layerStyle, activeLayerId]);
+  }, [mode, selectionSummary, toolDefaults, toolKind]);
 
   const [activePicker, setActivePicker] = useState<ColorControlTarget | null>(null);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
@@ -254,23 +269,64 @@ export const ColorRibbonControls: React.FC = () => {
     event: React.MouseEvent<HTMLButtonElement>,
     target: ColorControlTarget,
   ) => {
+    if (isDisabled) return;
     if (target === 'fill' && fillState.supportedState === TriState.Off) return;
     if (target === 'stroke' && strokeState.supportedState === TriState.Off) return;
+
+    // Lock context: capture current state when picker opens
+    lockedContextRef.current = {
+      mode,
+      toolKind,
+      selectionIds: [...selectionIds], // Copy to avoid reference issues
+      strokeApplyTargets: [...strokeState.applyTargets],
+      fillApplyTargets: [...fillState.applyTargets],
+    };
+
     const rect = event.currentTarget.getBoundingClientRect();
     setPickerPos({ top: rect.bottom + 6, left: rect.left });
     setActivePicker(target);
   };
 
-  const closeColorPicker = () => setActivePicker(null);
+  const closeColorPicker = () => {
+    setActivePicker(null);
+    lockedContextRef.current = null; // Release lock
+  };
 
   const handleColorChange = (target: ColorControlTarget, color: string) => {
+    const ctx = lockedContextRef.current;
+
+    // If we have a locked context, validate that it's still applicable
+    if (ctx) {
+      // For 'selection' mode: only apply if CURRENT selection is non-empty
+      // This prevents applying to elements that were deselected
+      if (ctx.mode === 'selection' && selectionIds.length === 0) {
+        return; // Selection was lost, don't apply changes
+      }
+
+      // For 'tool' mode: only apply if CURRENT mode is still 'tool'
+      if (ctx.mode === 'tool' && mode !== 'tool') {
+        return; // Tool was deactivated, don't apply changes
+      }
+    }
+
+    // Determine effective values (prefer locked context, fallback to current)
+    const effectiveMode = ctx?.mode ?? mode;
+    const effectiveToolKind = ctx?.toolKind ?? toolKind;
+    const effectiveSelectionIds = ctx?.selectionIds ?? selectionIds;
+    const effectiveTargets =
+      target === 'stroke'
+        ? (ctx?.strokeApplyTargets ?? strokeState.applyTargets)
+        : (ctx?.fillApplyTargets ?? fillState.applyTargets);
+
+    // Don't apply if mode is 'none'
+    if (effectiveMode === 'none') return;
+
     applyColorAction({
       runtime,
-      mode,
-      toolKind,
-      activeLayerId,
-      selectionIds,
-      selectionTargets: target === 'stroke' ? strokeState.applyTargets : fillState.applyTargets,
+      mode: effectiveMode,
+      toolKind: effectiveToolKind,
+      selectionIds: effectiveSelectionIds,
+      selectionTargets: effectiveTargets,
       target,
       color,
       toolActions,
@@ -278,13 +334,13 @@ export const ColorRibbonControls: React.FC = () => {
   };
 
   const handleToggleStroke = () => {
+    if (isDisabled) return;
     const isEnabled = strokeState.enabledState === TriState.On;
     const nextEnabled = strokeState.enabledState === TriState.Mixed ? true : !isEnabled;
     applyEnabledAction({
       runtime,
       mode,
       toolKind,
-      activeLayerId,
       selectionIds,
       selectionTargets: strokeState.applyTargets,
       target: 'stroke',
@@ -294,13 +350,13 @@ export const ColorRibbonControls: React.FC = () => {
   };
 
   const handleToggleFill = () => {
+    if (isDisabled) return;
     const isEnabled = fillState.enabledState === TriState.On;
     const nextEnabled = fillState.enabledState === TriState.Mixed ? true : !isEnabled;
     applyEnabledAction({
       runtime,
       mode,
       toolKind,
-      activeLayerId,
       selectionIds,
       selectionTargets: fillState.applyTargets,
       target: 'fill',
@@ -310,11 +366,11 @@ export const ColorRibbonControls: React.FC = () => {
   };
 
   const handleRestore = (target: ColorControlTarget) => {
+    if (isDisabled) return;
     applyRestoreAction({
       runtime,
       mode,
       toolKind,
-      activeLayerId,
       selectionIds,
       selectionTargets: target === 'stroke' ? strokeState.applyTargets : fillState.applyTargets,
       target,
@@ -337,20 +393,41 @@ export const ColorRibbonControls: React.FC = () => {
   const isFillOverride =
     fillState.state === StyleState.Override || fillState.state === StyleState.Mixed;
 
-  const strokeTooltip = noStroke
-    ? 'Sem traço'
-    : strokeState.state === StyleState.Layer
-      ? formatInheritedTooltip(layerNameById.get(strokeState.layerId) || 'Desconhecida')
-      : LABELS.colors.overrideTooltip;
+  const strokeTooltip = isDisabled
+    ? LABELS.colors.disabledHint
+    : noStroke
+      ? 'Sem traço'
+      : strokeState.state === StyleState.Layer
+        ? formatInheritedTooltip(layerNameById.get(strokeState.layerId) || 'Desconhecida')
+        : LABELS.colors.overrideTooltip;
 
-  const fillTooltip = noFill
-    ? LABELS.colors.noneTooltip
-    : fillState.state === StyleState.Layer
-      ? formatInheritedTooltip(layerNameById.get(fillState.layerId) || 'Desconhecida')
-      : LABELS.colors.overrideTooltip;
+  const fillTooltip = isDisabled
+    ? LABELS.colors.disabledHint
+    : noFill
+      ? LABELS.colors.noneTooltip
+      : fillState.state === StyleState.Layer
+        ? formatInheritedTooltip(layerNameById.get(fillState.layerId) || 'Desconhecida')
+        : LABELS.colors.overrideTooltip;
+
+  // Restore button tooltip - only show when override is active
+  const restoreStrokeTooltip = isStrokeOverride
+    ? LABELS.colors.restoreTooltip.replace(
+        '{layer}',
+        layerNameById.get(strokeState.layerId) || 'Desconhecida',
+      )
+    : '';
+  const restoreFillTooltip = isFillOverride
+    ? LABELS.colors.restoreTooltip.replace(
+        '{layer}',
+        layerNameById.get(fillState.layerId) || 'Desconhecida',
+      )
+    : '';
 
   return (
-    <div className="ribbon-group-col min-w-[140px] px-1">
+    <div
+      className={`ribbon-group-col min-w-[140px] px-1 ${isDisabled ? 'opacity-50' : ''}`}
+      title={isDisabled ? LABELS.colors.disabledHint : undefined}
+    >
       {/* Stroke Row */}
       <div className="ribbon-row h-7 items-center justify-between">
         <div className="flex items-center">
@@ -360,7 +437,7 @@ export const ColorRibbonControls: React.FC = () => {
           <ColorSwatchButton
             color={strokeState.color}
             onClick={(event) => openColorPicker(event, 'stroke')}
-            disabled={strokeState.supportedState === TriState.Off}
+            disabled={isDisabled || strokeState.supportedState === TriState.Off}
             state={strokeState.state}
             title={strokeTooltip}
             showNone={noStroke}
@@ -374,14 +451,16 @@ export const ColorRibbonControls: React.FC = () => {
             isActive={noStroke}
             variant={noStroke ? 'danger' : 'default'}
             size="sm"
-            disabled={strokeState.supportedState === TriState.Off}
+            disabled={isDisabled || strokeState.supportedState === TriState.Off}
           />
           <RibbonIconButton
             icon={<Link size={ICON_SIZE} />}
             onClick={() => handleRestore('stroke')}
-            title={formatInheritedTooltip(layerNameById.get(strokeState.layerId) || 'Desconhecida')}
+            title={restoreStrokeTooltip}
             size="sm"
-            disabled={!isStrokeOverride || strokeState.supportedState === TriState.Off}
+            disabled={
+              isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
+            }
             className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
           />
         </div>
@@ -396,7 +475,7 @@ export const ColorRibbonControls: React.FC = () => {
           <ColorSwatchButton
             color={fillState.color}
             onClick={(event) => openColorPicker(event, 'fill')}
-            disabled={fillState.supportedState === TriState.Off}
+            disabled={isDisabled || fillState.supportedState === TriState.Off}
             showNone={noFill}
             title={fillTooltip}
             state={fillState.state}
@@ -410,14 +489,14 @@ export const ColorRibbonControls: React.FC = () => {
             isActive={noFill}
             variant={noFill ? 'danger' : 'default'}
             size="sm"
-            disabled={fillState.supportedState === TriState.Off}
+            disabled={isDisabled || fillState.supportedState === TriState.Off}
           />
           <RibbonIconButton
             icon={<Link size={ICON_SIZE} />}
             onClick={() => handleRestore('fill')}
-            title={formatInheritedTooltip(layerNameById.get(fillState.layerId) || 'Desconhecida')}
+            title={restoreFillTooltip}
             size="sm"
-            disabled={!isFillOverride || fillState.supportedState === TriState.Off}
+            disabled={isDisabled || !isFillOverride || fillState.supportedState === TriState.Off}
             className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
           />
         </div>

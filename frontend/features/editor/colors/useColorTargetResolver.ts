@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useUIStore } from '@/stores/useUIStore';
 import { ToolType } from '@/types';
 
-export type ColorTargetMode = 'selection' | 'tool' | 'layer';
+export type ColorTargetMode = 'selection' | 'tool' | 'none';
 export type ToolKind = 'shape' | 'text' | 'none';
 
 const DRAWING_TOOLS: ToolType[] = [
@@ -24,7 +24,7 @@ export const resolveColorTargetMode = (
 ): ColorTargetMode => {
   if (selectionCount > 0) return 'selection';
   if (isDrawingTool(activeTool)) return 'tool';
-  return 'layer';
+  return 'none';
 };
 
 export const useColorTargetResolver = (selectionCount: number) => {

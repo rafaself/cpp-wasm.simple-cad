@@ -3,7 +3,10 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(make ctest:*)"
+      "Bash(make ctest:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npx prettier:*)"
     ]
   }
 }

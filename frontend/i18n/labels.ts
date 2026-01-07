@@ -102,10 +102,12 @@ export const LABELS = {
     stroke: 'Traço',
     fill: 'Preenchimento',
     noFill: 'Sem preenchimento',
-    inheritedTooltip: 'Cor herdada da camada “{nome}”',
+    inheritedTooltip: 'Cor herdada da camada "{nome}"',
     overrideTooltip: 'Cor personalizada do elemento',
     noneTooltip: 'Sem preenchimento',
     mixedTooltip: 'Múltiplos valores',
+    disabledHint: 'Selecione um elemento ou ative uma ferramenta de desenho para editar cores',
+    restoreTooltip: 'Restaurar cor da camada "{layer}"',
   },
   disciplines: {
     architecture: 'Arquitetura',

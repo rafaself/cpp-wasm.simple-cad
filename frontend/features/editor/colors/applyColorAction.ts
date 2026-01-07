@@ -10,11 +10,11 @@ import type { ColorTargetMode, ToolKind } from './useColorTargetResolver';
 export type ColorControlTarget = 'stroke' | 'fill';
 
 export type ToolDefaultsActions = {
-  setStrokeColor: (color: string) => void;
-  setFillColor: (color: string) => void;
+  setStrokeColor: (color: string | null) => void;
+  setFillColor: (color: string | null) => void;
   setFillEnabled: (enabled: boolean) => void;
-  setTextColor: (color: string) => void;
-  setTextBackgroundColor: (color: string) => void;
+  setTextColor: (color: string | null) => void;
+  setTextBackgroundColor: (color: string | null) => void;
   setTextBackgroundEnabled: (enabled: boolean) => void;
 };
 
@@ -22,7 +22,6 @@ type ApplyColorActionArgs = {
   runtime: EngineRuntime | null;
   mode: ColorTargetMode;
   toolKind: ToolKind;
-  activeLayerId: number | null;
   selectionIds: EntityId[];
   selectionTargets: StyleTarget[];
   target: ColorControlTarget;
@@ -34,7 +33,6 @@ type ApplyToggleActionArgs = {
   runtime: EngineRuntime | null;
   mode: ColorTargetMode;
   toolKind: ToolKind;
-  activeLayerId: number | null;
   selectionIds: EntityId[];
   selectionTargets: StyleTarget[];
   target: ColorControlTarget;
@@ -60,14 +58,10 @@ const mapToolTarget = (target: ColorControlTarget, toolKind: ToolKind): StyleTar
   return null;
 };
 
-const mapLayerTarget = (target: ColorControlTarget): StyleTarget =>
-  target === 'stroke' ? StyleTarget.Stroke : StyleTarget.Fill;
-
 export const applyColorAction = ({
   runtime,
   mode,
   toolKind,
-  activeLayerId,
   selectionIds,
   selectionTargets,
   target,
@@ -102,21 +96,13 @@ export const applyColorAction = ({
     return;
   }
 
-  if (!runtime || activeLayerId === null) return;
-  runtime.apply([
-    {
-      op: CommandOp.SetLayerStyle,
-      id: activeLayerId,
-      style: { target: mapLayerTarget(target), colorRGBA },
-    },
-  ]);
+  // Mode 'none': no action - ribbon controls should be disabled
 };
 
 export const applyEnabledAction = ({
   runtime,
   mode,
   toolKind,
-  activeLayerId,
   selectionIds,
   selectionTargets,
   target,
@@ -144,14 +130,7 @@ export const applyEnabledAction = ({
     return;
   }
 
-  if (!runtime || activeLayerId === null) return;
-  runtime.apply([
-    {
-      op: CommandOp.SetLayerStyleEnabled,
-      id: activeLayerId,
-      style: { target: mapLayerTarget(target), enabled },
-    },
-  ]);
+  // Mode 'none': no action - ribbon controls should be disabled
 };
 // ... (existing code)
 
@@ -159,7 +138,6 @@ export type ApplyRestoreActionArgs = {
   runtime: EngineRuntime | null;
   mode: ColorTargetMode;
   toolKind: ToolKind;
-  activeLayerId: number | null;
   selectionIds: EntityId[];
   selectionTargets: StyleTarget[];
   target: ColorControlTarget;
@@ -187,30 +165,51 @@ export const applyRestoreAction = ({
   }
 
   if (mode === 'tool') {
-    // Resetting to null usually implies "ByLayer" in tool defaults
+    // Restaurar para ByLayer significa definir como null nos defaults da ferramenta
+    // Quando null, a entidade criada herdará a cor da camada
     const styleTarget = mapToolTarget(target, toolKind);
     if (styleTarget === StyleTarget.TextColor) {
-      // For text color, we might want null or a specific default? 
-      // Assuming null means inherit/default.
-       // Note: setTextColor expects string. We might need to check if store allows null.
-       // If store expects string, we cannot set null. 
-       // However, the request implies "Restore from layer" which usually means style override removal.
-       // For tools, "ByLayer" concept exists if we have "ByLayer" logic in tool creation.
-       // If the store `toolDefaults` types are string | null, then we can pass null.
-       // Looking at `useSettingsStore.ts`, they are likely string | null.
-       // BUT the toolActions signature in this file says `(color: string) => void`.
-       // I should probably cast to any or fix the type definition if I want to pass null.
-    } 
-    // Actually, looking at ColorRibbonControls:192: `toolDefaults.text.textColor` logic.
-    // If I can't check store types, I'll assume they support null if I change the type here.
-    
-    // Let's hold off on Tool mode "inherit" support if types don't allow it yet.
-    // The requirement says "Restaurar da camada" mainly for SELECTION/UI.
-    // "Deve haver indicador... Quando estiver 🔓... clicar para Restaurar da camada".
-    // This strongly implies Selection mode.
-    // But for Tool mode, if I have a custom color set, it overrides the layer. restore means go back to "ByLayer".
-    
-    // I will try to pass null effectively.
-    // Warning: existing type is `(color: string) => void`.
+      toolActions.setTextColor(null);
+    } else if (styleTarget === StyleTarget.TextBackground) {
+      toolActions.setTextBackgroundColor(null);
+      toolActions.setTextBackgroundEnabled(true);
+    } else if (styleTarget === StyleTarget.Stroke) {
+      toolActions.setStrokeColor(null);
+    } else if (styleTarget === StyleTarget.Fill) {
+      toolActions.setFillColor(null);
+      toolActions.setFillEnabled(true);
+    }
+    return;
   }
+
+  // Mode 'none': no action - ribbon controls should be disabled
+};
+
+/**
+ * Apply color directly to a layer.
+ * This function is intended ONLY for the Layer Manager UI, where direct layer editing is expected.
+ * The Ribbon CORES section should NEVER use this function - it should use applyColorAction instead.
+ */
+export const applyLayerColorAction = ({
+  runtime,
+  layerId,
+  target,
+  color,
+}: {
+  runtime: EngineRuntime | null;
+  layerId: number;
+  target: ColorControlTarget;
+  color: string;
+}): void => {
+  const colorRGBA = packCssColor(color);
+  if (colorRGBA === null || !runtime) return;
+
+  const styleTarget = target === 'stroke' ? StyleTarget.Stroke : StyleTarget.Fill;
+  runtime.apply([
+    {
+      op: CommandOp.SetLayerStyle,
+      id: layerId,
+      style: { target: styleTarget, colorRGBA },
+    },
+  ]);
 };
