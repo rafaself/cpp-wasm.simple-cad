@@ -107,6 +107,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("getSnapOverlayMeta", &CadEngine::getSnapOverlayMeta)
         .function("getEntityAabb", &CadEngine::getEntityAabb)
         .function("getSelectionBounds", &CadEngine::getSelectionBounds)
+        .function("getEntityTransform", &CadEngine::getEntityTransform)
+        .function("setEntityPosition", &CadEngine::setEntityPosition)
+        .function("setEntitySize", &CadEngine::setEntitySize)
+        .function("setEntityRotation", &CadEngine::setEntityRotation)
+        .function("setEntityLength", &CadEngine::setEntityLength)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("getLayerStyle", &CadEngine::getLayerStyle)
@@ -336,6 +341,15 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("maxX", &CadEngine::EntityAabb::maxX)
         .field("maxY", &CadEngine::EntityAabb::maxY)
         .field("valid", &CadEngine::EntityAabb::valid);
+
+    emscripten::value_object<CadEngine::EntityTransform>("EntityTransform")
+        .field("posX", &CadEngine::EntityTransform::posX)
+        .field("posY", &CadEngine::EntityTransform::posY)
+        .field("width", &CadEngine::EntityTransform::width)
+        .field("height", &CadEngine::EntityTransform::height)
+        .field("rotationDeg", &CadEngine::EntityTransform::rotationDeg)
+        .field("hasRotation", &CadEngine::EntityTransform::hasRotation)
+        .field("valid", &CadEngine::EntityTransform::valid);
 
     emscripten::value_object<DraftDimensions>("DraftDimensions")
         .field("minX", &DraftDimensions::minX)

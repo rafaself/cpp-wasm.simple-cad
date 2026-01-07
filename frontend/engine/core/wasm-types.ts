@@ -6,6 +6,7 @@ import type {
   EventBufferMeta,
   OverlayBufferMeta,
   EntityAabb,
+  EntityTransform,
   HistoryMeta,
   EngineStats,
   LayerStyleSnapshot,
@@ -92,6 +93,11 @@ export type CadEngineInstance = {
   getSnapOverlayMeta?: () => OverlayBufferMeta;
   getEntityAabb?: (entityId: EntityId) => EntityAabb;
   getSelectionBounds?: () => EntityAabb;
+  getEntityTransform?: (entityId: EntityId) => EntityTransform;
+  setEntityPosition?: (entityId: EntityId, x: number, y: number) => void;
+  setEntitySize?: (entityId: EntityId, width: number, height: number) => void;
+  setEntityRotation?: (entityId: EntityId, rotationDeg: number) => void;
+  setEntityLength?: (entityId: EntityId, length: number) => void;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   getLayerStyle?: (layerId: number) => LayerStyleSnapshot;

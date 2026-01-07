@@ -246,6 +246,16 @@ export type EntityAabb = {
   valid: number;
 };
 
+export type EntityTransform = {
+  posX: number;
+  posY: number;
+  width: number;
+  height: number;
+  rotationDeg: number;
+  hasRotation: number;
+  valid: number;
+};
+
 // Layout constants for OverlayPrimitive to ensure decoder matches ABI hash
 export const OVERLAY_PRIMITIVE_LAYOUT = {
   size: 12,
@@ -505,6 +515,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x53000022, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000023, 20, [0, 4, 8, 12, 16]);
+
+  h = hashStruct(h, 0x53000026, 28, [0, 4, 8, 12, 16, 20, 24]);
 
   h = hashStruct(h, 0x53000024, 12, [0, 4, 8]);
 

@@ -134,6 +134,13 @@ public:
     EntityAabb getEntityAabb(std::uint32_t entityId) const;
     EntityAabb getSelectionBounds() const;
 
+    // Entity transform queries and mutations (for inspector panel)
+    EntityTransform getEntityTransform(std::uint32_t entityId) const;
+    void setEntityPosition(std::uint32_t entityId, float x, float y);
+    void setEntitySize(std::uint32_t entityId, float width, float height);
+    void setEntityRotation(std::uint32_t entityId, float rotationDeg);
+    void setEntityLength(std::uint32_t entityId, float length);
+
     EngineStats getStats() const noexcept;
 
     // picking

@@ -10,6 +10,15 @@
 namespace {
     constexpr float kPi = 3.14159265358979323846f;
     constexpr float kTwoPi = 2.0f * kPi;
+    constexpr float kRadToDeg = 180.0f / kPi;
+    constexpr float kDegToRad = kPi / 180.0f;
+
+    // Normalize angle to -180..180 degrees
+    inline float normalizeAngleDeg(float deg) {
+        while (deg > 180.0f) deg -= 360.0f;
+        while (deg < -180.0f) deg += 360.0f;
+        return deg;
+    }
 
     inline bool aabbIntersects(const AABB& a, const AABB& b) {
         if (a.maxX < b.minX) return false;
@@ -307,6 +316,365 @@ CadEngine::EntityAabb CadEngine::getSelectionBounds() const {
 
     if (!has) return EntityAabb{0, 0, 0, 0, 0};
     return EntityAabb{minX, minY, maxX, maxY, 1};
+}
+
+CadEngine::EntityTransform CadEngine::getEntityTransform(std::uint32_t entityId) const {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) {
+        return EntityTransform{0, 0, 0, 0, 0, 0, 0};
+    }
+
+    // Get AABB for center position calculation
+    const EntityAabb aabb = getEntityAabb(entityId);
+    if (!aabb.valid) {
+        return EntityTransform{0, 0, 0, 0, 0, 0, 0};
+    }
+
+    // Calculate center of AABB
+    const float centerX = (aabb.minX + aabb.maxX) * 0.5f;
+    const float centerY = (aabb.minY + aabb.maxY) * 0.5f;
+
+    switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            const RectRec& r = entityManager_.rects[it->second.index];
+            // Rect has no rotation support (yet), local size = w, h
+            return EntityTransform{centerX, centerY, r.w, r.h, 0.0f, 0, 1};
+        }
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            const CircleRec& c = entityManager_.circles[it->second.index];
+            // Local size = diameter * scale (unrotated dimensions)
+            const float width = std::abs(c.rx * 2.0f * c.sx);
+            const float height = std::abs(c.ry * 2.0f * c.sy);
+            const float rotDeg = normalizeAngleDeg(c.rot * kRadToDeg);
+            return EntityTransform{centerX, centerY, width, height, rotDeg, 1, 1};
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            const PolygonRec& p = entityManager_.polygons[it->second.index];
+            // Local size = diameter * scale (unrotated dimensions)
+            const float width = std::abs(p.rx * 2.0f * p.sx);
+            const float height = std::abs(p.ry * 2.0f * p.sy);
+            const float rotDeg = normalizeAngleDeg(p.rot * kRadToDeg);
+            return EntityTransform{centerX, centerY, width, height, rotDeg, 1, 1};
+        }
+        case EntityKind::Line: {
+            if (it->second.index >= entityManager_.lines.size()) break;
+            const LineRec& l = entityManager_.lines[it->second.index];
+            // For lines, return length in width field and height=0
+            const float dx = l.x1 - l.x0;
+            const float dy = l.y1 - l.y0;
+            const float length = std::sqrt(dx * dx + dy * dy);
+            return EntityTransform{centerX, centerY, length, 0.0f, 0.0f, 0, 1};
+        }
+        case EntityKind::Polyline: {
+            if (it->second.index >= entityManager_.polylines.size()) break;
+            // Polylines don't have rotation, use AABB dimensions
+            const float width = aabb.maxX - aabb.minX;
+            const float height = aabb.maxY - aabb.minY;
+            return EntityTransform{centerX, centerY, width, height, 0.0f, 0, 1};
+        }
+        case EntityKind::Arrow: {
+            if (it->second.index >= entityManager_.arrows.size()) break;
+            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            // For arrows, return length in width field and height=0
+            const float dx = a.bx - a.ax;
+            const float dy = a.by - a.ay;
+            const float length = std::sqrt(dx * dx + dy * dy);
+            return EntityTransform{centerX, centerY, length, 0.0f, 0.0f, 0, 1};
+        }
+        case EntityKind::Text: {
+            const TextRec* tr = textSystem_.store.getText(entityId);
+            if (!tr) break;
+            const float width = tr->maxX - tr->minX;
+            const float height = tr->maxY - tr->minY;
+            const float rotDeg = normalizeAngleDeg(tr->rotation * kRadToDeg);
+            return EntityTransform{centerX, centerY, width, height, rotDeg, 1, 1};
+        }
+        default:
+            break;
+    }
+
+    return EntityTransform{0, 0, 0, 0, 0, 0, 0};
+}
+
+void CadEngine::setEntityPosition(std::uint32_t entityId, float x, float y) {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return;
+
+    // Get current AABB center
+    const EntityAabb aabb = getEntityAabb(entityId);
+    if (!aabb.valid) return;
+
+    const float currentCenterX = (aabb.minX + aabb.maxX) * 0.5f;
+    const float currentCenterY = (aabb.minY + aabb.maxY) * 0.5f;
+    const float deltaX = x - currentCenterX;
+    const float deltaY = y - currentCenterY;
+
+    // Begin history entry for undo
+    beginHistoryEntry();
+
+    switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            RectRec& r = entityManager_.rects[it->second.index];
+            r.x += deltaX;
+            r.y += deltaY;
+            pickSystem_.update(entityId, PickSystem::computeRectAABB(r));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            CircleRec& c = entityManager_.circles[it->second.index];
+            c.cx += deltaX;
+            c.cy += deltaY;
+            pickSystem_.update(entityId, PickSystem::computeCircleAABB(c));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            PolygonRec& p = entityManager_.polygons[it->second.index];
+            p.cx += deltaX;
+            p.cy += deltaY;
+            pickSystem_.update(entityId, PickSystem::computePolygonAABB(p));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Line: {
+            if (it->second.index >= entityManager_.lines.size()) break;
+            LineRec& l = entityManager_.lines[it->second.index];
+            l.x0 += deltaX;
+            l.y0 += deltaY;
+            l.x1 += deltaX;
+            l.y1 += deltaY;
+            pickSystem_.update(entityId, PickSystem::computeLineAABB(l));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Polyline: {
+            if (it->second.index >= entityManager_.polylines.size()) break;
+            PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (pl.count < 1) break;
+            const std::uint32_t start = pl.offset;
+            const std::uint32_t end = std::min(start + pl.count, static_cast<std::uint32_t>(entityManager_.points.size()));
+            for (std::uint32_t i = start; i < end; ++i) {
+                entityManager_.points[i].x += deltaX;
+                entityManager_.points[i].y += deltaY;
+            }
+            pickSystem_.update(entityId, PickSystem::computePolylineAABB(pl, entityManager_.points));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Arrow: {
+            if (it->second.index >= entityManager_.arrows.size()) break;
+            ArrowRec& a = entityManager_.arrows[it->second.index];
+            a.ax += deltaX;
+            a.ay += deltaY;
+            a.bx += deltaX;
+            a.by += deltaY;
+            pickSystem_.update(entityId, PickSystem::computeArrowAABB(a));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Text: {
+            TextRec* tr = textSystem_.store.getTextMutable(entityId);
+            if (!tr) break;
+            tr->x += deltaX;
+            tr->y += deltaY;
+            tr->minX += deltaX;
+            tr->minY += deltaY;
+            tr->maxX += deltaX;
+            tr->maxY += deltaY;
+            pickSystem_.update(entityId, {tr->minX, tr->minY, tr->maxX, tr->maxY});
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        default:
+            discardHistoryEntry();
+            return;
+    }
+
+    commitHistoryEntry();
+    generation++;
+    rebuildRenderBuffers();
+}
+
+void CadEngine::setEntitySize(std::uint32_t entityId, float width, float height) {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return;
+
+    // Clamp minimum size
+    const float minSize = 1.0f;
+    width = std::max(width, minSize);
+    height = std::max(height, minSize);
+
+    // Begin history entry for undo
+    beginHistoryEntry();
+
+    switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            RectRec& r = entityManager_.rects[it->second.index];
+            // Calculate center before resize
+            const float centerX = r.x + r.w * 0.5f;
+            const float centerY = r.y + r.h * 0.5f;
+            // Update size, keeping center fixed
+            r.w = width;
+            r.h = height;
+            r.x = centerX - width * 0.5f;
+            r.y = centerY - height * 0.5f;
+            pickSystem_.update(entityId, PickSystem::computeRectAABB(r));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            CircleRec& c = entityManager_.circles[it->second.index];
+            // For circles: width = rx * 2 * sx, height = ry * 2 * sy
+            // Keep rx/ry as base radii, adjust sx/sy
+            if (c.rx > 0.0f) c.sx = width / (c.rx * 2.0f);
+            if (c.ry > 0.0f) c.sy = height / (c.ry * 2.0f);
+            pickSystem_.update(entityId, PickSystem::computeCircleAABB(c));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            PolygonRec& p = entityManager_.polygons[it->second.index];
+            // For polygons: similar to circles
+            if (p.rx > 0.0f) p.sx = width / (p.rx * 2.0f);
+            if (p.ry > 0.0f) p.sy = height / (p.ry * 2.0f);
+            pickSystem_.update(entityId, PickSystem::computePolygonAABB(p));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        // Line, Polyline, Arrow, Text: resizing not supported via this API
+        // They would require complex point recalculation
+        default:
+            discardHistoryEntry();
+            return;
+    }
+
+    commitHistoryEntry();
+    generation++;
+    rebuildRenderBuffers();
+}
+
+void CadEngine::setEntityRotation(std::uint32_t entityId, float rotationDeg) {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return;
+
+    // Normalize rotation to -180..180
+    rotationDeg = normalizeAngleDeg(rotationDeg);
+    const float rotationRad = rotationDeg * kDegToRad;
+
+    // Begin history entry for undo
+    beginHistoryEntry();
+
+    switch (it->second.kind) {
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            CircleRec& c = entityManager_.circles[it->second.index];
+            c.rot = rotationRad;
+            pickSystem_.update(entityId, PickSystem::computeCircleAABB(c));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            PolygonRec& p = entityManager_.polygons[it->second.index];
+            p.rot = rotationRad;
+            pickSystem_.update(entityId, PickSystem::computePolygonAABB(p));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Text: {
+            TextRec* tr = textSystem_.store.getTextMutable(entityId);
+            if (!tr) break;
+            tr->rotation = rotationRad;
+            // Note: Text bounds don't change with rotation in current implementation
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        // Rect, Line, Polyline, Arrow: rotation not supported
+        default:
+            discardHistoryEntry();
+            return;
+    }
+
+    commitHistoryEntry();
+    generation++;
+    rebuildRenderBuffers();
+}
+
+void CadEngine::setEntityLength(std::uint32_t entityId, float length) {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return;
+
+    // Clamp minimum length
+    const float minLength = 1.0f;
+    length = std::max(length, minLength);
+
+    // Begin history entry for undo
+    beginHistoryEntry();
+
+    switch (it->second.kind) {
+        case EntityKind::Line: {
+            if (it->second.index >= entityManager_.lines.size()) break;
+            LineRec& l = entityManager_.lines[it->second.index];
+
+            // Calculate current center and angle
+            const float centerX = (l.x0 + l.x1) * 0.5f;
+            const float centerY = (l.y0 + l.y1) * 0.5f;
+            const float dx = l.x1 - l.x0;
+            const float dy = l.y1 - l.y0;
+            const float angle = std::atan2(dy, dx);
+
+            // Calculate new endpoints with new length, keeping center and angle
+            const float halfLength = length * 0.5f;
+            l.x0 = centerX - halfLength * std::cos(angle);
+            l.y0 = centerY - halfLength * std::sin(angle);
+            l.x1 = centerX + halfLength * std::cos(angle);
+            l.y1 = centerY + halfLength * std::sin(angle);
+
+            pickSystem_.update(entityId, PickSystem::computeLineAABB(l));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Arrow: {
+            if (it->second.index >= entityManager_.arrows.size()) break;
+            ArrowRec& a = entityManager_.arrows[it->second.index];
+
+            // Calculate current center and angle
+            const float centerX = (a.ax + a.bx) * 0.5f;
+            const float centerY = (a.ay + a.by) * 0.5f;
+            const float dx = a.bx - a.ax;
+            const float dy = a.by - a.ay;
+            const float angle = std::atan2(dy, dx);
+
+            // Calculate new endpoints with new length, keeping center and angle
+            const float halfLength = length * 0.5f;
+            a.ax = centerX - halfLength * std::cos(angle);
+            a.ay = centerY - halfLength * std::sin(angle);
+            a.bx = centerX + halfLength * std::cos(angle);
+            a.by = centerY + halfLength * std::sin(angle);
+
+            pickSystem_.update(entityId, PickSystem::computeArrowAABB(a));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        // Other entity types don't support length
+        default:
+            discardHistoryEntry();
+            return;
+    }
+
+    commitHistoryEntry();
+    generation++;
+    rebuildRenderBuffers();
 }
 
 #include "engine/internal/engine_state_aliases_undef.h"

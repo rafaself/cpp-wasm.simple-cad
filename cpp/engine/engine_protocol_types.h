@@ -49,6 +49,7 @@ struct EngineProtocolTypes {
     using OverlayPrimitive = engine::protocol::OverlayPrimitive;
     using OverlayBufferMeta = engine::protocol::OverlayBufferMeta;
     using EntityAabb = engine::protocol::EntityAabb;
+    using EntityTransform = engine::protocol::EntityTransform;
     using EngineStats = engine::protocol::EngineStats;
     using TransformLogEvent = engine::protocol::TransformLogEvent;
     using TransformLogEntry = engine::protocol::TransformLogEntry;
@@ -666,6 +667,16 @@ protected:
             static_cast<std::uint32_t>(offsetof(EntityAabb, maxX)),
             static_cast<std::uint32_t>(offsetof(EntityAabb, maxY)),
             static_cast<std::uint32_t>(offsetof(EntityAabb, valid)),
+        });
+
+        h = hashStruct(h, 0x53000026u, sizeof(EntityTransform), {
+            static_cast<std::uint32_t>(offsetof(EntityTransform, posX)),
+            static_cast<std::uint32_t>(offsetof(EntityTransform, posY)),
+            static_cast<std::uint32_t>(offsetof(EntityTransform, width)),
+            static_cast<std::uint32_t>(offsetof(EntityTransform, height)),
+            static_cast<std::uint32_t>(offsetof(EntityTransform, rotationDeg)),
+            static_cast<std::uint32_t>(offsetof(EntityTransform, hasRotation)),
+            static_cast<std::uint32_t>(offsetof(EntityTransform, valid)),
         });
 
         h = hashStruct(h, 0x53000024u, sizeof(HistoryMeta), {

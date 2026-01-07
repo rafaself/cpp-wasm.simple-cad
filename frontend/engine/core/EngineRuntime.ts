@@ -15,6 +15,7 @@ import {
   type EngineEvent,
   type OverlayBufferMeta,
   type EntityAabb,
+  type EntityTransform,
   type HistoryMeta,
 } from '@/engine/core/protocol';
 
@@ -423,6 +424,27 @@ export class EngineRuntime {
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {
     return this.transformSystem.getSnappedPoint(x, y);
+  }
+
+  // --- Transform Query/Mutation (for inspector panel) ---
+  public getEntityTransform(entityId: EntityId): EntityTransform {
+    return this.transformSystem.getEntityTransform(entityId);
+  }
+
+  public setEntityPosition(entityId: EntityId, x: number, y: number): void {
+    this.transformSystem.setEntityPosition(entityId, x, y);
+  }
+
+  public setEntitySize(entityId: EntityId, width: number, height: number): void {
+    this.transformSystem.setEntitySize(entityId, width, height);
+  }
+
+  public setEntityRotation(entityId: EntityId, rotationDeg: number): void {
+    this.transformSystem.setEntityRotation(entityId, rotationDeg);
+  }
+
+  public setEntityLength(entityId: EntityId, length: number): void {
+    this.transformSystem.setEntityLength(entityId, length);
   }
 
   // --- Render System ---

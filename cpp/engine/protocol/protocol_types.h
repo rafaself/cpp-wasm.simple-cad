@@ -295,6 +295,20 @@ struct EntityAabb {
 };
 
 // =============================================================================
+// Entity Transform (unified transform data for inspector panel)
+// =============================================================================
+
+struct EntityTransform {
+    float posX;           // Center of AABB (X coordinate)
+    float posY;           // Center of AABB (Y coordinate)
+    float width;          // Local object width (unrotated)
+    float height;         // Local object height (unrotated)
+    float rotationDeg;    // Rotation in degrees (-180 to 180), counterclockwise positive
+    std::uint32_t hasRotation;  // 1 if entity type supports rotation, 0 otherwise
+    std::uint32_t valid;        // 1 if entity exists, 0 otherwise
+};
+
+// =============================================================================
 // Engine Statistics
 // =============================================================================
 

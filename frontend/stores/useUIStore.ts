@@ -117,7 +117,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   activeTool: 'select',
   // ...
-  sidebarTab: 'edificacao',
+  sidebarTab: 'properties',
   viewTransform: { x: 0, y: 0, scale: 1 },
   mousePos: null,
   isMouseOverCanvas: false,

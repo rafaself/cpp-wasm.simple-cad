@@ -6,7 +6,9 @@
       "Bash(make ctest:*)",
       "Bash(npm run typecheck:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(grep:*)",
+      "Bash(cmake --build:*)"
     ]
   }
 }
