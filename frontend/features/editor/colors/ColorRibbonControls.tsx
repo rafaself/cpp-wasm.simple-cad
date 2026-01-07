@@ -1,6 +1,8 @@
+import { Eye, EyeOff, Link, Square } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
+import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import {
   StyleState,
   StyleTarget,
@@ -8,10 +10,9 @@ import {
   type SelectionStyleSummary,
   type StyleTargetSummary,
 } from '@/engine/core/protocol';
-import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
-import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
+import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { LABELS } from '@/i18n/labels';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -19,9 +20,15 @@ import * as DEFAULTS from '@/theme/defaults';
 import { unpackColorRGBA } from '@/types/text';
 import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 
-import { applyColorAction, applyEnabledAction, applyRestoreAction, type ColorControlTarget } from './applyColorAction';
-import { ColorStateBadge } from './ColorStateBadge';
-import { getStateIndicator } from './colorState';
+import { RibbonIconButton } from '../components/ribbon/RibbonIconButton';
+
+import {
+  applyColorAction,
+  applyEnabledAction,
+  applyRestoreAction,
+  type ColorControlTarget,
+} from './applyColorAction';
+import { formatInheritedTooltip } from './colorState';
 import { useColorTargetResolver } from './useColorTargetResolver';
 import { useSelectionStyleSummary } from './useSelectionStyleSummary';
 
@@ -34,6 +41,8 @@ type ResolvedControlState = {
   applyTargets: StyleTarget[];
 };
 
+const ICON_SIZE = 16;
+
 const packedToCssColor = (packed: number, fallback: string): string => {
   if (packed === 0) return fallback;
   const { r, g, b, a } = unpackColorRGBA(packed);
@@ -45,7 +54,6 @@ const resolveSelectionControl = (
   summary: SelectionStyleSummary,
   target: ColorControlTarget,
 ): { display: StyleTargetSummary; applyTargets: StyleTarget[] } => {
-  // Mixed selections (text + shapes) apply to all supported targets while showing Mixed state.
   const hasStroke = summary.stroke.supportedState !== TriState.Off;
   const hasFill = summary.fill.supportedState !== TriState.Off;
   const hasTextColor = summary.textColor.supportedState !== TriState.Off;
@@ -72,6 +80,7 @@ type ColorSwatchButtonProps = {
   showNone?: boolean;
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   title?: string;
+  state: StyleState;
 };
 
 const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
@@ -80,19 +89,29 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
   showNone,
   onClick,
   title,
+  state,
 }) => (
   <button
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.preventDefault()}
-    className={`relative w-7 h-full rounded border border-border/70 hover:border-primary/50 transition-colors ${
-      disabled ? 'opacity-50 cursor-not-allowed' : ''
+    className={`relative w-9 h-6 mx-1 rounded border transition-colors ${
+      disabled
+        ? 'opacity-50 cursor-not-allowed border-border/50'
+        : state === StyleState.Mixed
+          ? 'border-dashed border-primary/50'
+          : 'border-border/70 hover:border-primary/50'
     }`}
-    style={{ backgroundColor: color }}
+    style={state === StyleState.Mixed ? undefined : { backgroundColor: color }}
     title={title}
     aria-label={title}
     disabled={disabled}
   >
+    {state === StyleState.Mixed && (
+      <span className="absolute inset-0 flex items-center justify-center bg-surface2/50 text-[10px] font-medium text-text-muted">
+        ?
+      </span>
+    )}
     {showNone && (
       <span className="absolute inset-0 pointer-events-none">
         <span className="absolute inset-0 bg-gradient-to-br from-transparent via-red-500/70 to-transparent" />
@@ -101,58 +120,12 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
   </button>
 );
 
-const NoFillToggle: React.FC<{
-  enabled: boolean;
-  mixed: boolean;
-  disabled?: boolean;
-  onToggle: () => void;
-}> = ({ enabled, mixed, disabled, onToggle }) => {
-  // Logic: When "No Fill" is active, enabled is false.
-  const isNoFill = !enabled;
-  
-  // Styles for the chip
-  // Active (No Fill is ON): Visible accent color or clear state? 
-  // User asked for "small compact toggle".
-  // Let's make it look like a tag/chip.
-  // If "No Fill", it should be highlighted to indicate the state is "None".
-  
-  const baseClass = "ml-2 h-5 px-2 rounded-full text-[9px] font-bold uppercase tracking-wide transition-all border flex items-center cursor-pointer select-none";
-  let stateClass = "";
-  
-  if (disabled) {
-    stateClass = "opacity-40 border-border bg-surface1 text-text-muted cursor-not-allowed";
-  } else if (mixed) {
-    stateClass = "border-primary/30 bg-primary/10 text-primary";
-  } else if (isNoFill) {
-    // Active state: The "No Fill" mode is ON.
-    stateClass = "border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500/20";
-  } else {
-    // Inactive state: Fill is ON. Button is just a toggler.
-    stateClass = "border-border bg-transparent text-text-muted hover:text-text hover:bg-surface2 hover:border-text-muted/50";
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      onMouseDown={(e) => e.preventDefault()}
-      className={`${baseClass} ${stateClass}`}
-      aria-pressed={isNoFill}
-      disabled={disabled}
-      title={LABELS.colors.noFill}
-    >
-      {LABELS.colors.noFill}
-    </button>
-  );
-};
-
 export const ColorRibbonControls: React.FC = () => {
   const runtime = useEngineRuntime();
   const selectionSummary = useSelectionStyleSummary();
   const selectionIds = useEngineSelectionIds();
   const { mode, toolKind } = useColorTargetResolver(selectionSummary.selectionCount);
   const activeLayerId = useUIStore((s) => s.activeLayerId);
-  const layers = useEngineLayers();
   const styleGeneration = useDocumentSignal('style');
 
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
@@ -182,9 +155,11 @@ export const ColorRibbonControls: React.FC = () => {
     ],
   );
 
-  const layerNameById = useMemo(() => new Map(layers.map((layer) => [layer.id, layer.name])), [
-    layers,
-  ]);
+  const layers = useEngineLayers();
+  const layerNameById = useMemo(
+    () => new Map(layers.map((layer) => [layer.id, layer.name])),
+    [layers],
+  );
 
   const layerStyle = useMemo(() => {
     void styleGeneration;
@@ -206,8 +181,7 @@ export const ColorRibbonControls: React.FC = () => {
     }
 
     if (mode === 'tool') {
-      const color =
-        toolKind === 'text' ? toolDefaults.text.textColor : toolDefaults.strokeColor;
+      const color = toolKind === 'text' ? toolDefaults.text.textColor : toolDefaults.strokeColor;
       return {
         color: color ?? DEFAULTS.DEFAULT_STROKE_COLOR,
         state: StyleState.Override,
@@ -246,13 +220,9 @@ export const ColorRibbonControls: React.FC = () => {
 
     if (mode === 'tool') {
       const color =
-        toolKind === 'text'
-          ? toolDefaults.text.textBackgroundColor
-          : toolDefaults.fillColor;
+        toolKind === 'text' ? toolDefaults.text.textBackgroundColor : toolDefaults.fillColor;
       const enabled =
-        toolKind === 'text'
-          ? toolDefaults.text.textBackgroundEnabled
-          : toolDefaults.fillEnabled;
+        toolKind === 'text' ? toolDefaults.text.textBackgroundEnabled : toolDefaults.fillEnabled;
       return {
         color: color ?? DEFAULTS.DEFAULT_FILL_COLOR,
         state: enabled ? StyleState.Override : StyleState.None,
@@ -307,6 +277,22 @@ export const ColorRibbonControls: React.FC = () => {
     });
   };
 
+  const handleToggleStroke = () => {
+    const isEnabled = strokeState.enabledState === TriState.On;
+    const nextEnabled = strokeState.enabledState === TriState.Mixed ? true : !isEnabled;
+    applyEnabledAction({
+      runtime,
+      mode,
+      toolKind,
+      activeLayerId,
+      selectionIds,
+      selectionTargets: strokeState.applyTargets,
+      target: 'stroke',
+      enabled: nextEnabled,
+      toolActions,
+    });
+  };
+
   const handleToggleFill = () => {
     const isEnabled = fillState.enabledState === TriState.On;
     const nextEnabled = fillState.enabledState === TriState.Mixed ? true : !isEnabled;
@@ -332,59 +318,109 @@ export const ColorRibbonControls: React.FC = () => {
       selectionIds,
       selectionTargets: target === 'stroke' ? strokeState.applyTargets : fillState.applyTargets,
       target,
-      toolActions
+      toolActions,
     });
   };
 
-  const strokeIndicator =
-    mode === 'selection'
-      ? getStateIndicator(strokeState.state, layerNameById.get(strokeState.layerId))
-      : null;
-  const fillIndicator =
-    mode === 'selection'
-      ? getStateIndicator(fillState.state, layerNameById.get(fillState.layerId))
-      : null;
+  const strokeMixed =
+    strokeState.state === StyleState.Mixed || strokeState.enabledState === TriState.Mixed;
+  const strokeEnabled = strokeState.enabledState === TriState.On;
+  const noStroke = !strokeEnabled && !strokeMixed;
 
-  const fillMixed = fillState.state === StyleState.Mixed || fillState.enabledState === TriState.Mixed;
+  const fillMixed =
+    fillState.state === StyleState.Mixed || fillState.enabledState === TriState.Mixed;
   const fillEnabled = fillState.enabledState === TriState.On;
+  const noFill = !fillEnabled && !fillMixed;
+
+  const isStrokeOverride =
+    strokeState.state === StyleState.Override || strokeState.state === StyleState.Mixed;
+  const isFillOverride =
+    fillState.state === StyleState.Override || fillState.state === StyleState.Mixed;
+
+  const strokeTooltip = noStroke
+    ? 'Sem traço'
+    : strokeState.state === StyleState.Layer
+      ? formatInheritedTooltip(layerNameById.get(strokeState.layerId) || 'Desconhecida')
+      : LABELS.colors.overrideTooltip;
+
+  const fillTooltip = noFill
+    ? LABELS.colors.noneTooltip
+    : fillState.state === StyleState.Layer
+      ? formatInheritedTooltip(layerNameById.get(fillState.layerId) || 'Desconhecida')
+      : LABELS.colors.overrideTooltip;
 
   return (
-    <div className="ribbon-group-col px-1 min-w-[210px]">
-      <div className="ribbon-row items-center h-7">
-        <div className="flex items-center gap-2 w-[100px] shrink-0">
-          <span className="text-[11px] text-text-muted font-semibold">{LABELS.colors.stroke}</span>
-          <ColorStateBadge 
-            indicator={strokeIndicator} 
-            onRestore={() => handleRestore('stroke')}
+    <div className="ribbon-group-col min-w-[140px] px-1">
+      {/* Stroke Row */}
+      <div className="ribbon-row h-7 items-center justify-between">
+        <div className="flex items-center">
+          <div className="flex w-5 justify-center text-text-muted" title={LABELS.colors.stroke}>
+            <Square size={ICON_SIZE} />
+          </div>
+          <ColorSwatchButton
+            color={strokeState.color}
+            onClick={(event) => openColorPicker(event, 'stroke')}
+            disabled={strokeState.supportedState === TriState.Off}
+            state={strokeState.state}
+            title={strokeTooltip}
+            showNone={noStroke}
           />
         </div>
-        <ColorSwatchButton
-          color={strokeState.color}
-          onClick={(event) => openColorPicker(event, 'stroke')}
-          disabled={strokeState.supportedState === TriState.Off}
-        />
+        <div className="flex gap-0.5">
+          <RibbonIconButton
+            icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+            onClick={handleToggleStroke}
+            title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
+            isActive={noStroke}
+            variant={noStroke ? 'danger' : 'default'}
+            size="sm"
+            disabled={strokeState.supportedState === TriState.Off}
+          />
+          <RibbonIconButton
+            icon={<Link size={ICON_SIZE} />}
+            onClick={() => handleRestore('stroke')}
+            title={formatInheritedTooltip(layerNameById.get(strokeState.layerId) || 'Desconhecida')}
+            size="sm"
+            disabled={!isStrokeOverride || strokeState.supportedState === TriState.Off}
+            className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
+          />
+        </div>
       </div>
-      <div className="ribbon-row items-center h-7 mt-0.5">
-        <div className="flex items-center gap-2 w-[100px] shrink-0">
-          <span className="text-[11px] text-text-muted font-semibold">{LABELS.colors.fill}</span>
-          <ColorStateBadge 
-            indicator={fillIndicator} 
-            onRestore={() => handleRestore('fill')}
+
+      {/* Fill Row */}
+      <div className="ribbon-row mt-0.5 h-7 items-center justify-between">
+        <div className="flex items-center">
+          <div className="flex w-5 justify-center text-text-muted" title={LABELS.colors.fill}>
+            <Square size={ICON_SIZE} fill="currentColor" />
+          </div>
+          <ColorSwatchButton
+            color={fillState.color}
+            onClick={(event) => openColorPicker(event, 'fill')}
+            disabled={fillState.supportedState === TriState.Off}
+            showNone={noFill}
+            title={fillTooltip}
+            state={fillState.state}
           />
         </div>
-        <ColorSwatchButton
-          color={fillState.color}
-          onClick={(event) => openColorPicker(event, 'fill')}
-          disabled={fillState.supportedState === TriState.Off}
-          showNone={!fillEnabled && !fillMixed}
-          title={!fillEnabled ? LABELS.colors.noneTooltip : undefined}
-        />
-        <NoFillToggle
-          enabled={fillEnabled}
-          mixed={fillMixed}
-          disabled={fillState.supportedState === TriState.Off}
-          onToggle={handleToggleFill}
-        />
+        <div className="flex gap-0.5">
+          <RibbonIconButton
+            icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+            onClick={handleToggleFill}
+            title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
+            isActive={noFill}
+            variant={noFill ? 'danger' : 'default'}
+            size="sm"
+            disabled={fillState.supportedState === TriState.Off}
+          />
+          <RibbonIconButton
+            icon={<Link size={ICON_SIZE} />}
+            onClick={() => handleRestore('fill')}
+            title={formatInheritedTooltip(layerNameById.get(fillState.layerId) || 'Desconhecida')}
+            size="sm"
+            disabled={!isFillOverride || fillState.supportedState === TriState.Off}
+            className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
+          />
+        </div>
       </div>
 
       {activePicker && (
