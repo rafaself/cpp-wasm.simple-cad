@@ -8,7 +8,9 @@
       "Bash(npm run lint:*)",
       "Bash(npx prettier:*)",
       "Bash(grep:*)",
-      "Bash(cmake --build:*)"
+      "Bash(cmake --build:*)",
+      "Bash(find:*)",
+      "Bash(pnpm run build:wasm:*)"
     ]
   }
 }

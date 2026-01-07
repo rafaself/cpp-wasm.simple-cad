@@ -40,12 +40,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .value("Move", CadEngine::TransformMode::Move)
         .value("VertexDrag", CadEngine::TransformMode::VertexDrag)
         .value("EdgeDrag", CadEngine::TransformMode::EdgeDrag)
-        .value("Resize", CadEngine::TransformMode::Resize);
+        .value("Resize", CadEngine::TransformMode::Resize)
+        .value("Rotate", CadEngine::TransformMode::Rotate);
 
     emscripten::enum_<CadEngine::TransformOpCode>("TransformOpCode")
         .value("MOVE", CadEngine::TransformOpCode::MOVE)
         .value("VERTEX_SET", CadEngine::TransformOpCode::VERTEX_SET)
-        .value("RESIZE", CadEngine::TransformOpCode::RESIZE);
+        .value("RESIZE", CadEngine::TransformOpCode::RESIZE)
+        .value("ROTATE", CadEngine::TransformOpCode::ROTATE);
 
     emscripten::enum_<CadEngine::SelectionMode>("SelectionMode")
         .value("Replace", CadEngine::SelectionMode::Replace)

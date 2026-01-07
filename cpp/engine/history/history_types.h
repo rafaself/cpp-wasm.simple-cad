@@ -14,6 +14,7 @@ struct TransformSnapshot {
     float y;
     float w;
     float h;
+    float rotation;  // Rotation in radians (for Circle, Polygon, Text)
     std::vector<Point2> points;
 };
 
