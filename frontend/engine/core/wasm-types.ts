@@ -8,6 +8,8 @@ import type {
   EntityAabb,
   HistoryMeta,
   EngineStats,
+  LayerStyleSnapshot,
+  SelectionStyleSummary,
 } from './protocol';
 import type { PickResult } from '@/types/picking';
 import type {
@@ -92,6 +94,7 @@ export type CadEngineInstance = {
   getSelectionBounds?: () => EntityAabb;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
+  getLayerStyle?: (layerId: number) => LayerStyleSnapshot;
   setLayerProps?: (layerId: number, propsMask: number, flagsValue: number, name: string) => void;
   deleteLayer?: (layerId: number) => boolean;
   getEntityFlags?: (entityId: EntityId) => number;
@@ -100,6 +103,7 @@ export type CadEngineInstance = {
   getEntityLayer?: (entityId: EntityId) => number;
   getSelectionIds?: () => WasmU32Vector;
   getSelectionGeneration?: () => number;
+  getSelectionStyleSummary?: () => SelectionStyleSummary;
   clearSelection?: () => void;
   setSelection?: (idsPtr: number, idCount: number, mode: number) => void;
   selectByPick?: (pick: PickResult, modifiers: number) => void;

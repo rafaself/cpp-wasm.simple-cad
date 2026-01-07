@@ -95,7 +95,7 @@ export class DraftSystem {
   private writeStaticHeader(view: DataView, op: CommandOp): void {
     let o = 0;
     o = this.writeU32(view, o, COMMAND_BUFFER_MAGIC);
-    o = this.writeU32(view, o, 2); // version
+    o = this.writeU32(view, o, 3); // version (fixed, no backward compat)
     o = this.writeU32(view, o, 1); // command count
     o = this.writeU32(view, o, 0); // reserved
 

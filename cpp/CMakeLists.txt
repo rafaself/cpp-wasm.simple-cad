@@ -109,6 +109,7 @@ set(ENGINE_SOURCES
   # Implementation (CadEngine method implementations)
   engine/impl/engine_upsert.cpp
   engine/impl/engine_digest.cpp
+  engine/impl/engine_style.cpp
   engine/impl/engine_query.cpp
   engine/impl/engine_overlay.cpp
   engine/impl/engine_text.cpp
@@ -215,6 +216,7 @@ if(NOT EMSCRIPTEN)
     tests/overlay_query_test.cpp
     tests/interactive_transform_perf_test.cpp
     tests/history_test.cpp
+    tests/style_system_test.cpp
   )
   
   # Add text tests if enabled

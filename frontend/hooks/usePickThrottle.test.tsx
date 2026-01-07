@@ -34,7 +34,7 @@ describe('Hooks', () => {
   beforeEach(() => {
     mockRuntime = createMockRuntime();
     useSettingsStore.setState({
-      featureFlags: { enablePickThrottling: true },
+      featureFlags: { enablePickThrottling: true, enableColorsRibbon: false },
       performance: { pickThrottleInterval: 16 },
     } as any);
   });
@@ -50,7 +50,9 @@ describe('Hooks', () => {
     });
 
     it('should call generic pickEx when disabled', () => {
-      useSettingsStore.setState({ featureFlags: { enablePickThrottling: false } } as any);
+      useSettingsStore.setState(
+        { featureFlags: { enablePickThrottling: false, enableColorsRibbon: false } } as any,
+      );
 
       const { result } = renderHook(() => usePickThrottle(mockRuntime));
 

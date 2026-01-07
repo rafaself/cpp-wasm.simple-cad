@@ -36,6 +36,7 @@ TEST(RenderTest, SimpleBuffers) {
         linev,
         nullptr,
         nullptr,
+        nullptr,
         nullptr
     );
 
@@ -77,6 +78,7 @@ TEST(RenderTest, LineStrokeScalesWithViewScale) {
             viewScale,
             tri,
             linev,
+            nullptr,
             nullptr,
             nullptr,
             nullptr

@@ -5,8 +5,37 @@
 #include "engine/internal/engine_state_aliases.h"
 #include "engine/persistence/snapshot.h"
 #include "engine/core/string_utils.h"
+#include "engine/core/util.h"
 #include <unordered_set>
 #include <cmath>
+
+namespace {
+    LayerStyle toLayerStyle(const engine::protocol::LayerStyleSnapshot& snap) {
+        LayerStyle style{};
+        unpackColorRGBA(snap.strokeRGBA, style.stroke.color.r, style.stroke.color.g, style.stroke.color.b, style.stroke.color.a);
+        unpackColorRGBA(snap.fillRGBA, style.fill.color.r, style.fill.color.g, style.fill.color.b, style.fill.color.a);
+        unpackColorRGBA(snap.textColorRGBA, style.textColor.color.r, style.textColor.color.g, style.textColor.color.b, style.textColor.color.a);
+        unpackColorRGBA(snap.textBackgroundRGBA, style.textBackground.color.r, style.textBackground.color.g, style.textBackground.color.b, style.textBackground.color.a);
+        style.stroke.enabled = snap.strokeEnabled ? 1.0f : 0.0f;
+        style.fill.enabled = snap.fillEnabled ? 1.0f : 0.0f;
+        style.textColor.enabled = 1.0f;
+        style.textBackground.enabled = snap.textBackgroundEnabled ? 1.0f : 0.0f;
+        return style;
+    }
+
+    engine::protocol::LayerStyleSnapshot toLayerStyleSnapshot(const LayerStyle& style) {
+        engine::protocol::LayerStyleSnapshot snap{};
+        snap.strokeRGBA = packColorRGBA(style.stroke.color.r, style.stroke.color.g, style.stroke.color.b, style.stroke.color.a);
+        snap.fillRGBA = packColorRGBA(style.fill.color.r, style.fill.color.g, style.fill.color.b, style.fill.color.a);
+        snap.textColorRGBA = packColorRGBA(style.textColor.color.r, style.textColor.color.g, style.textColor.color.b, style.textColor.color.a);
+        snap.textBackgroundRGBA = packColorRGBA(style.textBackground.color.r, style.textBackground.color.g, style.textBackground.color.b, style.textBackground.color.a);
+        snap.strokeEnabled = style.stroke.enabled > 0.5f ? 1 : 0;
+        snap.fillEnabled = style.fill.enabled > 0.5f ? 1 : 0;
+        snap.textBackgroundEnabled = style.textBackground.enabled > 0.5f ? 1 : 0;
+        snap.reserved = 0;
+        return snap;
+    }
+}
 
 void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount) {
     clearError();
@@ -24,16 +53,19 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
 
     std::vector<LayerRecord> layerRecords;
     std::vector<std::string> layerNames;
+    std::vector<LayerStyle> layerStyles;
     layerRecords.reserve(sd.layers.size());
     layerNames.reserve(sd.layers.size());
+    layerStyles.reserve(sd.layers.size());
     std::uint32_t maxLayerId = 0;
     for (const auto& layer : sd.layers) {
         if (layer.id > maxLayerId) maxLayerId = layer.id;
         layerRecords.push_back(LayerRecord{layer.id, layer.order, layer.flags});
         layerNames.push_back(layer.name);
+        layerStyles.push_back(toLayerStyle(layer.style));
     }
     nextLayerId_ = maxLayerId + 1;
-    entityManager_.layerStore.loadSnapshot(layerRecords, layerNames);
+    entityManager_.layerStore.loadSnapshot(layerRecords, layerNames, layerStyles);
 
     entityManager_.points = sd.points;
 
@@ -64,6 +96,7 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     entityManager_.entities.clear();
     entityManager_.entityFlags.clear();
     entityManager_.entityLayers.clear();
+    entityManager_.styleOverrides.clear();
 
     for (std::uint32_t i = 0; i < entityManager_.rects.size(); ++i) {
         const auto& rec = sd.rects[i];
@@ -125,6 +158,22 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
             entityManager_.entityLayers[rec.id] = rec.layerId;
         }
         markTextQuadsDirty();
+    }
+
+    if (!sd.styleOverrides.empty()) {
+        for (const auto& snap : sd.styleOverrides) {
+            if (entityManager_.entities.find(snap.id) == entityManager_.entities.end()) {
+                continue;
+            }
+            EntityStyleOverrides entry{};
+            entry.colorMask = snap.colorMask;
+            entry.enabledMask = snap.enabledMask;
+            unpackColorRGBA(snap.textColorRGBA, entry.textColor.r, entry.textColor.g, entry.textColor.b, entry.textColor.a);
+            unpackColorRGBA(snap.textBackgroundRGBA, entry.textBackground.r, entry.textBackground.g, entry.textBackground.b, entry.textBackground.a);
+            entry.fillEnabled = snap.fillEnabled ? 1.0f : 0.0f;
+            entry.textBackgroundEnabled = snap.textBackgroundEnabled ? 1.0f : 0.0f;
+            entityManager_.styleOverrides.emplace(snap.id, entry);
+        }
     }
 
     entityManager_.drawOrderIds.clear();
@@ -768,6 +817,7 @@ void CadEngine::rebuildSnapshotBytes() const {
         snap.order = layer.order;
         snap.flags = layer.flags;
         snap.name = entityManager_.layerStore.getLayerName(layer.id);
+        snap.style = toLayerStyleSnapshot(entityManager_.layerStore.getLayerStyle(layer.id));
         sd.layers.push_back(std::move(snap));
     }
 
@@ -825,6 +875,25 @@ void CadEngine::rebuildSnapshotBytes() const {
 
     sd.nextId = nextEntityId_;
     sd.historyBytes = encodeHistoryBytes();
+
+    sd.styleOverrides.clear();
+    sd.styleOverrides.reserve(entityManager_.styleOverrides.size());
+    for (const auto& kv : entityManager_.styleOverrides) {
+        if (kv.first == DRAFT_ENTITY_ID) continue;
+        if (entityManager_.entities.find(kv.first) == entityManager_.entities.end()) continue;
+        const EntityStyleOverrides& overrides = kv.second;
+        if (overrides.colorMask == 0 && overrides.enabledMask == 0) continue;
+        engine::StyleOverrideSnapshot snap{};
+        snap.id = kv.first;
+        snap.colorMask = overrides.colorMask;
+        snap.enabledMask = overrides.enabledMask;
+        snap.reserved = 0;
+        snap.textColorRGBA = packColorRGBA(overrides.textColor.r, overrides.textColor.g, overrides.textColor.b, overrides.textColor.a);
+        snap.textBackgroundRGBA = packColorRGBA(overrides.textBackground.r, overrides.textBackground.g, overrides.textBackground.b, overrides.textBackground.a);
+        snap.fillEnabled = overrides.fillEnabled > 0.5f ? 1u : 0u;
+        snap.textBackgroundEnabled = overrides.textBackgroundEnabled > 0.5f ? 1u : 0u;
+        sd.styleOverrides.push_back(std::move(snap));
+    }
 
     snapshotBytes = engine::buildSnapshotBytes(sd);
     snapshotDirty = false;

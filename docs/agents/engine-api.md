@@ -119,7 +119,32 @@ runtime.getSelectionGeneration(): number
 
 ---
 
-## 6. Interactive Transform (Zero-Copy Pattern)
+## 6. Style System (Layer Defaults + Overrides)
+
+### Queries
+
+```typescript
+runtime.style.getLayerStyle(layerId): LayerStyleSnapshot
+runtime.style.getSelectionStyleSummary(): SelectionStyleSummary
+```
+
+### Commands
+
+```typescript
+runtime.apply([{ op: CommandOp.SetLayerStyle, id: layerId, style: { target, colorRGBA } }])
+runtime.apply([{ op: CommandOp.SetLayerStyleEnabled, id: layerId, style: { target, enabled } }])
+runtime.apply([{ op: CommandOp.SetEntityStyleOverride, style: { target, colorRGBA, ids } }])
+runtime.apply([{ op: CommandOp.ClearEntityStyleOverride, clear: { target, ids } }])
+runtime.apply([{ op: CommandOp.SetEntityStyleEnabled, enabled: { target, enabled, ids } }])
+```
+
+### StyleTarget
+
+- `Stroke`, `Fill`, `TextColor`, `TextBackground`
+
+---
+
+## 7. Interactive Transform (Zero-Copy Pattern)
 
 ### Protocol
 
@@ -166,7 +191,7 @@ interface CommitResult {
 
 ---
 
-## 7. Draft System (Ephemeral Entities)
+## 8. Draft System (Ephemeral Entities)
 
 > Shapes under construction during drag. Rendered by the same WebGL pipeline.
 
@@ -174,19 +199,18 @@ interface CommitResult {
 
 ```typescript
 // 1. Begin — start draft of a specific type
-runtime.beginDraft(entityType: EntityType, startX: number, startY: number): void
+runtime.apply([
+  { op: CommandOp.BeginDraft, draft: { kind: EntityKind.Rect, x, y, /* style */ } }
+]);
 
 // 2. Update — update draft geometry (each pointermove)
-runtime.updateDraft(currentX: number, currentY: number, modifiers: number): void
+runtime.apply([{ op: CommandOp.UpdateDraft, pos: { x, y, modifiers } }]);
 
 // 3. Commit — convert draft to permanent entity
-runtime.commitDraft(): EntityId
+runtime.apply([{ op: CommandOp.CommitDraft }]);
 
 // Or Cancel — discard draft
-runtime.cancelDraft(): void
-
-// Query state
-runtime.isDraftActive(): boolean
+runtime.apply([{ op: CommandOp.CancelDraft }]);
 ```
 
 ### Supported EntityTypes
@@ -203,7 +227,7 @@ runtime.isDraftActive(): boolean
 
 ---
 
-## 8. History (Undo/Redo)
+## 9. History (Undo/Redo)
 
 ```typescript
 runtime.undo(): void
@@ -223,7 +247,7 @@ interface HistoryMeta {
 
 ---
 
-## 9. Entity Queries
+## 10. Entity Queries
 
 ```typescript
 // Bounding box
@@ -237,7 +261,7 @@ runtime.getEngineStats(): EngineStats
 
 ---
 
-## 10. Snapping
+## 11. Snapping
 
 ```typescript
 // Configure
@@ -249,7 +273,7 @@ runtime.getSnappedPoint(x, y): { x: number, y: number }
 
 ---
 
-## 11. Serialization
+## 12. Serialization
 
 ```typescript
 // Export document
@@ -263,7 +287,7 @@ runtime.loadSnapshotBytes(bytes: Uint8Array): void
 
 ---
 
-## 12. Render Buffers
+## 13. Render Buffers
 
 ```typescript
 // Tessellated triangles
@@ -290,7 +314,7 @@ interface BufferMeta {
 
 ---
 
-## 13. Event Stream
+## 14. Event Stream
 
 ```typescript
 const { generation, events } = runtime.pollEvents(maxEvents);
@@ -318,7 +342,7 @@ interface EngineEvent {
 
 ---
 
-## 14. Text API
+## 15. Text API
 
 See `docs/agents/text-system.md` for complete documentation.
 
@@ -335,7 +359,7 @@ runtime.hitTestText(textId, localX, localY): TextHitResult
 
 ---
 
-## 15. Extensibility Points
+## 16. Extensibility Points
 
 ### Adding New Entity Type
 
@@ -356,7 +380,7 @@ runtime.hitTestText(textId, localX, localY): TextHitResult
 
 ---
 
-## 16. Performance Considerations
+## 17. Performance Considerations
 
 | Operation           | Complexity | Notes                           |
 | ------------------- | ---------- | ------------------------------- |

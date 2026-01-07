@@ -38,10 +38,12 @@ export interface DisplaySettings {
 }
 
 export interface ToolDefaults {
-  strokeColor: string;
+  /** Cor do traço. null = herdar da camada (ByLayer) */
+  strokeColor: string | null;
   strokeWidth: number;
   strokeEnabled: boolean;
-  fillColor: string;
+  /** Cor do preenchimento. null = herdar da camada (ByLayer) */
+  fillColor: string | null;
   fillEnabled: boolean;
   polygonSides: number;
   text: {
@@ -52,6 +54,11 @@ export interface ToolDefaults {
     italic: boolean;
     underline: boolean;
     strike: boolean;
+    /** Cor do texto. null = herdar da camada (ByLayer) */
+    textColor: string | null;
+    /** Cor do fundo do texto. null = herdar da camada (ByLayer) */
+    textBackgroundColor: string | null;
+    textBackgroundEnabled: boolean;
   };
 }
 
@@ -61,6 +68,7 @@ interface SettingsState {
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
   featureFlags: {
+    enableColorsRibbon: boolean;
     enableEngineResize: boolean;
     enablePickProfiling: boolean;
     enablePickThrottling: boolean;
@@ -97,10 +105,10 @@ interface SettingsState {
   setShowQuickAccess: (show: boolean) => void;
   setShowSidebarScrollIndicators: (show: boolean) => void;
 
-  setStrokeColor: (color: string) => void;
+  setStrokeColor: (color: string | null) => void;
   setStrokeWidth: (width: number) => void;
   setStrokeEnabled: (enabled: boolean) => void;
-  setFillColor: (color: string) => void;
+  setFillColor: (color: string | null) => void;
   setFillEnabled: (enabled: boolean) => void;
   setPolygonSides: (sides: number) => void;
 
@@ -111,6 +119,9 @@ interface SettingsState {
   setTextItalic: (italic: boolean) => void;
   setTextUnderline: (underline: boolean) => void;
   setTextStrike: (strike: boolean) => void;
+  setTextColor: (color: string | null) => void;
+  setTextBackgroundColor: (color: string | null) => void;
+  setTextBackgroundEnabled: (enabled: boolean) => void;
 
   setEngineResizeEnabled: (enabled: boolean) => void;
   setEngineCapabilitiesMask: (mask: number) => void;
@@ -170,9 +181,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       italic: false,
       underline: false,
       strike: false,
+      textColor: DEFAULTS.DEFAULT_STROKE_COLOR,
+      textBackgroundColor: DEFAULTS.DEFAULT_FILL_COLOR,
+      textBackgroundEnabled: false,
     },
   },
   featureFlags: {
+    enableColorsRibbon: true,
     enableEngineResize: false,
     enablePickProfiling: process.env.NODE_ENV !== 'production',
     enablePickThrottling: false,
@@ -331,6 +346,24 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTextStrike: (strike) =>
     set((state) => ({
       toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, strike } },
+    })),
+  setTextColor: (color) =>
+    set((state) => ({
+      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, textColor: color } },
+    })),
+  setTextBackgroundColor: (color) =>
+    set((state) => ({
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, textBackgroundColor: color },
+      },
+    })),
+  setTextBackgroundEnabled: (enabled) =>
+    set((state) => ({
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, textBackgroundEnabled: enabled },
+      },
     })),
   setEngineResizeEnabled: (enabled) =>
     set((state) => {

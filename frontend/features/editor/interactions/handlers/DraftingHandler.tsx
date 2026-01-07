@@ -22,8 +22,8 @@ interface DraftState {
 }
 
 interface ToolDefaults {
-  strokeColor?: string;
-  fillColor?: string;
+  strokeColor?: string | null;
+  fillColor?: string | null;
   fillEnabled?: boolean;
   strokeEnabled?: boolean;
   strokeWidth?: number;

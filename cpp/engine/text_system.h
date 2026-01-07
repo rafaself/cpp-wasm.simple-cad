@@ -25,6 +25,20 @@ public:
     mutable std::unordered_map<std::uint32_t, QuadCacheEntry> quadCache;
     mutable std::uint32_t quadCacheAtlasResetVersion{0};
 
+    struct ResolvedTextStyle {
+        float textR;
+        float textG;
+        float textB;
+        float textA;
+        float backgroundR;
+        float backgroundG;
+        float backgroundB;
+        float backgroundA;
+        float backgroundEnabled;
+    };
+
+    using ResolveTextStyleFn = std::function<bool(std::uint32_t, ResolvedTextStyle&)>;
+
     TextSystem();
 
     void initialize();
@@ -48,8 +62,8 @@ public:
     bool getBounds(std::uint32_t textId, float& minX, float& minY, float& maxX, float& maxY);
     
     // Rendering
-    void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible = {});
-    void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible, const std::vector<std::uint32_t>& drawOrder);
+    void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible = {}, const ResolveTextStyleFn& resolveStyle = {});
+    void rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible, const std::vector<std::uint32_t>& drawOrder, const ResolveTextStyleFn& resolveStyle = {});
     bool isAtlasDirty() const;
     void clearAtlasDirty();
 

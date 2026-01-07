@@ -23,6 +23,49 @@ struct LayerRecord {
     std::uint32_t flags;
 };
 
+enum class StyleTarget : std::uint8_t {
+    Stroke = 0,
+    Fill = 1,
+    TextColor = 2,
+    TextBackground = 3,
+};
+
+struct StyleColor {
+    float r{0.0f};
+    float g{0.0f};
+    float b{0.0f};
+    float a{1.0f};
+};
+
+struct StyleEntry {
+    StyleColor color{};
+    float enabled{1.0f};
+};
+
+struct LayerStyle {
+    StyleEntry stroke{};
+    StyleEntry fill{};
+    StyleEntry textColor{};
+    StyleEntry textBackground{};
+};
+
+struct EntityStyleOverrides {
+    std::uint8_t colorMask{0};
+    std::uint8_t enabledMask{0};
+    std::uint16_t reserved{0};
+    StyleColor textColor{};
+    StyleColor textBackground{};
+    float fillEnabled{1.0f};
+    float textBackgroundEnabled{0.0f};
+};
+
+struct ResolvedStyle {
+    StyleEntry stroke{};
+    StyleEntry fill{};
+    StyleEntry textColor{};
+    StyleEntry textBackground{};
+};
+
 class LayerStore {
 public:
     static constexpr std::uint32_t kDefaultLayerId = 1;
@@ -33,7 +76,13 @@ public:
     bool deleteLayer(std::uint32_t id);
     void setLayerFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value);
     void setLayerName(std::uint32_t id, const std::string& name);
-    void loadSnapshot(const std::vector<LayerRecord>& records, const std::vector<std::string>& names);
+    void setLayerStyleColor(std::uint32_t id, StyleTarget target, const StyleColor& color);
+    void setLayerStyleEnabled(std::uint32_t id, StyleTarget target, bool enabled);
+    LayerStyle getLayerStyle(std::uint32_t id) const;
+    void loadSnapshot(
+        const std::vector<LayerRecord>& records,
+        const std::vector<std::string>& names,
+        const std::vector<LayerStyle>& styles);
     std::uint32_t getLayerFlags(std::uint32_t id) const;
     std::string getLayerName(std::uint32_t id) const;
     std::vector<LayerRecord> snapshot() const;
@@ -43,6 +92,7 @@ public:
 private:
     std::unordered_map<std::uint32_t, LayerRecord> layers_;
     std::unordered_map<std::uint32_t, std::string> names_;
+    std::unordered_map<std::uint32_t, LayerStyle> styles_;
     std::vector<std::uint32_t> order_;
 };
 
@@ -72,6 +122,7 @@ public:
     // Entity metadata
     std::unordered_map<std::uint32_t, std::uint32_t> entityFlags;
     std::unordered_map<std::uint32_t, std::uint32_t> entityLayers;
+    std::unordered_map<std::uint32_t, EntityStyleOverrides> styleOverrides;
 
     EntityManager();
 
@@ -101,6 +152,10 @@ public:
     void ensureEntityMetadata(std::uint32_t id);
     void setEntityLayer(std::uint32_t id, std::uint32_t layerId);
     std::uint32_t getEntityLayer(std::uint32_t id) const;
+    EntityStyleOverrides* getEntityStyleOverrides(std::uint32_t id);
+    const EntityStyleOverrides* getEntityStyleOverrides(std::uint32_t id) const;
+    EntityStyleOverrides& ensureEntityStyleOverrides(std::uint32_t id);
+    void clearEntityStyleOverrides(std::uint32_t id);
     void setEntityFlags(std::uint32_t id, std::uint32_t mask, std::uint32_t value);
     std::uint32_t getEntityFlags(std::uint32_t id) const;
     bool isEntityVisible(std::uint32_t id) const;
@@ -118,4 +173,9 @@ public:
     const PolygonRec* getPolygon(std::uint32_t id) const;
     const ArrowRec* getArrow(std::uint32_t id) const;
     const std::vector<Point2>& getPoints() const { return points; }
+
+    ResolvedStyle resolveStyle(std::uint32_t id, EntityKind kind) const;
+    bool resolveFillEnabled(std::uint32_t id) const;
+    static std::uint8_t styleTargetMask(StyleTarget target);
+    static std::uint8_t styleCapabilities(EntityKind kind);
 };

@@ -26,6 +26,7 @@ describe('ShapeOverlay', () => {
     } as any);
     useSettingsStore.setState({
       featureFlags: {
+        enableColorsRibbon: false,
         enableEngineResize: false,
         enablePickProfiling: false,
         enablePickThrottling: false,

@@ -197,7 +197,7 @@ void upsertPolyline(CadEngine& engine, std::uint32_t id, const std::vector<Point
         sizeof(PolylinePayloadHeader) + points.size() * sizeof(Point2));
 
     appendU32(buffer, 0x43445745);
-    appendU32(buffer, 2);
+    appendU32(buffer, 3);
     appendU32(buffer, 1);
     appendU32(buffer, 0);
     appendU32(buffer, static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertPolyline));
@@ -267,7 +267,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     };
 
     pushU32(0x43445745); // Magic EWDC
-    pushU32(2);          // Version
+    pushU32(3);          // Version
     pushU32(1);          // Command Count
     pushU32(0);          // Padding
 

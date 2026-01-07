@@ -1,6 +1,6 @@
 export const COMMAND_BUFFER_MAGIC = 0x43445745; // "EWDC" little-endian bytes
 
-import type { EntityId } from './protocol';
+import type { EntityId, StyleTarget } from './protocol';
 
 export const enum CommandOp {
   ClearAll = 1,
@@ -29,6 +29,11 @@ export const enum CommandOp {
   AppendDraftPoint = 24,
   ApplyTextStyle = 42, // 0x2A
   SetTextAlign = 43, // 0x2B
+  SetLayerStyle = 50,
+  SetLayerStyleEnabled = 51,
+  SetEntityStyleOverride = 52,
+  ClearEntityStyleOverride = 53,
+  SetEntityStyleEnabled = 54,
 }
 
 export type RectPayload = {
@@ -113,6 +118,33 @@ export type ArrowPayload = {
   strokeA: number;
   strokeEnabled: number; // 0 or 1
   strokeWidthPx: number;
+};
+
+export type LayerStylePayload = {
+  target: StyleTarget;
+  colorRGBA: number;
+};
+
+export type LayerStyleEnabledPayload = {
+  target: StyleTarget;
+  enabled: boolean;
+};
+
+export type EntityStylePayload = {
+  target: StyleTarget;
+  colorRGBA: number;
+  ids: readonly EntityId[];
+};
+
+export type EntityStyleClearPayload = {
+  target: StyleTarget;
+  ids: readonly EntityId[];
+};
+
+export type EntityStyleEnabledPayload = {
+  target: StyleTarget;
+  enabled: boolean;
+  ids: readonly EntityId[];
 };
 
 // Text command payloads
@@ -223,6 +255,11 @@ export type EngineCommand =
   | { op: CommandOp.ReplaceTextContent; replace: TextReplacePayload }
   | { op: CommandOp.ApplyTextStyle; id: EntityId; style: ApplyTextStylePayload }
   | { op: CommandOp.SetTextAlign; align: TextAlignmentPayload }
+  | { op: CommandOp.SetLayerStyle; id: EntityId; style: LayerStylePayload }
+  | { op: CommandOp.SetLayerStyleEnabled; id: EntityId; style: LayerStyleEnabledPayload }
+  | { op: CommandOp.SetEntityStyleOverride; style: EntityStylePayload }
+  | { op: CommandOp.ClearEntityStyleOverride; clear: EntityStyleClearPayload }
+  | { op: CommandOp.SetEntityStyleEnabled; enabled: EntityStyleEnabledPayload }
   | { op: CommandOp.BeginDraft; draft: BeginDraftPayload }
   | { op: CommandOp.UpdateDraft; pos: UpdateDraftPayload }
   | { op: CommandOp.AppendDraftPoint; pos: UpdateDraftPayload }
@@ -291,6 +328,16 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     }
     case CommandOp.SetTextAlign:
       return 8; // textId (u32) + align (u8) + reserved (3 bytes)
+    case CommandOp.SetLayerStyle:
+      return 8; // target (u8) + reserved (3) + colorRGBA (u32)
+    case CommandOp.SetLayerStyleEnabled:
+      return 4; // target (u8) + enabled (u8) + reserved (2)
+    case CommandOp.SetEntityStyleOverride:
+      return 16 + cmd.style.ids.length * 4; // header (16 bytes) + ids
+    case CommandOp.ClearEntityStyleOverride:
+      return 12 + cmd.clear.ids.length * 4; // header (12 bytes) + ids
+    case CommandOp.SetEntityStyleEnabled:
+      return 12 + cmd.enabled.ids.length * 4; // header (12 bytes) + ids
     case CommandOp.BeginDraft:
       return 60; // 15 floats (x,y, fills, strokes, params) * 4
     case CommandOp.UpdateDraft:
@@ -315,7 +362,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
   let o = 0;
 
   o = writeU32(view, o, COMMAND_BUFFER_MAGIC);
-  o = writeU32(view, o, 2); // version
+  o = writeU32(view, o, 3); // version
   o = writeU32(view, o, commands.length);
   o = writeU32(view, o, 0);
 
@@ -531,6 +578,47 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         view.setUint8(o++, 0); // reserved
         view.setUint8(o++, 0); // reserved
         view.setUint8(o++, 0); // reserved
+        break;
+      case CommandOp.SetLayerStyle:
+        view.setUint8(o++, cmd.style.target & 0xff);
+        view.setUint8(o++, 0);
+        view.setUint16(o, 0, true);
+        o += 2;
+        o = writeU32(view, o, cmd.style.colorRGBA);
+        break;
+      case CommandOp.SetLayerStyleEnabled:
+        view.setUint8(o++, cmd.style.target & 0xff);
+        view.setUint8(o++, cmd.style.enabled ? 1 : 0);
+        view.setUint16(o, 0, true);
+        o += 2;
+        break;
+      case CommandOp.SetEntityStyleOverride:
+        view.setUint8(o++, cmd.style.target & 0xff);
+        view.setUint8(o++, 0);
+        view.setUint16(o, 0, true);
+        o += 2;
+        o = writeU32(view, o, cmd.style.colorRGBA);
+        o = writeU32(view, o, cmd.style.ids.length);
+        o = writeU32(view, o, 0);
+        for (const id of cmd.style.ids) o = writeU32(view, o, id);
+        break;
+      case CommandOp.ClearEntityStyleOverride:
+        view.setUint8(o++, cmd.clear.target & 0xff);
+        view.setUint8(o++, 0);
+        view.setUint16(o, 0, true);
+        o += 2;
+        o = writeU32(view, o, cmd.clear.ids.length);
+        o = writeU32(view, o, 0);
+        for (const id of cmd.clear.ids) o = writeU32(view, o, id);
+        break;
+      case CommandOp.SetEntityStyleEnabled:
+        view.setUint8(o++, cmd.enabled.target & 0xff);
+        view.setUint8(o++, cmd.enabled.enabled ? 1 : 0);
+        view.setUint16(o, 0, true);
+        o += 2;
+        o = writeU32(view, o, cmd.enabled.ids.length);
+        o = writeU32(view, o, 0);
+        for (const id of cmd.enabled.ids) o = writeU32(view, o, id);
         break;
       case CommandOp.BeginDraft:
         o = writeU32(view, o, cmd.draft.kind);

@@ -2,7 +2,8 @@ import { getEngineRuntime } from '@/engine/core/singleton';
 import { TextTool, createTextTool } from '@/engine/tools/TextTool';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextStyleFlags, TextAlign } from '@/types/text';
+import { TextStyleFlags, TextAlign, packColorRGBA } from '@/types/text';
+import { parseCssColorToHexAlpha } from '@/utils/cssColor';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { TextToolCallbacks, TextToolState, TextStyleDefaults } from '@/engine/tools/TextTool';
@@ -252,7 +253,7 @@ export function getLastTextState(): TextToolState | null {
 }
 
 export function applyTextDefaultsFromSettings(): TextStyleDefaults {
-  const { fontSize, fontFamily, align, bold, italic, underline, strike } =
+  const { fontSize, fontFamily, align, bold, italic, underline, strike, textColor } =
     useSettingsStore.getState().toolDefaults.text;
 
   // Get the base family config - we use the BASE fontId, not the variant!
@@ -285,9 +286,21 @@ export function applyTextDefaultsFromSettings(): TextStyleDefaults {
     right: TextAlign.Right,
   };
 
+  const fallbackColor = textTool.getStyleDefaults().colorRGBA;
+  const parsedColor = textColor ? parseCssColorToHexAlpha(textColor) : null;
+  const colorRGBA = parsedColor
+    ? packColorRGBA(
+        Number.parseInt(parsedColor.hex.slice(1, 3), 16) / 255,
+        Number.parseInt(parsedColor.hex.slice(3, 5), 16) / 255,
+        Number.parseInt(parsedColor.hex.slice(5, 7), 16) / 255,
+        parsedColor.alpha,
+      )
+    : fallbackColor;
+
   const defaults: Partial<TextStyleDefaults> = {
     fontId: baseVariant.fontId, // Always use base font ID!
     fontSize,
+    colorRGBA,
     align: alignMap[align] ?? TextAlign.Left,
     flags, // Engine uses flags to resolve to variant
   };

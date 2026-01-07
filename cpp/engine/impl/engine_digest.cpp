@@ -28,6 +28,27 @@ CadEngine::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
         if (!name.empty()) {
             h = hashBytes(h, reinterpret_cast<const std::uint8_t*>(name.data()), name.size());
         }
+        const LayerStyle style = entityManager_.layerStore.getLayerStyle(layer.id);
+        h = hashF32(h, style.stroke.color.r);
+        h = hashF32(h, style.stroke.color.g);
+        h = hashF32(h, style.stroke.color.b);
+        h = hashF32(h, style.stroke.color.a);
+        h = hashF32(h, style.stroke.enabled);
+        h = hashF32(h, style.fill.color.r);
+        h = hashF32(h, style.fill.color.g);
+        h = hashF32(h, style.fill.color.b);
+        h = hashF32(h, style.fill.color.a);
+        h = hashF32(h, style.fill.enabled);
+        h = hashF32(h, style.textColor.color.r);
+        h = hashF32(h, style.textColor.color.g);
+        h = hashF32(h, style.textColor.color.b);
+        h = hashF32(h, style.textColor.color.a);
+        h = hashF32(h, style.textColor.enabled);
+        h = hashF32(h, style.textBackground.color.r);
+        h = hashF32(h, style.textBackground.color.g);
+        h = hashF32(h, style.textBackground.color.b);
+        h = hashF32(h, style.textBackground.color.a);
+        h = hashF32(h, style.textBackground.enabled);
     }
 
     std::vector<std::uint32_t> ids;
@@ -206,6 +227,26 @@ CadEngine::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
             default:
                 break;
         }
+
+        const EntityStyleOverrides* overrides = entityManager_.getEntityStyleOverrides(id);
+        const std::uint8_t colorMask = overrides ? overrides->colorMask : 0;
+        const std::uint8_t enabledMask = overrides ? overrides->enabledMask : 0;
+        h = hashU32(h, static_cast<std::uint32_t>(colorMask));
+        h = hashU32(h, static_cast<std::uint32_t>(enabledMask));
+        const StyleColor textColor = overrides ? overrides->textColor : StyleColor{};
+        const StyleColor textBackground = overrides ? overrides->textBackground : StyleColor{};
+        const float fillEnabled = overrides ? overrides->fillEnabled : 0.0f;
+        const float textBackgroundEnabled = overrides ? overrides->textBackgroundEnabled : 0.0f;
+        h = hashF32(h, textColor.r);
+        h = hashF32(h, textColor.g);
+        h = hashF32(h, textColor.b);
+        h = hashF32(h, textColor.a);
+        h = hashF32(h, textBackground.r);
+        h = hashF32(h, textBackground.g);
+        h = hashF32(h, textBackground.b);
+        h = hashF32(h, textBackground.a);
+        h = hashF32(h, fillEnabled);
+        h = hashF32(h, textBackgroundEnabled);
     }
 
     h = hashU32(h, static_cast<std::uint32_t>(entityManager_.drawOrderIds.size()));

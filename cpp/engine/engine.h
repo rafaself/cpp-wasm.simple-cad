@@ -78,10 +78,17 @@ public:
     std::string getLayerName(std::uint32_t layerId) const;
     void setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, std::uint32_t flagsValue, const std::string& name);
     bool deleteLayer(std::uint32_t layerId);
+    LayerStyleSnapshot getLayerStyle(std::uint32_t layerId) const;
+    void setLayerStyle(std::uint32_t layerId, StyleTarget target, std::uint32_t colorRGBA);
+    void setLayerStyleEnabled(std::uint32_t layerId, StyleTarget target, bool enabled);
     std::uint32_t getEntityFlags(std::uint32_t entityId) const;
     void setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, std::uint32_t flagsValue);
     void setEntityLayer(std::uint32_t entityId, std::uint32_t layerId);
     std::uint32_t getEntityLayer(std::uint32_t entityId) const;
+    void setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, std::uint32_t colorRGBA);
+    void clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target);
+    void setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, bool enabled);
+    SelectionStyleSummary getSelectionStyleSummary() const;
     ProtocolInfo getProtocolInfo() const noexcept {
         return ProtocolInfo{
             kProtocolVersion,
@@ -153,6 +160,9 @@ public:
 
     // Visibility helper used by render callbacks
     bool isEntityVisibleForRender(std::uint32_t id) const noexcept;
+
+    // Style resolver for render callbacks
+    ResolvedStyle resolveStyleForRender(std::uint32_t id, EntityKind kind) const;
 
     // Draw order (engine-authoritative)
     std::vector<std::uint32_t> getDrawOrderSnapshot() const;

@@ -5,14 +5,18 @@ import { useEditorCommands } from '@/features/editor/commands/useEditorCommands'
 
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
-import { RIBBON_TABS, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
+import { getRibbonTabs, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
 
 import { RibbonGroup } from './ribbon/RibbonGroup';
 
 const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
   const { executeAction, selectTool } = useEditorCommands();
-  const [activeTabId, setActiveTabId] = useState<string>(RIBBON_TABS[0].id);
+  const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
+  const ribbonTabs = React.useMemo(() => getRibbonTabs(enableColorsRibbon), [enableColorsRibbon]);
+  const [activeTabId, setActiveTabId] = useState<string>(
+    () => ribbonTabs[0]?.id ?? 'home',
+  );
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
   const gridSettings = useSettingsStore((s) => s.grid);
 
@@ -20,7 +24,7 @@ const EditorRibbon: React.FC = () => {
     grid: gridSettings.showDots || gridSettings.showLines,
   };
 
-  const activeTab = RIBBON_TABS.find((t) => t.id === activeTabId) || RIBBON_TABS[0];
+  const activeTab = ribbonTabs.find((t) => t.id === activeTabId) || ribbonTabs[0];
   const activeGroups = activeTab.groups;
   const overflowButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const ribbonContentRef = useRef<HTMLDivElement | null>(null);
@@ -52,19 +56,25 @@ const EditorRibbon: React.FC = () => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-      // Check for number keys corresponding to tabs (1 to RIBBON_TABS.length)
+      // Check for number keys corresponding to tabs (1 to ribbonTabs.length)
       if (/^[1-9]$/.test(e.key)) {
         const index = parseInt(e.key, 10) - 1;
-        if (RIBBON_TABS[index]) {
+        if (ribbonTabs[index]) {
           e.preventDefault();
-          setActiveTabId(RIBBON_TABS[index].id);
+          setActiveTabId(ribbonTabs[index].id);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [ribbonTabs]);
+
+  React.useEffect(() => {
+    if (!ribbonTabs.some((tab) => tab.id === activeTabId)) {
+      setActiveTabId(ribbonTabs[0]?.id ?? 'home');
+    }
+  }, [ribbonTabs, activeTabId]);
 
   return (
     <div className="flex flex-col bg-bg border-b border-border text-text">
@@ -74,7 +84,7 @@ const EditorRibbon: React.FC = () => {
         role="tablist"
         aria-label="Categorias de Ferramentas"
       >
-        {RIBBON_TABS.map((tab, index) => {
+        {ribbonTabs.map((tab, index) => {
           const isActive = tab.id === activeTabId;
           return (
             <button

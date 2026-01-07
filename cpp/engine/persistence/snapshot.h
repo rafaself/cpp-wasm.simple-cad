@@ -2,6 +2,7 @@
 #define ELETROCAD_ENGINE_SNAPSHOT_H
 
 #include "engine/core/types.h"
+#include "engine/protocol/protocol_types.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -13,6 +14,7 @@ struct LayerSnapshot {
     std::uint32_t order;
     std::uint32_t flags;
     std::string name;
+    engine::protocol::LayerStyleSnapshot style;
 };
 
 struct RectSnapshot {
@@ -66,6 +68,17 @@ struct TextSnapshot {
     float maxY;
 };
 
+struct StyleOverrideSnapshot {
+    std::uint32_t id;
+    std::uint8_t colorMask;
+    std::uint8_t enabledMask;
+    std::uint16_t reserved;
+    std::uint32_t textColorRGBA;
+    std::uint32_t textBackgroundRGBA;
+    std::uint32_t fillEnabled;
+    std::uint32_t textBackgroundEnabled;
+};
+
 struct SnapshotData {
     std::vector<RectSnapshot> rects;
     std::vector<LineSnapshot> lines;
@@ -78,6 +91,7 @@ struct SnapshotData {
     std::vector<std::uint32_t> drawOrder;
     std::vector<std::uint32_t> selection;
     std::vector<TextSnapshot> texts;
+    std::vector<StyleOverrideSnapshot> styleOverrides;
     std::vector<std::uint8_t> historyBytes;
     std::uint32_t nextId{1};
     std::uint32_t version{0};

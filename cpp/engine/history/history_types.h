@@ -2,6 +2,7 @@
 
 #include "engine/core/types.h"
 #include "engine/persistence/snapshot.h"
+#include "engine/entity/entity_manager.h"
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -22,6 +23,7 @@ struct EntitySnapshot {
     EntityKind kind;
     std::uint32_t layerId;
     std::uint32_t flags;
+    EntityStyleOverrides styleOverrides;
 
     // Union-like storage of potential entity data matching snapshot.h structs
     RectRec rect;

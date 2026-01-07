@@ -163,7 +163,7 @@ struct RunStyle {
     float a;
 };
 
-std::vector<RunStyle> buildRunStyles(const std::vector<TextRun>& runs) {
+std::vector<RunStyle> buildRunStyles(const std::vector<TextRun>& runs, const TextSystem::ResolvedTextStyle* resolvedStyle) {
     std::vector<RunStyle> styles;
     styles.reserve(runs.size());
     for (const auto& run : runs) {
@@ -176,11 +176,18 @@ std::vector<RunStyle> buildRunStyles(const std::vector<TextRun>& runs) {
         style.fontId = run.fontId;
         style.fontSize = run.fontSize;
         style.flags = run.flags;
-        const std::uint32_t rgba = run.colorRGBA;
-        style.r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
-        style.g = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-        style.b = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
-        style.a = static_cast<float>(rgba & 0xFF) / 255.0f;
+        if (resolvedStyle) {
+            style.r = resolvedStyle->textR;
+            style.g = resolvedStyle->textG;
+            style.b = resolvedStyle->textB;
+            style.a = resolvedStyle->textA;
+        } else {
+            const std::uint32_t rgba = run.colorRGBA;
+            style.r = static_cast<float>((rgba >> 24) & 0xFF) / 255.0f;
+            style.g = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
+            style.b = static_cast<float>((rgba >> 8) & 0xFF) / 255.0f;
+            style.a = static_cast<float>(rgba & 0xFF) / 255.0f;
+        }
         styles.push_back(style);
     }
     return styles;
@@ -313,6 +320,7 @@ bool buildTextQuads(
     const engine::text::TextLayout& layout,
     const TextRec& text,
     const std::vector<RunStyle>& runStyles,
+    const TextSystem::ResolvedTextStyle* resolvedStyle,
     std::vector<float>& out,
     std::uint32_t expectedAtlasResetVersion,
     bool& restartRequested
@@ -331,10 +339,33 @@ bool buildTextQuads(
 
     std::size_t runCursor = 0;
     float yOffset = 0.0f;
+    const bool hasBackground = resolvedStyle
+        && resolvedStyle->backgroundEnabled > 0.5f
+        && resolvedStyle->backgroundA > 0.0f;
 
     for (const auto& line : layout.lines) {
         const float baseline = yOffset - line.ascent;
         float penX = line.xOffset;
+        if (hasBackground && line.width > 0.0f && line.lineHeight > 0.0f) {
+            const float x0 = baseX + line.xOffset;
+            const float x1 = x0 + line.width;
+            const float y0 = baseY + yOffset;
+            const float y1 = y0 - line.lineHeight;
+            appendSolidQuad(
+                out,
+                x0,
+                y0,
+                x1,
+                y1,
+                z,
+                whiteU,
+                whiteV,
+                resolvedStyle->backgroundR,
+                resolvedStyle->backgroundG,
+                resolvedStyle->backgroundB,
+                resolvedStyle->backgroundA
+            );
+        }
 
         for (std::uint32_t gi = line.startGlyph; gi < line.startGlyph + line.glyphCount; ++gi) {
             if (gi >= layout.glyphs.size()) break;
@@ -409,12 +440,16 @@ bool buildTextQuads(
 }
 } // namespace
 
-void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible) {
+void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible, const ResolveTextStyleFn& resolveStyle) {
     const auto textIds = store.getAllTextIds();
-    rebuildQuadBuffer(isVisible, textIds);
+    rebuildQuadBuffer(isVisible, textIds, resolveStyle);
 }
 
-void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isVisible, const std::vector<std::uint32_t>& drawOrder) {
+void TextSystem::rebuildQuadBuffer(
+    const std::function<bool(std::uint32_t)>& isVisible,
+    const std::vector<std::uint32_t>& drawOrder,
+    const ResolveTextStyleFn& resolveStyle
+) {
     if (!initialized) {
         if (!quadBuffer.empty()) quadBuffer.clear();
         return;
@@ -463,7 +498,12 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
             }
 
             const auto& runs = store.getRuns(textId);
-            const auto runStyles = buildRunStyles(runs);
+            ResolvedTextStyle resolvedStyle{};
+            const ResolvedTextStyle* resolvedPtr = nullptr;
+            if (resolveStyle && resolveStyle(textId, resolvedStyle)) {
+                resolvedPtr = &resolvedStyle;
+            }
+            const auto runStyles = buildRunStyles(runs, resolvedPtr);
 
             auto& entry = quadCache[textId];
             entry.quads.clear();
@@ -474,6 +514,7 @@ void TextSystem::rebuildQuadBuffer(const std::function<bool(std::uint32_t)>& isV
                         *layout,
                         *text,
                         runStyles,
+                        resolvedPtr,
                         entry.quads,
                         quadCacheAtlasResetVersion,
                         restart

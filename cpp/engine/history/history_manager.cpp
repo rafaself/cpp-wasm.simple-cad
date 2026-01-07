@@ -11,6 +11,32 @@
 namespace {
 constexpr double kTextMergeWindowMs = 750.0;
 
+engine::protocol::LayerStyleSnapshot toLayerStyleSnapshot(const LayerStyle& style) {
+    engine::protocol::LayerStyleSnapshot snap{};
+    snap.strokeRGBA = packColorRGBA(style.stroke.color.r, style.stroke.color.g, style.stroke.color.b, style.stroke.color.a);
+    snap.fillRGBA = packColorRGBA(style.fill.color.r, style.fill.color.g, style.fill.color.b, style.fill.color.a);
+    snap.textColorRGBA = packColorRGBA(style.textColor.color.r, style.textColor.color.g, style.textColor.color.b, style.textColor.color.a);
+    snap.textBackgroundRGBA = packColorRGBA(style.textBackground.color.r, style.textBackground.color.g, style.textBackground.color.b, style.textBackground.color.a);
+    snap.strokeEnabled = style.stroke.enabled > 0.5f ? 1 : 0;
+    snap.fillEnabled = style.fill.enabled > 0.5f ? 1 : 0;
+    snap.textBackgroundEnabled = style.textBackground.enabled > 0.5f ? 1 : 0;
+    snap.reserved = 0;
+    return snap;
+}
+
+LayerStyle toLayerStyle(const engine::protocol::LayerStyleSnapshot& snap) {
+    LayerStyle style{};
+    unpackColorRGBA(snap.strokeRGBA, style.stroke.color.r, style.stroke.color.g, style.stroke.color.b, style.stroke.color.a);
+    unpackColorRGBA(snap.fillRGBA, style.fill.color.r, style.fill.color.g, style.fill.color.b, style.fill.color.a);
+    unpackColorRGBA(snap.textColorRGBA, style.textColor.color.r, style.textColor.color.g, style.textColor.color.b, style.textColor.color.a);
+    unpackColorRGBA(snap.textBackgroundRGBA, style.textBackground.color.r, style.textBackground.color.g, style.textBackground.color.b, style.textBackground.color.a);
+    style.stroke.enabled = snap.strokeEnabled ? 1.0f : 0.0f;
+    style.fill.enabled = snap.fillEnabled ? 1.0f : 0.0f;
+    style.textColor.enabled = 1.0f;
+    style.textBackground.enabled = snap.textBackgroundEnabled ? 1.0f : 0.0f;
+    return style;
+}
+
 bool isMergeableTextEntry(const HistoryEntry& entry) {
     if (entry.mergeTag != HistoryMergeTag::TextEdit || entry.mergeEntityId == 0) return false;
     if (entry.hasLayerChange || entry.hasDrawOrderChange || entry.hasSelectionChange) return false;
@@ -110,6 +136,7 @@ void HistoryManager::markLayerChange() {
         snap.order = layer.order;
         snap.flags = layer.flags;
         snap.name = entityManager_.layerStore.getLayerName(layer.id);
+        snap.style = toLayerStyleSnapshot(entityManager_.layerStore.getLayerStyle(layer.id));
         entry.layersBefore.push_back(std::move(snap));
     }
     entry.hasLayerChange = true;
@@ -160,6 +187,7 @@ void HistoryManager::finalizeHistoryEntry(HistoryEntry& entry, std::uint32_t nex
             snap.order = layer.order;
             snap.flags = layer.flags;
             snap.name = entityManager_.layerStore.getLayerName(layer.id);
+            snap.style = toLayerStyleSnapshot(entityManager_.layerStore.getLayerStyle(layer.id));
             entry.layersAfter.push_back(std::move(snap));
         }
     }
@@ -189,6 +217,9 @@ bool HistoryManager::commitEntry(std::uint32_t nextEntityId, std::uint32_t curre
             if (a[i].order != b[i].order) return false;
             if (a[i].flags != b[i].flags) return false;
             if (a[i].name != b[i].name) return false;
+            if (std::memcmp(&a[i].style, &b[i].style, sizeof(engine::protocol::LayerStyleSnapshot)) != 0) {
+                return false;
+            }
         }
         return true;
     };
@@ -238,15 +269,18 @@ bool HistoryManager::commitEntry(std::uint32_t nextEntityId, std::uint32_t curre
 }
 
 void HistoryManager::applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers) {
-     std::vector<LayerRecord> records;
+    std::vector<LayerRecord> records;
     std::vector<std::string> names;
+    std::vector<LayerStyle> styles;
     records.reserve(layers.size());
     names.reserve(layers.size());
+    styles.reserve(layers.size());
     for (const auto& layer : layers) {
         records.push_back(LayerRecord{layer.id, layer.order, layer.flags});
         names.push_back(layer.name);
+        styles.push_back(toLayerStyle(layer.style));
     }
-    entityManager_.layerStore.loadSnapshot(records, names);
+    entityManager_.layerStore.loadSnapshot(records, names, styles);
 }
 
 void HistoryManager::applyDrawOrderSnapshot(const std::vector<std::uint32_t>& order) {
@@ -288,7 +322,9 @@ void HistoryManager::applyHistoryEntry(const HistoryEntry& entry, bool useAfter,
         engine.state().renderDirty = true;
         engine.state().snapshotDirty = true;
         engine.markTextQuadsDirty();
-        engine.recordDocChanged(static_cast<std::uint32_t>(CadEngine::ChangeMask::Layer));
+        engine.recordDocChanged(
+            static_cast<std::uint32_t>(CadEngine::ChangeMask::Layer)
+            | static_cast<std::uint32_t>(CadEngine::ChangeMask::Style));
     }
 
     for (const auto& change : entry.entities) {
@@ -330,6 +366,11 @@ bool HistoryManager::captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out
     out.kind = it->second.kind;
     out.layerId = entityManager_.getEntityLayer(id);
     out.flags = entityManager_.getEntityFlags(id);
+    if (const EntityStyleOverrides* overrides = entityManager_.getEntityStyleOverrides(id)) {
+        out.styleOverrides = *overrides;
+    } else {
+        out.styleOverrides = EntityStyleOverrides{};
+    }
 
     switch (out.kind) {
         case EntityKind::Rect: {
@@ -508,6 +549,12 @@ void HistoryManager::applyEntitySnapshot(const EntitySnapshot& snap, CadEngine& 
     if (entityManager_.getEntityFlags(id) != snap.flags) {
         engine.setEntityFlags(id, flagsMask, snap.flags);
     }
+
+    if (snap.styleOverrides.colorMask != 0 || snap.styleOverrides.enabledMask != 0) {
+        entityManager_.styleOverrides[id] = snap.styleOverrides;
+    } else {
+        entityManager_.styleOverrides.erase(id);
+    }
 }
 
 std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
@@ -530,7 +577,7 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
         out.push_back(v);
     };
 
-    appendU32(1); // Version (literal 1 for now, or use const)
+    appendU32(2);
     appendU32(static_cast<std::uint32_t>(history_.size()));
     appendU32(static_cast<std::uint32_t>(cursor_));
     appendU32(0);
@@ -545,6 +592,32 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
         appendU32(entry.nextIdBefore);
         appendU32(entry.nextIdAfter);
 
+        auto appendLayerStyle = [&](const engine::protocol::LayerStyleSnapshot& style) {
+            appendU32(style.strokeRGBA);
+            appendU32(style.fillRGBA);
+            appendU32(style.textColorRGBA);
+            appendU32(style.textBackgroundRGBA);
+            appendByte(style.strokeEnabled);
+            appendByte(style.fillEnabled);
+            appendByte(style.textBackgroundEnabled);
+            appendByte(style.reserved);
+        };
+
+        auto appendStyleOverrides = [&](const EntityStyleOverrides& overrides) {
+            appendByte(overrides.colorMask);
+            appendByte(overrides.enabledMask);
+            appendByte(0);
+            appendByte(0);
+            appendU32(packColorRGBA(overrides.textColor.r, overrides.textColor.g, overrides.textColor.b, overrides.textColor.a));
+            appendU32(packColorRGBA(
+                overrides.textBackground.r,
+                overrides.textBackground.g,
+                overrides.textBackground.b,
+                overrides.textBackground.a));
+            appendU32(overrides.fillEnabled > 0.5f ? 1u : 0u);
+            appendU32(overrides.textBackgroundEnabled > 0.5f ? 1u : 0u);
+        };
+
         if (entry.hasLayerChange) {
             appendU32(static_cast<std::uint32_t>(entry.layersBefore.size()));
             for (const auto& layer : entry.layersBefore) {
@@ -557,6 +630,7 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                 if (!layer.name.empty()) {
                     std::memcpy(out.data() + o, layer.name.data(), layer.name.size());
                 }
+                appendLayerStyle(layer.style);
             }
             appendU32(static_cast<std::uint32_t>(entry.layersAfter.size()));
             for (const auto& layer : entry.layersAfter) {
@@ -569,6 +643,7 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                 if (!layer.name.empty()) {
                     std::memcpy(out.data() + o, layer.name.data(), layer.name.size());
                 }
+                appendLayerStyle(layer.style);
             }
         }
 
@@ -658,6 +733,8 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                     }
                     default: break;
                 }
+
+                appendStyleOverrides(snap.styleOverrides);
             };
 
             if (change.existedBefore) appendEntitySnapshot(change.before);
@@ -692,7 +769,7 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
 
     std::uint32_t ver, count, curs, reserved;
     if (!readU32Local(ver) || !readU32Local(count) || !readU32Local(curs) || !readU32Local(reserved)) return;
-    if (ver != 1) return; // Mismatch version
+    if (ver != 2) return;
 
     history_.resize(count);
     cursor_ = curs;
@@ -721,6 +798,18 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                     if (offset + nameLen > len) return false;
                     layer.name.assign(reinterpret_cast<const char*>(data + offset), nameLen);
                     offset += nameLen;
+                    if (!readU32Local(layer.style.strokeRGBA) ||
+                        !readU32Local(layer.style.fillRGBA) ||
+                        !readU32Local(layer.style.textColorRGBA) ||
+                        !readU32Local(layer.style.textBackgroundRGBA)) {
+                        return false;
+                    }
+                    if (!readByteLocal(layer.style.strokeEnabled) ||
+                        !readByteLocal(layer.style.fillEnabled) ||
+                        !readByteLocal(layer.style.textBackgroundEnabled) ||
+                        !readByteLocal(layer.style.reserved)) {
+                        return false;
+                    }
                 }
                 return true;
             };
@@ -832,6 +921,23 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                     }
                     default: break;
                 }
+
+                if (!readByteLocal(snap.styleOverrides.colorMask) ||
+                    !readByteLocal(snap.styleOverrides.enabledMask) ||
+                    !readByteLocal(dummy) ||
+                    !readByteLocal(dummy)) {
+                    return false;
+                }
+                std::uint32_t packed = 0;
+                if (!readU32Local(packed)) return false;
+                unpackColorRGBA(packed, snap.styleOverrides.textColor.r, snap.styleOverrides.textColor.g, snap.styleOverrides.textColor.b, snap.styleOverrides.textColor.a);
+                if (!readU32Local(packed)) return false;
+                unpackColorRGBA(packed, snap.styleOverrides.textBackground.r, snap.styleOverrides.textBackground.g, snap.styleOverrides.textBackground.b, snap.styleOverrides.textBackground.a);
+                std::uint32_t enabled = 0;
+                if (!readU32Local(enabled)) return false;
+                snap.styleOverrides.fillEnabled = enabled ? 1.0f : 0.0f;
+                if (!readU32Local(enabled)) return false;
+                snap.styleOverrides.textBackgroundEnabled = enabled ? 1.0f : 0.0f;
                 return true;
             };
 

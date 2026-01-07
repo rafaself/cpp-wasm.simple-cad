@@ -14,7 +14,7 @@ static constexpr std::size_t defaultSnapshotCapacityBytes = 1 * 1024 * 1024;
 // Snapshot/command format constants
 static constexpr std::uint32_t snapshotMagicEwc1 = 0x31435745; // "EWC1"
 static constexpr std::uint32_t snapshotMagicEsnp = 0x504E5345; // "ESNP"
-static constexpr std::uint32_t snapshotVersionEsnp = 1;
+static constexpr std::uint32_t snapshotVersionEsnp = 2;
 static constexpr std::uint32_t commandMagicEwdc = 0x43445745; // "EWDC"
 static constexpr std::size_t snapshotHeaderBytesV2 = 8 * 4;
 static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
@@ -230,6 +230,11 @@ enum class CommandOp : std::uint32_t {
     AppendDraftPoint = 24,
     ApplyTextStyle = 42,      // TEXT_APPLY_STYLE (0x2A)
     SetTextAlign = 43,        // TEXT_SET_ALIGN (0x2B)
+    SetLayerStyle = 50,
+    SetLayerStyleEnabled = 51,
+    SetEntityStyleOverride = 52,
+    ClearEntityStyleOverride = 53,
+    SetEntityStyleEnabled = 54,
 };
 
 enum class EngineError : std::uint32_t {
@@ -285,6 +290,43 @@ struct ArrowPayload {
     float strokeR, strokeG, strokeB, strokeA;
     float strokeEnabled;
     float strokeWidthPx;
+};
+
+struct LayerStylePayload {
+    std::uint8_t target;
+    std::uint8_t reserved[3];
+    std::uint32_t colorRGBA;
+};
+
+struct LayerStyleEnabledPayload {
+    std::uint8_t target;
+    std::uint8_t enabled;
+    std::uint16_t reserved;
+};
+
+struct EntityStylePayloadHeader {
+    std::uint8_t target;
+    std::uint8_t reserved0;
+    std::uint16_t reserved1;
+    std::uint32_t colorRGBA;
+    std::uint32_t count;
+    std::uint32_t reserved2;
+};
+
+struct EntityStyleClearPayloadHeader {
+    std::uint8_t target;
+    std::uint8_t reserved0;
+    std::uint16_t reserved1;
+    std::uint32_t count;
+    std::uint32_t reserved2;
+};
+
+struct EntityStyleEnabledPayloadHeader {
+    std::uint8_t target;
+    std::uint8_t enabled;
+    std::uint16_t reserved;
+    std::uint32_t count;
+    std::uint32_t reserved2;
 };
 
 // ============================================================================

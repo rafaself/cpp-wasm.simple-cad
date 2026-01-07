@@ -350,9 +350,11 @@ bool PickSystem::checkCandidate(
                     outCandidate.subTarget = PickSubTarget::Edge;
                     outCandidate.subIndex = -1; // Specific edge index? 0=Bottom, 1=Right, 2=Top, 3=Left
                 } else if (pickMask & PICK_BODY) {
-                     // Body hit
-                     bestDist = 0; // Inside
-                     outCandidate.subTarget = PickSubTarget::Body;
+                     // Body hit - Only if fill is enabled
+                     if (entities.resolveFillEnabled(id)) {
+                        bestDist = 0; // Inside
+                        outCandidate.subTarget = PickSubTarget::Body;
+                     }
                 }
             } else {
                 // Outside, check distance to rect for Edge hit (if close enough)
@@ -432,9 +434,11 @@ bool PickSystem::checkCandidate(
         // Body hit (inside ellipse)
         if (!hit && (pickMask & PICK_BODY)) {
             if (normDist <= 1.0f + tol / avgRadius) {
-                bestDist = distToEdge;
-                outCandidate.subTarget = PickSubTarget::Body;
-                hit = true;
+                if (entities.resolveFillEnabled(id)) {
+                    bestDist = distToEdge;
+                    outCandidate.subTarget = PickSubTarget::Body;
+                    hit = true;
+                }
             }
         }
     }
@@ -579,9 +583,11 @@ bool PickSystem::checkCandidate(
         float maxR = std::max(p->rx, p->ry);
         if (dist <= maxR + tol) {
              if (pickMask & PICK_BODY) {
-                 bestDist = dist;
-                 outCandidate.subTarget = PickSubTarget::Body;
-                 hit = true;
+                 if (entities.resolveFillEnabled(id)) {
+                    bestDist = dist;
+                    outCandidate.subTarget = PickSubTarget::Body;
+                    hit = true;
+                 }
              }
         }
     }

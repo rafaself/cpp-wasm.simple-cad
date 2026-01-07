@@ -39,6 +39,7 @@ import { RenderSystem } from '@/engine/core/runtime/RenderSystem';
 import { SelectionSystem } from '@/engine/core/runtime/SelectionSystem';
 import { SnapshotSystem } from '@/engine/core/runtime/SnapshotSystem';
 import { StatsSystem } from './runtime/StatsSystem';
+import { StyleSystem } from './runtime/StyleSystem';
 import { TextSystem } from './runtime/TextSystem';
 import { TransformSystem } from './runtime/TransformSystem';
 
@@ -60,6 +61,7 @@ export class EngineRuntime {
   public readonly io: SnapshotSystem;
   public readonly render: RenderSystem;
   public readonly stats: StatsSystem;
+  public readonly style: StyleSystem;
   #engine: CadEngineInstance;
   private commandSystem: CommandSystem;
   private eventSystem: EventSystem;
@@ -74,6 +76,7 @@ export class EngineRuntime {
   private draftSystem: DraftSystem;
   private renderSystem: RenderSystem;
   private statsSystem: StatsSystem;
+  private styleSystem: StyleSystem;
 
   public readonly capabilitiesMask: number;
 
@@ -141,6 +144,7 @@ export class EngineRuntime {
     this.draftSystem = new DraftSystem(module, engine);
     this.renderSystem = new RenderSystem(engine);
     this.statsSystem = new StatsSystem(engine);
+    this.styleSystem = new StyleSystem(engine);
 
     // Public facades (typed subsystems)
     this.text = this.textSystem;
@@ -150,6 +154,7 @@ export class EngineRuntime {
     this.io = this.snapshotSystem;
     this.render = this.renderSystem;
     this.stats = this.statsSystem;
+    this.style = this.styleSystem;
   }
 
   public resetIds(): void {

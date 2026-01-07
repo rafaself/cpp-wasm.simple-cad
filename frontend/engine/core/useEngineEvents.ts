@@ -82,6 +82,7 @@ export const useEngineEvents = (): void => {
       let needsOrder = false;
       let needsHistory = false;
       let needsOverlay = false;
+      let needsStyle = false;
 
       for (const ev of events) {
         switch (ev.type) {
@@ -101,6 +102,7 @@ export const useEngineEvents = (): void => {
             const mask = ev.a >>> 0;
             if ((mask & ChangeMask.Layer) !== 0) needsLayers = true;
             if ((mask & ChangeMask.Order) !== 0) needsOrder = true;
+            if ((mask & ChangeMask.Style) !== 0) needsStyle = true;
             if (
               (mask &
                 (ChangeMask.Bounds |
@@ -125,6 +127,7 @@ export const useEngineEvents = (): void => {
       }
       if (needsSelection) bumpDocumentSignal('selection');
       if (needsOrder) bumpDocumentSignal('order');
+      if (needsStyle) bumpDocumentSignal('style');
       if (needsHistory) syncHistoryMetaFromEngine(runtime);
       if (needsOverlay) {
         useUIStore.getState().bumpOverlayTick();
@@ -133,6 +136,7 @@ export const useEngineEvents = (): void => {
         layers: needsLayers,
         selection: needsSelection,
         order: needsOrder,
+        style: needsStyle,
         history: needsHistory,
         overlay: needsOverlay,
       }));

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-type DocumentSignal = 'document' | 'layers' | 'selection' | 'order';
+type DocumentSignal = 'document' | 'layers' | 'selection' | 'order' | 'style';
 
 type SignalMap = Record<DocumentSignal, number>;
 
@@ -11,6 +11,7 @@ const generations: SignalMap = {
   layers: 0,
   selection: 0,
   order: 0,
+  style: 0,
 };
 
 const listeners = new Set<Listener>();
