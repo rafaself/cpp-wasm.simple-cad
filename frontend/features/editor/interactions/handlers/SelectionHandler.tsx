@@ -350,7 +350,18 @@ export class SelectionHandler extends BaseInteractionHandler {
   private updateResizeCursor(ctx: InputEventContext) {
     // Calculate angle based on handle index
     // Note: hoverSubIndex contains the handle index from the pick result
-    const angle = getResizeCursorAngle(this.hoverSubIndex);
+    let angle = getResizeCursorAngle(this.hoverSubIndex);
+
+    // Apply rotation for single selection to match side handles
+    if (ctx.runtime) {
+        const selection = ctx.runtime.getSelectionIds();
+        if (selection.length === 1) {
+            const transform = ctx.runtime.getEntityTransform(selection[0]);
+            if (transform.valid) {
+                angle -= transform.rotationDeg;
+            }
+        }
+    }
 
     this.cursorAngle = angle;
     this.cursorScreenPos = ctx.screenPoint;
