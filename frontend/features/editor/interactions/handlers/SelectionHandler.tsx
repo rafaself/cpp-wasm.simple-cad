@@ -2,12 +2,14 @@ import { CommandOp } from '@/engine/core/commandBuffer';
 import { TransformMode } from '@/engine/core/interactionSession';
 import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/protocol';
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
+import { RotationCursor } from '@/features/editor/components/RotationCursor';
 import { ensureTextToolReady } from '@/features/editor/text/textToolController';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind, PickSubTarget } from '@/types/picking';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
+import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
@@ -52,6 +54,11 @@ export class SelectionHandler extends BaseInteractionHandler {
   // Track hover state for cursor updates
   private hoverSubTarget: number = PickSubTarget.None;
   private hoverSubIndex: number = -1;
+
+  // Rotation cursor state
+  private cursorAngle: number = 0;
+  private cursorScreenPos: { x: number, y: number } | null = null;
+  private showRotationCursor: boolean = false;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
@@ -146,9 +153,36 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.notifyChange(); // Render Overlay
   }
 
+  private updateRotationCursor(runtime: EngineRuntime, ctx: InputEventContext) {
+    if (!runtime.getSelectionBounds) return;
+    const bounds = runtime.getSelectionBounds();
+    // Check for valid bounds (assuming valid property or non-zero dimensions)
+    if (!bounds || (bounds as any).valid === 0) return;
+
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+
+    const centerScreen = worldToScreen({ x: centerX, y: centerY }, ctx.viewTransform);
+
+    const vx = ctx.screenPoint.x - centerScreen.x;
+    const vy = ctx.screenPoint.y - centerScreen.y;
+
+    const angleRad = Math.atan2(vy, vx);
+    const OFFSET_DEG = 90; 
+    const angleDeg = angleRad * (180 / Math.PI) + OFFSET_DEG;
+
+    this.cursorAngle = angleDeg;
+    this.cursorScreenPos = ctx.screenPoint;
+    this.showRotationCursor = true;
+  }
+
   onPointerMove(ctx: InputEventContext): void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
+
+    // Reset rotation cursor state by default
+    this.showRotationCursor = false;
+    this.cursorScreenPos = null;
 
     if (this.state.kind === 'transform') {
       // Update Engine Transform
@@ -165,6 +199,11 @@ export class SelectionHandler extends BaseInteractionHandler {
           modifiers,
         );
         cadDebugLog('transform', 'update', () => ({ x: screen.x, y: screen.y }));
+      }
+
+      if (this.state.mode === TransformMode.Rotate) {
+        this.updateRotationCursor(runtime, ctx);
+        this.notifyChange();
       }
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
@@ -184,6 +223,10 @@ export class SelectionHandler extends BaseInteractionHandler {
       const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
       this.hoverSubTarget = res.subTarget;
       this.hoverSubIndex = res.subIndex;
+
+      if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
+        this.updateRotationCursor(runtime, ctx);
+      }
       this.notifyChange(); // Trigger cursor update
     }
   }
@@ -361,26 +404,13 @@ export class SelectionHandler extends BaseInteractionHandler {
   }
 
   getCursor(): string | null {
-    // Show rotation cursor during active rotation transform
-    if (this.state.kind === 'transform' && this.state.mode === TransformMode.Rotate) {
-      return 'url(/assets/cursor-rotate.svg) 12 12, alias';
+    if (this.showRotationCursor) {
+      return 'none';
     }
 
     // During other active interactions, use default cursor handling
     if (this.state.kind === 'transform' || this.state.kind === 'marquee') {
       return null;
-    }
-
-    // Show rotation cursor when hovering over rotation handles
-    if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
-      // Map corner index to rotation angle for cursor
-      // Corner indices: 0=BL, 1=BR, 2=TR, 3=TL (diagonal offsets in C++)
-      const rotationAngles = [-45, 45, 135, -135]; // Degrees for each corner
-      const angle = rotationAngles[this.hoverSubIndex] ?? 0;
-
-      // Return rotated cursor using CSS transform in the URL
-      // For now, use a simple rotation cursor without per-corner variation
-      return 'url(/assets/cursor-rotate.svg) 12 12, alias';
     }
 
     // Show resize cursor for resize handles
@@ -400,6 +430,15 @@ export class SelectionHandler extends BaseInteractionHandler {
   renderOverlay(): React.ReactNode {
     if (this.state.kind === 'marquee') {
       return <ConnectedMarquee box={this.state.box} />;
+    }
+    if (this.showRotationCursor && this.cursorScreenPos) {
+      return (
+        <RotationCursor
+          x={this.cursorScreenPos.x}
+          y={this.cursorScreenPos.y}
+          rotation={this.cursorAngle}
+        />
+      );
     }
     return null;
   }
