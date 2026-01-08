@@ -466,7 +466,7 @@ export class SelectionHandler extends BaseInteractionHandler {
        // Update cursor during drag
        let angle = getResizeCursorAngle(handle) + 90;
        if (startTransform.rotation !== 0) {
-           angle += startTransform.rotation;
+           angle -= startTransform.rotation;
        }
        this.cursorAngle = angle;
        this.cursorScreenPos = ctx.screenPoint;
@@ -556,10 +556,10 @@ export class SelectionHandler extends BaseInteractionHandler {
              // Adding 90 degrees correction as requested by the user
              let angle = getResizeCursorAngle(sideHit.handle) + 90;
              
-             // Add object rotation
+             // Add object rotation (Engine is CCW, CSS is CW, so subtract)
              const transform = runtime.getEntityTransform(sideHit.id);
              if (transform.valid) {
-                 angle += transform.rotationDeg;
+                 angle -= transform.rotationDeg;
              }
              
              this.cursorAngle = angle;
