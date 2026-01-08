@@ -3,6 +3,9 @@ import { TransformMode } from '@/engine/core/interactionSession';
 import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/protocol';
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
 import { RotationCursor } from '@/features/editor/components/RotationCursor';
+import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
+import { MoveCursor } from '@/features/editor/components/MoveCursor';
+import { getRotationCursorAngle, getResizeCursorAngle } from '@/features/editor/config/cursor-config';
 import { ensureTextToolReady } from '@/features/editor/text/textToolController';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -55,10 +58,12 @@ export class SelectionHandler extends BaseInteractionHandler {
   private hoverSubTarget: number = PickSubTarget.None;
   private hoverSubIndex: number = -1;
 
-  // Rotation cursor state
+  // Custom cursor state
   private cursorAngle: number = 0;
   private cursorScreenPos: { x: number, y: number } | null = null;
   private showRotationCursor: boolean = false;
+  private showResizeCursor: boolean = false;
+  private showMoveCursor: boolean = false;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
@@ -164,24 +169,35 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     const centerScreen = worldToScreen({ x: centerX, y: centerY }, ctx.viewTransform);
 
-    const vx = ctx.screenPoint.x - centerScreen.x;
-    const vy = ctx.screenPoint.y - centerScreen.y;
-
-    const angleRad = Math.atan2(vy, vx);
-    const OFFSET_DEG = 90; 
-    const angleDeg = angleRad * (180 / Math.PI) + OFFSET_DEG;
-
-    this.cursorAngle = angleDeg;
+    // Use centralized cursor angle calculation
+    this.cursorAngle = getRotationCursorAngle(centerScreen, ctx.screenPoint);
     this.cursorScreenPos = ctx.screenPoint;
     this.showRotationCursor = true;
+  }
+
+  private updateResizeCursor(ctx: InputEventContext) {
+    // Calculate angle based on handle index
+    // Note: hoverSubIndex contains the handle index from the pick result
+    const angle = getResizeCursorAngle(this.hoverSubIndex);
+
+    this.cursorAngle = angle;
+    this.cursorScreenPos = ctx.screenPoint;
+    this.showResizeCursor = true;
+  }
+
+  private updateMoveCursor(ctx: InputEventContext) {
+    this.cursorScreenPos = ctx.screenPoint;
+    this.showMoveCursor = true;
   }
 
   onPointerMove(ctx: InputEventContext): void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
 
-    // Reset rotation cursor state by default
+    // Reset all custom cursor states by default
     this.showRotationCursor = false;
+    this.showResizeCursor = false;
+    this.showMoveCursor = false;
     this.cursorScreenPos = null;
 
     if (this.state.kind === 'transform') {
@@ -201,10 +217,15 @@ export class SelectionHandler extends BaseInteractionHandler {
         cadDebugLog('transform', 'update', () => ({ x: screen.x, y: screen.y }));
       }
 
+      // Show appropriate cursor during transform
       if (this.state.mode === TransformMode.Rotate) {
         this.updateRotationCursor(runtime, ctx);
-        this.notifyChange();
+      } else if (this.state.mode === TransformMode.Resize) {
+        this.updateResizeCursor(ctx);
+      } else if (this.state.mode === TransformMode.Move) {
+        this.updateMoveCursor(ctx);
       }
+      this.notifyChange();
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
       const downX = this.pointerDown.x;
@@ -224,8 +245,13 @@ export class SelectionHandler extends BaseInteractionHandler {
       this.hoverSubTarget = res.subTarget;
       this.hoverSubIndex = res.subIndex;
 
+      // Show appropriate cursor based on hover target
       if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
         this.updateRotationCursor(runtime, ctx);
+      } else if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
+        this.updateResizeCursor(ctx);
+      } else if (this.hoverSubTarget === PickSubTarget.Body) {
+        this.updateMoveCursor(ctx);
       }
       this.notifyChange(); // Trigger cursor update
     }
@@ -404,24 +430,14 @@ export class SelectionHandler extends BaseInteractionHandler {
   }
 
   getCursor(): string | null {
-    if (this.showRotationCursor) {
+    // Hide native cursor when showing custom cursors
+    if (this.showRotationCursor || this.showResizeCursor || this.showMoveCursor) {
       return 'none';
     }
 
     // During other active interactions, use default cursor handling
     if (this.state.kind === 'transform' || this.state.kind === 'marquee') {
       return null;
-    }
-
-    // Show resize cursor for resize handles
-    if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
-      // Could add directional resize cursors here
-      return 'nwse-resize';
-    }
-
-    // Show move cursor when hovering over selected entities
-    if (this.hoverSubTarget === PickSubTarget.Body) {
-      return 'move';
     }
 
     return null;
@@ -431,15 +447,37 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (this.state.kind === 'marquee') {
       return <ConnectedMarquee box={this.state.box} />;
     }
-    if (this.showRotationCursor && this.cursorScreenPos) {
-      return (
-        <RotationCursor
-          x={this.cursorScreenPos.x}
-          y={this.cursorScreenPos.y}
-          rotation={this.cursorAngle}
-        />
-      );
+
+    // Render custom cursors
+    if (this.cursorScreenPos) {
+      if (this.showRotationCursor) {
+        return (
+          <RotationCursor
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
+            rotation={this.cursorAngle}
+          />
+        );
+      }
+      if (this.showResizeCursor) {
+        return (
+          <ResizeCursor
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
+            rotation={this.cursorAngle}
+          />
+        );
+      }
+      if (this.showMoveCursor) {
+        return (
+          <MoveCursor
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
+          />
+        );
+      }
     }
+
     return null;
   }
 }

@@ -12,7 +12,9 @@
       "Bash(find:*)",
       "Bash(pnpm run build:wasm:*)",
       "Bash(pnpm test:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }
