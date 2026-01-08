@@ -29,6 +29,40 @@ const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
   );
 };
 
+const ConnectedClientRotationTooltip: React.FC<{ angle: number; worldPos: { x: number; y: number } }> = ({ angle, worldPos }) => {
+  const viewTransform = useUIStore((s) => s.viewTransform);
+  const screenPos = worldToScreen(worldPos, viewTransform);
+  
+  return (
+      <div
+        style={{
+          position: 'absolute',
+          left: screenPos.x,
+          top: screenPos.y,
+          pointerEvents: 'none',
+          zIndex: 1000,
+          transform: 'translate(-50%, -50%)',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+          }}
+        >
+          {Math.round(angle)}°
+        </div>
+      </div>
+  );
+};
+
 const buildModifierMask = (event: {
   shiftKey?: boolean;
   ctrlKey?: boolean;
@@ -58,6 +92,7 @@ type InteractionState =
       kind: 'client-rotate';
       entityId: number;
       startRotation: number;
+      currentRotation: number;
       startMouseAngle: number;
       centerX: number;
       centerY: number;
@@ -221,6 +256,7 @@ export class SelectionHandler extends BaseInteractionHandler {
                      kind: 'client-rotate',
                      entityId: id,
                      startRotation: transform.rotationDeg,
+                     currentRotation: transform.rotationDeg,
                      startMouseAngle: mouseAngleDeg,
                      centerX,
                      centerY
@@ -447,6 +483,9 @@ export class SelectionHandler extends BaseInteractionHandler {
            const SNAP_INTERVAL = 15;
            newRotation = Math.round(newRotation / SNAP_INTERVAL) * SNAP_INTERVAL;
        }
+       
+       // Update state for tooltip
+       this.state.currentRotation = newRotation;
 
        // Update Entity
        runtime.setEntityRotation(entityId, newRotation);
@@ -728,30 +767,45 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (this.state.kind === 'marquee') {
       return <ConnectedMarquee box={this.state.box} />;
     }
+    
+    const overlays: React.ReactNode[] = [];
+
+    // Client-side rotation tooltip
+    if (this.state.kind === 'client-rotate') {
+        const { currentRotation, centerX, centerY } = this.state;
+        overlays.push(
+            <ConnectedClientRotationTooltip 
+                key="rot-tooltip"
+                angle={currentRotation} 
+                worldPos={{ x: centerX, y: centerY }} 
+            />
+        );
+    }
 
     // Render custom cursors
     if (this.cursorScreenPos) {
       if (this.showRotationCursor) {
-        return (
+        overlays.push(
           <RotationCursor
+            key="cursor-rot"
             x={this.cursorScreenPos.x}
             y={this.cursorScreenPos.y}
             rotation={this.cursorAngle}
           />
         );
-      }
-      if (this.showResizeCursor) {
-        return (
+      } else if (this.showResizeCursor) {
+        overlays.push(
           <ResizeCursor
+            key="cursor-res"
             x={this.cursorScreenPos.x}
             y={this.cursorScreenPos.y}
             rotation={this.cursorAngle}
           />
         );
-      }
-      if (this.showMoveCursor) {
-        return (
+      } else if (this.showMoveCursor) {
+        overlays.push(
           <MoveCursor
+            key="cursor-move"
             x={this.cursorScreenPos.x}
             y={this.cursorScreenPos.y}
           />
@@ -759,6 +813,7 @@ export class SelectionHandler extends BaseInteractionHandler {
       }
     }
 
-    return null;
+    if (overlays.length === 0) return null;
+    return <>{overlays}</>;
   }
 }
