@@ -1,5 +1,6 @@
 import { EntityId, EntityTransform, OverlayBufferMeta } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
+import type { TransformState } from '../interactionSession';
 
 export class TransformSystem {
   constructor(
@@ -80,6 +81,13 @@ export class TransformSystem {
 
   public isInteractionActive(): boolean {
     return !!this.engine.isInteractionActive?.();
+  }
+
+  public getTransformState(): TransformState {
+    if (!this.engine.getTransformState) {
+      return { active: false, mode: 0, rotationDeltaDeg: 0, pivotX: 0, pivotY: 0 };
+    }
+    return this.engine.getTransformState();
   }
 
   public setTransformLogEnabled(enabled: boolean, maxEntries = 2048, maxIds = 4096): void {

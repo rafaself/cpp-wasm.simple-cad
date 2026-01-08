@@ -13,6 +13,7 @@ import type {
   SelectionStyleSummary,
 } from './protocol';
 import type { PickResult } from '@/types/picking';
+import type { TransformState } from './interactionSession';
 import type {
   TextCaretPosition,
   TextHitResult,
@@ -212,6 +213,7 @@ export type CadEngineInstance = {
   commitTransform?: () => void;
   cancelTransform?: () => void;
   isInteractionActive?: () => boolean;
+  getTransformState?: () => TransformState;
   getCommitResultCount?: () => number;
   getCommitResultIdsPtr?: () => number;
   getCommitResultOpCodesPtr?: () => number;

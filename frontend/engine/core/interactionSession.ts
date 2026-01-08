@@ -27,6 +27,16 @@ export type VertexSetCommitPayload = { vertexIndex: number; x: number; y: number
 export type ResizeCommitPayload = { x: number; y: number; width: number; height: number };
 export type RotateCommitPayload = { rotationDeg: number };
 
+// Transform state for UI feedback (tooltips, etc.)
+// Must match TransformState in cpp/engine/interaction/interaction_types.h
+export type TransformState = {
+  active: boolean;
+  mode: number; // TransformMode as number
+  rotationDeltaDeg: number; // For Rotate mode: accumulated rotation angle
+  pivotX: number; // For Rotate mode: pivot point X
+  pivotY: number; // For Rotate mode: pivot point Y
+};
+
 export const decodeMovePayload = (payloads: Float32Array, i: number): MoveCommitPayload | null => {
   const o = i * COMMIT_PAYLOAD_STRIDE;
   if (o + 1 >= payloads.length) return null;

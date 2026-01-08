@@ -42,6 +42,7 @@ struct RectRec {
     float y;
     float w;
     float h;
+    float rot; // rotation in radians (persisted)
     float r, g, b, a; // fill RGBA (persisted)
     float sr, sg, sb, sa; // stroke RGBA (runtime-only)
     float strokeEnabled; // 0 or 1 (runtime-only)

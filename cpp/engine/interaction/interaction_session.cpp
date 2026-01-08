@@ -47,6 +47,20 @@ InteractionSession::InteractionSession(CadEngine& engine, EntityManager& entityM
     snapCandidates_.reserve(128);
 }
 
+TransformState InteractionSession::getTransformState() const {
+    TransformState state{};
+    state.active = session_.active;
+    state.mode = static_cast<std::uint8_t>(session_.mode);
+
+    if (session_.active && session_.mode == TransformMode::Rotate) {
+        state.rotationDeltaDeg = session_.accumulatedDeltaDeg;
+        state.pivotX = session_.rotationPivotX;
+        state.pivotY = session_.rotationPivotY;
+    }
+
+    return state;
+}
+
 void InteractionSession::refreshEntityRenderRange(std::uint32_t id) {
     engine_.refreshEntityRenderRange(id);
 }
@@ -234,22 +248,48 @@ void InteractionSession::beginTransform(
         TransformSnapshot snap;
         snap.id = id;
         snap.x = 0.0f; snap.y = 0.0f; snap.w = 0.0f; snap.h = 0.0f;
+        snap.rotation = 0.0f;
 
         if (it->second.kind == EntityKind::Rect) {
             for (const auto& r : entityManager_.rects) {
-                if (r.id == id) { snap.x = r.x; snap.y = r.y; snap.w = r.w; snap.h = r.h; break; }
+                if (r.id == id) {
+                    snap.x = r.x;
+                    snap.y = r.y;
+                    snap.w = r.w;
+                    snap.h = r.h;
+                    snap.rotation = r.rot;
+                    break;
+                }
             }
         } else if (it->second.kind == EntityKind::Circle) {
              for (const auto& c : entityManager_.circles) {
-                if (c.id == id) { snap.x = c.cx; snap.y = c.cy; snap.w = c.rx; snap.h = c.ry; break; }
+                if (c.id == id) {
+                    snap.x = c.cx;
+                    snap.y = c.cy;
+                    snap.w = c.rx;
+                    snap.h = c.ry;
+                    snap.rotation = c.rot;
+                    break;
+                }
             }
         } else if (it->second.kind == EntityKind::Polygon) {
              for (const auto& p : entityManager_.polygons) {
-                if (p.id == id) { snap.x = p.cx; snap.y = p.cy; snap.w = p.rx; snap.h = p.ry; break; }
+                if (p.id == id) {
+                    snap.x = p.cx;
+                    snap.y = p.cy;
+                    snap.w = p.rx;
+                    snap.h = p.ry;
+                    snap.rotation = p.rot;
+                    break;
+                }
             }
         } else if (it->second.kind == EntityKind::Text) {
              const TextRec* tr = textSystem_.store.getText(id);
-             if (tr) { snap.x = tr->x; snap.y = tr->y; }
+             if (tr) {
+                 snap.x = tr->x;
+                 snap.y = tr->y;
+                 snap.rotation = tr->rotation;
+             }
         } else if (it->second.kind == EntityKind::Line) {
             for (const auto& l : entityManager_.lines) {
                  if (l.id == id) {
@@ -376,6 +416,22 @@ void InteractionSession::beginTransform(
                 }
             }
         }
+    }
+
+    if (session_.mode == TransformMode::Rotate) {
+        // Calculate rotation pivot as center of selection bounds
+        session_.rotationPivotX = (session_.baseMinX + session_.baseMaxX) * 0.5f;
+        session_.rotationPivotY = (session_.baseMinY + session_.baseMaxY) * 0.5f;
+
+        // Calculate start angle from pivot to initial pointer position
+        float worldX = 0.0f;
+        float worldY = 0.0f;
+        screenToWorld(screenX, screenY, viewX, viewY, viewScale, worldX, worldY);
+
+        const float dx = worldX - session_.rotationPivotX;
+        const float dy = worldY - session_.rotationPivotY;
+        session_.startAngleDeg = std::atan2(dy, dx) * (180.0f / M_PI);
+        session_.accumulatedDeltaDeg = 0.0f;
     }
 
     recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
@@ -846,6 +902,132 @@ void InteractionSession::updateTransform(
                 }
             }
         }
+    } else if (session_.mode == TransformMode::Rotate) {
+        // Calculate current angle from pivot to pointer
+        float currentAngleDeg = std::atan2(worldY - session_.rotationPivotY, worldX - session_.rotationPivotX) * (180.0f / M_PI);
+
+        // Calculate delta angle, handling wrap-around
+        float deltaAngle = currentAngleDeg - session_.startAngleDeg;
+        if (deltaAngle > 180.0f) deltaAngle -= 360.0f;
+        if (deltaAngle < -180.0f) deltaAngle += 360.0f;
+
+        // Apply shift snap (15° increments)
+        const bool shiftDown = (modifiers & kShiftMask) != 0;
+        if (shiftDown) {
+            deltaAngle = std::round(deltaAngle / 15.0f) * 15.0f;
+        }
+
+        session_.accumulatedDeltaDeg = deltaAngle;
+
+        // Helper function to normalize angle to -180..180 range
+        auto normalizeAngle = [](float deg) -> float {
+            float normalized = std::fmod(deg, 360.0f);
+            if (normalized > 180.0f) normalized -= 360.0f;
+            if (normalized <= -180.0f) normalized += 360.0f;
+            return normalized;
+        };
+
+        // Helper function to rotate a point around pivot
+        auto rotatePoint = [](float px, float py, float pivotX, float pivotY, float angleDeg) -> std::pair<float, float> {
+            const float angleRad = angleDeg * (M_PI / 180.0f);
+            const float cosA = std::cos(angleRad);
+            const float sinA = std::sin(angleRad);
+            const float dx = px - pivotX;
+            const float dy = py - pivotY;
+            return {
+                pivotX + dx * cosA - dy * sinA,
+                pivotY + dx * sinA + dy * cosA
+            };
+        };
+
+        const float deltaAngleRad = deltaAngle * (M_PI / 180.0f);
+
+        // Apply rotation to all entities
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            auto it = entityManager_.entities.find(id);
+            if (it == entityManager_.entities.end()) continue;
+
+            // Update rotation for entities that support it
+            if (it->second.kind == EntityKind::Rect) {
+                for (auto& r : entityManager_.rects) {
+                    if (r.id == id) {
+                        // Update rotation
+                        float newRotationRad = snap.rotation + deltaAngleRad;
+                        r.rot = newRotationRad;
+
+                        // For multi-select, also rotate position around group pivot
+                        if (session_.snapshots.size() > 1) {
+                            auto [newX, newY] = rotatePoint(snap.x, snap.y, session_.rotationPivotX, session_.rotationPivotY, deltaAngle);
+                            r.x = newX;
+                            r.y = newY;
+                        }
+
+                        pickSystem_.update(id, PickSystem::computeRectAABB(r));
+                        refreshEntityRenderRange(id);
+                        updated = true;
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Circle) {
+                for (auto& c : entityManager_.circles) {
+                    if (c.id == id) {
+                        // Update rotation
+                        float newRotationRad = snap.rotation + deltaAngleRad;
+                        c.rot = newRotationRad;
+
+                        // For multi-select, also rotate position around group pivot
+                        if (session_.snapshots.size() > 1) {
+                            auto [newCx, newCy] = rotatePoint(snap.x, snap.y, session_.rotationPivotX, session_.rotationPivotY, deltaAngle);
+                            c.cx = newCx;
+                            c.cy = newCy;
+                        }
+
+                        pickSystem_.update(id, PickSystem::computeCircleAABB(c));
+                        refreshEntityRenderRange(id);
+                        updated = true;
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Polygon) {
+                for (auto& p : entityManager_.polygons) {
+                    if (p.id == id) {
+                        // Update rotation
+                        float newRotationRad = snap.rotation + deltaAngleRad;
+                        p.rot = newRotationRad;
+
+                        // For multi-select, also rotate position around group pivot
+                        if (session_.snapshots.size() > 1) {
+                            auto [newCx, newCy] = rotatePoint(snap.x, snap.y, session_.rotationPivotX, session_.rotationPivotY, deltaAngle);
+                            p.cx = newCx;
+                            p.cy = newCy;
+                        }
+
+                        pickSystem_.update(id, PickSystem::computePolygonAABB(p));
+                        refreshEntityRenderRange(id);
+                        updated = true;
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Text) {
+                TextRec* t = textSystem_.store.getTextMutable(id);
+                if (t) {
+                    // Update rotation
+                    float newRotationRad = snap.rotation + deltaAngleRad;
+                    t->rotation = newRotationRad;
+
+                    // For multi-select, also rotate position around group pivot
+                    if (session_.snapshots.size() > 1) {
+                        auto [newX, newY] = rotatePoint(snap.x, snap.y, session_.rotationPivotX, session_.rotationPivotY, deltaAngle);
+                        t->x = newX;
+                        t->y = newY;
+                    }
+
+                    refreshEntityRenderRange(id);
+                    updated = true;
+                }
+            }
+        }
     }
 
     if (updated) {
@@ -938,6 +1120,55 @@ void InteractionSession::commitTransform() {
             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::RESIZE));
             commitResultPayloads.push_back(outX); commitResultPayloads.push_back(outY);
             commitResultPayloads.push_back(outW); commitResultPayloads.push_back(outH);
+        }
+    } else if (session_.mode == TransformMode::Rotate) {
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            auto it = entityManager_.entities.find(id);
+            if (it == entityManager_.entities.end()) continue;
+
+            float finalRotationDeg = 0.0f;
+
+            // Read final rotation from entity (convert from radians to degrees)
+            if (it->second.kind == EntityKind::Rect) {
+                for (const auto& r : entityManager_.rects) {
+                    if (r.id == id) {
+                        finalRotationDeg = r.rot * (180.0f / M_PI);
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Circle) {
+                for (const auto& c : entityManager_.circles) {
+                    if (c.id == id) {
+                        finalRotationDeg = c.rot * (180.0f / M_PI);
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Polygon) {
+                for (const auto& p : entityManager_.polygons) {
+                    if (p.id == id) {
+                        finalRotationDeg = p.rot * (180.0f / M_PI);
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Text) {
+                const TextRec* t = textSystem_.store.getText(id);
+                if (t) {
+                    finalRotationDeg = t->rotation * (180.0f / M_PI);
+                }
+            }
+
+            // Normalize to -180..180 range
+            float normalized = std::fmod(finalRotationDeg, 360.0f);
+            if (normalized > 180.0f) normalized -= 360.0f;
+            if (normalized <= -180.0f) normalized += 360.0f;
+
+            commitResultIds.push_back(id);
+            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::ROTATE));
+            commitResultPayloads.push_back(normalized);
+            commitResultPayloads.push_back(0); // reserved
+            commitResultPayloads.push_back(0); // reserved
+            commitResultPayloads.push_back(0); // reserved
         }
     }
     // ... VertexDrag logic ... (same pattern)

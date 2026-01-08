@@ -144,18 +144,52 @@ static void addSegmentQuad(
 
 static void addRectFill(const RectRec& r, std::vector<float>& triangleVertices) {
     if (!(r.a > 0.0f)) return;
-    const float x0 = r.x;
-    const float y0 = r.y;
-    const float x1 = r.x + r.w;
-    const float y1 = r.y + r.h;
-    constexpr float z = 0.0f;
 
-    pushVertexColored(x0, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x1, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x1, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x0, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x1, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x0, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+    // Calculate center of rectangle for rotation
+    const float cx = r.x + r.w * 0.5f;
+    const float cy = r.y + r.h * 0.5f;
+
+    // Corner positions (unrotated)
+    float x0 = r.x;
+    float y0 = r.y;
+    float x1 = r.x + r.w;
+    float y1 = r.y + r.h;
+
+    // Apply rotation if needed
+    if (std::abs(r.rot) > 1e-6f) {
+        const float cosA = std::cos(r.rot);
+        const float sinA = std::sin(r.rot);
+
+        // Helper to rotate a point around center
+        auto rotatePoint = [&](float x, float y) -> std::pair<float, float> {
+            const float dx = x - cx;
+            const float dy = y - cy;
+            return {cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA};
+        };
+
+        // Rotate all 4 corners
+        auto [rx0y0_x, rx0y0_y] = rotatePoint(x0, y0);
+        auto [rx1y0_x, rx1y0_y] = rotatePoint(x1, y0);
+        auto [rx1y1_x, rx1y1_y] = rotatePoint(x1, y1);
+        auto [rx0y1_x, rx0y1_y] = rotatePoint(x0, y1);
+
+        constexpr float z = 0.0f;
+        pushVertexColored(rx0y0_x, rx0y0_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx1y0_x, rx1y0_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx1y1_x, rx1y1_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx0y0_x, rx0y0_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx1y1_x, rx1y1_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx0y1_x, rx0y1_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+    } else {
+        // No rotation - use original fast path
+        constexpr float z = 0.0f;
+        pushVertexColored(x0, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(x1, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(x1, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(x0, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(x1, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(x0, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+    }
 }
 
 static void addRectStroke(const RectRec& r, float viewScale, std::vector<float>& triangleVertices) {
@@ -180,25 +214,67 @@ static void addRectStroke(const RectRec& r, float viewScale, std::vector<float>&
 
     constexpr float z = 0.0f;
 
-    auto pushEdge = [&](float oxA, float oyA, float ixA, float iyA, float oxB, float oyB, float ixB, float iyB) {
-        // Triangle 1: outer A, inner A, outer B
-        pushVertexColored(oxA, oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        // Triangle 2: inner A, inner B, outer B
-        pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(ixB, iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
-    };
+    // Apply rotation if needed
+    if (std::abs(r.rot) > 1e-6f) {
+        const float cx = r.x + r.w * 0.5f;
+        const float cy = r.y + r.h * 0.5f;
+        const float cosA = std::cos(r.rot);
+        const float sinA = std::sin(r.rot);
 
-    // Top edge
-    pushEdge(ox0, oy0, cix0, ciy0, ox1, oy0, cix1, ciy0);
-    // Right edge
-    pushEdge(ox1, oy0, cix1, ciy0, ox1, oy1, cix1, ciy1);
-    // Bottom edge
-    pushEdge(ox1, oy1, cix1, ciy1, ox0, oy1, cix0, ciy1);
-    // Left edge
-    pushEdge(ox0, oy1, cix0, ciy1, ox0, oy0, cix0, ciy0);
+        auto rotatePoint = [&](float x, float y) -> std::pair<float, float> {
+            const float dx = x - cx;
+            const float dy = y - cy;
+            return {cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA};
+        };
+
+        // Rotate all 8 corner points (4 outer + 4 inner)
+        auto [rox0y0_x, rox0y0_y] = rotatePoint(ox0, oy0);
+        auto [rox1y0_x, rox1y0_y] = rotatePoint(ox1, oy0);
+        auto [rox1y1_x, rox1y1_y] = rotatePoint(ox1, oy1);
+        auto [rox0y1_x, rox0y1_y] = rotatePoint(ox0, oy1);
+        auto [rix0y0_x, rix0y0_y] = rotatePoint(cix0, ciy0);
+        auto [rix1y0_x, rix1y0_y] = rotatePoint(cix1, ciy0);
+        auto [rix1y1_x, rix1y1_y] = rotatePoint(cix1, ciy1);
+        auto [rix0y1_x, rix0y1_y] = rotatePoint(cix0, ciy1);
+
+        auto pushEdgeRotated = [&](float oxA, float oyA, float ixA, float iyA,
+                                    float oxB, float oyB, float ixB, float iyB) {
+            pushVertexColored(oxA, oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixB, iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        };
+
+        // Top edge
+        pushEdgeRotated(rox0y0_x, rox0y0_y, rix0y0_x, rix0y0_y, rox1y0_x, rox1y0_y, rix1y0_x, rix1y0_y);
+        // Right edge
+        pushEdgeRotated(rox1y0_x, rox1y0_y, rix1y0_x, rix1y0_y, rox1y1_x, rox1y1_y, rix1y1_x, rix1y1_y);
+        // Bottom edge
+        pushEdgeRotated(rox1y1_x, rox1y1_y, rix1y1_x, rix1y1_y, rox0y1_x, rox0y1_y, rix0y1_x, rix0y1_y);
+        // Left edge
+        pushEdgeRotated(rox0y1_x, rox0y1_y, rix0y1_x, rix0y1_y, rox0y0_x, rox0y0_y, rix0y0_x, rix0y0_y);
+    } else {
+        // No rotation - use original fast path
+        auto pushEdge = [&](float oxA, float oyA, float ixA, float iyA, float oxB, float oyB, float ixB, float iyB) {
+            pushVertexColored(oxA, oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixB, iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        };
+
+        // Top edge
+        pushEdge(ox0, oy0, cix0, ciy0, ox1, oy0, cix1, ciy0);
+        // Right edge
+        pushEdge(ox1, oy0, cix1, ciy0, ox1, oy1, cix1, ciy1);
+        // Bottom edge
+        pushEdge(ox1, oy1, cix1, ciy1, ox0, oy1, cix0, ciy1);
+        // Left edge
+        pushEdge(ox0, oy1, cix0, ciy1, ox0, oy0, cix0, ciy0);
+    }
 }
 
 static void addCircleFill(const CircleRec& c, std::vector<float>& triangleVertices) {

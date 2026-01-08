@@ -18,6 +18,7 @@ import {
   type EntityTransform,
   type HistoryMeta,
 } from '@/engine/core/protocol';
+import type { TransformState } from '@/engine/core/interactionSession';
 
 // Re-export types moved to wasm-types to maintain compatibility
 export type {
@@ -398,6 +399,10 @@ export class EngineRuntime {
 
   public isInteractionActive(): boolean {
     return this.transformSystem.isInteractionActive();
+  }
+
+  public getTransformState(): TransformState {
+    return this.transformSystem.getTransformState();
   }
 
   public setSnapOptions(

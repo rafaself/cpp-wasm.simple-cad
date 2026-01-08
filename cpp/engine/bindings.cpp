@@ -216,6 +216,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("commitTransform", &CadEngine::commitTransform)
         .function("cancelTransform", &CadEngine::cancelTransform)
         .function("isInteractionActive", &CadEngine::isInteractionActive)
+        .function("getTransformState", &CadEngine::getTransformState)
         .function("getCommitResultCount", &CadEngine::getCommitResultCount)
         .function("getCommitResultIdsPtr", &CadEngine::getCommitResultIdsPtr)
         .function("getCommitResultOpCodesPtr", &CadEngine::getCommitResultOpCodesPtr)
@@ -241,6 +242,13 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("distance", &PickResult::distance)
         .field("hitX", &PickResult::hitX)
         .field("hitY", &PickResult::hitY);
+
+    emscripten::value_object<TransformState>("TransformState")
+        .field("active", &TransformState::active)
+        .field("mode", &TransformState::mode)
+        .field("rotationDeltaDeg", &TransformState::rotationDeltaDeg)
+        .field("pivotX", &TransformState::pivotX)
+        .field("pivotY", &TransformState::pivotY);
 
     emscripten::value_object<CadEngine::ProtocolInfo>("ProtocolInfo")
         .field("protocolVersion", &CadEngine::ProtocolInfo::protocolVersion)

@@ -93,6 +93,10 @@ bool CadEngine::isInteractionActive() const {
     return interactionSession_.isInteractionActive();
 }
 
+TransformState CadEngine::getTransformState() const {
+    return interactionSession_.getTransformState();
+}
+
 std::uint32_t CadEngine::getCommitResultCount() const {
     return static_cast<std::uint32_t>(interactionSession_.getCommitResultIds().size());
 }

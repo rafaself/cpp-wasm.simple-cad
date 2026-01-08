@@ -638,6 +638,11 @@ public:
      */
     bool isInteractionActive() const;
 
+    /**
+     * Get current transform state for UI feedback (tooltips, etc.)
+     */
+    TransformState getTransformState() const;
+
     // Accessors for Commit Results (WASM Bindings)
     std::uint32_t getCommitResultCount() const;
     std::uintptr_t getCommitResultIdsPtr() const;

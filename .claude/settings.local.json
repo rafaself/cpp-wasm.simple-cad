@@ -10,7 +10,9 @@
       "Bash(grep:*)",
       "Bash(cmake --build:*)",
       "Bash(find:*)",
-      "Bash(pnpm run build:wasm:*)"
+      "Bash(pnpm run build:wasm:*)",
+      "Bash(pnpm test:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

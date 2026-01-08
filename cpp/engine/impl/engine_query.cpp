@@ -338,8 +338,9 @@ CadEngine::EntityTransform CadEngine::getEntityTransform(std::uint32_t entityId)
         case EntityKind::Rect: {
             if (it->second.index >= entityManager_.rects.size()) break;
             const RectRec& r = entityManager_.rects[it->second.index];
-            // Rect has no rotation support (yet), local size = w, h
-            return EntityTransform{centerX, centerY, r.w, r.h, 0.0f, 0, 1};
+            // Rect supports rotation, local size = w, h
+            const float rotDeg = normalizeAngleDeg(r.rot * kRadToDeg);
+            return EntityTransform{centerX, centerY, r.w, r.h, rotDeg, 1, 1};
         }
         case EntityKind::Circle: {
             if (it->second.index >= entityManager_.circles.size()) break;
@@ -575,6 +576,14 @@ void CadEngine::setEntityRotation(std::uint32_t entityId, float rotationDeg) {
     beginHistoryEntry();
 
     switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            RectRec& r = entityManager_.rects[it->second.index];
+            r.rot = rotationRad;
+            pickSystem_.update(entityId, PickSystem::computeRectAABB(r));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
         case EntityKind::Circle: {
             if (it->second.index >= entityManager_.circles.size()) break;
             CircleRec& c = entityManager_.circles[it->second.index];
@@ -599,7 +608,7 @@ void CadEngine::setEntityRotation(std::uint32_t entityId, float rotationDeg) {
             recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
             break;
         }
-        // Rect, Line, Polyline, Arrow: rotation not supported
+        // Line, Polyline, Arrow: rotation not supported
         default:
             discardHistoryEntry();
             return;

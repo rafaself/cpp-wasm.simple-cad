@@ -16,3 +16,12 @@ enum class TransformOpCode : std::uint8_t {
     RESIZE = 3,
     ROTATE = 4
 };
+
+// Transform state for UI feedback (tooltips, etc.)
+struct TransformState {
+    bool active = false;
+    std::uint8_t mode = 0;  // TransformMode as uint8
+    float rotationDeltaDeg = 0.0f;  // For Rotate mode: accumulated rotation angle
+    float pivotX = 0.0f;  // For Rotate mode: pivot point X
+    float pivotY = 0.0f;  // For Rotate mode: pivot point Y
+};

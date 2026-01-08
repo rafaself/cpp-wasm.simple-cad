@@ -1,5 +1,7 @@
 import { useMemo, useCallback } from 'react';
 
+import { normalizeAngle } from '@/utils/geometry/angleNormalization';
+
 import { useDocumentSignal } from './engineDocumentSignals';
 import { useEngineRuntime } from './useEngineRuntime';
 
@@ -90,7 +92,9 @@ export const useSetEntityTransform = () => {
   const setRotation = useCallback(
     (entityId: EntityId, rotationDeg: number) => {
       if (!runtime) return;
-      runtime.setEntityRotation(entityId, rotationDeg);
+      // Normalize to -180..180 range before sending to engine (Figma convention)
+      const normalized = normalizeAngle(rotationDeg);
+      runtime.setEntityRotation(entityId, normalized);
     },
     [runtime],
   );

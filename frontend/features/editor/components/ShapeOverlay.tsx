@@ -14,7 +14,7 @@ import { supportsEngineResize } from '@/engine/core/capabilities';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { OverlayKind } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
-import { useEngineSelectionCount } from '@/engine/core/useEngineSelection';
+import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { EntityKind } from '@/engine/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -26,6 +26,7 @@ const HANDLE_SIZE_PX = 8;
 
 const ShapeOverlay: React.FC = () => {
   const selectionCount = useEngineSelectionCount();
+  const selectionIds = useEngineSelectionIds();
   const isEditingAppearance = useUIStore((s) => s.isEditingAppearance);
   const isTextEditing = useUIStore((s) => s.engineTextEditState.active);
   const overlayTick = useUIStore((s) => s.overlayTick);
@@ -56,17 +57,43 @@ const ShapeOverlay: React.FC = () => {
     const hs = HANDLE_SIZE_PX;
     const hh = hs / 2;
 
+    // Get rotation angle for single selection
+    let entityRotationRad = 0;
+    let entityCenterWorld = { x: 0, y: 0 };
+    if (selectionCount === 1 && selectionIds.length === 1) {
+      const entityId = selectionIds[0];
+      if (entityId) {
+        const transform = runtime.getEntityTransform(entityId);
+        if (transform.valid) {
+          entityRotationRad = (transform.rotationDeg * Math.PI) / 180;
+          entityCenterWorld = { x: transform.posX, y: transform.posY };
+        }
+      }
+    }
+
     // Helper to transform world points to screen
     const renderPoints = (
       prim: { count: number; offset: number },
       data: Float32Array,
+      applyRotation = false,
     ): { x: number; y: number }[] => {
       const pts: { x: number; y: number }[] = [];
       const start = prim.offset;
       for (let i = 0; i < prim.count; i++) {
         const idx = start + i * 2;
-        const x = data[idx] ?? 0;
-        const y = data[idx + 1] ?? 0;
+        let x = data[idx] ?? 0;
+        let y = data[idx + 1] ?? 0;
+
+        // Apply rotation if needed (for single selected entity with rotation)
+        if (applyRotation && Math.abs(entityRotationRad) > 1e-6) {
+          const cosA = Math.cos(entityRotationRad);
+          const sinA = Math.sin(entityRotationRad);
+          const dx = x - entityCenterWorld.x;
+          const dy = y - entityCenterWorld.y;
+          x = entityCenterWorld.x + dx * cosA - dy * sinA;
+          y = entityCenterWorld.y + dx * sinA + dy * cosA;
+        }
+
         pts.push(worldToScreen({ x, y }, viewTransform));
       }
       return pts;
@@ -169,7 +196,7 @@ const ShapeOverlay: React.FC = () => {
         // Render selection outlines
         outline.primitives.forEach((prim, idx) => {
           if (prim.count < 2) return;
-          const pts = renderPoints(prim, outline.data);
+          const pts = renderPoints(prim, outline.data, true); // Apply rotation for single selection
           const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
 
           if (prim.kind === OverlayKind.Segment) {
@@ -214,7 +241,8 @@ const ShapeOverlay: React.FC = () => {
         if (engineResizeEnabled || handles.primitives.length > 0) {
           handles.primitives.forEach((prim, idx) => {
             if (prim.count < 1) return;
-            const pts = renderPoints(prim, handles.data);
+            const pts = renderPoints(prim, handles.data, true); // Apply rotation for single selection
+            // Render resize handles
             pts.forEach((p, i) => {
               selectionElements.push(
                 <rect
@@ -228,6 +256,71 @@ const ShapeOverlay: React.FC = () => {
                 />,
               );
             });
+
+            // Render rotation handles (outside corners)
+            // Only render for entities with 4 corners (rectangle-like shapes)
+            if (prim.count === 4) {
+              const rotationHandleOffsetPx = 18; // px offset from corner (increased for better spacing)
+              const rotationHandleRadiusPx = 5; // radius of rotation handle circle (larger for visibility)
+
+              // Corner directions (diagonal outward) - need to rotate these too
+              const baseDirections = [
+                { x: -1, y: -1 }, // BL
+                { x: 1, y: -1 },  // BR
+                { x: 1, y: 1 },   // TR
+                { x: -1, y: 1 },  // TL
+              ];
+
+              // If entity is rotated, rotate the handle directions too
+              const directions = baseDirections.map((dir) => {
+                if (Math.abs(entityRotationRad) > 1e-6) {
+                  const cosA = Math.cos(entityRotationRad);
+                  const sinA = Math.sin(entityRotationRad);
+                  return {
+                    x: dir.x * cosA - dir.y * sinA,
+                    y: dir.x * sinA + dir.y * cosA,
+                  };
+                }
+                return dir;
+              });
+
+              pts.forEach((corner, i) => {
+                const dir = directions[i];
+                if (!dir) return;
+
+                // Calculate rotation handle position (offset diagonally from corner)
+                const handleX = corner.x + dir.x * rotationHandleOffsetPx * 0.707; // 0.707 = 1/sqrt(2) for diagonal
+                const handleY = corner.y + dir.y * rotationHandleOffsetPx * 0.707;
+
+                // Render with drop shadow and improved styling
+                selectionElements.push(
+                  <g key={`rot-handle-${idx}-${i}`}>
+                    {/* Drop shadow */}
+                    <circle
+                      cx={handleX}
+                      cy={handleY + 0.5}
+                      r={rotationHandleRadiusPx}
+                      className="fill-black opacity-10"
+                    />
+                    {/* Main handle */}
+                    <circle
+                      cx={handleX}
+                      cy={handleY}
+                      r={rotationHandleRadiusPx}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1.5}
+                    />
+                    {/* Inner circle for visual distinction */}
+                    <circle
+                      cx={handleX}
+                      cy={handleY}
+                      r={2}
+                      className="fill-primary opacity-30"
+                    />
+                  </g>,
+                );
+              });
+            }
           });
         }
       }
@@ -357,6 +450,7 @@ const ShapeOverlay: React.FC = () => {
     isTextEditing,
     runtime,
     selectionCount,
+    selectionIds,
     viewTransform,
   ]);
 

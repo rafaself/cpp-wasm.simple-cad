@@ -49,6 +49,10 @@ export class SelectionHandler extends BaseInteractionHandler {
 
   private runtime: EngineRuntime | null = null;
 
+  // Track hover state for cursor updates
+  private hoverSubTarget: number = PickSubTarget.None;
+  private hoverSubIndex: number = -1;
+
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime || event.button !== 0) return;
@@ -94,6 +98,8 @@ export class SelectionHandler extends BaseInteractionHandler {
         let mode = TransformMode.Move;
         if (res.subTarget === PickSubTarget.ResizeHandle) {
           mode = TransformMode.Resize;
+        } else if (res.subTarget === PickSubTarget.RotateHandle) {
+          mode = TransformMode.Rotate;
         } else if (res.subTarget === PickSubTarget.Vertex) {
           mode = TransformMode.VertexDrag;
         } else if (res.subTarget === PickSubTarget.Edge) {
@@ -172,6 +178,13 @@ export class SelectionHandler extends BaseInteractionHandler {
         y: world.y,
       }));
       this.notifyChange();
+    } else if (this.state.kind === 'none') {
+      // Update hover state for cursor feedback when not interacting
+      const tolerance = 10 / (ctx.viewTransform.scale || 1);
+      const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+      this.hoverSubTarget = res.subTarget;
+      this.hoverSubIndex = res.subIndex;
+      this.notifyChange(); // Trigger cursor update
     }
   }
 
@@ -345,6 +358,43 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.state = { kind: 'none' };
     this.pointerDown = null;
     this.notifyChange();
+  }
+
+  getCursor(): string | null {
+    // Show rotation cursor during active rotation transform
+    if (this.state.kind === 'transform' && this.state.mode === TransformMode.Rotate) {
+      return 'url(/assets/cursor-rotate.svg) 12 12, alias';
+    }
+
+    // During other active interactions, use default cursor handling
+    if (this.state.kind === 'transform' || this.state.kind === 'marquee') {
+      return null;
+    }
+
+    // Show rotation cursor when hovering over rotation handles
+    if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
+      // Map corner index to rotation angle for cursor
+      // Corner indices: 0=BL, 1=BR, 2=TR, 3=TL (diagonal offsets in C++)
+      const rotationAngles = [-45, 45, 135, -135]; // Degrees for each corner
+      const angle = rotationAngles[this.hoverSubIndex] ?? 0;
+
+      // Return rotated cursor using CSS transform in the URL
+      // For now, use a simple rotation cursor without per-corner variation
+      return 'url(/assets/cursor-rotate.svg) 12 12, alias';
+    }
+
+    // Show resize cursor for resize handles
+    if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
+      // Could add directional resize cursors here
+      return 'nwse-resize';
+    }
+
+    // Show move cursor when hovering over selected entities
+    if (this.hoverSubTarget === PickSubTarget.Body) {
+      return 'move';
+    }
+
+    return null;
   }
 
   renderOverlay(): React.ReactNode {

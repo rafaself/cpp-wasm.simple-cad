@@ -35,6 +35,7 @@ public:
     // ==============================================================================
     // State Query
     // ==============================================================================
+    TransformState getTransformState() const;
     bool isInteractionActive() const noexcept { return session_.active; }
     bool isDraftActive() const noexcept { return draft_.active; }
 
@@ -148,6 +149,11 @@ private:
         float resizeBaseH = 0.0f;
         bool duplicated = false;
         std::vector<std::uint32_t> originalIds;
+        // Rotation state
+        float rotationPivotX = 0.0f;
+        float rotationPivotY = 0.0f;
+        float startAngleDeg = 0.0f;
+        float accumulatedDeltaDeg = 0.0f;
     };
 
     struct DraftState {
