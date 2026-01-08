@@ -16,6 +16,9 @@ import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
+import { SIDE_HANDLE_INDICES, SideHandleType } from '../../interactions/sideHandles';
+
+import { normalizeAngle } from '@/features/editor/config/cursor-config';
 
 // Connected component to access store without prop drilling through handler
 const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
@@ -43,7 +46,22 @@ const buildModifierMask = (event: {
 type InteractionState =
   | { kind: 'none' }
   | { kind: 'marquee'; box: SelectionBoxState; startScreen: { x: number; y: number } }
-  | { kind: 'transform'; startScreen: { x: number; y: number }; mode: TransformMode };
+  | { kind: 'transform'; startScreen: { x: number; y: number }; mode: TransformMode }
+  | {
+      kind: 'side-resize';
+      handle: SideHandleType;
+      startWorld: { x: number; y: number };
+      startTransform: { x: number; y: number; width: number; height: number; rotation: number };
+      entityId: number;
+    }
+  | {
+      kind: 'client-rotate';
+      entityId: number;
+      startRotation: number;
+      startMouseAngle: number;
+      centerX: number;
+      centerY: number;
+    };
 
 export class SelectionHandler extends BaseInteractionHandler {
   name = 'select';
@@ -64,6 +82,52 @@ export class SelectionHandler extends BaseInteractionHandler {
   private showRotationCursor: boolean = false;
   private showResizeCursor: boolean = false;
   private showMoveCursor: boolean = false;
+
+  private findSideHandle(
+    runtime: EngineRuntime,
+    worldPoint: { x: number; y: number },
+    tolerance: number,
+  ): { handle: SideHandleType; id: number } | null {
+    const selection = runtime.getSelectionIds();
+    if (selection.length !== 1) return null; // Only support single entity side-resize for now
+    const id = selection[0];
+    
+    // Get Entity Transform
+    const transform = runtime.getEntityTransform(id);
+    if (!transform.valid) return null;
+
+    // We work in World Space for distance check to match pickEx behavior roughly
+    // Or we can project point to local space.
+    // Local Space: Center is (0,0) (relative to pos), aligned with rotation.
+    // Actually getEntityTransform gives pos (center), size, rotation.
+    
+    // Project World Point to Local Space
+    const dx = worldPoint.x - transform.posX;
+    const dy = worldPoint.y - transform.posY;
+    const rad = -(transform.rotationDeg * Math.PI) / 180; // Negative to rotate point back
+    const localX = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const localY = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+    const halfW = transform.width / 2;
+    const halfH = transform.height / 2;
+    
+    // Check against 4 handle positions in local space
+    // N: (0, -halfH)
+    // S: (0, halfH)
+    // E: (halfW, 0)
+    // W: (-halfW, 0)
+    
+    // Hit tolerance in world units approx same as local units (if scale is 1)
+    // We should use the tolerance passed in (which is in world units)
+    const hitDist = tolerance;
+
+    if (Math.abs(localX - 0) < hitDist && Math.abs(localY - (-halfH)) < hitDist) return { handle: SideHandleType.N, id };
+    if (Math.abs(localX - 0) < hitDist && Math.abs(localY - halfH) < hitDist) return { handle: SideHandleType.S, id };
+    if (Math.abs(localX - halfW) < hitDist && Math.abs(localY - 0) < hitDist) return { handle: SideHandleType.E, id };
+    if (Math.abs(localX - (-halfW)) < hitDist && Math.abs(localY - 0) < hitDist) return { handle: SideHandleType.W, id };
+
+    return null;
+  }
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
@@ -90,6 +154,30 @@ export class SelectionHandler extends BaseInteractionHandler {
     const shift = event.shiftKey;
     const ctrl = event.ctrlKey || event.metaKey;
 
+    // Check for client-side side handles first (Priority: Handles > Geometry)
+    // This allows hitting handles that extend outside the geometry (pick returns 0)
+    const sideHit = this.findSideHandle(runtime, world, tolerance);
+    if (sideHit) {
+        const transform = runtime.getEntityTransform(sideHit.id);
+        if (transform.valid) {
+            this.state = {
+                kind: 'side-resize',
+                handle: sideHit.handle,
+                startWorld: world,
+                startTransform: {
+                    x: transform.posX,
+                    y: transform.posY,
+                    width: transform.width,
+                    height: transform.height,
+                    rotation: transform.rotationDeg
+                },
+                entityId: sideHit.id
+            };
+            cadDebugLog('transform', 'side-resize-start', () => ({ handle: sideHit.handle }));
+            return;
+        }
+    }
+
     if (res.id !== 0) {
       // Hit something!
       const currentSelection = new Set(runtime.getSelectionIds());
@@ -108,15 +196,50 @@ export class SelectionHandler extends BaseInteractionHandler {
       if (activeIds.length > 0) {
         const modifiers = buildModifierMask(event);
         let mode = TransformMode.Move;
+        
+        // Custom Side Handle Logic
+        // If we hit the body or nothing specific (but inside selection), check if we hit a side handle
+        // We prioritize explicit handles (corners) from engine. If engine returns Body, we check side handles.
         if (res.subTarget === PickSubTarget.ResizeHandle) {
           mode = TransformMode.Resize;
         } else if (res.subTarget === PickSubTarget.RotateHandle) {
-          mode = TransformMode.Rotate;
+          // Client-side rotation logic (hijack)
+          // Only support single entity rotation for now to match prompt requirements on persistent angle
+          if (activeIds.length === 1) {
+             const id = activeIds[0];
+             const transform = runtime.getEntityTransform(id);
+             if (transform.valid) {
+                 const centerX = transform.posX;
+                 const centerY = transform.posY;
+                 
+                 // Calculate initial mouse angle relative to object center
+                 // Using atan2 to get -PI to PI
+                 const mouseAngleRad = Math.atan2(world.y - centerY, world.x - centerX);
+                 const mouseAngleDeg = (mouseAngleRad * 180) / Math.PI;
+
+                 this.state = {
+                     kind: 'client-rotate',
+                     entityId: id,
+                     startRotation: transform.rotationDeg,
+                     startMouseAngle: mouseAngleDeg,
+                     centerX,
+                     centerY
+                 };
+                 cadDebugLog('transform', 'client-rotate-start', () => ({ 
+                     id, 
+                     startRot: transform.rotationDeg, 
+                     mouseAngle: mouseAngleDeg 
+                 }));
+                 return;
+             }
+          }
+          mode = TransformMode.Rotate; // Fallback to engine if multi-select or invalid transform
         } else if (res.subTarget === PickSubTarget.Vertex) {
           mode = TransformMode.VertexDrag;
         } else if (res.subTarget === PickSubTarget.Edge) {
           mode = TransformMode.EdgeDrag;
         }
+        
         // Use beginTransform instead of beginSession
         runtime.beginTransform(
           activeIds,
@@ -226,6 +349,127 @@ export class SelectionHandler extends BaseInteractionHandler {
         this.updateMoveCursor(ctx);
       }
       this.notifyChange();
+    } else if (this.state.kind === 'side-resize') {
+       // Perform Side Resize Math
+       const { startWorld, startTransform, handle, entityId } = this.state;
+       
+       // Calculate World Delta
+       const dx = world.x - startWorld.x;
+       const dy = world.y - startWorld.y;
+
+       // Project to Local Space
+       const rad = -(startTransform.rotation * Math.PI) / 180;
+       const localDx = dx * Math.cos(rad) - dy * Math.sin(rad);
+       const localDy = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+       let newW = startTransform.width;
+       let newH = startTransform.height;
+       let centerX = 0; // Local center shift
+       let centerY = 0;
+
+       // Apply constraints (min size 1.0)
+       const MIN_SIZE = 1.0;
+       const isAlt = event.altKey;
+
+       if (handle === SideHandleType.E) {
+           if (isAlt) {
+               newW = Math.max(MIN_SIZE, startTransform.width + localDx * 2);
+               centerX = 0;
+           } else {
+               newW = Math.max(MIN_SIZE, startTransform.width + localDx);
+               centerX = (newW - startTransform.width) / 2;
+           }
+       } else if (handle === SideHandleType.W) {
+           if (isAlt) {
+               newW = Math.max(MIN_SIZE, startTransform.width - localDx * 2);
+               centerX = 0;
+           } else {
+               newW = Math.max(MIN_SIZE, startTransform.width - localDx);
+               centerX = -(newW - startTransform.width) / 2;
+           }
+       } else if (handle === SideHandleType.S) {
+           if (isAlt) {
+               newH = Math.max(MIN_SIZE, startTransform.height + localDy * 2);
+               centerY = 0;
+           } else {
+               newH = Math.max(MIN_SIZE, startTransform.height + localDy);
+               centerY = (newH - startTransform.height) / 2;
+           }
+       } else if (handle === SideHandleType.N) {
+           if (isAlt) {
+               newH = Math.max(MIN_SIZE, startTransform.height - localDy * 2);
+               centerY = 0;
+           } else {
+               newH = Math.max(MIN_SIZE, startTransform.height - localDy);
+               centerY = -(newH - startTransform.height) / 2;
+           }
+       }
+
+       // Rotate center shift back to world
+       const worldRad = (startTransform.rotation * Math.PI) / 180;
+       const shiftX = centerX * Math.cos(worldRad) - centerY * Math.sin(worldRad);
+       const shiftY = centerX * Math.sin(worldRad) + centerY * Math.cos(worldRad);
+
+       // Apply updates
+       runtime.setEntitySize(entityId, newW, newH);
+       runtime.setEntityPosition(entityId, startTransform.x + shiftX, startTransform.y + shiftY);
+       
+       // Update cursor during drag
+       let angle = getResizeCursorAngle(handle) + 90;
+       if (startTransform.rotation !== 0) {
+           angle += startTransform.rotation;
+       }
+       this.cursorAngle = angle;
+       this.cursorScreenPos = ctx.screenPoint;
+       this.showResizeCursor = true;
+       
+       this.notifyChange();
+
+    } else if (this.state.kind === 'client-rotate') {
+       const { entityId, startRotation, startMouseAngle, centerX, centerY } = this.state;
+       
+       // Calculate current mouse angle
+       const mouseAngleRad = Math.atan2(world.y - centerY, world.x - centerX);
+       let mouseAngleDeg = (mouseAngleRad * 180) / Math.PI;
+
+       // Calculate Delta
+       // Normalize delta to avoid jumps at -180/180 crossing
+       // We use normalizeAngle on the difference
+       let delta = normalizeAngle(mouseAngleDeg - startMouseAngle);
+
+       // Apply snapping (Shift key)
+       // Snapping usually applies to the Final Angle (increments of 15 or 45 degrees)
+       // Or relative snapping? Prompt says "rotationNewSnapped = snap(rotationNew)"
+       let newRotation = startRotation + delta;
+       newRotation = normalizeAngle(newRotation); // Keep it normalized
+
+       if (event.shiftKey) {
+           const SNAP_INTERVAL = 15;
+           newRotation = Math.round(newRotation / SNAP_INTERVAL) * SNAP_INTERVAL;
+       }
+
+       // Update Entity
+       runtime.setEntityRotation(entityId, newRotation);
+       
+       // Update Cursor
+       // We can show the rotation angle in tooltip? Or just the rotation cursor
+       // Update rotation cursor angle to match new rotation
+       // Note: Mouse position is 'world', we need screen for cursor helper?
+       // Actually SelectionHandler has helper `updateRotationCursor` but it relies on engine picking.
+       // We can just calculate it manually here.
+       
+       // The cursor icon should rotate with the object or with the mouse?
+       // Usually with the mouse interaction.
+       // Let's use getRotationCursorAngle from config
+       const centerScreen = worldToScreen({ x: centerX, y: centerY }, ctx.viewTransform);
+       const angleForCursor = getRotationCursorAngle(centerScreen, screen); // screen point
+       
+       this.cursorAngle = angleForCursor;
+       this.cursorScreenPos = screen;
+       this.showRotationCursor = true;
+       
+       this.notifyChange();
+
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
       const downX = this.pointerDown.x;
@@ -252,6 +496,24 @@ export class SelectionHandler extends BaseInteractionHandler {
         this.updateResizeCursor(ctx);
       } else if (this.hoverSubTarget === PickSubTarget.Body) {
         this.updateMoveCursor(ctx);
+      } else {
+         // Check for side handles hover
+         const sideHit = this.findSideHandle(runtime, world, tolerance);
+         if (sideHit) {
+             // Use the centralized helper for side handles as well
+             // Adding 90 degrees correction as requested by the user
+             let angle = getResizeCursorAngle(sideHit.handle) + 90;
+             
+             // Add object rotation
+             const transform = runtime.getEntityTransform(sideHit.id);
+             if (transform.valid) {
+                 angle += transform.rotationDeg;
+             }
+             
+             this.cursorAngle = angle;
+             this.cursorScreenPos = ctx.screenPoint;
+             this.showResizeCursor = true;
+         }
       }
       this.notifyChange(); // Trigger cursor update
     }
@@ -264,6 +526,25 @@ export class SelectionHandler extends BaseInteractionHandler {
       this.pointerDown = null;
       this.notifyChange();
       return;
+    }
+
+    if (this.state.kind === 'side-resize') {
+        // Commit? 
+        // Since we used setEntitySize (live), we might want to push a commit command if needed.
+        // But for now, we just end the state.
+        runtime.apply([{ op: CommandOp.CommitDraft }]); // Generic commit to ensure history sync if engine supports it
+        cadDebugLog('transform', 'side-resize-end');
+        this.state = { kind: 'none' };
+        this.pointerDown = null;
+        return;
+    }
+
+    if (this.state.kind === 'client-rotate') {
+        runtime.apply([{ op: CommandOp.CommitDraft }]); 
+        cadDebugLog('transform', 'client-rotate-end');
+        this.state = { kind: 'none' };
+        this.pointerDown = null;
+        return;
     }
 
     if (this.state.kind === 'transform') {
@@ -436,7 +717,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     }
 
     // During other active interactions, use default cursor handling
-    if (this.state.kind === 'transform' || this.state.kind === 'marquee') {
+    if (this.state.kind === 'transform' || this.state.kind === 'marquee' || this.state.kind === 'side-resize' || this.state.kind === 'client-rotate') {
       return null;
     }
 

@@ -186,6 +186,29 @@ const ShapeOverlay: React.FC = () => {
               />,
             );
           });
+
+          // Side Handles (Multi-selection)
+          const sides = [
+            { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 }, // Top
+            { x: (corners[1].x + corners[2].x) / 2, y: (corners[1].y + corners[2].y) / 2 }, // Right
+            { x: (corners[2].x + corners[3].x) / 2, y: (corners[2].y + corners[3].y) / 2 }, // Bottom
+            { x: (corners[3].x + corners[0].x) / 2, y: (corners[3].y + corners[0].y) / 2 }, // Left
+          ];
+
+          sides.forEach((p, i) => {
+             selectionElements.push(
+              <rect
+                key={`sel-group-side-handle-${i}`}
+                x={p.x - hh}
+                y={p.y - hh}
+                width={hs}
+                height={hs}
+                className="fill-white stroke-primary"
+                strokeWidth={1}
+                rx={1} // Slight rounding for differentiation
+              />,
+            );
+          });
         }
       } else {
         const outlineMeta = runtime.getSelectionOutlineMeta();
@@ -256,6 +279,29 @@ const ShapeOverlay: React.FC = () => {
                 />,
               );
             });
+
+            // Render Side Handles (Midpoints)
+            if (prim.count === 4) {
+               for (let i = 0; i < 4; i++) {
+                 const p1 = pts[i];
+                 const p2 = pts[(i + 1) % 4];
+                 const mx = (p1.x + p2.x) / 2;
+                 const my = (p1.y + p2.y) / 2;
+
+                 selectionElements.push(
+                  <rect
+                    key={`sel-side-handle-${idx}-${i}`}
+                    x={mx - hh}
+                    y={my - hh}
+                    width={hs}
+                    height={hs}
+                    className="fill-white stroke-primary"
+                    strokeWidth={1}
+                    rx={1}
+                  />,
+                );
+               }
+            }
 
             // Render rotation handles (outside corners)
             // Only render for entities with 4 corners (rectangle-like shapes)
