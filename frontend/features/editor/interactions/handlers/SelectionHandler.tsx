@@ -131,11 +131,6 @@ export class SelectionHandler extends BaseInteractionHandler {
     const transform = runtime.getEntityTransform(id);
     if (!transform.valid) return null;
 
-    // We work in World Space for distance check to match pickEx behavior roughly
-    // Or we can project point to local space.
-    // Local Space: Center is (0,0) (relative to pos), aligned with rotation.
-    // Actually getEntityTransform gives pos (center), size, rotation.
-    
     // Project World Point to Local Space
     const dx = worldPoint.x - transform.posX;
     const dy = worldPoint.y - transform.posY;
@@ -146,20 +141,38 @@ export class SelectionHandler extends BaseInteractionHandler {
     const halfW = transform.width / 2;
     const halfH = transform.height / 2;
     
-    // Check against 4 handle positions in local space
-    // N: (0, -halfH)
-    // S: (0, halfH)
-    // E: (halfW, 0)
-    // W: (-halfW, 0)
-    
-    // Hit tolerance in world units approx same as local units (if scale is 1)
-    // We should use the tolerance passed in (which is in world units)
-    const hitDist = tolerance;
+    // Hit tolerance in world units
+    const hitDist = tolerance; // "Thickness" of the handle area
+    const cornerExclusion = tolerance * 1.5; // Margin to avoid hitting corners (approx 15px)
 
-    if (Math.abs(localX - 0) < hitDist && Math.abs(localY - (-halfH)) < hitDist) return { handle: SideHandleType.N, id };
-    if (Math.abs(localX - 0) < hitDist && Math.abs(localY - halfH) < hitDist) return { handle: SideHandleType.S, id };
-    if (Math.abs(localX - halfW) < hitDist && Math.abs(localY - 0) < hitDist) return { handle: SideHandleType.E, id };
-    if (Math.abs(localX - (-halfW)) < hitDist && Math.abs(localY - 0) < hitDist) return { handle: SideHandleType.W, id };
+    // Check edges
+    // Top Edge (N): y approx -halfH, x within [-halfW, halfW]
+    if (Math.abs(localY - (-halfH)) < hitDist) {
+        if (localX > -halfW + cornerExclusion && localX < halfW - cornerExclusion) {
+            return { handle: SideHandleType.N, id };
+        }
+    }
+    
+    // Bottom Edge (S): y approx halfH
+    if (Math.abs(localY - halfH) < hitDist) {
+        if (localX > -halfW + cornerExclusion && localX < halfW - cornerExclusion) {
+            return { handle: SideHandleType.S, id };
+        }
+    }
+
+    // Right Edge (E): x approx halfW
+    if (Math.abs(localX - halfW) < hitDist) {
+        if (localY > -halfH + cornerExclusion && localY < halfH - cornerExclusion) {
+            return { handle: SideHandleType.E, id };
+        }
+    }
+
+    // Left Edge (W): x approx -halfW
+    if (Math.abs(localX - (-halfW)) < hitDist) {
+        if (localY > -halfH + cornerExclusion && localY < halfH - cornerExclusion) {
+            return { handle: SideHandleType.W, id };
+        }
+    }
 
     return null;
   }
