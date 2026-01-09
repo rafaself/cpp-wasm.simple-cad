@@ -537,6 +537,10 @@ export class EngineRuntime {
     return this.entitySystem.getEntityLayer(entityId);
   }
 
+  public getEntityKind(entityId: EntityId): number {
+    return this.entitySystem.getEntityKind(entityId);
+  }
+
   public getDrawOrderSnapshot(): Uint32Array {
     return this.entitySystem.getDrawOrderSnapshot();
   }

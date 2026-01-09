@@ -106,9 +106,12 @@ export type CadEngineInstance = {
   deleteLayer?: (layerId: number) => boolean;
   getEntityFlags?: (entityId: EntityId) => number;
   setEntityFlags?: (entityId: EntityId, flagsMask: number, flagsValue: number) => void;
-  setEntityLayer?: (entityId: EntityId, layerId: number) => void;
-  getEntityLayer?: (entityId: EntityId) => number;
-  getSelectionIds?: () => WasmU32Vector;
+  setEntityLayer(entityId: number, layerId: number): void;
+  getEntityLayer(entityId: number): number;
+  getEntityKind(entityId: number): number;
+
+  // Selection
+  getSelectionIds(): VectorUInt32;
   getSelectionGeneration?: () => number;
   getSelectionStyleSummary?: () => SelectionStyleSummary;
   clearSelection?: () => void;

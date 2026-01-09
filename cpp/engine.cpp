@@ -445,6 +445,23 @@ std::uint32_t CadEngine::getEntityLayer(std::uint32_t entityId) const {
     return entityManager_.getEntityLayer(entityId);
 }
 
+std::uint32_t CadEngine::getEntityKind(std::uint32_t entityId) const {
+    auto it = entityManager_.entities.find(entityId);
+    if (it != entityManager_.entities.end()) {
+        switch (it->second.kind) {
+            case EntityKind::Rect: return static_cast<std::uint32_t>(PickEntityKind::Rect);
+            case EntityKind::Line: return static_cast<std::uint32_t>(PickEntityKind::Line);
+            case EntityKind::Polyline: return static_cast<std::uint32_t>(PickEntityKind::Polyline);
+            case EntityKind::Circle: return static_cast<std::uint32_t>(PickEntityKind::Circle);
+            case EntityKind::Polygon: return static_cast<std::uint32_t>(PickEntityKind::Polygon);
+            case EntityKind::Arrow: return static_cast<std::uint32_t>(PickEntityKind::Arrow);
+            case EntityKind::Text: return static_cast<std::uint32_t>(PickEntityKind::Text);
+            default: return static_cast<std::uint32_t>(PickEntityKind::Unknown);
+        }
+    }
+    return 0;
+}
+
 std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept {
     return pickSystem_.pick(x, y, tolerance, viewScale, entityManager_, textSystem_);
 }

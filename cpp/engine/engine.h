@@ -85,6 +85,7 @@ public:
     void setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, std::uint32_t flagsValue);
     void setEntityLayer(std::uint32_t entityId, std::uint32_t layerId);
     std::uint32_t getEntityLayer(std::uint32_t entityId) const;
+    std::uint32_t getEntityKind(std::uint32_t entityId) const;
     void setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, std::uint32_t colorRGBA);
     void clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target);
     void setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, bool enabled);

@@ -33,7 +33,6 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .value("Polyline", PickEntityKind::Polyline)
         .value("Polygon", PickEntityKind::Polygon)
         .value("Arrow", PickEntityKind::Arrow)
-        .value("Arrow", PickEntityKind::Arrow)
         .value("Text", PickEntityKind::Text);
 
     emscripten::enum_<CadEngine::TransformMode>("TransformMode")
@@ -123,6 +122,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("setEntityFlags", &CadEngine::setEntityFlags)
         .function("setEntityLayer", &CadEngine::setEntityLayer)
         .function("getEntityLayer", &CadEngine::getEntityLayer)
+        .function("getEntityKind", &CadEngine::getEntityKind)
         .function("getSelectionIds", &CadEngine::getSelectionIds)
         .function("getSelectionGeneration", &CadEngine::getSelectionGeneration)
         .function("getSelectionStyleSummary", &CadEngine::getSelectionStyleSummary)

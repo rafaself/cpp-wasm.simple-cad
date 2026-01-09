@@ -952,3 +952,23 @@ TEST_F(CadEngineTest, TransformReplayOverridesViewAndSnapContext) {
     EXPECT_FLOAT_EQ(snapped.first, 9.5f);
     EXPECT_FLOAT_EQ(snapped.second, 0.0f);
 }
+
+TEST_F(CadEngineTest, GetEntityKindReturnsCorrectType) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertLine(engine, 2, 0.0f, 0.0f, 10.0f, 10.0f);
+    std::vector<Point2> points = { {0.0f, 0.0f}, {10.0f, 0.0f}, {10.0f, 10.0f} };
+    upsertPolyline(engine, 3, points);
+    CadEngineTestAccessor::upsertCircle(engine, 4, 0.0f, 0.0f, 5.0f, 5.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertPolygon(engine, 5, 0.0f, 0.0f, 5.0f, 5.0f, 0.0f, 1.0f, 1.0f, 5, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertArrow(engine, 6, 0.0f, 0.0f, 10.0f, 0.0f, 6.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    EXPECT_EQ(engine.getEntityKind(1), static_cast<std::uint32_t>(PickEntityKind::Rect));
+    EXPECT_EQ(engine.getEntityKind(2), static_cast<std::uint32_t>(PickEntityKind::Line));
+    EXPECT_EQ(engine.getEntityKind(3), static_cast<std::uint32_t>(PickEntityKind::Polyline));
+    EXPECT_EQ(engine.getEntityKind(4), static_cast<std::uint32_t>(PickEntityKind::Circle));
+    EXPECT_EQ(engine.getEntityKind(5), static_cast<std::uint32_t>(PickEntityKind::Polygon));
+    EXPECT_EQ(engine.getEntityKind(6), static_cast<std::uint32_t>(PickEntityKind::Arrow));
+    
+    // Non-existent entity
+    EXPECT_EQ(engine.getEntityKind(999), 0);
+}
