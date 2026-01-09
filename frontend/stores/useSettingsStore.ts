@@ -167,10 +167,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     showSidebarScrollIndicators: true,
   },
   toolDefaults: {
-    strokeColor: DEFAULTS.DEFAULT_STROKE_COLOR,
+    strokeColor: null, // ByLayer
     strokeWidth: 1,
     strokeEnabled: true,
-    fillColor: DEFAULTS.DEFAULT_FILL_COLOR,
+    fillColor: null, // ByLayer
     fillEnabled: true,
     polygonSides: 3,
     text: {
@@ -181,8 +181,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       italic: false,
       underline: false,
       strike: false,
-      textColor: DEFAULTS.DEFAULT_STROKE_COLOR,
-      textBackgroundColor: DEFAULTS.DEFAULT_FILL_COLOR,
+      textColor: null, // ByLayer
+      textBackgroundColor: null, // ByLayer
       textBackgroundEnabled: false,
     },
   },
