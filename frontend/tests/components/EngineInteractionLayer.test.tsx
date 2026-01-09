@@ -48,6 +48,13 @@ describe('EngineInteractionLayer snap sync', () => {
       isInteractionActive: () => false,
       draft: { getDraftDimensions: () => null },
       module: { HEAPU8: new Uint8Array() },
+      getTransformState: () => ({
+        active: false,
+        mode: 0,
+        rotationDeltaDeg: 0,
+        pivotX: 0,
+        pivotY: 0,
+      }),
     };
 
     mockGetRuntime.mockResolvedValue(runtime);

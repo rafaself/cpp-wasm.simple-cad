@@ -534,10 +534,9 @@ void CadEngine::setEntitySize(std::uint32_t entityId, float width, float height)
         case EntityKind::Circle: {
             if (it->second.index >= entityManager_.circles.size()) break;
             CircleRec& c = entityManager_.circles[it->second.index];
-            // For circles: width = rx * 2 * sx, height = ry * 2 * sy
-            // Keep rx/ry as base radii, adjust sx/sy
-            if (c.rx > 0.0f) c.sx = width / (c.rx * 2.0f);
-            if (c.ry > 0.0f) c.sy = height / (c.ry * 2.0f);
+            // Adjust base radii to match new width/height, keeping scale factors
+            if (std::abs(c.sx) > 1e-6f) c.rx = width / (2.0f * std::abs(c.sx));
+            if (std::abs(c.sy) > 1e-6f) c.ry = height / (2.0f * std::abs(c.sy));
             pickSystem_.update(entityId, PickSystem::computeCircleAABB(c));
             recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
             break;
@@ -545,9 +544,9 @@ void CadEngine::setEntitySize(std::uint32_t entityId, float width, float height)
         case EntityKind::Polygon: {
             if (it->second.index >= entityManager_.polygons.size()) break;
             PolygonRec& p = entityManager_.polygons[it->second.index];
-            // For polygons: similar to circles
-            if (p.rx > 0.0f) p.sx = width / (p.rx * 2.0f);
-            if (p.ry > 0.0f) p.sy = height / (p.ry * 2.0f);
+            // Adjust base radii to match new width/height, keeping scale factors
+            if (std::abs(p.sx) > 1e-6f) p.rx = width / (2.0f * std::abs(p.sx));
+            if (std::abs(p.sy) > 1e-6f) p.ry = height / (2.0f * std::abs(p.sy));
             pickSystem_.update(entityId, PickSystem::computePolygonAABB(p));
             recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
             break;

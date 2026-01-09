@@ -1,6 +1,6 @@
 import { CommandOp } from '@/engine/core/commandBuffer';
-import { TransformMode } from '@/engine/core/interactionSession';
-import { SelectionMode } from '@/engine/core/protocol';
+import { TransformMode, type TransformState } from '@/engine/core/interactionSession';
+import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 
 import { FakeEventBus } from './fakeEventBus';
 
@@ -262,7 +262,24 @@ export class FakeRuntime {
     return this.eventBus.subscribe(event, listener);
   }
 
-  emit(event: string, payload: unknown): void {
-    this.eventBus.emit(event, payload);
+  getEntityTransform(entityId: number): EntityTransform {
+    return {
+      posX: 0,
+      posY: 0,
+      width: 100,
+      height: 100,
+      rotationDeg: 0,
+      hasRotation: 0,
+      valid: 1,
+    };
   }
-}
+
+  getTransformState(): TransformState {
+    return {
+      active: false,
+      mode: 0,
+      rotationDeltaDeg: 0,
+      pivotX: 0,
+      pivotY: 0,
+    };
+  }}
