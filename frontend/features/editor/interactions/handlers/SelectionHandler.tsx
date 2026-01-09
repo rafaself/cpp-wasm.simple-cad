@@ -18,7 +18,7 @@ import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
-import { SideHandleType } from '../../interactions/sideHandles';
+import { SideHandleType, SIDE_HANDLE_INDICES } from '../../interactions/sideHandles';
 import { calculateSideResize, localToWorldShift } from './sideResizeGeometry';
 
 import { normalizeAngle } from '@/features/editor/config/cursor-config';
@@ -409,6 +409,18 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.showRotationCursor = false;
     this.showResizeCursor = false;
     this.cursorScreenPos = null;
+
+    // Check for hover on resize handles when not in active transform
+    if (this.state.kind === 'none') {
+      const tolerance = 10 / ctx.viewTransform.scale; // Scale-aware tolerance
+      const sideHandle = this.findSideHandle(runtime, world, tolerance);
+      if (sideHandle) {
+        this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHandle.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+        this.updateResizeCursor(ctx);
+        this.notifyChange();
+        return;
+      }
+    }
 
     if (this.state.kind === 'transform') {
       // Update Engine Transform

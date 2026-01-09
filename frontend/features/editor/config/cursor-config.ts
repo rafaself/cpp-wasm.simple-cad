@@ -114,11 +114,15 @@ export function getResizeCursorAngle(handle: ResizeHandleType | number): number 
   let baseAngle: number;
 
   if (typeof handle === 'number') {
-    // If handle is a numeric index, map it to angles
-    // Assuming indices map to corners in order: ne, nw, sw, se (or similar)
-    // This is a fallback for numeric handle indices
-    const handleAngles = [45, 135, 225, 315]; // ne, nw, sw, se
-    baseAngle = handleAngles[handle % 4] ?? 0;
+    if (handle >= 4) {
+      // Sides: N=4:180, E=5:90, S=6:0, W=7:270 (rotated 90° from standard)
+      const sideAngles = [180, 90, 0, 270];
+      baseAngle = sideAngles[handle - 4] ?? 0;
+    } else {
+      // Corners: assuming indices 0:ne=45, 1:nw=135, 2:sw=225, 3:se=315
+      const handleAngles = [45, 135, 225, 315];
+      baseAngle = handleAngles[handle % 4] ?? 0;
+    }
   } else {
     baseAngle = RESIZE_HANDLE_ANGLES[handle];
   }
