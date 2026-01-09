@@ -182,7 +182,12 @@ export const applyCommitOpToShape = (
     const diff: Partial<Shape> = {};
 
     // Only apply rotation if shape supports it
-    if (shape.rotation !== undefined || shape.type === 'circle' || shape.type === 'polygon' || shape.type === 'text') {
+    if (
+      shape.rotation !== undefined ||
+      shape.type === 'circle' ||
+      shape.type === 'polygon' ||
+      shape.type === 'text'
+    ) {
       diff.rotation = rotationDeg;
     }
 

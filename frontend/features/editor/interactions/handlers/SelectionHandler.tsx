@@ -506,12 +506,12 @@ export class SelectionHandler extends BaseInteractionHandler {
 
       // Calculate current mouse angle
       const mouseAngleRad = Math.atan2(world.y - centerY, world.x - centerX);
-      let mouseAngleDeg = (mouseAngleRad * 180) / Math.PI;
+      const mouseAngleDeg = (mouseAngleRad * 180) / Math.PI;
 
       // Calculate Delta
       // Normalize delta to avoid jumps at -180/180 crossing
       // We use normalizeAngle on the difference
-      let delta = normalizeAngle(mouseAngleDeg - startMouseAngle);
+      const delta = normalizeAngle(mouseAngleDeg - startMouseAngle);
 
       // Apply snapping (Shift key)
       // Snapping usually applies to the Final Angle (increments of 15 or 45 degrees)

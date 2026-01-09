@@ -349,7 +349,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     })),
   setTextColor: (color) =>
     set((state) => ({
-      toolDefaults: { ...state.toolDefaults, text: { ...state.toolDefaults.text, textColor: color } },
+      toolDefaults: {
+        ...state.toolDefaults,
+        text: { ...state.toolDefaults.text, textColor: color },
+      },
     })),
   setTextBackgroundColor: (color) =>
     set((state) => ({

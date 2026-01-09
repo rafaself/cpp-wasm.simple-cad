@@ -16,7 +16,7 @@
 export const CURSOR_ASSETS = {
   rotate: '/assets/cursor-rotate.svg',
   resize: '/assets/cursor-resize.svg', // Not currently in /assets, needs to be moved
-  move: '/assets/cursor-move.svg',     // Not currently in /assets, needs to be moved
+  move: '/assets/cursor-move.svg', // Not currently in /assets, needs to be moved
   default: '/assets/cursor-canva-default.svg',
 } as const;
 
@@ -72,8 +72,8 @@ export const CURSOR_DIMENSIONS = {
  * - Offset: -135° (normalizes to 0° for horizontal handles)
  */
 export const CURSOR_ANGLE_OFFSETS = {
-  rotate: 40,    // Current working offset from SelectionHandler.tsx
-  resize: -135,  // Calculated from SVG base orientation (NW-SE diagonal)
+  rotate: 40, // Current working offset from SelectionHandler.tsx
+  resize: -135, // Calculated from SVG base orientation (NW-SE diagonal)
 } as const;
 
 /**
@@ -94,14 +94,14 @@ export type ResizeHandleType = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw'
  * - 270° = North (up)
  */
 export const RESIZE_HANDLE_ANGLES: Record<ResizeHandleType, number> = {
-  e: 0,      // horizontal →
-  ne: 45,    // diagonal ↗
-  n: 90,     // vertical ↑
-  nw: 135,   // diagonal ↖
-  w: 180,    // horizontal ←
-  sw: 225,   // diagonal ↙
-  s: 270,    // vertical ↓
-  se: 315,   // diagonal ↘
+  e: 0, // horizontal →
+  ne: 45, // diagonal ↗
+  n: 90, // vertical ↑
+  nw: 135, // diagonal ↖
+  w: 180, // horizontal ←
+  sw: 225, // diagonal ↙
+  s: 270, // vertical ↓
+  se: 315, // diagonal ↘
 };
 
 /**
@@ -135,7 +135,7 @@ export function getResizeCursorAngle(handle: ResizeHandleType | number): number 
  */
 export function getRotationCursorAngle(
   centerScreen: { x: number; y: number },
-  mouseScreen: { x: number; y: number }
+  mouseScreen: { x: number; y: number },
 ): number {
   const vx = mouseScreen.x - centerScreen.x;
   const vy = mouseScreen.y - centerScreen.y;

@@ -14,9 +14,7 @@ const EditorRibbon: React.FC = () => {
   const { executeAction, selectTool } = useEditorCommands();
   const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
   const ribbonTabs = React.useMemo(() => getRibbonTabs(enableColorsRibbon), [enableColorsRibbon]);
-  const [activeTabId, setActiveTabId] = useState<string>(
-    () => ribbonTabs[0]?.id ?? 'home',
-  );
+  const [activeTabId, setActiveTabId] = useState<string>(() => ribbonTabs[0]?.id ?? 'home');
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
   const gridSettings = useSettingsStore((s) => s.grid);
 

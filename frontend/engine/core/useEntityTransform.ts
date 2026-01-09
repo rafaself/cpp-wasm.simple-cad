@@ -49,7 +49,9 @@ import type { EntityId, EntityTransform } from './protocol';
  * @param entityId Entity ID to query, or null/undefined
  * @returns EntityTransform data or null
  */
-export const useEntityTransform = (entityId: EntityId | null | undefined): EntityTransform | null => {
+export const useEntityTransform = (
+  entityId: EntityId | null | undefined,
+): EntityTransform | null => {
   const runtime = useEngineRuntime();
   const geometryGeneration = useDocumentSignal('geometry');
 
