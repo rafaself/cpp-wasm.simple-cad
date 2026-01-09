@@ -4,7 +4,6 @@ import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/pro
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
 import { RotationCursor } from '@/features/editor/components/RotationCursor';
 import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
-import { MoveCursor } from '@/features/editor/components/MoveCursor';
 import { getRotationCursorAngle, getResizeCursorAngle } from '@/features/editor/config/cursor-config';
 import { ensureTextToolReady } from '@/features/editor/text/textToolController';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
@@ -19,6 +18,10 @@ import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 import { SIDE_HANDLE_INDICES, SideHandleType } from '../../interactions/sideHandles';
 
 import { normalizeAngle } from '@/features/editor/config/cursor-config';
+
+// Helper to identify line-like entities that should use Move mode for Edge interactions
+const isLineOrArrow = (kind: PickEntityKind): boolean =>
+  kind === PickEntityKind.Line || kind === PickEntityKind.Arrow;
 
 // Connected component to access store without prop drilling through handler
 const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
@@ -116,7 +119,6 @@ export class SelectionHandler extends BaseInteractionHandler {
   private cursorScreenPos: { x: number, y: number } | null = null;
   private showRotationCursor: boolean = false;
   private showResizeCursor: boolean = false;
-  private showMoveCursor: boolean = false;
 
   private findSideHandle(
     runtime: EngineRuntime,
@@ -204,25 +206,29 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     // Check for client-side side handles first (Priority: Handles > Geometry)
     // This allows hitting handles that extend outside the geometry (pick returns 0)
-    const sideHit = this.findSideHandle(runtime, world, tolerance);
-    if (sideHit) {
-        const transform = runtime.getEntityTransform(sideHit.id);
-        if (transform.valid) {
-            this.state = {
-                kind: 'side-resize',
-                handle: sideHit.handle,
-                startWorld: world,
-                startTransform: {
-                    x: transform.posX,
-                    y: transform.posY,
-                    width: transform.width,
-                    height: transform.height,
-                    rotation: transform.rotationDeg
-                },
-                entityId: sideHit.id
-            };
-            cadDebugLog('transform', 'side-resize-start', () => ({ handle: sideHit.handle }));
-            return;
+    // BUT skip for lines/arrows - they don't have side handles, only vertex endpoints
+    const shouldCheckSideHandles = !isLineOrArrow(res.kind);
+    if (shouldCheckSideHandles) {
+        const sideHit = this.findSideHandle(runtime, world, tolerance);
+        if (sideHit) {
+            const transform = runtime.getEntityTransform(sideHit.id);
+            if (transform.valid) {
+                this.state = {
+                    kind: 'side-resize',
+                    handle: sideHit.handle,
+                    startWorld: world,
+                    startTransform: {
+                        x: transform.posX,
+                        y: transform.posY,
+                        width: transform.width,
+                        height: transform.height,
+                        rotation: transform.rotationDeg
+                    },
+                    entityId: sideHit.id
+                };
+                cadDebugLog('transform', 'side-resize-start', () => ({ handle: sideHit.handle }));
+                return;
+            }
         }
     }
 
@@ -286,7 +292,13 @@ export class SelectionHandler extends BaseInteractionHandler {
         } else if (res.subTarget === PickSubTarget.Vertex) {
           mode = TransformMode.VertexDrag;
         } else if (res.subTarget === PickSubTarget.Edge) {
-          mode = TransformMode.EdgeDrag;
+          // Lines and arrows: Edge means "move the entire entity"
+          // Polylines: Edge means "move a segment" (EdgeDrag)
+          if (isLineOrArrow(res.kind)) {
+            mode = TransformMode.Move;
+          } else {
+            mode = TransformMode.EdgeDrag;
+          }
         }
         
         // Use beginTransform instead of beginSession
@@ -368,11 +380,6 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.showResizeCursor = true;
   }
 
-  private updateMoveCursor(ctx: InputEventContext) {
-    this.cursorScreenPos = ctx.screenPoint;
-    this.showMoveCursor = true;
-  }
-
   onPointerMove(ctx: InputEventContext): void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
@@ -380,7 +387,6 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Reset all custom cursor states by default
     this.showRotationCursor = false;
     this.showResizeCursor = false;
-    this.showMoveCursor = false;
     this.cursorScreenPos = null;
 
     if (this.state.kind === 'transform') {
@@ -405,9 +411,8 @@ export class SelectionHandler extends BaseInteractionHandler {
         this.updateRotationCursor(runtime, ctx);
       } else if (this.state.mode === TransformMode.Resize) {
         this.updateResizeCursor(ctx);
-      } else if (this.state.mode === TransformMode.Move) {
-        this.updateMoveCursor(ctx);
       }
+      // Move mode uses default system cursor
       this.notifyChange();
     } else if (this.state.kind === 'side-resize') {
        // Perform Side Resize Math
@@ -553,26 +558,29 @@ export class SelectionHandler extends BaseInteractionHandler {
       this.hoverSubIndex = res.subIndex;
 
       // Show appropriate cursor based on hover target
+      // Body and Edge (for lines/arrows) use default system cursor for move
       if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
         this.updateRotationCursor(runtime, ctx);
       } else if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
         this.updateResizeCursor(ctx);
       } else if (this.hoverSubTarget === PickSubTarget.Body) {
-        this.updateMoveCursor(ctx);
-      } else {
-         // Check for side handles hover
+        // Use default cursor for move
+      } else if (this.hoverSubTarget === PickSubTarget.Edge && isLineOrArrow(res.kind)) {
+        // Lines and arrows: Edge means "move the entire entity" - use default cursor
+      } else if (!isLineOrArrow(res.kind)) {
+         // Check for side handles hover (only for non-line entities like rectangles)
          const sideHit = this.findSideHandle(runtime, world, tolerance);
          if (sideHit) {
              // Use the centralized helper for side handles as well
              // Adding 90 degrees correction as requested by the user
              let angle = getResizeCursorAngle(sideHit.handle) + 90;
-             
+
              // Add object rotation (Engine is CCW, CSS is CW, so subtract)
              const transform = runtime.getEntityTransform(sideHit.id);
              if (transform.valid) {
                  angle -= transform.rotationDeg;
              }
-             
+
              this.cursorAngle = angle;
              this.cursorScreenPos = ctx.screenPoint;
              this.showResizeCursor = true;
@@ -775,7 +783,7 @@ export class SelectionHandler extends BaseInteractionHandler {
 
   getCursor(): string | null {
     // Hide native cursor when showing custom cursors
-    if (this.showRotationCursor || this.showResizeCursor || this.showMoveCursor) {
+    if (this.showRotationCursor || this.showResizeCursor) {
       return 'none';
     }
 
@@ -824,14 +832,6 @@ export class SelectionHandler extends BaseInteractionHandler {
             x={this.cursorScreenPos.x}
             y={this.cursorScreenPos.y}
             rotation={this.cursorAngle}
-          />
-        );
-      } else if (this.showMoveCursor) {
-        overlays.push(
-          <MoveCursor
-            key="cursor-move"
-            x={this.cursorScreenPos.x}
-            y={this.cursorScreenPos.y}
           />
         );
       }
