@@ -18,7 +18,8 @@ import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
-import { SIDE_HANDLE_INDICES, SideHandleType } from '../../interactions/sideHandles';
+import { SideHandleType } from '../../interactions/sideHandles';
+import { calculateSideResize, localToWorldShift } from './sideResizeGeometry';
 
 import { normalizeAngle } from '@/features/editor/config/cursor-config';
 
@@ -435,130 +436,69 @@ export class SelectionHandler extends BaseInteractionHandler {
       // Move mode uses default system cursor
       this.notifyChange();
     } else if (this.state.kind === 'side-resize') {
-      // Perform Side Resize Math using anchor-based approach (similar to corner flip)
+      // Side-handle resize with flip support
+      // Uses pure geometry functions for testability and maintainability
       const { startWorld, startTransform, entityId, originalHandle } = this.state;
 
-      // Calculate World Delta
+      // Calculate world delta and project to local space
       const dx = world.x - startWorld.x;
       const dy = world.y - startWorld.y;
-
-      // Project to Local Space
       const rad = -(startTransform.rotation * Math.PI) / 180;
       const localDx = dx * Math.cos(rad) - dy * Math.sin(rad);
       const localDy = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-      // Apply constraints (min size 1.0)
+      const isSymmetric = event.altKey;
       const MIN_SIZE = 1.0;
-      const isAlt = event.altKey;
+
+      // Calculate resize for horizontal handles (E, W)
+      const isHorizontalHandle =
+        originalHandle === SideHandleType.E || originalHandle === SideHandleType.W;
+      const horizontalResult = isHorizontalHandle
+        ? calculateSideResize({
+            startDimension: startTransform.width,
+            localDelta: localDx,
+            isSymmetric,
+            isPositiveSide: originalHandle === SideHandleType.E,
+            minSize: MIN_SIZE,
+          })
+        : { newDimension: startTransform.width, scale: 1, centerShift: 0 };
+
+      // Calculate resize for vertical handles (S, N)
+      const isVerticalHandle =
+        originalHandle === SideHandleType.S || originalHandle === SideHandleType.N;
+      const verticalResult = isVerticalHandle
+        ? calculateSideResize({
+            startDimension: startTransform.height,
+            localDelta: localDy,
+            isSymmetric,
+            isPositiveSide: originalHandle === SideHandleType.S,
+            minSize: MIN_SIZE,
+          })
+        : { newDimension: startTransform.height, scale: 1, centerShift: 0 };
+
+      // Apply dimensions and scales
+      const newW = horizontalResult.newDimension;
+      const newH = verticalResult.newDimension;
+      const scaleX = horizontalResult.scale;
+      const scaleY = verticalResult.scale;
+
+      // Convert local space center shift to world coordinates
       const worldRad = (startTransform.rotation * Math.PI) / 180;
+      const worldShift = localToWorldShift(
+        { x: horizontalResult.centerShift, y: verticalResult.centerShift },
+        worldRad,
+      );
 
-      // Calculate using anchor-based approach
-      let newW = startTransform.width;
-      let newH = startTransform.height;
-      let newCenterX = startTransform.x; // World coordinates
-      let newCenterY = startTransform.y;
-      let scaleX = 1;
-      let scaleY = 1;
+      const newCenterX = startTransform.x + worldShift.x;
+      const newCenterY = startTransform.y + worldShift.y;
 
-      if (originalHandle === SideHandleType.E || originalHandle === SideHandleType.W) {
-        // Calculate anchor and drag point in local space
-        let anchorLocalX: number;
-        let dragLocalX: number;
-
-        if (isAlt) {
-          // Symmetric: anchor at center, drag on both sides
-          anchorLocalX = 0;
-          if (originalHandle === SideHandleType.E) {
-            dragLocalX = startTransform.width / 2 + localDx;
-          } else {
-            dragLocalX = -(startTransform.width / 2 + localDx);
-          }
-          // Calculate width as 2 * distance from center
-          const halfWidth = Math.abs(dragLocalX);
-          newW = Math.max(MIN_SIZE, halfWidth * 2);
-          scaleX = dragLocalX >= 0 ? 1 : -1;
-          // Center doesn't move in symmetric mode
-        } else {
-          // Non-symmetric: anchor on opposite edge
-          if (originalHandle === SideHandleType.E) {
-            anchorLocalX = -startTransform.width / 2;
-            dragLocalX = startTransform.width / 2 + localDx;
-          } else {
-            anchorLocalX = startTransform.width / 2;
-            dragLocalX = -startTransform.width / 2 + localDx;
-          }
-
-          // Use min/max to handle crossing
-          const minX = Math.min(anchorLocalX, dragLocalX);
-          const maxX = Math.max(anchorLocalX, dragLocalX);
-          newW = Math.max(MIN_SIZE, maxX - minX);
-
-          // Determine scale based on drag direction
-          scaleX = dragLocalX >= anchorLocalX ? 1 : -1;
-
-          // Calculate new center position (local space)
-          const newLocalCenterX = (minX + maxX) / 2;
-
-          // Convert to world shift
-          const centerShiftLocalX = newLocalCenterX;
-          newCenterX =
-            startTransform.x +
-            centerShiftLocalX * Math.cos(worldRad) -
-            0 * Math.sin(worldRad);
-          newCenterY =
-            startTransform.y + centerShiftLocalX * Math.sin(worldRad) + 0 * Math.cos(worldRad);
-        }
-      }
-
-      if (originalHandle === SideHandleType.S || originalHandle === SideHandleType.N) {
-        // Calculate anchor and drag point in local space
-        let anchorLocalY: number;
-        let dragLocalY: number;
-
-        if (isAlt) {
-          // Symmetric: anchor at center
-          anchorLocalY = 0;
-          if (originalHandle === SideHandleType.S) {
-            dragLocalY = startTransform.height / 2 + localDy;
-          } else {
-            dragLocalY = -(startTransform.height / 2 + localDy);
-          }
-          const halfHeight = Math.abs(dragLocalY);
-          newH = Math.max(MIN_SIZE, halfHeight * 2);
-          scaleY = dragLocalY >= 0 ? 1 : -1;
-        } else {
-          // Non-symmetric: anchor on opposite edge
-          if (originalHandle === SideHandleType.S) {
-            anchorLocalY = -startTransform.height / 2;
-            dragLocalY = startTransform.height / 2 + localDy;
-          } else {
-            anchorLocalY = startTransform.height / 2;
-            dragLocalY = -startTransform.height / 2 + localDy;
-          }
-
-          const minY = Math.min(anchorLocalY, dragLocalY);
-          const maxY = Math.max(anchorLocalY, dragLocalY);
-          newH = Math.max(MIN_SIZE, maxY - minY);
-
-          scaleY = dragLocalY >= anchorLocalY ? 1 : -1;
-
-          const newLocalCenterY = (minY + maxY) / 2;
-
-          // Convert to world coordinates
-          newCenterX =
-            startTransform.x + 0 * Math.cos(worldRad) - newLocalCenterY * Math.sin(worldRad);
-          newCenterY =
-            startTransform.y + 0 * Math.sin(worldRad) + newLocalCenterY * Math.cos(worldRad);
-        }
-      }
-
-      // Update flip state and current handle for cursor
+      // Update flip state for UI feedback
       const flippedX = scaleX < 0;
       const flippedY = scaleY < 0;
       this.state.flippedX = flippedX;
       this.state.flippedY = flippedY;
 
-      // Update current handle based on flip
+      // Update current handle based on flip (for cursor)
       if (originalHandle === SideHandleType.E) {
         this.state.currentHandle = flippedX ? SideHandleType.W : SideHandleType.E;
       } else if (originalHandle === SideHandleType.W) {
@@ -569,11 +509,11 @@ export class SelectionHandler extends BaseInteractionHandler {
         this.state.currentHandle = flippedY ? SideHandleType.S : SideHandleType.N;
       }
 
-      // Apply updates
+      // Apply geometry updates to entity
       runtime.setEntitySize(entityId, newW, newH);
       runtime.setEntityPosition(entityId, newCenterX, newCenterY);
 
-      // Apply scale based on flip state
+      // Apply scale transformation for visual flip
       if (runtime.setEntityScale) {
         runtime.setEntityScale(entityId, scaleX, scaleY);
       }

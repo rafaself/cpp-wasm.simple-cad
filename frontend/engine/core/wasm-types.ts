@@ -45,6 +45,8 @@ type WasmU32Vector = {
   delete: () => void;
 };
 
+export type VectorUInt32 = WasmU32Vector;
+
 type WasmLayerVector = {
   size: () => number;
   get: (index: number) => LayerRecord;
