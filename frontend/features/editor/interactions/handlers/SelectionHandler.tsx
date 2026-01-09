@@ -96,6 +96,10 @@ type InteractionState =
       startWorld: { x: number; y: number };
       startTransform: { x: number; y: number; width: number; height: number; rotation: number };
       entityId: number;
+      flippedX: boolean;
+      flippedY: boolean;
+      originalHandle: SideHandleType;
+      currentHandle: SideHandleType;
     }
   | {
       kind: 'client-rotate';
@@ -237,6 +241,10 @@ export class SelectionHandler extends BaseInteractionHandler {
               rotation: transform.rotationDeg,
             },
             entityId: sideHit.id,
+            flippedX: false,
+            flippedY: false,
+            originalHandle: sideHit.handle,
+            currentHandle: sideHit.handle,
           };
           cadDebugLog('transform', 'side-resize-start', () => ({ handle: sideHit.handle }));
           return;
@@ -427,8 +435,8 @@ export class SelectionHandler extends BaseInteractionHandler {
       // Move mode uses default system cursor
       this.notifyChange();
     } else if (this.state.kind === 'side-resize') {
-      // Perform Side Resize Math
-      const { startWorld, startTransform, handle, entityId } = this.state;
+      // Perform Side Resize Math using anchor-based approach (similar to corner flip)
+      const { startWorld, startTransform, entityId, originalHandle } = this.state;
 
       // Calculate World Delta
       const dx = world.x - startWorld.x;
@@ -439,60 +447,139 @@ export class SelectionHandler extends BaseInteractionHandler {
       const localDx = dx * Math.cos(rad) - dy * Math.sin(rad);
       const localDy = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-      let newW = startTransform.width;
-      let newH = startTransform.height;
-      let centerX = 0; // Local center shift
-      let centerY = 0;
-
       // Apply constraints (min size 1.0)
       const MIN_SIZE = 1.0;
       const isAlt = event.altKey;
+      const worldRad = (startTransform.rotation * Math.PI) / 180;
 
-      if (handle === SideHandleType.E) {
+      // Calculate using anchor-based approach
+      let newW = startTransform.width;
+      let newH = startTransform.height;
+      let newCenterX = startTransform.x; // World coordinates
+      let newCenterY = startTransform.y;
+      let scaleX = 1;
+      let scaleY = 1;
+
+      if (originalHandle === SideHandleType.E || originalHandle === SideHandleType.W) {
+        // Calculate anchor and drag point in local space
+        let anchorLocalX: number;
+        let dragLocalX: number;
+
         if (isAlt) {
-          newW = Math.max(MIN_SIZE, startTransform.width + localDx * 2);
-          centerX = 0;
+          // Symmetric: anchor at center, drag on both sides
+          anchorLocalX = 0;
+          if (originalHandle === SideHandleType.E) {
+            dragLocalX = startTransform.width / 2 + localDx;
+          } else {
+            dragLocalX = -(startTransform.width / 2 + localDx);
+          }
+          // Calculate width as 2 * distance from center
+          const halfWidth = Math.abs(dragLocalX);
+          newW = Math.max(MIN_SIZE, halfWidth * 2);
+          scaleX = dragLocalX >= 0 ? 1 : -1;
+          // Center doesn't move in symmetric mode
         } else {
-          newW = Math.max(MIN_SIZE, startTransform.width + localDx);
-          centerX = (newW - startTransform.width) / 2;
-        }
-      } else if (handle === SideHandleType.W) {
-        if (isAlt) {
-          newW = Math.max(MIN_SIZE, startTransform.width - localDx * 2);
-          centerX = 0;
-        } else {
-          newW = Math.max(MIN_SIZE, startTransform.width - localDx);
-          centerX = -(newW - startTransform.width) / 2;
-        }
-      } else if (handle === SideHandleType.S) {
-        if (isAlt) {
-          newH = Math.max(MIN_SIZE, startTransform.height + localDy * 2);
-          centerY = 0;
-        } else {
-          newH = Math.max(MIN_SIZE, startTransform.height + localDy);
-          centerY = (newH - startTransform.height) / 2;
-        }
-      } else if (handle === SideHandleType.N) {
-        if (isAlt) {
-          newH = Math.max(MIN_SIZE, startTransform.height - localDy * 2);
-          centerY = 0;
-        } else {
-          newH = Math.max(MIN_SIZE, startTransform.height - localDy);
-          centerY = -(newH - startTransform.height) / 2;
+          // Non-symmetric: anchor on opposite edge
+          if (originalHandle === SideHandleType.E) {
+            anchorLocalX = -startTransform.width / 2;
+            dragLocalX = startTransform.width / 2 + localDx;
+          } else {
+            anchorLocalX = startTransform.width / 2;
+            dragLocalX = -startTransform.width / 2 + localDx;
+          }
+
+          // Use min/max to handle crossing
+          const minX = Math.min(anchorLocalX, dragLocalX);
+          const maxX = Math.max(anchorLocalX, dragLocalX);
+          newW = Math.max(MIN_SIZE, maxX - minX);
+
+          // Determine scale based on drag direction
+          scaleX = dragLocalX >= anchorLocalX ? 1 : -1;
+
+          // Calculate new center position (local space)
+          const newLocalCenterX = (minX + maxX) / 2;
+
+          // Convert to world shift
+          const centerShiftLocalX = newLocalCenterX;
+          newCenterX =
+            startTransform.x +
+            centerShiftLocalX * Math.cos(worldRad) -
+            0 * Math.sin(worldRad);
+          newCenterY =
+            startTransform.y + centerShiftLocalX * Math.sin(worldRad) + 0 * Math.cos(worldRad);
         }
       }
 
-      // Rotate center shift back to world
-      const worldRad = (startTransform.rotation * Math.PI) / 180;
-      const shiftX = centerX * Math.cos(worldRad) - centerY * Math.sin(worldRad);
-      const shiftY = centerX * Math.sin(worldRad) + centerY * Math.cos(worldRad);
+      if (originalHandle === SideHandleType.S || originalHandle === SideHandleType.N) {
+        // Calculate anchor and drag point in local space
+        let anchorLocalY: number;
+        let dragLocalY: number;
+
+        if (isAlt) {
+          // Symmetric: anchor at center
+          anchorLocalY = 0;
+          if (originalHandle === SideHandleType.S) {
+            dragLocalY = startTransform.height / 2 + localDy;
+          } else {
+            dragLocalY = -(startTransform.height / 2 + localDy);
+          }
+          const halfHeight = Math.abs(dragLocalY);
+          newH = Math.max(MIN_SIZE, halfHeight * 2);
+          scaleY = dragLocalY >= 0 ? 1 : -1;
+        } else {
+          // Non-symmetric: anchor on opposite edge
+          if (originalHandle === SideHandleType.S) {
+            anchorLocalY = -startTransform.height / 2;
+            dragLocalY = startTransform.height / 2 + localDy;
+          } else {
+            anchorLocalY = startTransform.height / 2;
+            dragLocalY = -startTransform.height / 2 + localDy;
+          }
+
+          const minY = Math.min(anchorLocalY, dragLocalY);
+          const maxY = Math.max(anchorLocalY, dragLocalY);
+          newH = Math.max(MIN_SIZE, maxY - minY);
+
+          scaleY = dragLocalY >= anchorLocalY ? 1 : -1;
+
+          const newLocalCenterY = (minY + maxY) / 2;
+
+          // Convert to world coordinates
+          newCenterX =
+            startTransform.x + 0 * Math.cos(worldRad) - newLocalCenterY * Math.sin(worldRad);
+          newCenterY =
+            startTransform.y + 0 * Math.sin(worldRad) + newLocalCenterY * Math.cos(worldRad);
+        }
+      }
+
+      // Update flip state and current handle for cursor
+      const flippedX = scaleX < 0;
+      const flippedY = scaleY < 0;
+      this.state.flippedX = flippedX;
+      this.state.flippedY = flippedY;
+
+      // Update current handle based on flip
+      if (originalHandle === SideHandleType.E) {
+        this.state.currentHandle = flippedX ? SideHandleType.W : SideHandleType.E;
+      } else if (originalHandle === SideHandleType.W) {
+        this.state.currentHandle = flippedX ? SideHandleType.E : SideHandleType.W;
+      } else if (originalHandle === SideHandleType.S) {
+        this.state.currentHandle = flippedY ? SideHandleType.N : SideHandleType.S;
+      } else if (originalHandle === SideHandleType.N) {
+        this.state.currentHandle = flippedY ? SideHandleType.S : SideHandleType.N;
+      }
 
       // Apply updates
       runtime.setEntitySize(entityId, newW, newH);
-      runtime.setEntityPosition(entityId, startTransform.x + shiftX, startTransform.y + shiftY);
+      runtime.setEntityPosition(entityId, newCenterX, newCenterY);
 
-      // Update cursor during drag
-      let angle = getResizeCursorAngle(handle) + 90;
+      // Apply scale based on flip state
+      if (runtime.setEntityScale) {
+        runtime.setEntityScale(entityId, scaleX, scaleY);
+      }
+
+      // Update cursor during drag (use currentHandle, not original handle)
+      let angle = getResizeCursorAngle(this.state.currentHandle) + 90;
       if (startTransform.rotation !== 0) {
         angle -= startTransform.rotation;
       }

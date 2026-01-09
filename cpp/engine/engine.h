@@ -141,6 +141,7 @@ public:
     void setEntitySize(std::uint32_t entityId, float width, float height);
     void setEntityRotation(std::uint32_t entityId, float rotationDeg);
     void setEntityLength(std::uint32_t entityId, float length);
+    void setEntityScale(std::uint32_t entityId, float scaleX, float scaleY);
 
     EngineStats getStats() const noexcept;
 

@@ -14,7 +14,7 @@ static constexpr std::size_t defaultSnapshotCapacityBytes = 1 * 1024 * 1024;
 // Snapshot/command format constants
 static constexpr std::uint32_t snapshotMagicEwc1 = 0x31435745; // "EWC1"
 static constexpr std::uint32_t snapshotMagicEsnp = 0x504E5345; // "ESNP"
-static constexpr std::uint32_t snapshotVersionEsnp = 2;
+static constexpr std::uint32_t snapshotVersionEsnp = 3; // v3: Added rot, sx, sy to RectRec
 static constexpr std::uint32_t commandMagicEwdc = 0x43445745; // "EWDC"
 static constexpr std::size_t snapshotHeaderBytesV2 = 8 * 4;
 static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
@@ -43,6 +43,7 @@ struct RectRec {
     float w;
     float h;
     float rot; // rotation in radians (persisted)
+    float sx, sy; // scale factors for flip (persisted)
     float r, g, b, a; // fill RGBA (persisted)
     float sr, sg, sb, sa; // stroke RGBA (runtime-only)
     float strokeEnabled; // 0 or 1 (runtime-only)

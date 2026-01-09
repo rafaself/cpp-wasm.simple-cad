@@ -332,7 +332,7 @@ void EntityManager::upsertRect(std::uint32_t id, float x, float y, float w, floa
         return;
     }
 
-    rects.push_back(RectRec{id, x, y, w, h, 0.0f, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx});
+    rects.push_back(RectRec{id, x, y, w, h, 0.0f, 1.0f, 1.0f, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);

@@ -99,6 +99,7 @@ export type CadEngineInstance = {
   setEntitySize?: (entityId: EntityId, width: number, height: number) => void;
   setEntityRotation?: (entityId: EntityId, rotationDeg: number) => void;
   setEntityLength?: (entityId: EntityId, length: number) => void;
+  setEntityScale?: (entityId: EntityId, scaleX: number, scaleY: number) => void;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   getLayerStyle?: (layerId: number) => LayerStyleSnapshot;

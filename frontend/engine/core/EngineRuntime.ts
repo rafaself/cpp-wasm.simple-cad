@@ -452,6 +452,10 @@ export class EngineRuntime {
     this.transformSystem.setEntityLength(entityId, length);
   }
 
+  public setEntityScale(entityId: EntityId, scaleX: number, scaleY: number): void {
+    this.transformSystem.setEntityScale(entityId, scaleX, scaleY);
+  }
+
   // --- Render System ---
   public getPositionBufferMeta() {
     return this.renderSystem.getPositionBufferMeta();

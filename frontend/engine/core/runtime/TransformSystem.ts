@@ -251,4 +251,18 @@ export class TransformSystem {
   public setEntityLength(entityId: EntityId, length: number): void {
     this.engine.setEntityLength?.(entityId, length);
   }
+
+  /**
+   * Set entity scale (for flip transformations).
+   * Creates a history entry for undo/redo.
+   * Scale values: 1 = normal, -1 = flipped
+   * Supported for: Rect, Circle, Polygon
+   * No-op for entities that don't support scale.
+   * @param entityId Entity ID to scale
+   * @param scaleX Horizontal scale (-1 or 1)
+   * @param scaleY Vertical scale (-1 or 1)
+   */
+  public setEntityScale(entityId: EntityId, scaleX: number, scaleY: number): void {
+    this.engine.setEntityScale?.(entityId, scaleX, scaleY);
+  }
 }

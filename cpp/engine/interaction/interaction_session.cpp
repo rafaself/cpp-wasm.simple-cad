@@ -887,12 +887,10 @@ void InteractionSession::updateTransform(
                     } else if (it->second.kind == EntityKind::Polygon) {
                         for (auto& p : entityManager_.polygons) {
                             if (p.id == id) {
-                                p.cx = (minX + maxX) * 0.5f; p.cy = (minY + maxY) * 0.5f; 
+                                p.cx = (minX + maxX) * 0.5f; p.cy = (minY + maxY) * 0.5f;
                                 p.rx = w * 0.5f; p.ry = h * 0.5f;
-                                // Mirror on flip disabled: keep polygon orientation stable even if bbox crosses anchor.
-                                // Normalize scale to positive to avoid legacy mirrored state.
-                                p.sx = std::abs(p.sx);
-                                p.sy = std::abs(p.sy);
+                                // Note: Scale (sx, sy) can be negative to support flip transformations
+                                // No longer normalizing to positive values to preserve flip state
 
                                 pickSystem_.update(id, PickSystem::computePolygonAABB(p));
                                 refreshEntityRenderRange(id); updated = true; break; 

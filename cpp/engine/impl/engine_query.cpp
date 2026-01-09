@@ -686,4 +686,50 @@ void CadEngine::setEntityLength(std::uint32_t entityId, float length) {
     rebuildRenderBuffers();
 }
 
+void CadEngine::setEntityScale(std::uint32_t entityId, float scaleX, float scaleY) {
+    const auto it = entityManager_.entities.find(entityId);
+    if (it == entityManager_.entities.end()) return;
+
+    // Begin history entry for undo
+    beginHistoryEntry();
+
+    switch (it->second.kind) {
+        case EntityKind::Rect: {
+            if (it->second.index >= entityManager_.rects.size()) break;
+            RectRec& r = entityManager_.rects[it->second.index];
+            r.sx = scaleX;
+            r.sy = scaleY;
+            pickSystem_.update(entityId, PickSystem::computeRectAABB(r));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Circle: {
+            if (it->second.index >= entityManager_.circles.size()) break;
+            CircleRec& c = entityManager_.circles[it->second.index];
+            c.sx = scaleX;
+            c.sy = scaleY;
+            pickSystem_.update(entityId, PickSystem::computeCircleAABB(c));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        case EntityKind::Polygon: {
+            if (it->second.index >= entityManager_.polygons.size()) break;
+            PolygonRec& p = entityManager_.polygons[it->second.index];
+            p.sx = scaleX;
+            p.sy = scaleY;
+            pickSystem_.update(entityId, PickSystem::computePolygonAABB(p));
+            recordEntityChanged(entityId, static_cast<std::uint32_t>(ChangeMask::Geometry) | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            break;
+        }
+        // Line, Polyline, Arrow, Text: scaling not supported
+        default:
+            discardHistoryEntry();
+            return;
+    }
+
+    commitHistoryEntry();
+    generation++;
+    rebuildRenderBuffers();
+}
+
 #include "engine/internal/engine_state_aliases_undef.h"

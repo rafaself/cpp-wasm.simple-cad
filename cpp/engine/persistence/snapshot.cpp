@@ -23,7 +23,7 @@ constexpr std::uint32_t TAG_NIDX = fourCC('N', 'I', 'D', 'X');
 constexpr std::uint32_t TAG_HIST = fourCC('H', 'I', 'S', 'T');
 constexpr std::uint32_t TAG_STYL = fourCC('S', 'T', 'Y', 'L');
 
-constexpr std::size_t rectSnapshotBytes = 12 + 14 * 4;
+constexpr std::size_t rectSnapshotBytes = 12 + 17 * 4; // Added rot, sx, sy
 constexpr std::size_t lineSnapshotBytes = 12 + 10 * 4;
 constexpr std::size_t polySnapshotBytes = 20 + 11 * 4;
 constexpr std::size_t circleSnapshotBytes = 12 + 17 * 4;
@@ -154,6 +154,9 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.y = readF32(ents->data, o); o += 4;
             rec.rec.w = readF32(ents->data, o); o += 4;
             rec.rec.h = readF32(ents->data, o); o += 4;
+            rec.rec.rot = readF32(ents->data, o); o += 4;
+            rec.rec.sx = readF32(ents->data, o); o += 4;
+            rec.rec.sy = readF32(ents->data, o); o += 4;
             rec.rec.r = readF32(ents->data, o); o += 4;
             rec.rec.g = readF32(ents->data, o); o += 4;
             rec.rec.b = readF32(ents->data, o); o += 4;
@@ -531,6 +534,9 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.y);
             appendF32(rec.rec.w);
             appendF32(rec.rec.h);
+            appendF32(rec.rec.rot);
+            appendF32(rec.rec.sx);
+            appendF32(rec.rec.sy);
             appendF32(rec.rec.r);
             appendF32(rec.rec.g);
             appendF32(rec.rec.b);

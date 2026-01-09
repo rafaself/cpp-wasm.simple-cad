@@ -269,7 +269,7 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
 
 export const PROTOCOL_VERSION = 4 as const;
 export const COMMAND_VERSION = 3 as const;
-export const SNAPSHOT_VERSION = 2 as const;
+export const SNAPSHOT_VERSION = 3 as const; // v3: Added rot, sx, sy to RectRec for flip support
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =

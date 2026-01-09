@@ -113,6 +113,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("setEntitySize", &CadEngine::setEntitySize)
         .function("setEntityRotation", &CadEngine::setEntityRotation)
         .function("setEntityLength", &CadEngine::setEntityLength)
+        .function("setEntityScale", &CadEngine::setEntityScale)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("getLayerStyle", &CadEngine::getLayerStyle)
