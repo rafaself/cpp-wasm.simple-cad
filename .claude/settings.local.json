@@ -18,7 +18,10 @@
       "Bash(npm run type-check:*)",
       "Bash(npx next build:*)",
       "Bash(make wasm:*)",
-      "Bash(pnpm typecheck:*)"
+      "Bash(pnpm typecheck:*)",
+      "Bash(git stash:*)",
+      "Bash(pnpm --dir frontend test -- --testPathPattern=\"colorRibbonControls\")",
+      "Bash(git checkout:*)"
     ]
   }
 }

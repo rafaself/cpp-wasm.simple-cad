@@ -245,8 +245,11 @@ CadEngine::EntityAabb CadEngine::getEntityAabb(std::uint32_t entityId) const {
         case EntityKind::Circle: {
             if (it->second.index >= entityManager_.circles.size()) break;
             const CircleRec& c = entityManager_.circles[it->second.index];
-            const AABB aabb = PickSystem::computeCircleAABB(c);
-            return EntityAabb{aabb.minX, aabb.minY, aabb.maxX, aabb.maxY, 1};
+            // Return unrotated bounds (consistent with Rect)
+            // Frontend applies rotation transform for OBB display
+            const float rx = std::abs(c.rx * c.sx);
+            const float ry = std::abs(c.ry * c.sy);
+            return EntityAabb{c.cx - rx, c.cy - ry, c.cx + rx, c.cy + ry, 1};
         }
         case EntityKind::Polygon: {
             if (it->second.index >= entityManager_.polygons.size()) break;

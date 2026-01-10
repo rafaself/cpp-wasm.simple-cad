@@ -562,26 +562,47 @@ bool PickSystem::checkCandidate(
         // Effective radii including scale
         const float rx = std::abs(c->rx * c->sx);
         const float ry = std::abs(c->ry * c->sy);
-        
+
         // Guard against degenerate ellipse
         if (rx < 1e-6f || ry < 1e-6f) {
             return false;
         }
 
+        // Center and half-dimensions for handle picking
+        const float cx = c->cx;
+        const float cy = c->cy;
+        const float hw = rx;  // half-width = rx
+        const float hh = ry;  // half-height = ry
+        const float rot = c->rot;
+        const bool hasRotation = std::abs(rot) > 1e-6f;
+
         // Resize Handles (BBox corners) - Higher priority
         if (pickMask & PICK_HANDLES) {
-            const float minX = c->cx - rx;
-            const float maxX = c->cx + rx;
-            const float minY = c->cy - ry;
-            const float maxY = c->cy + ry;
-            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
-            }
-            // Rotation Handles (outside corners) - Lower priority
-            if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
+            if (hasRotation) {
+                // Use rotation-aware handle picking for rotated ellipses
+                if (tryPickResizeHandleRotated(x, y, tol, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                if (tryPickRotateHandleRotated(x, y, tol, viewScale, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+            } else {
+                // Use axis-aligned handle picking for non-rotated ellipses
+                const float minX = cx - rx;
+                const float maxX = cx + rx;
+                const float minY = cy - ry;
+                const float maxY = cy + ry;
+                if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                // Rotation Handles (outside corners) - Lower priority
+                if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
             }
         }
 
@@ -760,22 +781,45 @@ bool PickSystem::checkCandidate(
     else if (const PolygonRec* p = entities.getPolygon(id)) {
         outCandidate.kind = PickEntityKind::Polygon;
 
+        // Effective radii including scale
+        const float rx = std::abs(p->rx * p->sx);
+        const float ry = std::abs(p->ry * p->sy);
+
+        // Center and half-dimensions for handle picking
+        const float cx = p->cx;
+        const float cy = p->cy;
+        const float hw = rx;  // half-width
+        const float hh = ry;  // half-height
+        const float rot = p->rot;
+        const bool hasRotation = std::abs(rot) > 1e-6f;
+
         // Resize Handles (BBox corners) - Higher priority
         if (pickMask & PICK_HANDLES) {
-            const float rx = std::abs(p->rx * p->sx);
-            const float ry = std::abs(p->ry * p->sy);
-            const float minX = p->cx - rx;
-            const float maxX = p->cx + rx;
-            const float minY = p->cy - ry;
-            const float maxY = p->cy + ry;
-            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
-            }
-            // Rotation Handles (outside corners) - Lower priority
-            if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
+            if (hasRotation) {
+                // Use rotation-aware handle picking for rotated polygons
+                if (tryPickResizeHandleRotated(x, y, tol, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                if (tryPickRotateHandleRotated(x, y, tol, viewScale, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+            } else {
+                // Use axis-aligned handle picking for non-rotated polygons
+                const float minX = cx - rx;
+                const float maxX = cx + rx;
+                const float minY = cy - ry;
+                const float maxY = cy + ry;
+                if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                // Rotation Handles (outside corners) - Lower priority
+                if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
             }
         }
 
