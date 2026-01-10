@@ -5,6 +5,7 @@ import type {
   DocumentDigest,
   EventBufferMeta,
   OverlayBufferMeta,
+  OrientedHandleMeta,
   EntityAabb,
   EntityTransform,
   HistoryMeta,
@@ -93,6 +94,7 @@ export type CadEngineInstance = {
   hasPendingEvents?: () => boolean;
   getSelectionOutlineMeta?: () => OverlayBufferMeta;
   getSelectionHandleMeta?: () => OverlayBufferMeta;
+  getOrientedHandleMeta?: () => OrientedHandleMeta;
   getSnapOverlayMeta?: () => OverlayBufferMeta;
   getEntityAabb?: (entityId: EntityId) => EntityAabb;
   getSelectionBounds?: () => EntityAabb;

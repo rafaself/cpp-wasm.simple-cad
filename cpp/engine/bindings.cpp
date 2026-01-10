@@ -105,6 +105,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("hasPendingEvents", &CadEngine::hasPendingEvents)
         .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
         .function("getSelectionHandleMeta", &CadEngine::getSelectionHandleMeta)
+        .function("getOrientedHandleMeta", &CadEngine::getOrientedHandleMeta)
         .function("getSnapOverlayMeta", &CadEngine::getSnapOverlayMeta)
         .function("getEntityAabb", &CadEngine::getEntityAabb)
         .function("getSelectionBounds", &CadEngine::getSelectionBounds)
@@ -345,6 +346,27 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("floatCount", &engine::protocol::OverlayBufferMeta::floatCount)
         .field("primitivesPtr", &engine::protocol::OverlayBufferMeta::primitivesPtr)
         .field("dataPtr", &engine::protocol::OverlayBufferMeta::dataPtr);
+
+    // OrientedHandleMeta - OBB handles with pre-rotated positions
+    emscripten::value_object<engine::protocol::OrientedHandleMeta>("OrientedHandleMeta")
+        .field("generation", &engine::protocol::OrientedHandleMeta::generation)
+        .field("entityId", &engine::protocol::OrientedHandleMeta::entityId)
+        .field("blX", &engine::protocol::OrientedHandleMeta::blX)
+        .field("blY", &engine::protocol::OrientedHandleMeta::blY)
+        .field("brX", &engine::protocol::OrientedHandleMeta::brX)
+        .field("brY", &engine::protocol::OrientedHandleMeta::brY)
+        .field("trX", &engine::protocol::OrientedHandleMeta::trX)
+        .field("trY", &engine::protocol::OrientedHandleMeta::trY)
+        .field("tlX", &engine::protocol::OrientedHandleMeta::tlX)
+        .field("tlY", &engine::protocol::OrientedHandleMeta::tlY)
+        .field("rotateHandleX", &engine::protocol::OrientedHandleMeta::rotateHandleX)
+        .field("rotateHandleY", &engine::protocol::OrientedHandleMeta::rotateHandleY)
+        .field("centerX", &engine::protocol::OrientedHandleMeta::centerX)
+        .field("centerY", &engine::protocol::OrientedHandleMeta::centerY)
+        .field("rotationRad", &engine::protocol::OrientedHandleMeta::rotationRad)
+        .field("hasRotateHandle", &engine::protocol::OrientedHandleMeta::hasRotateHandle)
+        .field("hasResizeHandles", &engine::protocol::OrientedHandleMeta::hasResizeHandles)
+        .field("valid", &engine::protocol::OrientedHandleMeta::valid);
 
     emscripten::value_object<engine::protocol::EntityAabb>("EntityAabb")
         .field("minX", &engine::protocol::EntityAabb::minX)

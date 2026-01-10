@@ -136,6 +136,19 @@ public:
     engine::protocol::OverlayBufferMeta getSelectionOutlineMeta() const;
     engine::protocol::OverlayBufferMeta getSelectionHandleMeta() const;
     engine::protocol::OverlayBufferMeta getSnapOverlayMeta() const;
+    
+    /**
+     * @brief Get oriented (OBB) handle metadata for single selection.
+     * 
+     * Returns handle positions in world coordinates that are already rotated
+     * according to the entity's rotation. The frontend should render these
+     * directly without applying additional rotation transforms.
+     * 
+     * This is preferred over getSelectionHandleMeta() for single selections
+     * with rotation, as it ensures handles align perfectly with pick targets.
+     */
+    engine::protocol::OrientedHandleMeta getOrientedHandleMeta() const;
+    
     engine::protocol::EntityAabb getEntityAabb(std::uint32_t entityId) const;
     engine::protocol::EntityAabb getSelectionBounds() const;
 

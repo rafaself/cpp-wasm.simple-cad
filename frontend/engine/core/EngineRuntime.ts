@@ -14,6 +14,7 @@ import {
   type DocumentDigest,
   type EngineEvent,
   type OverlayBufferMeta,
+  type OrientedHandleMeta,
   type EntityAabb,
   type EntityTransform,
   type HistoryMeta,
@@ -322,6 +323,10 @@ export class EngineRuntime {
 
   public getSelectionHandleMeta(): OverlayBufferMeta {
     return this.selectionSystem.getSelectionHandleMeta();
+  }
+
+  public getOrientedHandleMeta(): OrientedHandleMeta {
+    return this.selectionSystem.getOrientedHandleMeta();
   }
 
   public getSelectionBounds(): EntityAabb {

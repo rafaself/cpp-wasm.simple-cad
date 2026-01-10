@@ -189,65 +189,36 @@ const ShapeOverlay: React.FC = () => {
           });
         }
       } else {
-        const outlineMeta = runtime.getSelectionOutlineMeta();
-        const handleMeta = runtime.getSelectionHandleMeta();
-        const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
-        const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
-
-        // Render selection outlines
-        outline.primitives.forEach((prim, idx) => {
-          if (prim.count < 2) return;
-          const pts = renderPoints(prim, outline.data, true); // Apply rotation for single selection
-          const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-
-          if (prim.kind === OverlayKind.Segment) {
-            const a = pts[0];
-            const b = pts[1];
-            if (!a || !b) return;
-            selectionElements.push(
-              <line
-                key={`sel-seg-${idx}`}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                className="stroke-primary"
-                strokeWidth={1}
-              />,
-            );
-          } else if (prim.kind === OverlayKind.Polyline) {
-            selectionElements.push(
-              <polyline
-                key={`sel-poly-${idx}`}
-                points={pointsAttr}
-                fill="transparent"
-                className="stroke-primary"
-                strokeWidth={1}
-              />,
-            );
-          } else {
-            selectionElements.push(
-              <polygon
-                key={`sel-pgon-${idx}`}
-                points={pointsAttr}
-                fill="transparent"
-                className="stroke-primary"
-                strokeWidth={1}
-              />,
-            );
-          }
-        });
-
-        // Render selection handles
-        if (engineResizeEnabled || handles.primitives.length > 0) {
-          handles.primitives.forEach((prim, idx) => {
-            if (prim.count < 1) return;
-            const pts = renderPoints(prim, handles.data, true); // Apply rotation for single selection
-            // Render resize handles
-            pts.forEach((p, i) => {
+        // Single selection: try to use oriented handles for shapes with rotation
+        const orientedMeta = runtime.getOrientedHandleMeta();
+        
+        if (orientedMeta.valid) {
+          // Use oriented handles (pre-rotated by engine)
+          // Render outline as polygon connecting the corners
+          const corners = [
+            worldToScreen({ x: orientedMeta.blX, y: orientedMeta.blY }, viewTransform),
+            worldToScreen({ x: orientedMeta.brX, y: orientedMeta.brY }, viewTransform),
+            worldToScreen({ x: orientedMeta.trX, y: orientedMeta.trY }, viewTransform),
+            worldToScreen({ x: orientedMeta.tlX, y: orientedMeta.tlY }, viewTransform),
+          ];
+          
+          const outlinePoints = corners.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+          selectionElements.push(
+            <polygon
+              key="sel-oriented-outline"
+              points={outlinePoints}
+              fill="transparent"
+              className="stroke-primary"
+              strokeWidth={1}
+            />,
+          );
+          
+          // Render resize handles at corners (if supported)
+          if (orientedMeta.hasResizeHandles) {
+            corners.forEach((p, i) => {
               selectionElements.push(
                 <rect
-                  key={`sel-handle-${idx}-${i}`}
+                  key={`sel-oriented-handle-${i}`}
                   x={p.x - hh}
                   y={p.y - hh}
                   width={hs}
@@ -257,7 +228,134 @@ const ShapeOverlay: React.FC = () => {
                 />,
               );
             });
+          }
+          
+          // Render rotate handle
+          if (orientedMeta.hasRotateHandle) {
+            // Calculate screen position with proper offset based on viewScale
+            const topCenter = {
+              x: (orientedMeta.tlX + orientedMeta.trX) / 2,
+              y: (orientedMeta.tlY + orientedMeta.trY) / 2,
+            };
+            const center = { x: orientedMeta.centerX, y: orientedMeta.centerY };
+            
+            // Direction from center to top (already rotated)
+            const dx = topCenter.x - center.x;
+            const dy = topCenter.y - center.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            
+            // Offset in world units, scaled for consistent screen appearance
+            const offsetPx = 20; // Screen pixels offset
+            const offsetWorld = offsetPx / viewTransform.scale;
+            
+            let rotateHandleWorld = { x: topCenter.x, y: topCenter.y };
+            if (len > 1e-6) {
+              rotateHandleWorld = {
+                x: topCenter.x + (dx / len) * offsetWorld,
+                y: topCenter.y + (dy / len) * offsetWorld,
+              };
+            }
+            
+            const rotateHandleScreen = worldToScreen(rotateHandleWorld, viewTransform);
+            const topCenterScreen = worldToScreen(topCenter, viewTransform);
+            
+            // Draw line from top center to rotate handle
+            selectionElements.push(
+              <line
+                key="sel-rotate-line"
+                x1={topCenterScreen.x}
+                y1={topCenterScreen.y}
+                x2={rotateHandleScreen.x}
+                y2={rotateHandleScreen.y}
+                className="stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+            
+            // Draw rotate handle circle
+            const rotateHandleRadius = 5;
+            selectionElements.push(
+              <circle
+                key="sel-rotate-handle"
+                cx={rotateHandleScreen.x}
+                cy={rotateHandleScreen.y}
+                r={rotateHandleRadius}
+                className="fill-white stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+          }
+        } else {
+          // Fallback to legacy system for lines, arrows, polylines, etc.
+          const outlineMeta = runtime.getSelectionOutlineMeta();
+          const handleMeta = runtime.getSelectionHandleMeta();
+          const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
+          const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+
+          // Render selection outlines (no rotation transform needed - data is in world coords)
+          outline.primitives.forEach((prim, idx) => {
+            if (prim.count < 2) return;
+            const pts = renderPoints(prim, outline.data, false);
+            const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
+            if (prim.kind === OverlayKind.Segment) {
+              const a = pts[0];
+              const b = pts[1];
+              if (!a || !b) return;
+              selectionElements.push(
+                <line
+                  key={`sel-seg-${idx}`}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  className="stroke-primary"
+                  strokeWidth={1}
+                />,
+              );
+            } else if (prim.kind === OverlayKind.Polyline) {
+              selectionElements.push(
+                <polyline
+                  key={`sel-poly-${idx}`}
+                  points={pointsAttr}
+                  fill="transparent"
+                  className="stroke-primary"
+                  strokeWidth={1}
+                />,
+              );
+            } else {
+              selectionElements.push(
+                <polygon
+                  key={`sel-pgon-${idx}`}
+                  points={pointsAttr}
+                  fill="transparent"
+                  className="stroke-primary"
+                  strokeWidth={1}
+                />,
+              );
+            }
           });
+
+          // Render selection handles (vertex handles for lines/polylines)
+          if (engineResizeEnabled || handles.primitives.length > 0) {
+            handles.primitives.forEach((prim, idx) => {
+              if (prim.count < 1) return;
+              const pts = renderPoints(prim, handles.data, false);
+              pts.forEach((p, i) => {
+                selectionElements.push(
+                  <rect
+                    key={`sel-handle-${idx}-${i}`}
+                    x={p.x - hh}
+                    y={p.y - hh}
+                    width={hs}
+                    height={hs}
+                    className="fill-white stroke-primary"
+                    strokeWidth={1}
+                  />,
+                );
+              });
+            });
+          }
         }
       }
     }

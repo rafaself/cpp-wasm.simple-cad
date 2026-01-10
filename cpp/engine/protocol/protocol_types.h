@@ -283,6 +283,51 @@ struct OverlayBufferMeta {
 };
 
 // =============================================================================
+// Oriented Handle Meta (OBB - Oriented Bounding Box handles)
+// =============================================================================
+
+/**
+ * @brief Selection handles with already-rotated (oriented) positions.
+ * 
+ * This struct provides corner handles in world coordinates, accounting for
+ * entity rotation. The frontend should render these directly without applying
+ * additional rotation transforms.
+ * 
+ * Handle index order (matching pick_system.cpp):
+ *   0 = Bottom-Left (BL)
+ *   1 = Bottom-Right (BR)
+ *   2 = Top-Right (TR)
+ *   3 = Top-Left (TL)
+ */
+struct OrientedHandleMeta {
+    std::uint32_t generation;
+    std::uint32_t entityId;
+    
+    // Corner handles in world coordinates (already rotated)
+    // Order: BL, BR, TR, TL (x,y pairs)
+    float blX, blY;  // Bottom-Left
+    float brX, brY;  // Bottom-Right
+    float trX, trY;  // Top-Right
+    float tlX, tlY;  // Top-Left
+    
+    // Rotate handle position in world coordinates
+    float rotateHandleX;
+    float rotateHandleY;
+    
+    // Entity center (for cursor calculations)
+    float centerX;
+    float centerY;
+    
+    // Entity rotation in radians (for cursor angle adjustment)
+    float rotationRad;
+    
+    // Flags
+    std::uint32_t hasRotateHandle;   // 1 if rotate handle should be shown
+    std::uint32_t hasResizeHandles;  // 1 if corner resize handles should be shown
+    std::uint32_t valid;             // 1 if data is valid
+};
+
+// =============================================================================
 // Entity Bounding Box
 // =============================================================================
 

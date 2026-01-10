@@ -238,6 +238,42 @@ export type OverlayBufferMeta = {
   dataPtr: number;
 };
 
+/**
+ * Oriented handle metadata with pre-rotated positions.
+ * 
+ * Handle index order:
+ *   0 = Bottom-Left (BL)
+ *   1 = Bottom-Right (BR)
+ *   2 = Top-Right (TR)
+ *   3 = Top-Left (TL)
+ */
+export type OrientedHandleMeta = {
+  generation: number;
+  entityId: number;
+  
+  // Corner handles in world coordinates (already rotated)
+  blX: number; blY: number;  // Bottom-Left
+  brX: number; brY: number;  // Bottom-Right
+  trX: number; trY: number;  // Top-Right
+  tlX: number; tlY: number;  // Top-Left
+  
+  // Rotate handle position in world coordinates
+  rotateHandleX: number;
+  rotateHandleY: number;
+  
+  // Entity center (for cursor calculations)
+  centerX: number;
+  centerY: number;
+  
+  // Entity rotation in radians
+  rotationRad: number;
+  
+  // Flags
+  hasRotateHandle: number;   // 1 if rotate handle should be shown
+  hasResizeHandles: number;  // 1 if corner resize handles should be shown
+  valid: number;             // 1 if data is valid
+};
+
 export type EntityAabb = {
   minX: number;
   minY: number;

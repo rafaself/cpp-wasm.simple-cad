@@ -154,6 +154,7 @@ describe('EngineRuntime public API surface', () => {
       'quickBoundsCheck',
       'getSelectionOutlineMeta',
       'getSelectionHandleMeta',
+      'getOrientedHandleMeta',
       'getSnapOverlayMeta',
       'getSelectionBounds',
       'beginTransform',
