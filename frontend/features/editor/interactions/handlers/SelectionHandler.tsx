@@ -13,7 +13,8 @@ import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind, PickSubTarget } from '@/types/picking';
-import { cadDebugLog } from '@/utils/dev/cadDebug';
+import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
+import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
@@ -202,6 +203,12 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.runtime = runtime;
 
     this.pointerDown = { x: event.clientX, y: event.clientY, world };
+    if (isCadDebugEnabled('pointer')) {
+      cadDebugLog('pointer', 'down', () => ({
+        screen,
+        world,
+      }));
+    }
 
     // Picking Logic (Hit Test)
     const tolerance = 10 / (ctx.viewTransform.scale || 1); // 10px screen tolerance
@@ -322,6 +329,19 @@ export class SelectionHandler extends BaseInteractionHandler {
           }
         }
 
+        if (res.subTarget === PickSubTarget.ResizeHandle && activeIds.length === 1) {
+          const transform = runtime.getEntityTransform(activeIds[0]);
+          const bounds = runtime.getSelectionBounds();
+          cadDebugLog('transform', 'resize-start-snapshot', () => ({
+            id: activeIds[0],
+            handleIndex: res.subIndex,
+            screen,
+            world,
+            transform,
+            bounds,
+          }));
+        }
+
         // Use beginTransform instead of beginSession
         runtime.beginTransform(
           activeIds,
@@ -401,6 +421,34 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.showResizeCursor = true;
   }
 
+  private logHandleHitTest(
+    runtime: EngineRuntime,
+    worldPoint: { x: number; y: number },
+    tolerance: number,
+  ) {
+    if (!isCadDebugEnabled('overlay')) return;
+    const handleMeta = runtime.getSelectionHandleMeta();
+    const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+    const hitResults: Array<{ index: number; x: number; y: number; dist: number; hit: boolean }> =
+      [];
+    handles.primitives.forEach((prim) => {
+      for (let i = 0; i < prim.count; i++) {
+        const idx = prim.offset + i * 2;
+        const hx = handles.data[idx] ?? 0;
+        const hy = handles.data[idx + 1] ?? 0;
+        const dx = worldPoint.x - hx;
+        const dy = worldPoint.y - hy;
+        const dist = Math.hypot(dx, dy);
+        hitResults.push({ index: i, x: hx, y: hy, dist, hit: dist <= tolerance });
+      }
+    });
+    cadDebugLog('overlay', 'handle-hit-test', () => ({
+      world: worldPoint,
+      tolerance,
+      handles: hitResults,
+    }));
+  }
+
   onPointerMove(ctx: InputEventContext): void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
@@ -413,6 +461,13 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Check for hover on resize handles when not in active transform
     if (this.state.kind === 'none') {
       const tolerance = 10 / ctx.viewTransform.scale; // Scale-aware tolerance
+      if (isCadDebugEnabled('pointer')) {
+        cadDebugLog('pointer', 'move', () => ({
+          screen,
+          world,
+          tolerance,
+        }));
+      }
       const sideHandle = this.findSideHandle(runtime, world, tolerance);
       if (sideHandle) {
         this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHandle.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
@@ -605,6 +660,18 @@ export class SelectionHandler extends BaseInteractionHandler {
       const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
       this.hoverSubTarget = res.subTarget;
       this.hoverSubIndex = res.subIndex;
+      if (isCadDebugEnabled('pointer')) {
+        cadDebugLog('pointer', 'hover-pick', () => ({
+          screen,
+          world,
+          tolerance,
+          id: res.id,
+          subTarget: res.subTarget,
+          subIndex: res.subIndex,
+          kind: res.kind,
+        }));
+      }
+      this.logHandleHitTest(runtime, world, tolerance);
 
       // Show appropriate cursor based on hover target
       // Body and Edge (for lines/arrows) use default system cursor for move

@@ -375,23 +375,17 @@ void InteractionSession::beginTransform(
         if (snap) {
             auto it = entityManager_.entities.find(session_.specificId);
             if (it != entityManager_.entities.end()) {
-                float origMinX = 0.0f;
-                float origMinY = 0.0f;
-                float origMaxX = 0.0f;
-                float origMaxY = 0.0f;
+                float halfW = 0.0f;
+                float halfH = 0.0f;
                 bool valid = false;
 
                 if (it->second.kind == EntityKind::Rect) {
-                    origMinX = snap->x;
-                    origMinY = snap->y;
-                    origMaxX = snap->x + snap->w;
-                    origMaxY = snap->y + snap->h;
+                    halfW = snap->w * 0.5f;
+                    halfH = snap->h * 0.5f;
                     valid = true;
                 } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-                    origMinX = snap->x - snap->w;
-                    origMaxX = snap->x + snap->w;
-                    origMinY = snap->y - snap->h;
-                    origMaxY = snap->y + snap->h;
+                    halfW = snap->w;
+                    halfH = snap->h;
                     valid = true;
                 }
 
@@ -399,14 +393,14 @@ void InteractionSession::beginTransform(
                     float anchorX = 0.0f;
                     float anchorY = 0.0f;
                     switch (session_.vertexIndex) {
-                        case 0: anchorX = origMaxX; anchorY = origMaxY; break;
-                        case 1: anchorX = origMinX; anchorY = origMaxY; break;
-                        case 2: anchorX = origMinX; anchorY = origMinY; break;
-                        case 3: anchorX = origMaxX; anchorY = origMinY; break;
+                        case 0: anchorX = halfW; anchorY = halfH; break;   // BL -> anchor at TR
+                        case 1: anchorX = -halfW; anchorY = halfH; break;  // BR -> anchor at TL
+                        case 2: anchorX = -halfW; anchorY = -halfH; break; // TR -> anchor at BL
+                        case 3: anchorX = halfW; anchorY = -halfH; break;  // TL -> anchor at BR
                     }
 
-                    const float baseW = std::abs(origMaxX - origMinX);
-                    const float baseH = std::abs(origMaxY - origMinY);
+                    const float baseW = std::max(1e-6f, halfW * 2.0f);
+                    const float baseH = std::max(1e-6f, halfH * 2.0f);
                     session_.resizeBaseW = baseW;
                     session_.resizeBaseH = baseH;
                     session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
@@ -789,19 +783,38 @@ void InteractionSession::updateTransform(
         if (snap && handleIndex >= 0 && handleIndex <= 3) {
             auto it = entityManager_.entities.find(id);
             if (it != entityManager_.entities.end()) {
-                float origMinX = 0, origMinY = 0, origMaxX = 0, origMaxY = 0;
                 bool valid = false;
                 if (it->second.kind == EntityKind::Rect) {
-                    origMinX = snap->x; origMinY = snap->y; 
-                    origMaxX = snap->x + snap->w; origMaxY = snap->y + snap->h;
                     valid = true;
                 } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-                    origMinX = snap->x - snap->w; origMaxX = snap->x + snap->w;
-                    origMinY = snap->y - snap->h; origMaxY = snap->y + snap->h;
                     valid = true;
                 }
 
                 if (valid) {
+                    float centerX = 0.0f;
+                    float centerY = 0.0f;
+                    float halfW = 0.0f;
+                    float halfH = 0.0f;
+                    if (it->second.kind == EntityKind::Rect) {
+                        centerX = snap->x + snap->w * 0.5f;
+                        centerY = snap->y + snap->h * 0.5f;
+                        halfW = snap->w * 0.5f;
+                        halfH = snap->h * 0.5f;
+                    } else {
+                        centerX = snap->x;
+                        centerY = snap->y;
+                        halfW = snap->w;
+                        halfH = snap->h;
+                    }
+
+                    const float rot = snap->rotation;
+                    const float cosR = std::cos(rot);
+                    const float sinR = std::sin(rot);
+                    const float dxWorld = worldX - centerX;
+                    const float dyWorld = worldY - centerY;
+                    const float localX = dxWorld * cosR + dyWorld * sinR;
+                    const float localY = -dxWorld * sinR + dyWorld * cosR;
+
                     float anchorX = 0.0f;
                     float anchorY = 0.0f;
                     if (session_.resizeAnchorValid) {
@@ -809,20 +822,20 @@ void InteractionSession::updateTransform(
                         anchorY = session_.resizeAnchorY;
                     } else {
                         switch (handleIndex) {
-                            case 0: anchorX = origMaxX; anchorY = origMaxY; break;
-                            case 1: anchorX = origMinX; anchorY = origMaxY; break;
-                            case 2: anchorX = origMinX; anchorY = origMinY; break;
-                            case 3: anchorX = origMaxX; anchorY = origMinY; break;
+                            case 0: anchorX = halfW; anchorY = halfH; break;
+                            case 1: anchorX = -halfW; anchorY = halfH; break;
+                            case 2: anchorX = -halfW; anchorY = -halfH; break;
+                            case 3: anchorX = halfW; anchorY = -halfH; break;
                         }
                     }
 
-                    float dx = worldX - anchorX;
-                    float dy = worldY - anchorY;
+                    float dx = localX - anchorX;
+                    float dy = localY - anchorY;
 
                     const bool shiftDown = (modifiers & kShiftMask) != 0;
                     if (shiftDown) {
-                        float baseW = session_.resizeAnchorValid ? session_.resizeBaseW : std::abs(origMaxX - origMinX);
-                        float baseH = session_.resizeAnchorValid ? session_.resizeBaseH : std::abs(origMaxY - origMinY);
+                        float baseW = session_.resizeAnchorValid ? session_.resizeBaseW : std::abs(halfW * 2.0f);
+                        float baseH = session_.resizeAnchorValid ? session_.resizeBaseH : std::abs(halfH * 2.0f);
                         float aspect = session_.resizeAnchorValid
                             ? session_.resizeAspect
                             : ((baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f);
@@ -867,11 +880,16 @@ void InteractionSession::updateTransform(
                     const float maxY = std::max(anchorY, anchorY + dy);
                     const float w = std::max(1e-3f, maxX - minX);
                     const float h = std::max(1e-3f, maxY - minY);
+                    const float centerLocalX = (minX + maxX) * 0.5f;
+                    const float centerLocalY = (minY + maxY) * 0.5f;
+                    const float centerWorldX = centerX + centerLocalX * cosR - centerLocalY * sinR;
+                    const float centerWorldY = centerY + centerLocalX * sinR + centerLocalY * cosR;
 
                     if (it->second.kind == EntityKind::Rect) {
                         for (auto& r : entityManager_.rects) {
                             if (r.id == id) { 
-                                r.x = minX; r.y = minY; r.w = w; r.h = h;
+                                r.x = centerWorldX - w * 0.5f; r.y = centerWorldY - h * 0.5f;
+                                r.w = w; r.h = h;
                                 pickSystem_.update(id, PickSystem::computeRectAABB(r));
                                 refreshEntityRenderRange(id); updated = true; break; 
                             }
@@ -879,7 +897,7 @@ void InteractionSession::updateTransform(
                     } else if (it->second.kind == EntityKind::Circle) {
                         for (auto& c : entityManager_.circles) {
                             if (c.id == id) { 
-                                c.cx = (minX + maxX) * 0.5f; c.cy = (minY + maxY) * 0.5f; c.rx = w * 0.5f; c.ry = h * 0.5f;
+                                c.cx = centerWorldX; c.cy = centerWorldY; c.rx = w * 0.5f; c.ry = h * 0.5f;
                                 pickSystem_.update(id, PickSystem::computeCircleAABB(c));
                                 refreshEntityRenderRange(id); updated = true; break; 
                             }
@@ -887,7 +905,7 @@ void InteractionSession::updateTransform(
                     } else if (it->second.kind == EntityKind::Polygon) {
                         for (auto& p : entityManager_.polygons) {
                             if (p.id == id) {
-                                p.cx = (minX + maxX) * 0.5f; p.cy = (minY + maxY) * 0.5f;
+                                p.cx = centerWorldX; p.cy = centerWorldY;
                                 p.rx = w * 0.5f; p.ry = h * 0.5f;
                                 // Note: Scale (sx, sy) can be negative to support flip transformations
                                 // No longer normalizing to positive values to preserve flip state

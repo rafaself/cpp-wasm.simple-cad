@@ -2,6 +2,7 @@
 #include "engine/engine.h"
 #include "engine/entity/entity_manager.h"
 #include "tests/test_accessors.h"
+#include <cmath>
 #include <vector>
 #include <fstream>
 #include <string>
@@ -129,6 +130,43 @@ void resizeByScreenWithModifiers(
         0.0f,
         0.0f,
         1.0f,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.commitTransform();
+}
+
+void resizeByScreenWithView(
+    CadEngine& engine,
+    std::uint32_t id,
+    std::int32_t handleIndex,
+    float startScreenX,
+    float startScreenY,
+    float endScreenX,
+    float endScreenY,
+    float viewScale,
+    std::uint32_t modifiers) {
+    std::uint32_t ids[] = { id };
+    engine.beginTransform(
+        ids,
+        1,
+        CadEngine::TransformMode::Resize,
+        id,
+        handleIndex,
+        startScreenX,
+        startScreenY,
+        0.0f,
+        0.0f,
+        viewScale,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.updateTransform(
+        endScreenX,
+        endScreenY,
+        0.0f,
+        0.0f,
+        viewScale,
         0.0f,
         0.0f,
         modifiers);
@@ -1077,6 +1115,152 @@ TEST_F(CadEngineTest, RotatedEllipseRotationHandlesPickable) {
         EXPECT_EQ(res.id, id) << "Rotation handle near BL should pick the ellipse";
         EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::RotateHandle)
             << "Should detect rotation handle";
+    }
+}
+
+TEST_F(CadEngineTest, RotatedEllipseResizeContinuesFromCurrentState) {
+    constexpr float kPiQuarter = 0.7853981633974483f; // π/4
+    constexpr float kViewScale = 2.0f;
+    const float cx = 50.0f;
+    const float cy = 50.0f;
+    const float rx = 20.0f;
+    const float ry = 10.0f;
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        cx, cy,
+        rx, ry,
+        kPiQuarter,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+    const float cosR = std::cos(kPiQuarter);
+    const float sinR = std::sin(kPiQuarter);
+    const float handleStartX = cx + rx * cosR - ry * sinR;
+    const float handleStartY = cy + rx * sinR + ry * cosR;
+    const float targetLocalX = rx + 10.0f;
+    const float targetLocalY = ry + 5.0f;
+    const float targetWorldX = cx + targetLocalX * cosR - targetLocalY * sinR;
+    const float targetWorldY = cy + targetLocalX * sinR + targetLocalY * cosR;
+
+    resizeByScreenWithView(
+        engine,
+        id,
+        2,
+        handleStartX * kViewScale,
+        handleStartY * kViewScale,
+        targetWorldX * kViewScale,
+        targetWorldY * kViewScale,
+        kViewScale,
+        0);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_NEAR(circle->rx, 25.0f, 1e-3f);
+    EXPECT_NEAR(circle->ry, 12.5f, 1e-3f);
+
+    const float shift1x = 5.0f * cosR - 2.5f * sinR;
+    const float shift1y = 5.0f * sinR + 2.5f * cosR;
+    EXPECT_NEAR(circle->cx, cx + shift1x, 1e-3f);
+    EXPECT_NEAR(circle->cy, cy + shift1y, 1e-3f);
+
+    const float rx1 = circle->rx;
+    const float ry1 = circle->ry;
+    const float cx1 = circle->cx;
+    const float cy1 = circle->cy;
+    const float handleStartX2 = cx1 + rx1 * cosR - ry1 * sinR;
+    const float handleStartY2 = cy1 + rx1 * sinR + ry1 * cosR;
+    const float targetLocalX2 = rx1 + 5.0f;
+    const float targetLocalY2 = ry1 + 5.0f;
+    const float targetWorldX2 = cx1 + targetLocalX2 * cosR - targetLocalY2 * sinR;
+    const float targetWorldY2 = cy1 + targetLocalX2 * sinR + targetLocalY2 * cosR;
+
+    resizeByScreenWithView(
+        engine,
+        id,
+        2,
+        handleStartX2 * kViewScale,
+        handleStartY2 * kViewScale,
+        targetWorldX2 * kViewScale,
+        targetWorldY2 * kViewScale,
+        kViewScale,
+        0);
+
+    circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_NEAR(circle->rx, 27.5f, 1e-3f);
+    EXPECT_NEAR(circle->ry, 15.0f, 1e-3f);
+    EXPECT_GT(circle->rx, rx1);
+    EXPECT_GT(circle->ry, ry1);
+
+    const float shift2x = 2.5f * cosR - 2.5f * sinR;
+    const float shift2y = 2.5f * sinR + 2.5f * cosR;
+    EXPECT_NEAR(circle->cx, cx1 + shift2x, 1e-3f);
+    EXPECT_NEAR(circle->cy, cy1 + shift2y, 1e-3f);
+}
+
+TEST_F(CadEngineTest, RotatedEllipseResizesFromAllCorners) {
+    constexpr float kPiQuarter = 0.7853981633974483f;
+    const float cx = 50.0f;
+    const float cy = 50.0f;
+    const float rx = 20.0f;
+    const float ry = 10.0f;
+    const float cosR = std::cos(kPiQuarter);
+    const float sinR = std::sin(kPiQuarter);
+
+    const float localCorners[4][2] = {
+        {-rx, -ry}, // BL
+        { rx, -ry}, // BR
+        { rx,  ry}, // TR
+        {-rx,  ry}  // TL
+    };
+
+    for (int handleIndex = 0; handleIndex < 4; ++handleIndex) {
+        const std::uint32_t id = static_cast<std::uint32_t>(10 + handleIndex);
+        CadEngineTestAccessor::upsertCircle(
+            engine, id,
+            cx, cy,
+            rx, ry,
+            kPiQuarter,
+            1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 1.0f,
+            1.0f, 1.0f
+        );
+        engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+        const float localX = localCorners[handleIndex][0];
+        const float localY = localCorners[handleIndex][1];
+        const float worldX = cx + localX * cosR - localY * sinR;
+        const float worldY = cy + localX * sinR + localY * cosR;
+
+        const float step = 5.0f;
+        const float targetLocalX = localX + (localX >= 0.0f ? step : -step);
+        const float targetLocalY = localY + (localY >= 0.0f ? step : -step);
+        const float targetWorldX = cx + targetLocalX * cosR - targetLocalY * sinR;
+        const float targetWorldY = cy + targetLocalX * sinR + targetLocalY * cosR;
+
+        resizeByScreenWithView(
+            engine,
+            id,
+            handleIndex,
+            worldX,
+            worldY,
+            targetWorldX,
+            targetWorldY,
+            1.0f,
+            0);
+
+        const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+        ASSERT_NE(circle, nullptr);
+        EXPECT_GT(circle->rx, rx);
+        EXPECT_GT(circle->ry, ry);
     }
 }
 

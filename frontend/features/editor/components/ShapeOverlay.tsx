@@ -18,6 +18,7 @@ import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/us
 import { EntityKind } from '@/engine/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
@@ -261,6 +262,77 @@ const ShapeOverlay: React.FC = () => {
       }
     }
 
+    const debugElements: React.ReactNode[] = [];
+    if (isCadDebugEnabled('overlay') && selectionCount === 1 && selectionIds.length === 1 && runtime) {
+      const entityId = selectionIds[0];
+      const handleMeta = runtime.getSelectionHandleMeta();
+      const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+      const handlePts = handles.primitives.flatMap((prim) =>
+        renderPoints(prim, handles.data, true),
+      );
+      const hitRadiusPx = 10;
+
+      handlePts.forEach((p, i) => {
+        debugElements.push(
+          <circle
+            key={`dbg-handle-${i}`}
+            cx={p.x}
+            cy={p.y}
+            r={2}
+            fill="#ff9f1c"
+          />,
+        );
+        debugElements.push(
+          <circle
+            key={`dbg-handle-hit-${i}`}
+            cx={p.x}
+            cy={p.y}
+            r={hitRadiusPx}
+            fill="transparent"
+            stroke="#ff9f1c"
+            strokeWidth={1}
+            strokeDasharray="2 2"
+          />,
+        );
+      });
+
+      const kind = runtime.getEntityKind(entityId);
+      if (kind === EntityKind.Circle) {
+        const transform = runtime.getEntityTransform(entityId);
+        if (transform.valid) {
+          const centerScreen = worldToScreen(
+            { x: transform.posX, y: transform.posY },
+            viewTransform,
+          );
+          const rxScreen = Math.abs(transform.width * 0.5 * viewTransform.scale);
+          const ryScreen = Math.abs(transform.height * 0.5 * viewTransform.scale);
+          debugElements.push(
+            <ellipse
+              key="dbg-ellipse"
+              cx={centerScreen.x}
+              cy={centerScreen.y}
+              rx={rxScreen}
+              ry={ryScreen}
+              fill="transparent"
+              stroke="#2ec4b6"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+              transform={`rotate(${-transform.rotationDeg}, ${centerScreen.x}, ${centerScreen.y})`}
+            />,
+          );
+          debugElements.push(
+            <circle
+              key="dbg-ellipse-center"
+              cx={centerScreen.x}
+              cy={centerScreen.y}
+              r={3}
+              fill="#2ec4b6"
+            />,
+          );
+        }
+      }
+    }
+
     // Draft overlay
     const draftElements: React.ReactNode[] = [];
     if (draftDimensions && draftDimensions.active) {
@@ -361,7 +433,12 @@ const ShapeOverlay: React.FC = () => {
       }
     }
 
-    if (selectionElements.length === 0 && draftElements.length === 0 && snapElements.length === 0) {
+    if (
+      selectionElements.length === 0 &&
+      draftElements.length === 0 &&
+      snapElements.length === 0 &&
+      debugElements.length === 0
+    ) {
       return null;
     }
 
@@ -374,6 +451,7 @@ const ShapeOverlay: React.FC = () => {
         {snapElements}
         {selectionElements}
         {draftElements}
+        {debugElements}
       </svg>
     );
   }, [
