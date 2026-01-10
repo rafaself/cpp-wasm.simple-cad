@@ -21,7 +21,9 @@
       "Bash(pnpm typecheck:*)",
       "Bash(git stash:*)",
       "Bash(pnpm --dir frontend test -- --testPathPattern=\"colorRibbonControls\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(make:*)",
+      "Bash(./engine_tests:*)"
     ]
   }
 }

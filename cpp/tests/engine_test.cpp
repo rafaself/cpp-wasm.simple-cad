@@ -968,7 +968,199 @@ TEST_F(CadEngineTest, GetEntityKindReturnsCorrectType) {
     EXPECT_EQ(engine.getEntityKind(4), static_cast<std::uint32_t>(PickEntityKind::Circle));
     EXPECT_EQ(engine.getEntityKind(5), static_cast<std::uint32_t>(PickEntityKind::Polygon));
     EXPECT_EQ(engine.getEntityKind(6), static_cast<std::uint32_t>(PickEntityKind::Arrow));
-    
+
     // Non-existent entity
     EXPECT_EQ(engine.getEntityKind(999), 0);
+}
+
+// Regression tests for rotated ellipse handle picking
+// These tests verify that handles are correctly pickable after rotation
+
+TEST_F(CadEngineTest, RotatedEllipseResizeHandlesAllPickable) {
+    // Create a rotated ellipse: center (50,50), rx=20, ry=10, rotation=π/2 (90°)
+    // After 90° rotation, the corners in world coords are:
+    //   BL (index 0): (60, 30)
+    //   BR (index 1): (60, 70)
+    //   TR (index 2): (40, 70)
+    //   TL (index 3): (40, 30)
+    constexpr float kPiHalf = 1.5707963267948966f; // π/2
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,  // center
+        20.0f, 10.0f,  // radii
+        kPiHalf,       // rotation in radians
+        1.0f, 1.0f,    // scale
+        1.0f, 1.0f, 1.0f, 1.0f,  // fill color
+        0.0f, 0.0f, 0.0f, 1.0f,  // stroke color
+        1.0f, 1.0f               // stroke enabled, width
+    );
+
+    // Select the ellipse to enable handle picking
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+    const float tolerance = 3.0f;
+
+    // Test BL corner (index 0) at (60, 30)
+    {
+        PickResult res = engine.pickEx(60.0f, 30.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "BL handle should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "BL should be a resize handle";
+        EXPECT_EQ(res.subIndex, 0) << "BL should be handle index 0";
+    }
+
+    // Test BR corner (index 1) at (60, 70)
+    {
+        PickResult res = engine.pickEx(60.0f, 70.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "BR handle should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "BR should be a resize handle";
+        EXPECT_EQ(res.subIndex, 1) << "BR should be handle index 1";
+    }
+
+    // Test TR corner (index 2) at (40, 70)
+    {
+        PickResult res = engine.pickEx(40.0f, 70.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "TR handle should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "TR should be a resize handle";
+        EXPECT_EQ(res.subIndex, 2) << "TR should be handle index 2";
+    }
+
+    // Test TL corner (index 3) at (40, 30)
+    {
+        PickResult res = engine.pickEx(40.0f, 30.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "TL handle should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "TL should be a resize handle";
+        EXPECT_EQ(res.subIndex, 3) << "TL should be handle index 3";
+    }
+}
+
+TEST_F(CadEngineTest, RotatedEllipseRotationHandlesPickable) {
+    // Create a rotated ellipse: center (50,50), rx=20, ry=10, rotation=π/2 (90°)
+    // Rotation handles are positioned diagonally outside each corner
+    constexpr float kPiHalf = 1.5707963267948966f;
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        kPiHalf,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+    // Rotation handle offset is 15px in screen space
+    // At viewScale=1, this is 15 world units diagonally from each corner
+    // Direction for BL (index 0) is rotated (-0.707, -0.707) by 90°
+    // Rotated direction: (0.707, -0.707) (down-right becomes right-down after 90° CCW)
+    // Actually with 90° rotation:
+    //   base dir (-0.707, -0.707) rotated 90°:
+    //   dx' = -0.707*0 - (-0.707)*1 = 0.707
+    //   dy' = -0.707*1 + (-0.707)*0 = -0.707
+    // So the rotation handle for BL at (60,30) is at (60 + 0.707*15, 30 - 0.707*15)
+    //   = (60 + 10.6, 30 - 10.6) ≈ (70.6, 19.4)
+
+    const float offset = 15.0f * 0.7071f; // ~10.6
+    const float tolerance = 12.0f; // Rotation handle radius is 10px
+
+    // Test rotation handle near BL corner
+    // BL corner is at (60, 30), rotation handle is diagonally outward
+    {
+        PickResult res = engine.pickEx(60.0f + offset, 30.0f - offset, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "Rotation handle near BL should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::RotateHandle)
+            << "Should detect rotation handle";
+    }
+}
+
+TEST_F(CadEngineTest, RotatedPolygonResizeHandlesAllPickable) {
+    // Create a rotated hexagon: center (50,50), rx=20, ry=10, rotation=π/2, 6 sides
+    constexpr float kPiHalf = 1.5707963267948966f;
+    CadEngineTestAccessor::upsertPolygon(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        kPiHalf,
+        1.0f, 1.0f,
+        6,  // hexagon
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+    const float tolerance = 3.0f;
+
+    // After 90° rotation, the corner handles are at rotated positions
+    // The key test is that ALL 4 handles are pickable at their rotated positions
+    // Corner positions after rotation: (60,30), (60,70), (40,70), (40,30)
+
+    // Test that handles at all 4 rotated corners are pickable
+    {
+        PickResult res = engine.pickEx(60.0f, 30.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "Handle at (60,30) should pick the polygon";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "Should be a resize handle";
+    }
+    {
+        PickResult res = engine.pickEx(60.0f, 70.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "Handle at (60,70) should pick the polygon";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "Should be a resize handle";
+    }
+    {
+        PickResult res = engine.pickEx(40.0f, 70.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "Handle at (40,70) should pick the polygon";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "Should be a resize handle";
+    }
+    {
+        PickResult res = engine.pickEx(40.0f, 30.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "Handle at (40,30) should pick the polygon";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle)
+            << "Should be a resize handle";
+    }
+}
+
+TEST_F(CadEngineTest, NonRotatedEllipseHandlesStillWork) {
+    // Verify non-rotated ellipses still work correctly
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        0.0f,          // no rotation
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+
+    const float tolerance = 3.0f;
+
+    // For non-rotated ellipse: corners are at AABB positions
+    // BL: (30, 40), BR: (70, 40), TR: (70, 60), TL: (30, 60)
+    {
+        PickResult res = engine.pickEx(30.0f, 40.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "BL handle should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+        EXPECT_EQ(res.subIndex, 0);
+    }
+    {
+        PickResult res = engine.pickEx(70.0f, 60.0f, tolerance, 0xFF);
+        EXPECT_EQ(res.id, id) << "TR handle should pick the ellipse";
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+        EXPECT_EQ(res.subIndex, 2);
+    }
 }
