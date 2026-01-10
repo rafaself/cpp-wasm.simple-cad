@@ -152,3 +152,29 @@ export function getSideBaseAngle(sideIndex: number): number {
       return CursorBaseAngle.NORTH;
   }
 }
+
+// =============================================================================
+// Cursor Angle Arrays (indexed by handle index)
+// =============================================================================
+
+/**
+ * Base cursor angles for corner handles, indexed by handle index.
+ * Index order: 0=BL(225°), 1=BR(315°), 2=TR(45°), 3=TL(135°)
+ */
+export const CORNER_HANDLE_CURSOR_ANGLES = [
+  CursorBaseAngle.BOTTOM_LEFT, // 0: BL -> 225° (SW diagonal)
+  CursorBaseAngle.BOTTOM_RIGHT, // 1: BR -> 315° (SE diagonal)
+  CursorBaseAngle.TOP_RIGHT, // 2: TR -> 45° (NE diagonal)
+  CursorBaseAngle.TOP_LEFT, // 3: TL -> 135° (NW diagonal)
+] as const;
+
+/**
+ * Base cursor angles for side handles, indexed by side index.
+ * Index order: 0=S(270°), 1=E(0°), 2=N(90°), 3=W(180°)
+ */
+export const SIDE_HANDLE_CURSOR_ANGLES = [
+  CursorBaseAngle.SOUTH, // 0: S -> 270° (Down)
+  CursorBaseAngle.EAST, // 1: E -> 0° (Right)
+  CursorBaseAngle.NORTH, // 2: N -> 90° (Up)
+  CursorBaseAngle.WEST, // 3: W -> 180° (Left)
+] as const;

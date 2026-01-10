@@ -4,6 +4,7 @@ import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/pro
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
 import { RotationCursor } from '@/features/editor/components/RotationCursor';
 import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
+import { MoveCursor } from '@/features/editor/components/MoveCursor';
 import {
   getRotationCursorAngle,
   getResizeCursorAngle,
@@ -136,6 +137,7 @@ export class SelectionHandler extends BaseInteractionHandler {
   private cursorScreenPos: { x: number; y: number } | null = null;
   private showRotationCursor: boolean = false;
   private showResizeCursor: boolean = false;
+  private showMoveCursor: boolean = false;
 
   private findSideHandle(
     runtime: EngineRuntime,
@@ -447,6 +449,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Reset all custom cursor states by default
     this.showRotationCursor = false;
     this.showResizeCursor = false;
+    this.showMoveCursor = false;
     this.cursorScreenPos = null;
 
     // Check for hover on resize handles when not in active transform
@@ -672,6 +675,10 @@ export class SelectionHandler extends BaseInteractionHandler {
         this.updateRotationCursor(runtime, ctx);
       } else if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
         this.updateResizeCursor(ctx);
+      } else if (this.hoverSubTarget === PickSubTarget.Vertex) {
+        // Vertex handles (line/arrow endpoints, polyline vertices) use move cursor
+        this.cursorScreenPos = ctx.screenPoint;
+        this.showMoveCursor = true;
       } else if (this.hoverSubTarget === PickSubTarget.Body) {
         // Use default cursor for move
       } else if (this.hoverSubTarget === PickSubTarget.Edge && isLineOrArrow(res.kind)) {
@@ -892,7 +899,7 @@ export class SelectionHandler extends BaseInteractionHandler {
 
   getCursor(): string | null {
     // Hide native cursor when showing custom cursors
-    if (this.showRotationCursor || this.showResizeCursor) {
+    if (this.showRotationCursor || this.showResizeCursor || this.showMoveCursor) {
       return 'none';
     }
 
@@ -946,6 +953,14 @@ export class SelectionHandler extends BaseInteractionHandler {
             x={this.cursorScreenPos.x}
             y={this.cursorScreenPos.y}
             rotation={this.cursorAngle}
+          />,
+        );
+      } else if (this.showMoveCursor) {
+        overlays.push(
+          <MoveCursor
+            key="cursor-move"
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
           />,
         );
       }

@@ -8,7 +8,20 @@
  * - 1 SVG per cursor type (rotate, resize, move)
  * - Dynamic rotation via CSS transform
  * - Single source of truth for calibration
+ *
+ * IMPORTANT: Handle indices follow the engine contract defined in:
+ * - docs/agents/handle-index-contract.md
+ * - cpp/engine/interaction/interaction_constants.h
+ *
+ * Handle Index Order (Engine Authority):
+ *   Corner: 0=BL, 1=BR, 2=TR, 3=TL (counter-clockwise from bottom-left)
+ *   Side:   0=S, 1=E, 2=N, 3=W (starting from bottom)
  */
+
+import {
+  CORNER_HANDLE_CURSOR_ANGLES,
+  SIDE_HANDLE_CURSOR_ANGLES,
+} from './interaction-constants';
 
 /**
  * Cursor asset paths
@@ -61,19 +74,33 @@ export const CURSOR_DIMENSIONS = {
 /**
  * Base angle offsets for cursor rotation
  *
- * These offsets compensate for the base orientation of each SVG.
+ * These offsets compensate for the base orientation of each SVG asset.
  *
- * Rotate cursor:
- * - SVG base orientation: Points in a circular motion
- * - Offset: +90° (aligns cursor direction with mouse angle)
+ * Rotate cursor (cursor-rotate.svg):
+ * - SVG visual: Arrow curving counter-clockwise pointing upper-left (~135°)
+ * - The arrow "tip" visually points toward the direction of rotation
+ * - When mouse is at angle θ from center, cursor should point tangentially
+ * - Offset = 40° aligns the curved arrow with the tangent direction
+ * - Formula: cursorRotation = atan2(dy, dx) + offset
  *
- * Resize cursor:
+ * Resize cursor (cursor-resize.svg):
  * - SVG base orientation: Diagonal NW-SE (135°)
- * - Offset: -135° (normalizes to 0° for horizontal handles)
+ * - Offset: -135° normalizes to 0° for east-pointing horizontal handles
+ * - Formula: cursorRotation = handleBaseAngle + offset
  */
 export const CURSOR_ANGLE_OFFSETS = {
-  rotate: 40, // Current working offset from SelectionHandler.tsx
-  resize: -135, // Calculated from SVG base orientation (NW-SE diagonal)
+  /**
+   * Rotation cursor offset.
+   * The cursor-rotate.svg has its visual "rotation direction" pointing
+   * approximately 40° off from the mathematical tangent.
+   */
+  rotate: 40,
+  /**
+   * Resize cursor offset.
+   * The cursor-resize.svg points NW-SE (135°), so we subtract 135°
+   * to normalize: when handle angle is 0° (East), cursor points horizontal.
+   */
+  resize: -135,
 } as const;
 
 /**
@@ -107,7 +134,11 @@ export const RESIZE_HANDLE_ANGLES: Record<ResizeHandleType, number> = {
 /**
  * Calculate final rotation angle for a resize handle
  *
- * @param handle - The resize handle type
+ * Uses the engine handle index contract:
+ * - Corners: 0=BL, 1=BR, 2=TR, 3=TL (counter-clockwise from bottom-left)
+ * - Sides: 4=S, 5=E, 6=N, 7=W (starting from bottom, offset by 4)
+ *
+ * @param handle - The resize handle type or numeric index from engine
  * @returns The final angle to apply to the cursor (in degrees)
  */
 export function getResizeCursorAngle(handle: ResizeHandleType | number): number {
@@ -115,13 +146,14 @@ export function getResizeCursorAngle(handle: ResizeHandleType | number): number 
 
   if (typeof handle === 'number') {
     if (handle >= 4) {
-      // Sides: N=4:180, E=5:90, S=6:0, W=7:270 (rotated 90° from standard)
-      const sideAngles = [180, 90, 0, 270];
-      baseAngle = sideAngles[handle - 4] ?? 0;
+      // Sides: 4=S, 5=E, 6=N, 7=W
+      // Use centralized constants from interaction-constants.ts
+      const sideIndex = handle - 4;
+      baseAngle = SIDE_HANDLE_CURSOR_ANGLES[sideIndex] ?? 90;
     } else {
-      // Corners: assuming indices 0:ne=45, 1:nw=135, 2:sw=225, 3:se=315
-      const handleAngles = [45, 135, 225, 315];
-      baseAngle = handleAngles[handle % 4] ?? 0;
+      // Corners: 0=BL, 1=BR, 2=TR, 3=TL
+      // Use centralized constants from interaction-constants.ts
+      baseAngle = CORNER_HANDLE_CURSOR_ANGLES[handle] ?? 45;
     }
   } else {
     baseAngle = RESIZE_HANDLE_ANGLES[handle];
