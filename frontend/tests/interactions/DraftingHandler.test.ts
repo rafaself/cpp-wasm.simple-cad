@@ -75,12 +75,24 @@ describe('DraftingHandler', () => {
     harness.setTool('polyline');
 
     harness.pointerDown({ x: 1, y: 1 });
+    harness.pointerUp({ x: 1, y: 1 });
     harness.pointerMove({ x: 2, y: 2 });
+    harness.pointerDown({ x: 2, y: 2 });
     harness.pointerUp({ x: 2, y: 2 });
 
     const appendOps = harness.getCommands().filter((c) => c.op === CommandOp.AppendDraftPoint);
     expect(appendOps).toHaveLength(1);
     expect(harness.runtime.getSelectionIds()).toEqual([99]);
+  });
+
+  it('does not duplicate the first polyline point on initial click', () => {
+    harness.setTool('polyline');
+
+    harness.pointerDown({ x: 1, y: 1 });
+    harness.pointerUp({ x: 1, y: 1 });
+
+    const appendOps = harness.getCommands().filter((c) => c.op === CommandOp.AppendDraftPoint);
+    expect(appendOps).toHaveLength(0);
   });
 
   it('commits polyline on Enter', () => {
