@@ -11,6 +11,7 @@ InteractionSession::InteractionSession(CadEngine& engine, EntityManager& entityM
 {
     snapGuides_.reserve(2);
     snapCandidates_.reserve(128);
+    draftSegments_.reserve(8);
 }
 
 TransformState InteractionSession::getTransformState() const {
@@ -399,14 +400,8 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
     const float a = useStroke ? draft_.strokeA : draft_.fillA;
     if (!(a > 0.0f)) return;
 
-    struct Segment {
-        float x0;
-        float y0;
-        float x1;
-        float y1;
-    };
-
-    std::vector<Segment> segments;
+    auto& segments = draftSegments_;
+    segments.clear();
     segments.reserve(8); // small shapes cap; polyline will grow below as needed
 
     constexpr float pi = 3.14159265358979323846f;

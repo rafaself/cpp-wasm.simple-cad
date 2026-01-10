@@ -171,6 +171,13 @@ private:
         std::vector<Point2> points;
     };
 
+    struct DraftSegment {
+        float x0;
+        float y0;
+        float x1;
+        float y1;
+    };
+
     struct TransformStats {
         float lastUpdateMs = 0.0f;
         std::uint32_t lastSnapCandidateCount = 0;
@@ -182,6 +189,7 @@ private:
     TransformStats transformStats_;
     std::vector<SnapGuide> snapGuides_;
     std::vector<std::uint32_t> snapCandidates_;
+    mutable std::vector<DraftSegment> draftSegments_;
 
     // Commit Result Buffers
     std::vector<std::uint32_t> commitResultIds;

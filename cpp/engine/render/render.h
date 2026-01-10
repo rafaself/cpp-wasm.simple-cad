@@ -44,6 +44,7 @@ bool buildEntityRenderData(
     const std::vector<ArrowRec>& arrows,
     float viewScale,
     std::vector<float>& triangleVertices,
+    std::vector<Point2>& scratchVerts,
     void* resolveCtx,
     EntityVisibilityFn isVisible,
     ResolveStyleFn resolveStyle

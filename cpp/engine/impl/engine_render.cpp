@@ -194,8 +194,11 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
     const auto entIt = state().entityManager_.entities.find(id);
     if (entIt == state().entityManager_.entities.end()) return false;
 
-    std::vector<float> temp;
+    auto& temp = state().renderScratchVertices_;
+    temp.clear();
     temp.reserve(rangeIt->second.count);
+    auto& scratchVerts = state().renderScratchPoints_;
+    scratchVerts.clear();
     const bool appended = engine::buildEntityRenderData(
         id,
         entIt->second,
@@ -208,6 +211,7 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
         state().entityManager_.arrows,
         state().viewScale,
         temp,
+        scratchVerts,
         const_cast<CadEngine*>(this),
         &isEntityVisibleForRenderThunk,
         &resolveStyleForRenderThunk

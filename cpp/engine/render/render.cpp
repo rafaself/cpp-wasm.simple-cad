@@ -645,6 +645,7 @@ bool buildEntityRenderData(
     const std::vector<ArrowRec>& arrows,
     float viewScale,
     std::vector<float>& triangleVertices,
+    std::vector<Point2>& scratchVerts,
     void* resolveCtx,
     EntityVisibilityFn isVisible,
     ResolveStyleFn resolveStyle
@@ -652,7 +653,7 @@ bool buildEntityRenderData(
     if (isVisible && !isVisible(resolveCtx, entityId)) return false;
 
     const std::size_t start = triangleVertices.size();
-    std::vector<Point2> tmpVerts;
+    scratchVerts.clear();
     ResolvedShapeStyle resolved{};
     const bool hasResolved = resolveStyle && resolveStyle(resolveCtx, entityId, ref.kind, resolved);
 
@@ -675,7 +676,7 @@ bool buildEntityRenderData(
         PolyRec pl = polylines[ref.index];
         if (hasResolved) applyPolylineStyle(pl, resolved);
         if (pl.count >= 2 && pl.enabled > 0.5f) {
-            addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
+            addPolylineStroke(pl, viewScale, points, scratchVerts, triangleVertices);
         }
     } else if (ref.kind == EntityKind::Circle) {
         CircleRec c = circles[ref.index];
@@ -685,8 +686,8 @@ bool buildEntityRenderData(
     } else if (ref.kind == EntityKind::Polygon) {
         PolygonRec p = polygons[ref.index];
         if (hasResolved) applyPolygonStyle(p, resolved);
-        addPolygonFill(p, tmpVerts, triangleVertices);
-        addPolygonStroke(p, viewScale, tmpVerts, triangleVertices);
+        addPolygonFill(p, scratchVerts, triangleVertices);
+        addPolygonStroke(p, viewScale, scratchVerts, triangleVertices);
     } else if (ref.kind == EntityKind::Arrow) {
         ArrowRec a = arrows[ref.index];
         if (hasResolved) applyArrowStyle(a, resolved);
@@ -813,6 +814,9 @@ void rebuildRenderBuffers(
         triangleVertices.reserve(triangleBudget);
     }
 
+    std::vector<Point2> scratchVerts;
+    scratchVerts.reserve(64);
+
     for (const auto& id : ordered) {
         if (!isEntityVisible(id)) continue;
         const auto it = entities.find(id);
@@ -831,6 +835,7 @@ void rebuildRenderBuffers(
             arrows,
             viewScale,
             triangleVertices,
+            scratchVerts,
             resolveCtx,
             isVisible,
             resolveStyle

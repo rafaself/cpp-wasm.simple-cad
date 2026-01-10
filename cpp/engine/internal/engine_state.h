@@ -37,6 +37,8 @@ struct EngineState {
 
     mutable std::vector<float> triangleVertices;
     mutable std::vector<float> lineVertices;
+    mutable std::vector<float> renderScratchVertices_;
+    mutable std::vector<Point2> renderScratchPoints_;
     mutable std::unordered_map<std::uint32_t, engine::RenderRange> renderRanges_{};
     mutable std::vector<std::uint8_t> snapshotBytes;
     mutable bool textQuadsDirty_{true};

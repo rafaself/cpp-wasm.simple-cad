@@ -255,6 +255,7 @@ if(NOT EMSCRIPTEN)
     tests/interactive_transform_perf_test.cpp
     tests/history_test.cpp
     tests/style_system_test.cpp
+    tests/perf_baseline_test.cpp
   )
   
   # Add text tests if enabled
