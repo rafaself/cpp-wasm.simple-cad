@@ -40,6 +40,10 @@ namespace engine {
 }
 
 struct EngineState;
+struct EnginePluginApiV1;
+namespace engine::domain {
+class DomainExtension;
+}
 
 class CadEngine {
     friend class SelectionManager;
@@ -563,6 +567,9 @@ public:
     DraftDimensions getDraftDimensions() const;
 
     bool refreshEntityRenderRange(std::uint32_t id) const;
+
+    void registerDomainExtension(std::unique_ptr<engine::domain::DomainExtension> extension);
+    bool registerPlugin(const EnginePluginApiV1* plugin);
 
 // ==============================================================================
 // Interaction Session (Phase 4)

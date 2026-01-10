@@ -311,6 +311,22 @@ EngineError dispatchCommand(
             break;
         }
         default:
+            if (self) {
+                for (const auto& ext : self->state().domainExtensions_) {
+                    if (!ext) continue;
+                    const EngineError err = ext->handleCommand(*self, op, id, payload, payloadByteCount);
+                    if (err != EngineError::UnknownCommand) {
+                        return err;
+                    }
+                }
+                for (const auto* plugin : self->state().pluginExtensions_) {
+                    if (!plugin || !plugin->handle_command) continue;
+                    const std::uint32_t code = plugin->handle_command(self, op, id, payload, payloadByteCount);
+                    if (code != static_cast<std::uint32_t>(EngineError::UnknownCommand)) {
+                        return static_cast<EngineError>(code);
+                    }
+                }
+            }
             return EngineError::UnknownCommand;
     }
     return EngineError::Ok;

@@ -3,6 +3,7 @@
 #include "engine/internal/engine_state.h"
 #include "engine/command/command_dispatch.h"
 #include "engine/core/string_utils.h"
+#include "engine/plugin/engine_plugin_api.h"
 
 // Implement CadEngine methods moved out of the header to keep the header small.
 
@@ -149,6 +150,20 @@ void CadEngine::clear() noexcept {
     clearWorld();
     clearHistory();
     state().generation++;
+}
+
+void CadEngine::registerDomainExtension(std::unique_ptr<engine::domain::DomainExtension> extension) {
+    if (!extension) return;
+    state().domainExtensions_.push_back(std::move(extension));
+}
+
+bool CadEngine::registerPlugin(const EnginePluginApiV1* plugin) {
+    if (!plugin || plugin->abi_version != kEnginePluginAbiV1 || !plugin->handle_command) {
+        setError(EngineError::InvalidOperation);
+        return false;
+    }
+    state().pluginExtensions_.push_back(plugin);
+    return true;
 }
 
 std::uintptr_t CadEngine::allocBytes(std::uint32_t byteCount) {

@@ -9,9 +9,12 @@
 #include "engine/interaction/interaction_session.h"
 #include "engine/protocol/protocol_types.h"
 #include "engine/render/render.h"
+#include "engine/domain/domain_extension.h"
+#include "engine/plugin/engine_plugin_api.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -79,6 +82,9 @@ struct EngineState {
     mutable std::vector<float> selectionHandleData_{};
     mutable std::vector<engine::protocol::OverlayPrimitive> snapGuidePrimitives_{};
     mutable std::vector<float> snapGuideData_{};
+
+    std::vector<std::unique_ptr<engine::domain::DomainExtension>> domainExtensions_;
+    std::vector<const EnginePluginApiV1*> pluginExtensions_;
 
     mutable EngineError lastError{EngineError::Ok};
 
