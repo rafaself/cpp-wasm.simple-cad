@@ -47,7 +47,7 @@ void InteractionSession::beginDraft(const BeginDraftPayload& p) {
 void InteractionSession::updateDraft(float x, float y, std::uint32_t modifiers) {
     if (!draft_.active) return;
     applyGridSnap(x, y, snapOptions);
-    const bool shiftDown = (modifiers & static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift)) != 0;
+    const bool shiftDown = (modifiers & static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift)) != 0;
     if (shiftDown) {
         auto snapAngle = [&](float anchorX, float anchorY) {
             const float vecX = x - anchorX;
@@ -89,7 +89,7 @@ void InteractionSession::updateDraft(float x, float y, std::uint32_t modifiers) 
 void InteractionSession::appendDraftPoint(float x, float y, std::uint32_t modifiers) {
     if (!draft_.active) return;
     applyGridSnap(x, y, snapOptions);
-    const bool shiftDown = (modifiers & static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift)) != 0;
+    const bool shiftDown = (modifiers & static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift)) != 0;
     if (shiftDown && draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
         const Point2& anchor = draft_.points.back();
         const float vecX = x - anchor.x;
@@ -184,10 +184,10 @@ std::uint32_t InteractionSession::commitDraft() {
 
     // Apply ByLayer inheritance if requested
     if (draft_.flags & static_cast<std::uint32_t>(DraftFlags::FillByLayer)) {
-        engine_.clearEntityStyleOverride(&id, 1, CadEngine::StyleTarget::Fill);
+        engine_.clearEntityStyleOverride(&id, 1, engine::protocol::StyleTarget::Fill);
     }
     if (draft_.flags & static_cast<std::uint32_t>(DraftFlags::StrokeByLayer)) {
-        engine_.clearEntityStyleOverride(&id, 1, CadEngine::StyleTarget::Stroke);
+        engine_.clearEntityStyleOverride(&id, 1, engine::protocol::StyleTarget::Stroke);
     }
 
     draft_.active = false;

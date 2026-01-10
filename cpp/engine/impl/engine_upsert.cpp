@@ -3,7 +3,7 @@
 // Separated from main engine.cpp to reduce file size per SRP guidelines.
 
 #include "engine/engine.h"
-#include "engine/internal/engine_state_aliases.h"
+#include "engine/internal/engine_state.h"
 
 namespace {
     void initShapeStyleOverrides(EntityManager& em, std::uint32_t id, bool hasFill, bool hasStroke, float fillEnabled) {
@@ -30,31 +30,31 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
 
 void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx) {
     const bool historyStarted = beginHistoryEntry();
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     trackNextEntityId(id);
-    const auto it = entityManager_.entities.find(id);
-    const bool isNew = (it == entityManager_.entities.end());
+    const auto it = state().entityManager_.entities.find(id);
+    const bool isNew = (it == state().entityManager_.entities.end());
     const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Rect);
     if (willChangeOrder) {
         markDrawOrderChange();
     }
     markEntityChange(id);
-    entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx);
     if (isNew) {
-        initShapeStyleOverrides(entityManager_, id, true, true, a > 0.5f ? 1.0f : 0.0f);
+        initShapeStyleOverrides(state().entityManager_, id, true, true, a > 0.5f ? 1.0f : 0.0f);
     }
 
     RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
-    pickSystem_.update(id, PickSystem::computeRectAABB(rec));
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    state().pickSystem_.update(id, PickSystem::computeRectAABB(rec));
+    if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
         recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Rect));
     } else {
         recordEntityChanged(id,
-            static_cast<std::uint32_t>(ChangeMask::Geometry)
-            | static_cast<std::uint32_t>(ChangeMask::Style)
-            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds));
     }
     if (historyStarted) commitHistoryEntry();
 }
@@ -65,31 +65,31 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
 
 void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     const bool historyStarted = beginHistoryEntry();
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     trackNextEntityId(id);
-    const auto it = entityManager_.entities.find(id);
-    const bool isNew = (it == entityManager_.entities.end());
+    const auto it = state().entityManager_.entities.find(id);
+    const bool isNew = (it == state().entityManager_.entities.end());
     const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Line);
     if (willChangeOrder) {
         markDrawOrderChange();
     }
     markEntityChange(id);
-    entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx);
+    state().entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx);
     if (isNew) {
-        initShapeStyleOverrides(entityManager_, id, false, true, 0.0f);
+        initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
     LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
-    pickSystem_.update(id, PickSystem::computeLineAABB(rec));
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    state().pickSystem_.update(id, PickSystem::computeLineAABB(rec));
+    if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
         recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Line));
     } else {
         recordEntityChanged(id,
-            static_cast<std::uint32_t>(ChangeMask::Geometry)
-            | static_cast<std::uint32_t>(ChangeMask::Style)
-            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds));
     }
     if (historyStarted) commitHistoryEntry();
 }
@@ -100,31 +100,31 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
 
 void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
     const bool historyStarted = beginHistoryEntry();
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     trackNextEntityId(id);
-    const auto it = entityManager_.entities.find(id);
-    const bool isNew = (it == entityManager_.entities.end());
+    const auto it = state().entityManager_.entities.find(id);
+    const bool isNew = (it == state().entityManager_.entities.end());
     const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Polyline);
     if (willChangeOrder) {
         markDrawOrderChange();
     }
     markEntityChange(id);
-    entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
+    state().entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
     if (isNew) {
-        initShapeStyleOverrides(entityManager_, id, false, true, 0.0f);
+        initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
     PolyRec rec; rec.offset = offset; rec.count = count;
-    pickSystem_.update(id, PickSystem::computePolylineAABB(rec, entityManager_.points));
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    state().pickSystem_.update(id, PickSystem::computePolylineAABB(rec, state().entityManager_.points));
+    if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
         recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Polyline));
     } else {
         recordEntityChanged(id,
-            static_cast<std::uint32_t>(ChangeMask::Geometry)
-            | static_cast<std::uint32_t>(ChangeMask::Style)
-            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds));
     }
     if (historyStarted) commitHistoryEntry();
 }
@@ -150,31 +150,31 @@ void CadEngine::upsertCircle(
     float strokeWidthPx
 ) {
     const bool historyStarted = beginHistoryEntry();
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     trackNextEntityId(id);
-    const auto it = entityManager_.entities.find(id);
-    const bool isNew = (it == entityManager_.entities.end());
+    const auto it = state().entityManager_.entities.find(id);
+    const bool isNew = (it == state().entityManager_.entities.end());
     const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Circle);
     if (willChangeOrder) {
         markDrawOrderChange();
     }
     markEntityChange(id);
-    entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
     if (isNew) {
-        initShapeStyleOverrides(entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
+        initShapeStyleOverrides(state().entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
     }
 
     CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
-    pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    state().pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
+    if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
         recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Circle));
     } else {
         recordEntityChanged(id,
-            static_cast<std::uint32_t>(ChangeMask::Geometry)
-            | static_cast<std::uint32_t>(ChangeMask::Style)
-            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds));
     }
     if (historyStarted) commitHistoryEntry();
 }
@@ -201,31 +201,31 @@ void CadEngine::upsertPolygon(
     float strokeWidthPx
 ) {
     const bool historyStarted = beginHistoryEntry();
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     trackNextEntityId(id);
-    const auto it = entityManager_.entities.find(id);
-    const bool isNew = (it == entityManager_.entities.end());
+    const auto it = state().entityManager_.entities.find(id);
+    const bool isNew = (it == state().entityManager_.entities.end());
     const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Polygon);
     if (willChangeOrder) {
         markDrawOrderChange();
     }
     markEntityChange(id);
-    entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
     if (isNew) {
-        initShapeStyleOverrides(entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
+        initShapeStyleOverrides(state().entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
     }
 
     PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
-    pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    state().pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
+    if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
         recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Polygon));
     } else {
         recordEntityChanged(id,
-            static_cast<std::uint32_t>(ChangeMask::Geometry)
-            | static_cast<std::uint32_t>(ChangeMask::Style)
-            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds));
     }
     if (historyStarted) commitHistoryEntry();
 }
@@ -245,33 +245,32 @@ void CadEngine::upsertArrow(
     float strokeWidthPx
 ) {
     const bool historyStarted = beginHistoryEntry();
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     trackNextEntityId(id);
-    const auto it = entityManager_.entities.find(id);
-    const bool isNew = (it == entityManager_.entities.end());
+    const auto it = state().entityManager_.entities.find(id);
+    const bool isNew = (it == state().entityManager_.entities.end());
     const bool willChangeOrder = isNew || (it->second.kind != EntityKind::Arrow);
     if (willChangeOrder) {
         markDrawOrderChange();
     }
     markEntityChange(id);
-    entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
     if (isNew) {
-        initShapeStyleOverrides(entityManager_, id, false, true, 0.0f);
+        initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
     ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
-    pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
-    if (isNew) pickSystem_.setZ(id, pickSystem_.getMaxZ());
+    state().pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
+    if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
         recordEntityCreated(id, static_cast<std::uint32_t>(EntityKind::Arrow));
     } else {
         recordEntityChanged(id,
-            static_cast<std::uint32_t>(ChangeMask::Geometry)
-            | static_cast<std::uint32_t>(ChangeMask::Style)
-            | static_cast<std::uint32_t>(ChangeMask::Bounds));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds));
     }
     if (historyStarted) commitHistoryEntry();
 }
 
-#include "engine/internal/engine_state_aliases_undef.h"

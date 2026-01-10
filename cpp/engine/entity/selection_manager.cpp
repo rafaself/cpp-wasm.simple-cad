@@ -81,10 +81,10 @@ void SelectionManager::clearSelection(CadEngine& engine) {
 void SelectionManager::selectByPick(const PickResult& pick, std::uint32_t modifiers, CadEngine& engine) {
     Mode mode = Mode::Replace;
     const std::uint32_t toggleMask =
-        static_cast<std::uint32_t>(CadEngine::SelectionModifier::Ctrl)
-        | static_cast<std::uint32_t>(CadEngine::SelectionModifier::Meta);
+        static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Ctrl)
+        | static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Meta);
 
-    if (modifiers & static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift)) {
+    if (modifiers & static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift)) {
         mode = Mode::Add; // Shift adds
     } else if (modifiers & toggleMask) {
         mode = Mode::Toggle; // Ctrl/Meta toggles

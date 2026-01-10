@@ -41,7 +41,7 @@ namespace engine {
 
 struct EngineState;
 
-class CadEngine : public EngineProtocolTypes {
+class CadEngine {
     friend class SelectionManager;
     friend class HistoryManager;
     friend class InteractionSession;
@@ -70,57 +70,57 @@ public:
     std::uint32_t getVertexCount() const noexcept;
     std::uintptr_t getVertexDataPtr() const noexcept;
     std::uint32_t getCapabilities() const noexcept {
-        return static_cast<std::uint32_t>(EngineCapability::HAS_QUERY_MARQUEE)
-             | static_cast<std::uint32_t>(EngineCapability::HAS_RESIZE_HANDLES)
-             | static_cast<std::uint32_t>(EngineCapability::HAS_TRANSFORM_RESIZE);
+        return static_cast<std::uint32_t>(engine::protocol::EngineCapability::HAS_QUERY_MARQUEE)
+             | static_cast<std::uint32_t>(engine::protocol::EngineCapability::HAS_RESIZE_HANDLES)
+             | static_cast<std::uint32_t>(engine::protocol::EngineCapability::HAS_TRANSFORM_RESIZE);
     }
     std::vector<LayerRecord> getLayersSnapshot() const;
     std::string getLayerName(std::uint32_t layerId) const;
     void setLayerProps(std::uint32_t layerId, std::uint32_t propsMask, std::uint32_t flagsValue, const std::string& name);
     bool deleteLayer(std::uint32_t layerId);
-    LayerStyleSnapshot getLayerStyle(std::uint32_t layerId) const;
-    void setLayerStyle(std::uint32_t layerId, StyleTarget target, std::uint32_t colorRGBA);
-    void setLayerStyleEnabled(std::uint32_t layerId, StyleTarget target, bool enabled);
+    engine::protocol::LayerStyleSnapshot getLayerStyle(std::uint32_t layerId) const;
+    void setLayerStyle(std::uint32_t layerId, engine::protocol::StyleTarget target, std::uint32_t colorRGBA);
+    void setLayerStyleEnabled(std::uint32_t layerId, engine::protocol::StyleTarget target, bool enabled);
     std::uint32_t getEntityFlags(std::uint32_t entityId) const;
     void setEntityFlags(std::uint32_t entityId, std::uint32_t flagsMask, std::uint32_t flagsValue);
     void setEntityLayer(std::uint32_t entityId, std::uint32_t layerId);
     std::uint32_t getEntityLayer(std::uint32_t entityId) const;
     std::uint32_t getEntityKind(std::uint32_t entityId) const;
-    void setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, std::uint32_t colorRGBA);
-    void clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target);
-    void setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, bool enabled);
-    SelectionStyleSummary getSelectionStyleSummary() const;
-    ProtocolInfo getProtocolInfo() const noexcept {
-        return ProtocolInfo{
-            kProtocolVersion,
-            kCommandVersion,
-            kSnapshotVersion,
-            kEventStreamVersion,
-            getAbiHash(),
-            kFeatureFlags
+    void setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, engine::protocol::StyleTarget target, std::uint32_t colorRGBA);
+    void clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, engine::protocol::StyleTarget target);
+    void setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t count, engine::protocol::StyleTarget target, bool enabled);
+    engine::protocol::SelectionStyleSummary getSelectionStyleSummary() const;
+    engine::protocol::ProtocolInfo getProtocolInfo() const noexcept {
+        return engine::protocol::ProtocolInfo{
+            EngineProtocolInfo::kProtocolVersion,
+            EngineProtocolInfo::kCommandVersion,
+            EngineProtocolInfo::kSnapshotVersion,
+            EngineProtocolInfo::kEventStreamVersion,
+            EngineProtocolInfo::getAbiHash(),
+            EngineProtocolInfo::kFeatureFlags
         };
     }
 
     std::uint32_t allocateEntityId();
     std::uint32_t allocateLayerId();
 
-    BufferMeta buildMeta(const std::vector<float>& buffer, std::size_t floatsPerVertex) const noexcept;
-    BufferMeta getPositionBufferMeta() const noexcept;
-    BufferMeta getLineBufferMeta() const noexcept;
+    engine::protocol::BufferMeta buildMeta(const std::vector<float>& buffer, std::size_t floatsPerVertex) const noexcept;
+    engine::protocol::BufferMeta getPositionBufferMeta() const noexcept;
+    engine::protocol::BufferMeta getLineBufferMeta() const noexcept;
 
-    ByteBufferMeta saveSnapshot() const noexcept;
-    ByteBufferMeta getSnapshotBufferMeta() const noexcept;
-    ByteBufferMeta getFullSnapshotMeta() const noexcept { return saveSnapshot(); }
+    engine::protocol::ByteBufferMeta saveSnapshot() const noexcept;
+    engine::protocol::ByteBufferMeta getSnapshotBufferMeta() const noexcept;
+    engine::protocol::ByteBufferMeta getFullSnapshotMeta() const noexcept { return saveSnapshot(); }
 
-    DocumentDigest getDocumentDigest() const noexcept;
+    engine::protocol::DocumentDigest getDocumentDigest() const noexcept;
 
-    HistoryMeta getHistoryMeta() const noexcept;
+    engine::protocol::HistoryMeta getHistoryMeta() const noexcept;
     bool canUndo() const noexcept;
     bool canRedo() const noexcept;
     void undo();
     void redo();
 
-    EventBufferMeta pollEvents(std::uint32_t maxEvents);
+    engine::protocol::EventBufferMeta pollEvents(std::uint32_t maxEvents);
     void ackResync(std::uint32_t resyncGeneration);
 
     /**
@@ -129,21 +129,21 @@ public:
      */
     bool hasPendingEvents() const noexcept;
 
-    OverlayBufferMeta getSelectionOutlineMeta() const;
-    OverlayBufferMeta getSelectionHandleMeta() const;
-    OverlayBufferMeta getSnapOverlayMeta() const;
-    EntityAabb getEntityAabb(std::uint32_t entityId) const;
-    EntityAabb getSelectionBounds() const;
+    engine::protocol::OverlayBufferMeta getSelectionOutlineMeta() const;
+    engine::protocol::OverlayBufferMeta getSelectionHandleMeta() const;
+    engine::protocol::OverlayBufferMeta getSnapOverlayMeta() const;
+    engine::protocol::EntityAabb getEntityAabb(std::uint32_t entityId) const;
+    engine::protocol::EntityAabb getSelectionBounds() const;
 
     // Entity transform queries and mutations (for inspector panel)
-    EntityTransform getEntityTransform(std::uint32_t entityId) const;
+    engine::protocol::EntityTransform getEntityTransform(std::uint32_t entityId) const;
     void setEntityPosition(std::uint32_t entityId, float x, float y);
     void setEntitySize(std::uint32_t entityId, float width, float height);
     void setEntityRotation(std::uint32_t entityId, float rotationDeg);
     void setEntityLength(std::uint32_t entityId, float length);
     void setEntityScale(std::uint32_t entityId, float scaleX, float scaleY);
 
-    EngineStats getStats() const noexcept;
+    engine::protocol::EngineStats getStats() const noexcept;
 
     // picking
     std::uint32_t pick(float x, float y, float tolerance) const noexcept;
@@ -163,9 +163,9 @@ public:
     std::vector<std::uint32_t> getSelectionIds() const;
     std::uint32_t getSelectionGeneration() const noexcept;
     void clearSelection();
-    void setSelection(const std::uint32_t* ids, std::uint32_t idCount, SelectionMode mode);
+    void setSelection(const std::uint32_t* ids, std::uint32_t idCount, engine::protocol::SelectionMode mode);
     void selectByPick(const PickResult& pick, std::uint32_t modifiers);
-    void marqueeSelect(float minX, float minY, float maxX, float maxY, SelectionMode mode, int hitMode);
+    void marqueeSelect(float minX, float minY, float maxX, float maxY, engine::protocol::SelectionMode mode, int hitMode);
 
     // Visibility helper used by render callbacks
     bool isEntityVisibleForRender(std::uint32_t id) const noexcept;
@@ -175,7 +175,7 @@ public:
 
     // Draw order (engine-authoritative)
     std::vector<std::uint32_t> getDrawOrderSnapshot() const;
-    void reorderEntities(const std::uint32_t* ids, std::uint32_t idCount, ReorderAction action, std::uint32_t refId);
+    void reorderEntities(const std::uint32_t* ids, std::uint32_t idCount, engine::protocol::ReorderAction action, std::uint32_t refId);
 
 private:
     // Error handling
@@ -214,7 +214,7 @@ private:
     std::vector<std::uint8_t> encodeHistoryBytes() const;
     void decodeHistoryBytes(const std::uint8_t* bytes, std::size_t byteCount);
     void flushPendingEvents();
-    bool pushEvent(const EngineEvent& ev);
+    bool pushEvent(const engine::protocol::EngineEvent& ev);
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx);
@@ -490,12 +490,12 @@ public:
      * Get text quad buffer metadata for rendering.
      * Format: [x, y, z, u, v, r, g, b, a] per vertex, 6 vertices per glyph quad
      */
-    BufferMeta getTextQuadBufferMeta() const noexcept;
+    engine::protocol::BufferMeta getTextQuadBufferMeta() const noexcept;
     
     /**
      * Get atlas texture metadata for WebGL upload.
      */
-    TextureBufferMeta getAtlasTextureMeta() const noexcept;
+    engine::protocol::TextureBufferMeta getAtlasTextureMeta() const noexcept;
     
     /**
      * Check if atlas texture needs re-upload.
@@ -523,7 +523,7 @@ public:
      * @param textId Text entity ID
      * @return Metadata with pointer and size, exists=false if text not found
      */
-    TextContentMeta getTextContentMeta(std::uint32_t textId) const noexcept;
+    engine::protocol::TextContentMeta getTextContentMeta(std::uint32_t textId) const noexcept;
     
     struct TextEntityMeta {
         std::uint32_t id;

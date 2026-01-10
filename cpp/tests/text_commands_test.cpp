@@ -868,17 +868,17 @@ TEST_F(TextCommandsTest, ApplyTextStyleEmitsEntityChangedWithBounds) {
 
     auto meta = engine_->pollEvents(16);
     ASSERT_GE(meta.count, 1u);
-    const auto* events = reinterpret_cast<const CadEngine::EngineEvent*>(meta.ptr);
+    const auto* events = reinterpret_cast<const engine::protocol::EngineEvent*>(meta.ptr);
     ASSERT_NE(events, nullptr);
 
     const std::uint32_t expectedMask =
-        static_cast<std::uint32_t>(CadEngine::ChangeMask::Text)
-        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Style)
-        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Bounds);
+        static_cast<std::uint32_t>(engine::protocol::ChangeMask::Text)
+        | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+        | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds);
 
     bool foundEntityChanged = false;
     for (std::uint32_t i = 0; i < meta.count; ++i) {
-        if (events[i].type == static_cast<std::uint16_t>(CadEngine::EventType::EntityChanged)
+        if (events[i].type == static_cast<std::uint16_t>(engine::protocol::EventType::EntityChanged)
             && events[i].a == payload.textId) {
             foundEntityChanged = true;
             EXPECT_EQ(events[i].b & expectedMask, expectedMask);

@@ -15,7 +15,7 @@ TEST(SelectionStateTest, FiltersLockedAndInvisible) {
     );
 
     const std::uint32_t ids[] = {1, 2};
-    engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
 
     const auto selected = engine.getSelectionIds();
     ASSERT_EQ(selected.size(), 1u);
@@ -23,7 +23,7 @@ TEST(SelectionStateTest, FiltersLockedAndInvisible) {
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible),
         0u,
         std::string()
     );
@@ -38,7 +38,7 @@ TEST(SelectionStateTest, SelectionOrderFollowsDrawOrder) {
     CadEngineTestAccessor::upsertRect(engine, 3, 0, 0, 10, 10, 0.0f, 0.0f, 1.0f, 1.0f);
 
     const std::uint32_t ids[] = {1, 3};
-    engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
 
     auto selected = engine.getSelectionIds();
     ASSERT_EQ(selected.size(), 2u);
@@ -46,7 +46,7 @@ TEST(SelectionStateTest, SelectionOrderFollowsDrawOrder) {
     EXPECT_EQ(selected[1], 3u);
 
     const std::uint32_t moveId = 1;
-    engine.reorderEntities(&moveId, 1, CadEngine::ReorderAction::BringToFront, 0);
+    engine.reorderEntities(&moveId, 1, engine::protocol::ReorderAction::BringToFront, 0);
 
     const auto order = engine.getDrawOrderSnapshot();
     ASSERT_EQ(order.size(), 3u);
@@ -69,6 +69,6 @@ TEST(SelectionStateTest, PickRespectsDrawOrder) {
     EXPECT_EQ(engine.pick(5.0f, 5.0f, 0.5f), 2u);
 
     const std::uint32_t moveId = 1;
-    engine.reorderEntities(&moveId, 1, CadEngine::ReorderAction::BringToFront, 0);
+    engine.reorderEntities(&moveId, 1, engine::protocol::ReorderAction::BringToFront, 0);
     EXPECT_EQ(engine.pick(5.0f, 5.0f, 0.5f), 1u);
 }

@@ -6,11 +6,11 @@ TEST(ProtocolInfoTest, NonZeroAndStable) {
     const auto info1 = engine.getProtocolInfo();
     const auto info2 = engine.getProtocolInfo();
 
-    EXPECT_EQ(info1.protocolVersion, CadEngine::kProtocolVersion);
-    EXPECT_EQ(info1.commandVersion, CadEngine::kCommandVersion);
-    EXPECT_EQ(info1.snapshotVersion, CadEngine::kSnapshotVersion);
-    EXPECT_EQ(info1.eventStreamVersion, CadEngine::kEventStreamVersion);
-    EXPECT_EQ(info1.featureFlags, CadEngine::kFeatureFlags);
+    EXPECT_EQ(info1.protocolVersion, EngineProtocolInfo::kProtocolVersion);
+    EXPECT_EQ(info1.commandVersion, EngineProtocolInfo::kCommandVersion);
+    EXPECT_EQ(info1.snapshotVersion, EngineProtocolInfo::kSnapshotVersion);
+    EXPECT_EQ(info1.eventStreamVersion, EngineProtocolInfo::kEventStreamVersion);
+    EXPECT_EQ(info1.featureFlags, EngineProtocolInfo::kFeatureFlags);
 
     EXPECT_NE(info1.protocolVersion, 0u);
     EXPECT_NE(info1.commandVersion, 0u);

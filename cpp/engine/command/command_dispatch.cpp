@@ -1,9 +1,9 @@
 #include "engine/command/command_dispatch.h"
 #include "engine/engine.h"
-#include "engine/internal/engine_state_aliases.h"
+#include "engine/internal/engine_state.h"
 #include "engine/text/text_style_contract.h"
+#include "engine/core/logging.h"
 #include <cstring>
-#include <cstdio>
 
 namespace engine {
 
@@ -19,7 +19,7 @@ EngineError dispatchCommand(
             self->markLayerChange();
             self->markDrawOrderChange();
             self->markSelectionChange();
-            for (const auto& kv : self->entityManager_.entities) {
+            for (const auto& kv : self->state().entityManager_.entities) {
                 self->markEntityChange(kv.first);
             }
             self->clearWorld();
@@ -34,12 +34,12 @@ EngineError dispatchCommand(
             ViewScalePayload p;
             std::memcpy(&p, payload, sizeof(ViewScalePayload));
             const float s = (p.scale > 1e-6f && std::isfinite(p.scale)) ? p.scale : 1.0f;
-            self->viewScale = s;
-            self->viewX = p.x;
-            self->viewY = p.y;
-            self->viewWidth = p.width;
-            self->viewHeight = p.height;
-            self->renderDirty = true;
+            self->state().viewScale = s;
+            self->state().viewX = p.x;
+            self->state().viewY = p.y;
+            self->state().viewWidth = p.width;
+            self->state().viewHeight = p.height;
+            self->state().renderDirty = true;
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetDrawOrder): {
@@ -50,18 +50,18 @@ EngineError dispatchCommand(
             const std::uint32_t count = hdr.count;
             const std::size_t expected = sizeof(DrawOrderPayloadHeader) + static_cast<std::size_t>(count) * 4;
             if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
-            self->entityManager_.drawOrderIds.clear();
-            self->entityManager_.drawOrderIds.reserve(count);
+            self->state().entityManager_.drawOrderIds.clear();
+            self->state().entityManager_.drawOrderIds.reserve(count);
             std::size_t o = sizeof(DrawOrderPayloadHeader);
             for (std::uint32_t i = 0; i < count; i++) {
                 std::uint32_t sid;
                 std::memcpy(&sid, payload + o, sizeof(std::uint32_t));
                 o += sizeof(std::uint32_t);
-                self->entityManager_.drawOrderIds.push_back(sid);
+                self->state().entityManager_.drawOrderIds.push_back(sid);
             }
-            self->renderDirty = true;
-            self->pickSystem_.setDrawOrder(self->entityManager_.drawOrderIds);
-            if (!self->selectionManager_.isEmpty()) self->selectionManager_.rebuildOrder(self->entityManager_.drawOrderIds);
+            self->state().renderDirty = true;
+            self->state().pickSystem_.setDrawOrder(self->state().entityManager_.drawOrderIds);
+            if (!self->state().selectionManager_.isEmpty()) self->state().selectionManager_.rebuildOrder(self->state().entityManager_.drawOrderIds);
             self->recordOrderChanged();
             break;
         }
@@ -91,14 +91,14 @@ EngineError dispatchCommand(
                 break;
             }
 
-            const std::uint32_t offset = static_cast<std::uint32_t>(self->entityManager_.points.size());
-            self->entityManager_.points.reserve(self->entityManager_.points.size() + count);
+            const std::uint32_t offset = static_cast<std::uint32_t>(self->state().entityManager_.points.size());
+            self->state().entityManager_.points.reserve(self->state().entityManager_.points.size() + count);
             std::size_t ppos = sizeof(PolylinePayloadHeader);
             for (std::uint32_t j = 0; j < count; j++) {
                 Point2 pt;
                 std::memcpy(&pt, payload + ppos, sizeof(Point2));
                 ppos += sizeof(Point2);
-                self->entityManager_.points.push_back(pt);
+                self->state().entityManager_.points.push_back(pt);
             }
             self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled, hdr.strokeWidthPx);
             break;
@@ -128,14 +128,14 @@ EngineError dispatchCommand(
             if (payloadByteCount != sizeof(LayerStylePayload)) return EngineError::InvalidPayloadSize;
             LayerStylePayload p;
             std::memcpy(&p, payload, sizeof(LayerStylePayload));
-            self->setLayerStyle(id, static_cast<CadEngine::StyleTarget>(p.target), p.colorRGBA);
+            self->setLayerStyle(id, static_cast<engine::protocol::StyleTarget>(p.target), p.colorRGBA);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetLayerStyleEnabled): {
             if (payloadByteCount != sizeof(LayerStyleEnabledPayload)) return EngineError::InvalidPayloadSize;
             LayerStyleEnabledPayload p;
             std::memcpy(&p, payload, sizeof(LayerStyleEnabledPayload));
-            self->setLayerStyleEnabled(id, static_cast<CadEngine::StyleTarget>(p.target), p.enabled != 0);
+            self->setLayerStyleEnabled(id, static_cast<engine::protocol::StyleTarget>(p.target), p.enabled != 0);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetEntityStyleOverride): {
@@ -146,7 +146,7 @@ EngineError dispatchCommand(
             const std::size_t expected = sizeof(EntityStylePayloadHeader) + static_cast<std::size_t>(count) * 4;
             if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
             const auto* ids = reinterpret_cast<const std::uint32_t*>(payload + sizeof(EntityStylePayloadHeader));
-            self->setEntityStyleOverride(ids, count, static_cast<CadEngine::StyleTarget>(hdr.target), hdr.colorRGBA);
+            self->setEntityStyleOverride(ids, count, static_cast<engine::protocol::StyleTarget>(hdr.target), hdr.colorRGBA);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::ClearEntityStyleOverride): {
@@ -157,7 +157,7 @@ EngineError dispatchCommand(
             const std::size_t expected = sizeof(EntityStyleClearPayloadHeader) + static_cast<std::size_t>(count) * 4;
             if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
             const auto* ids = reinterpret_cast<const std::uint32_t*>(payload + sizeof(EntityStyleClearPayloadHeader));
-            self->clearEntityStyleOverride(ids, count, static_cast<CadEngine::StyleTarget>(hdr.target));
+            self->clearEntityStyleOverride(ids, count, static_cast<engine::protocol::StyleTarget>(hdr.target));
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetEntityStyleEnabled): {
@@ -168,7 +168,7 @@ EngineError dispatchCommand(
             const std::size_t expected = sizeof(EntityStyleEnabledPayloadHeader) + static_cast<std::size_t>(count) * 4;
             if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
             const auto* ids = reinterpret_cast<const std::uint32_t*>(payload + sizeof(EntityStyleEnabledPayloadHeader));
-            self->setEntityStyleEnabled(ids, count, static_cast<CadEngine::StyleTarget>(hdr.target), hdr.enabled != 0);
+            self->setEntityStyleEnabled(ids, count, static_cast<engine::protocol::StyleTarget>(hdr.target), hdr.enabled != 0);
             break;
         }
         // =======================================================================
@@ -190,7 +190,7 @@ EngineError dispatchCommand(
             if (!self->upsertText(id, hdr, runs, hdr.runCount, content, hdr.contentLength)) {
                 return EngineError::InvalidOperation;
             }
-            printf("[DEBUG] UpsertText: successfully stored text id=%u\n", id);
+            ENGINE_LOG_DEBUG("[DEBUG] UpsertText: successfully stored text id=%u", id);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::DeleteText): {
@@ -317,5 +317,3 @@ EngineError dispatchCommand(
 }
 
 } // namespace engine
-
-#include "engine/internal/engine_state_aliases_undef.h"

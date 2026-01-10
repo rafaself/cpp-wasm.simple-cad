@@ -2,7 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
-#include "engine/internal/engine_state_aliases.h"
+#include "engine/internal/engine_state.h"
 #include "engine/persistence/snapshot.h"
 #include "engine/core/string_utils.h"
 #include "engine/core/util.h"
@@ -64,86 +64,86 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
         layerNames.push_back(layer.name);
         layerStyles.push_back(toLayerStyle(layer.style));
     }
-    nextLayerId_ = maxLayerId + 1;
-    entityManager_.layerStore.loadSnapshot(layerRecords, layerNames, layerStyles);
+    state().nextLayerId_ = maxLayerId + 1;
+    state().entityManager_.layerStore.loadSnapshot(layerRecords, layerNames, layerStyles);
 
-    entityManager_.points = sd.points;
+    state().entityManager_.points = sd.points;
 
-    entityManager_.rects.clear();
-    entityManager_.rects.reserve(sd.rects.size());
-    for (const auto& rec : sd.rects) entityManager_.rects.push_back(rec.rec);
+    state().entityManager_.rects.clear();
+    state().entityManager_.rects.reserve(sd.rects.size());
+    for (const auto& rec : sd.rects) state().entityManager_.rects.push_back(rec.rec);
 
-    entityManager_.lines.clear();
-    entityManager_.lines.reserve(sd.lines.size());
-    for (const auto& rec : sd.lines) entityManager_.lines.push_back(rec.rec);
+    state().entityManager_.lines.clear();
+    state().entityManager_.lines.reserve(sd.lines.size());
+    for (const auto& rec : sd.lines) state().entityManager_.lines.push_back(rec.rec);
 
-    entityManager_.polylines.clear();
-    entityManager_.polylines.reserve(sd.polylines.size());
-    for (const auto& rec : sd.polylines) entityManager_.polylines.push_back(rec.rec);
+    state().entityManager_.polylines.clear();
+    state().entityManager_.polylines.reserve(sd.polylines.size());
+    for (const auto& rec : sd.polylines) state().entityManager_.polylines.push_back(rec.rec);
 
-    entityManager_.circles.clear();
-    entityManager_.circles.reserve(sd.circles.size());
-    for (const auto& rec : sd.circles) entityManager_.circles.push_back(rec.rec);
+    state().entityManager_.circles.clear();
+    state().entityManager_.circles.reserve(sd.circles.size());
+    for (const auto& rec : sd.circles) state().entityManager_.circles.push_back(rec.rec);
 
-    entityManager_.polygons.clear();
-    entityManager_.polygons.reserve(sd.polygons.size());
-    for (const auto& rec : sd.polygons) entityManager_.polygons.push_back(rec.rec);
+    state().entityManager_.polygons.clear();
+    state().entityManager_.polygons.reserve(sd.polygons.size());
+    for (const auto& rec : sd.polygons) state().entityManager_.polygons.push_back(rec.rec);
 
-    entityManager_.arrows.clear();
-    entityManager_.arrows.reserve(sd.arrows.size());
-    for (const auto& rec : sd.arrows) entityManager_.arrows.push_back(rec.rec);
+    state().entityManager_.arrows.clear();
+    state().entityManager_.arrows.reserve(sd.arrows.size());
+    for (const auto& rec : sd.arrows) state().entityManager_.arrows.push_back(rec.rec);
 
-    entityManager_.entities.clear();
-    entityManager_.entityFlags.clear();
-    entityManager_.entityLayers.clear();
-    entityManager_.styleOverrides.clear();
+    state().entityManager_.entities.clear();
+    state().entityManager_.entityFlags.clear();
+    state().entityManager_.entityLayers.clear();
+    state().entityManager_.styleOverrides.clear();
 
-    for (std::uint32_t i = 0; i < entityManager_.rects.size(); ++i) {
+    for (std::uint32_t i = 0; i < state().entityManager_.rects.size(); ++i) {
         const auto& rec = sd.rects[i];
         const std::uint32_t id = rec.rec.id;
-        entityManager_.entities[id] = EntityRef{EntityKind::Rect, i};
-        entityManager_.entityFlags[id] = rec.flags;
-        entityManager_.entityLayers[id] = rec.layerId;
+        state().entityManager_.entities[id] = EntityRef{EntityKind::Rect, i};
+        state().entityManager_.entityFlags[id] = rec.flags;
+        state().entityManager_.entityLayers[id] = rec.layerId;
     }
-    for (std::uint32_t i = 0; i < entityManager_.lines.size(); ++i) {
+    for (std::uint32_t i = 0; i < state().entityManager_.lines.size(); ++i) {
         const auto& rec = sd.lines[i];
         const std::uint32_t id = rec.rec.id;
-        entityManager_.entities[id] = EntityRef{EntityKind::Line, i};
-        entityManager_.entityFlags[id] = rec.flags;
-        entityManager_.entityLayers[id] = rec.layerId;
+        state().entityManager_.entities[id] = EntityRef{EntityKind::Line, i};
+        state().entityManager_.entityFlags[id] = rec.flags;
+        state().entityManager_.entityLayers[id] = rec.layerId;
     }
-    for (std::uint32_t i = 0; i < entityManager_.polylines.size(); ++i) {
+    for (std::uint32_t i = 0; i < state().entityManager_.polylines.size(); ++i) {
         const auto& rec = sd.polylines[i];
         const std::uint32_t id = rec.rec.id;
-        entityManager_.entities[id] = EntityRef{EntityKind::Polyline, i};
-        entityManager_.entityFlags[id] = rec.flags;
-        entityManager_.entityLayers[id] = rec.layerId;
+        state().entityManager_.entities[id] = EntityRef{EntityKind::Polyline, i};
+        state().entityManager_.entityFlags[id] = rec.flags;
+        state().entityManager_.entityLayers[id] = rec.layerId;
     }
-    for (std::uint32_t i = 0; i < entityManager_.circles.size(); ++i) {
+    for (std::uint32_t i = 0; i < state().entityManager_.circles.size(); ++i) {
         const auto& rec = sd.circles[i];
         const std::uint32_t id = rec.rec.id;
-        entityManager_.entities[id] = EntityRef{EntityKind::Circle, i};
-        entityManager_.entityFlags[id] = rec.flags;
-        entityManager_.entityLayers[id] = rec.layerId;
+        state().entityManager_.entities[id] = EntityRef{EntityKind::Circle, i};
+        state().entityManager_.entityFlags[id] = rec.flags;
+        state().entityManager_.entityLayers[id] = rec.layerId;
     }
-    for (std::uint32_t i = 0; i < entityManager_.polygons.size(); ++i) {
+    for (std::uint32_t i = 0; i < state().entityManager_.polygons.size(); ++i) {
         const auto& rec = sd.polygons[i];
         const std::uint32_t id = rec.rec.id;
-        entityManager_.entities[id] = EntityRef{EntityKind::Polygon, i};
-        entityManager_.entityFlags[id] = rec.flags;
-        entityManager_.entityLayers[id] = rec.layerId;
+        state().entityManager_.entities[id] = EntityRef{EntityKind::Polygon, i};
+        state().entityManager_.entityFlags[id] = rec.flags;
+        state().entityManager_.entityLayers[id] = rec.layerId;
     }
-    for (std::uint32_t i = 0; i < entityManager_.arrows.size(); ++i) {
+    for (std::uint32_t i = 0; i < state().entityManager_.arrows.size(); ++i) {
         const auto& rec = sd.arrows[i];
         const std::uint32_t id = rec.rec.id;
-        entityManager_.entities[id] = EntityRef{EntityKind::Arrow, i};
-        entityManager_.entityFlags[id] = rec.flags;
-        entityManager_.entityLayers[id] = rec.layerId;
+        state().entityManager_.entities[id] = EntityRef{EntityKind::Arrow, i};
+        state().entityManager_.entityFlags[id] = rec.flags;
+        state().entityManager_.entityLayers[id] = rec.layerId;
     }
 
     if (!sd.texts.empty()) {
-        if (!textSystem_.initialized) {
-            textSystem_.initialize();
+        if (!state().textSystem_.initialized) {
+            state().textSystem_.initialize();
         }
         for (const auto& rec : sd.texts) {
             TextPayloadHeader header = rec.header;
@@ -151,18 +151,18 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
             header.contentLength = static_cast<std::uint32_t>(rec.content.size());
             const char* contentPtr = rec.content.empty() ? nullptr : rec.content.data();
             const TextRunPayload* runsPtr = rec.runs.empty() ? nullptr : rec.runs.data();
-            textSystem_.store.upsertText(rec.id, header, runsPtr, header.runCount, contentPtr, header.contentLength);
-            textSystem_.store.setLayoutResult(rec.id, rec.layoutWidth, rec.layoutHeight, rec.minX, rec.minY, rec.maxX, rec.maxY);
-            entityManager_.entities[rec.id] = EntityRef{EntityKind::Text, rec.id};
-            entityManager_.entityFlags[rec.id] = rec.flags;
-            entityManager_.entityLayers[rec.id] = rec.layerId;
+            state().textSystem_.store.upsertText(rec.id, header, runsPtr, header.runCount, contentPtr, header.contentLength);
+            state().textSystem_.store.setLayoutResult(rec.id, rec.layoutWidth, rec.layoutHeight, rec.minX, rec.minY, rec.maxX, rec.maxY);
+            state().entityManager_.entities[rec.id] = EntityRef{EntityKind::Text, rec.id};
+            state().entityManager_.entityFlags[rec.id] = rec.flags;
+            state().entityManager_.entityLayers[rec.id] = rec.layerId;
         }
         markTextQuadsDirty();
     }
 
     if (!sd.styleOverrides.empty()) {
         for (const auto& snap : sd.styleOverrides) {
-            if (entityManager_.entities.find(snap.id) == entityManager_.entities.end()) {
+            if (state().entityManager_.entities.find(snap.id) == state().entityManager_.entities.end()) {
                 continue;
             }
             EntityStyleOverrides entry{};
@@ -172,67 +172,67 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
             unpackColorRGBA(snap.textBackgroundRGBA, entry.textBackground.r, entry.textBackground.g, entry.textBackground.b, entry.textBackground.a);
             entry.fillEnabled = snap.fillEnabled ? 1.0f : 0.0f;
             entry.textBackgroundEnabled = snap.textBackgroundEnabled ? 1.0f : 0.0f;
-            entityManager_.styleOverrides.emplace(snap.id, entry);
+            state().entityManager_.styleOverrides.emplace(snap.id, entry);
         }
     }
 
-    entityManager_.drawOrderIds.clear();
-    entityManager_.drawOrderIds.reserve(sd.drawOrder.size());
+    state().entityManager_.drawOrderIds.clear();
+    state().entityManager_.drawOrderIds.reserve(sd.drawOrder.size());
     std::unordered_set<std::uint32_t> seen;
     seen.reserve(sd.drawOrder.size());
     for (const std::uint32_t id : sd.drawOrder) {
-        if (entityManager_.entities.find(id) == entityManager_.entities.end()) continue;
+        if (state().entityManager_.entities.find(id) == state().entityManager_.entities.end()) continue;
         if (seen.insert(id).second) {
-            entityManager_.drawOrderIds.push_back(id);
+            state().entityManager_.drawOrderIds.push_back(id);
         }
     }
-    if (entityManager_.drawOrderIds.size() < entityManager_.entities.size()) {
+    if (state().entityManager_.drawOrderIds.size() < state().entityManager_.entities.size()) {
         std::vector<std::uint32_t> missing;
-        missing.reserve(entityManager_.entities.size());
-        for (const auto& kv : entityManager_.entities) {
+        missing.reserve(state().entityManager_.entities.size());
+        for (const auto& kv : state().entityManager_.entities) {
             if (seen.find(kv.first) == seen.end()) missing.push_back(kv.first);
         }
         std::sort(missing.begin(), missing.end());
-        entityManager_.drawOrderIds.insert(entityManager_.drawOrderIds.end(), missing.begin(), missing.end());
+        state().entityManager_.drawOrderIds.insert(state().entityManager_.drawOrderIds.end(), missing.begin(), missing.end());
     }
-    pickSystem_.clear();
-    for (const auto& r : entityManager_.rects) {
-        pickSystem_.update(r.id, PickSystem::computeRectAABB(r));
+    state().pickSystem_.clear();
+    for (const auto& r : state().entityManager_.rects) {
+        state().pickSystem_.update(r.id, PickSystem::computeRectAABB(r));
     }
-    for (const auto& l : entityManager_.lines) {
-        pickSystem_.update(l.id, PickSystem::computeLineAABB(l));
+    for (const auto& l : state().entityManager_.lines) {
+        state().pickSystem_.update(l.id, PickSystem::computeLineAABB(l));
     }
-    for (const auto& pl : entityManager_.polylines) {
+    for (const auto& pl : state().entityManager_.polylines) {
         const std::uint32_t end = pl.offset + pl.count;
-        if (end <= entityManager_.points.size()) {
-            pickSystem_.update(pl.id, PickSystem::computePolylineAABB(pl, entityManager_.points));
+        if (end <= state().entityManager_.points.size()) {
+            state().pickSystem_.update(pl.id, PickSystem::computePolylineAABB(pl, state().entityManager_.points));
         }
     }
-    for (const auto& c : entityManager_.circles) {
-        pickSystem_.update(c.id, PickSystem::computeCircleAABB(c));
+    for (const auto& c : state().entityManager_.circles) {
+        state().pickSystem_.update(c.id, PickSystem::computeCircleAABB(c));
     }
-    for (const auto& p : entityManager_.polygons) {
-        pickSystem_.update(p.id, PickSystem::computePolygonAABB(p));
+    for (const auto& p : state().entityManager_.polygons) {
+        state().pickSystem_.update(p.id, PickSystem::computePolygonAABB(p));
     }
-    for (const auto& a : entityManager_.arrows) {
-        pickSystem_.update(a.id, PickSystem::computeArrowAABB(a));
+    for (const auto& a : state().entityManager_.arrows) {
+        state().pickSystem_.update(a.id, PickSystem::computeArrowAABB(a));
     }
     for (const auto& rec : sd.texts) {
-        pickSystem_.update(rec.id, {rec.minX, rec.minY, rec.maxX, rec.maxY});
+        state().pickSystem_.update(rec.id, {rec.minX, rec.minY, rec.maxX, rec.maxY});
     }
-    pickSystem_.setDrawOrder(entityManager_.drawOrderIds);
+    state().pickSystem_.setDrawOrder(state().entityManager_.drawOrderIds);
 
-    selectionManager_.setSelection(sd.selection.data(), static_cast<std::uint32_t>(sd.selection.size()), SelectionManager::Mode::Replace, *this);
+    state().selectionManager_.setSelection(sd.selection.data(), static_cast<std::uint32_t>(sd.selection.size()), SelectionManager::Mode::Replace, *this);
 
     std::uint32_t maxId = 0;
-    for (const auto& kv : entityManager_.entities) {
+    for (const auto& kv : state().entityManager_.entities) {
         if (kv.first > maxId) maxId = kv.first;
     }
     if (sd.nextId == 0) {
-        nextEntityId_ = maxId + 1;
+        state().nextEntityId_ = maxId + 1;
     } else {
-        nextEntityId_ = sd.nextId;
-        if (nextEntityId_ <= maxId) nextEntityId_ = maxId + 1;
+        state().nextEntityId_ = sd.nextId;
+        if (state().nextEntityId_ <= maxId) state().nextEntityId_ = maxId + 1;
     }
 
     if (!sd.historyBytes.empty()) {
@@ -244,34 +244,34 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
     const double t1 = emscripten_get_now();
     
     // Lazy rebuild
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
 
     const double t2 = emscripten_get_now();
 
-    lastLoadMs = static_cast<float>(t1 - t0);
-    lastRebuildMs = static_cast<float>(t2 - t1); 
-    lastApplyMs = 0.0f;
-    generation++;
+    state().lastLoadMs = static_cast<float>(t1 - t0);
+    state().lastRebuildMs = static_cast<float>(t2 - t1); 
+    state().lastApplyMs = 0.0f;
+    state().generation++;
 }
 
 engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t textId) const {
     engine::text::TextStyleSnapshot out{};
-    if (!textSystem_.initialized) {
+    if (!state().textSystem_.initialized) {
         return out;
     }
 
     // Ensure layout is current
-    const_cast<CadEngine*>(this)->textSystem_.layoutEngine.layoutDirtyTexts();
+    const_cast<CadEngine*>(this)->state().textSystem_.layoutEngine.layoutDirtyTexts();
 
-    const std::string_view content = textSystem_.store.getContent(textId);
-    const auto runs = textSystem_.store.getRuns(textId);
-    const auto caretOpt = textSystem_.store.getCaretState(textId);
+    const std::string_view content = state().textSystem_.store.getContent(textId);
+    const auto runs = state().textSystem_.store.getRuns(textId);
+    const auto caretOpt = state().textSystem_.store.getCaretState(textId);
     if (!caretOpt) {
         return out;
     }
 
-    const TextRec* rec = textSystem_.store.getText(textId);
+    const TextRec* rec = state().textSystem_.store.getText(textId);
     if (!rec) {
         return out;
     }
@@ -504,23 +504,23 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSnapshot(std::uint32_t te
     out.fontSizeTriState = fontSizeState;
     out.fontId = fontIdValue;
     out.fontSize = fontSizeValue;
-    out.textGeneration = generation;
+    out.textGeneration = state().generation;
     out.styleTriStateParamsLen = 0;
     return out;
 }
 
 engine::text::TextStyleSnapshot CadEngine::getTextStyleSummary(std::uint32_t textId) const {
     engine::text::TextStyleSnapshot out{};
-    if (!textSystem_.initialized) {
+    if (!state().textSystem_.initialized) {
         return out;
     }
 
-    const_cast<CadEngine*>(this)->textSystem_.layoutEngine.layoutDirtyTexts();
+    const_cast<CadEngine*>(this)->state().textSystem_.layoutEngine.layoutDirtyTexts();
 
-    const std::string_view content = textSystem_.store.getContent(textId);
-    const auto runs = textSystem_.store.getRuns(textId);
+    const std::string_view content = state().textSystem_.store.getContent(textId);
+    const auto runs = state().textSystem_.store.getRuns(textId);
 
-    const TextRec* rec = textSystem_.store.getText(textId);
+    const TextRec* rec = state().textSystem_.store.getText(textId);
     if (rec) {
         out.align = static_cast<std::uint8_t>(rec->align);
     }
@@ -740,100 +740,100 @@ engine::text::TextStyleSnapshot CadEngine::getTextStyleSummary(std::uint32_t tex
     out.fontSizeTriState = fontSizeState;
     out.fontId = fontIdValue;
     out.fontSize = fontSizeValue;
-    out.textGeneration = generation;
+    out.textGeneration = state().generation;
     out.styleTriStateParamsLen = 0;
     return out;
 }
 
 void CadEngine::rebuildSnapshotBytes() const {
     engine::SnapshotData sd;
-    sd.rects.reserve(entityManager_.rects.size());
-    for (const auto& rec : entityManager_.rects) {
+    sd.rects.reserve(state().entityManager_.rects.size());
+    for (const auto& rec : state().entityManager_.rects) {
         if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::RectSnapshot snap{};
         snap.rec = rec;
-        snap.layerId = entityManager_.getEntityLayer(rec.id);
-        snap.flags = entityManager_.getEntityFlags(rec.id);
+        snap.layerId = state().entityManager_.getEntityLayer(rec.id);
+        snap.flags = state().entityManager_.getEntityFlags(rec.id);
         sd.rects.push_back(std::move(snap));
     }
 
-    sd.lines.reserve(entityManager_.lines.size());
-    for (const auto& rec : entityManager_.lines) {
+    sd.lines.reserve(state().entityManager_.lines.size());
+    for (const auto& rec : state().entityManager_.lines) {
         if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::LineSnapshot snap{};
         snap.rec = rec;
-        snap.layerId = entityManager_.getEntityLayer(rec.id);
-        snap.flags = entityManager_.getEntityFlags(rec.id);
+        snap.layerId = state().entityManager_.getEntityLayer(rec.id);
+        snap.flags = state().entityManager_.getEntityFlags(rec.id);
         sd.lines.push_back(std::move(snap));
     }
 
-    sd.polylines.reserve(entityManager_.polylines.size());
-    for (const auto& rec : entityManager_.polylines) {
+    sd.polylines.reserve(state().entityManager_.polylines.size());
+    for (const auto& rec : state().entityManager_.polylines) {
         if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::PolySnapshot snap{};
         snap.rec = rec;
-        snap.layerId = entityManager_.getEntityLayer(rec.id);
-        snap.flags = entityManager_.getEntityFlags(rec.id);
+        snap.layerId = state().entityManager_.getEntityLayer(rec.id);
+        snap.flags = state().entityManager_.getEntityFlags(rec.id);
         sd.polylines.push_back(std::move(snap));
     }
 
-    sd.points = entityManager_.points;
+    sd.points = state().entityManager_.points;
 
-    sd.circles.reserve(entityManager_.circles.size());
-    for (const auto& rec : entityManager_.circles) {
+    sd.circles.reserve(state().entityManager_.circles.size());
+    for (const auto& rec : state().entityManager_.circles) {
         if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::CircleSnapshot snap{};
         snap.rec = rec;
-        snap.layerId = entityManager_.getEntityLayer(rec.id);
-        snap.flags = entityManager_.getEntityFlags(rec.id);
+        snap.layerId = state().entityManager_.getEntityLayer(rec.id);
+        snap.flags = state().entityManager_.getEntityFlags(rec.id);
         sd.circles.push_back(std::move(snap));
     }
 
-    sd.polygons.reserve(entityManager_.polygons.size());
-    for (const auto& rec : entityManager_.polygons) {
+    sd.polygons.reserve(state().entityManager_.polygons.size());
+    for (const auto& rec : state().entityManager_.polygons) {
         if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::PolygonSnapshot snap{};
         snap.rec = rec;
-        snap.layerId = entityManager_.getEntityLayer(rec.id);
-        snap.flags = entityManager_.getEntityFlags(rec.id);
+        snap.layerId = state().entityManager_.getEntityLayer(rec.id);
+        snap.flags = state().entityManager_.getEntityFlags(rec.id);
         sd.polygons.push_back(std::move(snap));
     }
 
-    sd.arrows.reserve(entityManager_.arrows.size());
-    for (const auto& rec : entityManager_.arrows) {
+    sd.arrows.reserve(state().entityManager_.arrows.size());
+    for (const auto& rec : state().entityManager_.arrows) {
         if (rec.id == DRAFT_ENTITY_ID) continue;
         engine::ArrowSnapshot snap{};
         snap.rec = rec;
-        snap.layerId = entityManager_.getEntityLayer(rec.id);
-        snap.flags = entityManager_.getEntityFlags(rec.id);
+        snap.layerId = state().entityManager_.getEntityLayer(rec.id);
+        snap.flags = state().entityManager_.getEntityFlags(rec.id);
         sd.arrows.push_back(std::move(snap));
     }
 
-    const auto layerRecords = entityManager_.layerStore.snapshot();
+    const auto layerRecords = state().entityManager_.layerStore.snapshot();
     sd.layers.reserve(layerRecords.size());
     for (const auto& layer : layerRecords) {
         engine::LayerSnapshot snap{};
         snap.id = layer.id;
         snap.order = layer.order;
         snap.flags = layer.flags;
-        snap.name = entityManager_.layerStore.getLayerName(layer.id);
-        snap.style = toLayerStyleSnapshot(entityManager_.layerStore.getLayerStyle(layer.id));
+        snap.name = state().entityManager_.layerStore.getLayerName(layer.id);
+        snap.style = toLayerStyleSnapshot(state().entityManager_.layerStore.getLayerStyle(layer.id));
         sd.layers.push_back(std::move(snap));
     }
 
-    sd.drawOrder = entityManager_.drawOrderIds; // drawOrderIds already has phantom removed in InteractionSession
-    sd.selection = selectionManager_.getOrdered();
+    sd.drawOrder = state().entityManager_.drawOrderIds; // drawOrderIds already has phantom removed in InteractionSession
+    sd.selection = state().selectionManager_.getOrdered();
 
-    const auto textIds = textSystem_.store.getAllTextIds();
+    const auto textIds = state().textSystem_.store.getAllTextIds();
     sd.texts.reserve(textIds.size());
     for (const std::uint32_t textId : textIds) {
         if (textId == DRAFT_ENTITY_ID) continue;
-        const TextRec* rec = textSystem_.store.getText(textId);
+        const TextRec* rec = state().textSystem_.store.getText(textId);
         if (!rec) continue;
         engine::TextSnapshot snap{};
         snap.id = textId;
-        snap.layerId = entityManager_.getEntityLayer(textId);
-        snap.flags = entityManager_.getEntityFlags(textId);
+        snap.layerId = state().entityManager_.getEntityLayer(textId);
+        snap.flags = state().entityManager_.getEntityFlags(textId);
         snap.header.x = rec->x;
         snap.header.y = rec->y;
         snap.header.rotation = rec->rotation;
@@ -849,10 +849,10 @@ void CadEngine::rebuildSnapshotBytes() const {
         snap.maxX = rec->maxX;
         snap.maxY = rec->maxY;
 
-        const std::string_view content = textSystem_.store.getContent(textId);
+        const std::string_view content = state().textSystem_.store.getContent(textId);
         snap.content.assign(content.begin(), content.end());
 
-        const auto& runs = textSystem_.store.getRuns(textId);
+        const auto& runs = state().textSystem_.store.getRuns(textId);
         snap.runs.reserve(runs.size());
         for (const auto& run : runs) {
             TextRunPayload payload{};
@@ -873,14 +873,14 @@ void CadEngine::rebuildSnapshotBytes() const {
         sd.texts.push_back(std::move(snap));
     }
 
-    sd.nextId = nextEntityId_;
+    sd.nextId = state().nextEntityId_;
     sd.historyBytes = encodeHistoryBytes();
 
     sd.styleOverrides.clear();
-    sd.styleOverrides.reserve(entityManager_.styleOverrides.size());
-    for (const auto& kv : entityManager_.styleOverrides) {
+    sd.styleOverrides.reserve(state().entityManager_.styleOverrides.size());
+    for (const auto& kv : state().entityManager_.styleOverrides) {
         if (kv.first == DRAFT_ENTITY_ID) continue;
-        if (entityManager_.entities.find(kv.first) == entityManager_.entities.end()) continue;
+        if (state().entityManager_.entities.find(kv.first) == state().entityManager_.entities.end()) continue;
         const EntityStyleOverrides& overrides = kv.second;
         if (overrides.colorMask == 0 && overrides.enabledMask == 0) continue;
         engine::StyleOverrideSnapshot snap{};
@@ -895,8 +895,7 @@ void CadEngine::rebuildSnapshotBytes() const {
         sd.styleOverrides.push_back(std::move(snap));
     }
 
-    snapshotBytes = engine::buildSnapshotBytes(sd);
-    snapshotDirty = false;
+    state().snapshotBytes = engine::buildSnapshotBytes(sd);
+    state().snapshotDirty = false;
 }
 
-#include "engine/internal/engine_state_aliases_undef.h"

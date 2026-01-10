@@ -238,7 +238,7 @@ void upsertPolyline(CadEngine& engine, std::uint32_t id, const std::vector<Point
     appendU32(buffer, 3);
     appendU32(buffer, 1);
     appendU32(buffer, 0);
-    appendU32(buffer, static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertPolyline));
+    appendU32(buffer, static_cast<std::uint32_t>(CommandOp::UpsertPolyline));
     appendU32(buffer, id);
     appendU32(buffer, payloadBytes);
     appendU32(buffer, 0);
@@ -310,7 +310,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     pushU32(0);          // Padding
 
     // Command 1: UpsertRect
-    pushU32(static_cast<std::uint32_t>(CadEngine::CommandOp::UpsertRect)); // Op
+    pushU32(static_cast<std::uint32_t>(CommandOp::UpsertRect)); // Op
     pushU32(10);         // ID
     pushU32(56);         // Payload Bytes (14 floats * 4 bytes/float)
     pushU32(0);          // Reserved
@@ -362,7 +362,7 @@ TEST_F(CadEngineTest, SnapshotRoundTrip) {
     CadEngineTestAccessor::upsertRect(engine, 1, 10, 10, 100, 100, 0.0f, 0.0f, 1.0f, 1.0f); // Add color
     CadEngineTestAccessor::upsertLine(engine, 2, 0, 0, 50, 50);
     const std::uint32_t selectId = 1;
-    engine.setSelection(&selectId, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&selectId, 1, engine::protocol::SelectionMode::Replace);
 
     // 2. Get snapshot data
     auto meta = engine.saveSnapshot();
@@ -400,8 +400,8 @@ TEST_F(CadEngineTest, DocumentDigestDeterministicSaveLoad) {
 
     const std::uint32_t layer2 = 2;
     const std::uint32_t props =
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Name)
-        | static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible);
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Name)
+        | static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible);
     engine.setLayerProps(layer2, props, static_cast<std::uint32_t>(LayerFlags::Visible), "Layer 2");
     engine.setEntityLayer(2, layer2);
 
@@ -411,8 +411,8 @@ TEST_F(CadEngineTest, DocumentDigestDeterministicSaveLoad) {
     engine.setEntityFlags(2, flagsMask, static_cast<std::uint32_t>(EntityFlags::Visible));
 
     const std::uint32_t ids[] = {1, 2};
-    engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
-    engine.reorderEntities(ids, 2, CadEngine::ReorderAction::BringToFront, 0);
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
+    engine.reorderEntities(ids, 2, engine::protocol::ReorderAction::BringToFront, 0);
 
     const auto digest1 = engine.getDocumentDigest();
     const auto meta = engine.saveSnapshot();
@@ -484,7 +484,7 @@ TEST_F(CadEngineTest, EdgeDragMovesLine) {
 
 TEST_F(CadEngineTest, VertexDragShiftSnapsLineTo45Degrees) {
     CadEngineTestAccessor::upsertLine(engine, 15, 0.0f, 0.0f, 10.0f, 0.0f);
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     vertexDragByScreenWithModifiers(engine, 15, 1, 10.0f, -6.0f, shift);
 
     const LineRec* line = CadEngineTestAccessor::entityManager(engine).getLine(15);
@@ -504,7 +504,7 @@ TEST_F(CadEngineTest, DraftLineShiftSnapsTo45Degrees) {
     payload.strokeWidthPx = 1.0f;
     engine.beginDraft(payload);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.updateDraft(10.0f, 6.0f, shift);
     const std::uint32_t id = engine.commitDraft();
 
@@ -526,7 +526,7 @@ TEST_F(CadEngineTest, DraftArrowShiftSnapsTo45Degrees) {
     payload.head = 6.0f; // Arrow head size
     engine.beginDraft(payload);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.updateDraft(10.0f, 6.0f, shift);
     const std::uint32_t id = engine.commitDraft();
 
@@ -549,7 +549,7 @@ TEST_F(CadEngineTest, DraftPolylineShiftSnapsAppendPointTo45Degrees) {
     payload.strokeWidthPx = 1.0f;
     engine.beginDraft(payload);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.appendDraftPoint(10.0f, 6.0f, shift);
     const std::uint32_t id = engine.commitDraft();
 
@@ -574,7 +574,7 @@ TEST_F(CadEngineTest, DraftRectShiftCreatesSquare) {
     payload.strokeWidthPx = 1.0f;
     engine.beginDraft(payload);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.updateDraft(100.0f, 60.0f, shift);
     const std::uint32_t id = engine.commitDraft();
 
@@ -596,7 +596,7 @@ TEST_F(CadEngineTest, DraftCircleShiftCreatesCircle) {
     payload.strokeWidthPx = 1.0f;
     engine.beginDraft(payload);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.updateDraft(80.0f, 50.0f, shift);
     const std::uint32_t id = engine.commitDraft();
 
@@ -620,7 +620,7 @@ TEST_F(CadEngineTest, DraftPolygonShiftCreatesProportional) {
     payload.sides = 3.0f;
     engine.beginDraft(payload);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.updateDraft(70.0f, 100.0f, shift);
     const std::uint32_t id = engine.commitDraft();
 
@@ -638,7 +638,7 @@ TEST_F(CadEngineTest, VertexDragShiftSnapsArrowEndpointTo45Degrees) {
     CadEngineTestAccessor::upsertArrow(engine, 18, 0.0f, 0.0f, 10.0f, 0.0f, 6.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     // Drag endpoint (vertex 1) to (10, -6) with shift should snap to 45 degrees
     vertexDragByScreenWithModifiers(engine, 18, 1, 10.0f, -6.0f, shift);
 
@@ -656,7 +656,7 @@ TEST_F(CadEngineTest, VertexDragShiftSnapsPolylineEndpointTo45Degrees) {
     const std::uint32_t id = 17;
     upsertPolyline(engine, id, points);
 
-    const auto shift = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     vertexDragByScreenWithModifiers(engine, id, 1, 10.0f, -6.0f, shift);
 
     const EntityManager& em = CadEngineTestAccessor::entityManager(engine);
@@ -765,7 +765,7 @@ TEST_F(CadEngineTest, SelectionBoundsUnion) {
     CadEngineTestAccessor::upsertRect(engine, 2, 20.0f, -5.0f, 5.0f, 15.0f, 0.0f, 1.0f, 0.0f, 1.0f);
 
     const std::uint32_t ids[] = {1, 2};
-    engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
 
     const auto bounds = engine.getSelectionBounds();
     ASSERT_TRUE(bounds.valid);
@@ -780,7 +780,7 @@ TEST_F(CadEngineTest, PickExUsesSelectionBoundsHandles) {
     CadEngineTestAccessor::upsertRect(engine, 2, 30.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 0.0f, 1.0f);
 
     const std::uint32_t ids[] = {1, 2};
-    engine.setSelection(ids, 2, CadEngine::SelectionMode::Replace);
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
 
     const float x = 40.0f;
     const float y = 10.0f;
@@ -796,7 +796,7 @@ TEST_F(CadEngineTest, PickLineEndpointPrefersVertexOverSelectionHandles) {
     const std::uint32_t id = 20;
     CadEngineTestAccessor::upsertLine(engine, id, 0.0f, 0.0f, 10.0f, 10.0f);
 
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
     const PickResult res = engine.pickEx(0.0f, 0.0f, kPickTolerance, kPickMask);
     EXPECT_EQ(res.id, id);
@@ -825,7 +825,7 @@ TEST_F(CadEngineTest, ObjectSnapAlignsEdges) {
     engine.setSnapOptions(true, false, 10.0f, 5.0f, false, false, true, false);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
     engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
         0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
@@ -844,7 +844,7 @@ TEST_F(CadEngineTest, GridSnapAppliedDuringMove) {
     engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
     moveByScreenWithModifiers(engine, id, 9.5f, 0.0f, 0);
 
     const auto& em = CadEngineTestAccessor::entityManager(engine);
@@ -858,8 +858,8 @@ TEST_F(CadEngineTest, SnapSuppressedByCtrlDuringMove) {
     engine.setSnapOptions(true, true, 10.0f, 5.0f, false, false, false, false);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
-    const std::uint32_t ctrlMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Ctrl);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+    const std::uint32_t ctrlMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Ctrl);
     moveByScreenWithModifiers(engine, id, 9.5f, 0.0f, ctrlMask);
 
     const auto& em = CadEngineTestAccessor::entityManager(engine);
@@ -873,8 +873,8 @@ TEST_F(CadEngineTest, AxisLockWithShiftUsesScreenDelta) {
     engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
-    const std::uint32_t shiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+    const std::uint32_t shiftMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     moveByScreenWithModifiers(engine, id, 10.0f, 2.0f, shiftMask);
 
     const auto& em = CadEngineTestAccessor::entityManager(engine);
@@ -889,8 +889,8 @@ TEST_F(CadEngineTest, AxisLockWithShiftAllowsSwitch) {
     engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
-    const std::uint32_t shiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+    const std::uint32_t shiftMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
         0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f, 0.0f, shiftMask);
@@ -912,7 +912,7 @@ TEST_F(CadEngineTest, ResizeWithShiftPreservesAspectRatio) {
     engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
 
     const std::uint32_t id = 1;
-    const std::uint32_t shiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
+    const std::uint32_t shiftMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
     resizeByScreenWithModifiers(engine, id, 2, 40.0f, -10.0f, shiftMask);
 
     const auto& em = CadEngineTestAccessor::entityManager(engine);
@@ -929,8 +929,8 @@ TEST_F(CadEngineTest, AltDragDuplicatesSelection) {
     engine.setSnapOptions(false, false, 10.0f, 5.0f, false, false, false, false);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
-    const std::uint32_t altMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Alt);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+    const std::uint32_t altMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Alt);
     moveByScreenWithModifiers(engine, id, 10.0f, 0.0f, altMask);
 
     const auto selection = engine.getSelectionIds();
@@ -958,7 +958,7 @@ TEST_F(CadEngineTest, TransformReplayOverridesViewAndSnapContext) {
     engine.setTransformLogEnabled(true, 32, 32);
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
     engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1,
         0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 100.0f, 100.0f, 0);
@@ -1035,7 +1035,7 @@ TEST_F(CadEngineTest, RotatedEllipseResizeHandlesAllPickable) {
 
     // Select the ellipse to enable handle picking
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
     const float tolerance = 3.0f;
 
@@ -1092,7 +1092,7 @@ TEST_F(CadEngineTest, RotatedEllipseRotationHandlesPickable) {
     );
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
     // Rotation handle offset is 15px in screen space
     // At viewScale=1, this is 15 world units diagonally from each corner
@@ -1138,7 +1138,7 @@ TEST_F(CadEngineTest, RotatedEllipseResizeContinuesFromCurrentState) {
     );
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
     const float cosR = std::cos(kPiQuarter);
     const float sinR = std::sin(kPiQuarter);
@@ -1233,7 +1233,7 @@ TEST_F(CadEngineTest, RotatedEllipseResizesFromAllCorners) {
             0.0f, 0.0f, 0.0f, 1.0f,
             1.0f, 1.0f
         );
-        engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+        engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
         const float localX = localCorners[handleIndex][0];
         const float localY = localCorners[handleIndex][1];
@@ -1280,7 +1280,7 @@ TEST_F(CadEngineTest, RotatedPolygonResizeHandlesAllPickable) {
     );
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
     const float tolerance = 3.0f;
 
@@ -1329,7 +1329,7 @@ TEST_F(CadEngineTest, NonRotatedEllipseHandlesStillWork) {
     );
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
 
     const float tolerance = 3.0f;
 

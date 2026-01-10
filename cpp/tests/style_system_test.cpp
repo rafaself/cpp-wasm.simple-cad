@@ -46,12 +46,12 @@ TEST(StyleSystemTest, LayerStylePersistsAcrossSnapshots) {
     CadEngine engine;
     engine.clear();
 
-    engine.setLayerStyle(1, CadEngine::StyleTarget::Stroke, pack(1.0f, 0.2f, 0.2f, 1.0f));
-    engine.setLayerStyle(1, CadEngine::StyleTarget::Fill, pack(0.2f, 0.8f, 0.2f, 1.0f));
-    engine.setLayerStyle(1, CadEngine::StyleTarget::TextColor, pack(0.1f, 0.1f, 0.9f, 1.0f));
-    engine.setLayerStyle(1, CadEngine::StyleTarget::TextBackground, pack(0.0f, 0.0f, 0.0f, 0.6f));
-    engine.setLayerStyleEnabled(1, CadEngine::StyleTarget::Fill, false);
-    engine.setLayerStyleEnabled(1, CadEngine::StyleTarget::TextBackground, true);
+    engine.setLayerStyle(1, engine::protocol::StyleTarget::Stroke, pack(1.0f, 0.2f, 0.2f, 1.0f));
+    engine.setLayerStyle(1, engine::protocol::StyleTarget::Fill, pack(0.2f, 0.8f, 0.2f, 1.0f));
+    engine.setLayerStyle(1, engine::protocol::StyleTarget::TextColor, pack(0.1f, 0.1f, 0.9f, 1.0f));
+    engine.setLayerStyle(1, engine::protocol::StyleTarget::TextBackground, pack(0.0f, 0.0f, 0.0f, 0.6f));
+    engine.setLayerStyleEnabled(1, engine::protocol::StyleTarget::Fill, false);
+    engine.setLayerStyleEnabled(1, engine::protocol::StyleTarget::TextBackground, true);
 
     const auto snapshot = engine.saveSnapshot();
     ASSERT_GT(snapshot.byteCount, 0u);
@@ -74,14 +74,14 @@ TEST(StyleSystemTest, EntityOverridesPersistAcrossSnapshots) {
 
     CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.2f, 0.2f, 1.0f);
     const std::uint32_t ids[] = {1};
-    engine.setEntityStyleOverride(ids, 1, CadEngine::StyleTarget::Stroke, pack(0.9f, 0.1f, 0.1f, 1.0f));
+    engine.setEntityStyleOverride(ids, 1, engine::protocol::StyleTarget::Stroke, pack(0.9f, 0.1f, 0.1f, 1.0f));
 
     const auto snapshot = engine.saveSnapshot();
     ASSERT_GT(snapshot.byteCount, 0u);
 
     CadEngine engine2;
     engine2.loadSnapshotFromPtr(snapshot.ptr, snapshot.byteCount);
-    engine2.setSelection(ids, 1, CadEngine::SelectionMode::Replace);
+    engine2.setSelection(ids, 1, engine::protocol::SelectionMode::Replace);
     const auto summary = engine2.getSelectionStyleSummary();
 
     EXPECT_EQ(summary.stroke.state, static_cast<std::uint8_t>(engine::protocol::StyleState::Override));
@@ -99,29 +99,29 @@ TEST(StyleSystemTest, SelectionSummaryStates) {
     const std::uint32_t id1[] = {1};
     const std::uint32_t id2[] = {2};
 
-    engine.clearEntityStyleOverride(id1, 1, CadEngine::StyleTarget::Stroke);
-    engine.clearEntityStyleOverride(id1, 1, CadEngine::StyleTarget::Fill);
+    engine.clearEntityStyleOverride(id1, 1, engine::protocol::StyleTarget::Stroke);
+    engine.clearEntityStyleOverride(id1, 1, engine::protocol::StyleTarget::Fill);
 
-    engine.setSelection(id1, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(id1, 1, engine::protocol::SelectionMode::Replace);
     auto summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.stroke.state, static_cast<std::uint8_t>(engine::protocol::StyleState::Layer));
 
-    engine.setSelection(id2, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(id2, 1, engine::protocol::SelectionMode::Replace);
     summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.stroke.state, static_cast<std::uint8_t>(engine::protocol::StyleState::Override));
 
     const std::uint32_t both[] = {1, 2};
-    engine.setSelection(both, 2, CadEngine::SelectionMode::Replace);
+    engine.setSelection(both, 2, engine::protocol::SelectionMode::Replace);
     summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.stroke.state, static_cast<std::uint8_t>(engine::protocol::StyleState::Mixed));
 
-    engine.setEntityStyleEnabled(id2, 1, CadEngine::StyleTarget::Fill, false);
-    engine.setSelection(id2, 1, CadEngine::SelectionMode::Replace);
+    engine.setEntityStyleEnabled(id2, 1, engine::protocol::StyleTarget::Fill, false);
+    engine.setSelection(id2, 1, engine::protocol::SelectionMode::Replace);
     summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.fill.state, static_cast<std::uint8_t>(engine::protocol::StyleState::None));
 
     const std::uint32_t lineIds[] = {3};
-    engine.setSelection(lineIds, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(lineIds, 1, engine::protocol::SelectionMode::Replace);
     summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.fill.supportedState, static_cast<std::uint8_t>(engine::protocol::TriState::Off));
 }
@@ -132,10 +132,10 @@ TEST(StyleSystemTest, UndoRedoStyleChanges) {
 
     CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.2f, 0.2f, 1.0f);
     const std::uint32_t ids[] = {1};
-    engine.clearEntityStyleOverride(ids, 1, CadEngine::StyleTarget::Stroke);
-    engine.setSelection(ids, 1, CadEngine::SelectionMode::Replace);
+    engine.clearEntityStyleOverride(ids, 1, engine::protocol::StyleTarget::Stroke);
+    engine.setSelection(ids, 1, engine::protocol::SelectionMode::Replace);
 
-    engine.setEntityStyleOverride(ids, 1, CadEngine::StyleTarget::Stroke, pack(0.9f, 0.2f, 0.2f, 1.0f));
+    engine.setEntityStyleOverride(ids, 1, engine::protocol::StyleTarget::Stroke, pack(0.9f, 0.2f, 0.2f, 1.0f));
     auto summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.stroke.state, static_cast<std::uint8_t>(engine::protocol::StyleState::Override));
 
@@ -179,9 +179,9 @@ TEST(StyleSystemTest, TextStyleSummaryTargets) {
     ASSERT_TRUE(engine.upsertText(10, header, &run, 1, "A", 1));
 
     const std::uint32_t ids[] = {10};
-    engine.setSelection(ids, 1, CadEngine::SelectionMode::Replace);
-    engine.setEntityStyleOverride(ids, 1, CadEngine::StyleTarget::TextColor, pack(0.1f, 0.9f, 0.2f, 1.0f));
-    engine.setEntityStyleEnabled(ids, 1, CadEngine::StyleTarget::TextBackground, false);
+    engine.setSelection(ids, 1, engine::protocol::SelectionMode::Replace);
+    engine.setEntityStyleOverride(ids, 1, engine::protocol::StyleTarget::TextColor, pack(0.1f, 0.9f, 0.2f, 1.0f));
+    engine.setEntityStyleEnabled(ids, 1, engine::protocol::StyleTarget::TextBackground, false);
 
     const auto summary = engine.getSelectionStyleSummary();
     EXPECT_EQ(summary.textColor.state, static_cast<std::uint8_t>(engine::protocol::StyleState::Override));

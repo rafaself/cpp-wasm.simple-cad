@@ -1,16 +1,16 @@
-// CadEngine overlay methods - selection outline and handle generation
+// CadEngine overlay methods - selection outline and handle state().generation
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
-#include "engine/internal/engine_state_aliases.h"
+#include "engine/internal/engine_state.h"
 
-CadEngine::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
-    selectionOutlinePrimitives_.clear();
-    selectionOutlineData_.clear();
+engine::protocol::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
+    state().selectionOutlinePrimitives_.clear();
+    state().selectionOutlineData_.clear();
 
-    auto pushPrimitive = [&](OverlayKind kind, std::uint32_t count) {
-        const std::uint32_t offset = static_cast<std::uint32_t>(selectionOutlineData_.size());
-        selectionOutlinePrimitives_.push_back(OverlayPrimitive{
+    auto pushPrimitive = [&](engine::protocol::OverlayKind kind, std::uint32_t count) {
+        const std::uint32_t offset = static_cast<std::uint32_t>(state().selectionOutlineData_.size());
+        state().selectionOutlinePrimitives_.push_back(engine::protocol::OverlayPrimitive{
             static_cast<std::uint16_t>(kind),
             0,
             count,
@@ -18,177 +18,176 @@ CadEngine::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
         });
     };
 
-    for (const std::uint32_t id : selectionManager_.getOrdered()) {
-        if (!entityManager_.isEntityPickable(id)) continue;
-        const auto it = entityManager_.entities.find(id);
-        if (it == entityManager_.entities.end()) continue;
+    for (const std::uint32_t id : state().selectionManager_.getOrdered()) {
+        if (!state().entityManager_.isEntityPickable(id)) continue;
+        const auto it = state().entityManager_.entities.find(id);
+        if (it == state().entityManager_.entities.end()) continue;
 
         if (it->second.kind == EntityKind::Line) {
-            if (it->second.index >= entityManager_.lines.size()) continue;
-            const LineRec& l = entityManager_.lines[it->second.index];
-            pushPrimitive(OverlayKind::Segment, 2);
-            selectionOutlineData_.push_back(l.x0);
-            selectionOutlineData_.push_back(l.y0);
-            selectionOutlineData_.push_back(l.x1);
-            selectionOutlineData_.push_back(l.y1);
+            if (it->second.index >= state().entityManager_.lines.size()) continue;
+            const LineRec& l = state().entityManager_.lines[it->second.index];
+            pushPrimitive(engine::protocol::OverlayKind::Segment, 2);
+            state().selectionOutlineData_.push_back(l.x0);
+            state().selectionOutlineData_.push_back(l.y0);
+            state().selectionOutlineData_.push_back(l.x1);
+            state().selectionOutlineData_.push_back(l.y1);
             continue;
         }
 
         if (it->second.kind == EntityKind::Arrow) {
-            if (it->second.index >= entityManager_.arrows.size()) continue;
-            const ArrowRec& a = entityManager_.arrows[it->second.index];
-            pushPrimitive(OverlayKind::Segment, 2);
-            selectionOutlineData_.push_back(a.ax);
-            selectionOutlineData_.push_back(a.ay);
-            selectionOutlineData_.push_back(a.bx);
-            selectionOutlineData_.push_back(a.by);
+            if (it->second.index >= state().entityManager_.arrows.size()) continue;
+            const ArrowRec& a = state().entityManager_.arrows[it->second.index];
+            pushPrimitive(engine::protocol::OverlayKind::Segment, 2);
+            state().selectionOutlineData_.push_back(a.ax);
+            state().selectionOutlineData_.push_back(a.ay);
+            state().selectionOutlineData_.push_back(a.bx);
+            state().selectionOutlineData_.push_back(a.by);
             continue;
         }
 
         if (it->second.kind == EntityKind::Polyline) {
-            if (it->second.index >= entityManager_.polylines.size()) continue;
-            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (it->second.index >= state().entityManager_.polylines.size()) continue;
+            const PolyRec& pl = state().entityManager_.polylines[it->second.index];
             if (pl.count < 2) continue;
-            if (pl.offset + pl.count > entityManager_.points.size()) continue;
-            pushPrimitive(OverlayKind::Polyline, pl.count);
+            if (pl.offset + pl.count > state().entityManager_.points.size()) continue;
+            pushPrimitive(engine::protocol::OverlayKind::Polyline, pl.count);
             for (std::uint32_t k = 0; k < pl.count; ++k) {
-                const Point2& pt = entityManager_.points[pl.offset + k];
-                selectionOutlineData_.push_back(pt.x);
-                selectionOutlineData_.push_back(pt.y);
+                const Point2& pt = state().entityManager_.points[pl.offset + k];
+                state().selectionOutlineData_.push_back(pt.x);
+                state().selectionOutlineData_.push_back(pt.y);
             }
             continue;
         }
 
-        const EntityAabb aabb = getEntityAabb(id);
+        const engine::protocol::EntityAabb aabb = getEntityAabb(id);
         if (!aabb.valid) continue;
-        pushPrimitive(OverlayKind::Polygon, 4);
-        selectionOutlineData_.push_back(aabb.minX);
-        selectionOutlineData_.push_back(aabb.minY);
-        selectionOutlineData_.push_back(aabb.maxX);
-        selectionOutlineData_.push_back(aabb.minY);
-        selectionOutlineData_.push_back(aabb.maxX);
-        selectionOutlineData_.push_back(aabb.maxY);
-        selectionOutlineData_.push_back(aabb.minX);
-        selectionOutlineData_.push_back(aabb.maxY);
+        pushPrimitive(engine::protocol::OverlayKind::Polygon, 4);
+        state().selectionOutlineData_.push_back(aabb.minX);
+        state().selectionOutlineData_.push_back(aabb.minY);
+        state().selectionOutlineData_.push_back(aabb.maxX);
+        state().selectionOutlineData_.push_back(aabb.minY);
+        state().selectionOutlineData_.push_back(aabb.maxX);
+        state().selectionOutlineData_.push_back(aabb.maxY);
+        state().selectionOutlineData_.push_back(aabb.minX);
+        state().selectionOutlineData_.push_back(aabb.maxY);
     }
 
-    return OverlayBufferMeta{
-        generation,
-        static_cast<std::uint32_t>(selectionOutlinePrimitives_.size()),
-        static_cast<std::uint32_t>(selectionOutlineData_.size()),
-        reinterpret_cast<std::uintptr_t>(selectionOutlinePrimitives_.data()),
-        reinterpret_cast<std::uintptr_t>(selectionOutlineData_.data()),
+    return engine::protocol::OverlayBufferMeta{
+        state().generation,
+        static_cast<std::uint32_t>(state().selectionOutlinePrimitives_.size()),
+        static_cast<std::uint32_t>(state().selectionOutlineData_.size()),
+        reinterpret_cast<std::uintptr_t>(state().selectionOutlinePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(state().selectionOutlineData_.data()),
     };
 }
 
-CadEngine::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
-    selectionHandlePrimitives_.clear();
-    selectionHandleData_.clear();
+engine::protocol::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
+    state().selectionHandlePrimitives_.clear();
+    state().selectionHandleData_.clear();
 
     auto pushPrimitive = [&](std::uint32_t count) {
-        const std::uint32_t offset = static_cast<std::uint32_t>(selectionHandleData_.size());
-        selectionHandlePrimitives_.push_back(OverlayPrimitive{
-            static_cast<std::uint16_t>(OverlayKind::Point),
+        const std::uint32_t offset = static_cast<std::uint32_t>(state().selectionHandleData_.size());
+        state().selectionHandlePrimitives_.push_back(engine::protocol::OverlayPrimitive{
+            static_cast<std::uint16_t>(engine::protocol::OverlayKind::Point),
             0,
             count,
             offset
         });
     };
 
-    for (const std::uint32_t id : selectionManager_.getOrdered()) {
-        if (!entityManager_.isEntityPickable(id)) continue;
-        const auto it = entityManager_.entities.find(id);
-        if (it == entityManager_.entities.end()) continue;
+    for (const std::uint32_t id : state().selectionManager_.getOrdered()) {
+        if (!state().entityManager_.isEntityPickable(id)) continue;
+        const auto it = state().entityManager_.entities.find(id);
+        if (it == state().entityManager_.entities.end()) continue;
 
         if (it->second.kind == EntityKind::Line) {
-            if (it->second.index >= entityManager_.lines.size()) continue;
-            const LineRec& l = entityManager_.lines[it->second.index];
+            if (it->second.index >= state().entityManager_.lines.size()) continue;
+            const LineRec& l = state().entityManager_.lines[it->second.index];
             pushPrimitive(2);
-            selectionHandleData_.push_back(l.x0);
-            selectionHandleData_.push_back(l.y0);
-            selectionHandleData_.push_back(l.x1);
-            selectionHandleData_.push_back(l.y1);
+            state().selectionHandleData_.push_back(l.x0);
+            state().selectionHandleData_.push_back(l.y0);
+            state().selectionHandleData_.push_back(l.x1);
+            state().selectionHandleData_.push_back(l.y1);
             continue;
         }
 
         if (it->second.kind == EntityKind::Arrow) {
-            if (it->second.index >= entityManager_.arrows.size()) continue;
-            const ArrowRec& a = entityManager_.arrows[it->second.index];
+            if (it->second.index >= state().entityManager_.arrows.size()) continue;
+            const ArrowRec& a = state().entityManager_.arrows[it->second.index];
             pushPrimitive(2);
-            selectionHandleData_.push_back(a.ax);
-            selectionHandleData_.push_back(a.ay);
-            selectionHandleData_.push_back(a.bx);
-            selectionHandleData_.push_back(a.by);
+            state().selectionHandleData_.push_back(a.ax);
+            state().selectionHandleData_.push_back(a.ay);
+            state().selectionHandleData_.push_back(a.bx);
+            state().selectionHandleData_.push_back(a.by);
             continue;
         }
 
         if (it->second.kind == EntityKind::Polyline) {
-            if (it->second.index >= entityManager_.polylines.size()) continue;
-            const PolyRec& pl = entityManager_.polylines[it->second.index];
+            if (it->second.index >= state().entityManager_.polylines.size()) continue;
+            const PolyRec& pl = state().entityManager_.polylines[it->second.index];
             if (pl.count < 2) continue;
-            if (pl.offset + pl.count > entityManager_.points.size()) continue;
+            if (pl.offset + pl.count > state().entityManager_.points.size()) continue;
             pushPrimitive(pl.count);
             for (std::uint32_t k = 0; k < pl.count; ++k) {
-                const Point2& pt = entityManager_.points[pl.offset + k];
-                selectionHandleData_.push_back(pt.x);
-                selectionHandleData_.push_back(pt.y);
+                const Point2& pt = state().entityManager_.points[pl.offset + k];
+                state().selectionHandleData_.push_back(pt.x);
+                state().selectionHandleData_.push_back(pt.y);
             }
             continue;
         }
 
-        const EntityAabb aabb = getEntityAabb(id);
+        const engine::protocol::EntityAabb aabb = getEntityAabb(id);
         if (!aabb.valid) continue;
         pushPrimitive(4);
         // Handle order must match pick_system.cpp: 0=BL, 1=BR, 2=TR, 3=TL
-        selectionHandleData_.push_back(aabb.minX);
-        selectionHandleData_.push_back(aabb.minY);
-        selectionHandleData_.push_back(aabb.maxX);
-        selectionHandleData_.push_back(aabb.minY);
-        selectionHandleData_.push_back(aabb.maxX);
-        selectionHandleData_.push_back(aabb.maxY);
-        selectionHandleData_.push_back(aabb.minX);
-        selectionHandleData_.push_back(aabb.maxY);
+        state().selectionHandleData_.push_back(aabb.minX);
+        state().selectionHandleData_.push_back(aabb.minY);
+        state().selectionHandleData_.push_back(aabb.maxX);
+        state().selectionHandleData_.push_back(aabb.minY);
+        state().selectionHandleData_.push_back(aabb.maxX);
+        state().selectionHandleData_.push_back(aabb.maxY);
+        state().selectionHandleData_.push_back(aabb.minX);
+        state().selectionHandleData_.push_back(aabb.maxY);
     }
 
-    return OverlayBufferMeta{
-        generation,
-        static_cast<std::uint32_t>(selectionHandlePrimitives_.size()),
-        static_cast<std::uint32_t>(selectionHandleData_.size()),
-        reinterpret_cast<std::uintptr_t>(selectionHandlePrimitives_.data()),
-        reinterpret_cast<std::uintptr_t>(selectionHandleData_.data()),
+    return engine::protocol::OverlayBufferMeta{
+        state().generation,
+        static_cast<std::uint32_t>(state().selectionHandlePrimitives_.size()),
+        static_cast<std::uint32_t>(state().selectionHandleData_.size()),
+        reinterpret_cast<std::uintptr_t>(state().selectionHandlePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(state().selectionHandleData_.data()),
     };
 }
 
-CadEngine::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
-    snapGuidePrimitives_.clear();
-    snapGuideData_.clear();
+engine::protocol::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
+    state().snapGuidePrimitives_.clear();
+    state().snapGuideData_.clear();
 
-    const auto& guides = interactionSession_.getSnapGuides();
+    const auto& guides = state().interactionSession_.getSnapGuides();
     if (!guides.empty()) {
-        snapGuidePrimitives_.reserve(guides.size());
-        snapGuideData_.reserve(guides.size() * 4);
+        state().snapGuidePrimitives_.reserve(guides.size());
+        state().snapGuideData_.reserve(guides.size() * 4);
         for (const SnapGuide& guide : guides) {
-            const std::uint32_t offset = static_cast<std::uint32_t>(snapGuideData_.size());
-            snapGuidePrimitives_.push_back(OverlayPrimitive{
-                static_cast<std::uint16_t>(OverlayKind::Segment),
+            const std::uint32_t offset = static_cast<std::uint32_t>(state().snapGuideData_.size());
+            state().snapGuidePrimitives_.push_back(engine::protocol::OverlayPrimitive{
+                static_cast<std::uint16_t>(engine::protocol::OverlayKind::Segment),
                 0,
                 2,
                 offset
             });
-            snapGuideData_.push_back(guide.x0);
-            snapGuideData_.push_back(guide.y0);
-            snapGuideData_.push_back(guide.x1);
-            snapGuideData_.push_back(guide.y1);
+            state().snapGuideData_.push_back(guide.x0);
+            state().snapGuideData_.push_back(guide.y0);
+            state().snapGuideData_.push_back(guide.x1);
+            state().snapGuideData_.push_back(guide.y1);
         }
     }
 
-    return OverlayBufferMeta{
-        generation,
-        static_cast<std::uint32_t>(snapGuidePrimitives_.size()),
-        static_cast<std::uint32_t>(snapGuideData_.size()),
-        reinterpret_cast<std::uintptr_t>(snapGuidePrimitives_.data()),
-        reinterpret_cast<std::uintptr_t>(snapGuideData_.data()),
+    return engine::protocol::OverlayBufferMeta{
+        state().generation,
+        static_cast<std::uint32_t>(state().snapGuidePrimitives_.size()),
+        static_cast<std::uint32_t>(state().snapGuideData_.size()),
+        reinterpret_cast<std::uintptr_t>(state().snapGuidePrimitives_.data()),
+        reinterpret_cast<std::uintptr_t>(state().snapGuideData_.data()),
     };
 }
 
-#include "engine/internal/engine_state_aliases_undef.h"

@@ -12,6 +12,26 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+option(ENGINE_ENABLE_WARNINGS "Enable compiler warnings" ON)
+option(ENGINE_ENABLE_LOGGING "Enable engine debug logging" OFF)
+
+function(engine_enable_warnings target)
+  if(NOT ENGINE_ENABLE_WARNINGS)
+    return()
+  endif()
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4)
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+endfunction()
+
+function(engine_enable_logging target)
+  if(ENGINE_ENABLE_LOGGING)
+    target_compile_definitions(${target} PRIVATE ENGINE_ENABLE_LOGGING=1)
+  endif()
+endfunction()
+
 # =============================================================================
 # Text Engine Dependencies (FreeType, HarfBuzz, msdfgen)
 # =============================================================================
@@ -102,10 +122,13 @@ set(ENGINE_SOURCES
   engine/interaction/pick_system.cpp
   engine/interaction/snap_solver.cpp
   engine/interaction/interaction_session.cpp
+  engine/interaction/interaction_session_begin.cpp
+  engine/interaction/interaction_session_update.cpp
   engine/interaction/interaction_draft.cpp
   engine/interaction/interaction_log.cpp
   # Persistence
   engine/persistence/snapshot.cpp
+  engine/persistence/snapshot_build.cpp
   # Implementation (CadEngine method implementations)
   engine/impl/engine_upsert.cpp
   engine/impl/engine_digest.cpp
@@ -171,6 +194,8 @@ if(EMSCRIPTEN)
   set_target_properties(engine PROPERTIES OUTPUT_NAME "engine")
   
   target_include_directories(engine PRIVATE .)
+  engine_enable_warnings(engine)
+  engine_enable_logging(engine)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)
@@ -239,6 +264,8 @@ if(NOT EMSCRIPTEN)
     PRIVATE GTest::gtest_main
   )
   target_include_directories(engine_tests PRIVATE .)
+  engine_enable_warnings(engine_tests)
+  engine_enable_logging(engine_tests)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)
