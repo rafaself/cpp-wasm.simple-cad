@@ -242,7 +242,12 @@ if(NOT EMSCRIPTEN)
 
   # Test sources
   set(TEST_SOURCES
-    tests/engine_test.cpp
+    tests/engine_core_test.cpp
+    tests/engine_transform_test.cpp
+    tests/engine_draft_test.cpp
+    tests/engine_pick_test.cpp
+    tests/engine_snap_test.cpp
+    tests/engine_handles_test.cpp
     tests/commands_test.cpp
     tests/snapshot_test.cpp
     tests/render_test.cpp
@@ -264,7 +269,10 @@ if(NOT EMSCRIPTEN)
       tests/text_store_test.cpp
       tests/text_layout_test.cpp
       tests/glyph_atlas_test.cpp
-      tests/text_commands_test.cpp
+    tests/text_commands_upsert_test.cpp
+    tests/text_commands_edit_test.cpp
+    tests/text_commands_style_test.cpp
+    tests/text_commands_regression_test.cpp
       tests/text_coordinate_system_test.cpp
     )
   endif()
