@@ -28,6 +28,9 @@ import { normalizeAngle } from '@/features/editor/config/cursor-config';
 const isLineOrArrow = (kind: PickEntityKind): boolean =>
   kind === PickEntityKind.Line || kind === PickEntityKind.Arrow;
 
+const supportsSideHandles = (kind: PickEntityKind): boolean =>
+  kind !== PickEntityKind.Line && kind !== PickEntityKind.Arrow && kind !== PickEntityKind.Polyline;
+
 // Connected component to access store without prop drilling through handler
 const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
   const viewTransform = useUIStore((s) => s.viewTransform);
@@ -144,7 +147,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Check if entity supports side resizing (not Line or Arrow)
     if (runtime.getEntityKind) {
       const kind = runtime.getEntityKind(id) as PickEntityKind;
-      if (isLineOrArrow(kind)) return null;
+      if (!supportsSideHandles(kind)) return null;
     }
 
     // Get Entity Transform
@@ -231,7 +234,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Check for client-side side handles first (Priority: Handles > Geometry)
     // This allows hitting handles that extend outside the geometry (pick returns 0)
     // BUT skip for lines/arrows - they don't have side handles, only vertex endpoints
-    const shouldCheckSideHandles = !isLineOrArrow(res.kind);
+    const shouldCheckSideHandles = supportsSideHandles(res.kind);
     if (shouldCheckSideHandles) {
       const sideHit = this.findSideHandle(runtime, world, tolerance);
       if (sideHit) {
@@ -683,7 +686,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         // Use default cursor for move
       } else if (this.hoverSubTarget === PickSubTarget.Edge && isLineOrArrow(res.kind)) {
         // Lines and arrows: Edge means "move the entire entity" - use default cursor
-      } else if (!isLineOrArrow(res.kind)) {
+      } else if (supportsSideHandles(res.kind)) {
         // Check for side handles hover (only for non-line entities like rectangles)
         const sideHit = this.findSideHandle(runtime, world, tolerance);
         if (sideHit) {
