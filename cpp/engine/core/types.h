@@ -247,6 +247,7 @@ enum class EngineError : std::uint32_t {
     InvalidPayloadSize = 4,
     UnknownCommand = 5,
     InvalidOperation = 6,
+    OutOfMemory = 7,
 };
 
 // Command Payloads (POD)

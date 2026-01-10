@@ -14,6 +14,7 @@ endif()
 
 option(ENGINE_ENABLE_WARNINGS "Enable compiler warnings" ON)
 option(ENGINE_ENABLE_LOGGING "Enable engine debug logging" OFF)
+option(ENGINE_ENABLE_SANITIZERS "Enable ASan/UBSan for native builds" OFF)
 
 function(engine_enable_warnings target)
   if(NOT ENGINE_ENABLE_WARNINGS)
@@ -30,6 +31,17 @@ function(engine_enable_logging target)
   if(ENGINE_ENABLE_LOGGING)
     target_compile_definitions(${target} PRIVATE ENGINE_ENABLE_LOGGING=1)
   endif()
+endfunction()
+
+function(engine_enable_sanitizers target)
+  if(NOT ENGINE_ENABLE_SANITIZERS)
+    return()
+  endif()
+  if(MSVC OR EMSCRIPTEN)
+    return()
+  endif()
+  target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(${target} PRIVATE -fsanitize=address,undefined)
 endfunction()
 
 # =============================================================================
@@ -196,6 +208,7 @@ if(EMSCRIPTEN)
   target_include_directories(engine PRIVATE .)
   engine_enable_warnings(engine)
   engine_enable_logging(engine)
+  engine_enable_sanitizers(engine)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)
@@ -266,6 +279,7 @@ if(NOT EMSCRIPTEN)
   target_include_directories(engine_tests PRIVATE .)
   engine_enable_warnings(engine_tests)
   engine_enable_logging(engine_tests)
+  engine_enable_sanitizers(engine_tests)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)

@@ -28,8 +28,15 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
 
     const std::uint32_t sectionCount = readU32(src, 8);
     const std::size_t headerBytes = snapshotHeaderBytesEsnp;
-    const std::size_t tableBytes = static_cast<std::size_t>(sectionCount) * snapshotSectionEntryBytes;
-    if (byteCount < headerBytes + tableBytes) {
+    std::size_t tableBytes = 0;
+    if (!tryMul(static_cast<std::size_t>(sectionCount), snapshotSectionEntryBytes, tableBytes)) {
+        return EngineError::InvalidPayloadSize;
+    }
+    std::size_t headerPlusTable = 0;
+    if (!tryAdd(headerBytes, tableBytes, headerPlusTable)) {
+        return EngineError::InvalidPayloadSize;
+    }
+    if (byteCount < headerPlusTable) {
         return EngineError::BufferTruncated;
     }
 
@@ -43,8 +50,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         const std::uint32_t size = readU32(src, base + 8);
         const std::uint32_t expectedCrc = readU32(src, base + 12);
 
-        const std::size_t end = static_cast<std::size_t>(offset) + size;
-        if (offset < headerBytes + tableBytes) return EngineError::InvalidPayloadSize;
+        std::size_t end = 0;
+        if (!tryAdd(static_cast<std::size_t>(offset), static_cast<std::size_t>(size), end)) {
+            return EngineError::InvalidPayloadSize;
+        }
+        if (offset < headerPlusTable) return EngineError::InvalidPayloadSize;
         if (end > byteCount) return EngineError::BufferTruncated;
 
         const std::uint8_t* payload = src + offset;
@@ -263,7 +273,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.order = readU32(layr->data, o); o += 4;
             rec.flags = readU32(layr->data, o); o += 4;
             const std::uint32_t nameLen = readU32(layr->data, o); o += 4;
-            if (!requireBytes(o, nameLen + layerStyleSnapshotBytes, layr->size)) return EngineError::BufferTruncated;
+            std::size_t namePlusStyle = 0;
+            if (!tryAdd(static_cast<std::size_t>(nameLen), layerStyleSnapshotBytes, namePlusStyle)) {
+                return EngineError::InvalidPayloadSize;
+            }
+            if (!requireBytes(o, namePlusStyle, layr->size)) return EngineError::BufferTruncated;
             rec.name.assign(reinterpret_cast<const char*>(layr->data + o), nameLen);
             o += nameLen;
             rec.style.strokeRGBA = readU32(layr->data, o); o += 4;
@@ -283,7 +297,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         std::size_t o = 0;
         if (!requireBytes(o, 4, ordr->size)) return EngineError::BufferTruncated;
         const std::uint32_t count = readU32(ordr->data, o); o += 4;
-        if (!requireBytes(o, static_cast<std::size_t>(count) * 4, ordr->size)) return EngineError::BufferTruncated;
+        std::size_t orderBytes = 0;
+        if (!tryMul(static_cast<std::size_t>(count), static_cast<std::size_t>(4), orderBytes)) {
+            return EngineError::InvalidPayloadSize;
+        }
+        if (!requireBytes(o, orderBytes, ordr->size)) return EngineError::BufferTruncated;
         out.drawOrder.clear();
         out.drawOrder.reserve(count);
         for (std::uint32_t i = 0; i < count; ++i) {
@@ -297,7 +315,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         std::size_t o = 0;
         if (!requireBytes(o, 4, selc->size)) return EngineError::BufferTruncated;
         const std::uint32_t count = readU32(selc->data, o); o += 4;
-        if (!requireBytes(o, static_cast<std::size_t>(count) * 4, selc->size)) return EngineError::BufferTruncated;
+        std::size_t selectionBytes = 0;
+        if (!tryMul(static_cast<std::size_t>(count), static_cast<std::size_t>(4), selectionBytes)) {
+            return EngineError::InvalidPayloadSize;
+        }
+        if (!requireBytes(o, selectionBytes, selc->size)) return EngineError::BufferTruncated;
         out.selection.clear();
         out.selection.reserve(count);
         for (std::uint32_t i = 0; i < count; ++i) {
@@ -345,7 +367,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.maxX = readF32(text->data, o); o += 4;
             rec.maxY = readF32(text->data, o); o += 4;
 
-            if (!requireBytes(o, static_cast<std::size_t>(rec.header.runCount) * textRunRecordBytes, text->size)) {
+            std::size_t runBytes = 0;
+            if (!tryMul(static_cast<std::size_t>(rec.header.runCount), textRunRecordBytes, runBytes)) {
+                return EngineError::InvalidPayloadSize;
+            }
+            if (!requireBytes(o, runBytes, text->size)) {
                 return EngineError::BufferTruncated;
             }
             rec.runs.clear();

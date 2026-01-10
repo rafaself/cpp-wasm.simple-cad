@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace engine::snapshot::detail {
 
@@ -52,8 +53,25 @@ inline std::uint32_t crc32(const std::uint8_t* bytes, std::size_t len) {
     return (crc ^ 0xFFFFFFFFu);
 }
 
+inline bool tryAdd(std::size_t a, std::size_t b, std::size_t& out) {
+    if (a > (std::numeric_limits<std::size_t>::max() - b)) return false;
+    out = a + b;
+    return true;
+}
+
+inline bool tryMul(std::size_t a, std::size_t b, std::size_t& out) {
+    if (a == 0 || b == 0) {
+        out = 0;
+        return true;
+    }
+    if (a > (std::numeric_limits<std::size_t>::max() / b)) return false;
+    out = a * b;
+    return true;
+}
+
 inline bool requireBytes(std::size_t offset, std::size_t size, std::size_t total) {
-    return offset + size <= total;
+    if (offset > total) return false;
+    return size <= (total - offset);
 }
 
 } // namespace engine::snapshot::detail

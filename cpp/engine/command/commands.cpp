@@ -23,7 +23,10 @@ EngineError parseCommandBuffer(const std::uint8_t* src, std::uint32_t byteCount,
 
     std::size_t o = commandHeaderBytes;
     for (std::uint32_t i = 0; i < commandCount; i++) {
-        if (o + perCommandHeaderBytes > byteCount) {
+        if (o > byteCount) {
+            return EngineError::BufferTruncated;
+        }
+        if (perCommandHeaderBytes > (byteCount - o)) {
             return EngineError::BufferTruncated;
         }
         const std::uint32_t op = readU32(src, o); o += 4;
@@ -31,7 +34,7 @@ EngineError parseCommandBuffer(const std::uint8_t* src, std::uint32_t byteCount,
         const std::uint32_t payloadByteCount = readU32(src, o); o += 4;
         o += 4; // reserved
 
-        if (o + payloadByteCount > byteCount) {
+        if (o > byteCount || payloadByteCount > (byteCount - o)) {
             return EngineError::BufferTruncated;
         }
 

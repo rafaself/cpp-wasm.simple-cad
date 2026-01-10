@@ -152,7 +152,12 @@ void CadEngine::clear() noexcept {
 }
 
 std::uintptr_t CadEngine::allocBytes(std::uint32_t byteCount) {
+    if (byteCount == 0) return 0;
     void* p = std::malloc(byteCount);
+    if (!p) {
+        setError(EngineError::OutOfMemory);
+        return 0;
+    }
     return reinterpret_cast<std::uintptr_t>(p);
 }
 
