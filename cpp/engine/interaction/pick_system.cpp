@@ -1,4 +1,5 @@
 #include "engine/interaction/pick_system.h"
+#include "engine/interaction/interaction_constants.h"
 #include <cmath>
 #include <algorithm>
 #include <limits>
@@ -110,10 +111,9 @@ static bool tryPickResizeHandleRotated(float x, float y, float tol,
 
 static bool tryPickRotateHandleAabb(float x, float y, float tol, float viewScale, float minX, float minY, float maxX, float maxY, float& bestDist, PickCandidate& outCandidate) {
     // Rotation handles are positioned diagonally outside each corner
-    // ROTATION_HANDLE_OFFSET_PX = 15px in screen space
-    // ROTATION_HANDLE_RADIUS_PX = 10px in screen space
-    const float offsetPx = 15.0f;
-    const float radiusPx = 10.0f;
+    // Use centralized constants from interaction_constants.h
+    const float offsetPx = interaction_constants::ROTATE_HANDLE_OFFSET_PX;
+    const float radiusPx = interaction_constants::ROTATE_HANDLE_RADIUS_PX;
 
     // Convert screen pixels to world space
     const float offsetWorld = offsetPx / viewScale;
@@ -154,8 +154,8 @@ static bool tryPickRotateHandleRotated(float x, float y, float tol, float viewSc
     float cx, float cy, float hw, float hh, float rot,
     float& bestDist, PickCandidate& outCandidate) {
 
-    const float offsetPx = 15.0f;
-    const float radiusPx = 10.0f;
+    const float offsetPx = interaction_constants::ROTATE_HANDLE_OFFSET_PX;
+    const float radiusPx = interaction_constants::ROTATE_HANDLE_RADIUS_PX;
     const float offsetWorld = offsetPx / viewScale;
     const float radiusWorld = radiusPx / viewScale;
 

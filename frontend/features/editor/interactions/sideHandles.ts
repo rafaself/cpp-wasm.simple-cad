@@ -19,3 +19,14 @@ export const SIDE_HANDLE_INDICES = {
   S: 6,
   W: 7,
 };
+
+/**
+ * Convert SideHandleType to engine side index
+ * Engine uses: 0=S (South/Bottom), 1=E (East/Right), 2=N (North/Top), 3=W (West/Left)
+ */
+export const SIDE_HANDLE_TO_ENGINE_INDEX: Record<SideHandleType, number> = {
+  [SideHandleType.S]: 0,
+  [SideHandleType.E]: 1,
+  [SideHandleType.N]: 2,
+  [SideHandleType.W]: 3,
+};

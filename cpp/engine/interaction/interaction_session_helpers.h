@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/protocol/protocol_types.h"
+#include "engine/interaction/interaction_constants.h"
 #include <cstdint>
 #include <cmath>
 
@@ -9,9 +10,11 @@ constexpr std::uint32_t kShiftMask = static_cast<std::uint32_t>(engine::protocol
 constexpr std::uint32_t kCtrlMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Ctrl);
 constexpr std::uint32_t kAltMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Alt);
 constexpr std::uint32_t kMetaMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Meta);
-constexpr float kAxisLockMinDeltaPx = 4.0f;
-constexpr float kAxisLockEnterRatio = 1.1f;
-constexpr float kAxisLockSwitchRatio = 1.2f;
+
+// Use centralized constants
+constexpr float kAxisLockMinDeltaPx = interaction_constants::AXIS_LOCK_MIN_DELTA_PX;
+constexpr float kAxisLockEnterRatio = interaction_constants::AXIS_LOCK_ENTER_RATIO;
+constexpr float kAxisLockSwitchRatio = interaction_constants::AXIS_LOCK_SWITCH_RATIO;
 
 inline bool isSnapSuppressed(std::uint32_t modifiers) {
     return (modifiers & (kCtrlMask | kMetaMask)) != 0;

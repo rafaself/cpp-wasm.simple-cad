@@ -274,6 +274,16 @@ export class FakeRuntime {
     };
   }
 
+  getSelectionBounds(): { minX: number; minY: number; maxX: number; maxY: number; valid: number } {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: 100,
+      maxY: 100,
+      valid: 1,
+    };
+  }
+
   getTransformState(): TransformState {
     return {
       active: false,

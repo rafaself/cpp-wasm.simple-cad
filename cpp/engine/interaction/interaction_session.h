@@ -153,7 +153,11 @@ private:
         float rotationPivotX = 0.0f;
         float rotationPivotY = 0.0f;
         float startAngleDeg = 0.0f;
+        float lastAngleDeg = 0.0f;       // Last frame's angle for continuous rotation
         float accumulatedDeltaDeg = 0.0f;
+        // Side resize state (N=2, E=1, S=0, W=3)
+        int32_t sideIndex = -1;
+        bool sideResizeSymmetric = false;  // Alt modifier for symmetric resize
     };
 
     struct DraftState {

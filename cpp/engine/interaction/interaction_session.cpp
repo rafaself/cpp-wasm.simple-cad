@@ -274,6 +274,26 @@ void InteractionSession::commitTransform() {
             commitResultPayloads.push_back(0); // reserved
             commitResultPayloads.push_back(0); // reserved
         }
+    } else if (session_.mode == TransformMode::SideResize) {
+        // SideResize commit - same format as Resize
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            auto it = entityManager_.entities.find(id);
+            if (it == entityManager_.entities.end()) continue;
+            float outX=0,outY=0,outW=0,outH=0;
+            if (it->second.kind == EntityKind::Rect) {
+                for (const auto& r : entityManager_.rects) { if(r.id==id){ outX=r.x; outY=r.y; outW=r.w; outH=r.h; break; } }
+            } else if (it->second.kind == EntityKind::Circle) {
+                for (const auto& c : entityManager_.circles) { if(c.id==id){ outX=c.cx; outY=c.cy; outW=c.rx*2; outH=c.ry*2; break; } }
+            } else if (it->second.kind == EntityKind::Polygon) {
+                for (const auto& p : entityManager_.polygons) { if(p.id==id){ outX=p.cx; outY=p.cy; outW=p.rx*2; outH=p.ry*2; break; } }
+            }
+            
+            commitResultIds.push_back(id);
+            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::SIDE_RESIZE));
+            commitResultPayloads.push_back(outX); commitResultPayloads.push_back(outY);
+            commitResultPayloads.push_back(outW); commitResultPayloads.push_back(outH);
+        }
     }
     // ... VertexDrag logic ... (same pattern)
 

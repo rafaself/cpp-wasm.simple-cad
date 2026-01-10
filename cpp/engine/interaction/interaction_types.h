@@ -7,14 +7,16 @@ enum class TransformMode : std::uint8_t {
     VertexDrag = 1,
     EdgeDrag = 2,
     Resize = 3,
-    Rotate = 4
+    Rotate = 4,
+    SideResize = 5  // Constrained resize (N/E/S/W handles)
 };
 
 enum class TransformOpCode : std::uint8_t {
     MOVE = 1,
     VERTEX_SET = 2,
     RESIZE = 3,
-    ROTATE = 4
+    ROTATE = 4,
+    SIDE_RESIZE = 5
 };
 
 // Transform state for UI feedback (tooltips, etc.)

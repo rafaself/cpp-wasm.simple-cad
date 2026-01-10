@@ -1,4 +1,5 @@
 #include "engine/interaction/interaction_session.h"
+#include "engine/interaction/interaction_constants.h"
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
 #include "engine/history/history_manager.h"
@@ -47,21 +48,28 @@ void InteractionSession::beginTransform(
     session_.resizeBaseH = 0.0f;
     session_.duplicated = false;
     session_.originalIds.clear();
+    session_.sideIndex = -1;
+    session_.sideResizeSymmetric = false;
     transformStats_ = TransformStats{};
     snapGuides_.clear();
-    {
-        constexpr float kDragThresholdPx = 3.0f;
-        session_.dragThresholdPx = kDragThresholdPx;
-    }
+    session_.dragThresholdPx = interaction_constants::DRAG_THRESHOLD_PX;
 
     std::vector<std::uint32_t> activeIds;
 
-    if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && specificId != 0) {
+    if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && mode != TransformMode::SideResize && specificId != 0) {
         if (!entityManager_.isEntityPickable(specificId)) {
             session_.active = false;
             return;
         }
         activeIds.push_back(specificId);
+    } else if (mode == TransformMode::SideResize && specificId != 0) {
+        // SideResize: use specificId, vertexIndex contains sideIndex (0=S, 1=E, 2=N, 3=W)
+        if (!entityManager_.isEntityPickable(specificId)) {
+            session_.active = false;
+            return;
+        }
+        activeIds.push_back(specificId);
+        session_.sideIndex = vertexIndex;  // Reuse vertexIndex for side handle index
     } else if (!engine_.state().selectionManager_.isEmpty()) {
         activeIds = engine_.state().selectionManager_.getOrdered();
     } else if (ids && idCount > 0) {
@@ -257,8 +265,71 @@ void InteractionSession::beginTransform(
 
         const float dx = worldX - session_.rotationPivotX;
         const float dy = worldY - session_.rotationPivotY;
-        session_.startAngleDeg = std::atan2(dy, dx) * (180.0f / M_PI);
+        const float startAngle = std::atan2(dy, dx) * (180.0f / M_PI);
+        session_.startAngleDeg = startAngle;
+        session_.lastAngleDeg = startAngle;  // Initialize last angle for continuous tracking
         session_.accumulatedDeltaDeg = 0.0f;
+    }
+
+    if (session_.mode == TransformMode::SideResize && session_.specificId != 0 &&
+        session_.sideIndex >= 0 && session_.sideIndex <= 3) {
+        // Initialize side resize state
+        const TransformSnapshot* snap = nullptr;
+        for (const auto& s : session_.snapshots) {
+            if (s.id == session_.specificId) {
+                snap = &s;
+                break;
+            }
+        }
+        if (snap) {
+            auto it = entityManager_.entities.find(session_.specificId);
+            if (it != entityManager_.entities.end()) {
+                float halfW = 0.0f;
+                float halfH = 0.0f;
+                bool valid = false;
+
+                if (it->second.kind == EntityKind::Rect) {
+                    halfW = snap->w * 0.5f;
+                    halfH = snap->h * 0.5f;
+                    valid = true;
+                } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
+                    halfW = snap->w;
+                    halfH = snap->h;
+                    valid = true;
+                }
+
+                if (valid) {
+                    const float baseW = std::max(1e-6f, halfW * 2.0f);
+                    const float baseH = std::max(1e-6f, halfH * 2.0f);
+                    session_.resizeBaseW = baseW;
+                    session_.resizeBaseH = baseH;
+                    session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
+                    session_.resizeAnchorValid = true;
+
+                    // Set anchor on opposite side
+                    // sideIndex: 0=S, 1=E, 2=N, 3=W
+                    // Anchor on opposite side in local space
+                    switch (session_.sideIndex) {
+                        case 0: // South -> anchor at North (top edge)
+                            session_.resizeAnchorX = 0.0f;
+                            session_.resizeAnchorY = -halfH;
+                            break;
+                        case 1: // East -> anchor at West (left edge)
+                            session_.resizeAnchorX = -halfW;
+                            session_.resizeAnchorY = 0.0f;
+                            break;
+                        case 2: // North -> anchor at South (bottom edge)
+                            session_.resizeAnchorX = 0.0f;
+                            session_.resizeAnchorY = halfH;
+                            break;
+                        case 3: // West -> anchor at East (right edge)
+                            session_.resizeAnchorX = halfW;
+                            session_.resizeAnchorY = 0.0f;
+                            break;
+                    }
+                }
+            }
+        }
     }
 
     recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);

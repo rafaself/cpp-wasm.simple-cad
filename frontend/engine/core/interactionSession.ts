@@ -1,21 +1,23 @@
 import type { Shape } from '@/types';
 
 // NOTE: These enums must match the C++ bindings in `cpp/engine/bindings.cpp`
-// and the underlying engine enums in `cpp/engine/engine.h`.
+// and the underlying engine enums in `cpp/engine/interaction/interaction_types.h`.
 export enum TransformMode {
   Move = 0,
   VertexDrag = 1,
   EdgeDrag = 2,
   Resize = 3,
   Rotate = 4,
+  SideResize = 5, // Constrained resize (N/E/S/W handles)
 }
 
-// NOTE: These opcodes must match `CadEngine::TransformOpCode` in C++.
+// NOTE: These opcodes must match `TransformOpCode` in interaction_types.h.
 export enum TransformOpCode {
   MOVE = 1,
   VERTEX_SET = 2,
   RESIZE = 3,
   ROTATE = 4,
+  SIDE_RESIZE = 5,
 }
 
 export const COMMIT_PAYLOAD_STRIDE = 4;

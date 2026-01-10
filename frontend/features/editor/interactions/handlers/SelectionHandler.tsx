@@ -19,7 +19,7 @@ import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
-import { SideHandleType, SIDE_HANDLE_INDICES } from '../../interactions/sideHandles';
+import { SideHandleType, SIDE_HANDLE_INDICES, SIDE_HANDLE_TO_ENGINE_INDEX } from '../../interactions/sideHandles';
 import { calculateSideResize, localToWorldShift } from './sideResizeGeometry';
 
 import { normalizeAngle } from '@/features/editor/config/cursor-config';
@@ -95,6 +95,8 @@ type InteractionState =
   | { kind: 'none' }
   | { kind: 'marquee'; box: SelectionBoxState; startScreen: { x: number; y: number } }
   | { kind: 'transform'; startScreen: { x: number; y: number }; mode: TransformMode }
+  // DEPRECATED: side-resize and client-rotate are now handled via engine transforms
+  // Kept for backward compatibility but should not be reached in normal flow
   | {
       kind: 'side-resize';
       handle: SideHandleType;
@@ -240,24 +242,40 @@ export class SelectionHandler extends BaseInteractionHandler {
       if (sideHit) {
         const transform = runtime.getEntityTransform(sideHit.id);
         if (transform.valid) {
+          // Use engine-based SideResize instead of client-side calculation
+          const sideIndex = SIDE_HANDLE_TO_ENGINE_INDEX[sideHit.handle];
+          const modifiers = buildModifierMask(event);
+          
+          runtime.beginTransform(
+            [sideHit.id],
+            TransformMode.SideResize,
+            sideHit.id,
+            sideIndex, // Pass side index (0=S, 1=E, 2=N, 3=W)
+            screen.x,
+            screen.y,
+            ctx.viewTransform.x,
+            ctx.viewTransform.y,
+            ctx.viewTransform.scale,
+            ctx.canvasSize.width,
+            ctx.canvasSize.height,
+            modifiers,
+          );
+          
           this.state = {
-            kind: 'side-resize',
-            handle: sideHit.handle,
-            startWorld: world,
-            startTransform: {
-              x: transform.posX,
-              y: transform.posY,
-              width: transform.width,
-              height: transform.height,
-              rotation: transform.rotationDeg,
-            },
-            entityId: sideHit.id,
-            flippedX: false,
-            flippedY: false,
-            originalHandle: sideHit.handle,
-            currentHandle: sideHit.handle,
+            kind: 'transform',
+            startScreen: screen,
+            mode: TransformMode.SideResize,
           };
-          cadDebugLog('transform', 'side-resize-start', () => ({ handle: sideHit.handle }));
+          
+          // Store handle info for cursor updates
+          this.hoverSubTarget = PickSubTarget.ResizeHandle;
+          this.hoverSubIndex = sideIndex;
+          
+          cadDebugLog('transform', 'side-resize-start', () => ({ 
+            handle: sideHit.handle,
+            sideIndex,
+            entityId: sideHit.id,
+          }));
           return;
         }
       }
@@ -288,38 +306,8 @@ export class SelectionHandler extends BaseInteractionHandler {
         if (res.subTarget === PickSubTarget.ResizeHandle) {
           mode = TransformMode.Resize;
         } else if (res.subTarget === PickSubTarget.RotateHandle) {
-          // Client-side rotation logic (hijack)
-          // Only support single entity rotation for now to match prompt requirements on persistent angle
-          if (activeIds.length === 1) {
-            const id = activeIds[0];
-            const transform = runtime.getEntityTransform(id);
-            if (transform.valid) {
-              const centerX = transform.posX;
-              const centerY = transform.posY;
-
-              // Calculate initial mouse angle relative to object center
-              // Using atan2 to get -PI to PI
-              const mouseAngleRad = Math.atan2(world.y - centerY, world.x - centerX);
-              const mouseAngleDeg = (mouseAngleRad * 180) / Math.PI;
-
-              this.state = {
-                kind: 'client-rotate',
-                entityId: id,
-                startRotation: transform.rotationDeg,
-                currentRotation: transform.rotationDeg,
-                startMouseAngle: mouseAngleDeg,
-                centerX,
-                centerY,
-              };
-              cadDebugLog('transform', 'client-rotate-start', () => ({
-                id,
-                startRot: transform.rotationDeg,
-                mouseAngle: mouseAngleDeg,
-              }));
-              return;
-            }
-          }
-          mode = TransformMode.Rotate; // Fallback to engine if multi-select or invalid transform
+          // Use engine-based rotation (supports continuous rotation past ±180°)
+          mode = TransformMode.Rotate;
         } else if (res.subTarget === PickSubTarget.Vertex) {
           mode = TransformMode.VertexDrag;
         } else if (res.subTarget === PickSubTarget.Edge) {
@@ -500,12 +488,14 @@ export class SelectionHandler extends BaseInteractionHandler {
       // Show appropriate cursor during transform
       if (this.state.mode === TransformMode.Rotate) {
         this.updateRotationCursor(runtime, ctx);
-      } else if (this.state.mode === TransformMode.Resize) {
+      } else if (this.state.mode === TransformMode.Resize || this.state.mode === TransformMode.SideResize) {
         this.updateResizeCursor(ctx);
       }
       // Move mode uses default system cursor
       this.notifyChange();
     } else if (this.state.kind === 'side-resize') {
+      // DEPRECATED: This branch is kept for backward compatibility but should not be reached
+      // Side resize is now handled via engine transform (TransformMode.SideResize)
       // Side-handle resize with flip support
       // Uses pure geometry functions for testability and maintainability
       const { startWorld, startTransform, entityId, originalHandle } = this.state;
