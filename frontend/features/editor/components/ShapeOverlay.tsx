@@ -54,6 +54,12 @@ const ShapeOverlay: React.FC = () => {
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
 
     const draftDimensions = runtime.draft.getDraftDimensions();
+    const interactionActive = runtime.isInteractionActive();
+
+    // Early exit: nothing to render
+    if (selectionCount === 0 && !draftDimensions && !interactionActive) {
+      return null;
+    }
 
     const hs = HANDLE_SIZE_PX;
     const hh = hs / 2;
@@ -99,8 +105,6 @@ const ShapeOverlay: React.FC = () => {
       }
       return pts;
     };
-
-    const interactionActive = runtime.isInteractionActive();
 
     // Snap guides overlay
     const snapElements: React.ReactNode[] = [];

@@ -4,6 +4,7 @@ import { getEngineRuntime } from '@/engine/core/singleton';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
+import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
 import { screenToWorld } from '@/utils/viewportMath';
 
 import { DraftingHandler } from './handlers/DraftingHandler';
@@ -168,8 +169,10 @@ export function useInteractionManager() {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    startTiming('pointermove');
     const ctx = buildContext(e);
     handlerRef.current.onPointerMove(ctx);
+    endTiming('pointermove');
   };
 
   const onPointerUp = (e: React.PointerEvent) => {

@@ -16,6 +16,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind, PickSubTarget } from '@/types/picking';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
+import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
@@ -653,7 +654,9 @@ export class SelectionHandler extends BaseInteractionHandler {
     } else if (this.state.kind === 'none') {
       // Update hover state for cursor feedback when not interacting
       const tolerance = 10 / (ctx.viewTransform.scale || 1);
+      startTiming('pick');
       const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+      endTiming('pick');
       this.hoverSubTarget = res.subTarget;
       this.hoverSubIndex = res.subIndex;
       if (isCadDebugEnabled('pointer')) {

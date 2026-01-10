@@ -184,6 +184,8 @@ export class EngineRuntime {
   // --- Command System ---
   public apply(commands: readonly EngineCommand[]): void {
     this.commandSystem.apply(commands);
+    // Commands may affect selection, invalidate cache
+    this.selectionSystem.forceInvalidate();
   }
 
   // --- Draft System (hot path) ---
@@ -240,10 +242,14 @@ export class EngineRuntime {
 
   public undo(): void {
     this.historySystem.undo();
+    // Undo may restore previous selection state
+    this.selectionSystem.forceInvalidate();
   }
 
   public redo(): void {
     this.historySystem.redo();
+    // Redo may change selection state
+    this.selectionSystem.forceInvalidate();
   }
 
   // --- Pick System ---
