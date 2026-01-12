@@ -47,6 +47,12 @@ void InteractionSession::updateTransform(
     const float screenDy = screenY - session_.startScreenY;
     const bool snapSuppressed = isSnapSuppressed(modifiers);
     bool updated = false;
+    const std::uint32_t kGeometryChangeMask =
+        static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry) |
+        static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds);
+    const auto markEntityGeometryChanged = [&](std::uint32_t entityId) {
+        engine_.recordEntityChanged(entityId, kGeometryChangeMask);
+    };
 
     bool dragStarted = false;
     if (!session_.dragging) {
@@ -157,7 +163,10 @@ void InteractionSession::updateTransform(
                     if (r.id == id) {
                         r.x = snap.x + totalDx; r.y = snap.y + totalDy;
                         pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                        refreshEntityRenderRange(id); updated = true; break;
+                        refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
+                        updated = true;
+                        break;
                     }
                 }
             } else if (it->second.kind == EntityKind::Circle) {
@@ -165,7 +174,10 @@ void InteractionSession::updateTransform(
                     if (c.id == id) {
                         c.cx = snap.x + totalDx; c.cy = snap.y + totalDy;
                         pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                        refreshEntityRenderRange(id); updated = true; break;
+                        refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
+                        updated = true;
+                        break;
                     }
                 }
             } else if (it->second.kind == EntityKind::Polygon) {
@@ -173,7 +185,10 @@ void InteractionSession::updateTransform(
                     if (p.id == id) {
                         p.cx = snap.x + totalDx; p.cy = snap.y + totalDy;
                         pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                        refreshEntityRenderRange(id); updated = true; break;
+                        refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
+                        updated = true;
+                        break;
                     }
                 }
             } else if (it->second.kind == EntityKind::Text) {
@@ -192,6 +207,7 @@ void InteractionSession::updateTransform(
                     tr->maxY = newY + offsetMaxY;
                     engine_.markTextQuadsDirty();
                     pickSystem_.update(id, {tr->minX, tr->minY, tr->maxX, tr->maxY});
+                    markEntityGeometryChanged(id);
                     updated = true;
                 }
             } else if (it->second.kind == EntityKind::Line) {
@@ -201,7 +217,10 @@ void InteractionSession::updateTransform(
                             l.x0 = snap.points[0].x + totalDx; l.y0 = snap.points[0].y + totalDy;
                             l.x1 = snap.points[1].x + totalDx; l.y1 = snap.points[1].y + totalDy;
                             pickSystem_.update(id, PickSystem::computeLineAABB(l));
-                            refreshEntityRenderRange(id); updated = true; break;
+                            refreshEntityRenderRange(id);
+                            markEntityGeometryChanged(id);
+                            updated = true;
+                            break;
                         }
                     }
                 }
@@ -212,7 +231,10 @@ void InteractionSession::updateTransform(
                             a.ax = snap.points[0].x + totalDx; a.ay = snap.points[0].y + totalDy;
                             a.bx = snap.points[1].x + totalDx; a.by = snap.points[1].y + totalDy;
                             pickSystem_.update(id, PickSystem::computeArrowAABB(a));
-                            refreshEntityRenderRange(id); updated = true; break;
+                            refreshEntityRenderRange(id);
+                            markEntityGeometryChanged(id);
+                            updated = true;
+                            break;
                         }
                     }
                 }
@@ -226,7 +248,10 @@ void InteractionSession::updateTransform(
                             }
                         }
                         pickSystem_.update(id, PickSystem::computePolylineAABB(pl, entityManager_.points));
-                        refreshEntityRenderRange(id); updated = true; break;
+                        refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
+                        updated = true;
+                        break;
                     }
                 }
             }
@@ -278,7 +303,9 @@ void InteractionSession::updateTransform(
                                 entityManager_.points[pl.offset + idx].x = nx;
                                 entityManager_.points[pl.offset + idx].y = ny;
                                 pickSystem_.update(id, PickSystem::computePolylineAABB(pl, entityManager_.points));
-                                refreshEntityRenderRange(id); updated = true;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
                             }
                             break;
                         }
@@ -309,11 +336,15 @@ void InteractionSession::updateTransform(
                             if (idx == 0 && snap->points.size() > 0) {
                                 l.x0 = snap->points[0].x + lineDx; l.y0 = snap->points[0].y + lineDy;
                                 pickSystem_.update(id, PickSystem::computeLineAABB(l));
-                                refreshEntityRenderRange(id); updated = true;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
                             } else if (idx == 1 && snap->points.size() > 1) {
                                 l.x1 = snap->points[1].x + lineDx; l.y1 = snap->points[1].y + lineDy;
                                 pickSystem_.update(id, PickSystem::computeLineAABB(l));
-                                refreshEntityRenderRange(id); updated = true;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
                             }
                             break;
                         }
@@ -345,11 +376,15 @@ void InteractionSession::updateTransform(
                             if (idx == 0 && snap->points.size() > 0) {
                                 a.ax = snap->points[0].x + arrowDx; a.ay = snap->points[0].y + arrowDy;
                                 pickSystem_.update(id, PickSystem::computeArrowAABB(a));
-                                refreshEntityRenderRange(id); updated = true;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
                             } else if (idx == 1 && snap->points.size() > 1) {
                                 a.bx = snap->points[1].x + arrowDx; a.by = snap->points[1].y + arrowDy;
                                 pickSystem_.update(id, PickSystem::computeArrowAABB(a));
-                                refreshEntityRenderRange(id); updated = true;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
                             }
                             break;
                         }
@@ -474,7 +509,10 @@ void InteractionSession::updateTransform(
                                 r.x = centerWorldX - w * 0.5f; r.y = centerWorldY - h * 0.5f;
                                 r.w = w; r.h = h;
                                 pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                                refreshEntityRenderRange(id); updated = true; break;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
+                                break;
                             }
                         }
                     } else if (it->second.kind == EntityKind::Circle) {
@@ -482,7 +520,10 @@ void InteractionSession::updateTransform(
                             if (c.id == id) {
                                 c.cx = centerWorldX; c.cy = centerWorldY; c.rx = w * 0.5f; c.ry = h * 0.5f;
                                 pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                                refreshEntityRenderRange(id); updated = true; break;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
+                                break;
                             }
                         }
                     } else if (it->second.kind == EntityKind::Polygon) {
@@ -494,7 +535,10 @@ void InteractionSession::updateTransform(
                                 // No longer normalizing to positive values to preserve flip state
 
                                 pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                                refreshEntityRenderRange(id); updated = true; break;
+                                refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
+                                updated = true;
+                                break;
                             }
                         }
                     }
@@ -571,6 +615,7 @@ void InteractionSession::updateTransform(
 
                         pickSystem_.update(id, PickSystem::computeRectAABB(r));
                         refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
                         updated = true;
                         break;
                     }
@@ -591,6 +636,7 @@ void InteractionSession::updateTransform(
 
                         pickSystem_.update(id, PickSystem::computeCircleAABB(c));
                         refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
                         updated = true;
                         break;
                     }
@@ -611,6 +657,7 @@ void InteractionSession::updateTransform(
 
                         pickSystem_.update(id, PickSystem::computePolygonAABB(p));
                         refreshEntityRenderRange(id);
+                        markEntityGeometryChanged(id);
                         updated = true;
                         break;
                     }
@@ -630,6 +677,7 @@ void InteractionSession::updateTransform(
                     }
 
                     refreshEntityRenderRange(id);
+                    markEntityGeometryChanged(id);
                     updated = true;
                 }
             }
@@ -754,6 +802,7 @@ void InteractionSession::updateTransform(
                                 r.h = newH;
                                 pickSystem_.update(id, PickSystem::computeRectAABB(r));
                                 refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
                                 updated = true;
                                 break;
                             }
@@ -767,6 +816,7 @@ void InteractionSession::updateTransform(
                                 c.ry = newHalfH;
                                 pickSystem_.update(id, PickSystem::computeCircleAABB(c));
                                 refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
                                 updated = true;
                                 break;
                             }
@@ -780,6 +830,7 @@ void InteractionSession::updateTransform(
                                 p.ry = newHalfH;
                                 pickSystem_.update(id, PickSystem::computePolygonAABB(p));
                                 refreshEntityRenderRange(id);
+                                markEntityGeometryChanged(id);
                                 updated = true;
                                 break;
                             }
