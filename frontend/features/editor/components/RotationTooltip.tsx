@@ -39,9 +39,16 @@ const RotationTooltip: React.FC = () => {
       return null;
     }
 
-    // Get the rotation angle
-    const angle = transformState.rotationDeltaDeg;
-    const formattedAngle = `${angle >= 0 ? '' : ''}${Math.round(angle)}°`;
+    // Get the current rotation angle of the selected entity
+    const selectionIds = runtime.getSelectionIds();
+    if (selectionIds.length === 0) return null;
+
+    const entityId = selectionIds[0]!;
+    const entityTransform = runtime.getEntityTransform(entityId);
+    if (!entityTransform.valid) return null;
+
+    const angle = entityTransform.rotationDeg;
+    const formattedAngle = `${angle.toFixed(2)}°`;
 
     // Position tooltip near the pivot point (converted to screen space)
     const pivotScreenX = transformState.pivotX * viewTransform.scale + viewTransform.x;
