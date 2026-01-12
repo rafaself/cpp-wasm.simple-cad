@@ -234,61 +234,6 @@ const ShapeOverlay: React.FC = () => {
             });
           }
           
-          // Render rotate handle
-          if (orientedMeta.hasRotateHandle) {
-            // Calculate screen position with proper offset based on viewScale
-            const topCenter = {
-              x: (orientedMeta.tlX + orientedMeta.trX) / 2,
-              y: (orientedMeta.tlY + orientedMeta.trY) / 2,
-            };
-            const center = { x: orientedMeta.centerX, y: orientedMeta.centerY };
-            
-            // Direction from center to top (already rotated)
-            const dx = topCenter.x - center.x;
-            const dy = topCenter.y - center.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            
-            // Offset in world units, scaled for consistent screen appearance
-            const offsetPx = 20; // Screen pixels offset
-            const offsetWorld = offsetPx / viewTransform.scale;
-            
-            let rotateHandleWorld = { x: topCenter.x, y: topCenter.y };
-            if (len > 1e-6) {
-              rotateHandleWorld = {
-                x: topCenter.x + (dx / len) * offsetWorld,
-                y: topCenter.y + (dy / len) * offsetWorld,
-              };
-            }
-            
-            const rotateHandleScreen = worldToScreen(rotateHandleWorld, viewTransform);
-            const topCenterScreen = worldToScreen(topCenter, viewTransform);
-            
-            // Draw line from top center to rotate handle
-            selectionElements.push(
-              <line
-                key="sel-rotate-line"
-                x1={topCenterScreen.x}
-                y1={topCenterScreen.y}
-                x2={rotateHandleScreen.x}
-                y2={rotateHandleScreen.y}
-                className="stroke-primary"
-                strokeWidth={1}
-              />,
-            );
-            
-            // Draw rotate handle circle
-            const rotateHandleRadius = 5;
-            selectionElements.push(
-              <circle
-                key="sel-rotate-handle"
-                cx={rotateHandleScreen.x}
-                cy={rotateHandleScreen.y}
-                r={rotateHandleRadius}
-                className="fill-white stroke-primary"
-                strokeWidth={1}
-              />,
-            );
-          }
         } else {
           // Fallback to legacy system for lines, arrows, polylines, etc.
           const outlineMeta = runtime.getSelectionOutlineMeta();
