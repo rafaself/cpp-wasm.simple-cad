@@ -23,9 +23,6 @@ import { worldToScreen } from '@/utils/viewportMath';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 import { SideHandleType, SIDE_HANDLE_INDICES, SIDE_HANDLE_TO_ENGINE_INDEX } from '../../interactions/sideHandles';
-import { calculateSideResize, localToWorldShift } from './sideResizeGeometry';
-
-import { normalizeAngle } from '@/features/editor/config/cursor-config';
 
 // Helper to identify line-like entities that should use Move mode for Edge interactions
 const isLineOrArrow = (kind: PickEntityKind): boolean =>
@@ -40,43 +37,6 @@ const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
   const canvasSize = useUIStore((s) => s.canvasSize);
   return (
     <MarqueeOverlay selectionBox={box} viewTransform={viewTransform} canvasSize={canvasSize} />
-  );
-};
-
-const ConnectedClientRotationTooltip: React.FC<{
-  angle: number;
-  worldPos: { x: number; y: number };
-}> = ({ angle, worldPos }) => {
-  const viewTransform = useUIStore((s) => s.viewTransform);
-  const screenPos = worldToScreen(worldPos, viewTransform);
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: screenPos.x,
-        top: screenPos.y,
-        pointerEvents: 'none',
-        zIndex: 1000,
-        transform: 'translate(-50%, -50%)',
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          color: 'white',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          fontSize: '12px',
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontWeight: 500,
-          whiteSpace: 'nowrap',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-        }}
-      >
-        {Math.round(angle)}°
-      </div>
-    </div>
   );
 };
 
@@ -97,29 +57,7 @@ const buildModifierMask = (event: {
 type InteractionState =
   | { kind: 'none' }
   | { kind: 'marquee'; box: SelectionBoxState; startScreen: { x: number; y: number } }
-  | { kind: 'transform'; startScreen: { x: number; y: number }; mode: TransformMode }
-  // DEPRECATED: side-resize and client-rotate are now handled via engine transforms
-  // Kept for backward compatibility but should not be reached in normal flow
-  | {
-      kind: 'side-resize';
-      handle: SideHandleType;
-      startWorld: { x: number; y: number };
-      startTransform: { x: number; y: number; width: number; height: number; rotation: number };
-      entityId: number;
-      flippedX: boolean;
-      flippedY: boolean;
-      originalHandle: SideHandleType;
-      currentHandle: SideHandleType;
-    }
-  | {
-      kind: 'client-rotate';
-      entityId: number;
-      startRotation: number;
-      currentRotation: number;
-      startMouseAngle: number;
-      centerX: number;
-      centerY: number;
-    };
+  | { kind: 'transform'; startScreen: { x: number; y: number }; mode: TransformMode };
 
 export class SelectionHandler extends BaseInteractionHandler {
   name = 'select';
@@ -495,145 +433,6 @@ export class SelectionHandler extends BaseInteractionHandler {
       }
       // Move mode uses default system cursor
       this.notifyChange();
-    } else if (this.state.kind === 'side-resize') {
-      // DEPRECATED: This branch is kept for backward compatibility but should not be reached
-      // Side resize is now handled via engine transform (TransformMode.SideResize)
-      // Side-handle resize with flip support
-      // Uses pure geometry functions for testability and maintainability
-      const { startWorld, startTransform, entityId, originalHandle } = this.state;
-
-      // Calculate world delta and project to local space
-      const dx = world.x - startWorld.x;
-      const dy = world.y - startWorld.y;
-      const rad = -(startTransform.rotation * Math.PI) / 180;
-      const localDx = dx * Math.cos(rad) - dy * Math.sin(rad);
-      const localDy = dx * Math.sin(rad) + dy * Math.cos(rad);
-
-      const isSymmetric = event.altKey;
-      const MIN_SIZE = 1.0;
-
-      // Calculate resize for horizontal handles (E, W)
-      const isHorizontalHandle =
-        originalHandle === SideHandleType.E || originalHandle === SideHandleType.W;
-      const horizontalResult = isHorizontalHandle
-        ? calculateSideResize({
-            startDimension: startTransform.width,
-            localDelta: localDx,
-            isSymmetric,
-            isPositiveSide: originalHandle === SideHandleType.E,
-            minSize: MIN_SIZE,
-          })
-        : { newDimension: startTransform.width, scale: 1, centerShift: 0 };
-
-      // Calculate resize for vertical handles (S, N)
-      const isVerticalHandle =
-        originalHandle === SideHandleType.S || originalHandle === SideHandleType.N;
-      const verticalResult = isVerticalHandle
-        ? calculateSideResize({
-            startDimension: startTransform.height,
-            localDelta: localDy,
-            isSymmetric,
-            isPositiveSide: originalHandle === SideHandleType.S,
-            minSize: MIN_SIZE,
-          })
-        : { newDimension: startTransform.height, scale: 1, centerShift: 0 };
-
-      // Apply dimensions and scales
-      const newW = horizontalResult.newDimension;
-      const newH = verticalResult.newDimension;
-      const scaleX = horizontalResult.scale;
-      const scaleY = verticalResult.scale;
-
-      // Convert local space center shift to world coordinates
-      const worldRad = (startTransform.rotation * Math.PI) / 180;
-      const worldShift = localToWorldShift(
-        { x: horizontalResult.centerShift, y: verticalResult.centerShift },
-        worldRad,
-      );
-
-      const newCenterX = startTransform.x + worldShift.x;
-      const newCenterY = startTransform.y + worldShift.y;
-
-      // Update flip state for UI feedback
-      const flippedX = scaleX < 0;
-      const flippedY = scaleY < 0;
-      this.state.flippedX = flippedX;
-      this.state.flippedY = flippedY;
-
-      // Update current handle based on flip (for cursor)
-      if (originalHandle === SideHandleType.E) {
-        this.state.currentHandle = flippedX ? SideHandleType.W : SideHandleType.E;
-      } else if (originalHandle === SideHandleType.W) {
-        this.state.currentHandle = flippedX ? SideHandleType.E : SideHandleType.W;
-      } else if (originalHandle === SideHandleType.S) {
-        this.state.currentHandle = flippedY ? SideHandleType.N : SideHandleType.S;
-      } else if (originalHandle === SideHandleType.N) {
-        this.state.currentHandle = flippedY ? SideHandleType.S : SideHandleType.N;
-      }
-
-      // Apply geometry updates to entity
-      runtime.setEntitySize(entityId, newW, newH);
-      runtime.setEntityPosition(entityId, newCenterX, newCenterY);
-
-      // Apply scale transformation for visual flip
-      if (runtime.setEntityScale) {
-        runtime.setEntityScale(entityId, scaleX, scaleY);
-      }
-
-      // Update cursor during drag using deterministic handle-to-center angles
-      const sideIndex = SIDE_HANDLE_INDICES[this.state.currentHandle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
-      this.cursorAngle = getResizeCursorAngleForHandle(sideIndex, startTransform.rotation);
-      this.cursorScreenPos = ctx.screenPoint;
-      this.showResizeCursor = true;
-
-      this.notifyChange();
-    } else if (this.state.kind === 'client-rotate') {
-      const { entityId, startRotation, startMouseAngle, centerX, centerY } = this.state;
-
-      // Calculate current mouse angle
-      const mouseAngleRad = Math.atan2(world.y - centerY, world.x - centerX);
-      const mouseAngleDeg = (mouseAngleRad * 180) / Math.PI;
-
-      // Calculate Delta
-      // Normalize delta to avoid jumps at -180/180 crossing
-      // We use normalizeAngle on the difference
-      const delta = normalizeAngle(mouseAngleDeg - startMouseAngle);
-
-      // Apply snapping (Shift key)
-      // Snapping usually applies to the Final Angle (increments of 15 or 45 degrees)
-      // Or relative snapping? Prompt says "rotationNewSnapped = snap(rotationNew)"
-      let newRotation = startRotation + delta;
-      newRotation = normalizeAngle(newRotation); // Keep it normalized
-
-      if (event.shiftKey) {
-        const SNAP_INTERVAL = 15;
-        newRotation = Math.round(newRotation / SNAP_INTERVAL) * SNAP_INTERVAL;
-      }
-
-      // Update state for tooltip
-      this.state.currentRotation = newRotation;
-
-      // Update Entity
-      runtime.setEntityRotation(entityId, newRotation);
-
-      // Update Cursor
-      // We can show the rotation angle in tooltip? Or just the rotation cursor
-      // Update rotation cursor angle to match new rotation
-      // Note: Mouse position is 'world', we need screen for cursor helper?
-      // Actually SelectionHandler has helper `updateRotationCursor` but it relies on engine picking.
-      // We can just calculate it manually here.
-
-      // The cursor icon should rotate with the object or with the mouse?
-      // Usually with the mouse interaction.
-      // Let's use getRotationCursorAngle from config
-      const centerScreen = worldToScreen({ x: centerX, y: centerY }, ctx.viewTransform);
-      const angleForCursor = getRotationCursorAngle(centerScreen, screen); // screen point
-
-      this.cursorAngle = angleForCursor;
-      this.cursorScreenPos = screen;
-      this.showRotationCursor = true;
-
-      this.notifyChange();
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
       const downX = this.pointerDown.x;
@@ -708,25 +507,6 @@ export class SelectionHandler extends BaseInteractionHandler {
       this.state = { kind: 'none' };
       this.pointerDown = null;
       this.notifyChange();
-      return;
-    }
-
-    if (this.state.kind === 'side-resize') {
-      // Commit?
-      // Since we used setEntitySize (live), we might want to push a commit command if needed.
-      // But for now, we just end the state.
-      runtime.apply([{ op: CommandOp.CommitDraft }]); // Generic commit to ensure history sync if engine supports it
-      cadDebugLog('transform', 'side-resize-end');
-      this.state = { kind: 'none' };
-      this.pointerDown = null;
-      return;
-    }
-
-    if (this.state.kind === 'client-rotate') {
-      runtime.apply([{ op: CommandOp.CommitDraft }]);
-      cadDebugLog('transform', 'client-rotate-end');
-      this.state = { kind: 'none' };
-      this.pointerDown = null;
       return;
     }
 
@@ -902,9 +682,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     // During other active interactions, use default cursor handling
     if (
       this.state.kind === 'transform' ||
-      this.state.kind === 'marquee' ||
-      this.state.kind === 'side-resize' ||
-      this.state.kind === 'client-rotate'
+      this.state.kind === 'marquee'
     ) {
       return null;
     }
@@ -918,18 +696,6 @@ export class SelectionHandler extends BaseInteractionHandler {
     }
 
     const overlays: React.ReactNode[] = [];
-
-    // Client-side rotation tooltip
-    if (this.state.kind === 'client-rotate') {
-      const { currentRotation, centerX, centerY } = this.state;
-      overlays.push(
-        <ConnectedClientRotationTooltip
-          key="rot-tooltip"
-          angle={currentRotation}
-          worldPos={{ x: centerX, y: centerY }}
-        />,
-      );
-    }
 
     // Render custom cursors
     if (this.cursorScreenPos) {

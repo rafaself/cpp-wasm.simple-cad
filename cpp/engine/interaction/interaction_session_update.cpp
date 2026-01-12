@@ -608,9 +608,12 @@ void InteractionSession::updateTransform(
 
                         // For multi-select, also rotate position around group pivot
                         if (session_.snapshots.size() > 1) {
-                            auto [newX, newY] = rotatePoint(snap.x, snap.y, session_.rotationPivotX, session_.rotationPivotY, deltaAngle);
-                            r.x = newX;
-                            r.y = newY;
+                            // Rotate the rect center around the group pivot, then recompute top-left
+                            float centerX = snap.x + r.w / 2.0f;
+                            float centerY = snap.y + r.h / 2.0f;
+                            auto [newCenterX, newCenterY] = rotatePoint(centerX, centerY, session_.rotationPivotX, session_.rotationPivotY, deltaAngle);
+                            r.x = newCenterX - r.w / 2.0f;
+                            r.y = newCenterY - r.h / 2.0f;
                         }
 
                         pickSystem_.update(id, PickSystem::computeRectAABB(r));
