@@ -91,16 +91,15 @@ export const CURSOR_DIMENSIONS = {
 export const CURSOR_ANGLE_OFFSETS = {
   /**
    * Rotation cursor offset.
-   * The cursor-rotate.svg has its visual "rotation direction" pointing
-   * approximately 40° off from the mathematical tangent.
+   * The cursor-rotate.svg base orientation (0°) is at the top-right corner.
    */
-  rotate: 40,
+  rotate: 0,
   /**
    * Resize cursor offset.
    * The cursor-resize.svg points NW-SE (135°), so we subtract 135°
    * to normalize: when handle angle is 0° (East), cursor points horizontal.
    */
-  resize: -135,
+  resize: -45,
 } as const;
 
 /**
@@ -163,7 +162,45 @@ export function getResizeCursorAngle(handle: ResizeHandleType | number): number 
 }
 
 /**
- * Calculate rotation cursor angle from mouse position
+ * Base angles for rotation cursor based on corner handle index.
+ * The rotation cursor icon at 0° CSS rotation is designed for the TR (top-right) corner.
+ *
+ * Handle indices (from engine contract):
+ *   0 = BL (Bottom-Left)
+ *   1 = BR (Bottom-Right)
+ *   2 = TR (Top-Right) → base 0°
+ *   3 = TL (Top-Left)
+ *
+ * Each corner is 90° apart, going counter-clockwise from TR.
+ */
+const ROTATION_HANDLE_CURSOR_ANGLES: Record<number, number> = {
+  0: 180,  // BL - opposite to TR
+  1: 90,   // BR - 90° clockwise from TR
+  2: 0,    // TR - base orientation
+  3: 270,  // TL - 90° counter-clockwise from TR (or -90°)
+};
+
+/**
+ * Calculate rotation cursor angle based on handle index.
+ *
+ * Uses fixed angles per corner handle, ensuring the cursor icon
+ * appears in the correct orientation for each corner position.
+ *
+ * @param handleIndex - Rotation handle index (0=BL, 1=BR, 2=TR, 3=TL)
+ * @param entityRotationDeg - Entity rotation in degrees
+ * @returns The final angle to apply to the cursor (in degrees)
+ */
+export function getRotationCursorAngleForHandle(
+  handleIndex: number,
+  entityRotationDeg: number = 0,
+): number {
+  const baseAngle = ROTATION_HANDLE_CURSOR_ANGLES[handleIndex] ?? 0;
+  // Subtract entity rotation to make cursor rotate with the shape (Figma-like)
+  return baseAngle - entityRotationDeg;
+}
+
+/**
+ * Calculate rotation cursor angle from mouse position (legacy/fallback)
  *
  * @param centerScreen - Center of the selected object (screen coordinates)
  * @param mouseScreen - Current mouse position (screen coordinates)
@@ -180,6 +217,107 @@ export function getRotationCursorAngle(
   const angleDeg = angleRad * (180 / Math.PI);
 
   return angleDeg + CURSOR_ANGLE_OFFSETS.rotate;
+}
+
+/**
+ * Base angles for resize handles pointing TOWARD the center.
+ * These represent the direction from handle to center in screen coordinates (Y-down).
+ *
+ * Screen coordinate convention:
+ *   0° = right, 90° = down, 180° = left, -90°/270° = up
+ *
+ * Corner handles (diagonal toward center):
+ *   BL (bottom-left): toward center is up-right → -45° (or 315°)
+ *   BR (bottom-right): toward center is up-left → -135° (or 225°)
+ *   TR (top-right): toward center is down-left → 135°
+ *   TL (top-left): toward center is down-right → 45°
+ *
+ * Side handles (perpendicular to edge, toward center):
+ *   N (top): toward center is down → 90°
+ *   S (bottom): toward center is up → -90° (or 270°)
+ *   E (right): toward center is left → 180°
+ *   W (left): toward center is right → 0°
+ */
+const HANDLE_TO_CENTER_ANGLES: Record<number, number> = {
+  // Corners (indices 0-3, from engine pick)
+  0: -45,   // BL → up-right
+  1: -135,  // BR → up-left
+  2: 135,   // TR → down-left
+  3: 45,    // TL → down-right
+  // Sides using ENGINE indices (0-3, from SIDE_HANDLE_TO_ENGINE_INDEX: S=0, E=1, N=2, W=3)
+  // These are offset by 100 to avoid collision with corner indices
+  // Use helper function to map engine side index → angle
+};
+
+/**
+ * Engine side handle index to angle mapping.
+ * Engine uses: S=0, E=1, N=2, W=3
+ */
+const ENGINE_SIDE_TO_CENTER_ANGLES: Record<number, number> = {
+  0: -90,   // S → up
+  1: 180,   // E → left
+  2: 90,    // N → down
+  3: 0,     // W → right
+};
+
+/**
+ * Frontend side handle index to angle mapping.
+ * Frontend uses: N=4, E=5, S=6, W=7 (from SIDE_HANDLE_INDICES)
+ */
+const FRONTEND_SIDE_TO_CENTER_ANGLES: Record<number, number> = {
+  4: 90,    // N → down
+  5: 180,   // E → left
+  6: -90,   // S → up
+  7: 0,     // W → right
+};
+
+/**
+ * Calculate resize cursor angle for a given handle.
+ *
+ * The cursor orientation is derived from the geometric relationship between
+ * the handle position and the selection center. For each handle, there is a
+ * fixed direction "toward center" that determines the cursor orientation.
+ *
+ * Entity rotation is applied to rotate the cursor along with the shape,
+ * achieving Figma-like behavior where the cursor rotates with the object.
+ *
+ * @param handleIndex - Handle index. Can be:
+ *   - 0-3 for corners (BL, BR, TR, TL)
+ *   - 4-7 for sides using frontend indices (N=4, E=5, S=6, W=7)
+ * @param entityRotationDeg - Entity rotation in degrees (from engine, CCW positive in Y-up)
+ * @param isEngineSideIndex - If true and handleIndex is 0-3, treat as engine side index (S=0, E=1, N=2, W=3)
+ * @returns The final angle to apply to the cursor CSS transform (in degrees)
+ */
+export function getResizeCursorAngleForHandle(
+  handleIndex: number,
+  entityRotationDeg: number = 0,
+  isEngineSideIndex: boolean = false,
+): number {
+  let baseAngle: number = 0;
+
+  if (isEngineSideIndex && handleIndex >= 0 && handleIndex <= 3) {
+    // Engine side index: S=0, E=1, N=2, W=3
+    baseAngle = ENGINE_SIDE_TO_CENTER_ANGLES[handleIndex] ?? 0;
+  } else if (handleIndex >= 4 && handleIndex <= 7) {
+    // Frontend side index: N=4, E=5, S=6, W=7
+    baseAngle = FRONTEND_SIDE_TO_CENTER_ANGLES[handleIndex] ?? 0;
+  } else if (handleIndex >= 0 && handleIndex <= 3) {
+    // Corner index: BL=0, BR=1, TR=2, TL=3
+    baseAngle = HANDLE_TO_CENTER_ANGLES[handleIndex] ?? 0;
+  } else {
+    baseAngle = 0;
+  }
+
+  // Apply SVG offset to align the diagonal cursor asset with the direction
+  // cursor-resize.svg has arrows at 135° (NW-SE diagonal)
+  // Offset of -135° normalizes this to 0° when we want horizontal
+  // Additional 90° rotation to correct cursor orientation
+  const cursorAngle = baseAngle + CURSOR_ANGLE_OFFSETS.resize;
+
+  // Apply entity rotation (engine uses CCW in Y-up, CSS uses CW in Y-down)
+  // The Y-flip means we need to negate the rotation for screen space
+  // But CSS transform rotate is CW-positive, so we add the negated value
+  return cursorAngle - entityRotationDeg;
 }
 
 /**

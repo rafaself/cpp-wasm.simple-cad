@@ -23,7 +23,8 @@
       "Bash(pnpm --dir frontend test -- --testPathPattern=\"colorRibbonControls\")",
       "Bash(git checkout:*)",
       "Bash(make:*)",
-      "Bash(./engine_tests:*)"
+      "Bash(./engine_tests:*)",
+      "Bash(echo:*)"
     ]
   }
 }

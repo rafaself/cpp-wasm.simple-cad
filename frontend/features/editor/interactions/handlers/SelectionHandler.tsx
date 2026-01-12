@@ -7,7 +7,8 @@ import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
 import { MoveCursor } from '@/features/editor/components/MoveCursor';
 import {
   getRotationCursorAngle,
-  getResizeCursorAngle,
+  getRotationCursorAngleForHandle,
+  getResizeCursorAngleForHandle,
 } from '@/features/editor/config/cursor-config';
 import { ensureTextToolReady } from '@/features/editor/text/textToolController';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
@@ -270,9 +271,9 @@ export class SelectionHandler extends BaseInteractionHandler {
             mode: TransformMode.SideResize,
           };
           
-          // Store handle info for cursor updates
+          // Store handle info for cursor updates (use frontend index 4-7, not engine index 0-3)
           this.hoverSubTarget = PickSubTarget.ResizeHandle;
-          this.hoverSubIndex = sideIndex;
+          this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
           
           cadDebugLog('transform', 'side-resize-start', () => ({ 
             handle: sideHit.handle,
@@ -378,37 +379,34 @@ export class SelectionHandler extends BaseInteractionHandler {
   }
 
   private updateRotationCursor(runtime: EngineRuntime, ctx: InputEventContext) {
-    if (!runtime.getSelectionBounds) return;
-    const bounds = runtime.getSelectionBounds();
-    // Check for valid bounds (assuming valid property or non-zero dimensions)
-    if (!bounds || (bounds as any).valid === 0) return;
+    const selection = runtime.getSelectionIds();
+    if (selection.length !== 1) return;
 
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const centerY = (bounds.minY + bounds.maxY) / 2;
+    // Get entity rotation for Figma-like cursor behavior
+    const transform = runtime.getEntityTransform(selection[0]);
+    const rotationDeg = transform.valid ? transform.rotationDeg : 0;
 
-    const centerScreen = worldToScreen({ x: centerX, y: centerY }, ctx.viewTransform);
-
-    // Use centralized cursor angle calculation
-    this.cursorAngle = getRotationCursorAngle(centerScreen, ctx.screenPoint);
+    // Use handle index for fixed angle per corner (no atan2 calculation)
+    // hoverSubIndex contains the rotation handle index (0=BL, 1=BR, 2=TR, 3=TL)
+    this.cursorAngle = getRotationCursorAngleForHandle(this.hoverSubIndex, rotationDeg);
     this.cursorScreenPos = ctx.screenPoint;
     this.showRotationCursor = true;
   }
 
   private updateResizeCursor(ctx: InputEventContext) {
-    // Calculate angle based on handle index
-    // Note: hoverSubIndex contains the handle index from the pick result
-    let angle = getResizeCursorAngle(this.hoverSubIndex);
+    if (!ctx.runtime) return;
 
-    // Apply rotation for single selection to match side handles
-    if (ctx.runtime) {
-      const selection = ctx.runtime.getSelectionIds();
-      if (selection.length === 1) {
-        const transform = ctx.runtime.getEntityTransform(selection[0]);
-        if (transform.valid) {
-          angle -= transform.rotationDeg;
-        }
-      }
-    }
+    const runtime = ctx.runtime;
+    const selection = runtime.getSelectionIds();
+    if (selection.length !== 1) return;
+
+    // Get entity rotation
+    const transform = runtime.getEntityTransform(selection[0]);
+    const rotationDeg = transform.valid ? transform.rotationDeg : 0;
+
+    // Calculate cursor angle using deterministic handle-to-center angles
+    // This ensures perfectly horizontal/vertical cursors for non-rotated shapes
+    const angle = getResizeCursorAngleForHandle(this.hoverSubIndex, rotationDeg);
 
     this.cursorAngle = angle;
     this.cursorScreenPos = ctx.screenPoint;
@@ -582,12 +580,9 @@ export class SelectionHandler extends BaseInteractionHandler {
         runtime.setEntityScale(entityId, scaleX, scaleY);
       }
 
-      // Update cursor during drag (use currentHandle, not original handle)
-      let angle = getResizeCursorAngle(this.state.currentHandle) + 90;
-      if (startTransform.rotation !== 0) {
-        angle -= startTransform.rotation;
-      }
-      this.cursorAngle = angle;
+      // Update cursor during drag using deterministic handle-to-center angles
+      const sideIndex = SIDE_HANDLE_INDICES[this.state.currentHandle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+      this.cursorAngle = getResizeCursorAngleForHandle(sideIndex, startTransform.rotation);
       this.cursorScreenPos = ctx.screenPoint;
       this.showResizeCursor = true;
 
@@ -690,15 +685,13 @@ export class SelectionHandler extends BaseInteractionHandler {
         // Check for side handles hover (only for non-line entities like rectangles)
         const sideHit = this.findSideHandle(runtime, world, tolerance);
         if (sideHit) {
-          // Use the centralized helper for side handles as well
-          // Adding 90 degrees correction as requested by the user
-          let angle = getResizeCursorAngle(sideHit.handle) + 90;
-
-          // Add object rotation (Engine is CCW, CSS is CW, so subtract)
+          // Get side handle index and entity rotation
+          const sideIndex = SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
           const transform = runtime.getEntityTransform(sideHit.id);
-          if (transform.valid) {
-            angle -= transform.rotationDeg;
-          }
+          const rotationDeg = transform.valid ? transform.rotationDeg : 0;
+
+          // Calculate cursor angle using deterministic handle-to-center angles
+          const angle = getResizeCursorAngleForHandle(sideIndex, rotationDeg);
 
           this.cursorAngle = angle;
           this.cursorScreenPos = ctx.screenPoint;
