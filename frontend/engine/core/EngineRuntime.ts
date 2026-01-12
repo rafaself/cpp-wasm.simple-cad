@@ -3,6 +3,7 @@
 import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { getPickCache } from '@/utils/pickResultCache';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { supportsEngineResize, type EngineCapability } from '@/engine/core/capabilities';
 import { EngineCommand } from '@/engine/core/commandBuffer';
 import {
@@ -94,6 +95,7 @@ export class EngineRuntime {
     }
     const protocolInfo = engine.getProtocolInfo();
     validateProtocolOrThrow(protocolInfo);
+    cadDebugLog('overlay', 'engine protocol info', protocolInfo);
 
     // Validate essential APIs presence (Fail Fast)
     const essentialMethods = [

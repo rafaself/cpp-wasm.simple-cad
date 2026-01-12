@@ -18,7 +18,7 @@ import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/us
 import { EntityKind } from '@/engine/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { isCadDebugEnabled } from '@/utils/dev/cadDebug';
+import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
@@ -49,6 +49,108 @@ const ShapeOverlay: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!runtime) return;
+    if (!isCadDebugEnabled('overlay')) return;
+    if (isEditingAppearance || isTextEditing) return;
+    if (selectionCount === 0) return;
+
+    const entityId = selectionIds[0];
+    const entityKind = typeof entityId === 'number' ? runtime.getEntityKind(entityId) : null;
+    const kindLabel =
+      entityKind !== null && EntityKind[entityKind]
+        ? EntityKind[entityKind]
+        : entityKind !== null
+          ? `Unknown(${entityKind})`
+          : 'None';
+    const isVertexOnly =
+      entityKind === EntityKind.Line ||
+      entityKind === EntityKind.Arrow ||
+      entityKind === EntityKind.Polyline;
+    const orientedMeta = runtime.getOrientedHandleMeta();
+    const handleMeta = runtime.getSelectionHandleMeta();
+    const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+    const handleSample = Array.from(handles.data.slice(0, 8));
+
+    let renderPath = 'none';
+    if (selectionCount > 1) {
+      renderPath = 'selectionBounds-multiselect';
+    } else if (selectionCount === 1) {
+      if (isVertexOnly) {
+        renderPath = 'vertex-only';
+      } else if (orientedMeta.valid) {
+        renderPath = 'oriented-verbatim';
+      } else {
+        renderPath = 'legacy-aabb';
+      }
+    }
+
+    const cornersWorld = orientedMeta.valid
+      ? [
+          { x: orientedMeta.blX, y: orientedMeta.blY },
+          { x: orientedMeta.brX, y: orientedMeta.brY },
+          { x: orientedMeta.trX, y: orientedMeta.trY },
+          { x: orientedMeta.tlX, y: orientedMeta.tlY },
+        ]
+      : null;
+    const cornersScreen = cornersWorld
+      ? cornersWorld.map((p) => worldToScreen(p, viewTransform))
+      : null;
+    const rotateHandleWorld = orientedMeta.valid
+      ? { x: orientedMeta.rotateHandleX, y: orientedMeta.rotateHandleY }
+      : null;
+    const rotateHandleScreen = rotateHandleWorld
+      ? worldToScreen(rotateHandleWorld, viewTransform)
+      : null;
+
+    cadDebugLog(
+      'overlay',
+      `selection overlay renderPath=${renderPath} kind=${kindLabel}`,
+      () => ({
+        selectionCount,
+        selectionIds,
+        entityId,
+        kind: kindLabel,
+        renderPath,
+        applyRotation: false,
+        isVertexOnly,
+        orientedMeta: {
+          valid: orientedMeta.valid,
+          hasResizeHandles: orientedMeta.hasResizeHandles,
+          hasRotateHandle: orientedMeta.hasRotateHandle,
+          bl: { x: orientedMeta.blX, y: orientedMeta.blY },
+          br: { x: orientedMeta.brX, y: orientedMeta.brY },
+          tr: { x: orientedMeta.trX, y: orientedMeta.trY },
+          tl: { x: orientedMeta.tlX, y: orientedMeta.tlY },
+          rotateHandle: { x: orientedMeta.rotateHandleX, y: orientedMeta.rotateHandleY },
+          center: { x: orientedMeta.centerX, y: orientedMeta.centerY },
+          rotationRad: orientedMeta.rotationRad,
+        },
+        cornersWorld,
+        cornersScreen,
+        rotateHandleWorld,
+        rotateHandleScreen,
+        selectionHandleMeta: {
+          primitiveCount: handleMeta.primitiveCount,
+          floatCount: handleMeta.floatCount,
+          firstFloats: handleSample,
+        },
+        handleFiltering: {
+          resizeHandlesRendered: orientedMeta.valid && orientedMeta.hasResizeHandles && !isVertexOnly,
+          rotateHandleRendered: orientedMeta.valid && orientedMeta.hasRotateHandle && !isVertexOnly,
+        },
+      }),
+    );
+  }, [
+    runtime,
+    selectionCount,
+    selectionIds,
+    overlayTick,
+    isEditingAppearance,
+    isTextEditing,
+    viewTransform,
+  ]);
+
   const overlayContent = useMemo(() => {
     if (!runtime) return null;
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return null;
@@ -64,43 +166,17 @@ const ShapeOverlay: React.FC = () => {
     const hs = HANDLE_SIZE_PX;
     const hh = hs / 2;
 
-    // Get rotation angle for single selection
-    let entityRotationRad = 0;
-    let entityCenterWorld = { x: 0, y: 0 };
-    if (selectionCount === 1 && selectionIds.length === 1) {
-      const entityId = selectionIds[0];
-      if (entityId) {
-        const transform = runtime.getEntityTransform(entityId);
-        if (transform.valid) {
-          entityRotationRad = (transform.rotationDeg * Math.PI) / 180;
-          entityCenterWorld = { x: transform.posX, y: transform.posY };
-        }
-      }
-    }
-
     // Helper to transform world points to screen
     const renderPoints = (
       prim: { count: number; offset: number },
       data: Float32Array,
-      applyRotation = false,
     ): { x: number; y: number }[] => {
       const pts: { x: number; y: number }[] = [];
       const start = prim.offset;
       for (let i = 0; i < prim.count; i++) {
         const idx = start + i * 2;
-        let x = data[idx] ?? 0;
-        let y = data[idx + 1] ?? 0;
-
-        // Apply rotation if needed (for single selected entity with rotation)
-        if (applyRotation && Math.abs(entityRotationRad) > 1e-6) {
-          const cosA = Math.cos(entityRotationRad);
-          const sinA = Math.sin(entityRotationRad);
-          const dx = x - entityCenterWorld.x;
-          const dy = y - entityCenterWorld.y;
-          x = entityCenterWorld.x + dx * cosA - dy * sinA;
-          y = entityCenterWorld.y + dx * sinA + dy * cosA;
-        }
-
+        const x = data[idx] ?? 0;
+        const y = data[idx + 1] ?? 0;
         pts.push(worldToScreen({ x, y }, viewTransform));
       }
       return pts;
@@ -193,19 +269,24 @@ const ShapeOverlay: React.FC = () => {
           });
         }
       } else {
-        // Single selection: try to use oriented handles for shapes with rotation
+        // Single selection: prefer oriented handles for corner-capable shapes
+        const entityId = selectionIds[0];
+        const entityKind = runtime.getEntityKind(entityId);
+        const isVertexOnly =
+          entityKind === EntityKind.Line ||
+          entityKind === EntityKind.Arrow ||
+          entityKind === EntityKind.Polyline;
         const orientedMeta = runtime.getOrientedHandleMeta();
-        
-        if (orientedMeta.valid) {
+
+        if (orientedMeta.valid && !isVertexOnly) {
           // Use oriented handles (pre-rotated by engine)
-          // Render outline as polygon connecting the corners
           const corners = [
             worldToScreen({ x: orientedMeta.blX, y: orientedMeta.blY }, viewTransform),
             worldToScreen({ x: orientedMeta.brX, y: orientedMeta.brY }, viewTransform),
             worldToScreen({ x: orientedMeta.trX, y: orientedMeta.trY }, viewTransform),
             worldToScreen({ x: orientedMeta.tlX, y: orientedMeta.tlY }, viewTransform),
           ];
-          
+
           const outlinePoints = corners.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
           selectionElements.push(
             <polygon
@@ -216,8 +297,7 @@ const ShapeOverlay: React.FC = () => {
               strokeWidth={1}
             />,
           );
-          
-          // Render resize handles at corners (if supported)
+
           if (orientedMeta.hasResizeHandles) {
             corners.forEach((p, i) => {
               selectionElements.push(
@@ -233,18 +313,33 @@ const ShapeOverlay: React.FC = () => {
               );
             });
           }
-          
-        } else {
-          // Fallback to legacy system for lines, arrows, polylines, etc.
+
+          if (orientedMeta.hasRotateHandle) {
+            const rotate = worldToScreen(
+              { x: orientedMeta.rotateHandleX, y: orientedMeta.rotateHandleY },
+              viewTransform,
+            );
+            selectionElements.push(
+              <circle
+                key="sel-oriented-rotate"
+                cx={rotate.x}
+                cy={rotate.y}
+                r={hs}
+                className="fill-white stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+          }
+        } else if (isVertexOnly) {
+          // Fallback to vertex-only legacy system (lines, arrows, polylines)
           const outlineMeta = runtime.getSelectionOutlineMeta();
           const handleMeta = runtime.getSelectionHandleMeta();
           const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
           const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
 
-          // Render selection outlines (no rotation transform needed - data is in world coords)
           outline.primitives.forEach((prim, idx) => {
             if (prim.count < 2) return;
-            const pts = renderPoints(prim, outline.data, false);
+            const pts = renderPoints(prim, outline.data);
             const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
 
             if (prim.kind === OverlayKind.Segment) {
@@ -285,11 +380,10 @@ const ShapeOverlay: React.FC = () => {
             }
           });
 
-          // Render selection handles (vertex handles for lines/polylines)
           if (engineResizeEnabled || handles.primitives.length > 0) {
             handles.primitives.forEach((prim, idx) => {
               if (prim.count < 1) return;
-              const pts = renderPoints(prim, handles.data, false);
+              const pts = renderPoints(prim, handles.data);
               pts.forEach((p, i) => {
                 selectionElements.push(
                   <rect
@@ -305,6 +399,57 @@ const ShapeOverlay: React.FC = () => {
               });
             });
           }
+        } else {
+          // Corner-capable but oriented meta is invalid: log and render safe AABB without rotation
+          if (process.env.NODE_ENV !== 'production') {
+            // eslint-disable-next-line no-console
+            console.warn(
+              '[ShapeOverlay] Oriented handle meta invalid for corner-capable entity; rendering AABB fallback.',
+            );
+          }
+          const bounds = runtime.getSelectionBounds();
+          if (bounds.valid) {
+            const p1 = worldToScreen({ x: bounds.minX, y: bounds.minY }, viewTransform);
+            const p2 = worldToScreen({ x: bounds.maxX, y: bounds.maxY }, viewTransform);
+            const minX = Math.min(p1.x, p2.x);
+            const minY = Math.min(p1.y, p2.y);
+            const maxX = Math.max(p1.x, p2.x);
+            const maxY = Math.max(p1.y, p2.y);
+
+            selectionElements.push(
+              <rect
+                key="sel-fallback-bbox"
+                x={minX}
+                y={minY}
+                width={maxX - minX}
+                height={maxY - minY}
+                fill="transparent"
+                className="stroke-primary"
+                strokeWidth={1}
+              />,
+            );
+
+            const corners = [
+              { x: minX, y: minY },
+              { x: maxX, y: minY },
+              { x: maxX, y: maxY },
+              { x: minX, y: maxY },
+            ];
+
+            corners.forEach((p, i) => {
+              selectionElements.push(
+                <rect
+                  key={`sel-fallback-handle-${i}`}
+                  x={p.x - hh}
+                  y={p.y - hh}
+                  width={hs}
+                  height={hs}
+                  className="fill-white stroke-primary"
+                  strokeWidth={1}
+                />,
+              );
+            });
+          }
         }
       }
     }
@@ -314,10 +459,9 @@ const ShapeOverlay: React.FC = () => {
       const entityId = selectionIds[0];
       const handleMeta = runtime.getSelectionHandleMeta();
       const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
-      const handlePts = handles.primitives.flatMap((prim) =>
-        renderPoints(prim, handles.data, true),
-      );
+      const handlePts = handles.primitives.flatMap((prim) => renderPoints(prim, handles.data));
       const hitRadiusPx = 10;
+      const orientedMeta = runtime.getOrientedHandleMeta();
 
       handlePts.forEach((p, i) => {
         debugElements.push(
@@ -342,6 +486,42 @@ const ShapeOverlay: React.FC = () => {
           />,
         );
       });
+
+      if (orientedMeta.valid) {
+        const orientedCorners = [
+          worldToScreen({ x: orientedMeta.blX, y: orientedMeta.blY }, viewTransform),
+          worldToScreen({ x: orientedMeta.brX, y: orientedMeta.brY }, viewTransform),
+          worldToScreen({ x: orientedMeta.trX, y: orientedMeta.trY }, viewTransform),
+          worldToScreen({ x: orientedMeta.tlX, y: orientedMeta.tlY }, viewTransform),
+        ];
+        orientedCorners.forEach((p, i) => {
+          debugElements.push(
+            <circle
+              key={`dbg-oriented-${i}`}
+              cx={p.x}
+              cy={p.y}
+              r={3}
+              fill="#6c5ce7"
+            />,
+          );
+        });
+
+        if (orientedMeta.hasRotateHandle) {
+          const rotate = worldToScreen(
+            { x: orientedMeta.rotateHandleX, y: orientedMeta.rotateHandleY },
+            viewTransform,
+          );
+          debugElements.push(
+            <circle
+              key="dbg-oriented-rotate"
+              cx={rotate.x}
+              cy={rotate.y}
+              r={3}
+              fill="#2ec4b6"
+            />,
+          );
+        }
+      }
 
       const kind = runtime.getEntityKind(entityId);
       if (kind === EntityKind.Circle) {

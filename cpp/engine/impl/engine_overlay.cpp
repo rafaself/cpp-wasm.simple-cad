@@ -3,6 +3,29 @@
 
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
+#include <cmath>
+
+namespace {
+static void pushRotatedCorners(std::vector<float>& data, float cx, float cy, float hw, float hh, float rot) {
+    const float cosR = std::cos(rot);
+    const float sinR = std::sin(rot);
+    const float offsets[4][2] = {
+        {-hw, -hh}, // BL
+        {+hw, -hh}, // BR
+        {+hw, +hh}, // TR
+        {-hw, +hh}, // TL
+    };
+
+    for (int i = 0; i < 4; ++i) {
+        const float ox = offsets[i][0];
+        const float oy = offsets[i][1];
+        const float wx = cx + ox * cosR - oy * sinR;
+        const float wy = cy + ox * sinR + oy * cosR;
+        data.push_back(wx);
+        data.push_back(wy);
+    }
+}
+} // namespace
 
 engine::protocol::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
     state().selectionOutlinePrimitives_.clear();
@@ -56,6 +79,43 @@ engine::protocol::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
                 state().selectionOutlineData_.push_back(pt.x);
                 state().selectionOutlineData_.push_back(pt.y);
             }
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Rect) {
+            if (it->second.index >= state().entityManager_.rects.size()) continue;
+            const RectRec& r = state().entityManager_.rects[it->second.index];
+            const float cx = r.x + r.w * 0.5f;
+            const float cy = r.y + r.h * 0.5f;
+            const float hw = r.w * 0.5f;
+            const float hh = r.h * 0.5f;
+            const float rot = r.rot;
+            pushPrimitive(engine::protocol::OverlayKind::Polygon, 4);
+            pushRotatedCorners(state().selectionOutlineData_, cx, cy, hw, hh, rot);
+            continue;
+        }
+        if (it->second.kind == EntityKind::Circle) {
+            if (it->second.index >= state().entityManager_.circles.size()) continue;
+            const CircleRec& c = state().entityManager_.circles[it->second.index];
+            const float cx = c.cx;
+            const float cy = c.cy;
+            const float hw = std::abs(c.rx * c.sx);
+            const float hh = std::abs(c.ry * c.sy);
+            const float rot = c.rot;
+            pushPrimitive(engine::protocol::OverlayKind::Polygon, 4);
+            pushRotatedCorners(state().selectionOutlineData_, cx, cy, hw, hh, rot);
+            continue;
+        }
+        if (it->second.kind == EntityKind::Polygon) {
+            if (it->second.index >= state().entityManager_.polygons.size()) continue;
+            const PolygonRec& p = state().entityManager_.polygons[it->second.index];
+            const float cx = p.cx;
+            const float cy = p.cy;
+            const float hw = std::abs(p.rx * p.sx);
+            const float hh = std::abs(p.ry * p.sy);
+            const float rot = p.rot;
+            pushPrimitive(engine::protocol::OverlayKind::Polygon, 4);
+            pushRotatedCorners(state().selectionOutlineData_, cx, cy, hw, hh, rot);
             continue;
         }
 
@@ -133,6 +193,43 @@ engine::protocol::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
                 state().selectionHandleData_.push_back(pt.x);
                 state().selectionHandleData_.push_back(pt.y);
             }
+            continue;
+        }
+
+        if (it->second.kind == EntityKind::Rect) {
+            if (it->second.index >= state().entityManager_.rects.size()) continue;
+            const RectRec& r = state().entityManager_.rects[it->second.index];
+            const float cx = r.x + r.w * 0.5f;
+            const float cy = r.y + r.h * 0.5f;
+            const float hw = r.w * 0.5f;
+            const float hh = r.h * 0.5f;
+            const float rot = r.rot;
+            pushPrimitive(4);
+            pushRotatedCorners(state().selectionHandleData_, cx, cy, hw, hh, rot);
+            continue;
+        }
+        if (it->second.kind == EntityKind::Circle) {
+            if (it->second.index >= state().entityManager_.circles.size()) continue;
+            const CircleRec& c = state().entityManager_.circles[it->second.index];
+            const float cx = c.cx;
+            const float cy = c.cy;
+            const float hw = std::abs(c.rx * c.sx);
+            const float hh = std::abs(c.ry * c.sy);
+            const float rot = c.rot;
+            pushPrimitive(4);
+            pushRotatedCorners(state().selectionHandleData_, cx, cy, hw, hh, rot);
+            continue;
+        }
+        if (it->second.kind == EntityKind::Polygon) {
+            if (it->second.index >= state().entityManager_.polygons.size()) continue;
+            const PolygonRec& p = state().entityManager_.polygons[it->second.index];
+            const float cx = p.cx;
+            const float cy = p.cy;
+            const float hw = std::abs(p.rx * p.sx);
+            const float hh = std::abs(p.ry * p.sy);
+            const float rot = p.rot;
+            pushPrimitive(4);
+            pushRotatedCorners(state().selectionHandleData_, cx, cy, hw, hh, rot);
             continue;
         }
 
