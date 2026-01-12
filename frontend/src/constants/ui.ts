@@ -9,9 +9,9 @@ export const UI = {
   /** Zoom fit padding */
   ZOOM_FIT_PADDING_PX: 50,
   /** Max zoom level */
-  MAX_ZOOM_SCALE: 5,
+  MAX_ZOOM_SCALE: 10,
   /** Min zoom level (5%) */
-  MIN_ZOOM_SCALE: 0.05,
+  MIN_ZOOM_SCALE: 0.02,
 } as const;
 
 export const GRID = {

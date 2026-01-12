@@ -231,13 +231,16 @@ void InteractionSession::beginTransform(
                 }
 
                 if (valid) {
-                    float anchorX = 0.0f;
-                    float anchorY = 0.0f;
-                    switch (session_.vertexIndex) {
-                        case 0: anchorX = halfW; anchorY = halfH; break;   // BL -> anchor at TR
-                        case 1: anchorX = -halfW; anchorY = halfH; break;  // BR -> anchor at TL
-                        case 2: anchorX = -halfW; anchorY = -halfH; break; // TR -> anchor at BL
-                        case 3: anchorX = halfW; anchorY = -halfH; break;  // TL -> anchor at BR
+                    float centerX = 0.0f;
+                    float centerY = 0.0f;
+                    float rotation = snap->rotation;
+
+                    if (it->second.kind == EntityKind::Rect) {
+                        centerX = snap->x + snap->w * 0.5f;
+                        centerY = snap->y + snap->h * 0.5f;
+                    } else {
+                        centerX = snap->x;
+                        centerY = snap->y;
                     }
 
                     const float baseW = std::max(1e-6f, halfW * 2.0f);
@@ -245,6 +248,18 @@ void InteractionSession::beginTransform(
                     session_.resizeBaseW = baseW;
                     session_.resizeBaseH = baseH;
                     session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
+
+                    const float dx = session_.startX - centerX;
+                    const float dy = session_.startY - centerY;
+                    const float cosR = std::cos(rotation);
+                    const float sinR = std::sin(rotation);
+                    const float localX = dx * cosR + dy * sinR;
+                    const float localY = -dx * sinR + dy * cosR;
+                    const bool handleRight = localX >= 0.0f;
+                    const bool handleTop = localY >= 0.0f;
+                    const float anchorX = handleRight ? -halfW : halfW;
+                    const float anchorY = handleTop ? -halfH : halfH;
+
                     session_.resizeAnchorX = anchorX;
                     session_.resizeAnchorY = anchorY;
                     session_.resizeAnchorValid = true;
