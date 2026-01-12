@@ -1,70 +1,18 @@
 #include "engine/persistence/snapshot.h"
 #include "engine/core/util.h"
 #include "engine/core/types.h"
-#include <algorithm>
+#include "engine/persistence/snapshot_internal.h"
 #include <cstring>
 #include <unordered_map>
 
 namespace {
-
-constexpr std::uint32_t fourCC(char a, char b, char c, char d) {
-    return static_cast<std::uint32_t>(a)
-        | (static_cast<std::uint32_t>(b) << 8)
-        | (static_cast<std::uint32_t>(c) << 16)
-        | (static_cast<std::uint32_t>(d) << 24);
-}
-
-constexpr std::uint32_t TAG_ENTS = fourCC('E', 'N', 'T', 'S');
-constexpr std::uint32_t TAG_LAYR = fourCC('L', 'A', 'Y', 'R');
-constexpr std::uint32_t TAG_ORDR = fourCC('O', 'R', 'D', 'R');
-constexpr std::uint32_t TAG_SELC = fourCC('S', 'E', 'L', 'C');
-constexpr std::uint32_t TAG_TEXT = fourCC('T', 'E', 'X', 'T');
-constexpr std::uint32_t TAG_NIDX = fourCC('N', 'I', 'D', 'X');
-constexpr std::uint32_t TAG_HIST = fourCC('H', 'I', 'S', 'T');
-constexpr std::uint32_t TAG_STYL = fourCC('S', 'T', 'Y', 'L');
-
-constexpr std::size_t rectSnapshotBytes = 12 + 14 * 4;
-constexpr std::size_t lineSnapshotBytes = 12 + 10 * 4;
-constexpr std::size_t polySnapshotBytes = 20 + 11 * 4;
-constexpr std::size_t circleSnapshotBytes = 12 + 17 * 4;
-constexpr std::size_t polygonSnapshotBytes = 12 + 17 * 4 + 4;
-constexpr std::size_t arrowSnapshotBytes = 12 + 11 * 4;
-constexpr std::size_t textSnapshotHeaderBytes = 64;
-constexpr std::size_t layerStyleSnapshotBytes = 4 * 4 + 4;
-constexpr std::size_t styleOverrideSnapshotBytes = 24;
-
 struct SectionView {
     const std::uint8_t* data{nullptr};
     std::uint32_t size{0};
 };
-
-std::uint32_t crc32(const std::uint8_t* bytes, std::size_t len) {
-    static std::uint32_t table[256];
-    static bool tableReady = false;
-    if (!tableReady) {
-        for (std::uint32_t i = 0; i < 256; ++i) {
-            std::uint32_t c = i;
-            for (int k = 0; k < 8; ++k) {
-                c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
-            }
-            table[i] = c;
-        }
-        tableReady = true;
-    }
-
-    std::uint32_t crc = 0xFFFFFFFFu;
-    for (std::size_t i = 0; i < len; ++i) {
-        crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >> 8);
-    }
-    return (crc ^ 0xFFFFFFFFu);
-}
-
-bool requireBytes(std::size_t offset, std::size_t size, std::size_t total) {
-    return offset + size <= total;
-}
-
 } // namespace
 namespace engine {
+using namespace snapshot::detail;
 
 EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, SnapshotData& out) {
     if (!src || byteCount < snapshotHeaderBytesEsnp) {
@@ -80,8 +28,15 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
 
     const std::uint32_t sectionCount = readU32(src, 8);
     const std::size_t headerBytes = snapshotHeaderBytesEsnp;
-    const std::size_t tableBytes = static_cast<std::size_t>(sectionCount) * snapshotSectionEntryBytes;
-    if (byteCount < headerBytes + tableBytes) {
+    std::size_t tableBytes = 0;
+    if (!tryMul(static_cast<std::size_t>(sectionCount), snapshotSectionEntryBytes, tableBytes)) {
+        return EngineError::InvalidPayloadSize;
+    }
+    std::size_t headerPlusTable = 0;
+    if (!tryAdd(headerBytes, tableBytes, headerPlusTable)) {
+        return EngineError::InvalidPayloadSize;
+    }
+    if (byteCount < headerPlusTable) {
         return EngineError::BufferTruncated;
     }
 
@@ -95,8 +50,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         const std::uint32_t size = readU32(src, base + 8);
         const std::uint32_t expectedCrc = readU32(src, base + 12);
 
-        const std::size_t end = static_cast<std::size_t>(offset) + size;
-        if (offset < headerBytes + tableBytes) return EngineError::InvalidPayloadSize;
+        std::size_t end = 0;
+        if (!tryAdd(static_cast<std::size_t>(offset), static_cast<std::size_t>(size), end)) {
+            return EngineError::InvalidPayloadSize;
+        }
+        if (offset < headerPlusTable) return EngineError::InvalidPayloadSize;
         if (end > byteCount) return EngineError::BufferTruncated;
 
         const std::uint8_t* payload = src + offset;
@@ -154,6 +112,9 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.y = readF32(ents->data, o); o += 4;
             rec.rec.w = readF32(ents->data, o); o += 4;
             rec.rec.h = readF32(ents->data, o); o += 4;
+            rec.rec.rot = readF32(ents->data, o); o += 4;
+            rec.rec.sx = readF32(ents->data, o); o += 4;
+            rec.rec.sy = readF32(ents->data, o); o += 4;
             rec.rec.r = readF32(ents->data, o); o += 4;
             rec.rec.g = readF32(ents->data, o); o += 4;
             rec.rec.b = readF32(ents->data, o); o += 4;
@@ -312,7 +273,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.order = readU32(layr->data, o); o += 4;
             rec.flags = readU32(layr->data, o); o += 4;
             const std::uint32_t nameLen = readU32(layr->data, o); o += 4;
-            if (!requireBytes(o, nameLen + layerStyleSnapshotBytes, layr->size)) return EngineError::BufferTruncated;
+            std::size_t namePlusStyle = 0;
+            if (!tryAdd(static_cast<std::size_t>(nameLen), layerStyleSnapshotBytes, namePlusStyle)) {
+                return EngineError::InvalidPayloadSize;
+            }
+            if (!requireBytes(o, namePlusStyle, layr->size)) return EngineError::BufferTruncated;
             rec.name.assign(reinterpret_cast<const char*>(layr->data + o), nameLen);
             o += nameLen;
             rec.style.strokeRGBA = readU32(layr->data, o); o += 4;
@@ -332,7 +297,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         std::size_t o = 0;
         if (!requireBytes(o, 4, ordr->size)) return EngineError::BufferTruncated;
         const std::uint32_t count = readU32(ordr->data, o); o += 4;
-        if (!requireBytes(o, static_cast<std::size_t>(count) * 4, ordr->size)) return EngineError::BufferTruncated;
+        std::size_t orderBytes = 0;
+        if (!tryMul(static_cast<std::size_t>(count), static_cast<std::size_t>(4), orderBytes)) {
+            return EngineError::InvalidPayloadSize;
+        }
+        if (!requireBytes(o, orderBytes, ordr->size)) return EngineError::BufferTruncated;
         out.drawOrder.clear();
         out.drawOrder.reserve(count);
         for (std::uint32_t i = 0; i < count; ++i) {
@@ -346,7 +315,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
         std::size_t o = 0;
         if (!requireBytes(o, 4, selc->size)) return EngineError::BufferTruncated;
         const std::uint32_t count = readU32(selc->data, o); o += 4;
-        if (!requireBytes(o, static_cast<std::size_t>(count) * 4, selc->size)) return EngineError::BufferTruncated;
+        std::size_t selectionBytes = 0;
+        if (!tryMul(static_cast<std::size_t>(count), static_cast<std::size_t>(4), selectionBytes)) {
+            return EngineError::InvalidPayloadSize;
+        }
+        if (!requireBytes(o, selectionBytes, selc->size)) return EngineError::BufferTruncated;
         out.selection.clear();
         out.selection.reserve(count);
         for (std::uint32_t i = 0; i < count; ++i) {
@@ -394,7 +367,11 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.maxX = readF32(text->data, o); o += 4;
             rec.maxY = readF32(text->data, o); o += 4;
 
-            if (!requireBytes(o, static_cast<std::size_t>(rec.header.runCount) * textRunRecordBytes, text->size)) {
+            std::size_t runBytes = 0;
+            if (!tryMul(static_cast<std::size_t>(rec.header.runCount), textRunRecordBytes, runBytes)) {
+                return EngineError::InvalidPayloadSize;
+            }
+            if (!requireBytes(o, runBytes, text->size)) {
                 return EngineError::BufferTruncated;
             }
             rec.runs.clear();
@@ -451,423 +428,5 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
     return EngineError::Ok;
 }
 
-std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
-    const std::uint32_t version = snapshotVersionEsnp;
-
-    struct SectionBytes {
-        std::uint32_t tag;
-        std::vector<std::uint8_t> bytes;
-    };
-
-    std::vector<SectionBytes> sections;
-    sections.reserve(8);
-
-    // ENTS
-    {
-        SectionBytes sec{TAG_ENTS, {}};
-        auto& out = sec.bytes;
-
-        std::vector<std::size_t> rectOrder(data.rects.size());
-        for (std::size_t i = 0; i < rectOrder.size(); ++i) rectOrder[i] = i;
-        std::sort(rectOrder.begin(), rectOrder.end(), [&](std::size_t a, std::size_t b) {
-            return data.rects[a].rec.id < data.rects[b].rec.id;
-        });
-
-        std::vector<std::size_t> lineOrder(data.lines.size());
-        for (std::size_t i = 0; i < lineOrder.size(); ++i) lineOrder[i] = i;
-        std::sort(lineOrder.begin(), lineOrder.end(), [&](std::size_t a, std::size_t b) {
-            return data.lines[a].rec.id < data.lines[b].rec.id;
-        });
-
-        std::vector<std::size_t> polyOrder(data.polylines.size());
-        for (std::size_t i = 0; i < polyOrder.size(); ++i) polyOrder[i] = i;
-        std::sort(polyOrder.begin(), polyOrder.end(), [&](std::size_t a, std::size_t b) {
-            return data.polylines[a].rec.id < data.polylines[b].rec.id;
-        });
-
-        std::vector<std::size_t> circleOrder(data.circles.size());
-        for (std::size_t i = 0; i < circleOrder.size(); ++i) circleOrder[i] = i;
-        std::sort(circleOrder.begin(), circleOrder.end(), [&](std::size_t a, std::size_t b) {
-            return data.circles[a].rec.id < data.circles[b].rec.id;
-        });
-
-        std::vector<std::size_t> polygonOrder(data.polygons.size());
-        for (std::size_t i = 0; i < polygonOrder.size(); ++i) polygonOrder[i] = i;
-        std::sort(polygonOrder.begin(), polygonOrder.end(), [&](std::size_t a, std::size_t b) {
-            return data.polygons[a].rec.id < data.polygons[b].rec.id;
-        });
-
-        std::vector<std::size_t> arrowOrder(data.arrows.size());
-        for (std::size_t i = 0; i < arrowOrder.size(); ++i) arrowOrder[i] = i;
-        std::sort(arrowOrder.begin(), arrowOrder.end(), [&](std::size_t a, std::size_t b) {
-            return data.arrows[a].rec.id < data.arrows[b].rec.id;
-        });
-
-        auto appendU32 = [&](std::uint32_t v) {
-            const std::size_t o = out.size();
-            out.resize(o + 4);
-            writeU32LE(out.data(), o, v);
-        };
-        auto appendF32 = [&](float v) {
-            const std::size_t o = out.size();
-            out.resize(o + 4);
-            writeF32LE(out.data(), o, v);
-        };
-
-        appendU32(static_cast<std::uint32_t>(rectOrder.size()));
-        appendU32(static_cast<std::uint32_t>(lineOrder.size()));
-        appendU32(static_cast<std::uint32_t>(polyOrder.size()));
-        appendU32(static_cast<std::uint32_t>(data.points.size()));
-        appendU32(static_cast<std::uint32_t>(circleOrder.size()));
-        appendU32(static_cast<std::uint32_t>(polygonOrder.size()));
-        appendU32(static_cast<std::uint32_t>(arrowOrder.size()));
-
-        for (std::size_t idx : rectOrder) {
-            const RectSnapshot& rec = data.rects[idx];
-            appendU32(rec.rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendF32(rec.rec.x);
-            appendF32(rec.rec.y);
-            appendF32(rec.rec.w);
-            appendF32(rec.rec.h);
-            appendF32(rec.rec.r);
-            appendF32(rec.rec.g);
-            appendF32(rec.rec.b);
-            appendF32(rec.rec.a);
-            appendF32(rec.rec.sr);
-            appendF32(rec.rec.sg);
-            appendF32(rec.rec.sb);
-            appendF32(rec.rec.sa);
-            appendF32(rec.rec.strokeEnabled);
-            appendF32(rec.rec.strokeWidthPx);
-        }
-
-        for (std::size_t idx : lineOrder) {
-            const LineSnapshot& rec = data.lines[idx];
-            appendU32(rec.rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendF32(rec.rec.x0);
-            appendF32(rec.rec.y0);
-            appendF32(rec.rec.x1);
-            appendF32(rec.rec.y1);
-            appendF32(rec.rec.r);
-            appendF32(rec.rec.g);
-            appendF32(rec.rec.b);
-            appendF32(rec.rec.a);
-            appendF32(rec.rec.enabled);
-            appendF32(rec.rec.strokeWidthPx);
-        }
-
-        for (std::size_t idx : polyOrder) {
-            const PolySnapshot& rec = data.polylines[idx];
-            appendU32(rec.rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendU32(rec.rec.offset);
-            appendU32(rec.rec.count);
-            appendF32(rec.rec.r);
-            appendF32(rec.rec.g);
-            appendF32(rec.rec.b);
-            appendF32(rec.rec.a);
-            appendF32(rec.rec.sr);
-            appendF32(rec.rec.sg);
-            appendF32(rec.rec.sb);
-            appendF32(rec.rec.sa);
-            appendF32(rec.rec.enabled);
-            appendF32(rec.rec.strokeEnabled);
-            appendF32(rec.rec.strokeWidthPx);
-        }
-
-        for (const auto& p : data.points) {
-            appendF32(p.x);
-            appendF32(p.y);
-        }
-
-        for (std::size_t idx : circleOrder) {
-            const CircleSnapshot& rec = data.circles[idx];
-            appendU32(rec.rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendF32(rec.rec.cx);
-            appendF32(rec.rec.cy);
-            appendF32(rec.rec.rx);
-            appendF32(rec.rec.ry);
-            appendF32(rec.rec.rot);
-            appendF32(rec.rec.sx);
-            appendF32(rec.rec.sy);
-            appendF32(rec.rec.r);
-            appendF32(rec.rec.g);
-            appendF32(rec.rec.b);
-            appendF32(rec.rec.a);
-            appendF32(rec.rec.sr);
-            appendF32(rec.rec.sg);
-            appendF32(rec.rec.sb);
-            appendF32(rec.rec.sa);
-            appendF32(rec.rec.strokeEnabled);
-            appendF32(rec.rec.strokeWidthPx);
-        }
-
-        for (std::size_t idx : polygonOrder) {
-            const PolygonSnapshot& rec = data.polygons[idx];
-            appendU32(rec.rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendF32(rec.rec.cx);
-            appendF32(rec.rec.cy);
-            appendF32(rec.rec.rx);
-            appendF32(rec.rec.ry);
-            appendF32(rec.rec.rot);
-            appendF32(rec.rec.sx);
-            appendF32(rec.rec.sy);
-            appendU32(rec.rec.sides);
-            appendF32(rec.rec.r);
-            appendF32(rec.rec.g);
-            appendF32(rec.rec.b);
-            appendF32(rec.rec.a);
-            appendF32(rec.rec.sr);
-            appendF32(rec.rec.sg);
-            appendF32(rec.rec.sb);
-            appendF32(rec.rec.sa);
-            appendF32(rec.rec.strokeEnabled);
-            appendF32(rec.rec.strokeWidthPx);
-        }
-
-        for (std::size_t idx : arrowOrder) {
-            const ArrowSnapshot& rec = data.arrows[idx];
-            appendU32(rec.rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendF32(rec.rec.ax);
-            appendF32(rec.rec.ay);
-            appendF32(rec.rec.bx);
-            appendF32(rec.rec.by);
-            appendF32(rec.rec.head);
-            appendF32(rec.rec.sr);
-            appendF32(rec.rec.sg);
-            appendF32(rec.rec.sb);
-            appendF32(rec.rec.sa);
-            appendF32(rec.rec.strokeEnabled);
-            appendF32(rec.rec.strokeWidthPx);
-        }
-
-        sections.push_back(std::move(sec));
-    }
-
-    // LAYR
-    {
-        SectionBytes sec{TAG_LAYR, {}};
-        auto& out = sec.bytes;
-
-        std::vector<std::size_t> order(data.layers.size());
-        for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
-        std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
-            return data.layers[a].order < data.layers[b].order;
-        });
-
-        auto appendU32 = [&](std::uint32_t v) {
-            const std::size_t o = out.size();
-            out.resize(o + 4);
-            writeU32LE(out.data(), o, v);
-        };
-
-        appendU32(static_cast<std::uint32_t>(order.size()));
-        for (std::size_t idx : order) {
-            const LayerSnapshot& rec = data.layers[idx];
-            appendU32(rec.id);
-            appendU32(rec.order);
-            appendU32(rec.flags);
-            appendU32(static_cast<std::uint32_t>(rec.name.size()));
-            const std::size_t nameOffset = out.size();
-            out.resize(nameOffset + rec.name.size());
-            if (!rec.name.empty()) {
-                std::memcpy(out.data() + nameOffset, rec.name.data(), rec.name.size());
-            }
-            appendU32(rec.style.strokeRGBA);
-            appendU32(rec.style.fillRGBA);
-            appendU32(rec.style.textColorRGBA);
-            appendU32(rec.style.textBackgroundRGBA);
-            out.push_back(rec.style.strokeEnabled);
-            out.push_back(rec.style.fillEnabled);
-            out.push_back(rec.style.textBackgroundEnabled);
-            out.push_back(rec.style.reserved);
-        }
-
-        sections.push_back(std::move(sec));
-    }
-
-    // ORDR
-    {
-        SectionBytes sec{TAG_ORDR, {}};
-        auto& out = sec.bytes;
-        const std::size_t total = 4 + data.drawOrder.size() * 4;
-        out.resize(total);
-        writeU32LE(out.data(), 0, static_cast<std::uint32_t>(data.drawOrder.size()));
-        std::size_t o = 4;
-        for (std::uint32_t id : data.drawOrder) {
-            writeU32LE(out.data(), o, id);
-            o += 4;
-        }
-        sections.push_back(std::move(sec));
-    }
-
-    // SELC
-    {
-        SectionBytes sec{TAG_SELC, {}};
-        auto& out = sec.bytes;
-        const std::size_t total = 4 + data.selection.size() * 4;
-        out.resize(total);
-        writeU32LE(out.data(), 0, static_cast<std::uint32_t>(data.selection.size()));
-        std::size_t o = 4;
-        for (std::uint32_t id : data.selection) {
-            writeU32LE(out.data(), o, id);
-            o += 4;
-        }
-        sections.push_back(std::move(sec));
-    }
-
-    // TEXT
-    {
-        SectionBytes sec{TAG_TEXT, {}};
-        auto& out = sec.bytes;
-
-        std::vector<std::size_t> order(data.texts.size());
-        for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
-        std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
-            return data.texts[a].id < data.texts[b].id;
-        });
-
-        auto appendU32 = [&](std::uint32_t v) {
-            const std::size_t o = out.size();
-            out.resize(o + 4);
-            writeU32LE(out.data(), o, v);
-        };
-        auto appendF32 = [&](float v) {
-            const std::size_t o = out.size();
-            out.resize(o + 4);
-            writeF32LE(out.data(), o, v);
-        };
-        auto appendByte = [&](std::uint8_t v) {
-            out.push_back(v);
-        };
-
-        appendU32(static_cast<std::uint32_t>(order.size()));
-        for (std::size_t idx : order) {
-            const TextSnapshot& rec = data.texts[idx];
-            const std::uint32_t runCount = static_cast<std::uint32_t>(rec.runs.size());
-            const std::uint32_t contentLength = static_cast<std::uint32_t>(rec.content.size());
-
-            appendU32(rec.id);
-            appendU32(rec.layerId);
-            appendU32(rec.flags);
-            appendF32(rec.header.x);
-            appendF32(rec.header.y);
-            appendF32(rec.header.rotation);
-            appendByte(rec.header.boxMode);
-            appendByte(rec.header.align);
-            appendByte(0);
-            appendByte(0);
-            appendF32(rec.header.constraintWidth);
-            appendU32(runCount);
-            appendU32(contentLength);
-            appendF32(rec.layoutWidth);
-            appendF32(rec.layoutHeight);
-            appendF32(rec.minX);
-            appendF32(rec.minY);
-            appendF32(rec.maxX);
-            appendF32(rec.maxY);
-
-            for (const auto& run : rec.runs) {
-                appendU32(run.startIndex);
-                appendU32(run.length);
-                appendU32(run.fontId);
-                appendF32(run.fontSize);
-                appendU32(run.colorRGBA);
-                appendByte(run.flags);
-                appendByte(0);
-                appendByte(0);
-                appendByte(0);
-            }
-
-            const std::size_t o = out.size();
-            out.resize(o + contentLength);
-            if (contentLength > 0) {
-                std::memcpy(out.data() + o, rec.content.data(), contentLength);
-            }
-        }
-
-        sections.push_back(std::move(sec));
-    }
-
-    // STYL
-    {
-        SectionBytes sec{TAG_STYL, {}};
-        auto& out = sec.bytes;
-
-        auto appendU32 = [&](std::uint32_t v) {
-            const std::size_t o = out.size();
-            out.resize(o + 4);
-            writeU32LE(out.data(), o, v);
-        };
-
-        appendU32(static_cast<std::uint32_t>(data.styleOverrides.size()));
-        for (const auto& rec : data.styleOverrides) {
-            appendU32(rec.id);
-            out.push_back(rec.colorMask);
-            out.push_back(rec.enabledMask);
-            out.push_back(static_cast<std::uint8_t>(rec.reserved & 0xFF));
-            out.push_back(static_cast<std::uint8_t>((rec.reserved >> 8) & 0xFF));
-            appendU32(rec.textColorRGBA);
-            appendU32(rec.textBackgroundRGBA);
-            appendU32(rec.fillEnabled);
-            appendU32(rec.textBackgroundEnabled);
-        }
-
-        sections.push_back(std::move(sec));
-    }
-
-    // NIDX
-    {
-        SectionBytes sec{TAG_NIDX, {}};
-        sec.bytes.resize(4);
-        writeU32LE(sec.bytes.data(), 0, data.nextId);
-        sections.push_back(std::move(sec));
-    }
-
-    // HIST (optional)
-    if (!data.historyBytes.empty()) {
-        SectionBytes sec{TAG_HIST, data.historyBytes};
-        sections.push_back(std::move(sec));
-    }
-
-    const std::size_t headerBytes = snapshotHeaderBytesEsnp;
-    const std::size_t tableBytes = sections.size() * snapshotSectionEntryBytes;
-    std::size_t payloadBytes = 0;
-    for (const auto& sec : sections) payloadBytes += sec.bytes.size();
-    const std::size_t totalBytes = headerBytes + tableBytes + payloadBytes;
-
-    std::vector<std::uint8_t> out;
-    out.resize(totalBytes);
-
-    writeU32LE(out.data(), 0, snapshotMagicEsnp);
-    writeU32LE(out.data(), 4, version);
-    writeU32LE(out.data(), 8, static_cast<std::uint32_t>(sections.size()));
-    writeU32LE(out.data(), 12, 0);
-
-    std::size_t tableOffset = headerBytes;
-    std::size_t dataOffset = headerBytes + tableBytes;
-    for (const auto& sec : sections) {
-        writeU32LE(out.data(), tableOffset + 0, sec.tag);
-        writeU32LE(out.data(), tableOffset + 4, static_cast<std::uint32_t>(dataOffset));
-        writeU32LE(out.data(), tableOffset + 8, static_cast<std::uint32_t>(sec.bytes.size()));
-        writeU32LE(out.data(), tableOffset + 12, crc32(sec.bytes.data(), sec.bytes.size()));
-        std::memcpy(out.data() + dataOffset, sec.bytes.data(), sec.bytes.size());
-        tableOffset += snapshotSectionEntryBytes;
-        dataOffset += sec.bytes.size();
-    }
-
-    return out;
-}
 
 } // namespace engine

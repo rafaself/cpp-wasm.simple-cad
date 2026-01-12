@@ -6,7 +6,25 @@
       "Bash(make ctest:*)",
       "Bash(npm run typecheck:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(grep:*)",
+      "Bash(cmake --build:*)",
+      "Bash(find:*)",
+      "Bash(pnpm run build:wasm:*)",
+      "Bash(pnpm test:*)",
+      "Bash(node -e:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx next build:*)",
+      "Bash(make wasm:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(git stash:*)",
+      "Bash(pnpm --dir frontend test -- --testPathPattern=\"colorRibbonControls\")",
+      "Bash(git checkout:*)",
+      "Bash(make:*)",
+      "Bash(./engine_tests:*)",
+      "Bash(echo:*)"
     ]
   }
 }

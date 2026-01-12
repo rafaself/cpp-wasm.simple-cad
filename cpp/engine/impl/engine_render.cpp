@@ -2,7 +2,7 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
-#include "engine/internal/engine_state_aliases.h"
+#include "engine/internal/engine_state.h"
 #include "engine/render/render.h"
 
 namespace {
@@ -30,7 +30,7 @@ namespace {
 }
 
 ResolvedStyle CadEngine::resolveStyleForRender(std::uint32_t id, EntityKind kind) const {
-    return entityManager_.resolveStyle(id, kind);
+    return state().entityManager_.resolveStyle(id, kind);
 }
 
 void CadEngine::pushVertex(float x, float y, float z, float r, float g, float b, std::vector<float>& target) const {
@@ -42,8 +42,7 @@ void CadEngine::pushVertex(float x, float y, float z, std::vector<float>& target
 }
 
 void CadEngine::addRect(float x, float y, float w, float h, float r, float g, float b) const {
-    // This overload is likely deprecated or unused for internal logic now, 
-    // but kept for API compatibility if needed. It assumes full opacity if called directly.
+    // This overload is unused by the main render path and assumes full opacity if called directly.
     // However, the main render loop uses engine::rebuildRenderBuffers -> addRectToBuffers 
     // which operates on RectRec (containing 'a').
     // Let's implement it assuming full opacity or just delegate to helper.
@@ -53,13 +52,13 @@ void CadEngine::addRect(float x, float y, float w, float h, float r, float g, fl
     const float y1 = y + h;
     constexpr float z = 0.0f;
 
-    pushVertex(x0, y0, z, r, g, b, triangleVertices);
-    pushVertex(x1, y0, z, r, g, b, triangleVertices);
-    pushVertex(x1, y1, z, r, g, b, triangleVertices);
+    pushVertex(x0, y0, z, r, g, b, state().triangleVertices);
+    pushVertex(x1, y0, z, r, g, b, state().triangleVertices);
+    pushVertex(x1, y1, z, r, g, b, state().triangleVertices);
 
-    pushVertex(x0, y0, z, r, g, b, triangleVertices);
-    pushVertex(x1, y1, z, r, g, b, triangleVertices);
-    pushVertex(x0, y1, z, r, g, b, triangleVertices);
+    pushVertex(x0, y0, z, r, g, b, state().triangleVertices);
+    pushVertex(x1, y1, z, r, g, b, state().triangleVertices);
+    pushVertex(x0, y1, z, r, g, b, state().triangleVertices);
 }
 
 void CadEngine::addRectOutline(float x, float y, float w, float h) const {
@@ -76,23 +75,23 @@ void CadEngine::addRectOutline(float x, float y, float w, float h) const {
 }
 
 void CadEngine::addGridToBuffers() const {
-    if (!interactionSession_.snapOptions.enabled || !interactionSession_.snapOptions.gridEnabled || interactionSession_.snapOptions.gridSize <= 0.001f) {
+    if (!state().interactionSession_.snapOptions.enabled || !state().interactionSession_.snapOptions.gridEnabled || state().interactionSession_.snapOptions.gridSize <= 0.001f) {
         return;
     }
     // Simple safeguard against invalid view
-    if (viewScale <= 1e-6f || viewWidth <= 0.0f || viewHeight <= 0.0f) return;
+    if (state().viewScale <= 1e-6f || state().viewWidth <= 0.0f || state().viewHeight <= 0.0f) return;
 
-    const float s = viewScale;
+    const float s = state().viewScale;
     // Visible world area
-    const float minX = -viewX / s;
-    const float minY = -viewY / s;
-    const float maxX = (viewWidth - viewX) / s;
-    const float maxY = (viewHeight - viewY) / s;
+    const float minX = -state().viewX / s;
+    const float minY = -state().viewY / s;
+    const float maxX = (state().viewWidth - state().viewX) / s;
+    const float maxY = (state().viewHeight - state().viewY) / s;
 
     // Expand slightly to cover fully
-    const float margin = interactionSession_.snapOptions.gridSize;
-    const float startX = std::floor((minX - margin) / interactionSession_.snapOptions.gridSize) * interactionSession_.snapOptions.gridSize;
-    const float startY = std::floor((minY - margin) / interactionSession_.snapOptions.gridSize) * interactionSession_.snapOptions.gridSize;
+    const float margin = state().interactionSession_.snapOptions.gridSize;
+    const float startX = std::floor((minX - margin) / state().interactionSession_.snapOptions.gridSize) * state().interactionSession_.snapOptions.gridSize;
+    const float startY = std::floor((minY - margin) / state().interactionSession_.snapOptions.gridSize) * state().interactionSession_.snapOptions.gridSize;
     const float endX = maxX + margin;
     const float endY = maxY + margin;
 
@@ -103,29 +102,29 @@ void CadEngine::addGridToBuffers() const {
     const float a = 0.3f; 
 
     auto pushV = [&](float x, float y) {
-        lineVertices.push_back(x);
-        lineVertices.push_back(y);
-        lineVertices.push_back(0.0f); // z
-        lineVertices.push_back(r);
-        lineVertices.push_back(g);
-        lineVertices.push_back(b);
-        lineVertices.push_back(a);
+        state().lineVertices.push_back(x);
+        state().lineVertices.push_back(y);
+        state().lineVertices.push_back(0.0f); // z
+        state().lineVertices.push_back(r);
+        state().lineVertices.push_back(g);
+        state().lineVertices.push_back(b);
+        state().lineVertices.push_back(a);
     };
 
     // Limit grid lines to avoid freezing on massive zoom out
     const float width = endX - startX;
     const float height = endY - startY;
-    const float estLines = (width + height) / interactionSession_.snapOptions.gridSize;
+    const float estLines = (width + height) / state().interactionSession_.snapOptions.gridSize;
     
     // Draw grid
     if (estLines < 5000) {
         // Vertical lines
-        for (float x = startX; x <= endX; x += interactionSession_.snapOptions.gridSize) {
+        for (float x = startX; x <= endX; x += state().interactionSession_.snapOptions.gridSize) {
             pushV(x, startY);
             pushV(x, endY);
         }
         // Horizontal lines
-        for (float y = startY; y <= endY; y += interactionSession_.snapOptions.gridSize) {
+        for (float y = startY; y <= endY; y += state().interactionSession_.snapOptions.gridSize) {
             pushV(startX, y);
             pushV(endX, y);
         }
@@ -138,77 +137,81 @@ void CadEngine::addLineSegment(float x0, float y0, float x1, float y1, float z) 
     constexpr float g = 1.0f;
     constexpr float b = 1.0f;
     constexpr float a = 1.0f;
-    lineVertices.push_back(x0);
-    lineVertices.push_back(y0);
-    lineVertices.push_back(z);
-    lineVertices.push_back(r);
-    lineVertices.push_back(g);
-    lineVertices.push_back(b);
-    lineVertices.push_back(a);
-    lineVertices.push_back(x1);
-    lineVertices.push_back(y1);
-    lineVertices.push_back(z);
-    lineVertices.push_back(r);
-    lineVertices.push_back(g);
-    lineVertices.push_back(b);
-    lineVertices.push_back(a);
+    state().lineVertices.push_back(x0);
+    state().lineVertices.push_back(y0);
+    state().lineVertices.push_back(z);
+    state().lineVertices.push_back(r);
+    state().lineVertices.push_back(g);
+    state().lineVertices.push_back(b);
+    state().lineVertices.push_back(a);
+    state().lineVertices.push_back(x1);
+    state().lineVertices.push_back(y1);
+    state().lineVertices.push_back(z);
+    state().lineVertices.push_back(r);
+    state().lineVertices.push_back(g);
+    state().lineVertices.push_back(b);
+    state().lineVertices.push_back(a);
 }
 
 void CadEngine::rebuildRenderBuffers() const {
     const double t0 = emscripten_get_now();
-    rebuildAllGeometryCount_++;
+    state().rebuildAllGeometryCount_++;
     
     engine::rebuildRenderBuffers(
-        entityManager_.rects,
-        entityManager_.lines,
-        entityManager_.polylines,
-        entityManager_.points,
-        entityManager_.circles,
-        entityManager_.polygons,
-        entityManager_.arrows,
-        entityManager_.entities,
-        entityManager_.drawOrderIds,
-        viewScale,
-        triangleVertices,
-        lineVertices,
+        state().entityManager_.rects,
+        state().entityManager_.lines,
+        state().entityManager_.polylines,
+        state().entityManager_.points,
+        state().entityManager_.circles,
+        state().entityManager_.polygons,
+        state().entityManager_.arrows,
+        state().entityManager_.entities,
+        state().entityManager_.drawOrderIds,
+        state().viewScale,
+        state().triangleVertices,
+        state().lineVertices,
         const_cast<CadEngine*>(this),
         &isEntityVisibleForRenderThunk,
         &resolveStyleForRenderThunk,
-        &renderRanges_
+        &state().renderRanges_
     );
 
-    interactionSession_.appendDraftLineVertices(lineVertices);
+    state().interactionSession_.appendDraftLineVertices(state().lineVertices);
     
     // Grid rendering is handled by the WebGL GridPass (frontend).
     // Draft preview lines are appended from the interaction session after geometry rebuild.
-    renderDirty = false;
-    pendingFullRebuild_ = false;
+    state().renderDirty = false;
+    state().pendingFullRebuild_ = false;
     
     const double t1 = emscripten_get_now();
-    lastRebuildMs = static_cast<float>(t1 - t0);
+    state().lastRebuildMs = static_cast<float>(t1 - t0);
 }
 
 bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
-    if (renderDirty) return false;
-    const auto rangeIt = renderRanges_.find(id);
-    if (rangeIt == renderRanges_.end()) return false;
-    const auto entIt = entityManager_.entities.find(id);
-    if (entIt == entityManager_.entities.end()) return false;
+    if (state().renderDirty) return false;
+    const auto rangeIt = state().renderRanges_.find(id);
+    if (rangeIt == state().renderRanges_.end()) return false;
+    const auto entIt = state().entityManager_.entities.find(id);
+    if (entIt == state().entityManager_.entities.end()) return false;
 
-    std::vector<float> temp;
+    auto& temp = state().renderScratchVertices_;
+    temp.clear();
     temp.reserve(rangeIt->second.count);
+    auto& scratchVerts = state().renderScratchPoints_;
+    scratchVerts.clear();
     const bool appended = engine::buildEntityRenderData(
         id,
         entIt->second,
-        entityManager_.rects,
-        entityManager_.lines,
-        entityManager_.polylines,
-        entityManager_.points,
-        entityManager_.circles,
-        entityManager_.polygons,
-        entityManager_.arrows,
-        viewScale,
+        state().entityManager_.rects,
+        state().entityManager_.lines,
+        state().entityManager_.polylines,
+        state().entityManager_.points,
+        state().entityManager_.circles,
+        state().entityManager_.polygons,
+        state().entityManager_.arrows,
+        state().viewScale,
         temp,
+        scratchVerts,
         const_cast<CadEngine*>(this),
         &isEntityVisibleForRenderThunk,
         &resolveStyleForRenderThunk
@@ -216,17 +219,15 @@ bool CadEngine::refreshEntityRenderRange(std::uint32_t id) const {
 
     if (!appended) return false;
     if (temp.size() != rangeIt->second.count) {
-        pendingFullRebuild_ = true;
+        state().pendingFullRebuild_ = true;
         return false;
     }
     const std::size_t start = rangeIt->second.offset;
-    if (start + temp.size() > triangleVertices.size()) {
-        pendingFullRebuild_ = true;
+    if (start + temp.size() > state().triangleVertices.size()) {
+        state().pendingFullRebuild_ = true;
         return false;
     }
 
-    std::copy(temp.begin(), temp.end(), triangleVertices.begin() + static_cast<std::ptrdiff_t>(start));
+    std::copy(temp.begin(), temp.end(), state().triangleVertices.begin() + static_cast<std::ptrdiff_t>(start));
     return true;
 }
-
-#include "engine/internal/engine_state_aliases_undef.h"

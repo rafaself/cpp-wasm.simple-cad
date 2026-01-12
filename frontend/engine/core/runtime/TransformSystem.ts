@@ -1,5 +1,6 @@
-import { EntityId, OverlayBufferMeta } from '../protocol';
+import { EntityId, EntityTransform, OverlayBufferMeta } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
+import type { TransformState } from '../interactionSession';
 
 export class TransformSystem {
   constructor(
@@ -80,6 +81,13 @@ export class TransformSystem {
 
   public isInteractionActive(): boolean {
     return !!this.engine.isInteractionActive?.();
+  }
+
+  public getTransformState(): TransformState {
+    if (!this.engine.getTransformState) {
+      return { active: false, mode: 0, rotationDeltaDeg: 0, pivotX: 0, pivotY: 0 };
+    }
+    return this.engine.getTransformState();
   }
 
   public setTransformLogEnabled(enabled: boolean, maxEntries = 2048, maxIds = 4096): void {
@@ -177,5 +185,84 @@ export class TransformSystem {
       throw new Error('[EngineRuntime] getSnapOverlayMeta() missing in WASM build.');
     }
     return this.engine.getSnapOverlayMeta();
+  }
+
+  // ========================================================================
+  // Entity Transform Query/Mutation (for inspector panel)
+  // ========================================================================
+
+  /**
+   * Get unified transform data for an entity.
+   * Returns position (center of AABB), local size, and rotation.
+   * @param entityId Entity ID to query
+   * @returns EntityTransform with valid=0 if entity doesn't exist
+   */
+  public getEntityTransform(entityId: EntityId): EntityTransform {
+    if (!this.engine.getEntityTransform) {
+      return { posX: 0, posY: 0, width: 0, height: 0, rotationDeg: 0, hasRotation: 0, valid: 0 };
+    }
+    return this.engine.getEntityTransform(entityId);
+  }
+
+  /**
+   * Set entity position by specifying the new center of its AABB.
+   * Creates a history entry for undo/redo.
+   * @param entityId Entity ID to move
+   * @param x New X coordinate (center of AABB)
+   * @param y New Y coordinate (center of AABB)
+   */
+  public setEntityPosition(entityId: EntityId, x: number, y: number): void {
+    this.engine.setEntityPosition?.(entityId, x, y);
+  }
+
+  /**
+   * Set entity size (local dimensions, unrotated).
+   * Creates a history entry for undo/redo.
+   * Supported for: Rect, Circle, Polygon
+   * @param entityId Entity ID to resize
+   * @param width New width (minimum 1)
+   * @param height New height (minimum 1)
+   */
+  public setEntitySize(entityId: EntityId, width: number, height: number): void {
+    this.engine.setEntitySize?.(entityId, width, height);
+  }
+
+  /**
+   * Set entity rotation in degrees.
+   * Creates a history entry for undo/redo.
+   * Supported for: Circle, Polygon, Text
+   * No-op for entities that don't support rotation.
+   * @param entityId Entity ID to rotate
+   * @param rotationDeg Rotation in degrees (counterclockwise positive, normalized to -180..180)
+   */
+  public setEntityRotation(entityId: EntityId, rotationDeg: number): void {
+    this.engine.setEntityRotation?.(entityId, rotationDeg);
+  }
+
+  /**
+   * Set entity length (for Line and Arrow).
+   * Creates a history entry for undo/redo.
+   * The length is modified while maintaining the current angle.
+   * Supported for: Line, Arrow
+   * No-op for entities that don't support length.
+   * @param entityId Entity ID to resize
+   * @param length New length (minimum 1)
+   */
+  public setEntityLength(entityId: EntityId, length: number): void {
+    this.engine.setEntityLength?.(entityId, length);
+  }
+
+  /**
+   * Set entity scale (for flip transformations).
+   * Creates a history entry for undo/redo.
+   * Scale values: 1 = normal, -1 = flipped
+   * Supported for: Rect, Circle, Polygon
+   * No-op for entities that don't support scale.
+   * @param entityId Entity ID to scale
+   * @param scaleX Horizontal scale (-1 or 1)
+   * @param scaleY Vertical scale (-1 or 1)
+   */
+  public setEntityScale(entityId: EntityId, scaleX: number, scaleY: number): void {
+    this.engine.setEntityScale?.(entityId, scaleX, scaleY);
   }
 }

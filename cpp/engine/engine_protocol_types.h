@@ -13,62 +13,25 @@
 #include <initializer_list>
 
 /**
- * Container for protocol-facing aliases and constants.
- * CadEngine publicly inherits from this to expose nested type names
- * without mixing protocol details with the main engine interface.
+ * Protocol constants and ABI hash helper.
+ * Keep this separate from CadEngine to avoid mixing protocol and core concerns.
  */
-struct EngineProtocolTypes {
-    // Expose legacy nested type names for backwards compatibility with existing callers/tests
-    using CommandOp = ::CommandOp;
-
-    // Protocol types (aliased from engine::protocol namespace for backwards compatibility)
-    using EngineCapability = engine::protocol::EngineCapability;
-    using EngineFeatureFlags = engine::protocol::EngineFeatureFlags;
-    using LayerPropMask = engine::protocol::LayerPropMask;
-    using SelectionMode = engine::protocol::SelectionMode;
-    using SelectionModifier = engine::protocol::SelectionModifier;
-    using MarqueeMode = engine::protocol::MarqueeMode;
-    using ReorderAction = engine::protocol::ReorderAction;
-    using EventType = engine::protocol::EventType;
-    using ChangeMask = engine::protocol::ChangeMask;
-    using OverlayKind = engine::protocol::OverlayKind;
-    using StyleTarget = engine::protocol::StyleTarget;
-    using StyleState = engine::protocol::StyleState;
-    using TriState = engine::protocol::TriState;
-    using ProtocolInfo = engine::protocol::ProtocolInfo;
-    using BufferMeta = engine::protocol::BufferMeta;
-    using ByteBufferMeta = engine::protocol::ByteBufferMeta;
-    using TextureBufferMeta = engine::protocol::TextureBufferMeta;
-    using DocumentDigest = engine::protocol::DocumentDigest;
-    using HistoryMeta = engine::protocol::HistoryMeta;
-    using StyleTargetSummary = engine::protocol::StyleTargetSummary;
-    using SelectionStyleSummary = engine::protocol::SelectionStyleSummary;
-    using LayerStyleSnapshot = engine::protocol::LayerStyleSnapshot;
-    using EngineEvent = engine::protocol::EngineEvent;
-    using EventBufferMeta = engine::protocol::EventBufferMeta;
-    using OverlayPrimitive = engine::protocol::OverlayPrimitive;
-    using OverlayBufferMeta = engine::protocol::OverlayBufferMeta;
-    using EntityAabb = engine::protocol::EntityAabb;
-    using EngineStats = engine::protocol::EngineStats;
-    using TransformLogEvent = engine::protocol::TransformLogEvent;
-    using TransformLogEntry = engine::protocol::TransformLogEntry;
-    using TextContentMeta = engine::protocol::TextContentMeta;
-
+struct EngineProtocolInfo {
     // Protocol versions (must be non-zero; keep in sync with TS).
     static constexpr std::uint32_t kProtocolVersion = 4;      // Handshake schema version
     static constexpr std::uint32_t kCommandVersion = 3;       // Command buffer version (EWDC v3)
     static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
     static constexpr std::uint32_t kFeatureFlags =
-        static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY)
-        | static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT);
+        static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_PROTOCOL)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_LAYERS_FLAGS)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_SELECTION_ORDER)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_EVENT_STREAM)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_OVERLAY_QUERIES)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_ENGINE_HISTORY)
+        | static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT);
     static constexpr std::uint32_t kAbiHashOffset = 2166136261u;
     static constexpr std::uint32_t kAbiHashPrime = 16777619u;
 
@@ -185,9 +148,9 @@ protected:
         });
 
         h = hashEnum(h, 0xE0000006u, {
-            static_cast<std::uint32_t>(EngineCapability::HAS_QUERY_MARQUEE),
-            static_cast<std::uint32_t>(EngineCapability::HAS_RESIZE_HANDLES),
-            static_cast<std::uint32_t>(EngineCapability::HAS_TRANSFORM_RESIZE),
+            static_cast<std::uint32_t>(engine::protocol::EngineCapability::HAS_QUERY_MARQUEE),
+            static_cast<std::uint32_t>(engine::protocol::EngineCapability::HAS_RESIZE_HANDLES),
+            static_cast<std::uint32_t>(engine::protocol::EngineCapability::HAS_TRANSFORM_RESIZE),
         });
 
         h = hashEnum(h, 0xE0000007u, {
@@ -210,15 +173,15 @@ protected:
         });
 
         h = hashEnum(h, 0xE000000Au, {
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_PROTOCOL),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_LAYERS_FLAGS),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SELECTION_ORDER),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_EVENT_STREAM),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_OVERLAY_QUERIES),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_HISTORY),
-            static_cast<std::uint32_t>(EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_PROTOCOL),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_LAYERS_FLAGS),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_SELECTION_ORDER),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_SNAPSHOT_VNEXT),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_EVENT_STREAM),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_OVERLAY_QUERIES),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_INTERACTIVE_TRANSFORM),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_ENGINE_HISTORY),
+            static_cast<std::uint32_t>(engine::protocol::EngineFeatureFlags::FEATURE_ENGINE_DOCUMENT_SOT),
         });
 
         h = hashEnum(h, 0xE000000Bu, {
@@ -232,133 +195,133 @@ protected:
         });
 
         h = hashEnum(h, 0xE000000Du, {
-            static_cast<std::uint32_t>(LayerPropMask::Name),
-            static_cast<std::uint32_t>(LayerPropMask::Visible),
-            static_cast<std::uint32_t>(LayerPropMask::Locked),
+            static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Name),
+            static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible),
+            static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Locked),
         });
 
         h = hashEnum(h, 0xE0000010u, {
-            static_cast<std::uint32_t>(StyleTarget::Stroke),
-            static_cast<std::uint32_t>(StyleTarget::Fill),
-            static_cast<std::uint32_t>(StyleTarget::TextColor),
-            static_cast<std::uint32_t>(StyleTarget::TextBackground),
+            static_cast<std::uint32_t>(engine::protocol::StyleTarget::Stroke),
+            static_cast<std::uint32_t>(engine::protocol::StyleTarget::Fill),
+            static_cast<std::uint32_t>(engine::protocol::StyleTarget::TextColor),
+            static_cast<std::uint32_t>(engine::protocol::StyleTarget::TextBackground),
         });
 
         h = hashEnum(h, 0xE0000011u, {
-            static_cast<std::uint32_t>(StyleState::None),
-            static_cast<std::uint32_t>(StyleState::Layer),
-            static_cast<std::uint32_t>(StyleState::Override),
-            static_cast<std::uint32_t>(StyleState::Mixed),
+            static_cast<std::uint32_t>(engine::protocol::StyleState::None),
+            static_cast<std::uint32_t>(engine::protocol::StyleState::Layer),
+            static_cast<std::uint32_t>(engine::protocol::StyleState::Override),
+            static_cast<std::uint32_t>(engine::protocol::StyleState::Mixed),
         });
 
         h = hashEnum(h, 0xE0000012u, {
-            static_cast<std::uint32_t>(TriState::Off),
-            static_cast<std::uint32_t>(TriState::On),
-            static_cast<std::uint32_t>(TriState::Mixed),
+            static_cast<std::uint32_t>(engine::protocol::TriState::Off),
+            static_cast<std::uint32_t>(engine::protocol::TriState::On),
+            static_cast<std::uint32_t>(engine::protocol::TriState::Mixed),
         });
 
         h = hashEnum(h, 0xE000000Eu, {
-            static_cast<std::uint32_t>(SelectionMode::Replace),
-            static_cast<std::uint32_t>(SelectionMode::Add),
-            static_cast<std::uint32_t>(SelectionMode::Remove),
-            static_cast<std::uint32_t>(SelectionMode::Toggle),
+            static_cast<std::uint32_t>(engine::protocol::SelectionMode::Replace),
+            static_cast<std::uint32_t>(engine::protocol::SelectionMode::Add),
+            static_cast<std::uint32_t>(engine::protocol::SelectionMode::Remove),
+            static_cast<std::uint32_t>(engine::protocol::SelectionMode::Toggle),
         });
 
         h = hashEnum(h, 0xE000000Fu, {
-            static_cast<std::uint32_t>(SelectionModifier::Shift),
-            static_cast<std::uint32_t>(SelectionModifier::Ctrl),
-            static_cast<std::uint32_t>(SelectionModifier::Alt),
-            static_cast<std::uint32_t>(SelectionModifier::Meta),
+            static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift),
+            static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Ctrl),
+            static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Alt),
+            static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Meta),
         });
 
         h = hashEnum(h, 0xE0000010u, {
-            static_cast<std::uint32_t>(MarqueeMode::Window),
-            static_cast<std::uint32_t>(MarqueeMode::Crossing),
+            static_cast<std::uint32_t>(engine::protocol::MarqueeMode::Window),
+            static_cast<std::uint32_t>(engine::protocol::MarqueeMode::Crossing),
         });
 
         h = hashEnum(h, 0xE0000011u, {
-            static_cast<std::uint32_t>(ReorderAction::BringToFront),
-            static_cast<std::uint32_t>(ReorderAction::SendToBack),
-            static_cast<std::uint32_t>(ReorderAction::BringForward),
-            static_cast<std::uint32_t>(ReorderAction::SendBackward),
+            static_cast<std::uint32_t>(engine::protocol::ReorderAction::BringToFront),
+            static_cast<std::uint32_t>(engine::protocol::ReorderAction::SendToBack),
+            static_cast<std::uint32_t>(engine::protocol::ReorderAction::BringForward),
+            static_cast<std::uint32_t>(engine::protocol::ReorderAction::SendBackward),
         });
 
         h = hashEnum(h, 0xE0000012u, {
-            static_cast<std::uint32_t>(EventType::Overflow),
-            static_cast<std::uint32_t>(EventType::DocChanged),
-            static_cast<std::uint32_t>(EventType::EntityChanged),
-            static_cast<std::uint32_t>(EventType::EntityCreated),
-            static_cast<std::uint32_t>(EventType::EntityDeleted),
-            static_cast<std::uint32_t>(EventType::LayerChanged),
-            static_cast<std::uint32_t>(EventType::SelectionChanged),
-            static_cast<std::uint32_t>(EventType::OrderChanged),
-            static_cast<std::uint32_t>(EventType::HistoryChanged),
+            static_cast<std::uint32_t>(engine::protocol::EventType::Overflow),
+            static_cast<std::uint32_t>(engine::protocol::EventType::DocChanged),
+            static_cast<std::uint32_t>(engine::protocol::EventType::EntityChanged),
+            static_cast<std::uint32_t>(engine::protocol::EventType::EntityCreated),
+            static_cast<std::uint32_t>(engine::protocol::EventType::EntityDeleted),
+            static_cast<std::uint32_t>(engine::protocol::EventType::LayerChanged),
+            static_cast<std::uint32_t>(engine::protocol::EventType::SelectionChanged),
+            static_cast<std::uint32_t>(engine::protocol::EventType::OrderChanged),
+            static_cast<std::uint32_t>(engine::protocol::EventType::HistoryChanged),
         });
 
         h = hashEnum(h, 0xE0000013u, {
-            static_cast<std::uint32_t>(ChangeMask::Geometry),
-            static_cast<std::uint32_t>(ChangeMask::Style),
-            static_cast<std::uint32_t>(ChangeMask::Flags),
-            static_cast<std::uint32_t>(ChangeMask::Layer),
-            static_cast<std::uint32_t>(ChangeMask::Order),
-            static_cast<std::uint32_t>(ChangeMask::Text),
-            static_cast<std::uint32_t>(ChangeMask::Bounds),
-            static_cast<std::uint32_t>(ChangeMask::RenderData),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Flags),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Layer),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Order),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Text),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds),
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::RenderData),
         });
 
         h = hashEnum(h, 0xE0000014u, {
-            static_cast<std::uint32_t>(OverlayKind::Polyline),
-            static_cast<std::uint32_t>(OverlayKind::Polygon),
-            static_cast<std::uint32_t>(OverlayKind::Segment),
-            static_cast<std::uint32_t>(OverlayKind::Rect),
-            static_cast<std::uint32_t>(OverlayKind::Point),
+            static_cast<std::uint32_t>(engine::protocol::OverlayKind::Polyline),
+            static_cast<std::uint32_t>(engine::protocol::OverlayKind::Polygon),
+            static_cast<std::uint32_t>(engine::protocol::OverlayKind::Segment),
+            static_cast<std::uint32_t>(engine::protocol::OverlayKind::Rect),
+            static_cast<std::uint32_t>(engine::protocol::OverlayKind::Point),
         });
 
         h = hashEnum(h, 0xE0000015u, {
-            static_cast<std::uint32_t>(TransformLogEvent::Begin),
-            static_cast<std::uint32_t>(TransformLogEvent::Update),
-            static_cast<std::uint32_t>(TransformLogEvent::Commit),
-            static_cast<std::uint32_t>(TransformLogEvent::Cancel),
+            static_cast<std::uint32_t>(engine::protocol::TransformLogEvent::Begin),
+            static_cast<std::uint32_t>(engine::protocol::TransformLogEvent::Update),
+            static_cast<std::uint32_t>(engine::protocol::TransformLogEvent::Commit),
+            static_cast<std::uint32_t>(engine::protocol::TransformLogEvent::Cancel),
         });
 
-        h = hashStruct(h, 0x53000001u, sizeof(ProtocolInfo), {
-            static_cast<std::uint32_t>(offsetof(ProtocolInfo, protocolVersion)),
-            static_cast<std::uint32_t>(offsetof(ProtocolInfo, commandVersion)),
-            static_cast<std::uint32_t>(offsetof(ProtocolInfo, snapshotVersion)),
-            static_cast<std::uint32_t>(offsetof(ProtocolInfo, eventStreamVersion)),
-            static_cast<std::uint32_t>(offsetof(ProtocolInfo, abiHash)),
-            static_cast<std::uint32_t>(offsetof(ProtocolInfo, featureFlags)),
+        h = hashStruct(h, 0x53000001u, sizeof(engine::protocol::ProtocolInfo), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ProtocolInfo, protocolVersion)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ProtocolInfo, commandVersion)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ProtocolInfo, snapshotVersion)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ProtocolInfo, eventStreamVersion)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ProtocolInfo, abiHash)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ProtocolInfo, featureFlags)),
         });
 
-        h = hashStruct(h, 0x53000002u, sizeof(BufferMeta), {
-            static_cast<std::uint32_t>(offsetof(BufferMeta, generation)),
-            static_cast<std::uint32_t>(offsetof(BufferMeta, vertexCount)),
-            static_cast<std::uint32_t>(offsetof(BufferMeta, capacity)),
-            static_cast<std::uint32_t>(offsetof(BufferMeta, floatCount)),
-            static_cast<std::uint32_t>(offsetof(BufferMeta, ptr)),
+        h = hashStruct(h, 0x53000002u, sizeof(engine::protocol::BufferMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::BufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::BufferMeta, vertexCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::BufferMeta, capacity)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::BufferMeta, floatCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::BufferMeta, ptr)),
         });
 
-        h = hashStruct(h, 0x53000003u, sizeof(ByteBufferMeta), {
-            static_cast<std::uint32_t>(offsetof(ByteBufferMeta, generation)),
-            static_cast<std::uint32_t>(offsetof(ByteBufferMeta, byteCount)),
-            static_cast<std::uint32_t>(offsetof(ByteBufferMeta, ptr)),
+        h = hashStruct(h, 0x53000003u, sizeof(engine::protocol::ByteBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ByteBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ByteBufferMeta, byteCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::ByteBufferMeta, ptr)),
         });
 
-        h = hashStruct(h, 0x53000004u, sizeof(EngineStats), {
-            static_cast<std::uint32_t>(offsetof(EngineStats, generation)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, rectCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lineCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, polylineCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, pointCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, triangleVertexCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lineVertexCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, rebuildAllGeometryCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lastLoadMs)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lastRebuildMs)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lastApplyMs)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lastTransformUpdateMs)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lastSnapCandidateCount)),
-            static_cast<std::uint32_t>(offsetof(EngineStats, lastSnapHitCount)),
+        h = hashStruct(h, 0x53000004u, sizeof(engine::protocol::EngineStats), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, generation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, rectCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lineCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, polylineCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, pointCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, triangleVertexCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lineVertexCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, rebuildAllGeometryCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lastLoadMs)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lastRebuildMs)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lastApplyMs)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lastTransformUpdateMs)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lastSnapCandidateCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineStats, lastSnapHitCount)),
         });
 
         h = hashStruct(h, 0x53000005u, sizeof(PickResult), {
@@ -384,18 +347,18 @@ protected:
             static_cast<std::uint32_t>(offsetof(TextCaretPosition, lineIndex)),
         });
 
-        h = hashStruct(h, 0x53000008u, sizeof(TextureBufferMeta), {
-            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, generation)),
-            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, width)),
-            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, height)),
-            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, byteCount)),
-            static_cast<std::uint32_t>(offsetof(TextureBufferMeta, ptr)),
+        h = hashStruct(h, 0x53000008u, sizeof(engine::protocol::TextureBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextureBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextureBufferMeta, width)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextureBufferMeta, height)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextureBufferMeta, byteCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextureBufferMeta, ptr)),
         });
 
-        h = hashStruct(h, 0x53000009u, sizeof(TextContentMeta), {
-            static_cast<std::uint32_t>(offsetof(TextContentMeta, byteCount)),
-            static_cast<std::uint32_t>(offsetof(TextContentMeta, ptr)),
-            static_cast<std::uint32_t>(offsetof(TextContentMeta, exists)),
+        h = hashStruct(h, 0x53000009u, sizeof(engine::protocol::TextContentMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextContentMeta, byteCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextContentMeta, ptr)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TextContentMeta, exists)),
         });
 
         h = hashStruct(h, 0x5300000Au, sizeof(engine::text::TextStyleSnapshot), {
@@ -597,106 +560,116 @@ protected:
             static_cast<std::uint32_t>(offsetof(LayerRecord, flags)),
         });
 
-        h = hashStruct(h, 0x5300001Eu, sizeof(StyleTargetSummary), {
-            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, state)),
-            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, enabledState)),
-            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, supportedState)),
-            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, reserved)),
-            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, colorRGBA)),
-            static_cast<std::uint32_t>(offsetof(StyleTargetSummary, layerId)),
+        h = hashStruct(h, 0x5300001Eu, sizeof(engine::protocol::StyleTargetSummary), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::StyleTargetSummary, state)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::StyleTargetSummary, enabledState)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::StyleTargetSummary, supportedState)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::StyleTargetSummary, reserved)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::StyleTargetSummary, colorRGBA)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::StyleTargetSummary, layerId)),
         });
 
-        h = hashStruct(h, 0x5300001Fu, sizeof(SelectionStyleSummary), {
-            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, selectionCount)),
-            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, stroke)),
-            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, fill)),
-            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, textColor)),
-            static_cast<std::uint32_t>(offsetof(SelectionStyleSummary, textBackground)),
+        h = hashStruct(h, 0x5300001Fu, sizeof(engine::protocol::SelectionStyleSummary), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::SelectionStyleSummary, selectionCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::SelectionStyleSummary, stroke)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::SelectionStyleSummary, fill)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::SelectionStyleSummary, textColor)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::SelectionStyleSummary, textBackground)),
         });
 
-        h = hashStruct(h, 0x53000020u, sizeof(LayerStyleSnapshot), {
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, strokeRGBA)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, fillRGBA)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, textColorRGBA)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, textBackgroundRGBA)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, strokeEnabled)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, fillEnabled)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, textBackgroundEnabled)),
-            static_cast<std::uint32_t>(offsetof(LayerStyleSnapshot, reserved)),
+        h = hashStruct(h, 0x53000020u, sizeof(engine::protocol::LayerStyleSnapshot), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, strokeRGBA)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, fillRGBA)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, textColorRGBA)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, textBackgroundRGBA)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, strokeEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, fillEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, textBackgroundEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::LayerStyleSnapshot, reserved)),
         });
 
-        h = hashStruct(h, 0x5300001Eu, sizeof(DocumentDigest), {
-            static_cast<std::uint32_t>(offsetof(DocumentDigest, lo)),
-            static_cast<std::uint32_t>(offsetof(DocumentDigest, hi)),
+        h = hashStruct(h, 0x5300001Eu, sizeof(engine::protocol::DocumentDigest), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::DocumentDigest, lo)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::DocumentDigest, hi)),
         });
 
-        h = hashStruct(h, 0x5300001Fu, sizeof(EngineEvent), {
-            static_cast<std::uint32_t>(offsetof(EngineEvent, type)),
-            static_cast<std::uint32_t>(offsetof(EngineEvent, flags)),
-            static_cast<std::uint32_t>(offsetof(EngineEvent, a)),
-            static_cast<std::uint32_t>(offsetof(EngineEvent, b)),
-            static_cast<std::uint32_t>(offsetof(EngineEvent, c)),
-            static_cast<std::uint32_t>(offsetof(EngineEvent, d)),
+        h = hashStruct(h, 0x5300001Fu, sizeof(engine::protocol::EngineEvent), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineEvent, type)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineEvent, flags)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineEvent, a)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineEvent, b)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineEvent, c)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EngineEvent, d)),
         });
 
-        h = hashStruct(h, 0x53000020u, sizeof(EventBufferMeta), {
-            static_cast<std::uint32_t>(offsetof(EventBufferMeta, generation)),
-            static_cast<std::uint32_t>(offsetof(EventBufferMeta, count)),
-            static_cast<std::uint32_t>(offsetof(EventBufferMeta, ptr)),
+        h = hashStruct(h, 0x53000020u, sizeof(engine::protocol::EventBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EventBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EventBufferMeta, count)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EventBufferMeta, ptr)),
         });
 
-        h = hashStruct(h, 0x53000021u, sizeof(OverlayPrimitive), {
-            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, kind)),
-            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, flags)),
-            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, count)),
-            static_cast<std::uint32_t>(offsetof(OverlayPrimitive, offset)),
+        h = hashStruct(h, 0x53000021u, sizeof(engine::protocol::OverlayPrimitive), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayPrimitive, kind)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayPrimitive, flags)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayPrimitive, count)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayPrimitive, offset)),
         });
 
-        h = hashStruct(h, 0x53000022u, sizeof(OverlayBufferMeta), {
-            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, generation)),
-            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, primitiveCount)),
-            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, floatCount)),
-            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, primitivesPtr)),
-            static_cast<std::uint32_t>(offsetof(OverlayBufferMeta, dataPtr)),
+        h = hashStruct(h, 0x53000022u, sizeof(engine::protocol::OverlayBufferMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayBufferMeta, generation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayBufferMeta, primitiveCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayBufferMeta, floatCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayBufferMeta, primitivesPtr)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::OverlayBufferMeta, dataPtr)),
         });
 
-        h = hashStruct(h, 0x53000023u, sizeof(EntityAabb), {
-            static_cast<std::uint32_t>(offsetof(EntityAabb, minX)),
-            static_cast<std::uint32_t>(offsetof(EntityAabb, minY)),
-            static_cast<std::uint32_t>(offsetof(EntityAabb, maxX)),
-            static_cast<std::uint32_t>(offsetof(EntityAabb, maxY)),
-            static_cast<std::uint32_t>(offsetof(EntityAabb, valid)),
+        h = hashStruct(h, 0x53000023u, sizeof(engine::protocol::EntityAabb), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityAabb, minX)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityAabb, minY)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityAabb, maxX)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityAabb, maxY)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityAabb, valid)),
         });
 
-        h = hashStruct(h, 0x53000024u, sizeof(HistoryMeta), {
-            static_cast<std::uint32_t>(offsetof(HistoryMeta, depth)),
-            static_cast<std::uint32_t>(offsetof(HistoryMeta, cursor)),
-            static_cast<std::uint32_t>(offsetof(HistoryMeta, generation)),
+        h = hashStruct(h, 0x53000026u, sizeof(engine::protocol::EntityTransform), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, posX)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, posY)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, width)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, height)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, rotationDeg)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, hasRotation)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::EntityTransform, valid)),
         });
 
-        h = hashStruct(h, 0x53000025u, sizeof(TransformLogEntry), {
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, type)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, mode)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, idOffset)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, idCount)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, specificId)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, vertexIndex)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, x)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, y)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, modifiers)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewX)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewY)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewScale)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewWidth)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, viewHeight)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapEnabled)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapGridEnabled)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapGridSize)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapTolerancePx)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapEndpointEnabled)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapMidpointEnabled)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapCenterEnabled)),
-            static_cast<std::uint32_t>(offsetof(TransformLogEntry, snapNearestEnabled)),
+        h = hashStruct(h, 0x53000024u, sizeof(engine::protocol::HistoryMeta), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::HistoryMeta, depth)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::HistoryMeta, cursor)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::HistoryMeta, generation)),
+        });
+
+        h = hashStruct(h, 0x53000025u, sizeof(engine::protocol::TransformLogEntry), {
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, type)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, mode)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, idOffset)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, idCount)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, specificId)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, vertexIndex)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, x)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, y)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, modifiers)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, viewX)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, viewY)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, viewScale)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, viewWidth)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, viewHeight)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapGridEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapGridSize)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapTolerancePx)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapEndpointEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapMidpointEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapCenterEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapNearestEnabled)),
         });
 
         return h;

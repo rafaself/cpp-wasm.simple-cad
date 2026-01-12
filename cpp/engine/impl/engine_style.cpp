@@ -2,15 +2,15 @@
 // Part of the engine.h class split for SRP compliance
 
 #include "engine/engine.h"
-#include "engine/internal/engine_state_aliases.h"
+#include "engine/internal/engine_state.h"
 #include "engine/core/util.h"
 
 namespace {
-    ::StyleTarget toEntityStyleTarget(CadEngine::StyleTarget target) {
+    ::StyleTarget toEntityStyleTarget(engine::protocol::StyleTarget target) {
         return static_cast<::StyleTarget>(static_cast<std::uint8_t>(target));
     }
 
-    std::uint8_t targetMask(CadEngine::StyleTarget target) {
+    std::uint8_t targetMask(engine::protocol::StyleTarget target) {
         return EntityManager::styleTargetMask(toEntityStyleTarget(target));
     }
 
@@ -24,14 +24,14 @@ namespace {
         }
     }
 
-    bool supportsTarget(EntityKind kind, CadEngine::StyleTarget target) {
+    bool supportsTarget(EntityKind kind, engine::protocol::StyleTarget target) {
         return (EntityManager::styleCapabilities(kind) & targetMask(target)) != 0;
     }
 }
 
-CadEngine::LayerStyleSnapshot CadEngine::getLayerStyle(std::uint32_t layerId) const {
-    const LayerStyle style = entityManager_.layerStore.getLayerStyle(layerId);
-    LayerStyleSnapshot out{};
+engine::protocol::LayerStyleSnapshot CadEngine::getLayerStyle(std::uint32_t layerId) const {
+    const LayerStyle style = state().entityManager_.layerStore.getLayerStyle(layerId);
+    engine::protocol::LayerStyleSnapshot out{};
     out.strokeRGBA = packColorRGBA(style.stroke.color.r, style.stroke.color.g, style.stroke.color.b, style.stroke.color.a);
     out.fillRGBA = packColorRGBA(style.fill.color.r, style.fill.color.g, style.fill.color.b, style.fill.color.a);
     out.textColorRGBA = packColorRGBA(style.textColor.color.r, style.textColor.color.g, style.textColor.color.b, style.textColor.color.a);
@@ -47,47 +47,47 @@ CadEngine::LayerStyleSnapshot CadEngine::getLayerStyle(std::uint32_t layerId) co
     return out;
 }
 
-void CadEngine::setLayerStyle(std::uint32_t layerId, StyleTarget target, std::uint32_t colorRGBA) {
+void CadEngine::setLayerStyle(std::uint32_t layerId, engine::protocol::StyleTarget target, std::uint32_t colorRGBA) {
     const bool historyStarted = beginHistoryEntry();
     markLayerChange();
 
     StyleColor color{};
     unpackColorRGBA(colorRGBA, color.r, color.g, color.b, color.a);
-    entityManager_.layerStore.setLayerStyleColor(layerId, toEntityStyleTarget(target), color);
+    state().entityManager_.layerStore.setLayerStyleColor(layerId, toEntityStyleTarget(target), color);
 
-    renderDirty = true;
-    snapshotDirty = true;
-    if (target == StyleTarget::TextColor || target == StyleTarget::TextBackground) {
+    state().renderDirty = true;
+    state().snapshotDirty = true;
+    if (target == engine::protocol::StyleTarget::TextColor || target == engine::protocol::StyleTarget::TextBackground) {
         markTextQuadsDirty();
     }
 
     recordLayerChanged(layerId, 0);
-    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Style));
-    generation++;
+    recordDocChanged(static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style));
+    state().generation++;
 
     if (historyStarted) commitHistoryEntry();
 }
 
-void CadEngine::setLayerStyleEnabled(std::uint32_t layerId, StyleTarget target, bool enabled) {
+void CadEngine::setLayerStyleEnabled(std::uint32_t layerId, engine::protocol::StyleTarget target, bool enabled) {
     const bool historyStarted = beginHistoryEntry();
     markLayerChange();
 
-    entityManager_.layerStore.setLayerStyleEnabled(layerId, toEntityStyleTarget(target), enabled);
+    state().entityManager_.layerStore.setLayerStyleEnabled(layerId, toEntityStyleTarget(target), enabled);
 
-    renderDirty = true;
-    snapshotDirty = true;
-    if (target == StyleTarget::TextColor || target == StyleTarget::TextBackground) {
+    state().renderDirty = true;
+    state().snapshotDirty = true;
+    if (target == engine::protocol::StyleTarget::TextColor || target == engine::protocol::StyleTarget::TextBackground) {
         markTextQuadsDirty();
     }
 
     recordLayerChanged(layerId, 0);
-    recordDocChanged(static_cast<std::uint32_t>(ChangeMask::Style));
-    generation++;
+    recordDocChanged(static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style));
+    state().generation++;
 
     if (historyStarted) commitHistoryEntry();
 }
 
-void CadEngine::setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, std::uint32_t colorRGBA) {
+void CadEngine::setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, engine::protocol::StyleTarget target, std::uint32_t colorRGBA) {
     if (!ids || count == 0) return;
     const bool historyStarted = beginHistoryEntry();
 
@@ -100,56 +100,56 @@ void CadEngine::setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t c
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint32_t id = ids[i];
         if (id == DRAFT_ENTITY_ID) continue;
-        auto it = entityManager_.entities.find(id);
-        if (it == entityManager_.entities.end()) continue;
+        auto it = state().entityManager_.entities.find(id);
+        if (it == state().entityManager_.entities.end()) continue;
         const EntityKind kind = it->second.kind;
         if (!supportsTarget(kind, target)) continue;
 
         markEntityChange(id);
-        EntityStyleOverrides& overrides = entityManager_.ensureEntityStyleOverrides(id);
+        EntityStyleOverrides& overrides = state().entityManager_.ensureEntityStyleOverrides(id);
         overrides.colorMask |= bit;
 
         switch (target) {
-            case StyleTarget::Stroke: {
+            case engine::protocol::StyleTarget::Stroke: {
                 if (kind == EntityKind::Line) {
-                    auto& rec = entityManager_.lines[it->second.index];
+                    auto& rec = state().entityManager_.lines[it->second.index];
                     rec.r = color.r; rec.g = color.g; rec.b = color.b; rec.a = color.a;
                 } else if (kind == EntityKind::Polyline) {
-                    auto& rec = entityManager_.polylines[it->second.index];
+                    auto& rec = state().entityManager_.polylines[it->second.index];
                     rec.r = color.r; rec.g = color.g; rec.b = color.b; rec.a = color.a;
                 } else if (kind == EntityKind::Arrow) {
-                    auto& rec = entityManager_.arrows[it->second.index];
+                    auto& rec = state().entityManager_.arrows[it->second.index];
                     rec.sr = color.r; rec.sg = color.g; rec.sb = color.b; rec.sa = color.a;
                 } else if (kind == EntityKind::Rect) {
-                    auto& rec = entityManager_.rects[it->second.index];
+                    auto& rec = state().entityManager_.rects[it->second.index];
                     rec.sr = color.r; rec.sg = color.g; rec.sb = color.b; rec.sa = color.a;
                 } else if (kind == EntityKind::Circle) {
-                    auto& rec = entityManager_.circles[it->second.index];
+                    auto& rec = state().entityManager_.circles[it->second.index];
                     rec.sr = color.r; rec.sg = color.g; rec.sb = color.b; rec.sa = color.a;
                 } else if (kind == EntityKind::Polygon) {
-                    auto& rec = entityManager_.polygons[it->second.index];
+                    auto& rec = state().entityManager_.polygons[it->second.index];
                     rec.sr = color.r; rec.sg = color.g; rec.sb = color.b; rec.sa = color.a;
                 }
                 break;
             }
-            case StyleTarget::Fill: {
+            case engine::protocol::StyleTarget::Fill: {
                 if (kind == EntityKind::Rect) {
-                    auto& rec = entityManager_.rects[it->second.index];
+                    auto& rec = state().entityManager_.rects[it->second.index];
                     rec.r = color.r; rec.g = color.g; rec.b = color.b; rec.a = color.a;
                 } else if (kind == EntityKind::Circle) {
-                    auto& rec = entityManager_.circles[it->second.index];
+                    auto& rec = state().entityManager_.circles[it->second.index];
                     rec.r = color.r; rec.g = color.g; rec.b = color.b; rec.a = color.a;
                 } else if (kind == EntityKind::Polygon) {
-                    auto& rec = entityManager_.polygons[it->second.index];
+                    auto& rec = state().entityManager_.polygons[it->second.index];
                     rec.r = color.r; rec.g = color.g; rec.b = color.b; rec.a = color.a;
                 }
                 break;
             }
-            case StyleTarget::TextColor:
+            case engine::protocol::StyleTarget::TextColor:
                 overrides.textColor = color;
                 touched = true;
                 break;
-            case StyleTarget::TextBackground:
+            case engine::protocol::StyleTarget::TextBackground:
                 overrides.textBackground = color;
                 touched = true;
                 break;
@@ -157,7 +157,7 @@ void CadEngine::setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t c
                 break;
         }
 
-        recordEntityChanged(id, static_cast<std::uint32_t>(ChangeMask::Style));
+        recordEntityChanged(id, static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style));
         changed = true;
     }
 
@@ -166,17 +166,17 @@ void CadEngine::setEntityStyleOverride(const std::uint32_t* ids, std::uint32_t c
         return;
     }
 
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     if (touched) {
         markTextQuadsDirty();
     }
-    generation++;
+    state().generation++;
 
     if (historyStarted) commitHistoryEntry();
 }
 
-void CadEngine::clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, StyleTarget target) {
+void CadEngine::clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t count, engine::protocol::StyleTarget target) {
     if (!ids || count == 0) return;
     const bool historyStarted = beginHistoryEntry();
 
@@ -187,20 +187,20 @@ void CadEngine::clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint32_t id = ids[i];
         if (id == DRAFT_ENTITY_ID) continue;
-        auto it = entityManager_.styleOverrides.find(id);
-        if (it == entityManager_.styleOverrides.end()) continue;
+        auto it = state().entityManager_.styleOverrides.find(id);
+        if (it == state().entityManager_.styleOverrides.end()) continue;
 
         markEntityChange(id);
         it->second.colorMask &= static_cast<std::uint8_t>(~bit);
         it->second.enabledMask &= static_cast<std::uint8_t>(~bit);
         if (it->second.colorMask == 0 && it->second.enabledMask == 0) {
-            entityManager_.styleOverrides.erase(it);
+            state().entityManager_.styleOverrides.erase(it);
         }
-        if (target == StyleTarget::TextColor || target == StyleTarget::TextBackground) {
+        if (target == engine::protocol::StyleTarget::TextColor || target == engine::protocol::StyleTarget::TextBackground) {
             touched = true;
         }
 
-        recordEntityChanged(id, static_cast<std::uint32_t>(ChangeMask::Style));
+        recordEntityChanged(id, static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style));
         changed = true;
     }
 
@@ -209,17 +209,17 @@ void CadEngine::clearEntityStyleOverride(const std::uint32_t* ids, std::uint32_t
         return;
     }
 
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     if (touched) {
         markTextQuadsDirty();
     }
-    generation++;
+    state().generation++;
 
     if (historyStarted) commitHistoryEntry();
 }
 
-void CadEngine::setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t count, StyleTarget target, bool enabled) {
+void CadEngine::setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t count, engine::protocol::StyleTarget target, bool enabled) {
     if (!ids || count == 0) return;
     const bool historyStarted = beginHistoryEntry();
 
@@ -230,42 +230,42 @@ void CadEngine::setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t co
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint32_t id = ids[i];
         if (id == DRAFT_ENTITY_ID) continue;
-        auto entIt = entityManager_.entities.find(id);
-        if (entIt == entityManager_.entities.end()) continue;
+        auto entIt = state().entityManager_.entities.find(id);
+        if (entIt == state().entityManager_.entities.end()) continue;
         const EntityKind kind = entIt->second.kind;
         if (!supportsTarget(kind, target)) continue;
 
         markEntityChange(id);
-        EntityStyleOverrides& overrides = entityManager_.ensureEntityStyleOverrides(id);
+        EntityStyleOverrides& overrides = state().entityManager_.ensureEntityStyleOverrides(id);
         overrides.enabledMask |= bit;
 
         switch (target) {
-            case StyleTarget::Stroke: {
+            case engine::protocol::StyleTarget::Stroke: {
                 if (kind == EntityKind::Line) {
-                    auto& rec = entityManager_.lines[entIt->second.index];
+                    auto& rec = state().entityManager_.lines[entIt->second.index];
                     rec.enabled = enabled ? 1.0f : 0.0f;
                 } else if (kind == EntityKind::Polyline) {
-                    auto& rec = entityManager_.polylines[entIt->second.index];
+                    auto& rec = state().entityManager_.polylines[entIt->second.index];
                     rec.enabled = enabled ? 1.0f : 0.0f;
                 } else if (kind == EntityKind::Arrow) {
-                    auto& rec = entityManager_.arrows[entIt->second.index];
+                    auto& rec = state().entityManager_.arrows[entIt->second.index];
                     rec.strokeEnabled = enabled ? 1.0f : 0.0f;
                 } else if (kind == EntityKind::Rect) {
-                    auto& rec = entityManager_.rects[entIt->second.index];
+                    auto& rec = state().entityManager_.rects[entIt->second.index];
                     rec.strokeEnabled = enabled ? 1.0f : 0.0f;
                 } else if (kind == EntityKind::Circle) {
-                    auto& rec = entityManager_.circles[entIt->second.index];
+                    auto& rec = state().entityManager_.circles[entIt->second.index];
                     rec.strokeEnabled = enabled ? 1.0f : 0.0f;
                 } else if (kind == EntityKind::Polygon) {
-                    auto& rec = entityManager_.polygons[entIt->second.index];
+                    auto& rec = state().entityManager_.polygons[entIt->second.index];
                     rec.strokeEnabled = enabled ? 1.0f : 0.0f;
                 }
                 break;
             }
-            case StyleTarget::Fill:
+            case engine::protocol::StyleTarget::Fill:
                 overrides.fillEnabled = enabled ? 1.0f : 0.0f;
                 break;
-            case StyleTarget::TextBackground:
+            case engine::protocol::StyleTarget::TextBackground:
                 overrides.textBackgroundEnabled = enabled ? 1.0f : 0.0f;
                 touched = true;
                 break;
@@ -273,7 +273,7 @@ void CadEngine::setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t co
                 break;
         }
 
-        recordEntityChanged(id, static_cast<std::uint32_t>(ChangeMask::Style));
+        recordEntityChanged(id, static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style));
         changed = true;
     }
 
@@ -282,23 +282,23 @@ void CadEngine::setEntityStyleEnabled(const std::uint32_t* ids, std::uint32_t co
         return;
     }
 
-    renderDirty = true;
-    snapshotDirty = true;
+    state().renderDirty = true;
+    state().snapshotDirty = true;
     if (touched) {
         markTextQuadsDirty();
     }
-    generation++;
+    state().generation++;
 
     if (historyStarted) commitHistoryEntry();
 }
 
-CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
-    SelectionStyleSummary summary{};
-    const auto& ids = selectionManager_.getOrdered();
+engine::protocol::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
+    engine::protocol::SelectionStyleSummary summary{};
+    const auto& ids = state().selectionManager_.getOrdered();
     summary.selectionCount = static_cast<std::uint32_t>(ids.size());
 
-    auto buildSummary = [&](StyleTarget target) {
-        StyleTargetSummary out{};
+    auto buildSummary = [&](engine::protocol::StyleTarget target) {
+        engine::protocol::StyleTargetSummary out{};
         const ::StyleTarget entityTarget = toEntityStyleTarget(target);
         const std::uint8_t bit = targetMask(target);
         std::uint32_t supportedCount = 0;
@@ -315,8 +315,8 @@ CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
         std::uint32_t layerId = 0;
 
         for (const std::uint32_t id : ids) {
-            const auto it = entityManager_.entities.find(id);
-            if (it == entityManager_.entities.end()) continue;
+            const auto it = state().entityManager_.entities.find(id);
+            if (it == state().entityManager_.entities.end()) continue;
             const EntityKind kind = it->second.kind;
             if ((EntityManager::styleCapabilities(kind) & bit) == 0) {
                 unsupportedCount++;
@@ -324,7 +324,7 @@ CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
             }
 
             supportedCount++;
-            const ResolvedStyle resolved = entityManager_.resolveStyle(id, kind);
+            const ResolvedStyle resolved = state().entityManager_.resolveStyle(id, kind);
             const StyleEntry entry = selectEntry(resolved, entityTarget);
             const bool entryEnabled = entry.enabled > 0.5f;
 
@@ -345,14 +345,14 @@ CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
             }
 
             bool usesOverride = false;
-            if (const EntityStyleOverrides* overrides = entityManager_.getEntityStyleOverrides(id)) {
+            if (const EntityStyleOverrides* overrides = state().entityManager_.getEntityStyleOverrides(id)) {
                 usesOverride = ((overrides->colorMask & bit) != 0) || ((overrides->enabledMask & bit) != 0);
             }
             if (usesOverride) {
                 hasOverride = true;
             } else {
                 hasLayer = true;
-                const std::uint32_t lid = entityManager_.getEntityLayer(id);
+                const std::uint32_t lid = state().entityManager_.getEntityLayer(id);
                 if (!layerSet) {
                     layerSet = true;
                     layerId = lid;
@@ -366,9 +366,9 @@ CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
         }
 
         if (supportedCount == 0) {
-            out.state = static_cast<std::uint8_t>(StyleState::None);
-            out.enabledState = static_cast<std::uint8_t>(TriState::Off);
-            out.supportedState = static_cast<std::uint8_t>(TriState::Off);
+            out.state = static_cast<std::uint8_t>(engine::protocol::StyleState::None);
+            out.enabledState = static_cast<std::uint8_t>(engine::protocol::TriState::Off);
+            out.supportedState = static_cast<std::uint8_t>(engine::protocol::TriState::Off);
             out.colorRGBA = 0;
             out.layerId = 0;
             return out;
@@ -376,28 +376,28 @@ CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
 
         if (unsupportedCount > 0) {
             mixed = true;
-            out.supportedState = static_cast<std::uint8_t>(TriState::Mixed);
+            out.supportedState = static_cast<std::uint8_t>(engine::protocol::TriState::Mixed);
         } else {
-            out.supportedState = static_cast<std::uint8_t>(TriState::On);
+            out.supportedState = static_cast<std::uint8_t>(engine::protocol::TriState::On);
         }
 
         if (enabledMixed) {
-            out.enabledState = static_cast<std::uint8_t>(TriState::Mixed);
+            out.enabledState = static_cast<std::uint8_t>(engine::protocol::TriState::Mixed);
         } else {
-            out.enabledState = enabled ? static_cast<std::uint8_t>(TriState::On) : static_cast<std::uint8_t>(TriState::Off);
+            out.enabledState = enabled ? static_cast<std::uint8_t>(engine::protocol::TriState::On) : static_cast<std::uint8_t>(engine::protocol::TriState::Off);
         }
 
         if (mixed) {
-            out.state = static_cast<std::uint8_t>(StyleState::Mixed);
+            out.state = static_cast<std::uint8_t>(engine::protocol::StyleState::Mixed);
         } else if (hasOverride) {
-            out.state = static_cast<std::uint8_t>(StyleState::Override);
+            out.state = static_cast<std::uint8_t>(engine::protocol::StyleState::Override);
         } else {
-            out.state = static_cast<std::uint8_t>(StyleState::Layer);
+            out.state = static_cast<std::uint8_t>(engine::protocol::StyleState::Layer);
         }
 
-        if (target == StyleTarget::Fill || target == StyleTarget::TextBackground) {
+        if (target == engine::protocol::StyleTarget::Fill || target == engine::protocol::StyleTarget::TextBackground) {
             if (!mixed && !enabledMixed && !enabled) {
-                out.state = static_cast<std::uint8_t>(StyleState::None);
+                out.state = static_cast<std::uint8_t>(engine::protocol::StyleState::None);
             }
         }
 
@@ -406,11 +406,9 @@ CadEngine::SelectionStyleSummary CadEngine::getSelectionStyleSummary() const {
         return out;
     };
 
-    summary.stroke = buildSummary(StyleTarget::Stroke);
-    summary.fill = buildSummary(StyleTarget::Fill);
-    summary.textColor = buildSummary(StyleTarget::TextColor);
-    summary.textBackground = buildSummary(StyleTarget::TextBackground);
+    summary.stroke = buildSummary(engine::protocol::StyleTarget::Stroke);
+    summary.fill = buildSummary(engine::protocol::StyleTarget::Fill);
+    summary.textColor = buildSummary(engine::protocol::StyleTarget::TextColor);
+    summary.textBackground = buildSummary(engine::protocol::StyleTarget::TextBackground);
     return summary;
 }
-
-#include "engine/internal/engine_state_aliases_undef.h"

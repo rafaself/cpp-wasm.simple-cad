@@ -83,6 +83,8 @@ export const useEngineEvents = (): void => {
       let needsHistory = false;
       let needsOverlay = false;
       let needsStyle = false;
+      let needsGeometry = false;
+      let entityCreated = false;
 
       for (const ev of events) {
         switch (ev.type) {
@@ -98,11 +100,25 @@ export const useEngineEvents = (): void => {
           case EventType.HistoryChanged:
             needsHistory = true;
             break;
+          case EventType.EntityCreated:
+            entityCreated = true;
+            break;
+          case EventType.EntityChanged: {
+            // EntityChanged: ev.a = entityId, ev.b = changeMask
+            const mask = ev.b >>> 0;
+            if ((mask & (ChangeMask.Geometry | ChangeMask.Bounds)) !== 0) {
+              needsGeometry = true;
+              needsOverlay = true;
+            }
+            if ((mask & ChangeMask.Style) !== 0) needsStyle = true;
+            break;
+          }
           case EventType.DocChanged: {
             const mask = ev.a >>> 0;
             if ((mask & ChangeMask.Layer) !== 0) needsLayers = true;
             if ((mask & ChangeMask.Order) !== 0) needsOrder = true;
             if ((mask & ChangeMask.Style) !== 0) needsStyle = true;
+            if ((mask & (ChangeMask.Geometry | ChangeMask.Bounds)) !== 0) needsGeometry = true;
             if (
               (mask &
                 (ChangeMask.Bounds |
@@ -128,15 +144,20 @@ export const useEngineEvents = (): void => {
       if (needsSelection) bumpDocumentSignal('selection');
       if (needsOrder) bumpDocumentSignal('order');
       if (needsStyle) bumpDocumentSignal('style');
+      if (needsGeometry) bumpDocumentSignal('geometry');
       if (needsHistory) syncHistoryMetaFromEngine(runtime);
       if (needsOverlay) {
         useUIStore.getState().bumpOverlayTick();
+      }
+      if (entityCreated) {
+        useUIStore.getState().setSidebarTab('drawing');
       }
       cadDebugLog('events', 'signals', () => ({
         layers: needsLayers,
         selection: needsSelection,
         order: needsOrder,
         style: needsStyle,
+        geometry: needsGeometry,
         history: needsHistory,
         overlay: needsOverlay,
       }));

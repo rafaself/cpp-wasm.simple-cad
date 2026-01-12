@@ -258,6 +258,21 @@ export class DraftingHandler extends BaseInteractionHandler {
         this.commitPolyline(runtime);
         return;
       }
+      const dragDistance = this.pointerDownScreen
+        ? Math.hypot(
+            event.clientX - this.pointerDownScreen.x,
+            event.clientY - this.pointerDownScreen.y,
+          )
+        : 0;
+      const isClick = dragDistance <= DraftingHandler.DRAG_THRESHOLD_PX;
+      if (!isClick) return;
+
+      const lastPoint = this.draft.points?.[this.draft.points.length - 1];
+      const deltaX = lastPoint ? snapped.x - lastPoint.x : 0;
+      const deltaY = lastPoint ? snapped.y - lastPoint.y : 0;
+      const distSq = deltaX * deltaX + deltaY * deltaY;
+      if (lastPoint && distSq <= 1e-6) return;
+
       const modifiers = buildModifierMask(event);
       runtime.appendDraftPoint(snapped.x, snapped.y, modifiers);
       cadDebugLog('draft', 'polyline-append', () => ({

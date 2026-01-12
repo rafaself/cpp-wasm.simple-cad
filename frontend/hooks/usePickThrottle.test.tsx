@@ -50,9 +50,9 @@ describe('Hooks', () => {
     });
 
     it('should call generic pickEx when disabled', () => {
-      useSettingsStore.setState(
-        { featureFlags: { enablePickThrottling: false, enableColorsRibbon: false } } as any,
-      );
+      useSettingsStore.setState({
+        featureFlags: { enablePickThrottling: false, enableColorsRibbon: false },
+      } as any);
 
       const { result } = renderHook(() => usePickThrottle(mockRuntime));
 

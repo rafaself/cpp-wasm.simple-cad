@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { TransformMode } from '@/engine/core/interactionSession';
 import { SelectionMode } from '@/engine/core/protocol';
 import { InteractionHarness } from '@/test-utils/interactionHarness';
-import { PickSubTarget } from '@/types/picking';
+import { PickEntityKind, PickSubTarget } from '@/types/picking';
 
 describe('SelectionHandler', () => {
   let harness: InteractionHarness;
@@ -35,6 +35,22 @@ describe('SelectionHandler', () => {
 
     expect(harness.runtime.transformSessions.begun).toBe(1);
     expect(harness.runtime.transformSessions.lastBegin?.mode).toBe(TransformMode.Resize);
+  });
+
+  it('does not start side resize on polyline vertices', () => {
+    harness.runtime.setSelection([7], SelectionMode.Replace);
+    (harness.runtime as any).getEntityKind = () => PickEntityKind.Polyline;
+    harness.runtime.setPickResult({
+      id: 7,
+      subIndex: 3,
+      subTarget: PickSubTarget.Vertex,
+      kind: PickEntityKind.Polyline,
+    });
+
+    harness.pointerDown({ x: 10, y: 10 });
+
+    expect(harness.runtime.transformSessions.begun).toBe(1);
+    expect(harness.runtime.transformSessions.lastBegin?.mode).toBe(TransformMode.VertexDrag);
   });
 
   it('uses add mode when dragging marquee with shift held', () => {

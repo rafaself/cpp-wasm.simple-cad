@@ -12,6 +12,38 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+option(ENGINE_ENABLE_WARNINGS "Enable compiler warnings" ON)
+option(ENGINE_ENABLE_LOGGING "Enable engine debug logging" OFF)
+option(ENGINE_ENABLE_SANITIZERS "Enable ASan/UBSan for native builds" OFF)
+
+function(engine_enable_warnings target)
+  if(NOT ENGINE_ENABLE_WARNINGS)
+    return()
+  endif()
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4)
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+endfunction()
+
+function(engine_enable_logging target)
+  if(ENGINE_ENABLE_LOGGING)
+    target_compile_definitions(${target} PRIVATE ENGINE_ENABLE_LOGGING=1)
+  endif()
+endfunction()
+
+function(engine_enable_sanitizers target)
+  if(NOT ENGINE_ENABLE_SANITIZERS)
+    return()
+  endif()
+  if(MSVC OR EMSCRIPTEN)
+    return()
+  endif()
+  target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+endfunction()
+
 # =============================================================================
 # Text Engine Dependencies (FreeType, HarfBuzz, msdfgen)
 # =============================================================================
@@ -102,10 +134,13 @@ set(ENGINE_SOURCES
   engine/interaction/pick_system.cpp
   engine/interaction/snap_solver.cpp
   engine/interaction/interaction_session.cpp
+  engine/interaction/interaction_session_begin.cpp
+  engine/interaction/interaction_session_update.cpp
   engine/interaction/interaction_draft.cpp
   engine/interaction/interaction_log.cpp
   # Persistence
   engine/persistence/snapshot.cpp
+  engine/persistence/snapshot_build.cpp
   # Implementation (CadEngine method implementations)
   engine/impl/engine_upsert.cpp
   engine/impl/engine_digest.cpp
@@ -171,6 +206,9 @@ if(EMSCRIPTEN)
   set_target_properties(engine PROPERTIES OUTPUT_NAME "engine")
   
   target_include_directories(engine PRIVATE .)
+  engine_enable_warnings(engine)
+  engine_enable_logging(engine)
+  engine_enable_sanitizers(engine)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)
@@ -204,7 +242,12 @@ if(NOT EMSCRIPTEN)
 
   # Test sources
   set(TEST_SOURCES
-    tests/engine_test.cpp
+    tests/engine_core_test.cpp
+    tests/engine_transform_test.cpp
+    tests/engine_draft_test.cpp
+    tests/engine_pick_test.cpp
+    tests/engine_snap_test.cpp
+    tests/engine_handles_test.cpp
     tests/commands_test.cpp
     tests/snapshot_test.cpp
     tests/render_test.cpp
@@ -217,6 +260,7 @@ if(NOT EMSCRIPTEN)
     tests/interactive_transform_perf_test.cpp
     tests/history_test.cpp
     tests/style_system_test.cpp
+    tests/perf_baseline_test.cpp
   )
   
   # Add text tests if enabled
@@ -225,7 +269,10 @@ if(NOT EMSCRIPTEN)
       tests/text_store_test.cpp
       tests/text_layout_test.cpp
       tests/glyph_atlas_test.cpp
-      tests/text_commands_test.cpp
+    tests/text_commands_upsert_test.cpp
+    tests/text_commands_edit_test.cpp
+    tests/text_commands_style_test.cpp
+    tests/text_commands_regression_test.cpp
       tests/text_coordinate_system_test.cpp
     )
   endif()
@@ -239,6 +286,9 @@ if(NOT EMSCRIPTEN)
     PRIVATE GTest::gtest_main
   )
   target_include_directories(engine_tests PRIVATE .)
+  engine_enable_warnings(engine_tests)
+  engine_enable_logging(engine_tests)
+  engine_enable_sanitizers(engine_tests)
   
   # Link text dependencies if enabled
   if(ENGINE_ENABLE_TEXT)

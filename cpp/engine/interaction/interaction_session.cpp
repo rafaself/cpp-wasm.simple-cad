@@ -2,49 +2,30 @@
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
 #include "engine/history/history_manager.h"
-#include "engine/core/util.h"
-#include "engine/interaction/snap_solver.h"
 #include "engine/text_system.h"
-#include <cmath>
 #include <algorithm>
-#include <cstring>
-
-namespace {
-    constexpr std::uint32_t kShiftMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Shift);
-    constexpr std::uint32_t kCtrlMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Ctrl);
-    constexpr std::uint32_t kAltMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Alt);
-    constexpr std::uint32_t kMetaMask = static_cast<std::uint32_t>(CadEngine::SelectionModifier::Meta);
-    constexpr float kAxisLockMinDeltaPx = 4.0f;
-    constexpr float kAxisLockEnterRatio = 1.1f;
-    constexpr float kAxisLockSwitchRatio = 1.2f;
-
-    inline bool isSnapSuppressed(std::uint32_t modifiers) {
-        return (modifiers & (kCtrlMask | kMetaMask)) != 0;
-    }
-
-    inline float normalizeViewScale(float viewScale) {
-        return (viewScale > 1e-6f && std::isfinite(viewScale)) ? viewScale : 1.0f;
-    }
-
-    inline void screenToWorld(
-        float screenX,
-        float screenY,
-        float viewX,
-        float viewY,
-        float viewScale,
-        float& outX,
-        float& outY) {
-        const float scale = normalizeViewScale(viewScale);
-        outX = (screenX - viewX) / scale;
-        outY = -(screenY - viewY) / scale;
-    }
-}
+#include <cmath>
 
 InteractionSession::InteractionSession(CadEngine& engine, EntityManager& entityManager, PickSystem& pickSystem, TextSystem& textSystem, HistoryManager& historyManager)
     : engine_(engine), entityManager_(entityManager), pickSystem_(pickSystem), textSystem_(textSystem), historyManager_(historyManager)
 {
     snapGuides_.reserve(2);
     snapCandidates_.reserve(128);
+    draftSegments_.reserve(8);
+}
+
+TransformState InteractionSession::getTransformState() const {
+    TransformState state{};
+    state.active = session_.active;
+    state.mode = static_cast<std::uint8_t>(session_.mode);
+
+    if (session_.active && session_.mode == TransformMode::Rotate) {
+        state.rotationDeltaDeg = session_.accumulatedDeltaDeg;
+        state.pivotX = session_.rotationPivotX;
+        state.pivotY = session_.rotationPivotY;
+    }
+
+    return state;
 }
 
 void InteractionSession::refreshEntityRenderRange(std::uint32_t id) {
@@ -160,701 +141,6 @@ bool InteractionSession::duplicateSelectionForDrag() {
     return true;
 }
 
-void InteractionSession::beginTransform(
-    const std::uint32_t* ids, 
-    std::uint32_t idCount, 
-    TransformMode mode, 
-    std::uint32_t specificId, 
-    int32_t vertexIndex, 
-    float screenX, 
-    float screenY,
-    float viewX,
-    float viewY,
-    float viewScale,
-    float viewWidth,
-    float viewHeight,
-    std::uint32_t modifiers
-) {
-    if (session_.active) return;
-    
-    session_.active = true;
-    session_.mode = mode;
-    session_.initialIds.clear();
-    session_.snapshots.clear();
-    session_.specificId = specificId;
-    session_.vertexIndex = vertexIndex;
-    session_.startScreenX = screenX;
-    session_.startScreenY = screenY;
-    screenToWorld(screenX, screenY, viewX, viewY, viewScale, session_.startX, session_.startY);
-    (void)viewWidth;
-    (void)viewHeight;
-    session_.dragging = false;
-    session_.historyActive = false;
-    session_.nextEntityIdBefore = engine_.state().nextEntityId_;
-    session_.axisLock = AxisLock::None;
-    session_.resizeAnchorValid = false;
-    session_.resizeAnchorX = 0.0f;
-    session_.resizeAnchorY = 0.0f;
-    session_.resizeAspect = 1.0f;
-    session_.resizeBaseW = 0.0f;
-    session_.resizeBaseH = 0.0f;
-    session_.duplicated = false;
-    session_.originalIds.clear();
-    transformStats_ = TransformStats{};
-    snapGuides_.clear();
-    {
-        constexpr float kDragThresholdPx = 3.0f;
-        session_.dragThresholdPx = kDragThresholdPx;
-    }
-
-    std::vector<std::uint32_t> activeIds;
-
-    if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && specificId != 0) {
-        if (!entityManager_.isEntityPickable(specificId)) {
-            session_.active = false;
-            return;
-        }
-        activeIds.push_back(specificId);
-    } else if (!engine_.state().selectionManager_.isEmpty()) {
-        activeIds = engine_.state().selectionManager_.getOrdered();
-    } else if (ids && idCount > 0) {
-        activeIds.assign(ids, ids + idCount);
-    }
-
-    session_.initialIds.reserve(activeIds.size());
-    session_.snapshots.reserve(activeIds.size());
-
-    for (const std::uint32_t id : activeIds) {
-        if (!entityManager_.isEntityPickable(id)) continue;
-        session_.initialIds.push_back(id);
-
-        auto it = entityManager_.entities.find(id);
-        if (it == entityManager_.entities.end()) continue;
-
-        TransformSnapshot snap;
-        snap.id = id;
-        snap.x = 0.0f; snap.y = 0.0f; snap.w = 0.0f; snap.h = 0.0f;
-
-        if (it->second.kind == EntityKind::Rect) {
-            for (const auto& r : entityManager_.rects) {
-                if (r.id == id) { snap.x = r.x; snap.y = r.y; snap.w = r.w; snap.h = r.h; break; }
-            }
-        } else if (it->second.kind == EntityKind::Circle) {
-             for (const auto& c : entityManager_.circles) {
-                if (c.id == id) { snap.x = c.cx; snap.y = c.cy; snap.w = c.rx; snap.h = c.ry; break; }
-            }
-        } else if (it->second.kind == EntityKind::Polygon) {
-             for (const auto& p : entityManager_.polygons) {
-                if (p.id == id) { snap.x = p.cx; snap.y = p.cy; snap.w = p.rx; snap.h = p.ry; break; }
-            }
-        } else if (it->second.kind == EntityKind::Text) {
-             const TextRec* tr = textSystem_.store.getText(id);
-             if (tr) { snap.x = tr->x; snap.y = tr->y; }
-        } else if (it->second.kind == EntityKind::Line) {
-            for (const auto& l : entityManager_.lines) {
-                 if (l.id == id) {
-                     snap.points.push_back({l.x0, l.y0});
-                     snap.points.push_back({l.x1, l.y1});
-                     break;
-                 }
-            }
-        } else if (it->second.kind == EntityKind::Polyline) {
-             for (const auto& pl : entityManager_.polylines) {
-                 if (pl.id == id) {
-                     for (std::uint32_t k = 0; k < pl.count; k++) {
-                         if (pl.offset + k < entityManager_.points.size()) {
-                             snap.points.push_back(entityManager_.points[pl.offset + k]);
-                         }
-                     }
-                     break;
-                 }
-             }
-        } else if (it->second.kind == EntityKind::Arrow) {
-             for (const auto& a : entityManager_.arrows) {
-                if (a.id == id) {
-                    snap.points.push_back({a.ax, a.ay});
-                    snap.points.push_back({a.bx, a.by});
-                    break;
-                }
-             }
-        }
-
-        session_.snapshots.push_back(std::move(snap));
-    }
-
-    if (session_.initialIds.empty()) {
-        session_.active = false;
-        return;
-    }
-
-    {
-        bool hasBounds = false;
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
-        for (const std::uint32_t id : session_.initialIds) {
-            const CadEngine::EntityAabb aabb = engine_.getEntityAabb(id);
-            if (!aabb.valid) continue;
-            if (!hasBounds) {
-                minX = aabb.minX;
-                minY = aabb.minY;
-                maxX = aabb.maxX;
-                maxY = aabb.maxY;
-                hasBounds = true;
-                continue;
-            }
-            minX = std::min(minX, aabb.minX);
-            minY = std::min(minY, aabb.minY);
-            maxX = std::max(maxX, aabb.maxX);
-            maxY = std::max(maxY, aabb.maxY);
-        }
-
-        if (!hasBounds) {
-            minX = session_.startX;
-            minY = session_.startY;
-            maxX = session_.startX;
-            maxY = session_.startY;
-        }
-
-        session_.baseMinX = minX;
-        session_.baseMinY = minY;
-        session_.baseMaxX = maxX;
-        session_.baseMaxY = maxY;
-    }
-
-    if (session_.mode == TransformMode::Resize && session_.specificId != 0 &&
-        session_.vertexIndex >= 0 && session_.vertexIndex <= 3) {
-        const TransformSnapshot* snap = nullptr;
-        for (const auto& s : session_.snapshots) {
-            if (s.id == session_.specificId) {
-                snap = &s;
-                break;
-            }
-        }
-        if (snap) {
-            auto it = entityManager_.entities.find(session_.specificId);
-            if (it != entityManager_.entities.end()) {
-                float origMinX = 0.0f;
-                float origMinY = 0.0f;
-                float origMaxX = 0.0f;
-                float origMaxY = 0.0f;
-                bool valid = false;
-
-                if (it->second.kind == EntityKind::Rect) {
-                    origMinX = snap->x;
-                    origMinY = snap->y;
-                    origMaxX = snap->x + snap->w;
-                    origMaxY = snap->y + snap->h;
-                    valid = true;
-                } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-                    origMinX = snap->x - snap->w;
-                    origMaxX = snap->x + snap->w;
-                    origMinY = snap->y - snap->h;
-                    origMaxY = snap->y + snap->h;
-                    valid = true;
-                }
-
-                if (valid) {
-                    float anchorX = 0.0f;
-                    float anchorY = 0.0f;
-                    switch (session_.vertexIndex) {
-                        case 0: anchorX = origMaxX; anchorY = origMaxY; break;
-                        case 1: anchorX = origMinX; anchorY = origMaxY; break;
-                        case 2: anchorX = origMinX; anchorY = origMinY; break;
-                        case 3: anchorX = origMaxX; anchorY = origMinY; break;
-                    }
-
-                    const float baseW = std::abs(origMaxX - origMinX);
-                    const float baseH = std::abs(origMaxY - origMinY);
-                    session_.resizeBaseW = baseW;
-                    session_.resizeBaseH = baseH;
-                    session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
-                    session_.resizeAnchorX = anchorX;
-                    session_.resizeAnchorY = anchorY;
-                    session_.resizeAnchorValid = true;
-                }
-            }
-        }
-    }
-
-    recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
-
-    session_.historyActive = engine_.beginHistoryEntry();
-    if (session_.historyActive) {
-        for (const std::uint32_t id : session_.initialIds) {
-            engine_.markEntityChange(id);
-        }
-    }
-}
-
-void InteractionSession::updateTransform(
-    float screenX,
-    float screenY,
-    float viewX,
-    float viewY,
-    float viewScale,
-    float viewWidth,
-    float viewHeight,
-    std::uint32_t modifiers) {
-    if (!session_.active) return;
-    snapGuides_.clear();
-
-    const double t0 = emscripten_get_now();
-    recordTransformUpdate(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
-    std::uint32_t snapCandidateCount = 0;
-    std::uint32_t snapHitCount = 0;
-    auto finalizeStats = [&]() {
-        transformStats_.lastUpdateMs = static_cast<float>(emscripten_get_now() - t0);
-        transformStats_.lastSnapCandidateCount = snapCandidateCount;
-        transformStats_.lastSnapHitCount = snapHitCount;
-    };
-
-    const float screenDx = screenX - session_.startScreenX;
-    const float screenDy = screenY - session_.startScreenY;
-    const bool snapSuppressed = isSnapSuppressed(modifiers);
-    bool updated = false;
-
-    bool dragStarted = false;
-    if (!session_.dragging) {
-        const float threshold = session_.dragThresholdPx;
-        const float distSq = screenDx * screenDx + screenDy * screenDy;
-        if (distSq < threshold * threshold) {
-            finalizeStats();
-            return;
-        }
-        session_.dragging = true;
-        dragStarted = true;
-    }
-
-    float worldX = 0.0f;
-    float worldY = 0.0f;
-    screenToWorld(screenX, screenY, viewX, viewY, viewScale, worldX, worldY);
-
-    if (!snapSuppressed) {
-        applyGridSnap(worldX, worldY, snapOptions);
-    }
-
-    float totalDx = worldX - session_.startX;
-    float totalDy = worldY - session_.startY;
-    
-    if (session_.mode == TransformMode::Move || session_.mode == TransformMode::EdgeDrag) {
-        const bool shiftDown = (modifiers & kShiftMask) != 0;
-        const bool altDown = (modifiers & kAltMask) != 0;
-
-        if (dragStarted && altDown) {
-            duplicateSelectionForDrag();
-        }
-
-        if (!shiftDown) {
-            session_.axisLock = AxisLock::None;
-        } else {
-            const float absDx = std::abs(screenDx);
-            const float absDy = std::abs(screenDy);
-            const float maxDelta = std::max(absDx, absDy);
-            if (maxDelta >= kAxisLockMinDeltaPx) {
-                if (session_.axisLock == AxisLock::None) {
-                    if (absDx >= absDy * kAxisLockEnterRatio) {
-                        session_.axisLock = AxisLock::X;
-                    } else if (absDy >= absDx * kAxisLockEnterRatio) {
-                        session_.axisLock = AxisLock::Y;
-                    }
-                } else if (session_.axisLock == AxisLock::X) {
-                    if (absDy >= absDx * kAxisLockSwitchRatio) {
-                        session_.axisLock = AxisLock::Y;
-                    }
-                } else if (session_.axisLock == AxisLock::Y) {
-                    if (absDx >= absDy * kAxisLockSwitchRatio) {
-                        session_.axisLock = AxisLock::X;
-                    }
-                }
-            }
-        }
-
-        if (session_.axisLock == AxisLock::X) {
-            totalDy = 0.0f;
-        } else if (session_.axisLock == AxisLock::Y) {
-            totalDx = 0.0f;
-        }
-
-        const bool allowSnapX = !snapSuppressed && session_.axisLock != AxisLock::Y;
-        const bool allowSnapY = !snapSuppressed && session_.axisLock != AxisLock::X;
-
-        if (!snapSuppressed) {
-            const SnapResult snapResult = computeObjectSnap(
-                snapOptions,
-                session_.initialIds,
-                session_.baseMinX,
-                session_.baseMinY,
-                session_.baseMaxX,
-                session_.baseMaxY,
-                totalDx,
-                totalDy,
-                entityManager_,
-                textSystem_,
-                pickSystem_,
-                viewScale,
-                viewX,
-                viewY,
-                viewWidth,
-                viewHeight,
-                allowSnapX,
-                allowSnapY,
-                snapGuides_,
-                snapCandidates_);
-
-            snapCandidateCount = static_cast<std::uint32_t>(snapCandidates_.size());
-            if (snapResult.snappedX && allowSnapX) {
-                totalDx += snapResult.dx;
-                snapHitCount++;
-            }
-            if (snapResult.snappedY && allowSnapY) {
-                totalDy += snapResult.dy;
-                snapHitCount++;
-            }
-        }
-
-        for (const auto& snap : session_.snapshots) {
-            std::uint32_t id = snap.id;
-            auto it = entityManager_.entities.find(id);
-            if (it == entityManager_.entities.end()) continue;
-             
-            if (it->second.kind == EntityKind::Rect) {
-                  for (auto& r : entityManager_.rects) { 
-                      if (r.id == id) { 
-                          r.x = snap.x + totalDx; r.y = snap.y + totalDy; 
-                          pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                          refreshEntityRenderRange(id); updated = true; break; 
-                      } 
-                  }
-            } else if (it->second.kind == EntityKind::Circle) {
-                  for (auto& c : entityManager_.circles) { 
-                      if (c.id == id) { 
-                          c.cx = snap.x + totalDx; c.cy = snap.y + totalDy; 
-                          pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                          refreshEntityRenderRange(id); updated = true; break; 
-                      } 
-                  }
-            } else if (it->second.kind == EntityKind::Polygon) {
-                  for (auto& p : entityManager_.polygons) { 
-                      if (p.id == id) { 
-                          p.cx = snap.x + totalDx; p.cy = snap.y + totalDy; 
-                          pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                          refreshEntityRenderRange(id); updated = true; break; 
-                      } 
-                  }
-            } else if (it->second.kind == EntityKind::Text) {
-                  TextRec* tr = textSystem_.store.getTextMutable(id); 
-                  if (tr) {
-                       const float offsetMinX = tr->minX - tr->x;
-                       const float offsetMinY = tr->minY - tr->y;
-                       const float offsetMaxX = tr->maxX - tr->x;
-                       const float offsetMaxY = tr->maxY - tr->y;
-                       const float newX = snap.x + totalDx;
-                       const float newY = snap.y + totalDy;
-                       tr->x = newX; tr->y = newY;
-                       tr->minX = newX + offsetMinX;
-                       tr->minY = newY + offsetMinY;
-                       tr->maxX = newX + offsetMaxX;
-                       tr->maxY = newY + offsetMaxY;
-                      engine_.markTextQuadsDirty();
-                      pickSystem_.update(id, {tr->minX, tr->minY, tr->maxX, tr->maxY});
-                       updated = true;
-                   }
-            } else if (it->second.kind == EntityKind::Line) {
-                 if (snap.points.size() >= 2) {
-                     for (auto& l : entityManager_.lines) { 
-                         if (l.id == id) { 
-                             l.x0 = snap.points[0].x + totalDx; l.y0 = snap.points[0].y + totalDy; 
-                             l.x1 = snap.points[1].x + totalDx; l.y1 = snap.points[1].y + totalDy; 
-                             pickSystem_.update(id, PickSystem::computeLineAABB(l));
-                             refreshEntityRenderRange(id); updated = true; break; 
-                         } 
-                     }
-                 }
-            } else if (it->second.kind == EntityKind::Arrow) {
-                 if (snap.points.size() >= 2) {
-                    for (auto& a : entityManager_.arrows) {
-                        if (a.id == id) {
-                            a.ax = snap.points[0].x + totalDx; a.ay = snap.points[0].y + totalDy;
-                            a.bx = snap.points[1].x + totalDx; a.by = snap.points[1].y + totalDy;
-                            pickSystem_.update(id, PickSystem::computeArrowAABB(a));
-                            refreshEntityRenderRange(id); updated = true; break;
-                        }
-                    }
-                 }
-            } else if (it->second.kind == EntityKind::Polyline) {
-                 for (auto& pl : entityManager_.polylines) {
-                     if (pl.id == id) {
-                         for (std::uint32_t k = 0; k < pl.count && k < snap.points.size(); k++) {
-                             if (pl.offset + k < entityManager_.points.size()) {
-                                 entityManager_.points[pl.offset + k].x = snap.points[k].x + totalDx;
-                                 entityManager_.points[pl.offset + k].y = snap.points[k].y + totalDy;
-                             }
-                         }
-                         pickSystem_.update(id, PickSystem::computePolylineAABB(pl, entityManager_.points));
-                         refreshEntityRenderRange(id); updated = true; break;
-                     }
-                 }
-            }
-        }
-    } else if (session_.mode == TransformMode::VertexDrag) {
-        std::uint32_t id = session_.specificId;
-        int32_t idx = session_.vertexIndex;
-        const TransformSnapshot* snap = nullptr;
-        for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
-        
-        if (snap && idx >= 0) {
-             auto it = entityManager_.entities.find(id);
-             if (it != entityManager_.entities.end()) {
-                 if (it->second.kind == EntityKind::Polyline) {
-                      for (auto& pl : entityManager_.polylines) {
-                          if (pl.id == id) {
-                              if (static_cast<std::uint32_t>(idx) < pl.count && static_cast<std::uint32_t>(idx) < snap->points.size()) {
-                                  float vertexDx = totalDx;
-                                  float vertexDy = totalDy;
-                                  const bool shiftDown = (modifiers & kShiftMask) != 0;
-                                  if (shiftDown && snap->points.size() >= 2) {
-                                      const std::int32_t lastIndex = static_cast<std::int32_t>(snap->points.size() - 1);
-                                      std::int32_t anchorIndex = -1;
-                                      if (idx == 0) {
-                                          anchorIndex = 1;
-                                      } else if (idx == lastIndex) {
-                                          anchorIndex = lastIndex - 1;
-                                      }
-                                      if (anchorIndex >= 0 && anchorIndex < static_cast<std::int32_t>(snap->points.size())) {
-                                          const Point2& anchor = snap->points[anchorIndex];
-                                          const float vecX = worldX - anchor.x;
-                                          const float vecY = worldY - anchor.y;
-                                          const float len = std::sqrt(vecX * vecX + vecY * vecY);
-                                          if (len > 1e-6f) {
-                                              constexpr float kPi = 3.14159265358979323846f;
-                                              constexpr float kStep = kPi * 0.25f;
-                                              const float angle = std::atan2(vecY, vecX);
-                                              const float snapped = std::round(angle / kStep) * kStep;
-                                              const float snappedX = anchor.x + std::cos(snapped) * len;
-                                              const float snappedY = anchor.y + std::sin(snapped) * len;
-                                              const Point2& base = snap->points[idx];
-                                              vertexDx = snappedX - base.x;
-                                              vertexDy = snappedY - base.y;
-                                          }
-                                      }
-                                  }
-                                  float nx = snap->points[idx].x + vertexDx;
-                                  float ny = snap->points[idx].y + vertexDy;
-                                  entityManager_.points[pl.offset + idx].x = nx;
-                                  entityManager_.points[pl.offset + idx].y = ny;
-                                  pickSystem_.update(id, PickSystem::computePolylineAABB(pl, entityManager_.points));
-                                  refreshEntityRenderRange(id); updated = true;
-                              }
-                              break;
-                          }
-                      }
-                 } else if (it->second.kind == EntityKind::Line) {
-                      const bool shiftDown = (modifiers & kShiftMask) != 0;
-                      float lineDx = totalDx;
-                      float lineDy = totalDy;
-                      if (shiftDown && snap->points.size() >= 2 && (idx == 0 || idx == 1)) {
-                          const Point2& anchor = snap->points[idx == 0 ? 1 : 0];
-                          const float vecX = worldX - anchor.x;
-                          const float vecY = worldY - anchor.y;
-                          const float len = std::sqrt(vecX * vecX + vecY * vecY);
-                          if (len > 1e-6f) {
-                              constexpr float kPi = 3.14159265358979323846f;
-                              constexpr float kStep = kPi * 0.25f;
-                              const float angle = std::atan2(vecY, vecX);
-                              const float snapped = std::round(angle / kStep) * kStep;
-                              const float snappedX = anchor.x + std::cos(snapped) * len;
-                              const float snappedY = anchor.y + std::sin(snapped) * len;
-                              const Point2& base = snap->points[idx];
-                              lineDx = snappedX - base.x;
-                              lineDy = snappedY - base.y;
-                          }
-                      }
-                      for (auto& l : entityManager_.lines) {
-                          if (l.id == id) {
-                              if (idx == 0 && snap->points.size() > 0) {
-                                  l.x0 = snap->points[0].x + lineDx; l.y0 = snap->points[0].y + lineDy;
-                                  pickSystem_.update(id, PickSystem::computeLineAABB(l));
-                                  refreshEntityRenderRange(id); updated = true;
-                              } else if (idx == 1 && snap->points.size() > 1) {
-                                  l.x1 = snap->points[1].x + lineDx; l.y1 = snap->points[1].y + lineDy;
-                                  pickSystem_.update(id, PickSystem::computeLineAABB(l));
-                                  refreshEntityRenderRange(id); updated = true;
-                              }
-                              break;
-                          }
-                      }
-                 } else if (it->second.kind == EntityKind::Arrow) {
-                      // Arrow vertex drag with shift angle snapping (same as Line)
-                      const bool shiftDown = (modifiers & kShiftMask) != 0;
-                      float arrowDx = totalDx;
-                      float arrowDy = totalDy;
-                      if (shiftDown && snap->points.size() >= 2 && (idx == 0 || idx == 1)) {
-                          const Point2& anchor = snap->points[idx == 0 ? 1 : 0];
-                          const float vecX = worldX - anchor.x;
-                          const float vecY = worldY - anchor.y;
-                          const float len = std::sqrt(vecX * vecX + vecY * vecY);
-                          if (len > 1e-6f) {
-                              constexpr float kPi = 3.14159265358979323846f;
-                              constexpr float kStep = kPi * 0.25f;
-                              const float angle = std::atan2(vecY, vecX);
-                              const float snapped = std::round(angle / kStep) * kStep;
-                              const float snappedX = anchor.x + std::cos(snapped) * len;
-                              const float snappedY = anchor.y + std::sin(snapped) * len;
-                              const Point2& base = snap->points[idx];
-                              arrowDx = snappedX - base.x;
-                              arrowDy = snappedY - base.y;
-                          }
-                      }
-                      for (auto& a : entityManager_.arrows) {
-                          if (a.id == id) {
-                              if (idx == 0 && snap->points.size() > 0) {
-                                  a.ax = snap->points[0].x + arrowDx; a.ay = snap->points[0].y + arrowDy;
-                                  pickSystem_.update(id, PickSystem::computeArrowAABB(a));
-                                  refreshEntityRenderRange(id); updated = true;
-                              } else if (idx == 1 && snap->points.size() > 1) {
-                                  a.bx = snap->points[1].x + arrowDx; a.by = snap->points[1].y + arrowDy;
-                                  pickSystem_.update(id, PickSystem::computeArrowAABB(a));
-                                  refreshEntityRenderRange(id); updated = true;
-                              }
-                              break;
-                          }
-                      }
-                 }
-             }
-        }
-    } else if (session_.mode == TransformMode::Resize) {
-        std::uint32_t id = session_.specificId;
-        int32_t handleIndex = session_.vertexIndex;
-        const TransformSnapshot* snap = nullptr;
-        for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
-
-        if (snap && handleIndex >= 0 && handleIndex <= 3) {
-            auto it = entityManager_.entities.find(id);
-            if (it != entityManager_.entities.end()) {
-                float origMinX = 0, origMinY = 0, origMaxX = 0, origMaxY = 0;
-                bool valid = false;
-                if (it->second.kind == EntityKind::Rect) {
-                    origMinX = snap->x; origMinY = snap->y; 
-                    origMaxX = snap->x + snap->w; origMaxY = snap->y + snap->h;
-                    valid = true;
-                } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-                    origMinX = snap->x - snap->w; origMaxX = snap->x + snap->w;
-                    origMinY = snap->y - snap->h; origMaxY = snap->y + snap->h;
-                    valid = true;
-                }
-
-                if (valid) {
-                    float anchorX = 0.0f;
-                    float anchorY = 0.0f;
-                    if (session_.resizeAnchorValid) {
-                        anchorX = session_.resizeAnchorX;
-                        anchorY = session_.resizeAnchorY;
-                    } else {
-                        switch (handleIndex) {
-                            case 0: anchorX = origMaxX; anchorY = origMaxY; break;
-                            case 1: anchorX = origMinX; anchorY = origMaxY; break;
-                            case 2: anchorX = origMinX; anchorY = origMinY; break;
-                            case 3: anchorX = origMaxX; anchorY = origMinY; break;
-                        }
-                    }
-
-                    float dx = worldX - anchorX;
-                    float dy = worldY - anchorY;
-
-                    const bool shiftDown = (modifiers & kShiftMask) != 0;
-                    if (shiftDown) {
-                        float baseW = session_.resizeAnchorValid ? session_.resizeBaseW : std::abs(origMaxX - origMinX);
-                        float baseH = session_.resizeAnchorValid ? session_.resizeBaseH : std::abs(origMaxY - origMinY);
-                        float aspect = session_.resizeAnchorValid
-                            ? session_.resizeAspect
-                            : ((baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f);
-
-                        if (!std::isfinite(aspect) || aspect <= 1e-6f) {
-                            aspect = 1.0f;
-                        }
-
-                        const float absDx = std::abs(dx);
-                        const float absDy = std::abs(dy);
-                        bool useX = false;
-                        if (baseW > 1e-6f && baseH > 1e-6f) {
-                            useX = (absDx / baseW) >= (absDy / baseH);
-                        } else {
-                            useX = absDx >= absDy;
-                        }
-
-                        if (useX) {
-                            const float signY = (dy < 0.0f) ? -1.0f : 1.0f;
-                            dy = signY * (absDx / aspect);
-                        } else {
-                            const float signX = (dx < 0.0f) ? -1.0f : 1.0f;
-                            dx = signX * (absDy * aspect);
-                        }
-                    }
-
-                    if (session_.resizeAnchorValid) {
-                        const bool right = dx >= 0.0f;
-                        const bool top = dy >= 0.0f;
-                        int32_t nextHandle = 0;
-                        if (right && top) nextHandle = 2;
-                        else if (right && !top) nextHandle = 1;
-                        else if (!right && top) nextHandle = 3;
-                        else nextHandle = 0;
-                        session_.vertexIndex = nextHandle;
-                        handleIndex = nextHandle;
-                    }
-
-                    const float minX = std::min(anchorX, anchorX + dx);
-                    const float maxX = std::max(anchorX, anchorX + dx);
-                    const float minY = std::min(anchorY, anchorY + dy);
-                    const float maxY = std::max(anchorY, anchorY + dy);
-                    const float w = std::max(1e-3f, maxX - minX);
-                    const float h = std::max(1e-3f, maxY - minY);
-
-                    if (it->second.kind == EntityKind::Rect) {
-                        for (auto& r : entityManager_.rects) {
-                            if (r.id == id) { 
-                                r.x = minX; r.y = minY; r.w = w; r.h = h;
-                                pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                                refreshEntityRenderRange(id); updated = true; break; 
-                            }
-                        }
-                    } else if (it->second.kind == EntityKind::Circle) {
-                        for (auto& c : entityManager_.circles) {
-                            if (c.id == id) { 
-                                c.cx = (minX + maxX) * 0.5f; c.cy = (minY + maxY) * 0.5f; c.rx = w * 0.5f; c.ry = h * 0.5f;
-                                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                                refreshEntityRenderRange(id); updated = true; break; 
-                            }
-                        }
-                    } else if (it->second.kind == EntityKind::Polygon) {
-                        for (auto& p : entityManager_.polygons) {
-                            if (p.id == id) {
-                                p.cx = (minX + maxX) * 0.5f; p.cy = (minY + maxY) * 0.5f; 
-                                p.rx = w * 0.5f; p.ry = h * 0.5f;
-                                // Mirror on flip disabled: keep polygon orientation stable even if bbox crosses anchor.
-                                // Normalize scale to positive to avoid legacy mirrored state.
-                                p.sx = std::abs(p.sx);
-                                p.sy = std::abs(p.sy);
-
-                                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                                refreshEntityRenderRange(id); updated = true; break; 
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (updated) {
-        engine_.state().generation++;
-    }
-
-    finalizeStats();
-}
-
 void InteractionSession::commitTransform() {
     if (!session_.active) return;
 
@@ -936,6 +222,75 @@ void InteractionSession::commitTransform() {
             
             commitResultIds.push_back(id);
             commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::RESIZE));
+            commitResultPayloads.push_back(outX); commitResultPayloads.push_back(outY);
+            commitResultPayloads.push_back(outW); commitResultPayloads.push_back(outH);
+        }
+    } else if (session_.mode == TransformMode::Rotate) {
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            auto it = entityManager_.entities.find(id);
+            if (it == entityManager_.entities.end()) continue;
+
+            float finalRotationDeg = 0.0f;
+
+            // Read final rotation from entity (convert from radians to degrees)
+            if (it->second.kind == EntityKind::Rect) {
+                for (const auto& r : entityManager_.rects) {
+                    if (r.id == id) {
+                        finalRotationDeg = r.rot * (180.0f / M_PI);
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Circle) {
+                for (const auto& c : entityManager_.circles) {
+                    if (c.id == id) {
+                        finalRotationDeg = c.rot * (180.0f / M_PI);
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Polygon) {
+                for (const auto& p : entityManager_.polygons) {
+                    if (p.id == id) {
+                        finalRotationDeg = p.rot * (180.0f / M_PI);
+                        break;
+                    }
+                }
+            } else if (it->second.kind == EntityKind::Text) {
+                const TextRec* t = textSystem_.store.getText(id);
+                if (t) {
+                    finalRotationDeg = t->rotation * (180.0f / M_PI);
+                }
+            }
+
+            // Normalize to -180..180 range
+            float normalized = std::fmod(finalRotationDeg, 360.0f);
+            if (normalized > 180.0f) normalized -= 360.0f;
+            if (normalized <= -180.0f) normalized += 360.0f;
+
+            commitResultIds.push_back(id);
+            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::ROTATE));
+            commitResultPayloads.push_back(normalized);
+            commitResultPayloads.push_back(0); // reserved
+            commitResultPayloads.push_back(0); // reserved
+            commitResultPayloads.push_back(0); // reserved
+        }
+    } else if (session_.mode == TransformMode::SideResize) {
+        // SideResize commit - same format as Resize
+        for (const auto& snap : session_.snapshots) {
+            std::uint32_t id = snap.id;
+            auto it = entityManager_.entities.find(id);
+            if (it == entityManager_.entities.end()) continue;
+            float outX=0,outY=0,outW=0,outH=0;
+            if (it->second.kind == EntityKind::Rect) {
+                for (const auto& r : entityManager_.rects) { if(r.id==id){ outX=r.x; outY=r.y; outW=r.w; outH=r.h; break; } }
+            } else if (it->second.kind == EntityKind::Circle) {
+                for (const auto& c : entityManager_.circles) { if(c.id==id){ outX=c.cx; outY=c.cy; outW=c.rx*2; outH=c.ry*2; break; } }
+            } else if (it->second.kind == EntityKind::Polygon) {
+                for (const auto& p : entityManager_.polygons) { if(p.id==id){ outX=p.cx; outY=p.cy; outW=p.rx*2; outH=p.ry*2; break; } }
+            }
+            
+            commitResultIds.push_back(id);
+            commitResultOpCodes.push_back(static_cast<uint8_t>(TransformOpCode::SIDE_RESIZE));
             commitResultPayloads.push_back(outX); commitResultPayloads.push_back(outY);
             commitResultPayloads.push_back(outW); commitResultPayloads.push_back(outH);
         }
@@ -1065,14 +420,8 @@ void InteractionSession::appendDraftLineVertices(std::vector<float>& lineVertice
     const float a = useStroke ? draft_.strokeA : draft_.fillA;
     if (!(a > 0.0f)) return;
 
-    struct Segment {
-        float x0;
-        float y0;
-        float x1;
-        float y1;
-    };
-
-    std::vector<Segment> segments;
+    auto& segments = draftSegments_;
+    segments.clear();
     segments.reserve(8); // small shapes cap; polyline will grow below as needed
 
     constexpr float pi = 3.14159265358979323846f;

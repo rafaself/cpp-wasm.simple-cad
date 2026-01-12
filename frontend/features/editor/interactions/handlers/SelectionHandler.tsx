@@ -2,15 +2,34 @@ import { CommandOp } from '@/engine/core/commandBuffer';
 import { TransformMode } from '@/engine/core/interactionSession';
 import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/protocol';
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
+import { RotationCursor } from '@/features/editor/components/RotationCursor';
+import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
+import { MoveCursor } from '@/features/editor/components/MoveCursor';
+import {
+  getRotationCursorAngle,
+  getRotationCursorAngleForHandle,
+  getResizeCursorAngleForHandle,
+} from '@/features/editor/config/cursor-config';
 import { ensureTextToolReady } from '@/features/editor/text/textToolController';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind, PickSubTarget } from '@/types/picking';
-import { cadDebugLog } from '@/utils/dev/cadDebug';
+import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
+import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
+import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
+import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
+import { SideHandleType, SIDE_HANDLE_INDICES, SIDE_HANDLE_TO_ENGINE_INDEX } from '../../interactions/sideHandles';
+
+// Helper to identify line-like entities that should use Move mode for Edge interactions
+const isLineOrArrow = (kind: PickEntityKind): boolean =>
+  kind === PickEntityKind.Line || kind === PickEntityKind.Arrow;
+
+const supportsSideHandles = (kind: PickEntityKind): boolean =>
+  kind !== PickEntityKind.Line && kind !== PickEntityKind.Arrow && kind !== PickEntityKind.Polyline;
 
 // Connected component to access store without prop drilling through handler
 const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
@@ -49,12 +68,94 @@ export class SelectionHandler extends BaseInteractionHandler {
 
   private runtime: EngineRuntime | null = null;
 
+  // Track hover state for cursor updates
+  private hoverSubTarget: number = PickSubTarget.None;
+  private hoverSubIndex: number = -1;
+
+  // Custom cursor state
+  private cursorAngle: number = 0;
+  private cursorScreenPos: { x: number; y: number } | null = null;
+  private showRotationCursor: boolean = false;
+  private showResizeCursor: boolean = false;
+  private showMoveCursor: boolean = false;
+
+  private findSideHandle(
+    runtime: EngineRuntime,
+    worldPoint: { x: number; y: number },
+    tolerance: number,
+  ): { handle: SideHandleType; id: number } | null {
+    const selection = runtime.getSelectionIds();
+    if (selection.length !== 1) return null; // Only support single entity side-resize for now
+    const id = selection[0];
+
+    // Check if entity supports side resizing (not Line or Arrow)
+    if (runtime.getEntityKind) {
+      const kind = runtime.getEntityKind(id) as PickEntityKind;
+      if (!supportsSideHandles(kind)) return null;
+    }
+
+    // Get Entity Transform
+    const transform = runtime.getEntityTransform(id);
+    if (!transform.valid) return null;
+
+    // Project World Point to Local Space
+    const dx = worldPoint.x - transform.posX;
+    const dy = worldPoint.y - transform.posY;
+    const rad = -(transform.rotationDeg * Math.PI) / 180; // Negative to rotate point back
+    const localX = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const localY = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+    const halfW = transform.width / 2;
+    const halfH = transform.height / 2;
+
+    // Hit tolerance in world units
+    const hitDist = tolerance; // "Thickness" of the handle area
+    const cornerExclusion = tolerance * 1.5; // Margin to avoid hitting corners (approx 15px)
+
+    // Check edges
+    // Top Edge (N): y approx -halfH, x within [-halfW, halfW]
+    if (Math.abs(localY - -halfH) < hitDist) {
+      if (localX > -halfW + cornerExclusion && localX < halfW - cornerExclusion) {
+        return { handle: SideHandleType.N, id };
+      }
+    }
+
+    // Bottom Edge (S): y approx halfH
+    if (Math.abs(localY - halfH) < hitDist) {
+      if (localX > -halfW + cornerExclusion && localX < halfW - cornerExclusion) {
+        return { handle: SideHandleType.S, id };
+      }
+    }
+
+    // Right Edge (E): x approx halfW
+    if (Math.abs(localX - halfW) < hitDist) {
+      if (localY > -halfH + cornerExclusion && localY < halfH - cornerExclusion) {
+        return { handle: SideHandleType.E, id };
+      }
+    }
+
+    // Left Edge (W): x approx -halfW
+    if (Math.abs(localX - -halfW) < hitDist) {
+      if (localY > -halfH + cornerExclusion && localY < halfH - cornerExclusion) {
+        return { handle: SideHandleType.W, id };
+      }
+    }
+
+    return null;
+  }
+
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime || event.button !== 0) return;
     this.runtime = runtime;
 
     this.pointerDown = { x: event.clientX, y: event.clientY, world };
+    if (isCadDebugEnabled('pointer')) {
+      cadDebugLog('pointer', 'down', () => ({
+        screen,
+        world,
+      }));
+    }
 
     // Picking Logic (Hit Test)
     const tolerance = 10 / (ctx.viewTransform.scale || 1); // 10px screen tolerance
@@ -74,6 +175,54 @@ export class SelectionHandler extends BaseInteractionHandler {
     const shift = event.shiftKey;
     const ctrl = event.ctrlKey || event.metaKey;
 
+    // Check for client-side side handles first (Priority: Handles > Geometry)
+    // This allows hitting handles that extend outside the geometry (pick returns 0)
+    // BUT skip for lines/arrows - they don't have side handles, only vertex endpoints
+    const shouldCheckSideHandles = supportsSideHandles(res.kind);
+    if (shouldCheckSideHandles) {
+      const sideHit = this.findSideHandle(runtime, world, tolerance);
+      if (sideHit) {
+        const transform = runtime.getEntityTransform(sideHit.id);
+        if (transform.valid) {
+          // Use engine-based SideResize instead of client-side calculation
+          const sideIndex = SIDE_HANDLE_TO_ENGINE_INDEX[sideHit.handle];
+          const modifiers = buildModifierMask(event);
+          
+          runtime.beginTransform(
+            [sideHit.id],
+            TransformMode.SideResize,
+            sideHit.id,
+            sideIndex, // Pass side index (0=S, 1=E, 2=N, 3=W)
+            screen.x,
+            screen.y,
+            ctx.viewTransform.x,
+            ctx.viewTransform.y,
+            ctx.viewTransform.scale,
+            ctx.canvasSize.width,
+            ctx.canvasSize.height,
+            modifiers,
+          );
+          
+          this.state = {
+            kind: 'transform',
+            startScreen: screen,
+            mode: TransformMode.SideResize,
+          };
+          
+          // Store handle info for cursor updates (use frontend index 4-7, not engine index 0-3)
+          this.hoverSubTarget = PickSubTarget.ResizeHandle;
+          this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+          
+          cadDebugLog('transform', 'side-resize-start', () => ({ 
+            handle: sideHit.handle,
+            sideIndex,
+            entityId: sideHit.id,
+          }));
+          return;
+        }
+      }
+    }
+
     if (res.id !== 0) {
       // Hit something!
       const currentSelection = new Set(runtime.getSelectionIds());
@@ -92,13 +241,40 @@ export class SelectionHandler extends BaseInteractionHandler {
       if (activeIds.length > 0) {
         const modifiers = buildModifierMask(event);
         let mode = TransformMode.Move;
+
+        // Custom Side Handle Logic
+        // If we hit the body or nothing specific (but inside selection), check if we hit a side handle
+        // We prioritize explicit handles (corners) from engine. If engine returns Body, we check side handles.
         if (res.subTarget === PickSubTarget.ResizeHandle) {
           mode = TransformMode.Resize;
+        } else if (res.subTarget === PickSubTarget.RotateHandle) {
+          // Use engine-based rotation (supports continuous rotation past ±180°)
+          mode = TransformMode.Rotate;
         } else if (res.subTarget === PickSubTarget.Vertex) {
           mode = TransformMode.VertexDrag;
         } else if (res.subTarget === PickSubTarget.Edge) {
-          mode = TransformMode.EdgeDrag;
+          // Lines and arrows: Edge means "move the entire entity"
+          // Polylines: Edge means "move a segment" (EdgeDrag)
+          if (isLineOrArrow(res.kind)) {
+            mode = TransformMode.Move;
+          } else {
+            mode = TransformMode.EdgeDrag;
+          }
         }
+
+        if (res.subTarget === PickSubTarget.ResizeHandle && activeIds.length === 1) {
+          const transform = runtime.getEntityTransform(activeIds[0]);
+          const bounds = runtime.getSelectionBounds();
+          cadDebugLog('transform', 'resize-start-snapshot', () => ({
+            id: activeIds[0],
+            handleIndex: res.subIndex,
+            screen,
+            world,
+            transform,
+            bounds,
+          }));
+        }
+
         // Use beginTransform instead of beginSession
         runtime.beginTransform(
           activeIds,
@@ -140,9 +316,97 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.notifyChange(); // Render Overlay
   }
 
+  private updateRotationCursor(runtime: EngineRuntime, ctx: InputEventContext) {
+    const selection = runtime.getSelectionIds();
+    if (selection.length !== 1) return;
+
+    // Get entity rotation for Figma-like cursor behavior
+    const transform = runtime.getEntityTransform(selection[0]);
+    const rotationDeg = transform.valid ? transform.rotationDeg : 0;
+
+    // Use handle index for fixed angle per corner (no atan2 calculation)
+    // hoverSubIndex contains the rotation handle index (0=BL, 1=BR, 2=TR, 3=TL)
+    this.cursorAngle = getRotationCursorAngleForHandle(this.hoverSubIndex, rotationDeg);
+    this.cursorScreenPos = ctx.screenPoint;
+    this.showRotationCursor = true;
+  }
+
+  private updateResizeCursor(ctx: InputEventContext) {
+    if (!ctx.runtime) return;
+
+    const runtime = ctx.runtime;
+    const selection = runtime.getSelectionIds();
+    if (selection.length !== 1) return;
+
+    // Get entity rotation
+    const transform = runtime.getEntityTransform(selection[0]);
+    const rotationDeg = transform.valid ? transform.rotationDeg : 0;
+
+    // Calculate cursor angle using deterministic handle-to-center angles
+    // This ensures perfectly horizontal/vertical cursors for non-rotated shapes
+    const angle = getResizeCursorAngleForHandle(this.hoverSubIndex, rotationDeg);
+
+    this.cursorAngle = angle;
+    this.cursorScreenPos = ctx.screenPoint;
+    this.showResizeCursor = true;
+  }
+
+  private logHandleHitTest(
+    runtime: EngineRuntime,
+    worldPoint: { x: number; y: number },
+    tolerance: number,
+  ) {
+    if (!isCadDebugEnabled('overlay')) return;
+    const handleMeta = runtime.getSelectionHandleMeta();
+    const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+    const hitResults: Array<{ index: number; x: number; y: number; dist: number; hit: boolean }> =
+      [];
+    handles.primitives.forEach((prim) => {
+      for (let i = 0; i < prim.count; i++) {
+        const idx = prim.offset + i * 2;
+        const hx = handles.data[idx] ?? 0;
+        const hy = handles.data[idx + 1] ?? 0;
+        const dx = worldPoint.x - hx;
+        const dy = worldPoint.y - hy;
+        const dist = Math.hypot(dx, dy);
+        hitResults.push({ index: i, x: hx, y: hy, dist, hit: dist <= tolerance });
+      }
+    });
+    cadDebugLog('overlay', 'handle-hit-test', () => ({
+      world: worldPoint,
+      tolerance,
+      handles: hitResults,
+    }));
+  }
+
   onPointerMove(ctx: InputEventContext): void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
+
+    // Reset all custom cursor states by default
+    this.showRotationCursor = false;
+    this.showResizeCursor = false;
+    this.showMoveCursor = false;
+    this.cursorScreenPos = null;
+
+    // Check for hover on resize handles when not in active transform
+    if (this.state.kind === 'none') {
+      const tolerance = 10 / ctx.viewTransform.scale; // Scale-aware tolerance
+      if (isCadDebugEnabled('pointer')) {
+        cadDebugLog('pointer', 'move', () => ({
+          screen,
+          world,
+          tolerance,
+        }));
+      }
+      const sideHandle = this.findSideHandle(runtime, world, tolerance);
+      if (sideHandle) {
+        this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHandle.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+        this.updateResizeCursor(ctx);
+        this.notifyChange();
+        return;
+      }
+    }
 
     if (this.state.kind === 'transform') {
       // Update Engine Transform
@@ -160,6 +424,15 @@ export class SelectionHandler extends BaseInteractionHandler {
         );
         cadDebugLog('transform', 'update', () => ({ x: screen.x, y: screen.y }));
       }
+
+      // Show appropriate cursor during transform
+      if (this.state.mode === TransformMode.Rotate) {
+        this.updateRotationCursor(runtime, ctx);
+      } else if (this.state.mode === TransformMode.Resize || this.state.mode === TransformMode.SideResize) {
+        this.updateResizeCursor(ctx);
+      }
+      // Move mode uses default system cursor
+      this.notifyChange();
     } else if (this.state.kind === 'marquee' && this.pointerDown) {
       // Update Marquee Box
       const downX = this.pointerDown.x;
@@ -172,6 +445,59 @@ export class SelectionHandler extends BaseInteractionHandler {
         y: world.y,
       }));
       this.notifyChange();
+    } else if (this.state.kind === 'none') {
+      // Update hover state for cursor feedback when not interacting
+      const tolerance = 10 / (ctx.viewTransform.scale || 1);
+      startTiming('pick');
+      const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+      endTiming('pick');
+      this.hoverSubTarget = res.subTarget;
+      this.hoverSubIndex = res.subIndex;
+      if (isCadDebugEnabled('pointer')) {
+        cadDebugLog('pointer', 'hover-pick', () => ({
+          screen,
+          world,
+          tolerance,
+          id: res.id,
+          subTarget: res.subTarget,
+          subIndex: res.subIndex,
+          kind: res.kind,
+        }));
+      }
+      this.logHandleHitTest(runtime, world, tolerance);
+
+      // Show appropriate cursor based on hover target
+      // Body and Edge (for lines/arrows) use default system cursor for move
+      if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
+        this.updateRotationCursor(runtime, ctx);
+      } else if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
+        this.updateResizeCursor(ctx);
+      } else if (this.hoverSubTarget === PickSubTarget.Vertex) {
+        // Vertex handles (line/arrow endpoints, polyline vertices) use move cursor
+        this.cursorScreenPos = ctx.screenPoint;
+        this.showMoveCursor = true;
+      } else if (this.hoverSubTarget === PickSubTarget.Body) {
+        // Use default cursor for move
+      } else if (this.hoverSubTarget === PickSubTarget.Edge && isLineOrArrow(res.kind)) {
+        // Lines and arrows: Edge means "move the entire entity" - use default cursor
+      } else if (supportsSideHandles(res.kind)) {
+        // Check for side handles hover (only for non-line entities like rectangles)
+        const sideHit = this.findSideHandle(runtime, world, tolerance);
+        if (sideHit) {
+          // Get side handle index and entity rotation
+          const sideIndex = SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+          const transform = runtime.getEntityTransform(sideHit.id);
+          const rotationDeg = transform.valid ? transform.rotationDeg : 0;
+
+          // Calculate cursor angle using deterministic handle-to-center angles
+          const angle = getResizeCursorAngleForHandle(sideIndex, rotationDeg);
+
+          this.cursorAngle = angle;
+          this.cursorScreenPos = ctx.screenPoint;
+          this.showResizeCursor = true;
+        }
+      }
+      this.notifyChange(); // Trigger cursor update
     }
   }
 
@@ -347,10 +673,62 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.notifyChange();
   }
 
+  getCursor(): string | null {
+    // Hide native cursor when showing custom cursors
+    if (this.showRotationCursor || this.showResizeCursor || this.showMoveCursor) {
+      return 'none';
+    }
+
+    // During other active interactions, use default cursor handling
+    if (
+      this.state.kind === 'transform' ||
+      this.state.kind === 'marquee'
+    ) {
+      return null;
+    }
+
+    return null;
+  }
+
   renderOverlay(): React.ReactNode {
     if (this.state.kind === 'marquee') {
       return <ConnectedMarquee box={this.state.box} />;
     }
-    return null;
+
+    const overlays: React.ReactNode[] = [];
+
+    // Render custom cursors
+    if (this.cursorScreenPos) {
+      if (this.showRotationCursor) {
+        overlays.push(
+          <RotationCursor
+            key="cursor-rot"
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
+            rotation={this.cursorAngle}
+          />,
+        );
+      } else if (this.showResizeCursor) {
+        overlays.push(
+          <ResizeCursor
+            key="cursor-res"
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
+            rotation={this.cursorAngle}
+          />,
+        );
+      } else if (this.showMoveCursor) {
+        overlays.push(
+          <MoveCursor
+            key="cursor-move"
+            x={this.cursorScreenPos.x}
+            y={this.cursorScreenPos.y}
+          />,
+        );
+      }
+    }
+
+    if (overlays.length === 0) return null;
+    return <>{overlays}</>;
   }
 }

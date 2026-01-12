@@ -292,7 +292,7 @@ void HistoryManager::applySelectionSnapshot(const std::vector<std::uint32_t>& se
         engine.clearSelection();
         return;
     }
-    engine.setSelection(selection.data(), static_cast<std::uint32_t>(selection.size()), CadEngine::SelectionMode::Replace);
+    engine.setSelection(selection.data(), static_cast<std::uint32_t>(selection.size()), engine::protocol::SelectionMode::Replace);
 }
 
 void HistoryManager::undo(CadEngine& engine) {
@@ -323,8 +323,8 @@ void HistoryManager::applyHistoryEntry(const HistoryEntry& entry, bool useAfter,
         engine.state().snapshotDirty = true;
         engine.markTextQuadsDirty();
         engine.recordDocChanged(
-            static_cast<std::uint32_t>(CadEngine::ChangeMask::Layer)
-            | static_cast<std::uint32_t>(CadEngine::ChangeMask::Style));
+            static_cast<std::uint32_t>(engine::protocol::ChangeMask::Layer)
+            | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style));
     }
 
     for (const auto& change : entry.entities) {

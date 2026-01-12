@@ -5,13 +5,16 @@ import type {
   DocumentDigest,
   EventBufferMeta,
   OverlayBufferMeta,
+  OrientedHandleMeta,
   EntityAabb,
+  EntityTransform,
   HistoryMeta,
   EngineStats,
   LayerStyleSnapshot,
   SelectionStyleSummary,
 } from './protocol';
 import type { PickResult } from '@/types/picking';
+import type { TransformState } from './interactionSession';
 import type {
   TextCaretPosition,
   TextHitResult,
@@ -42,6 +45,8 @@ type WasmU32Vector = {
   get: (index: number) => number;
   delete: () => void;
 };
+
+export type VectorUInt32 = WasmU32Vector;
 
 type WasmLayerVector = {
   size: () => number;
@@ -89,9 +94,16 @@ export type CadEngineInstance = {
   hasPendingEvents?: () => boolean;
   getSelectionOutlineMeta?: () => OverlayBufferMeta;
   getSelectionHandleMeta?: () => OverlayBufferMeta;
+  getOrientedHandleMeta?: () => OrientedHandleMeta;
   getSnapOverlayMeta?: () => OverlayBufferMeta;
   getEntityAabb?: (entityId: EntityId) => EntityAabb;
   getSelectionBounds?: () => EntityAabb;
+  getEntityTransform?: (entityId: EntityId) => EntityTransform;
+  setEntityPosition?: (entityId: EntityId, x: number, y: number) => void;
+  setEntitySize?: (entityId: EntityId, width: number, height: number) => void;
+  setEntityRotation?: (entityId: EntityId, rotationDeg: number) => void;
+  setEntityLength?: (entityId: EntityId, length: number) => void;
+  setEntityScale?: (entityId: EntityId, scaleX: number, scaleY: number) => void;
   getLayersSnapshot?: () => WasmLayerVector;
   getLayerName?: (layerId: number) => string;
   getLayerStyle?: (layerId: number) => LayerStyleSnapshot;
@@ -99,9 +111,12 @@ export type CadEngineInstance = {
   deleteLayer?: (layerId: number) => boolean;
   getEntityFlags?: (entityId: EntityId) => number;
   setEntityFlags?: (entityId: EntityId, flagsMask: number, flagsValue: number) => void;
-  setEntityLayer?: (entityId: EntityId, layerId: number) => void;
-  getEntityLayer?: (entityId: EntityId) => number;
-  getSelectionIds?: () => WasmU32Vector;
+  setEntityLayer(entityId: number, layerId: number): void;
+  getEntityLayer(entityId: number): number;
+  getEntityKind(entityId: number): number;
+
+  // Selection
+  getSelectionIds(): VectorUInt32;
   getSelectionGeneration?: () => number;
   getSelectionStyleSummary?: () => SelectionStyleSummary;
   clearSelection?: () => void;
@@ -206,6 +221,7 @@ export type CadEngineInstance = {
   commitTransform?: () => void;
   cancelTransform?: () => void;
   isInteractionActive?: () => boolean;
+  getTransformState?: () => TransformState;
   getCommitResultCount?: () => number;
   getCommitResultIdsPtr?: () => number;
   getCommitResultOpCodesPtr?: () => number;

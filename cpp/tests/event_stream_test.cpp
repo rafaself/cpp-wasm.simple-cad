@@ -17,19 +17,19 @@ TEST(EventStreamTest, CoalescesEntityChanges) {
     auto meta = engine.pollEvents(256);
     ASSERT_GE(meta.count, 2u);
 
-    const auto* events = reinterpret_cast<const CadEngine::EngineEvent*>(meta.ptr);
+    const auto* events = reinterpret_cast<const engine::protocol::EngineEvent*>(meta.ptr);
     ASSERT_NE(events, nullptr);
 
-    EXPECT_EQ(events[0].type, static_cast<std::uint16_t>(CadEngine::EventType::DocChanged));
-    EXPECT_EQ(events[1].type, static_cast<std::uint16_t>(CadEngine::EventType::EntityChanged));
+    EXPECT_EQ(events[0].type, static_cast<std::uint16_t>(engine::protocol::EventType::DocChanged));
+    EXPECT_EQ(events[1].type, static_cast<std::uint16_t>(engine::protocol::EventType::EntityChanged));
     EXPECT_EQ(events[1].a, 1u);
 
     const std::uint32_t expectedMask =
-        static_cast<std::uint32_t>(CadEngine::ChangeMask::Geometry)
-        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Style)
-        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Bounds)
-        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Flags)
-        | static_cast<std::uint32_t>(CadEngine::ChangeMask::Layer);
+        static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry)
+        | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Style)
+        | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Bounds)
+        | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Flags)
+        | static_cast<std::uint32_t>(engine::protocol::ChangeMask::Layer);
     EXPECT_EQ(events[1].b, expectedMask);
 }
 
@@ -39,17 +39,17 @@ TEST(EventStreamTest, PollRespectsMaxEvents) {
 
     auto metaA = engine.pollEvents(2);
     ASSERT_EQ(metaA.count, 2u);
-    const auto* eventsA = reinterpret_cast<const CadEngine::EngineEvent*>(metaA.ptr);
+    const auto* eventsA = reinterpret_cast<const engine::protocol::EngineEvent*>(metaA.ptr);
     ASSERT_NE(eventsA, nullptr);
-    EXPECT_EQ(eventsA[0].type, static_cast<std::uint16_t>(CadEngine::EventType::DocChanged));
-    EXPECT_EQ(eventsA[1].type, static_cast<std::uint16_t>(CadEngine::EventType::EntityCreated));
+    EXPECT_EQ(eventsA[0].type, static_cast<std::uint16_t>(engine::protocol::EventType::DocChanged));
+    EXPECT_EQ(eventsA[1].type, static_cast<std::uint16_t>(engine::protocol::EventType::EntityCreated));
 
     auto metaB = engine.pollEvents(2);
     ASSERT_EQ(metaB.count, 2u);
-    const auto* eventsB = reinterpret_cast<const CadEngine::EngineEvent*>(metaB.ptr);
+    const auto* eventsB = reinterpret_cast<const engine::protocol::EngineEvent*>(metaB.ptr);
     ASSERT_NE(eventsB, nullptr);
-    EXPECT_EQ(eventsB[0].type, static_cast<std::uint16_t>(CadEngine::EventType::OrderChanged));
-    EXPECT_EQ(eventsB[1].type, static_cast<std::uint16_t>(CadEngine::EventType::HistoryChanged));
+    EXPECT_EQ(eventsB[0].type, static_cast<std::uint16_t>(engine::protocol::EventType::OrderChanged));
+    EXPECT_EQ(eventsB[1].type, static_cast<std::uint16_t>(engine::protocol::EventType::HistoryChanged));
 }
 
 TEST(EventStreamTest, OverflowTriggersResyncAck) {
@@ -61,9 +61,9 @@ TEST(EventStreamTest, OverflowTriggersResyncAck) {
 
     auto meta = engine.pollEvents(1024);
     ASSERT_EQ(meta.count, 1u);
-    const auto* events = reinterpret_cast<const CadEngine::EngineEvent*>(meta.ptr);
+    const auto* events = reinterpret_cast<const engine::protocol::EngineEvent*>(meta.ptr);
     ASSERT_NE(events, nullptr);
-    ASSERT_EQ(events[0].type, static_cast<std::uint16_t>(CadEngine::EventType::Overflow));
+    ASSERT_EQ(events[0].type, static_cast<std::uint16_t>(engine::protocol::EventType::Overflow));
 
     const std::uint32_t overflowGen = events[0].a;
     engine.ackResync(overflowGen);

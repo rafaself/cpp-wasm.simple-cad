@@ -238,11 +238,57 @@ export type OverlayBufferMeta = {
   dataPtr: number;
 };
 
+/**
+ * Oriented handle metadata with pre-rotated positions.
+ * 
+ * Handle index order:
+ *   0 = Bottom-Left (BL)
+ *   1 = Bottom-Right (BR)
+ *   2 = Top-Right (TR)
+ *   3 = Top-Left (TL)
+ */
+export type OrientedHandleMeta = {
+  generation: number;
+  entityId: number;
+  
+  // Corner handles in world coordinates (already rotated)
+  blX: number; blY: number;  // Bottom-Left
+  brX: number; brY: number;  // Bottom-Right
+  trX: number; trY: number;  // Top-Right
+  tlX: number; tlY: number;  // Top-Left
+  
+  // Rotate handle position in world coordinates
+  rotateHandleX: number;
+  rotateHandleY: number;
+  
+  // Entity center (for cursor calculations)
+  centerX: number;
+  centerY: number;
+  
+  // Entity rotation in radians
+  rotationRad: number;
+  
+  // Flags
+  hasRotateHandle: number;   // 1 if rotate handle should be shown
+  hasResizeHandles: number;  // 1 if corner resize handles should be shown
+  valid: number;             // 1 if data is valid
+};
+
 export type EntityAabb = {
   minX: number;
   minY: number;
   maxX: number;
   maxY: number;
+  valid: number;
+};
+
+export type EntityTransform = {
+  posX: number;
+  posY: number;
+  width: number;
+  height: number;
+  rotationDeg: number;
+  hasRotation: number;
   valid: number;
 };
 
@@ -259,7 +305,7 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
 
 export const PROTOCOL_VERSION = 4 as const;
 export const COMMAND_VERSION = 3 as const;
-export const SNAPSHOT_VERSION = 2 as const;
+export const SNAPSHOT_VERSION = 3 as const; // v3: Added rot, sx, sy to RectRec for flip support
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
@@ -505,6 +551,8 @@ const computeAbiHash = (): number => {
   h = hashStruct(h, 0x53000022, 20, [0, 4, 8, 12, 16]);
 
   h = hashStruct(h, 0x53000023, 20, [0, 4, 8, 12, 16]);
+
+  h = hashStruct(h, 0x53000026, 28, [0, 4, 8, 12, 16, 20, 24]);
 
   h = hashStruct(h, 0x53000024, 12, [0, 4, 8]);
 

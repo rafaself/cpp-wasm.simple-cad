@@ -1,19 +1,23 @@
 import type { Shape } from '@/types';
 
 // NOTE: These enums must match the C++ bindings in `cpp/engine/bindings.cpp`
-// and the underlying engine enums in `cpp/engine/engine.h`.
+// and the underlying engine enums in `cpp/engine/interaction/interaction_types.h`.
 export enum TransformMode {
   Move = 0,
   VertexDrag = 1,
   EdgeDrag = 2,
   Resize = 3,
+  Rotate = 4,
+  SideResize = 5, // Constrained resize (N/E/S/W handles)
 }
 
-// NOTE: These opcodes must match `CadEngine::TransformOpCode` in C++.
+// NOTE: These opcodes must match `TransformOpCode` in interaction_types.h.
 export enum TransformOpCode {
   MOVE = 1,
   VERTEX_SET = 2,
   RESIZE = 3,
+  ROTATE = 4,
+  SIDE_RESIZE = 5,
 }
 
 export const COMMIT_PAYLOAD_STRIDE = 4;
@@ -23,6 +27,17 @@ const clampTiny = (v: number): number => (Math.abs(v) < 1e-6 ? 0 : v);
 export type MoveCommitPayload = { dx: number; dy: number };
 export type VertexSetCommitPayload = { vertexIndex: number; x: number; y: number };
 export type ResizeCommitPayload = { x: number; y: number; width: number; height: number };
+export type RotateCommitPayload = { rotationDeg: number };
+
+// Transform state for UI feedback (tooltips, etc.)
+// Must match TransformState in cpp/engine/interaction/interaction_types.h
+export type TransformState = {
+  active: boolean;
+  mode: number; // TransformMode as number
+  rotationDeltaDeg: number; // For Rotate mode: accumulated rotation angle
+  pivotX: number; // For Rotate mode: pivot point X
+  pivotY: number; // For Rotate mode: pivot point Y
+};
 
 export const decodeMovePayload = (payloads: Float32Array, i: number): MoveCommitPayload | null => {
   const o = i * COMMIT_PAYLOAD_STRIDE;
@@ -82,6 +97,24 @@ export const decodeResizePayload = (
   return { x, y, width, height };
 };
 
+// Contract (C++):
+// - payload[0] = rotationDeg (rotation in degrees)
+// - payload[1] = reserved
+// - payload[2] = reserved
+// - payload[3] = reserved
+export const decodeRotatePayload = (
+  payloads: Float32Array,
+  i: number,
+): RotateCommitPayload | null => {
+  const o = i * COMMIT_PAYLOAD_STRIDE;
+  if (o >= payloads.length) return null;
+
+  const rotationDeg = payloads[o + 0]!;
+  if (!Number.isFinite(rotationDeg)) return null;
+
+  return { rotationDeg };
+};
+
 export const applyCommitOpToShape = (
   shape: Shape,
   op: TransformOpCode,
@@ -138,6 +171,26 @@ export const applyCommitOpToShape = (
 
     if ((shape.type === 'circle' || shape.type === 'polygon') && shape.radius !== undefined) {
       diff.radius = undefined;
+    }
+
+    return Object.keys(diff).length > 0 ? diff : null;
+  }
+
+  if (op === TransformOpCode.ROTATE) {
+    const rotate = decodeRotatePayload(payloads, i);
+    if (!rotate) return null;
+
+    const { rotationDeg } = rotate;
+    const diff: Partial<Shape> = {};
+
+    // Only apply rotation if shape supports it
+    if (
+      shape.rotation !== undefined ||
+      shape.type === 'circle' ||
+      shape.type === 'polygon' ||
+      shape.type === 'text'
+    ) {
+      diff.rotation = rotationDeg;
     }
 
     return Object.keys(diff).length > 0 ? diff : null;

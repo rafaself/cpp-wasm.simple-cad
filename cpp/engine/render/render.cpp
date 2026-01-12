@@ -144,18 +144,56 @@ static void addSegmentQuad(
 
 static void addRectFill(const RectRec& r, std::vector<float>& triangleVertices) {
     if (!(r.a > 0.0f)) return;
-    const float x0 = r.x;
-    const float y0 = r.y;
-    const float x1 = r.x + r.w;
-    const float y1 = r.y + r.h;
-    constexpr float z = 0.0f;
 
-    pushVertexColored(x0, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x1, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x1, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x0, y0, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x1, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
-    pushVertexColored(x0, y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+    // Calculate center of rectangle
+    const float cx = r.x + r.w * 0.5f;
+    const float cy = r.y + r.h * 0.5f;
+
+    // Corner positions (unscaled, unrotated, relative to center)
+    float x0 = -r.w * 0.5f;
+    float y0 = -r.h * 0.5f;
+    float x1 = r.w * 0.5f;
+    float y1 = r.h * 0.5f;
+
+    // Apply scale
+    x0 *= r.sx;
+    y0 *= r.sy;
+    x1 *= r.sx;
+    y1 *= r.sy;
+
+    // Apply rotation and translation if needed
+    if (std::abs(r.rot) > 1e-6f) {
+        const float cosA = std::cos(r.rot);
+        const float sinA = std::sin(r.rot);
+
+        // Helper to rotate and translate a point
+        auto transformPoint = [&](float x, float y) -> std::pair<float, float> {
+            return {cx + x * cosA - y * sinA, cy + x * sinA + y * cosA};
+        };
+
+        // Transform all 4 corners
+        auto [rx0y0_x, rx0y0_y] = transformPoint(x0, y0);
+        auto [rx1y0_x, rx1y0_y] = transformPoint(x1, y0);
+        auto [rx1y1_x, rx1y1_y] = transformPoint(x1, y1);
+        auto [rx0y1_x, rx0y1_y] = transformPoint(x0, y1);
+
+        constexpr float z = 0.0f;
+        pushVertexColored(rx0y0_x, rx0y0_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx1y0_x, rx1y0_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx1y1_x, rx1y1_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx0y0_x, rx0y0_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx1y1_x, rx1y1_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(rx0y1_x, rx0y1_y, z, r.r, r.g, r.b, r.a, triangleVertices);
+    } else {
+        // No rotation - just translate scaled corners
+        constexpr float z = 0.0f;
+        pushVertexColored(cx + x0, cy + y0, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(cx + x1, cy + y0, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(cx + x1, cy + y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(cx + x0, cy + y0, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(cx + x1, cy + y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+        pushVertexColored(cx + x0, cy + y1, z, r.r, r.g, r.b, r.a, triangleVertices);
+    }
 }
 
 static void addRectStroke(const RectRec& r, float viewScale, std::vector<float>& triangleVertices) {
@@ -164,41 +202,95 @@ static void addRectStroke(const RectRec& r, float viewScale, std::vector<float>&
     if (!(a > 0.0f)) return;
     const float strokeWorld = strokeWidthWorld(r.strokeWidthPx, viewScale);
 
-    const float ox0 = r.x;
-    const float oy0 = r.y;
-    const float ox1 = r.x + r.w;
-    const float oy1 = r.y + r.h;
-    const float ix0 = ox0 + strokeWorld;
-    const float iy0 = oy0 + strokeWorld;
-    const float ix1 = ox1 - strokeWorld;
-    const float iy1 = oy1 - strokeWorld;
+    // Calculate center
+    const float cx = r.x + r.w * 0.5f;
+    const float cy = r.y + r.h * 0.5f;
 
-    const float cix0 = std::min(ix0, (ox0 + ox1) * 0.5f);
-    const float ciy0 = std::min(iy0, (oy0 + oy1) * 0.5f);
-    const float cix1 = std::max(ix1, (ox0 + ox1) * 0.5f);
-    const float ciy1 = std::max(iy1, (oy0 + oy1) * 0.5f);
+    // Outer corners (relative to center, unscaled)
+    float ox0 = -r.w * 0.5f;
+    float oy0 = -r.h * 0.5f;
+    float ox1 = r.w * 0.5f;
+    float oy1 = r.h * 0.5f;
+
+    // Apply scale to outer corners
+    ox0 *= r.sx;
+    oy0 *= r.sy;
+    ox1 *= r.sx;
+    oy1 *= r.sy;
+
+    // Inner corners (with stroke offset, accounting for scale direction)
+    const float strokeX = strokeWorld * (r.sx >= 0 ? 1.0f : -1.0f);
+    const float strokeY = strokeWorld * (r.sy >= 0 ? 1.0f : -1.0f);
+    float ix0 = ox0 + strokeX;
+    float iy0 = oy0 + strokeY;
+    float ix1 = ox1 - strokeX;
+    float iy1 = oy1 - strokeY;
+
+    // Clamp inner corners to center if stroke is too large
+    const float cix0 = (r.sx >= 0) ? std::min(ix0, 0.0f) : std::max(ix0, 0.0f);
+    const float ciy0 = (r.sy >= 0) ? std::min(iy0, 0.0f) : std::max(iy0, 0.0f);
+    const float cix1 = (r.sx >= 0) ? std::max(ix1, 0.0f) : std::min(ix1, 0.0f);
+    const float ciy1 = (r.sy >= 0) ? std::max(iy1, 0.0f) : std::min(iy1, 0.0f);
 
     constexpr float z = 0.0f;
 
-    auto pushEdge = [&](float oxA, float oyA, float ixA, float iyA, float oxB, float oyB, float ixB, float iyB) {
-        // Triangle 1: outer A, inner A, outer B
-        pushVertexColored(oxA, oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        // Triangle 2: inner A, inner B, outer B
-        pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(ixB, iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
-        pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
-    };
+    // Apply rotation if needed
+    if (std::abs(r.rot) > 1e-6f) {
+        const float cosA = std::cos(r.rot);
+        const float sinA = std::sin(r.rot);
 
-    // Top edge
-    pushEdge(ox0, oy0, cix0, ciy0, ox1, oy0, cix1, ciy0);
-    // Right edge
-    pushEdge(ox1, oy0, cix1, ciy0, ox1, oy1, cix1, ciy1);
-    // Bottom edge
-    pushEdge(ox1, oy1, cix1, ciy1, ox0, oy1, cix0, ciy1);
-    // Left edge
-    pushEdge(ox0, oy1, cix0, ciy1, ox0, oy0, cix0, ciy0);
+        auto transformPoint = [&](float x, float y) -> std::pair<float, float> {
+            return {cx + x * cosA - y * sinA, cy + x * sinA + y * cosA};
+        };
+
+        // Transform all 8 corner points (4 outer + 4 inner)
+        auto [rox0y0_x, rox0y0_y] = transformPoint(ox0, oy0);
+        auto [rox1y0_x, rox1y0_y] = transformPoint(ox1, oy0);
+        auto [rox1y1_x, rox1y1_y] = transformPoint(ox1, oy1);
+        auto [rox0y1_x, rox0y1_y] = transformPoint(ox0, oy1);
+        auto [rix0y0_x, rix0y0_y] = transformPoint(cix0, ciy0);
+        auto [rix1y0_x, rix1y0_y] = transformPoint(cix1, ciy0);
+        auto [rix1y1_x, rix1y1_y] = transformPoint(cix1, ciy1);
+        auto [rix0y1_x, rix0y1_y] = transformPoint(cix0, ciy1);
+
+        auto pushEdgeRotated = [&](float oxA, float oyA, float ixA, float iyA,
+                                    float oxB, float oyB, float ixB, float iyB) {
+            pushVertexColored(oxA, oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixA, iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(ixB, iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(oxB, oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        };
+
+        // Top edge
+        pushEdgeRotated(rox0y0_x, rox0y0_y, rix0y0_x, rix0y0_y, rox1y0_x, rox1y0_y, rix1y0_x, rix1y0_y);
+        // Right edge
+        pushEdgeRotated(rox1y0_x, rox1y0_y, rix1y0_x, rix1y0_y, rox1y1_x, rox1y1_y, rix1y1_x, rix1y1_y);
+        // Bottom edge
+        pushEdgeRotated(rox1y1_x, rox1y1_y, rix1y1_x, rix1y1_y, rox0y1_x, rox0y1_y, rix0y1_x, rix0y1_y);
+        // Left edge
+        pushEdgeRotated(rox0y1_x, rox0y1_y, rix0y1_x, rix0y1_y, rox0y0_x, rox0y0_y, rix0y0_x, rix0y0_y);
+    } else {
+        // No rotation - translate scaled corners
+        auto pushEdge = [&](float oxA, float oyA, float ixA, float iyA, float oxB, float oyB, float ixB, float iyB) {
+            pushVertexColored(cx + oxA, cy + oyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(cx + ixA, cy + iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(cx + oxB, cy + oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(cx + ixA, cy + iyA, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(cx + ixB, cy + iyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+            pushVertexColored(cx + oxB, cy + oyB, z, r.sr, r.sg, r.sb, a, triangleVertices);
+        };
+
+        // Top edge
+        pushEdge(ox0, oy0, cix0, ciy0, ox1, oy0, cix1, ciy0);
+        // Right edge
+        pushEdge(ox1, oy0, cix1, ciy0, ox1, oy1, cix1, ciy1);
+        // Bottom edge
+        pushEdge(ox1, oy1, cix1, ciy1, ox0, oy1, cix0, ciy1);
+        // Left edge
+        pushEdge(ox0, oy1, cix0, ciy1, ox0, oy0, cix0, ciy0);
+    }
 }
 
 static void addCircleFill(const CircleRec& c, std::vector<float>& triangleVertices) {
@@ -553,6 +645,7 @@ bool buildEntityRenderData(
     const std::vector<ArrowRec>& arrows,
     float viewScale,
     std::vector<float>& triangleVertices,
+    std::vector<Point2>& scratchVerts,
     void* resolveCtx,
     EntityVisibilityFn isVisible,
     ResolveStyleFn resolveStyle
@@ -560,7 +653,7 @@ bool buildEntityRenderData(
     if (isVisible && !isVisible(resolveCtx, entityId)) return false;
 
     const std::size_t start = triangleVertices.size();
-    std::vector<Point2> tmpVerts;
+    scratchVerts.clear();
     ResolvedShapeStyle resolved{};
     const bool hasResolved = resolveStyle && resolveStyle(resolveCtx, entityId, ref.kind, resolved);
 
@@ -583,7 +676,7 @@ bool buildEntityRenderData(
         PolyRec pl = polylines[ref.index];
         if (hasResolved) applyPolylineStyle(pl, resolved);
         if (pl.count >= 2 && pl.enabled > 0.5f) {
-            addPolylineStroke(pl, viewScale, points, tmpVerts, triangleVertices);
+            addPolylineStroke(pl, viewScale, points, scratchVerts, triangleVertices);
         }
     } else if (ref.kind == EntityKind::Circle) {
         CircleRec c = circles[ref.index];
@@ -593,8 +686,8 @@ bool buildEntityRenderData(
     } else if (ref.kind == EntityKind::Polygon) {
         PolygonRec p = polygons[ref.index];
         if (hasResolved) applyPolygonStyle(p, resolved);
-        addPolygonFill(p, tmpVerts, triangleVertices);
-        addPolygonStroke(p, viewScale, tmpVerts, triangleVertices);
+        addPolygonFill(p, scratchVerts, triangleVertices);
+        addPolygonStroke(p, viewScale, scratchVerts, triangleVertices);
     } else if (ref.kind == EntityKind::Arrow) {
         ArrowRec a = arrows[ref.index];
         if (hasResolved) applyArrowStyle(a, resolved);
@@ -721,6 +814,9 @@ void rebuildRenderBuffers(
         triangleVertices.reserve(triangleBudget);
     }
 
+    std::vector<Point2> scratchVerts;
+    scratchVerts.reserve(64);
+
     for (const auto& id : ordered) {
         if (!isEntityVisible(id)) continue;
         const auto it = entities.find(id);
@@ -739,6 +835,7 @@ void rebuildRenderBuffers(
             arrows,
             viewScale,
             triangleVertices,
+            scratchVerts,
             resolveCtx,
             isVisible,
             resolveStyle

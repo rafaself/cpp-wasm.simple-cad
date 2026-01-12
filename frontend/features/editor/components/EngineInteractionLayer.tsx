@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
 
+import RotationTooltip from './RotationTooltip';
 import ShapeOverlay from './ShapeOverlay';
 
 const EngineInteractionLayer: React.FC = () => {
@@ -188,6 +189,7 @@ const EngineInteractionLayer: React.FC = () => {
       onPointerLeave={() => setIsMouseOverCanvas(false)}
     >
       <ShapeOverlay />
+      <RotationTooltip />
 
       {/* Center Icon */}
       {centerIconSettings.show && (

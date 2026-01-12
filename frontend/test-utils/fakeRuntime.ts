@@ -1,6 +1,6 @@
 import { CommandOp } from '@/engine/core/commandBuffer';
-import { TransformMode } from '@/engine/core/interactionSession';
-import { SelectionMode } from '@/engine/core/protocol';
+import { TransformMode, type TransformState } from '@/engine/core/interactionSession';
+import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 
 import { FakeEventBus } from './fakeEventBus';
 
@@ -262,7 +262,69 @@ export class FakeRuntime {
     return this.eventBus.subscribe(event, listener);
   }
 
-  emit(event: string, payload: unknown): void {
-    this.eventBus.emit(event, payload);
+  getEntityTransform(entityId: number): EntityTransform {
+    return {
+      posX: 0,
+      posY: 0,
+      width: 100,
+      height: 100,
+      rotationDeg: 0,
+      hasRotation: 0,
+      valid: 1,
+    };
   }
-}
+
+  getSelectionBounds(): { minX: number; minY: number; maxX: number; maxY: number; valid: number } {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: 100,
+      maxY: 100,
+      valid: 1,
+    };
+  }
+
+  getOrientedHandleMeta(): {
+    generation: number;
+    entityId: number;
+    blX: number; blY: number;
+    brX: number; brY: number;
+    trX: number; trY: number;
+    tlX: number; tlY: number;
+    rotateHandleX: number;
+    rotateHandleY: number;
+    centerX: number;
+    centerY: number;
+    rotationRad: number;
+    hasRotateHandle: number;
+    hasResizeHandles: number;
+    valid: number;
+  } {
+    // Return invalid by default - tests can override if needed
+    return {
+      generation: this.generation,
+      entityId: 0,
+      blX: 0, blY: 0,
+      brX: 100, brY: 0,
+      trX: 100, trY: 100,
+      tlX: 0, tlY: 100,
+      rotateHandleX: 50,
+      rotateHandleY: 125,
+      centerX: 50,
+      centerY: 50,
+      rotationRad: 0,
+      hasRotateHandle: 1,
+      hasResizeHandles: 1,
+      valid: 0, // Invalid by default
+    };
+  }
+
+  getTransformState(): TransformState {
+    return {
+      active: false,
+      mode: 0,
+      rotationDeltaDeg: 0,
+      pivotX: 0,
+      pivotY: 0,
+    };
+  }}

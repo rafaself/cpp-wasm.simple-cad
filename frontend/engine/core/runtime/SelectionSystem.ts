@@ -1,16 +1,49 @@
-import { EntityId, SelectionMode, OverlayBufferMeta, EntityAabb } from '../protocol';
+import { EntityId, SelectionMode, OverlayBufferMeta, OrientedHandleMeta, EntityAabb } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 import type { PickResult } from '@/types/picking';
 
+/**
+ * Selection System with caching to avoid hot-path allocations.
+ *
+ * The cache is invalidated when selection-mutating methods are called.
+ * This avoids allocating new Uint32Array on every getSelectionIds() call
+ * during pointermove events.
+ */
 export class SelectionSystem {
+  // Cache for selection IDs to avoid allocation in hot paths
+  private _cachedSelectionIds: Uint32Array | null = null;
+  private _cacheVersion = 0;
+
   constructor(
     private readonly module: WasmModule,
     private readonly engine: CadEngineInstance,
   ) {}
 
+  /**
+   * Invalidates the cached selection IDs.
+   * Called internally when selection changes.
+   */
+  private invalidateCache(): void {
+    this._cachedSelectionIds = null;
+    this._cacheVersion++;
+  }
+
+  /**
+   * Gets cached selection IDs, only allocating when cache is invalidated.
+   * Safe to call frequently in hot paths (pointermove).
+   */
   public getSelectionIds(): Uint32Array {
-    if (!this.engine.getSelectionIds) return new Uint32Array();
+    // Return cached result if available
+    if (this._cachedSelectionIds !== null) {
+      return this._cachedSelectionIds;
+    }
+
+    if (!this.engine.getSelectionIds) {
+      this._cachedSelectionIds = new Uint32Array(0);
+      return this._cachedSelectionIds;
+    }
+
     const vec = this.engine.getSelectionIds();
     const count = vec.size();
     const out = new Uint32Array(count);
@@ -18,11 +51,28 @@ export class SelectionSystem {
       out[i] = vec.get(i);
     }
     vec.delete();
+
+    this._cachedSelectionIds = out;
     return out;
+  }
+
+  /**
+   * Gets the current cache version for external invalidation tracking.
+   */
+  public getCacheVersion(): number {
+    return this._cacheVersion;
+  }
+
+  /**
+   * Force invalidation of cache (e.g., after external engine operations).
+   */
+  public forceInvalidate(): void {
+    this.invalidateCache();
   }
 
   public clearSelection(): void {
     this.engine.clearSelection?.();
+    this.invalidateCache();
   }
 
   public setSelection(ids: EntityId[], mode: SelectionMode): void {
@@ -38,10 +88,12 @@ export class SelectionSystem {
     } finally {
       this.engine.freeBytes(ptr);
     }
+    this.invalidateCache();
   }
 
   public selectByPick(pick: PickResult, modifiers: number): void {
     this.engine.selectByPick?.(pick, modifiers);
+    this.invalidateCache();
   }
 
   public marqueeSelect(
@@ -53,6 +105,7 @@ export class SelectionSystem {
     hitMode: number,
   ): void {
     this.engine.marqueeSelect?.(minX, minY, maxX, maxY, mode, hitMode);
+    this.invalidateCache();
   }
 
   public queryMarquee(
@@ -85,6 +138,13 @@ export class SelectionSystem {
       throw new Error('[EngineRuntime] getSelectionHandleMeta() missing in WASM build.');
     }
     return this.engine.getSelectionHandleMeta();
+  }
+
+  public getOrientedHandleMeta(): OrientedHandleMeta {
+    if (!this.engine.getOrientedHandleMeta) {
+      throw new Error('[EngineRuntime] getOrientedHandleMeta() missing in WASM build.');
+    }
+    return this.engine.getOrientedHandleMeta();
   }
 
   public getSelectionBounds(): EntityAabb {

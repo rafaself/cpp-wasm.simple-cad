@@ -33,46 +33,47 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .value("Polyline", PickEntityKind::Polyline)
         .value("Polygon", PickEntityKind::Polygon)
         .value("Arrow", PickEntityKind::Arrow)
-        .value("Arrow", PickEntityKind::Arrow)
         .value("Text", PickEntityKind::Text);
 
     emscripten::enum_<CadEngine::TransformMode>("TransformMode")
         .value("Move", CadEngine::TransformMode::Move)
         .value("VertexDrag", CadEngine::TransformMode::VertexDrag)
         .value("EdgeDrag", CadEngine::TransformMode::EdgeDrag)
-        .value("Resize", CadEngine::TransformMode::Resize);
+        .value("Resize", CadEngine::TransformMode::Resize)
+        .value("Rotate", CadEngine::TransformMode::Rotate);
 
     emscripten::enum_<CadEngine::TransformOpCode>("TransformOpCode")
         .value("MOVE", CadEngine::TransformOpCode::MOVE)
         .value("VERTEX_SET", CadEngine::TransformOpCode::VERTEX_SET)
-        .value("RESIZE", CadEngine::TransformOpCode::RESIZE);
+        .value("RESIZE", CadEngine::TransformOpCode::RESIZE)
+        .value("ROTATE", CadEngine::TransformOpCode::ROTATE);
 
-    emscripten::enum_<CadEngine::SelectionMode>("SelectionMode")
-        .value("Replace", CadEngine::SelectionMode::Replace)
-        .value("Add", CadEngine::SelectionMode::Add)
-        .value("Remove", CadEngine::SelectionMode::Remove)
-        .value("Toggle", CadEngine::SelectionMode::Toggle);
+    emscripten::enum_<engine::protocol::SelectionMode>("SelectionMode")
+        .value("Replace", engine::protocol::SelectionMode::Replace)
+        .value("Add", engine::protocol::SelectionMode::Add)
+        .value("Remove", engine::protocol::SelectionMode::Remove)
+        .value("Toggle", engine::protocol::SelectionMode::Toggle);
 
-    emscripten::enum_<CadEngine::SelectionModifier>("SelectionModifier")
-        .value("Shift", CadEngine::SelectionModifier::Shift)
-        .value("Ctrl", CadEngine::SelectionModifier::Ctrl)
-        .value("Alt", CadEngine::SelectionModifier::Alt)
-        .value("Meta", CadEngine::SelectionModifier::Meta);
+    emscripten::enum_<engine::protocol::SelectionModifier>("SelectionModifier")
+        .value("Shift", engine::protocol::SelectionModifier::Shift)
+        .value("Ctrl", engine::protocol::SelectionModifier::Ctrl)
+        .value("Alt", engine::protocol::SelectionModifier::Alt)
+        .value("Meta", engine::protocol::SelectionModifier::Meta);
 
-    emscripten::enum_<CadEngine::MarqueeMode>("MarqueeMode")
-        .value("Window", CadEngine::MarqueeMode::Window)
-        .value("Crossing", CadEngine::MarqueeMode::Crossing);
+    emscripten::enum_<engine::protocol::MarqueeMode>("MarqueeMode")
+        .value("Window", engine::protocol::MarqueeMode::Window)
+        .value("Crossing", engine::protocol::MarqueeMode::Crossing);
 
-    emscripten::enum_<CadEngine::ReorderAction>("ReorderAction")
-        .value("BringToFront", CadEngine::ReorderAction::BringToFront)
-        .value("SendToBack", CadEngine::ReorderAction::SendToBack)
-        .value("BringForward", CadEngine::ReorderAction::BringForward)
-        .value("SendBackward", CadEngine::ReorderAction::SendBackward);
+    emscripten::enum_<engine::protocol::ReorderAction>("ReorderAction")
+        .value("BringToFront", engine::protocol::ReorderAction::BringToFront)
+        .value("SendToBack", engine::protocol::ReorderAction::SendToBack)
+        .value("BringForward", engine::protocol::ReorderAction::BringForward)
+        .value("SendBackward", engine::protocol::ReorderAction::SendBackward);
 
-    emscripten::enum_<CadEngine::EngineCapability>("EngineCapability")
-        .value("HAS_QUERY_MARQUEE", CadEngine::EngineCapability::HAS_QUERY_MARQUEE)
-        .value("HAS_RESIZE_HANDLES", CadEngine::EngineCapability::HAS_RESIZE_HANDLES)
-        .value("HAS_TRANSFORM_RESIZE", CadEngine::EngineCapability::HAS_TRANSFORM_RESIZE);
+    emscripten::enum_<engine::protocol::EngineCapability>("EngineCapability")
+        .value("HAS_QUERY_MARQUEE", engine::protocol::EngineCapability::HAS_QUERY_MARQUEE)
+        .value("HAS_RESIZE_HANDLES", engine::protocol::EngineCapability::HAS_RESIZE_HANDLES)
+        .value("HAS_TRANSFORM_RESIZE", engine::protocol::EngineCapability::HAS_TRANSFORM_RESIZE);
 
     emscripten::class_<CadEngine>("CadEngine")
         .constructor<>()
@@ -104,9 +105,16 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("hasPendingEvents", &CadEngine::hasPendingEvents)
         .function("getSelectionOutlineMeta", &CadEngine::getSelectionOutlineMeta)
         .function("getSelectionHandleMeta", &CadEngine::getSelectionHandleMeta)
+        .function("getOrientedHandleMeta", &CadEngine::getOrientedHandleMeta)
         .function("getSnapOverlayMeta", &CadEngine::getSnapOverlayMeta)
         .function("getEntityAabb", &CadEngine::getEntityAabb)
         .function("getSelectionBounds", &CadEngine::getSelectionBounds)
+        .function("getEntityTransform", &CadEngine::getEntityTransform)
+        .function("setEntityPosition", &CadEngine::setEntityPosition)
+        .function("setEntitySize", &CadEngine::setEntitySize)
+        .function("setEntityRotation", &CadEngine::setEntityRotation)
+        .function("setEntityLength", &CadEngine::setEntityLength)
+        .function("setEntityScale", &CadEngine::setEntityScale)
         .function("getLayersSnapshot", &CadEngine::getLayersSnapshot)
         .function("getLayerName", &CadEngine::getLayerName)
         .function("getLayerStyle", &CadEngine::getLayerStyle)
@@ -116,18 +124,19 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("setEntityFlags", &CadEngine::setEntityFlags)
         .function("setEntityLayer", &CadEngine::setEntityLayer)
         .function("getEntityLayer", &CadEngine::getEntityLayer)
+        .function("getEntityKind", &CadEngine::getEntityKind)
         .function("getSelectionIds", &CadEngine::getSelectionIds)
         .function("getSelectionGeneration", &CadEngine::getSelectionGeneration)
         .function("getSelectionStyleSummary", &CadEngine::getSelectionStyleSummary)
         .function("clearSelection", &CadEngine::clearSelection)
         .function("setSelection", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int mode) {
-            self.setSelection(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::SelectionMode>(mode));
+            self.setSelection(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<engine::protocol::SelectionMode>(mode));
         }))
         .function("selectByPick", &CadEngine::selectByPick)
         .function("marqueeSelect", &CadEngine::marqueeSelect)
         .function("getDrawOrderSnapshot", &CadEngine::getDrawOrderSnapshot)
         .function("reorderEntities", emscripten::optional_override([](CadEngine& self, std::uintptr_t idsPtr, std::uint32_t idCount, int action, std::uint32_t refId) {
-            self.reorderEntities(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<CadEngine::ReorderAction>(action), refId);
+            self.reorderEntities(reinterpret_cast<const std::uint32_t*>(idsPtr), idCount, static_cast<engine::protocol::ReorderAction>(action), refId);
         }))
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
@@ -209,6 +218,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("commitTransform", &CadEngine::commitTransform)
         .function("cancelTransform", &CadEngine::cancelTransform)
         .function("isInteractionActive", &CadEngine::isInteractionActive)
+        .function("getTransformState", &CadEngine::getTransformState)
         .function("getCommitResultCount", &CadEngine::getCommitResultCount)
         .function("getCommitResultIdsPtr", &CadEngine::getCommitResultIdsPtr)
         .function("getCommitResultOpCodesPtr", &CadEngine::getCommitResultOpCodesPtr)
@@ -235,107 +245,144 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("hitX", &PickResult::hitX)
         .field("hitY", &PickResult::hitY);
 
-    emscripten::value_object<CadEngine::ProtocolInfo>("ProtocolInfo")
-        .field("protocolVersion", &CadEngine::ProtocolInfo::protocolVersion)
-        .field("commandVersion", &CadEngine::ProtocolInfo::commandVersion)
-        .field("snapshotVersion", &CadEngine::ProtocolInfo::snapshotVersion)
-        .field("eventStreamVersion", &CadEngine::ProtocolInfo::eventStreamVersion)
-        .field("abiHash", &CadEngine::ProtocolInfo::abiHash)
-        .field("featureFlags", &CadEngine::ProtocolInfo::featureFlags);
+    emscripten::value_object<TransformState>("TransformState")
+        .field("active", &TransformState::active)
+        .field("mode", &TransformState::mode)
+        .field("rotationDeltaDeg", &TransformState::rotationDeltaDeg)
+        .field("pivotX", &TransformState::pivotX)
+        .field("pivotY", &TransformState::pivotY);
+
+    emscripten::value_object<engine::protocol::ProtocolInfo>("ProtocolInfo")
+        .field("protocolVersion", &engine::protocol::ProtocolInfo::protocolVersion)
+        .field("commandVersion", &engine::protocol::ProtocolInfo::commandVersion)
+        .field("snapshotVersion", &engine::protocol::ProtocolInfo::snapshotVersion)
+        .field("eventStreamVersion", &engine::protocol::ProtocolInfo::eventStreamVersion)
+        .field("abiHash", &engine::protocol::ProtocolInfo::abiHash)
+        .field("featureFlags", &engine::protocol::ProtocolInfo::featureFlags);
 
     emscripten::value_object<LayerRecord>("LayerRecord")
         .field("id", &LayerRecord::id)
         .field("order", &LayerRecord::order)
         .field("flags", &LayerRecord::flags);
 
-    emscripten::value_object<CadEngine::BufferMeta>("BufferMeta")
-        .field("generation", &CadEngine::BufferMeta::generation)
-        .field("vertexCount", &CadEngine::BufferMeta::vertexCount)
-        .field("capacity", &CadEngine::BufferMeta::capacity)
-        .field("floatCount", &CadEngine::BufferMeta::floatCount)
-        .field("ptr", &CadEngine::BufferMeta::ptr);
+    emscripten::value_object<engine::protocol::BufferMeta>("BufferMeta")
+        .field("generation", &engine::protocol::BufferMeta::generation)
+        .field("vertexCount", &engine::protocol::BufferMeta::vertexCount)
+        .field("capacity", &engine::protocol::BufferMeta::capacity)
+        .field("floatCount", &engine::protocol::BufferMeta::floatCount)
+        .field("ptr", &engine::protocol::BufferMeta::ptr);
 
-    emscripten::value_object<CadEngine::ByteBufferMeta>("ByteBufferMeta")
-        .field("generation", &CadEngine::ByteBufferMeta::generation)
-        .field("byteCount", &CadEngine::ByteBufferMeta::byteCount)
-        .field("ptr", &CadEngine::ByteBufferMeta::ptr);
+    emscripten::value_object<engine::protocol::ByteBufferMeta>("ByteBufferMeta")
+        .field("generation", &engine::protocol::ByteBufferMeta::generation)
+        .field("byteCount", &engine::protocol::ByteBufferMeta::byteCount)
+        .field("ptr", &engine::protocol::ByteBufferMeta::ptr);
 
-    emscripten::value_object<CadEngine::EngineEvent>("EngineEvent")
-        .field("type", &CadEngine::EngineEvent::type)
-        .field("flags", &CadEngine::EngineEvent::flags)
-        .field("a", &CadEngine::EngineEvent::a)
-        .field("b", &CadEngine::EngineEvent::b)
-        .field("c", &CadEngine::EngineEvent::c)
-        .field("d", &CadEngine::EngineEvent::d);
+    emscripten::value_object<engine::protocol::EngineEvent>("EngineEvent")
+        .field("type", &engine::protocol::EngineEvent::type)
+        .field("flags", &engine::protocol::EngineEvent::flags)
+        .field("a", &engine::protocol::EngineEvent::a)
+        .field("b", &engine::protocol::EngineEvent::b)
+        .field("c", &engine::protocol::EngineEvent::c)
+        .field("d", &engine::protocol::EngineEvent::d);
 
-    emscripten::value_object<CadEngine::EventBufferMeta>("EventBufferMeta")
-        .field("generation", &CadEngine::EventBufferMeta::generation)
-        .field("count", &CadEngine::EventBufferMeta::count)
-        .field("ptr", &CadEngine::EventBufferMeta::ptr);
+    emscripten::value_object<engine::protocol::EventBufferMeta>("EventBufferMeta")
+        .field("generation", &engine::protocol::EventBufferMeta::generation)
+        .field("count", &engine::protocol::EventBufferMeta::count)
+        .field("ptr", &engine::protocol::EventBufferMeta::ptr);
 
-    emscripten::value_object<CadEngine::DocumentDigest>("DocumentDigest")
-        .field("lo", &CadEngine::DocumentDigest::lo)
-        .field("hi", &CadEngine::DocumentDigest::hi);
+    emscripten::value_object<engine::protocol::DocumentDigest>("DocumentDigest")
+        .field("lo", &engine::protocol::DocumentDigest::lo)
+        .field("hi", &engine::protocol::DocumentDigest::hi);
 
-    emscripten::value_object<CadEngine::HistoryMeta>("HistoryMeta")
-        .field("depth", &CadEngine::HistoryMeta::depth)
-        .field("cursor", &CadEngine::HistoryMeta::cursor)
-        .field("generation", &CadEngine::HistoryMeta::generation);
+    emscripten::value_object<engine::protocol::HistoryMeta>("HistoryMeta")
+        .field("depth", &engine::protocol::HistoryMeta::depth)
+        .field("cursor", &engine::protocol::HistoryMeta::cursor)
+        .field("generation", &engine::protocol::HistoryMeta::generation);
 
-    emscripten::value_object<CadEngine::StyleTargetSummary>("StyleTargetSummary")
-        .field("state", &CadEngine::StyleTargetSummary::state)
-        .field("enabledState", &CadEngine::StyleTargetSummary::enabledState)
-        .field("supportedState", &CadEngine::StyleTargetSummary::supportedState)
-        .field("reserved", &CadEngine::StyleTargetSummary::reserved)
-        .field("colorRGBA", &CadEngine::StyleTargetSummary::colorRGBA)
-        .field("layerId", &CadEngine::StyleTargetSummary::layerId);
+    emscripten::value_object<engine::protocol::StyleTargetSummary>("StyleTargetSummary")
+        .field("state", &engine::protocol::StyleTargetSummary::state)
+        .field("enabledState", &engine::protocol::StyleTargetSummary::enabledState)
+        .field("supportedState", &engine::protocol::StyleTargetSummary::supportedState)
+        .field("reserved", &engine::protocol::StyleTargetSummary::reserved)
+        .field("colorRGBA", &engine::protocol::StyleTargetSummary::colorRGBA)
+        .field("layerId", &engine::protocol::StyleTargetSummary::layerId);
 
-    emscripten::value_object<CadEngine::SelectionStyleSummary>("SelectionStyleSummary")
-        .field("selectionCount", &CadEngine::SelectionStyleSummary::selectionCount)
-        .field("stroke", &CadEngine::SelectionStyleSummary::stroke)
-        .field("fill", &CadEngine::SelectionStyleSummary::fill)
-        .field("textColor", &CadEngine::SelectionStyleSummary::textColor)
-        .field("textBackground", &CadEngine::SelectionStyleSummary::textBackground);
+    emscripten::value_object<engine::protocol::SelectionStyleSummary>("SelectionStyleSummary")
+        .field("selectionCount", &engine::protocol::SelectionStyleSummary::selectionCount)
+        .field("stroke", &engine::protocol::SelectionStyleSummary::stroke)
+        .field("fill", &engine::protocol::SelectionStyleSummary::fill)
+        .field("textColor", &engine::protocol::SelectionStyleSummary::textColor)
+        .field("textBackground", &engine::protocol::SelectionStyleSummary::textBackground);
 
-    emscripten::value_object<CadEngine::LayerStyleSnapshot>("LayerStyleSnapshot")
-        .field("strokeRGBA", &CadEngine::LayerStyleSnapshot::strokeRGBA)
-        .field("fillRGBA", &CadEngine::LayerStyleSnapshot::fillRGBA)
-        .field("textColorRGBA", &CadEngine::LayerStyleSnapshot::textColorRGBA)
-        .field("textBackgroundRGBA", &CadEngine::LayerStyleSnapshot::textBackgroundRGBA)
-        .field("strokeEnabled", &CadEngine::LayerStyleSnapshot::strokeEnabled)
-        .field("fillEnabled", &CadEngine::LayerStyleSnapshot::fillEnabled)
-        .field("textBackgroundEnabled", &CadEngine::LayerStyleSnapshot::textBackgroundEnabled)
-        .field("reserved", &CadEngine::LayerStyleSnapshot::reserved);
+    emscripten::value_object<engine::protocol::LayerStyleSnapshot>("LayerStyleSnapshot")
+        .field("strokeRGBA", &engine::protocol::LayerStyleSnapshot::strokeRGBA)
+        .field("fillRGBA", &engine::protocol::LayerStyleSnapshot::fillRGBA)
+        .field("textColorRGBA", &engine::protocol::LayerStyleSnapshot::textColorRGBA)
+        .field("textBackgroundRGBA", &engine::protocol::LayerStyleSnapshot::textBackgroundRGBA)
+        .field("strokeEnabled", &engine::protocol::LayerStyleSnapshot::strokeEnabled)
+        .field("fillEnabled", &engine::protocol::LayerStyleSnapshot::fillEnabled)
+        .field("textBackgroundEnabled", &engine::protocol::LayerStyleSnapshot::textBackgroundEnabled)
+        .field("reserved", &engine::protocol::LayerStyleSnapshot::reserved);
 
-    emscripten::value_object<CadEngine::EngineStats>("EngineStats")
-        .field("generation", &CadEngine::EngineStats::generation)
-        .field("rectCount", &CadEngine::EngineStats::rectCount)
-        .field("lineCount", &CadEngine::EngineStats::lineCount)
-        .field("polylineCount", &CadEngine::EngineStats::polylineCount)
-        .field("pointCount", &CadEngine::EngineStats::pointCount)
-        .field("triangleVertexCount", &CadEngine::EngineStats::triangleVertexCount)
-        .field("lineVertexCount", &CadEngine::EngineStats::lineVertexCount)
-        .field("rebuildAllGeometryCount", &CadEngine::EngineStats::rebuildAllGeometryCount)
-        .field("lastLoadMs", &CadEngine::EngineStats::lastLoadMs)
-        .field("lastRebuildMs", &CadEngine::EngineStats::lastRebuildMs)
-        .field("lastApplyMs", &CadEngine::EngineStats::lastApplyMs)
-        .field("lastTransformUpdateMs", &CadEngine::EngineStats::lastTransformUpdateMs)
-        .field("lastSnapCandidateCount", &CadEngine::EngineStats::lastSnapCandidateCount)
-        .field("lastSnapHitCount", &CadEngine::EngineStats::lastSnapHitCount);
+    emscripten::value_object<engine::protocol::EngineStats>("EngineStats")
+        .field("generation", &engine::protocol::EngineStats::generation)
+        .field("rectCount", &engine::protocol::EngineStats::rectCount)
+        .field("lineCount", &engine::protocol::EngineStats::lineCount)
+        .field("polylineCount", &engine::protocol::EngineStats::polylineCount)
+        .field("pointCount", &engine::protocol::EngineStats::pointCount)
+        .field("triangleVertexCount", &engine::protocol::EngineStats::triangleVertexCount)
+        .field("lineVertexCount", &engine::protocol::EngineStats::lineVertexCount)
+        .field("rebuildAllGeometryCount", &engine::protocol::EngineStats::rebuildAllGeometryCount)
+        .field("lastLoadMs", &engine::protocol::EngineStats::lastLoadMs)
+        .field("lastRebuildMs", &engine::protocol::EngineStats::lastRebuildMs)
+        .field("lastApplyMs", &engine::protocol::EngineStats::lastApplyMs)
+        .field("lastTransformUpdateMs", &engine::protocol::EngineStats::lastTransformUpdateMs)
+        .field("lastSnapCandidateCount", &engine::protocol::EngineStats::lastSnapCandidateCount)
+        .field("lastSnapHitCount", &engine::protocol::EngineStats::lastSnapHitCount);
 
-    emscripten::value_object<CadEngine::OverlayBufferMeta>("OverlayBufferMeta")
-        .field("generation", &CadEngine::OverlayBufferMeta::generation)
-        .field("primitiveCount", &CadEngine::OverlayBufferMeta::primitiveCount)
-        .field("floatCount", &CadEngine::OverlayBufferMeta::floatCount)
-        .field("primitivesPtr", &CadEngine::OverlayBufferMeta::primitivesPtr)
-        .field("dataPtr", &CadEngine::OverlayBufferMeta::dataPtr);
+    emscripten::value_object<engine::protocol::OverlayBufferMeta>("OverlayBufferMeta")
+        .field("generation", &engine::protocol::OverlayBufferMeta::generation)
+        .field("primitiveCount", &engine::protocol::OverlayBufferMeta::primitiveCount)
+        .field("floatCount", &engine::protocol::OverlayBufferMeta::floatCount)
+        .field("primitivesPtr", &engine::protocol::OverlayBufferMeta::primitivesPtr)
+        .field("dataPtr", &engine::protocol::OverlayBufferMeta::dataPtr);
 
-    emscripten::value_object<CadEngine::EntityAabb>("EntityAabb")
-        .field("minX", &CadEngine::EntityAabb::minX)
-        .field("minY", &CadEngine::EntityAabb::minY)
-        .field("maxX", &CadEngine::EntityAabb::maxX)
-        .field("maxY", &CadEngine::EntityAabb::maxY)
-        .field("valid", &CadEngine::EntityAabb::valid);
+    // OrientedHandleMeta - OBB handles with pre-rotated positions
+    emscripten::value_object<engine::protocol::OrientedHandleMeta>("OrientedHandleMeta")
+        .field("generation", &engine::protocol::OrientedHandleMeta::generation)
+        .field("entityId", &engine::protocol::OrientedHandleMeta::entityId)
+        .field("blX", &engine::protocol::OrientedHandleMeta::blX)
+        .field("blY", &engine::protocol::OrientedHandleMeta::blY)
+        .field("brX", &engine::protocol::OrientedHandleMeta::brX)
+        .field("brY", &engine::protocol::OrientedHandleMeta::brY)
+        .field("trX", &engine::protocol::OrientedHandleMeta::trX)
+        .field("trY", &engine::protocol::OrientedHandleMeta::trY)
+        .field("tlX", &engine::protocol::OrientedHandleMeta::tlX)
+        .field("tlY", &engine::protocol::OrientedHandleMeta::tlY)
+        .field("rotateHandleX", &engine::protocol::OrientedHandleMeta::rotateHandleX)
+        .field("rotateHandleY", &engine::protocol::OrientedHandleMeta::rotateHandleY)
+        .field("centerX", &engine::protocol::OrientedHandleMeta::centerX)
+        .field("centerY", &engine::protocol::OrientedHandleMeta::centerY)
+        .field("rotationRad", &engine::protocol::OrientedHandleMeta::rotationRad)
+        .field("hasRotateHandle", &engine::protocol::OrientedHandleMeta::hasRotateHandle)
+        .field("hasResizeHandles", &engine::protocol::OrientedHandleMeta::hasResizeHandles)
+        .field("valid", &engine::protocol::OrientedHandleMeta::valid);
+
+    emscripten::value_object<engine::protocol::EntityAabb>("EntityAabb")
+        .field("minX", &engine::protocol::EntityAabb::minX)
+        .field("minY", &engine::protocol::EntityAabb::minY)
+        .field("maxX", &engine::protocol::EntityAabb::maxX)
+        .field("maxY", &engine::protocol::EntityAabb::maxY)
+        .field("valid", &engine::protocol::EntityAabb::valid);
+
+    emscripten::value_object<engine::protocol::EntityTransform>("EntityTransform")
+        .field("posX", &engine::protocol::EntityTransform::posX)
+        .field("posY", &engine::protocol::EntityTransform::posY)
+        .field("width", &engine::protocol::EntityTransform::width)
+        .field("height", &engine::protocol::EntityTransform::height)
+        .field("rotationDeg", &engine::protocol::EntityTransform::rotationDeg)
+        .field("hasRotation", &engine::protocol::EntityTransform::hasRotation)
+        .field("valid", &engine::protocol::EntityTransform::valid);
 
     emscripten::value_object<DraftDimensions>("DraftDimensions")
         .field("minX", &DraftDimensions::minX)
@@ -361,17 +408,17 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("height", &TextCaretPosition::height)
         .field("lineIndex", &TextCaretPosition::lineIndex);
 
-    emscripten::value_object<CadEngine::TextureBufferMeta>("TextureBufferMeta")
-        .field("generation", &CadEngine::TextureBufferMeta::generation)
-        .field("width", &CadEngine::TextureBufferMeta::width)
-        .field("height", &CadEngine::TextureBufferMeta::height)
-        .field("byteCount", &CadEngine::TextureBufferMeta::byteCount)
-        .field("ptr", &CadEngine::TextureBufferMeta::ptr);
+    emscripten::value_object<engine::protocol::TextureBufferMeta>("TextureBufferMeta")
+        .field("generation", &engine::protocol::TextureBufferMeta::generation)
+        .field("width", &engine::protocol::TextureBufferMeta::width)
+        .field("height", &engine::protocol::TextureBufferMeta::height)
+        .field("byteCount", &engine::protocol::TextureBufferMeta::byteCount)
+        .field("ptr", &engine::protocol::TextureBufferMeta::ptr);
 
-    emscripten::value_object<CadEngine::TextContentMeta>("TextContentMeta")
-        .field("byteCount", &CadEngine::TextContentMeta::byteCount)
-        .field("ptr", &CadEngine::TextContentMeta::ptr)
-        .field("exists", &CadEngine::TextContentMeta::exists);
+    emscripten::value_object<engine::protocol::TextContentMeta>("TextContentMeta")
+        .field("byteCount", &engine::protocol::TextContentMeta::byteCount)
+        .field("ptr", &engine::protocol::TextContentMeta::ptr)
+        .field("exists", &engine::protocol::TextContentMeta::exists);
 
     emscripten::value_object<engine::text::TextStyleSnapshot>("TextStyleSnapshot")
         .field("selectionStartLogical", &engine::text::TextStyleSnapshot::selectionStartLogical)

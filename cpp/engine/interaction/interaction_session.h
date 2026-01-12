@@ -35,6 +35,7 @@ public:
     // ==============================================================================
     // State Query
     // ==============================================================================
+    TransformState getTransformState() const;
     bool isInteractionActive() const noexcept { return session_.active; }
     bool isDraftActive() const noexcept { return draft_.active; }
 
@@ -148,6 +149,15 @@ private:
         float resizeBaseH = 0.0f;
         bool duplicated = false;
         std::vector<std::uint32_t> originalIds;
+        // Rotation state
+        float rotationPivotX = 0.0f;
+        float rotationPivotY = 0.0f;
+        float startAngleDeg = 0.0f;
+        float lastAngleDeg = 0.0f;       // Last frame's angle for continuous rotation
+        float accumulatedDeltaDeg = 0.0f;
+        // Side resize state (N=2, E=1, S=0, W=3)
+        int32_t sideIndex = -1;
+        bool sideResizeSymmetric = false;  // Alt modifier for symmetric resize
     };
 
     struct DraftState {
@@ -165,6 +175,13 @@ private:
         std::vector<Point2> points;
     };
 
+    struct DraftSegment {
+        float x0;
+        float y0;
+        float x1;
+        float y1;
+    };
+
     struct TransformStats {
         float lastUpdateMs = 0.0f;
         std::uint32_t lastSnapCandidateCount = 0;
@@ -176,6 +193,7 @@ private:
     TransformStats transformStats_;
     std::vector<SnapGuide> snapGuides_;
     std::vector<std::uint32_t> snapCandidates_;
+    mutable std::vector<DraftSegment> draftSegments_;
 
     // Commit Result Buffers
     std::vector<std::uint32_t> commitResultIds;

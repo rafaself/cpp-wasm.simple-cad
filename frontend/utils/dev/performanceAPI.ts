@@ -29,6 +29,14 @@ import {
 } from '@/utils/benchmarks/pickBenchmarks';
 import { getPickProfiler } from '@/utils/pickProfiler';
 import { getPickCache, resetPickCache } from '@/utils/pickResultCache';
+import {
+  setHotPathTimingEnabled,
+  isHotPathTimingEnabled,
+  logTimingStats,
+  resetTimingData,
+  getTimingStats,
+  getTimingMetricNames,
+} from './hotPathTiming';
 
 export interface PerformanceAPI {
   runBenchmarks: () => Promise<void>;
@@ -38,6 +46,10 @@ export interface PerformanceAPI {
   exportResults: () => void;
   toggleProfiling: (enabled: boolean) => void;
   help: () => void;
+  // Hot path timing
+  enableHotPathTiming: (enabled: boolean) => void;
+  getHotPathStats: (name?: string) => void;
+  resetHotPathStats: () => void;
 }
 
 /**
@@ -237,10 +249,64 @@ function help(): void {
     'color: inherit',
   );
   console.log('');
+  console.log('%cHot Path Timing:', 'font-weight: bold; color: #ff00aa');
+  console.log(
+    '%cwindow.__perf.enableHotPathTiming(true)%c - Enable pointermove timing',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.getHotPathStats()%c        - Show hot path timing stats',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log(
+    '%cwindow.__perf.resetHotPathStats()%c      - Reset hot path timing data',
+    'color: #ffaa00',
+    'color: inherit',
+  );
+  console.log('');
   console.log('%cExamples:', 'font-weight: bold; color: #00aaff');
   console.log('  await window.__perf.runBenchmarks()');
   console.log('  window.__perf.getStats()');
   console.log('  window.__perf.toggleProfiling(true)');
+  console.log('  window.__perf.enableHotPathTiming(true) // then move mouse, then:');
+  console.log('  window.__perf.getHotPathStats()');
+}
+
+/**
+ * Enable/disable hot path timing for pointermove etc
+ */
+function enableHotPathTiming(enabled: boolean): void {
+  setHotPathTimingEnabled(enabled);
+  console.log(
+    `%c✅ Hot path timing ${enabled ? 'enabled' : 'disabled'}`,
+    'color: #00ff00',
+  );
+  if (enabled) {
+    console.log('%cMove mouse in canvas to collect timing data', 'color: #999');
+  }
+}
+
+/**
+ * Show hot path timing statistics
+ */
+function getHotPathStats(name?: string): void {
+  if (!isHotPathTimingEnabled()) {
+    console.warn(
+      '%c⚠️ Hot path timing is disabled. Enable with enableHotPathTiming(true)',
+      'color: #ffaa00',
+    );
+  }
+  logTimingStats(name);
+}
+
+/**
+ * Reset hot path timing data
+ */
+function resetHotPathStats(): void {
+  resetTimingData();
+  console.log('%c✅ Hot path timing data reset', 'color: #00ff00');
 }
 
 /**
@@ -255,6 +321,10 @@ export function createPerformanceAPI(): PerformanceAPI {
     exportResults,
     toggleProfiling,
     help,
+    // Hot path timing
+    enableHotPathTiming,
+    getHotPathStats,
+    resetHotPathStats,
   };
 }
 

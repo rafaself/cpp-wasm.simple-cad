@@ -8,6 +8,8 @@ EngineState::EngineState(CadEngine& engine)
       interactionSession_(engine, entityManager_, pickSystem_, textSystem_, historyManager_) {
     triangleVertices.reserve(defaultCapacityFloats);
     lineVertices.reserve(defaultLineCapacityFloats);
+    renderScratchVertices_.reserve(256);
+    renderScratchPoints_.reserve(64);
     snapshotBytes.reserve(defaultSnapshotCapacityBytes);
     eventQueue_.resize(kMaxEvents);
     eventBuffer_.reserve(kMaxEvents + 1);
@@ -15,4 +17,3 @@ EngineState::EngineState(CadEngine& engine)
     snapshotDirty = false;
     lastError = EngineError::Ok;
 }
-

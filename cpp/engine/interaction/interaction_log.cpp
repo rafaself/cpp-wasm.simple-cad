@@ -1,8 +1,8 @@
 #include "engine/interaction/interaction_session.h"
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
+#include "engine/core/logging.h"
 #include <cmath>
-#include <cstdio>
 
 namespace {
 bool nearlyEqual(float a, float b) {
@@ -118,7 +118,7 @@ bool InteractionSession::replayTransformLog() {
     bool ok = true;
 
     if (!matchesReplayContext(state, snapOptions, transformLogEntries_.front())) {
-        std::fprintf(stderr, "[WARN] Transform replay context mismatch; overriding view/snap options for replay.\n");
+        ENGINE_LOG_WARN("[WARN] Transform replay context mismatch; overriding view/snap options for replay.");
     }
 
     for (const auto& entry : transformLogEntries_) {

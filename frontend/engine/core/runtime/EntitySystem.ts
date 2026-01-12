@@ -30,6 +30,10 @@ export class EntitySystem {
     return this.engine.getEntityLayer?.(entityId) ?? 0;
   }
 
+  public getEntityKind(entityId: EntityId): number {
+    return this.engine.getEntityKind?.(entityId) ?? 0;
+  }
+
   public getDrawOrderSnapshot(): Uint32Array {
     if (!this.engine.getDrawOrderSnapshot) return new Uint32Array();
     const vec = this.engine.getDrawOrderSnapshot();

@@ -99,6 +99,10 @@ make
 ctest
 ```
 
+Optional CMake flags:
+- `-DENGINE_ENABLE_WARNINGS=ON` (default) to enable compiler warnings
+- `-DENGINE_ENABLE_LOGGING=ON` to enable engine debug logs
+
 ## Important docs
 
 - AI agent rules: AGENTS.md

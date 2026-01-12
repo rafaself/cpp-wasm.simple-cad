@@ -10,7 +10,7 @@ TEST(LayerFlagsTest, InvisibleLayerNotRendered) {
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible),
         0u,
         std::string()
     );
@@ -20,7 +20,7 @@ TEST(LayerFlagsTest, InvisibleLayerNotRendered) {
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible),
         static_cast<std::uint32_t>(LayerFlags::Visible),
         std::string()
     );
@@ -39,7 +39,7 @@ TEST(LayerFlagsTest, LayerVisibilityAndLockAffectPick) {
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible),
         0u,
         std::string()
     );
@@ -47,14 +47,14 @@ TEST(LayerFlagsTest, LayerVisibilityAndLockAffectPick) {
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Visible),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Visible),
         static_cast<std::uint32_t>(LayerFlags::Visible),
         std::string()
     );
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Locked),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Locked),
         static_cast<std::uint32_t>(LayerFlags::Locked),
         std::string()
     );
@@ -62,7 +62,7 @@ TEST(LayerFlagsTest, LayerVisibilityAndLockAffectPick) {
 
     engine.setLayerProps(
         1,
-        static_cast<std::uint32_t>(CadEngine::LayerPropMask::Locked),
+        static_cast<std::uint32_t>(engine::protocol::LayerPropMask::Locked),
         0u,
         std::string()
     );

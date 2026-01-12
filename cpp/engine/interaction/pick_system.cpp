@@ -1,4 +1,5 @@
 #include "engine/interaction/pick_system.h"
+#include "engine/interaction/interaction_constants.h"
 #include <cmath>
 #include <algorithm>
 #include <limits>
@@ -15,6 +16,36 @@ static float distSq(float x1, float y1, float x2, float y2) {
     float dx = x1 - x2;
     float dy = y1 - y2;
     return dx*dx + dy*dy;
+}
+
+// Transform a point from world space to local space (inverse rotation around center)
+static void worldToLocal(float wx, float wy, float cx, float cy, float rot, float& lx, float& ly) {
+    if (std::abs(rot) < 1e-6f) {
+        lx = wx;
+        ly = wy;
+        return;
+    }
+    const float cosR = std::cos(-rot);
+    const float sinR = std::sin(-rot);
+    const float dx = wx - cx;
+    const float dy = wy - cy;
+    lx = cx + dx * cosR - dy * sinR;
+    ly = cy + dx * sinR + dy * cosR;
+}
+
+// Transform a point from local space to world space (apply rotation around center)
+static void localToWorld(float lx, float ly, float cx, float cy, float rot, float& wx, float& wy) {
+    if (std::abs(rot) < 1e-6f) {
+        wx = lx;
+        wy = ly;
+        return;
+    }
+    const float cosR = std::cos(rot);
+    const float sinR = std::sin(rot);
+    const float dx = lx - cx;
+    const float dy = ly - cy;
+    wx = cx + dx * cosR - dy * sinR;
+    wy = cy + dx * sinR + dy * cosR;
 }
 
 static float distToSegmentSq(float px, float py, float x1, float y1, float x2, float y2) {
@@ -39,6 +70,132 @@ static bool tryPickResizeHandleAabb(float x, float y, float tol, float minX, flo
         if (d <= tol && d < bestDist) {
             bestDist = d;
             outCandidate.subTarget = PickSubTarget::ResizeHandle;
+            outCandidate.subIndex = i;
+            hit = true;
+        }
+    }
+
+    return hit;
+}
+
+// Rotated version: corners are in world space (already rotated)
+static bool tryPickResizeHandleRotated(float x, float y, float tol,
+    float cx, float cy, float hw, float hh, float rot,
+    float& bestDist, PickCandidate& outCandidate) {
+
+    // Local space corners (unrotated)
+    const float localCorners[4][2] = {
+        {cx - hw, cy - hh},  // BL
+        {cx + hw, cy - hh},  // BR
+        {cx + hw, cy + hh},  // TR
+        {cx - hw, cy + hh},  // TL
+    };
+
+    bool hit = false;
+    for (int i = 0; i < 4; ++i) {
+        // Transform corner to world space
+        float wx, wy;
+        localToWorld(localCorners[i][0], localCorners[i][1], cx, cy, rot, wx, wy);
+
+        const float d = std::sqrt(distSq(x, y, wx, wy));
+        if (d <= tol && d < bestDist) {
+            bestDist = d;
+            outCandidate.subTarget = PickSubTarget::ResizeHandle;
+            outCandidate.subIndex = i;
+            hit = true;
+        }
+    }
+
+    return hit;
+}
+
+static bool tryPickRotateHandleAabb(float x, float y, float tol, float viewScale, float minX, float minY, float maxX, float maxY, float& bestDist, PickCandidate& outCandidate) {
+    // Rotation handles are positioned diagonally outside each corner
+    // Use centralized constants from interaction_constants.h
+    const float offsetPx = interaction_constants::ROTATE_HANDLE_OFFSET_PX;
+    const float radiusPx = interaction_constants::ROTATE_HANDLE_RADIUS_PX;
+
+    // Convert screen pixels to world space
+    const float offsetWorld = offsetPx / viewScale;
+    const float radiusWorld = radiusPx / viewScale;
+
+    bool hit = false;
+
+    // Corner positions and their outward diagonal directions
+    const struct {
+        float x, y;
+        float dx, dy;  // Normalized diagonal direction
+    } corners[4] = {
+        {minX, minY, -0.707f, -0.707f},  // BL: down-left
+        {maxX, minY,  0.707f, -0.707f},  // BR: down-right
+        {maxX, maxY,  0.707f,  0.707f},  // TR: up-right
+        {minX, maxY, -0.707f,  0.707f},  // TL: up-left
+    };
+
+    for (int i = 0; i < 4; ++i) {
+        // Calculate rotation handle position (offset diagonally from corner)
+        const float handleX = corners[i].x + corners[i].dx * offsetWorld;
+        const float handleY = corners[i].y + corners[i].dy * offsetWorld;
+
+        const float d = std::sqrt(distSq(x, y, handleX, handleY));
+        if (d <= radiusWorld && d < bestDist) {
+            bestDist = d;
+            outCandidate.subTarget = PickSubTarget::RotateHandle;
+            outCandidate.subIndex = i;
+            hit = true;
+        }
+    }
+
+    return hit;
+}
+
+// Rotated version for rectangles with rotation
+static bool tryPickRotateHandleRotated(float x, float y, float tol, float viewScale,
+    float cx, float cy, float hw, float hh, float rot,
+    float& bestDist, PickCandidate& outCandidate) {
+
+    const float offsetPx = interaction_constants::ROTATE_HANDLE_OFFSET_PX;
+    const float radiusPx = interaction_constants::ROTATE_HANDLE_RADIUS_PX;
+    const float offsetWorld = offsetPx / viewScale;
+    const float radiusWorld = radiusPx / viewScale;
+
+    // Local space corners (unrotated)
+    const float localCorners[4][2] = {
+        {cx - hw, cy - hh},  // BL
+        {cx + hw, cy - hh},  // BR
+        {cx + hw, cy + hh},  // TR
+        {cx - hw, cy + hh},  // TL
+    };
+
+    // Base diagonal directions (unrotated)
+    const float baseDirs[4][2] = {
+        {-0.707f, -0.707f},  // BL: down-left
+        { 0.707f, -0.707f},  // BR: down-right
+        { 0.707f,  0.707f},  // TR: up-right
+        {-0.707f,  0.707f},  // TL: up-left
+    };
+
+    bool hit = false;
+    const float cosR = std::cos(rot);
+    const float sinR = std::sin(rot);
+
+    for (int i = 0; i < 4; ++i) {
+        // Transform corner to world space
+        float cornerWx, cornerWy;
+        localToWorld(localCorners[i][0], localCorners[i][1], cx, cy, rot, cornerWx, cornerWy);
+
+        // Rotate the direction vector
+        const float dirX = baseDirs[i][0] * cosR - baseDirs[i][1] * sinR;
+        const float dirY = baseDirs[i][0] * sinR + baseDirs[i][1] * cosR;
+
+        // Calculate handle position
+        const float handleX = cornerWx + dirX * offsetWorld;
+        const float handleY = cornerWy + dirY * offsetWorld;
+
+        const float d = std::sqrt(distSq(x, y, handleX, handleY));
+        if (d <= radiusWorld && d < bestDist) {
+            bestDist = d;
+            outCandidate.subTarget = PickSubTarget::RotateHandle;
             outCandidate.subIndex = i;
             hit = true;
         }
@@ -287,84 +444,111 @@ bool PickSystem::checkCandidate(
     if (const RectRec* r = entities.getRect(id)) {
         outCandidate.kind = PickEntityKind::Rect;
 
-        // Transform point to local space? No, Rect is axis aligned (mostly), but has rotation param?
-        // RectRec has `float r, g, b, a` but also `x, y, w, h`.
-        // Usually Rects in this engine are axis-aligned unless `rot` field exists (which is not in RectRec struct in types.h? Wait, let me check types.h again).
-        // types.h RectRec: x, y, w, h, r, g, b, a... NO rotation.
-        // So Rect is AABB.
+        // Rectangle bounds (local/unrotated space)
+        const float minX = r->x;
+        const float minY = r->y;
+        const float maxX = r->x + r->w;
+        const float maxY = r->y + r->h;
 
-        float minX = r->x;
-        float minY = r->y;
-        float maxX = r->x + r->w;
-        float maxY = r->y + r->h;
+        // Center and half-dimensions for rotation
+        const float cx = r->x + r->w * 0.5f;
+        const float cy = r->y + r->h * 0.5f;
+        const float hw = r->w * 0.5f;
+        const float hh = r->h * 0.5f;
+        const float rot = r->rot;
+        const bool hasRotation = std::abs(rot) > 1e-6f;
 
-        // Resize Handles (BBox corners)
+        // Transform pick point to local space (undo rotation)
+        float lx, ly;
+        worldToLocal(x, y, cx, cy, rot, lx, ly);
+
+        // Resize Handles (corners in world space)
         if (pickMask & PICK_HANDLES) {
-            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
-            }
-        }
-
-        // Vertex
-        if (pickMask & PICK_VERTEX) {
-            float dCorners[4] = {
-                distSq(x, y, minX, minY),
-                distSq(x, y, maxX, minY),
-                distSq(x, y, maxX, maxY),
-                distSq(x, y, minX, maxY)
-            };
-            for(int i=0; i<4; ++i) {
-                float d = std::sqrt(dCorners[i]);
-                if (d <= tol && d < bestDist) {
-                    bestDist = d;
-                    outCandidate.subTarget = PickSubTarget::Vertex;
-                    outCandidate.subIndex = i;
+            if (hasRotation) {
+                if (tryPickResizeHandleRotated(x, y, tol, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                if (tryPickRotateHandleRotated(x, y, tol, viewScale, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+            } else {
+                if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
                 }
             }
         }
 
-        // Edge
+        // Vertex (use local space point, world space corners for rotated)
+        if (pickMask & PICK_VERTEX) {
+            if (hasRotation) {
+                // Test distance to rotated corners in world space
+                const float localCorners[4][2] = {
+                    {minX, minY}, {maxX, minY}, {maxX, maxY}, {minX, maxY}
+                };
+                for (int i = 0; i < 4; ++i) {
+                    float wx, wy;
+                    localToWorld(localCorners[i][0], localCorners[i][1], cx, cy, rot, wx, wy);
+                    float d = std::sqrt(distSq(x, y, wx, wy));
+                    if (d <= tol && d < bestDist) {
+                        bestDist = d;
+                        outCandidate.subTarget = PickSubTarget::Vertex;
+                        outCandidate.subIndex = i;
+                    }
+                }
+            } else {
+                float dCorners[4] = {
+                    distSq(x, y, minX, minY),
+                    distSq(x, y, maxX, minY),
+                    distSq(x, y, maxX, maxY),
+                    distSq(x, y, minX, maxY)
+                };
+                for (int i = 0; i < 4; ++i) {
+                    float d = std::sqrt(dCorners[i]);
+                    if (d <= tol && d < bestDist) {
+                        bestDist = d;
+                        outCandidate.subTarget = PickSubTarget::Vertex;
+                        outCandidate.subIndex = i;
+                    }
+                }
+            }
+        }
+
+        // Edge and Body hit test in local space
+        // The pick point (lx, ly) is now in the rectangle's local coordinate system
         if (bestDist > tol && (pickMask & PICK_EDGE)) {
-            // Distance to AABB
-            // signed distance?
-            // dx = max(minX - x, 0, x - maxX);
-            // dy = max(minY - y, 0, y - maxY);
-            // dist = sqrt(dx*dx + dy*dy) is distance to box.
-            // If inside, distance is 0.
-
-            // To detect "Edge" specifically (border), we need dist to border.
-            // dist = min(|x - minX|, |x - maxX|) if y inside y-range
-            // etc.
-
-            bool inside = (x >= minX && x <= maxX && y >= minY && y <= maxY);
+            bool inside = (lx >= minX && lx <= maxX && ly >= minY && ly <= maxY);
             if (inside) {
-                float dLeft = std::abs(x - minX);
-                float dRight = std::abs(x - maxX);
-                float dBottom = std::abs(y - minY);
-                float dTop = std::abs(y - maxY);
+                float dLeft = std::abs(lx - minX);
+                float dRight = std::abs(lx - maxX);
+                float dBottom = std::abs(ly - minY);
+                float dTop = std::abs(ly - maxY);
                 float dEdge = std::min({dLeft, dRight, dBottom, dTop});
 
                 if (dEdge <= tol) {
                     bestDist = dEdge;
                     outCandidate.subTarget = PickSubTarget::Edge;
-                    outCandidate.subIndex = -1; // Specific edge index? 0=Bottom, 1=Right, 2=Top, 3=Left
+                    outCandidate.subIndex = -1;
                 } else if (pickMask & PICK_BODY) {
-                     // Body hit - Only if fill is enabled
-                     if (entities.resolveFillEnabled(id)) {
-                        bestDist = 0; // Inside
+                    if (entities.resolveFillEnabled(id)) {
+                        bestDist = 0;
                         outCandidate.subTarget = PickSubTarget::Body;
-                     }
+                    }
                 }
             } else {
-                // Outside, check distance to rect for Edge hit (if close enough)
-                // If strictly outside, distance to AABB is distance to edge/vertex.
-                float dx = std::max({minX - x, 0.0f, x - maxX});
-                float dy = std::max({minY - y, 0.0f, y - maxY});
-                float d = std::sqrt(dx*dx + dy*dy);
+                // Outside in local space, check distance to rect edge
+                float dx = std::max({minX - lx, 0.0f, lx - maxX});
+                float dy = std::max({minY - ly, 0.0f, ly - maxY});
+                float d = std::sqrt(dx * dx + dy * dy);
                 if (d <= tol) {
                     bestDist = d;
-                    outCandidate.subTarget = PickSubTarget::Edge; // Near edge from outside
+                    outCandidate.subTarget = PickSubTarget::Edge;
                 }
             }
         }
@@ -378,21 +562,47 @@ bool PickSystem::checkCandidate(
         // Effective radii including scale
         const float rx = std::abs(c->rx * c->sx);
         const float ry = std::abs(c->ry * c->sy);
-        
+
         // Guard against degenerate ellipse
         if (rx < 1e-6f || ry < 1e-6f) {
             return false;
         }
 
-        // Resize Handles (BBox corners)
+        // Center and half-dimensions for handle picking
+        const float cx = c->cx;
+        const float cy = c->cy;
+        const float hw = rx;  // half-width = rx
+        const float hh = ry;  // half-height = ry
+        const float rot = c->rot;
+        const bool hasRotation = std::abs(rot) > 1e-6f;
+
+        // Resize Handles (BBox corners) - Higher priority
         if (pickMask & PICK_HANDLES) {
-            const float minX = c->cx - rx;
-            const float maxX = c->cx + rx;
-            const float minY = c->cy - ry;
-            const float maxY = c->cy + ry;
-            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
+            if (hasRotation) {
+                // Use rotation-aware handle picking for rotated ellipses
+                if (tryPickResizeHandleRotated(x, y, tol, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                if (tryPickRotateHandleRotated(x, y, tol, viewScale, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+            } else {
+                // Use axis-aligned handle picking for non-rotated ellipses
+                const float minX = cx - rx;
+                const float maxX = cx + rx;
+                const float minY = cy - ry;
+                const float maxY = cy + ry;
+                if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                // Rotation Handles (outside corners) - Lower priority
+                if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
             }
         }
 
@@ -521,6 +731,14 @@ bool PickSystem::checkCandidate(
     else if (const TextRec* t = textSystem.store.getText(id)) {
         outCandidate.kind = PickEntityKind::Text;
 
+        // Rotation Handles (AABB corners of text bounds)
+        if (pickMask & PICK_HANDLES) {
+            if (tryPickRotateHandleAabb(x, y, tol, viewScale, t->minX, t->minY, t->maxX, t->maxY, bestDist, outCandidate)) {
+                outCandidate.distance = bestDist;
+                return true;
+            }
+        }
+
         // Hit test via TextSystem
         // Text is complex (rotation, alignment). TextSystem has hitTest logic?
         // textSystem.hitTest(id, x, y) -> returns char index etc.
@@ -563,17 +781,45 @@ bool PickSystem::checkCandidate(
     else if (const PolygonRec* p = entities.getPolygon(id)) {
         outCandidate.kind = PickEntityKind::Polygon;
 
-        // Resize Handles (BBox corners)
+        // Effective radii including scale
+        const float rx = std::abs(p->rx * p->sx);
+        const float ry = std::abs(p->ry * p->sy);
+
+        // Center and half-dimensions for handle picking
+        const float cx = p->cx;
+        const float cy = p->cy;
+        const float hw = rx;  // half-width
+        const float hh = ry;  // half-height
+        const float rot = p->rot;
+        const bool hasRotation = std::abs(rot) > 1e-6f;
+
+        // Resize Handles (BBox corners) - Higher priority
         if (pickMask & PICK_HANDLES) {
-            const float rx = std::abs(p->rx * p->sx);
-            const float ry = std::abs(p->ry * p->sy);
-            const float minX = p->cx - rx;
-            const float maxX = p->cx + rx;
-            const float minY = p->cy - ry;
-            const float maxY = p->cy + ry;
-            if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
-                outCandidate.distance = bestDist;
-                return true;
+            if (hasRotation) {
+                // Use rotation-aware handle picking for rotated polygons
+                if (tryPickResizeHandleRotated(x, y, tol, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                if (tryPickRotateHandleRotated(x, y, tol, viewScale, cx, cy, hw, hh, rot, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+            } else {
+                // Use axis-aligned handle picking for non-rotated polygons
+                const float minX = cx - rx;
+                const float maxX = cx + rx;
+                const float minY = cy - ry;
+                const float maxY = cy + ry;
+                if (tryPickResizeHandleAabb(x, y, tol, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
+                // Rotation Handles (outside corners) - Lower priority
+                if (tryPickRotateHandleAabb(x, y, tol, viewScale, minX, minY, maxX, maxY, bestDist, outCandidate)) {
+                    outCandidate.distance = bestDist;
+                    return true;
+                }
             }
         }
 

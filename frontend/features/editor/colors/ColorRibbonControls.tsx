@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Link, Square } from 'lucide-react';
+import { Eye, EyeOff, Undo2, Square } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
@@ -454,7 +454,7 @@ export const ColorRibbonControls: React.FC = () => {
             disabled={isDisabled || strokeState.supportedState === TriState.Off}
           />
           <RibbonIconButton
-            icon={<Link size={ICON_SIZE} />}
+            icon={<Undo2 size={ICON_SIZE} />}
             onClick={() => handleRestore('stroke')}
             title={restoreStrokeTooltip}
             size="sm"
@@ -492,7 +492,7 @@ export const ColorRibbonControls: React.FC = () => {
             disabled={isDisabled || fillState.supportedState === TriState.Off}
           />
           <RibbonIconButton
-            icon={<Link size={ICON_SIZE} />}
+            icon={<Undo2 size={ICON_SIZE} />}
             onClick={() => handleRestore('fill')}
             title={restoreFillTooltip}
             size="sm"

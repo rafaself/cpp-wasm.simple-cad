@@ -3,6 +3,7 @@
 import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { getPickCache } from '@/utils/pickResultCache';
+import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { supportsEngineResize, type EngineCapability } from '@/engine/core/capabilities';
 import { EngineCommand } from '@/engine/core/commandBuffer';
 import {
@@ -14,9 +15,12 @@ import {
   type DocumentDigest,
   type EngineEvent,
   type OverlayBufferMeta,
+  type OrientedHandleMeta,
   type EntityAabb,
+  type EntityTransform,
   type HistoryMeta,
 } from '@/engine/core/protocol';
+import type { TransformState } from '@/engine/core/interactionSession';
 
 // Re-export types moved to wasm-types to maintain compatibility
 export type {
@@ -91,6 +95,7 @@ export class EngineRuntime {
     }
     const protocolInfo = engine.getProtocolInfo();
     validateProtocolOrThrow(protocolInfo);
+    cadDebugLog('overlay', 'engine protocol info', protocolInfo);
 
     // Validate essential APIs presence (Fail Fast)
     const essentialMethods = [
@@ -181,6 +186,8 @@ export class EngineRuntime {
   // --- Command System ---
   public apply(commands: readonly EngineCommand[]): void {
     this.commandSystem.apply(commands);
+    // Commands may affect selection, invalidate cache
+    this.selectionSystem.forceInvalidate();
   }
 
   // --- Draft System (hot path) ---
@@ -237,10 +244,14 @@ export class EngineRuntime {
 
   public undo(): void {
     this.historySystem.undo();
+    // Undo may restore previous selection state
+    this.selectionSystem.forceInvalidate();
   }
 
   public redo(): void {
     this.historySystem.redo();
+    // Redo may change selection state
+    this.selectionSystem.forceInvalidate();
   }
 
   // --- Pick System ---
@@ -322,6 +333,10 @@ export class EngineRuntime {
     return this.selectionSystem.getSelectionHandleMeta();
   }
 
+  public getOrientedHandleMeta(): OrientedHandleMeta {
+    return this.selectionSystem.getOrientedHandleMeta();
+  }
+
   public getSelectionBounds(): EntityAabb {
     return this.selectionSystem.getSelectionBounds();
   }
@@ -399,6 +414,10 @@ export class EngineRuntime {
     return this.transformSystem.isInteractionActive();
   }
 
+  public getTransformState(): TransformState {
+    return this.transformSystem.getTransformState();
+  }
+
   public setSnapOptions(
     enabled: boolean,
     gridEnabled: boolean,
@@ -423,6 +442,31 @@ export class EngineRuntime {
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {
     return this.transformSystem.getSnappedPoint(x, y);
+  }
+
+  // --- Transform Query/Mutation (for inspector panel) ---
+  public getEntityTransform(entityId: EntityId): EntityTransform {
+    return this.transformSystem.getEntityTransform(entityId);
+  }
+
+  public setEntityPosition(entityId: EntityId, x: number, y: number): void {
+    this.transformSystem.setEntityPosition(entityId, x, y);
+  }
+
+  public setEntitySize(entityId: EntityId, width: number, height: number): void {
+    this.transformSystem.setEntitySize(entityId, width, height);
+  }
+
+  public setEntityRotation(entityId: EntityId, rotationDeg: number): void {
+    this.transformSystem.setEntityRotation(entityId, rotationDeg);
+  }
+
+  public setEntityLength(entityId: EntityId, length: number): void {
+    this.transformSystem.setEntityLength(entityId, length);
+  }
+
+  public setEntityScale(entityId: EntityId, scaleX: number, scaleY: number): void {
+    this.transformSystem.setEntityScale(entityId, scaleX, scaleY);
   }
 
   // --- Render System ---
@@ -508,6 +552,10 @@ export class EngineRuntime {
 
   public getEntityLayer(entityId: EntityId): number {
     return this.entitySystem.getEntityLayer(entityId);
+  }
+
+  public getEntityKind(entityId: EntityId): number {
+    return this.entitySystem.getEntityKind(entityId);
   }
 
   public getDrawOrderSnapshot(): Uint32Array {

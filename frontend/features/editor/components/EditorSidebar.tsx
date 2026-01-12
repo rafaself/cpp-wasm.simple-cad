@@ -1,7 +1,10 @@
 import { Settings2, PenTool, FolderOpen, Building2, MousePointer2 } from 'lucide-react';
-import React, { useState } from 'react';
+import React from 'react';
+
+import { useUIStore } from '@/stores/useUIStore';
 
 import SidebarTabs, { SidebarTabConfig } from './sidebar/SidebarTabs';
+import { DrawingInspectorPanel } from './drawing/DrawingInspectorPanel';
 
 const PlaceholderTab: React.FC<{ name: string }> = ({ name }) => (
   <div className="flex-1 flex items-center justify-center p-4 text-text-muted text-xs text-center select-none">
@@ -10,9 +13,8 @@ const PlaceholderTab: React.FC<{ name: string }> = ({ name }) => (
 );
 
 const EditorSidebar: React.FC = () => {
-  // Local state for active tab since it's UI specific for this sidebar
-  // We can move to global store later if other components need to know
-  const [activeTabId, setActiveTabId] = useState<string>('properties');
+  const activeTabId = useUIStore((s) => s.sidebarTab);
+  const setActiveTabId = useUIStore((s) => s.setSidebarTab);
 
   const SIDEBAR_TABS: SidebarTabConfig[] = [
     {
@@ -25,7 +27,11 @@ const EditorSidebar: React.FC = () => {
       id: 'drawing',
       label: 'Desenho',
       icon: PenTool,
-      component: <PlaceholderTab name="Desenho" />,
+      component: (
+        <div className="flex-1 overflow-y-auto p-3">
+          <DrawingInspectorPanel />
+        </div>
+      ),
     },
 
     {

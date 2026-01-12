@@ -1,9 +1,9 @@
 #include "engine/text_system.h"
 #include "engine/core/string_utils.h"
+#include "engine/core/logging.h"
 #include <cstring>
 #include <cmath>
 #include <algorithm>
-#include <iostream>
 
 TextSystem::TextSystem() 
 {
@@ -14,14 +14,14 @@ void TextSystem::initialize() {
     
     // Initialize sub-systems
     if (!fontManager.initialize()) {
-        printf("[DEBUG] TextSystem::initialize failed: fontManager init failed\n");
+        ENGINE_LOG_DEBUG("[DEBUG] TextSystem::initialize failed: fontManager init failed");
         return; 
     }
     
     layoutEngine.initialize(&fontManager, &store);
     
     if (!glyphAtlas.initialize(&fontManager)) {
-        printf("[DEBUG] TextSystem::initialize failed: glyphAtlas init failed\n");
+        ENGINE_LOG_DEBUG("[DEBUG] TextSystem::initialize failed: glyphAtlas init failed");
         fontManager.shutdown();
         return;
     }
@@ -111,7 +111,7 @@ bool TextSystem::setTextAlign(std::uint32_t textId, TextAlign align) {
     }
     TextRec* rec = store.getTextMutable(textId);
     if (!rec) {
-        printf("[DEBUG] setTextAlign failed: text %u not found\n", textId);
+        ENGINE_LOG_DEBUG("[DEBUG] setTextAlign failed: text %u not found", textId);
         return false;
     }
     

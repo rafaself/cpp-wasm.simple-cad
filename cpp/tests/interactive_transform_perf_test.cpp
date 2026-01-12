@@ -12,7 +12,7 @@ TEST(InteractiveTransformPerfTest, UpdateTransformDoesNotRebuildAll) {
     const auto before = engine.getStats().rebuildAllGeometryCount;
 
     const std::uint32_t id = 1;
-    engine.setSelection(&id, 1, CadEngine::SelectionMode::Replace);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
     engine.beginTransform(&id, 1, CadEngine::TransformMode::Move, 0, -1, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
 
     engine.updateTransform(5.0f, 5.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
