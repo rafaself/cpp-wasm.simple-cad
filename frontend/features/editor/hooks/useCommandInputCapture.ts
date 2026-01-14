@@ -69,6 +69,8 @@ export interface UseCommandInputCaptureOptions {
   inputRef?: RefObject<HTMLInputElement>;
   /** Whether capture is enabled (default: true) */
   enabled?: boolean;
+  /** Whether IME composition is in progress */
+  isComposing?: boolean;
 }
 
 /**
@@ -77,13 +79,14 @@ export interface UseCommandInputCaptureOptions {
  * Capture conditions:
  * - Canvas is active (mouse is over canvas) OR command input already has focus
  * - No text editing is active in the engine
+ * - No IME composition is in progress
  * - No modifier keys held (except Shift)
  * - No editable element (input/textarea/contenteditable) has focus
  *
  * @param options - Configuration options
  */
 export function useCommandInputCapture(options: UseCommandInputCaptureOptions = {}) {
-  const { inputRef, enabled = true } = options;
+  const { inputRef, enabled = true, isComposing = false } = options;
 
   const { execute } = useCommandExecutor();
 
@@ -106,7 +109,12 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
         return;
       }
 
-      // 2. Skip if an editable element has focus (unless it's our command input)
+      // 2. Skip if IME composition is in progress
+      if (isComposing) {
+        return;
+      }
+
+      // 3. Skip if an editable element has focus (unless it's our command input)
       const activeElement = document.activeElement;
       const isOurInput = Boolean(inputRef?.current && activeElement === inputRef.current);
 
@@ -114,7 +122,7 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
         return;
       }
 
-      // 3. Skip if blocking modifiers are held (Ctrl/Cmd/Alt)
+      // 4. Skip if blocking modifiers are held (Ctrl/Cmd/Alt)
       if (hasBlockingModifiers(e)) {
         return;
       }
@@ -152,7 +160,8 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
       // Handle special keys
       switch (e.key) {
         case 'Enter':
-          if (commandState.buffer.trim()) {
+          // Don't execute during IME composition
+          if (commandState.buffer.trim() && !isComposing) {
             e.preventDefault();
             e.stopPropagation();
             executeRef.current();
@@ -211,7 +220,7 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
     return () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [enabled, inputRef]);
+  }, [enabled, inputRef, isComposing]);
 }
 
 export default useCommandInputCapture;

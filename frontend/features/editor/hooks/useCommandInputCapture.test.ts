@@ -243,4 +243,66 @@ describe('useCommandInputCapture', () => {
       expect(useCommandStore.getState().buffer).toBe('');
     });
   });
+
+  describe('IME composition', () => {
+    beforeEach(() => {
+      useUIStore.setState({ isMouseOverCanvas: true } as any);
+    });
+
+    it('does not capture when composition is in progress', () => {
+      renderHook(() => useCommandInputCapture({ inputRef, isComposing: true }));
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'L', bubbles: true }));
+      });
+
+      expect(useCommandStore.getState().buffer).toBe('');
+    });
+
+    it('captures when composition is not active', () => {
+      renderHook(() => useCommandInputCapture({ inputRef, isComposing: false }));
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'L', bubbles: true }));
+      });
+
+      expect(useCommandStore.getState().buffer).toBe('L');
+    });
+
+    it('does not capture Enter during composition', () => {
+      useCommandStore.setState({ buffer: 'LINE' });
+
+      renderHook(() => useCommandInputCapture({ inputRef, isComposing: true }));
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+      const stopPropagationSpy = vi.spyOn(event, 'stopPropagation');
+
+      act(() => {
+        window.dispatchEvent(event);
+      });
+
+      // Should not prevent or stop propagation during composition
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+      expect(stopPropagationSpy).not.toHaveBeenCalled();
+    });
+
+    it('allows Enter after composition ends', () => {
+      useCommandStore.setState({ buffer: 'LINE' });
+
+      renderHook(() => useCommandInputCapture({ inputRef, isComposing: false }));
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+      const stopPropagationSpy = vi.spyOn(event, 'stopPropagation');
+
+      act(() => {
+        window.dispatchEvent(event);
+      });
+
+      // Should execute when composition is not active
+      expect(preventDefaultSpy).toHaveBeenCalled();
+      expect(stopPropagationSpy).toHaveBeenCalled();
+    });
+  });
 });

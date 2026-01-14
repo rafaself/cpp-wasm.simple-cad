@@ -26,7 +26,8 @@
       "Bash(./engine_tests:*)",
       "Bash(echo:*)",
       "Bash(pnpm tsc:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

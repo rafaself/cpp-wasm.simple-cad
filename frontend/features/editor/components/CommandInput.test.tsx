@@ -110,17 +110,57 @@ describe('CommandInput', () => {
     navigateSpy.mockRestore();
   });
 
-  it('shows capture indicator when mouse is over canvas', () => {
+  it('renders correctly when mouse is over canvas', () => {
     // Mock useUIStore to simulate mouse over canvas
     const originalState = useUIStore.getState();
     useUIStore.setState({ ...originalState, isMouseOverCanvas: true } as any);
 
     render(<CommandInput />);
 
-    // Should show the "Pronto" indicator
-    expect(screen.getByText('Pronto')).toBeInTheDocument();
+    // Should render the input
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
 
     // Restore state
     useUIStore.setState(originalState);
+  });
+
+  describe('IME composition', () => {
+    it('does not execute command on Enter during composition', () => {
+      useCommandStore.setState({ buffer: 'LINE' });
+      render(<CommandInput />);
+      const input = screen.getByRole('textbox');
+
+      // Start composition
+      fireEvent.compositionStart(input);
+
+      // Try to execute with Enter during composition
+      // The event should be prevented but not executed
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      // End composition
+      fireEvent.compositionEnd(input);
+
+      // Buffer should still have the value
+      expect(useCommandStore.getState().buffer).toBe('LINE');
+    });
+
+    it('handles composition events correctly', () => {
+      render(<CommandInput />);
+      const input = screen.getByRole('textbox');
+
+      // Start composition
+      fireEvent.compositionStart(input);
+
+      // Type during composition (simulating IME input)
+      fireEvent.change(input, { target: { value: '线' } });
+
+      expect(useCommandStore.getState().buffer).toBe('线');
+
+      // End composition
+      fireEvent.compositionEnd(input);
+
+      // Buffer should still be set
+      expect(useCommandStore.getState().buffer).toBe('线');
+    });
   });
 });

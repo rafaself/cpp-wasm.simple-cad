@@ -15,9 +15,10 @@ export interface CommandInputProps {
 
 export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isComposing, setIsComposing] = React.useState(false);
 
   // Enable global keyboard capture to route typing to this input
-  useCommandInputCapture({ inputRef });
+  useCommandInputCapture({ inputRef, isComposing });
 
   const buffer = useCommandStore((s) => s.buffer);
   const setBuffer = useCommandStore((s) => s.setBuffer);
@@ -60,7 +61,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
       switch (e.key) {
         case 'Enter':
           e.preventDefault();
-          if (buffer.trim()) {
+          // Don't execute during IME composition
+          if (buffer.trim() && !isComposing) {
             execute();
           }
           break;
@@ -94,7 +96,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
           break;
       }
     },
-    [buffer, execute, setBuffer, clearError, navigateHistory],
+    [buffer, execute, setBuffer, clearError, navigateHistory, isComposing],
   );
 
   const handleFocus = useCallback(() => {
@@ -104,6 +106,14 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
   const handleBlur = useCallback(() => {
     setActive(false);
   }, [setActive]);
+
+  const handleCompositionStart = useCallback(() => {
+    setIsComposing(true);
+  }, []);
+
+  const handleCompositionEnd = useCallback(() => {
+    setIsComposing(false);
+  }, []);
 
   // Determine visual state
   const showCapturing = isCapturing || (isActive && buffer);
@@ -138,13 +148,15 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
             onBlur={handleBlur}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             placeholder="Comando..."
             spellCheck={false}
             autoComplete="off"
             className={`
               w-32 h-full bg-transparent relative z-10
               text-xs font-mono
-              text-text placeholder:text-text-muted/50
+              text-text placeholder:text-text-muted/70
               outline-none
               selection:bg-primary/30
             `}
@@ -206,23 +218,6 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
         </div>
       )}
 
-      {/* Capture mode indicator */}
-      {isCapturing && !buffer && (
-        <div
-          className="
-            absolute bottom-full left-0 mb-1.5
-            px-2 py-1 rounded
-            bg-surface2 border border-primary/30
-            text-[10px] text-text-muted
-            whitespace-nowrap
-            shadow-lg
-            animate-in fade-in slide-in-from-bottom-1 duration-150
-          "
-        >
-          <span className="text-primary">Pronto</span>
-          <span className="mx-1"> — Digite um comando</span>
-        </div>
-      )}
     </div>
   );
 };

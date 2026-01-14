@@ -59,8 +59,8 @@ const EditorStatusBar: React.FC = () => {
   }, [activeTool, enableColorsRibbon]);
 
   return (
-    <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">
-      <div className="w-56 font-mono flex items-center gap-4 text-text-muted text-[10px]">
+    <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50 relative">
+      <div className="font-mono flex items-center gap-4 text-text-muted text-[10px]">
         {mousePos ? (
           <>
             <ToolIcon size={12} />
@@ -83,15 +83,19 @@ const EditorStatusBar: React.FC = () => {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <CommandInput />
+      </div>
+
+      <div className="flex items-center gap-2">
         <div className="relative">
           <div className="flex items-center bg-surface1 rounded border border-border">
             <button
               onClick={toggleSnap}
               className={`flex items-center gap-1 px-2 py-0.5 hover:bg-surface2 focus-outline ${snapSettings.enabled ? 'text-primary font-bold' : 'text-text-muted'}`}
+              title={snapSettings.enabled ? 'SNAP Ativo' : 'SNAP Inativo'}
             >
-              <Magnet size={14} /> SNAP
+              <Crosshair size={14} />
             </button>
             <button
               onClick={() => setShowSnapMenu(!showSnapMenu)}
@@ -104,7 +108,7 @@ const EditorStatusBar: React.FC = () => {
           </div>
 
           {showSnapMenu && (
-            <div className="absolute bottom-full mb-1 left-0 w-40 bg-surface1 border border-border shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
+            <div className="absolute bottom-full mb-1 right-0 w-40 bg-surface1 border border-border shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
               <div className="text-[10px] text-text-muted uppercase mb-1 font-bold">
                 {LABELS.statusbar.snapToObject}
               </div>
@@ -151,9 +155,9 @@ const EditorStatusBar: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
+        <div className="h-4 w-px bg-border mx-2" />
+
         <button
           onClick={() => executeAction('undo')}
           className={`p-1 hover:bg-surface2 rounded focus-outline ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
