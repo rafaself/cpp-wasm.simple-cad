@@ -55,6 +55,12 @@ export const LABELS = {
     snapToGrid: 'Snap à Grade',
     snapToObject: 'Snap ao Objeto',
     coordinates: 'Coordenadas',
+    commandPlaceholder: 'Comando...',
+    commandTooltip: 'Digite um comando (Ex: L para Linha, R para Retângulo). Pressione Enter para executar.',
+    commandUnknown: 'Comando desconhecido: {command}',
+    commandReady: 'Pronto',
+    commandReadyHint: 'Digite um comando',
+    commandPressEnter: '[Enter]',
   },
   sidebar: {
     layers: 'Camadas',

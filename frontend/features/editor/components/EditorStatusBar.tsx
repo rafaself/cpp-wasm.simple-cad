@@ -18,6 +18,8 @@ import React, { useState } from 'react';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 import { LABELS } from '@/i18n/labels';
 
+import { CommandInput } from './CommandInput';
+
 import EditableNumber from '../../../components/EditableNumber';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
@@ -82,6 +84,7 @@ const EditorStatusBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        <CommandInput />
         <div className="relative">
           <div className="flex items-center bg-surface1 rounded border border-border">
             <button
