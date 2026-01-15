@@ -144,16 +144,20 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
       // === HANDLE THE KEY ===
 
       if (isPrintableKey(e, allowSpace)) {
-        // Printable character - append to buffer
-        e.preventDefault();
-        e.stopPropagation();
+        // Only intercept printable keys when input is NOT focused
+        // When focused, let native editing (cursor, selection) work
+        if (!isOurInput) {
+          e.preventDefault();
+          e.stopPropagation();
 
-        commandState.appendChar(e.key);
+          commandState.appendChar(e.key);
 
-        // Focus the input if not already focused
-        if (!isOurInput && inputRef?.current) {
-          inputRef.current.focus();
+          // Focus the input
+          if (inputRef?.current) {
+            inputRef.current.focus();
+          }
         }
+        // If input is focused, let the native onChange handler manage the buffer
         return;
       }
 
