@@ -127,12 +127,12 @@ function findAliasOrphans(tsFiles, fileContents) {
 }
 
 // Run commands
-const tscUnused = run('cd frontend && pnpm tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false --skipLibCheck');
+const tscUnused = run('cd apps/web && pnpm tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false --skipLibCheck');
 
 let depcheckResult;
 const depcheckBin = path.join(frontendRoot, 'node_modules', '.bin', 'depcheck');
 if (fs.existsSync(depcheckBin)) {
-  depcheckResult = run('cd frontend && pnpm depcheck');
+  depcheckResult = run('cd apps/web && pnpm depcheck');
 }
 
 const tsFiles = collectTsFiles();

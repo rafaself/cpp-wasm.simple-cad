@@ -37,7 +37,9 @@
       "Bash(pnpm governance:check:*)",
       "Bash(node tooling/governance/check_docs_references.js:*)",
       "Bash(tree:*)",
-      "Bash(sudo rm -rf cpp/ frontend/ Testing/)"
+      "Bash(sudo rm -rf cpp/ frontend/ Testing/)",
+      "Bash(node:*)",
+      "Bash(pnpm governance:manifest:*)"
     ]
   }
 }

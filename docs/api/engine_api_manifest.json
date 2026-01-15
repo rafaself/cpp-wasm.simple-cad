@@ -1,8 +1,8 @@
 {
-  "sourceHash": "8df4170a4533d8bfbd623af688ac6821d38314a9e6689ca9e0709d1c4cd509a5",
-  "generatedAt": "2026-01-04T15:40:08.948Z",
+  "sourceHash": "20ec0e6e585b7d215fe2e7662abadda2e1dbd3716eac1dbbfdbc5e9d84c4549b",
+  "generatedAt": "2026-01-15T20:33:05.542Z",
   "bindings": [
-    "cpp/engine/bindings.cpp"
+    "packages/engine/engine/bindings.cpp"
   ],
   "exports": [
     {
@@ -10,76 +10,76 @@
       "kind": "value_object",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 249
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 268
       },
       "references": [
         {
-          "file": "frontend/engine/core/CanvasController.ts",
+          "file": "apps/web/engine/core/CanvasController.ts",
           "line": 7
         },
         {
-          "file": "frontend/engine/core/CanvasController.ts",
+          "file": "apps/web/engine/core/CanvasController.ts",
           "line": 157
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 23
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 27
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 24
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 29
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 69
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 76
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 70
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 77
         },
         {
-          "file": "frontend/engine/renderer/types.ts",
+          "file": "apps/web/engine/renderer/types.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/renderer/types.ts",
+          "file": "apps/web/engine/renderer/types.ts",
           "line": 22
         },
         {
-          "file": "frontend/engine/renderer/types.ts",
+          "file": "apps/web/engine/renderer/types.ts",
           "line": 23
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/GeometryPass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/GeometryPass.ts",
           "line": 3
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/GeometryPass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/GeometryPass.ts",
           "line": 20
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/GeometryPass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/GeometryPass.ts",
           "line": 33
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/GeometryPass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/GeometryPass.ts",
           "line": 132
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/LinePass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/LinePass.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/LinePass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/LinePass.ts",
           "line": 18
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/LinePass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/LinePass.ts",
           "line": 31
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/LinePass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/LinePass.ts",
           "line": 129
         }
       ]
@@ -89,8 +89,8 @@
       "kind": "value_object",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 256
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 275
       },
       "references": []
     },
@@ -99,32 +99,28 @@
       "kind": "class",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 77
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 78
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 82
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 89
         },
         {
-          "file": "frontend/engine/core/interactionSession.ts",
-          "line": 12
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 273
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 253
-        },
-        {
-          "file": "frontend/tests/engine/runtimePublicSurface.test.ts",
+          "file": "apps/web/tests/engine/runtimePublicSurface.test.ts",
           "line": 87
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 119
         },
         {
-          "file": "frontend/tests/textCache.test.ts",
+          "file": "apps/web/tests/textCache.test.ts",
           "line": 76
         }
       ]
@@ -134,37 +130,37 @@
       "kind": "value_object",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 274
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 293
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 14
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 15
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 216
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 228
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 95
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 143
         },
         {
-          "file": "frontend/engine/core/runtime/SnapshotSystem.ts",
+          "file": "apps/web/engine/core/runtime/SnapshotSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/SnapshotSystem.ts",
+          "file": "apps/web/engine/core/runtime/SnapshotSystem.ts",
           "line": 34
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/wasm-types.ts",
           "line": 5
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 79
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 86
         }
       ]
     },
@@ -173,32 +169,32 @@
       "kind": "value_object",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 313
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 387
       },
       "references": [
         {
-          "file": "frontend/engine/core/runtime/DraftSystem.ts",
+          "file": "apps/web/engine/core/runtime/DraftSystem.ts",
           "line": 3
         },
         {
-          "file": "frontend/engine/core/runtime/DraftSystem.ts",
+          "file": "apps/web/engine/core/runtime/DraftSystem.ts",
           "line": 62
         },
         {
-          "file": "frontend/engine/core/runtime/DraftSystem.ts",
+          "file": "apps/web/engine/core/runtime/DraftSystem.ts",
           "line": 66
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 232
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 252
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 239
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 259
         },
         {
-          "file": "frontend/features/editor/components/ShapeOverlay.tsx",
+          "file": "apps/web/features/editor/components/ShapeOverlay.tsx",
           "line": 9
         }
       ]
@@ -208,32 +204,32 @@
       "kind": "enum",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 72
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 73
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 6
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 7
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 159
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 169
         },
         {
-          "file": "frontend/engine/core/capabilities.ts",
+          "file": "apps/web/engine/core/capabilities.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/capabilities.ts",
+          "file": "apps/web/engine/core/capabilities.ts",
           "line": 8
         },
         {
-          "file": "frontend/engine/core/capabilities.ts",
+          "file": "apps/web/engine/core/capabilities.ts",
           "line": 11
         },
         {
-          "file": "frontend/engine/core/capabilities.ts",
+          "file": "apps/web/engine/core/capabilities.ts",
           "line": 12
         }
       ]
@@ -243,40 +239,40 @@
       "kind": "value_object",
       "owner": "events",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 261
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 280
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 15
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 16
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 191
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 203
         },
         {
-          "file": "frontend/engine/core/engineEventDecoder.ts",
+          "file": "apps/web/engine/core/engineEventDecoder.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/engineEventDecoder.ts",
+          "file": "apps/web/engine/core/engineEventDecoder.ts",
           "line": 9
         },
         {
-          "file": "frontend/engine/core/engineEventDecoder.ts",
+          "file": "apps/web/engine/core/engineEventDecoder.ts",
           "line": 12
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 155
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 203
         },
         {
-          "file": "frontend/engine/core/runtime/EventSystem.ts",
+          "file": "apps/web/engine/core/runtime/EventSystem.ts",
           "line": 2
         },
         {
-          "file": "frontend/engine/core/runtime/EventSystem.ts",
+          "file": "apps/web/engine/core/runtime/EventSystem.ts",
           "line": 11
         }
       ]
@@ -286,29 +282,29 @@
       "kind": "value_object",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 283
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 327
       },
       "references": [
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 100
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 148
         },
         {
-          "file": "frontend/engine/core/runtime/StatsSystem.ts",
+          "file": "apps/web/engine/core/runtime/StatsSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/StatsSystem.ts",
+          "file": "apps/web/engine/core/runtime/StatsSystem.ts",
           "line": 7
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 10
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 12
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 129
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 148
         }
       ]
     },
@@ -317,53 +313,116 @@
       "kind": "value_object",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 306
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 371
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 17
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 19
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 266
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 282
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 320
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 340
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 193
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 277
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 6
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 14
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
-          "line": 90
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 150
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 9
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 99
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 100
+        }
+      ]
+    },
+    {
+      "name": "EntityTransform",
+      "kind": "value_object",
+      "owner": "interaction",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 378
+      },
+      "references": [
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 20
+        },
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 448
+        },
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 285
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
+          "line": 1
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
+          "line": 198
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
+          "line": 200
+        },
+        {
+          "file": "apps/web/engine/core/useEntityTransform.ts",
           "line": 8
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 91
+          "file": "apps/web/engine/core/useEntityTransform.ts",
+          "line": 50
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 92
+          "file": "apps/web/engine/core/useEntityTransform.ts",
+          "line": 54
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 10
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 101
+        },
+        {
+          "file": "apps/web/test-utils/fakeRuntime.ts",
+          "line": 3
+        },
+        {
+          "file": "apps/web/test-utils/fakeRuntime.ts",
+          "line": 265
         }
       ]
     },
@@ -372,21 +431,21 @@
       "kind": "value_object",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 269
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 288
       },
       "references": [
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 164
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 212
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/wasm-types.ts",
           "line": 6
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 85
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 92
         }
       ]
     },
@@ -395,53 +454,53 @@
       "kind": "value_object",
       "owner": "history",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 278
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 297
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 18
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 21
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 221
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 233
         },
         {
-          "file": "frontend/engine/core/engineStateSync.ts",
+          "file": "apps/web/engine/core/engineStateSync.ts",
           "line": 4
         },
         {
-          "file": "frontend/engine/core/engineStateSync.ts",
+          "file": "apps/web/engine/core/engineStateSync.ts",
           "line": 6
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 117
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 165
         },
         {
-          "file": "frontend/engine/core/runtime/HistorySystem.ts",
+          "file": "apps/web/engine/core/runtime/HistorySystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/HistorySystem.ts",
+          "file": "apps/web/engine/core/runtime/HistorySystem.ts",
           "line": 7
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 9
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 11
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 80
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 87
         },
         {
-          "file": "frontend/stores/useUIStore.ts",
+          "file": "apps/web/stores/useUIStore.ts",
           "line": 8
         },
         {
-          "file": "frontend/stores/useUIStore.ts",
-          "line": 75
+          "file": "apps/web/stores/useUIStore.ts",
+          "line": 77
         }
       ]
     },
@@ -450,37 +509,68 @@
       "kind": "value_object",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 244
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 263
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 471
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 520
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 80
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 100
         },
         {
-          "file": "frontend/engine/core/runtime/LayerSystem.ts",
+          "file": "apps/web/engine/core/runtime/LayerSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/LayerSystem.ts",
+          "file": "apps/web/engine/core/runtime/LayerSystem.ts",
           "line": 17
         },
         {
-          "file": "frontend/engine/core/runtime/LayerSystem.ts",
+          "file": "apps/web/engine/core/runtime/LayerSystem.ts",
           "line": 21
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/wasm-types.ts",
           "line": 4
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 46
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 53
+        }
+      ]
+    },
+    {
+      "name": "LayerStyleSnapshot",
+      "kind": "value_object",
+      "owner": "layers",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 317
+      },
+      "references": [
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 123
+        },
+        {
+          "file": "apps/web/engine/core/runtime/StyleSystem.ts",
+          "line": 1
+        },
+        {
+          "file": "apps/web/engine/core/runtime/StyleSystem.ts",
+          "line": 11
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 13
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 109
         }
       ]
     },
@@ -489,25 +579,64 @@
       "kind": "enum",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 62
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 63
       },
       "references": [
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 45
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 65
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 305
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 415
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
           "line": 3
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 210
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 536
+        }
+      ]
+    },
+    {
+      "name": "OrientedHandleMeta",
+      "kind": "value_object",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 351
+      },
+      "references": [
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 18
+        },
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 336
+        },
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 250
+        },
+        {
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 1
+        },
+        {
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 143
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 8
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 97
         }
       ]
     },
@@ -516,76 +645,76 @@
       "kind": "value_object",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 299
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 343
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 16
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 17
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 312
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 328
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 316
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 332
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 324
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 344
         },
         {
-          "file": "frontend/engine/core/overlayDecoder.ts",
+          "file": "apps/web/engine/core/overlayDecoder.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/overlayDecoder.ts",
+          "file": "apps/web/engine/core/overlayDecoder.ts",
           "line": 7
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 185
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 233
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
-          "line": 76
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 129
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
-          "line": 83
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 136
         },
         {
-          "file": "frontend/engine/core/runtime/TransformSystem.ts",
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/TransformSystem.ts",
-          "line": 175
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
+          "line": 183
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/wasm-types.ts",
           "line": 7
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 88
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 95
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 89
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 96
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 90
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 98
         },
         {
-          "file": "frontend/features/editor/components/ShapeOverlay.tsx",
+          "file": "apps/web/features/editor/components/ShapeOverlay.tsx",
           "line": 8
         }
       ]
@@ -595,60 +724,92 @@
       "kind": "enum",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
+        "file": "packages/engine/engine/bindings.cpp",
         "line": 28
       },
       "references": [
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 33
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 9
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 17
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 64
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 28
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 269
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 29
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/TextHandler.tsx",
-          "line": 16
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 31
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/TextHandler.tsx",
-          "line": 174
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 32
         },
         {
-          "file": "frontend/tests/integration/pickPerformance.integration.test.ts",
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 93
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 165
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 595
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/TextHandler.tsx",
+          "line": 18
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/TextHandler.tsx",
+          "line": 225
+        },
+        {
+          "file": "apps/web/tests/integration/pickPerformance.integration.test.ts",
           "line": 7
         },
         {
-          "file": "frontend/tests/integration/pickPerformance.integration.test.ts",
+          "file": "apps/web/tests/integration/pickPerformance.integration.test.ts",
           "line": 20
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 6
+        },
+        {
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 42
+        },
+        {
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 47
+        },
+        {
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 9
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 20
         },
         {
-          "file": "frontend/types/picking.ts",
+          "file": "apps/web/types/picking.ts",
           "line": 16
         },
         {
-          "file": "frontend/types/picking.ts",
+          "file": "apps/web/types/picking.ts",
           "line": 29
         }
       ]
@@ -658,156 +819,156 @@
       "kind": "value_object",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 227
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 239
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 46
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 51
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 242
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 258
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 246
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 262
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 256
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 272
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 287
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 303
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 21
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 40
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
           "line": 4
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
-          "line": 43
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 94
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 12
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 16
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 105
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 124
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 119
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 138
         },
         {
-          "file": "frontend/hooks/usePickThrottle.ts",
+          "file": "apps/web/hooks/usePickThrottle.ts",
           "line": 18
         },
         {
-          "file": "frontend/hooks/usePickThrottle.ts",
+          "file": "apps/web/hooks/usePickThrottle.ts",
           "line": 22
         },
         {
-          "file": "frontend/hooks/usePickThrottle.ts",
+          "file": "apps/web/hooks/usePickThrottle.ts",
           "line": 54
         },
         {
-          "file": "frontend/hooks/usePickThrottle.ts",
+          "file": "apps/web/hooks/usePickThrottle.ts",
           "line": 164
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 8
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 29
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 98
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 112
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 12
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 15
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 17
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 87
         },
         {
-          "file": "frontend/types/picking.ts",
+          "file": "apps/web/types/picking.ts",
           "line": 27
         },
         {
-          "file": "frontend/utils/benchmarks/pickBenchmarks.ts",
+          "file": "apps/web/utils/benchmarks/pickBenchmarks.ts",
           "line": 27
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 19
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 31
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 45
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 46
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 52
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 53
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 96
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 121
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 148
         },
         {
-          "file": "frontend/utils/pickResultCache.ts",
+          "file": "apps/web/utils/pickResultCache.ts",
           "line": 149
         }
       ]
@@ -817,60 +978,100 @@
       "kind": "enum",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
+        "file": "packages/engine/engine/bindings.cpp",
         "line": 18
       },
       "references": [
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 24
         },
         {
-          "file": "frontend/engine/core/runtime/PickSystem.ts",
+          "file": "apps/web/engine/core/runtime/PickSystem.ts",
           "line": 34
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 9
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 17
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 95
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 72
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 97
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 213
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 99
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 248
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 250
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 253
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 255
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 265
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 471
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 473
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 475
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 479
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 481
+        },
+        {
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 6
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 31
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 46
+        },
+        {
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 9
         },
         {
-          "file": "frontend/tests/utils/testHelpers.ts",
+          "file": "apps/web/tests/utils/testHelpers.ts",
           "line": 21
         },
         {
-          "file": "frontend/types/picking.ts",
+          "file": "apps/web/types/picking.ts",
           "line": 5
         },
         {
-          "file": "frontend/types/picking.ts",
+          "file": "apps/web/types/picking.ts",
           "line": 30
         }
       ]
@@ -880,33 +1081,33 @@
       "kind": "value_object",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 236
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 255
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 10
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 11
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 86
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 134
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 454
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 572
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 463
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 581
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/wasm-types.ts",
           "line": 2
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 75
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 82
         }
       ]
     },
@@ -915,60 +1116,60 @@
       "kind": "enum",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 66
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 67
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 13
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 14
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 512
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 565
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 50
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 70
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 308
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 418
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 309
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 419
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 310
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 420
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 311
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 421
         },
         {
-          "file": "frontend/engine/core/runtime/EntitySystem.ts",
+          "file": "apps/web/engine/core/runtime/EntitySystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/EntitySystem.ts",
-          "line": 45
+          "file": "apps/web/engine/core/runtime/EntitySystem.ts",
+          "line": 49
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 10
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 104
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 106
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 221
         }
       ]
@@ -978,173 +1179,177 @@
       "kind": "enum",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 50
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 51
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 12
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 13
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 283
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 299
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 296
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 312
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 31
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 51
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 292
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 402
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 293
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 403
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 294
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 404
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 295
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 405
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
           "line": 1
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
-          "line": 28
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 78
         },
         {
-          "file": "frontend/engine/core/runtime/SelectionSystem.ts",
-          "line": 52
+          "file": "apps/web/engine/core/runtime/SelectionSystem.ts",
+          "line": 104
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
           "line": 3
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 83
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 232
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 213
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 539
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 214
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 540
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 215
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 541
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 281
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 607
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/TextHandler.tsx",
-          "line": 5
+          "file": "apps/web/features/editor/interactions/handlers/TextHandler.tsx",
+          "line": 6
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/TextHandler.tsx",
-          "line": 181
+          "file": "apps/web/features/editor/interactions/handlers/TextHandler.tsx",
+          "line": 232
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 3
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 23
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 121
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 122
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 124
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 126
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 128
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 192
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 10
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 83
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 85
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 89
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 92
         },
         {
-          "file": "frontend/tests/engineRuntime.test.ts",
+          "file": "apps/web/tests/engineRuntime.test.ts",
           "line": 215
         },
         {
-          "file": "frontend/tests/integration/interactionFlow.test.ts",
+          "file": "apps/web/tests/integration/interactionFlow.test.ts",
           "line": 4
         },
         {
-          "file": "frontend/tests/integration/interactionFlow.test.ts",
+          "file": "apps/web/tests/integration/interactionFlow.test.ts",
           "line": 56
         },
         {
-          "file": "frontend/tests/interactions/DraftingHandler.test.ts",
+          "file": "apps/web/tests/interactions/DraftingHandler.test.ts",
           "line": 4
         },
         {
-          "file": "frontend/tests/interactions/DraftingHandler.test.ts",
+          "file": "apps/web/tests/interactions/DraftingHandler.test.ts",
           "line": 74
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 4
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 41
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
-          "line": 48
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 57
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
-          "line": 53
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 64
+        },
+        {
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 69
         }
       ]
     },
@@ -1153,69 +1358,167 @@
       "kind": "enum",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 56
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 57
       },
       "references": [
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 38
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 58
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 299
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 409
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 300
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 410
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 301
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 411
         },
         {
-          "file": "frontend/engine/core/protocol.ts",
-          "line": 302
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 412
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx",
+          "file": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
           "line": 4
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx",
-          "line": 40
+          "file": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
+          "line": 46
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx",
-          "line": 41
+          "file": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
+          "line": 47
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx",
-          "line": 42
+          "file": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
+          "line": 48
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/DraftingHandler.tsx",
-          "line": 43
+          "file": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
+          "line": 49
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
           "line": 3
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 31
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 50
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 32
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 51
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 33
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 52
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 34
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 53
+        }
+      ]
+    },
+    {
+      "name": "SelectionStyleSummary",
+      "kind": "value_object",
+      "owner": "selection",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 310
+      },
+      "references": [
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 115
+        },
+        {
+          "file": "apps/web/engine/core/runtime/StyleSystem.ts",
+          "line": 1
+        },
+        {
+          "file": "apps/web/engine/core/runtime/StyleSystem.ts",
+          "line": 16
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 14
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 121
+        },
+        {
+          "file": "apps/web/features/editor/colors/ColorRibbonControls.tsx",
+          "line": 11
+        },
+        {
+          "file": "apps/web/features/editor/colors/ColorRibbonControls.tsx",
+          "line": 70
+        },
+        {
+          "file": "apps/web/features/editor/colors/useSelectionStyleSummary.ts",
+          "line": 4
+        },
+        {
+          "file": "apps/web/features/editor/colors/useSelectionStyleSummary.ts",
+          "line": 21
+        },
+        {
+          "file": "apps/web/features/editor/colors/useSelectionStyleSummary.ts",
+          "line": 29
+        }
+      ]
+    },
+    {
+      "name": "StyleTargetSummary",
+      "kind": "value_object",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 302
+      },
+      "references": [
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 106
+        },
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 117
+        },
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 118
+        },
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 119
+        },
+        {
+          "file": "apps/web/engine/core/protocol.ts",
+          "line": 120
+        },
+        {
+          "file": "apps/web/features/editor/colors/ColorRibbonControls.tsx",
+          "line": 12
+        },
+        {
+          "file": "apps/web/features/editor/colors/ColorRibbonControls.tsx",
+          "line": 72
+        },
+        {
+          "file": "apps/web/features/editor/colors/useSelectionStyleSummary.ts",
+          "line": 7
+        },
+        {
+          "file": "apps/web/features/editor/colors/useSelectionStyleSummary.ts",
+          "line": 12
         }
       ]
     },
@@ -1224,28 +1527,28 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 369
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 443
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 25
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 443
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 19
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 24
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 148
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 167
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 119
         }
       ]
@@ -1255,184 +1558,184 @@
       "kind": "enum",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
+        "file": "packages/engine/engine/bindings.cpp",
         "line": 13
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 27
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 502
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 11
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 32
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 80
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 89
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 304
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 346
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 368
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 591
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.test.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.test.ts",
           "line": 5
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 7
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 21
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 45
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 53
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 120
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 178
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 193
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 204
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 212
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 230
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 252
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 263
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 274
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 299
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 306
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 309
         },
         {
-          "file": "frontend/engine/tools/text/TextInputCoordinator.ts",
+          "file": "apps/web/engine/tools/text/TextInputCoordinator.ts",
           "line": 537
         },
         {
-          "file": "frontend/engine/tools/text/TextStateManager.ts",
+          "file": "apps/web/engine/tools/text/TextStateManager.ts",
           "line": 10
         },
         {
-          "file": "frontend/engine/tools/text/TextStateManager.ts",
+          "file": "apps/web/engine/tools/text/TextStateManager.ts",
           "line": 55
         },
         {
-          "file": "frontend/engine/tools/text/TextStateManager.ts",
+          "file": "apps/web/engine/tools/text/TextStateManager.ts",
           "line": 108
         },
         {
-          "file": "frontend/engine/tools/text/TextStyleHandler.ts",
+          "file": "apps/web/engine/tools/text/TextStyleHandler.ts",
           "line": 10
         },
         {
-          "file": "frontend/engine/tools/text/TextStyleHandler.ts",
+          "file": "apps/web/engine/tools/text/TextStyleHandler.ts",
           "line": 23
         },
         {
-          "file": "frontend/engine/tools/text/TextStyleHandler.ts",
+          "file": "apps/web/engine/tools/text/TextStyleHandler.ts",
           "line": 269
         },
         {
-          "file": "frontend/engine/tools/text/TextStyleHandler.ts",
+          "file": "apps/web/engine/tools/text/TextStyleHandler.ts",
           "line": 288
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 6
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 20
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 68
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 78
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 87
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 36
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 38
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 80
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 370
         }
       ]
@@ -1442,32 +1745,32 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 331
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 405
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 21
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 371
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 49
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 54
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 14
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 19
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 141
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 160
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 157
         }
       ]
@@ -1477,24 +1780,24 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 344
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 418
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 24
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 18
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 23
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 76
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 83
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 240
         }
       ]
@@ -1504,53 +1807,53 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 383
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 457
       },
       "references": [
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 24
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 28
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 45
-        },
-        {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 458
-        },
-        {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 462
-        },
-        {
-          "file": "frontend/engine/core/runtime/TextSystem.ts",
-          "line": 1
-        },
-        {
-          "file": "frontend/engine/core/runtime/TextSystem.ts",
-          "line": 19
-        },
-        {
-          "file": "frontend/engine/core/runtime/TextSystem.ts",
-          "line": 22
-        },
-        {
-          "file": "frontend/engine/core/runtime/TextSystem.ts",
-          "line": 39
-        },
-        {
-          "file": "frontend/engine/core/runtime/TextSystem.ts",
-          "line": 43
-        },
-        {
-          "file": "frontend/engine/core/wasm-types.ts",
+          "file": "apps/web/engine/core/EngineRuntime.ts",
           "line": 50
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 59
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 507
+        },
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 511
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TextSystem.ts",
+          "line": 1
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TextSystem.ts",
+          "line": 19
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TextSystem.ts",
+          "line": 22
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TextSystem.ts",
+          "line": 39
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TextSystem.ts",
+          "line": 43
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 57
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 66
         }
       ]
     },
@@ -1559,32 +1862,32 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 326
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 400
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 20
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 360
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 48
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 53
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 15
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 20
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 140
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 159
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 145
         }
       ]
@@ -1594,68 +1897,68 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 376
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 450
       },
       "references": [
         {
-          "file": "frontend/components/TextCaretOverlay.tsx",
+          "file": "apps/web/components/TextCaretOverlay.tsx",
           "line": 17
         },
         {
-          "file": "frontend/components/TextCaretOverlay.tsx",
+          "file": "apps/web/components/TextCaretOverlay.tsx",
           "line": 38
         },
         {
-          "file": "frontend/components/TextCaretOverlay.tsx",
+          "file": "apps/web/components/TextCaretOverlay.tsx",
           "line": 232
         },
         {
-          "file": "frontend/components/TextCaretOverlay.tsx",
+          "file": "apps/web/components/TextCaretOverlay.tsx",
           "line": 243
         },
         {
-          "file": "frontend/components/TextCaretOverlay.tsx",
+          "file": "apps/web/components/TextCaretOverlay.tsx",
           "line": 263
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 26
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 460
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 469
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 20
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 25
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 153
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 172
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 69
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 10
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 57
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 88
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 201
         }
       ]
@@ -1665,64 +1968,64 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 349
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 423
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 28
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 52
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 21
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 26
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 154
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 173
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 155
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 174
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 18
         },
         {
-          "file": "frontend/engine/tools/TextTool.ts",
+          "file": "apps/web/engine/tools/TextTool.ts",
           "line": 71
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 9
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 59
         },
         {
-          "file": "frontend/engine/tools/text/types.ts",
+          "file": "apps/web/engine/tools/text/types.ts",
           "line": 88
         },
         {
-          "file": "frontend/stores/useUIStore.ts",
+          "file": "apps/web/stores/useUIStore.ts",
           "line": 6
         },
         {
-          "file": "frontend/stores/useUIStore.ts",
-          "line": 54
+          "file": "apps/web/stores/useUIStore.ts",
+          "line": 55
         },
         {
-          "file": "frontend/stores/useUIStore.ts",
-          "line": 84
+          "file": "apps/web/stores/useUIStore.ts",
+          "line": 86
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 171
         }
       ]
@@ -1732,48 +2035,48 @@
       "kind": "value_object",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 337
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 411
       },
       "references": [
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 23
         },
         {
-          "file": "frontend/engine/bridge/textBridge.ts",
+          "file": "apps/web/engine/bridge/textBridge.ts",
           "line": 531
         },
         {
-          "file": "frontend/engine/core/EngineRuntime.ts",
-          "line": 51
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 56
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 17
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 22
         },
         {
-          "file": "frontend/engine/core/wasm-types.ts",
-          "line": 144
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 163
         },
         {
-          "file": "frontend/engine/renderer/types.ts",
+          "file": "apps/web/engine/renderer/types.ts",
           "line": 3
         },
         {
-          "file": "frontend/engine/renderer/types.ts",
+          "file": "apps/web/engine/renderer/types.ts",
           "line": 30
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/TextRenderPass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/TextRenderPass.ts",
           "line": 19
         },
         {
-          "file": "frontend/engine/renderer/webgl2/passes/TextRenderPass.ts",
+          "file": "apps/web/engine/renderer/webgl2/passes/TextRenderPass.ts",
           "line": 260
         },
         {
-          "file": "frontend/types/text.ts",
+          "file": "apps/web/types/text.ts",
           "line": 228
         }
       ]
@@ -1783,68 +2086,108 @@
       "kind": "enum",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 39
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 38
       },
       "references": [
         {
-          "file": "frontend/engine/core/interactionSession.ts",
+          "file": "apps/web/engine/core/interactionSession.ts",
           "line": 5
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 36
+        },
+        {
+          "file": "apps/web/features/editor/components/RotationTooltip.tsx",
+          "line": 10
+        },
+        {
+          "file": "apps/web/features/editor/components/RotationTooltip.tsx",
+          "line": 38
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
           "line": 2
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 41
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 60
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 94
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 193
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 96
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 209
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 98
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 243
         },
         {
-          "file": "frontend/features/editor/interactions/handlers/SelectionHandler.tsx",
-          "line": 100
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 249
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 252
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 254
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 259
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 261
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 429
+        },
+        {
+          "file": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+          "line": 431
+        },
+        {
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 2
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 50
         },
         {
-          "file": "frontend/test-utils/fakeRuntime.ts",
+          "file": "apps/web/test-utils/fakeRuntime.ts",
           "line": 143
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 3
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 23
         },
         {
-          "file": "frontend/tests/interactions/SelectionHandler.test.ts",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
           "line": 37
         },
         {
-          "file": "frontend/tests/interactions/useInteractionManager.test.tsx",
+          "file": "apps/web/tests/interactions/SelectionHandler.test.ts",
+          "line": 53
+        },
+        {
+          "file": "apps/web/tests/interactions/useInteractionManager.test.tsx",
           "line": 5
         },
         {
-          "file": "frontend/tests/interactions/useInteractionManager.test.tsx",
+          "file": "apps/web/tests/interactions/useInteractionManager.test.tsx",
           "line": 98
         }
       ]
@@ -1854,65 +2197,120 @@
       "kind": "enum",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
+        "file": "packages/engine/engine/bindings.cpp",
         "line": 45
       },
       "references": [
         {
-          "file": "frontend/engine/core/interactionSession.ts",
-          "line": 12
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 14
         },
         {
-          "file": "frontend/engine/core/interactionSession.ts",
-          "line": 13
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 15
         },
         {
-          "file": "frontend/engine/core/interactionSession.ts",
-          "line": 87
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 120
         },
         {
-          "file": "frontend/engine/core/interactionSession.ts",
-          "line": 91
-        },
-        {
-          "file": "frontend/engine/core/interactionSession.ts",
-          "line": 111
-        },
-        {
-          "file": "frontend/engine/core/interactionSession.ts",
+          "file": "apps/web/engine/core/interactionSession.ts",
           "line": 124
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 144
+        },
+        {
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 157
+        },
+        {
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 179
+        },
+        {
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 3
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 28
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 45
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 65
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 85
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 98
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 106
         },
         {
-          "file": "frontend/tests/interactionSessionCommit.test.ts",
+          "file": "apps/web/tests/interactionSessionCommit.test.ts",
           "line": 114
+        }
+      ]
+    },
+    {
+      "name": "TransformState",
+      "kind": "value_object",
+      "owner": "interaction",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 248
+      },
+      "references": [
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 23
+        },
+        {
+          "file": "apps/web/engine/core/EngineRuntime.ts",
+          "line": 417
+        },
+        {
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 33
+        },
+        {
+          "file": "apps/web/engine/core/interactionSession.ts",
+          "line": 34
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
+          "line": 3
+        },
+        {
+          "file": "apps/web/engine/core/runtime/TransformSystem.ts",
+          "line": 86
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 17
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 224
+        },
+        {
+          "file": "apps/web/test-utils/fakeRuntime.ts",
+          "line": 2
+        },
+        {
+          "file": "apps/web/test-utils/fakeRuntime.ts",
+          "line": 322
         }
       ]
     },
@@ -1921,8 +2319,8 @@
       "kind": "vector",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 392
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 466
       },
       "references": []
     },
@@ -1931,8 +2329,8 @@
       "kind": "vector",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 391
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 465
       },
       "references": []
     },
@@ -1941,8 +2339,8 @@
       "kind": "vector",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 390
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 464
       },
       "references": []
     },
@@ -1951,18 +2349,27 @@
       "kind": "vector",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 389
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 463
       },
-      "references": []
+      "references": [
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 49
+        },
+        {
+          "file": "apps/web/engine/core/wasm-types.ts",
+          "line": 119
+        }
+      ]
     },
     {
       "name": "ackResync",
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 103
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 104
       },
       "references": []
     },
@@ -1971,8 +2378,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 80
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 81
       },
       "references": []
     },
@@ -1981,8 +2388,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 94
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 95
       },
       "references": []
     },
@@ -1991,8 +2398,8 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 95
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 96
       },
       "references": []
     },
@@ -2001,8 +2408,8 @@
       "kind": "function",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 82
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 83
       },
       "references": []
     },
@@ -2011,8 +2418,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 176
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 187
       },
       "references": []
     },
@@ -2021,8 +2428,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 99
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 100
       },
       "references": []
     },
@@ -2031,8 +2438,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 98
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 99
       },
       "references": []
     },
@@ -2041,8 +2448,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 208
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 219
       },
       "references": []
     },
@@ -2051,8 +2458,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 79
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 80
       },
       "references": []
     },
@@ -2061,8 +2468,8 @@
       "kind": "function",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 150
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 161
       },
       "references": []
     },
@@ -2071,8 +2478,8 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 120
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 131
       },
       "references": []
     },
@@ -2081,8 +2488,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 215
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 227
       },
       "references": []
     },
@@ -2091,8 +2498,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 207
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 218
       },
       "references": []
     },
@@ -2101,8 +2508,8 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 113
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 122
       },
       "references": []
     },
@@ -2111,8 +2518,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 81
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 82
       },
       "references": []
     },
@@ -2121,8 +2528,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 154
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 165
       },
       "references": []
     },
@@ -2131,8 +2538,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 148
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 159
       },
       "references": []
     },
@@ -2141,8 +2548,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 92
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 93
       },
       "references": []
     },
@@ -2151,8 +2558,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 210
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 222
       },
       "references": []
     },
@@ -2161,8 +2568,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 211
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 223
       },
       "references": []
     },
@@ -2171,8 +2578,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 212
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 224
       },
       "references": []
     },
@@ -2181,8 +2588,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 213
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 225
       },
       "references": []
     },
@@ -2191,8 +2598,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 96
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 97
       },
       "references": []
     },
@@ -2201,8 +2608,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 223
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 235
       },
       "references": []
     },
@@ -2211,8 +2618,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 126
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 137
       },
       "references": []
     },
@@ -2221,8 +2628,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 108
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 110
       },
       "references": []
     },
@@ -2231,8 +2638,18 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 114
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 123
+      },
+      "references": []
+    },
+    {
+      "name": "getEntityKind",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 127
       },
       "references": []
     },
@@ -2241,8 +2658,18 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 117
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 126
+      },
+      "references": []
+    },
+    {
+      "name": "getEntityTransform",
+      "kind": "function",
+      "owner": "interaction",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 112
       },
       "references": []
     },
@@ -2251,8 +2678,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 91
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 92
       },
       "references": []
     },
@@ -2261,8 +2688,8 @@
       "kind": "function",
       "owner": "history",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 97
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 98
       },
       "references": []
     },
@@ -2271,8 +2698,18 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 111
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 119
+      },
+      "references": []
+    },
+    {
+      "name": "getLayerStyle",
+      "kind": "function",
+      "owner": "layers",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 120
       },
       "references": []
     },
@@ -2281,8 +2718,8 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 110
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 118
       },
       "references": []
     },
@@ -2291,8 +2728,8 @@
       "kind": "function",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 88
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 89
       },
       "references": []
     },
@@ -2301,8 +2738,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 166
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 177
       },
       "references": []
     },
@@ -2311,8 +2748,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 164
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 175
       },
       "references": []
     },
@@ -2321,8 +2758,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 163
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 174
       },
       "references": []
     },
@@ -2331,8 +2768,18 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 165
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 176
+      },
+      "references": []
+    },
+    {
+      "name": "getOrientedHandleMeta",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 108
       },
       "references": []
     },
@@ -2341,8 +2788,8 @@
       "kind": "function",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 87
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 88
       },
       "references": []
     },
@@ -2351,8 +2798,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 93
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 94
       },
       "references": []
     },
@@ -2361,8 +2808,8 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 109
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 111
       },
       "references": []
     },
@@ -2371,8 +2818,8 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 119
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 129
       },
       "references": []
     },
@@ -2381,8 +2828,8 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 106
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 107
       },
       "references": []
     },
@@ -2391,8 +2838,8 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 118
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 128
       },
       "references": []
     },
@@ -2401,8 +2848,18 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 105
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 106
+      },
+      "references": []
+    },
+    {
+      "name": "getSelectionStyleSummary",
+      "kind": "function",
+      "owner": "selection",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 130
       },
       "references": []
     },
@@ -2411,8 +2868,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 107
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 109
       },
       "references": []
     },
@@ -2421,8 +2878,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 136
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 147
       },
       "references": []
     },
@@ -2431,8 +2888,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 90
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 91
       },
       "references": []
     },
@@ -2441,8 +2898,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 134
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 145
       },
       "references": []
     },
@@ -2451,8 +2908,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 167
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 178
       },
       "references": []
     },
@@ -2461,8 +2918,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 145
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 156
       },
       "references": []
     },
@@ -2471,8 +2928,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 152
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 163
       },
       "references": []
     },
@@ -2481,8 +2938,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 147
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 158
       },
       "references": []
     },
@@ -2491,8 +2948,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 153
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 164
       },
       "references": []
     },
@@ -2501,8 +2958,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 155
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 166
       },
       "references": []
     },
@@ -2511,8 +2968,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 156
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 167
       },
       "references": []
     },
@@ -2521,8 +2978,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 218
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 230
       },
       "references": []
     },
@@ -2531,8 +2988,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 220
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 232
       },
       "references": []
     },
@@ -2541,8 +2998,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 221
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 233
       },
       "references": []
     },
@@ -2551,8 +3008,18 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 219
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 231
+      },
+      "references": []
+    },
+    {
+      "name": "getTransformState",
+      "kind": "function",
+      "owner": "interaction",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 221
       },
       "references": []
     },
@@ -2561,8 +3028,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 85
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 86
       },
       "references": []
     },
@@ -2571,8 +3038,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 86
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 87
       },
       "references": []
     },
@@ -2581,8 +3048,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 160
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 171
       },
       "references": []
     },
@@ -2591,8 +3058,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 159
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 170
       },
       "references": []
     },
@@ -2601,8 +3068,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 161
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 172
       },
       "references": []
     },
@@ -2611,8 +3078,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 162
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 173
       },
       "references": []
     },
@@ -2621,8 +3088,8 @@
       "kind": "function",
       "owner": "events",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 104
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 105
       },
       "references": []
     },
@@ -2631,8 +3098,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 144
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 155
       },
       "references": []
     },
@@ -2641,8 +3108,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 141
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 152
       },
       "references": []
     },
@@ -2651,8 +3118,8 @@
       "kind": "function",
       "owner": "render",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 149
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 160
       },
       "references": []
     },
@@ -2661,8 +3128,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 209
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 220
       },
       "references": []
     },
@@ -2671,8 +3138,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 151
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 162
       },
       "references": []
     },
@@ -2681,8 +3148,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 217
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 229
       },
       "references": []
     },
@@ -2691,8 +3158,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 142
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 153
       },
       "references": []
     },
@@ -2701,8 +3168,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 143
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 154
       },
       "references": []
     },
@@ -2711,8 +3178,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 84
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 85
       },
       "references": []
     },
@@ -2721,8 +3188,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 125
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 136
       },
       "references": []
     },
@@ -2731,8 +3198,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 130
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 141
       },
       "references": []
     },
@@ -2741,8 +3208,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 131
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 142
       },
       "references": []
     },
@@ -2751,8 +3218,8 @@
       "kind": "function",
       "owner": "events",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 102
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 103
       },
       "references": []
     },
@@ -2761,8 +3228,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 132
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 143
       },
       "references": []
     },
@@ -2771,8 +3238,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 133
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 144
       },
       "references": []
     },
@@ -2781,8 +3248,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 146
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 157
       },
       "references": []
     },
@@ -2791,8 +3258,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 101
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 102
       },
       "references": []
     },
@@ -2801,8 +3268,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 127
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 138
       },
       "references": []
     },
@@ -2811,8 +3278,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 216
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 228
       },
       "references": []
     },
@@ -2821,8 +3288,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 83
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 84
       },
       "references": []
     },
@@ -2831,8 +3298,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 89
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 90
       },
       "references": []
     },
@@ -2841,8 +3308,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 124
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 135
       },
       "references": []
     },
@@ -2851,8 +3318,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 115
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 124
       },
       "references": []
     },
@@ -2861,8 +3328,58 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 125
+      },
+      "references": []
+    },
+    {
+      "name": "setEntityLength",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
         "line": 116
+      },
+      "references": []
+    },
+    {
+      "name": "setEntityPosition",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 113
+      },
+      "references": []
+    },
+    {
+      "name": "setEntityRotation",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 115
+      },
+      "references": []
+    },
+    {
+      "name": "setEntityScale",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 117
+      },
+      "references": []
+    },
+    {
+      "name": "setEntitySize",
+      "kind": "function",
+      "owner": "core",
+      "source": {
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 114
       },
       "references": []
     },
@@ -2871,8 +3388,8 @@
       "kind": "function",
       "owner": "layers",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 112
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 121
       },
       "references": []
     },
@@ -2881,8 +3398,8 @@
       "kind": "function",
       "owner": "selection",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 121
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 132
       },
       "references": []
     },
@@ -2891,8 +3408,8 @@
       "kind": "function",
       "owner": "snap",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 135
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 146
       },
       "references": []
     },
@@ -2901,8 +3418,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 157
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 168
       },
       "references": []
     },
@@ -2911,8 +3428,8 @@
       "kind": "function",
       "owner": "text",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 158
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 169
       },
       "references": []
     },
@@ -2921,8 +3438,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 214
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 226
       },
       "references": []
     },
@@ -2931,8 +3448,8 @@
       "kind": "function",
       "owner": "core",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 100
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 101
       },
       "references": []
     },
@@ -2941,8 +3458,8 @@
       "kind": "function",
       "owner": "interaction",
       "source": {
-        "file": "cpp/engine/bindings.cpp",
-        "line": 206
+        "file": "packages/engine/engine/bindings.cpp",
+        "line": 217
       },
       "references": []
     }

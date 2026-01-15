@@ -43,7 +43,7 @@ function walk(dir) {
 }
 
 function findBindingFiles() {
-  const candidates = walk(path.join(projectRoot, "cpp"));
+  const candidates = walk(path.join(projectRoot, "packages", "engine"));
   return candidates.filter((file) => /bindings.*\.cpp$/.test(path.basename(file)));
 }
 
@@ -66,7 +66,7 @@ function main() {
   const manifest = JSON.parse(fs.readFileSync(manifestJsonPath, "utf8"));
   const bindingFiles = findBindingFiles();
   if (!bindingFiles.length) {
-    console.error("No bindings files found (expected cpp/**/bindings*.cpp).");
+    console.error("No bindings files found (expected packages/engine/**/bindings*.cpp).");
     process.exit(1);
   }
 
