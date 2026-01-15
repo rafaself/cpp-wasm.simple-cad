@@ -207,11 +207,8 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
           break;
 
         case 'Tab':
-          if (isOurInput && commandState.buffer.trim()) {
-            e.preventDefault();
-            e.stopPropagation();
-            // Tab completion handled by CommandInput component
-          }
+          // Let Tab be handled by CommandInput component's onKeyDown
+          // Don't intercept here, as it prevents the component handler from running
           break;
       }
     };

@@ -72,7 +72,7 @@ export const CommandHelpContent: React.FC = () => {
         <p className="text-xs text-text-muted text-center">
           Dica: Use{' '}
           <kbd className="px-1.5 py-0.5 bg-surface1 border border-border rounded text-xs font-mono">
-            Tab
+            tab
           </kbd>{' '}
           para autocompletar comandos
         </p>
