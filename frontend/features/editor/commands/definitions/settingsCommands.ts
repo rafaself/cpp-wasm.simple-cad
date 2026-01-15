@@ -4,6 +4,8 @@
  * Commands for toggling settings (snap, grid, etc.).
  */
 
+import { useSettingsStore } from '@/stores/useSettingsStore';
+
 import { parseBooleanArg } from '../commandParser';
 import type { CommandDefinition } from '../commandRegistry';
 
@@ -24,11 +26,11 @@ export const settingsCommands: CommandDefinition[] = [
     ],
     execute: (args, ctx) => {
       if (args.length === 0) {
-        // Toggle - we need to get current state, so we use a workaround
-        // The context doesn't expose current state, so we toggle via the action
-        // For now, we'll just toggle via the setter
-        ctx.setSnapEnabled(true); // This will be replaced with proper toggle
-        ctx.showToast('Snap alternado', 'info');
+        // Toggle - get current state and flip it
+        const currentState = useSettingsStore.getState().snapSettings.enabled;
+        const newState = !currentState;
+        ctx.setSnapEnabled(newState);
+        ctx.showToast(`Snap ${newState ? 'ativado' : 'desativado'}`, 'info');
         return { success: true };
       }
 
@@ -57,9 +59,19 @@ export const settingsCommands: CommandDefinition[] = [
       },
     ],
     execute: (args, ctx) => {
+      const { grid, setGridShowDots, setGridShowLines } = useSettingsStore.getState();
+      const isCurrentlyEnabled = grid.showDots || grid.showLines;
+
       if (args.length === 0) {
-        // Toggle
-        ctx.executeAction('grid');
+        // Toggle - if any grid is visible, turn off, otherwise turn on
+        if (isCurrentlyEnabled) {
+          setGridShowDots(false);
+          setGridShowLines(false);
+          ctx.showToast('Grade desativada', 'info');
+        } else {
+          setGridShowDots(true);
+          ctx.showToast('Grade ativada', 'info');
+        }
         return { success: true };
       }
 
@@ -68,9 +80,19 @@ export const settingsCommands: CommandDefinition[] = [
         return { success: false, message: `Argumento GRID inválido: ${args[0]}. Use ON ou OFF.` };
       }
 
-      // Grid action always toggles, so we need to handle on/off differently
-      // For now, just execute the toggle action
-      ctx.executeAction('grid');
+      // Set to specific state
+      if (state) {
+        // Turn on - enable dots if not already enabled
+        if (!isCurrentlyEnabled) {
+          setGridShowDots(true);
+        }
+        ctx.showToast('Grade ativada', 'info');
+      } else {
+        // Turn off - disable both dots and lines
+        setGridShowDots(false);
+        setGridShowLines(false);
+        ctx.showToast('Grade desativada', 'info');
+      }
       return { success: true };
     },
   },
