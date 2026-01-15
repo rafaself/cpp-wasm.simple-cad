@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Drift gate for the Engine API manifest.
- * Fails CI when bindings change without regenerating docs/engine_api_manifest.json + ENGINE_API_MANIFEST.md.
+ * Fails CI when bindings change without regenerating docs/api/engine_api_manifest.json + ENGINE_API_MANIFEST.md.
  */
 
 const fs = require("fs");
@@ -9,8 +9,8 @@ const path = require("path");
 const crypto = require("crypto");
 
 const projectRoot = path.resolve(__dirname, "../..");
-const manifestJsonPath = path.join(projectRoot, "docs", "engine_api_manifest.json");
-const manifestMdPath = path.join(projectRoot, "docs", "ENGINE_API_MANIFEST.md");
+const manifestJsonPath = path.join(projectRoot, "docs", "api", "engine_api_manifest.json");
+const manifestMdPath = path.join(projectRoot, "docs", "api", "ENGINE_API_MANIFEST.md");
 
 const ignoreDirs = new Set([
   ".git",

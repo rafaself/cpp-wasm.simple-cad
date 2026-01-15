@@ -25,8 +25,8 @@ Engine is the single source of truth. Governance makes that non-negotiable via d
 
 ## Engine API Manifest
 - `tooling/governance/generate_engine_api_manifest.js` produces:
-  - `docs/engine_api_manifest.json` (machine-readable with `sourceHash`)
-  - `docs/ENGINE_API_MANIFEST.md` (human summary)
+  - `docs/api/engine_api_manifest.json` (machine-readable with `sourceHash`)
+  - `docs/api/ENGINE_API_MANIFEST.md` (human summary)
 - `tooling/governance/check_engine_api_manifest.js` compares current bindings with the recorded `sourceHash`; CI fails on drift.
 
 ## Doc Drift Check

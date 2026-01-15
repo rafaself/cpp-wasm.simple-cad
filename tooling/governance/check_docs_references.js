@@ -4,7 +4,7 @@
  * Doc drift checker.
  *
  * Verifies that referenced file paths in key docs exist.
- * Scope: AGENTS.md and docs/ENGINE_FIRST_GOVERNANCE.md
+ * Scope: AGENTS.md and docs/governance/ENGINE_FIRST_GOVERNANCE.md
  */
 
 const fs = require('fs');
@@ -13,7 +13,7 @@ const path = require('path');
 const repoRoot = path.resolve(__dirname, '../..');
 const targets = [
   path.join(repoRoot, 'AGENTS.md'),
-  path.join(repoRoot, 'docs', 'ENGINE_FIRST_GOVERNANCE.md'),
+  path.join(repoRoot, 'docs', 'governance', 'ENGINE_FIRST_GOVERNANCE.md'),
 ];
 
 function collectCandidates(content) {

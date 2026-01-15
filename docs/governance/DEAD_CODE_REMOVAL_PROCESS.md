@@ -7,7 +7,7 @@ Dead code removal is allowed **only** when it is proven unused and proven safe. 
    - TypeScript: run the dead-code report (`node scripts/deadcode_ts_report.js`) and capture TSC unused diagnostics, import graph candidates, and any lint/depcheck signals.
    - C++: run the C++ report (`bash scripts/deadcode_cpp_report.sh`) to surface symbols with no references (nm/objdump) and translation units with no includes.
    - Ripgrep evidence: show no imports/refs (`rg` over `frontend/**` or `cpp/**`).
-   - Embind: confirm the symbol is **not** listed in `docs/engine_api_manifest.json`.
+   - Embind: confirm the symbol is **not** listed in `docs/api/engine_api_manifest.json`.
 
 2) **Prove safe to delete**
    - Run full test suites (Vitest + CTest) and governance checks.
@@ -23,7 +23,7 @@ Dead code removal is allowed **only** when it is proven unused and proven safe. 
 ## Evidence required per PR/batch
 - Link to the generated reports under `reports/`.
 +- `rg` / import-graph proof of no references.
-- Statement that the symbol is absent from `docs/engine_api_manifest.json` (or updated if removed).
+- Statement that the symbol is absent from `docs/api/engine_api_manifest.json` (or updated if removed).
 - Test commands and results (frontend + C++).
 - List of deleted files/blocks (keep batches small: 10–30 max).
 

@@ -4,7 +4,7 @@
  * - Scans cpp bindings*.cpp files for exports
  * - Infers subsystem owner (best effort)
  * - Finds TypeScript call sites (runtime.engine.* or enum usage)
- * - Emits docs/engine_api_manifest.json and docs/ENGINE_API_MANIFEST.md
+ * - Emits docs/api/engine_api_manifest.json and docs/api/ENGINE_API_MANIFEST.md
  */
 
 const fs = require("fs");
@@ -12,7 +12,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const projectRoot = path.resolve(__dirname, "../..");
-const docsDir = path.join(projectRoot, "docs");
+const docsDir = path.join(projectRoot, "docs", "api");
 const manifestJsonPath = path.join(docsDir, "engine_api_manifest.json");
 const manifestMdPath = path.join(docsDir, "ENGINE_API_MANIFEST.md");
 
