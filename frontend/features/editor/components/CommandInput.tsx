@@ -2,6 +2,7 @@ import { Terminal, HelpCircle, Send } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import Dialog, { DialogCard } from '@/components/ui/Dialog';
+import { LABELS } from '@/i18n/labels';
 import { useCommandStore } from '@/stores/useCommandStore';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -162,7 +163,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             onBlur={handleBlur}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
-            placeholder="Comando..."
+            placeholder={LABELS.statusbar.commandPlaceholder}
             spellCheck={false}
             autoComplete="off"
             className={`
@@ -172,8 +173,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
               outline-none
               selection:bg-primary/30
             `}
-            aria-label="Command input"
-            title="Digite um comando (Ex: L para Linha, R para Retângulo). Pressione Enter para executar."
+            aria-label={LABELS.statusbar.commandInputLabel}
+            title={LABELS.statusbar.commandTooltip}
           />
           {/* Autocomplete ghost text */}
           {suggestion && buffer && !isNavigatingHistory && (
@@ -199,8 +200,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             shrink-0 p-0.5 rounded transition-colors
             ${buffer.trim() ? 'opacity-100 hover:bg-surface2 text-text hover:text-primary' : 'opacity-0 pointer-events-none'}
           `}
-          title="Executar comando (Enter)"
-          aria-label="Executar comando"
+          title={LABELS.statusbar.commandExecute}
+          aria-label={LABELS.statusbar.commandExecuteLabel}
           disabled={!buffer.trim()}
         >
           <Send size={12} className="rotate-45" />
@@ -211,8 +212,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
       <button
         onClick={() => setHelpModalOpen(true)}
         className="p-1 hover:bg-surface2 rounded focus-outline text-text hover:text-primary transition-colors"
-        title="Ajuda de Comandos (HELP)"
-        aria-label="Ajuda de Comandos"
+        title={LABELS.statusbar.commandHelp}
+        aria-label={LABELS.statusbar.commandHelpLabel}
       >
         <HelpCircle size={14} />
       </button>
@@ -260,9 +261,9 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
         onUpdate={setHelpModalOpen}
         maxWidth="700px"
         showCloseButton
-        ariaLabel="Comandos Disponíveis"
+        ariaLabel={LABELS.statusbar.commandHelpDialogTitle}
       >
-        <DialogCard title="Comandos Disponíveis" contentClassName="overflow-hidden p-0">
+        <DialogCard title={LABELS.statusbar.commandHelpDialogTitle} contentClassName="overflow-hidden p-0">
           <CommandHelpContent />
         </DialogCard>
       </Dialog>

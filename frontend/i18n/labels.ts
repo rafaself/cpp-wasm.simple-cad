@@ -61,6 +61,12 @@ export const LABELS = {
     commandReady: 'Pronto',
     commandReadyHint: 'Digite um comando',
     commandPressEnter: '[Enter]',
+    commandInputLabel: 'Command input',
+    commandExecute: 'Executar comando (Enter)',
+    commandExecuteLabel: 'Executar comando',
+    commandHelp: 'Ajuda de Comandos (HELP)',
+    commandHelpLabel: 'Ajuda de Comandos',
+    commandHelpDialogTitle: 'Comandos Disponíveis',
   },
   sidebar: {
     layers: 'Camadas',
