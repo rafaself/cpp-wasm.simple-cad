@@ -1,5 +1,5 @@
 
-FRONTEND_DIR := frontend
+FRONTEND_DIR := apps/web
 CPP_DIR := cpp
 CPP_BUILD_DIR := cpp_build_test
 PNPM := pnpm --dir $(FRONTEND_DIR)

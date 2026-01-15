@@ -37,7 +37,7 @@ services:
     working_dir: /workspace/cpp
     volumes:
       - ./cpp:/workspace/cpp
-      - ./frontend/public/wasm:/workspace/output
+      - ./apps/web/public/wasm:/workspace/output
     command:
       - bash
       - -lc
