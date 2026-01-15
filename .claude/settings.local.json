@@ -39,7 +39,8 @@
       "Bash(tree:*)",
       "Bash(sudo rm -rf cpp/ frontend/ Testing/)",
       "Bash(node:*)",
-      "Bash(pnpm governance:manifest:*)"
+      "Bash(pnpm governance:manifest:*)",
+      "Bash(git diff:*)"
     ]
   }
 }
