@@ -12,14 +12,14 @@ export const settingsCommands: CommandDefinition[] = [
     id: 'settings.snap',
     name: 'SNAP',
     aliases: ['SN', 'OSNAP'],
-    description: 'Toggle or set snap mode (SNAP [ON|OFF])',
+    description: 'Alterna ou define o modo snap (SNAP [ON|OFF])',
     category: 'settings',
     args: [
       {
         name: 'state',
         type: 'boolean',
         required: false,
-        description: 'ON to enable, OFF to disable, omit to toggle',
+        description: 'ON para ativar, OFF para desativar, omita para alternar',
       },
     ],
     execute: (args, ctx) => {
@@ -46,14 +46,14 @@ export const settingsCommands: CommandDefinition[] = [
     id: 'settings.grid',
     name: 'GRID',
     aliases: ['GR'],
-    description: 'Toggle grid visibility (GRID [ON|OFF])',
+    description: 'Alterna a visibilidade da grade (GRID [ON|OFF])',
     category: 'settings',
     args: [
       {
         name: 'state',
         type: 'boolean',
         required: false,
-        description: 'ON to enable, OFF to disable, omit to toggle',
+        description: 'ON para ativar, OFF para desativar, omita para alternar',
       },
     ],
     execute: (args, ctx) => {
@@ -78,7 +78,7 @@ export const settingsCommands: CommandDefinition[] = [
     id: 'settings.open',
     name: 'SETTINGS',
     aliases: ['SET', 'OPTIONS', 'PREFERENCES'],
-    description: 'Open settings dialog',
+    description: 'Abre o diálogo de configurações',
     category: 'settings',
     execute: (_args, ctx) => {
       ctx.executeAction('open-settings');

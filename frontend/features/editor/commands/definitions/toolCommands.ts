@@ -11,7 +11,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.select',
     name: 'SELECT',
     aliases: ['V', 'SEL'],
-    description: 'Switch to selection tool',
+    description: 'Ativa a ferramenta de seleção',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('select');
@@ -22,7 +22,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.line',
     name: 'LINE',
     aliases: ['L', 'LI'],
-    description: 'Switch to line tool',
+    description: 'Ativa a ferramenta de linha',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('line');
@@ -33,7 +33,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.polyline',
     name: 'POLYLINE',
     aliases: ['PL', 'PLINE'],
-    description: 'Switch to polyline tool',
+    description: 'Ativa a ferramenta de polilinha',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('polyline');
@@ -44,7 +44,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.rect',
     name: 'RECTANGLE',
     aliases: ['R', 'REC', 'RECT'],
-    description: 'Switch to rectangle tool',
+    description: 'Ativa a ferramenta de retângulo',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('rect');
@@ -55,7 +55,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.circle',
     name: 'CIRCLE',
     aliases: ['C', 'CI', 'ELLIPSE'],
-    description: 'Switch to circle/ellipse tool',
+    description: 'Ativa a ferramenta de círculo/elipse',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('circle');
@@ -66,7 +66,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.polygon',
     name: 'POLYGON',
     aliases: ['G', 'POL', 'POLY'],
-    description: 'Switch to polygon tool',
+    description: 'Ativa a ferramenta de polígono',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('polygon');
@@ -77,7 +77,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.text',
     name: 'TEXT',
     aliases: ['T', 'TX'],
-    description: 'Switch to text tool',
+    description: 'Ativa a ferramenta de texto',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('text');
@@ -88,7 +88,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.measure',
     name: 'MEASURE',
     aliases: ['M', 'DI', 'DIST'],
-    description: 'Switch to measure tool',
+    description: 'Ativa a ferramenta de medição',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('measure');
@@ -99,7 +99,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.pan',
     name: 'PAN',
     aliases: ['H', 'HAND'],
-    description: 'Switch to pan tool',
+    description: 'Ativa a ferramenta de panorâmica',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('pan');
@@ -110,7 +110,7 @@ export const toolCommands: CommandDefinition[] = [
     id: 'tool.arrow',
     name: 'ARROW',
     aliases: ['AR'],
-    description: 'Switch to arrow tool',
+    description: 'Ativa a ferramenta de seta',
     category: 'tools',
     execute: (_args, ctx) => {
       ctx.selectTool('arrow');

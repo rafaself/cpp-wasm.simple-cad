@@ -1,12 +1,14 @@
-import { Terminal } from 'lucide-react';
+import { Terminal, HelpCircle } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
+import Dialog, { DialogCard } from '@/components/ui/Dialog';
 import { useCommandStore } from '@/stores/useCommandStore';
 import { useUIStore } from '@/stores/useUIStore';
 
 import { useCommandExecutor, getCommandSuggestions } from '../commands/commandExecutor';
 import { ensureCommandsRegistered } from '../commands/definitions';
 import { useCommandInputCapture } from '../hooks/useCommandInputCapture';
+import { CommandHelpContent } from './CommandHelpContent';
 
 export interface CommandInputProps {
   /** Optional className for additional styling */
@@ -32,6 +34,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
 
   const isMouseOverCanvas = useUIStore((s) => s.isMouseOverCanvas);
   const isCapturing = isMouseOverCanvas && !isActive; // Capturing but input not focused
+  const isHelpModalOpen = useUIStore((s) => s.isCommandHelpModalOpen);
+  const setHelpModalOpen = useUIStore((s) => s.setCommandHelpModalOpen);
 
   const { execute } = useCommandExecutor();
 
@@ -120,23 +124,24 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
   const isNavigatingHistory = historyIndex >= 0;
 
   return (
-    <div className={`relative flex items-center ${className}`}>
-      <div
-        className={`
-          flex items-center gap-1.5 h-6 px-2
-          bg-surface1 border rounded
-          transition-all duration-150
-          ${isActive ? 'border-primary ring-1 ring-primary/30' : ''}
-          ${isCapturing && !isActive ? 'border-primary/50 bg-primary/5' : ''}
-          ${!isActive && !isCapturing ? 'border-border' : ''}
-          ${error ? 'border-red-500 ring-1 ring-red-500/30' : ''}
-        `}
-      >
+    <>
+      <div className={`relative flex items-center gap-1 ${className}`}>
+        <div
+          className={`
+            flex items-center gap-1.5 h-6 px-2
+            bg-surface1 border rounded
+            transition-all duration-150
+            ${isActive ? 'border-primary ring-1 ring-primary/30' : ''}
+            ${isCapturing && !isActive ? 'border-primary/50 bg-primary/5' : ''}
+            ${!isActive && !isCapturing ? 'border-border' : ''}
+            ${error ? 'border-red-500 ring-1 ring-red-500/30' : ''}
+          `}
+        >
         <Terminal
           size={12}
           className={`
             shrink-0 transition-colors duration-150
-            ${isActive || isCapturing ? 'text-primary' : 'text-text-muted'}
+            ${isActive || isCapturing ? 'text-primary' : 'text-text'}
           `}
         />
         <div className="relative flex-1">
@@ -156,7 +161,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             className={`
               w-32 h-full bg-transparent relative z-10
               text-xs font-mono
-              text-text placeholder:text-text-muted/70
+              text-text placeholder:text-text/50
               outline-none
               selection:bg-primary/30
             `}
@@ -181,6 +186,16 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
         </div>
       </div>
 
+      {/* Help button */}
+      <button
+        onClick={() => setHelpModalOpen(true)}
+        className="p-1 hover:bg-surface2 rounded focus-outline text-text hover:text-primary transition-colors"
+        title="Ajuda de Comandos (HELP)"
+        aria-label="Ajuda de Comandos"
+      >
+        <HelpCircle size={14} />
+      </button>
+
       {/* Suggestion tooltip */}
       {suggestion && buffer && !error && (isActive || showCapturing) && (
         <div
@@ -188,16 +203,16 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             absolute bottom-full left-0 mb-1.5
             px-2 py-1 rounded
             bg-surface2 border border-border
-            text-[10px] text-text-muted
+            text-[10px] text-text
             whitespace-nowrap
             shadow-lg
             animate-in fade-in slide-in-from-bottom-1 duration-150
           "
         >
           <span className="text-primary font-medium">{suggestion.name}</span>
-          <span className="mx-1.5 text-border">—</span>
+          <span className="mx-1.5 text-text/30">—</span>
           <span>{suggestion.description}</span>
-          <span className="ml-2 text-text-muted/50">[Enter]</span>
+          <span className="ml-2 text-text/60">[Enter]</span>
         </div>
       )}
 
@@ -217,8 +232,20 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
           {error}
         </div>
       )}
+      </div>
 
-    </div>
+      <Dialog
+        modelValue={isHelpModalOpen}
+        onUpdate={setHelpModalOpen}
+        maxWidth="700px"
+        showCloseButton
+        ariaLabel="Comandos Disponíveis"
+      >
+        <DialogCard title="Comandos Disponíveis" contentClassName="overflow-hidden p-0">
+          <CommandHelpContent />
+        </DialogCard>
+      </Dialog>
+    </>
   );
 };
 

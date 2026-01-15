@@ -8,6 +8,7 @@ import { commandRegistry } from '../commandRegistry';
 
 import { editCommands } from './editCommands';
 import { fileCommands } from './fileCommands';
+import { helpCommands } from './helpCommands';
 import { settingsCommands } from './settingsCommands';
 import { toolCommands } from './toolCommands';
 import { viewCommands } from './viewCommands';
@@ -21,6 +22,7 @@ export const allCommands = [
   ...viewCommands,
   ...settingsCommands,
   ...fileCommands,
+  ...helpCommands,
 ];
 
 /**
@@ -54,3 +56,4 @@ export { editCommands } from './editCommands';
 export { viewCommands } from './viewCommands';
 export { settingsCommands } from './settingsCommands';
 export { fileCommands } from './fileCommands';
+export { helpCommands } from './helpCommands';

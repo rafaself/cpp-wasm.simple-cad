@@ -17,7 +17,7 @@ export const viewCommands: CommandDefinition[] = [
     id: 'view.zoom',
     name: 'ZOOM',
     aliases: ['Z', 'ZO'],
-    description: 'Control zoom level (ZOOM [percentage|FIT|IN|OUT])',
+    description: 'Controla o nível de zoom (ZOOM [porcentagem|FIT|IN|OUT])',
     category: 'view',
     args: [
       {
@@ -25,7 +25,7 @@ export const viewCommands: CommandDefinition[] = [
         type: 'enum',
         required: false,
         options: ['FIT', 'IN', 'OUT', '<number>'],
-        description: 'Zoom level percentage or action (FIT/IN/OUT)',
+        description: 'Porcentagem de zoom ou ação (FIT/IN/OUT)',
       },
     ],
     execute: (args, ctx) => {
@@ -78,7 +78,7 @@ export const viewCommands: CommandDefinition[] = [
     id: 'view.zoomIn',
     name: 'ZOOMIN',
     aliases: ['ZI'],
-    description: 'Zoom in',
+    description: 'Aumenta o zoom',
     category: 'view',
     execute: (_args, ctx) => {
       ctx.setViewTransform((prev) => ({
@@ -92,7 +92,7 @@ export const viewCommands: CommandDefinition[] = [
     id: 'view.zoomOut',
     name: 'ZOOMOUT',
     aliases: ['ZOU'],
-    description: 'Zoom out',
+    description: 'Diminui o zoom',
     category: 'view',
     execute: (_args, ctx) => {
       ctx.setViewTransform((prev) => ({
@@ -106,7 +106,7 @@ export const viewCommands: CommandDefinition[] = [
     id: 'view.zoomFit',
     name: 'ZOOMFIT',
     aliases: ['ZF', 'FITALL'],
-    description: 'Zoom to fit all entities in view',
+    description: 'Ajusta o zoom para exibir todos os elementos',
     category: 'view',
     execute: (_args, ctx) => {
       ctx.executeAction('zoom-to-fit');

@@ -216,3 +216,10 @@ export const commandRegistry = new CommandRegistry();
 
 // Export class for testing
 export { CommandRegistry };
+
+/**
+ * Helper function to get all registered commands.
+ */
+export function getAllCommands(): CommandDefinition[] {
+  return commandRegistry.getAll();
+}

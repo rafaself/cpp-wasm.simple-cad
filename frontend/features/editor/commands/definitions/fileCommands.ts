@@ -11,7 +11,7 @@ export const fileCommands: CommandDefinition[] = [
     id: 'file.new',
     name: 'NEW',
     aliases: ['NEWFILE'],
-    description: 'Create a new drawing',
+    description: 'Cria um novo desenho',
     category: 'file',
     execute: (_args, ctx) => {
       ctx.executeAction('new-file');
@@ -22,7 +22,7 @@ export const fileCommands: CommandDefinition[] = [
     id: 'file.open',
     name: 'OPEN',
     aliases: ['OP', 'OPENFILE'],
-    description: 'Open an existing drawing',
+    description: 'Abre um desenho existente',
     category: 'file',
     execute: (_args, ctx) => {
       ctx.executeAction('open-file');
@@ -33,7 +33,7 @@ export const fileCommands: CommandDefinition[] = [
     id: 'file.save',
     name: 'SAVE',
     aliases: ['SA', 'SAVEFILE'],
-    description: 'Save the current drawing',
+    description: 'Salva o desenho atual',
     category: 'file',
     execute: (_args, ctx) => {
       ctx.executeAction('save-file');
@@ -44,7 +44,7 @@ export const fileCommands: CommandDefinition[] = [
     id: 'file.export',
     name: 'EXPORT',
     aliases: ['EX'],
-    description: 'Export the drawing',
+    description: 'Exporta o desenho',
     category: 'file',
     execute: (_args, ctx) => {
       ctx.executeAction('export-project');

@@ -31,6 +31,7 @@ interface UIState {
   canvasSize: { width: number; height: number };
   isSettingsModalOpen: boolean;
   isLayerManagerOpen: boolean;
+  isCommandHelpModalOpen: boolean;
   isEditingAppearance: boolean;
   engineInteractionActive: boolean;
   interactionDragActive: boolean;
@@ -67,6 +68,7 @@ interface UIState {
 
   setSettingsModalOpen: (isOpen: boolean) => void;
   setLayerManagerOpen: (isOpen: boolean) => void;
+  setCommandHelpModalOpen: (isOpen: boolean) => void;
   setIsEditingAppearance: (isEditing: boolean) => void;
   setEngineInteractionActive: (active: boolean) => void;
   setInteractionDragActive: (active: boolean) => void;
@@ -124,6 +126,7 @@ export const useUIStore = create<UIState>((set) => ({
   canvasSize: { width: 0, height: 0 },
   isSettingsModalOpen: false,
   isLayerManagerOpen: false,
+  isCommandHelpModalOpen: false,
   isEditingAppearance: false,
   engineInteractionActive: false,
   interactionDragActive: false,
@@ -224,6 +227,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   setSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
   setLayerManagerOpen: (isOpen) => set({ isLayerManagerOpen: isOpen }),
+  setCommandHelpModalOpen: (isOpen) => set({ isCommandHelpModalOpen: isOpen }),
   setIsEditingAppearance: (isEditing) => set({ isEditingAppearance: isEditing }),
   setEngineInteractionActive: (active) => set({ engineInteractionActive: active }),
   setInteractionDragActive: (active) => set({ interactionDragActive: active }),

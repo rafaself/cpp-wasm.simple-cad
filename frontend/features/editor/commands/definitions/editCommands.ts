@@ -11,7 +11,7 @@ export const editCommands: CommandDefinition[] = [
     id: 'edit.undo',
     name: 'UNDO',
     aliases: ['U'],
-    description: 'Undo the last action',
+    description: 'Desfaz a última ação',
     category: 'edit',
     execute: (_args, ctx) => {
       ctx.executeAction('undo');
@@ -22,7 +22,7 @@ export const editCommands: CommandDefinition[] = [
     id: 'edit.redo',
     name: 'REDO',
     aliases: ['RE'],
-    description: 'Redo the last undone action',
+    description: 'Refaz a última ação desfeita',
     category: 'edit',
     execute: (_args, ctx) => {
       ctx.executeAction('redo');
@@ -33,7 +33,7 @@ export const editCommands: CommandDefinition[] = [
     id: 'edit.delete',
     name: 'DELETE',
     aliases: ['DEL', 'E', 'ERASE'],
-    description: 'Delete selected entities',
+    description: 'Exclui os elementos selecionados',
     category: 'edit',
     requiresSelection: true,
     execute: (_args, ctx) => {
