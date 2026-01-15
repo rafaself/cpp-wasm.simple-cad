@@ -9,8 +9,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const projectRoot = path.resolve(__dirname, "..");
-const boundaryConfigPath = path.join(projectRoot, "scripts", "boundary_rules.json");
+const projectRoot = path.resolve(__dirname, "../..");
+const boundaryConfigPath = path.join(projectRoot, "tooling", "governance", "boundary_rules.json");
 
 const ignoreDirs = new Set([
   ".git",

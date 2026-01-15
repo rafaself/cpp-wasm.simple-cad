@@ -4,7 +4,7 @@ services:
   # frontend:
   #   build:
   #     context: .
-  #     dockerfile: Dockerfile.frontend
+  #     dockerfile: infra/docker/Dockerfile.frontend
   #   working_dir: /workspace/frontend
   #   command: bash -lc "pnpm install && pnpm dev -- --host 0.0.0.0 --port 3000"
   #   ports:
@@ -21,7 +21,7 @@ services:
   # backend:
   #   build:
   #     context: .
-  #     dockerfile: Dockerfile.backend
+  #     dockerfile: infra/docker/Dockerfile.backend
   #   working_dir: /workspace/backend
   #   command: bash -lc "python -m venv /workspace/backend/.venv || true && . /workspace/backend/.venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
   #   ports:

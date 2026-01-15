@@ -15,8 +15,8 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const repoRoot = path.resolve(__dirname, '..');
-const frontendRoot = path.join(repoRoot, 'frontend');
+const repoRoot = path.resolve(__dirname, '../..');
+const frontendRoot = path.join(repoRoot, 'apps/web');
 const reportsDir = path.join(repoRoot, 'reports');
 const reportPath = path.join(reportsDir, 'deadcode_ts.md');
 

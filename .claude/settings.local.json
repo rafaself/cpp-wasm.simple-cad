@@ -33,7 +33,9 @@
       "Bash(git -C /home/rafa/dev/eletrocad-webapp status --porcelain)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(pnpm governance:check:*)",
+      "Bash(node tooling/governance/check_docs_references.js:*)"
     ]
   }
 }

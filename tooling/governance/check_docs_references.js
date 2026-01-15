@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const targets = [
   path.join(repoRoot, 'AGENTS.md'),
   path.join(repoRoot, 'docs', 'ENGINE_FIRST_GOVERNANCE.md'),

@@ -11,7 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const projectRoot = path.resolve(__dirname, "..");
+const projectRoot = path.resolve(__dirname, "../..");
 const docsDir = path.join(projectRoot, "docs");
 const manifestJsonPath = path.join(docsDir, "engine_api_manifest.json");
 const manifestMdPath = path.join(docsDir, "ENGINE_API_MANIFEST.md");

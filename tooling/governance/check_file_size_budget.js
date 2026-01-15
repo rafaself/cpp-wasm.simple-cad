@@ -8,9 +8,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const projectRoot = path.resolve(__dirname, "..");
-const budgetPath = path.join(projectRoot, "scripts", "file_size_budget.json");
-const exceptionsPath = path.join(projectRoot, "scripts", "file_size_budget_exceptions.json");
+const projectRoot = path.resolve(__dirname, "../..");
+const budgetPath = path.join(projectRoot, "tooling", "governance", "file_size_budget.json");
+const exceptionsPath = path.join(projectRoot, "tooling", "governance", "file_size_budget_exceptions.json");
 
 const ignoreDirs = new Set([
   ".git",

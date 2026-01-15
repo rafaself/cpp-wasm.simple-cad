@@ -1,0 +1,34 @@
+{
+  "runtimeEngineAllowlist": [],
+  "featureImportEntrypoints": [
+    "apps/web/engine/core/EngineRuntime",
+    "apps/web/engine/core/singleton",
+    "apps/web/engine/core/useEngineRuntime",
+    "apps/web/engine/core/useEngineSelection",
+    "apps/web/engine/core/useEngineEvents",
+    "apps/web/engine/core/useEngineLayers",
+    "apps/web/engine/core/engineDocumentSignals"
+  ],
+  "featureImportAllowlist": [
+    { "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "apps/web/engine/types", "reason": "Draft handler still uses engine enums directly; needs facade." },
+    { "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Command op construction should move to runtime helper." },
+    { "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "apps/web/engine/core/protocol", "reason": "Draft handler uses protocol enums." },
+    { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/tools/TextTool", "reason": "Text tool wiring still imports engine tool directly." },
+    { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/core/protocol", "reason": "Text handler uses protocol enums." },
+    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/protocol", "reason": "Selection handler pulls engine protocol types directly; needs facade." },
+    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/interactionSession", "reason": "Transform mode wiring bypasses runtime facade." },
+    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Command op construction should be moved behind EngineRuntime." },
+    { "path": "apps/web/features/editor/components/ribbon/LayerRibbonControls.tsx", "import": "apps/web/engine/core/protocol", "reason": "Layer ribbon still uses protocol enums; needs facade exposure." },
+    { "path": "apps/web/features/editor/components/LayerManagerModal.tsx", "import": "apps/web/engine/core/protocol", "reason": "Layer mutations using protocol enums directly; needs facade." },
+    { "path": "apps/web/features/editor/components/EngineInteractionLayer.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Interaction layer builds command buffer directly; should delegate to runtime helper." },
+    { "path": "apps/web/features/editor/hooks/useEditorLogic.ts", "import": "apps/web/engine/core/commandBuffer", "reason": "Editor logic builds command lists manually; needs facade." },
+    { "path": "apps/web/features/editor/hooks/useEditorLogic.ts", "import": "apps/web/engine/core/protocol", "reason": "Protocol types still imported directly." },
+    { "path": "apps/web/features/editor/components/NextSurface.tsx", "import": "apps/web/engine/renderer/TessellatedWasmLayer", "reason": "Renderer is consumed directly until a facade exists." },
+    { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Overlay inspects capabilities." },
+    { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/overlayDecoder", "reason": "Overlay uses overlay decoder." },
+    { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/protocol", "reason": "Overlay uses protocol." },
+    { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/types", "reason": "Overlay uses engine types." },
+    { "path": "apps/web/features/editor/text/textToolController.ts", "import": "apps/web/engine/tools/TextTool", "reason": "Controller uses TextTool directly." },
+    { "path": "apps/web/features/settings/sections/DeveloperSettings.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Developer settings inspects capabilities." }
+  ]
+}
