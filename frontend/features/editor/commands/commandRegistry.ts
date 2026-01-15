@@ -60,7 +60,7 @@ export interface CommandDefinition {
   description: string;
 
   /** Category for grouping in help/autocomplete */
-  category: 'tools' | 'edit' | 'view' | 'settings' | 'file';
+  category: 'tools' | 'edit' | 'view' | 'settings' | 'file' | 'help';
 
   /** Optional argument definitions for validation */
   args?: ArgSchema[];

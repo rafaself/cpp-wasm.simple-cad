@@ -68,7 +68,7 @@ export function executeCommandString(
   if (!command) {
     return {
       success: false,
-      message: `Unknown command: ${parseResult.command}`,
+      message: `Comando desconhecido: ${parseResult.command}`,
       commandNotFound: true,
     };
   }

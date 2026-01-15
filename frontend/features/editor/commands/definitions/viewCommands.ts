@@ -60,7 +60,7 @@ export const viewCommands: CommandDefinition[] = [
         if (percentage < MIN_ZOOM * 100 || percentage > MAX_ZOOM * 100) {
           return {
             success: false,
-            message: `Zoom must be between ${MIN_ZOOM * 100}% and ${MAX_ZOOM * 100}%`,
+            message: `Zoom deve estar entre ${MIN_ZOOM * 100}% e ${MAX_ZOOM * 100}%`,
           };
         }
 
@@ -71,7 +71,7 @@ export const viewCommands: CommandDefinition[] = [
         return { success: true };
       }
 
-      return { success: false, message: `Invalid zoom argument: ${arg}` };
+      return { success: false, message: `Argumento de zoom inválido: ${arg}` };
     },
   },
   {

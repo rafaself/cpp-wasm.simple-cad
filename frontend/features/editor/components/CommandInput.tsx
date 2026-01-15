@@ -1,4 +1,4 @@
-import { Terminal, HelpCircle } from 'lucide-react';
+import { Terminal, HelpCircle, Send } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import Dialog, { DialogCard } from '@/components/ui/Dialog';
@@ -90,6 +90,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
 
         case 'Tab':
           e.preventDefault();
+          e.stopPropagation();
           // Simple tab completion - complete to first suggestion
           if (buffer.trim()) {
             const suggestions = getCommandSuggestions(buffer.trim(), 1);
@@ -118,6 +119,12 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
   const handleCompositionEnd = useCallback(() => {
     setIsComposing(false);
   }, []);
+
+  const handleExecuteClick = useCallback(() => {
+    if (buffer.trim() && !isComposing) {
+      execute();
+    }
+  }, [buffer, isComposing, execute]);
 
   // Determine visual state
   const showCapturing = isCapturing || (isActive && buffer);
@@ -159,11 +166,12 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             spellCheck={false}
             autoComplete="off"
             className={`
-              w-32 h-full bg-transparent relative z-10
+              ${buffer.trim() ? 'w-28' : 'w-32'} h-full bg-transparent relative z-10
               text-xs font-mono
               text-text placeholder:text-text/50
               outline-none
               selection:bg-primary/30
+              transition-all duration-150
             `}
             aria-label="Command input"
             title="Digite um comando (Ex: L para Linha, R para Retângulo). Pressione Enter para executar."
@@ -184,6 +192,18 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             </div>
           )}
         </div>
+
+        {/* Execute button - shows when there's content */}
+        {buffer.trim() && (
+          <button
+            onClick={handleExecuteClick}
+            className="shrink-0 p-0.5 hover:bg-surface2 rounded transition-colors text-text hover:text-primary"
+            title="Executar comando (Enter)"
+            aria-label="Executar comando"
+          >
+            <Send size={12} className="rotate-45" />
+          </button>
+        )}
       </div>
 
       {/* Help button */}

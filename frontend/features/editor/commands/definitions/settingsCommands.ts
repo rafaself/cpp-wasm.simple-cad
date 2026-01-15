@@ -28,17 +28,17 @@ export const settingsCommands: CommandDefinition[] = [
         // The context doesn't expose current state, so we toggle via the action
         // For now, we'll just toggle via the setter
         ctx.setSnapEnabled(true); // This will be replaced with proper toggle
-        ctx.showToast('Snap toggled', 'info');
+        ctx.showToast('Snap alternado', 'info');
         return { success: true };
       }
 
       const state = parseBooleanArg(args[0]);
       if (state === null) {
-        return { success: false, message: `Invalid SNAP argument: ${args[0]}. Use ON or OFF.` };
+        return { success: false, message: `Argumento SNAP inválido: ${args[0]}. Use ON ou OFF.` };
       }
 
       ctx.setSnapEnabled(state);
-      ctx.showToast(`Snap ${state ? 'enabled' : 'disabled'}`, 'info');
+      ctx.showToast(`Snap ${state ? 'ativado' : 'desativado'}`, 'info');
       return { success: true };
     },
   },
@@ -65,7 +65,7 @@ export const settingsCommands: CommandDefinition[] = [
 
       const state = parseBooleanArg(args[0]);
       if (state === null) {
-        return { success: false, message: `Invalid GRID argument: ${args[0]}. Use ON or OFF.` };
+        return { success: false, message: `Argumento GRID inválido: ${args[0]}. Use ON ou OFF.` };
       }
 
       // Grid action always toggles, so we need to handle on/off differently
