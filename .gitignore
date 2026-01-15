@@ -29,8 +29,8 @@ lerna-debug.log*
 dist/
 dist-ssr/
 build/
-cpp/build_text/
-frontend/public/wasm/engine.wasm
+packages/engine/build_test/
+apps/web/public/wasm/engine.wasm
 
 # Local env files
 *.local
@@ -82,8 +82,8 @@ env/
 htmlcov/
 
 # --- C++/WASM ---
-cpp/build/
-cpp/build_native/
+packages/engine/build/
+packages/engine/build_native/
 
 # --- OS ---
 Thumbs.db

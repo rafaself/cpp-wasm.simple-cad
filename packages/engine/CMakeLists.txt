@@ -171,7 +171,7 @@ endif()
 
 # --- WASM Build Configuration (Emscripten) ---
 if(EMSCRIPTEN)
-  set(DEFAULT_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/../frontend/public/wasm")
+  set(DEFAULT_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/../../apps/web/public/wasm")
   set(OUTPUT_DIR "${OUTPUT_DIR}" CACHE PATH "Output directory for wasm artifacts" )
   if(NOT OUTPUT_DIR)
     set(OUTPUT_DIR "${DEFAULT_OUTPUT_DIR}")

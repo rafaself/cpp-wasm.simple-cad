@@ -69,15 +69,15 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -S cpp -B cpp/build_native -DCMAKE_BUILD_TYPE=Release
+          cmake -S packages/engine -B packages/engine/build_native -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
-          cmake --build cpp/build_native --config Release
+          cmake --build packages/engine/build_native --config Release
 
       - name: Test
         run: |
-          ctest --test-dir cpp/build_native --output-on-failure
+          ctest --test-dir packages/engine/build_native --output-on-failure
 
   governance-deadcode-check:
     name: Governance Deadcode Check
@@ -109,10 +109,10 @@ jobs:
         run: node scripts/check_docs_references.js
 
       - name: Configure C++ (for symbol analysis)
-        run: cmake -S cpp -B cpp/build_native -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S packages/engine -B packages/engine/build_native -DCMAKE_BUILD_TYPE=Release
 
       - name: Build C++ (for symbol analysis)
-        run: cmake --build cpp/build_native --config Release
+        run: cmake --build packages/engine/build_native --config Release
 
       - name: Generate C++ dead code report
         run: bash scripts/deadcode_cpp_report.sh
