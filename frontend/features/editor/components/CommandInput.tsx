@@ -166,12 +166,11 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             spellCheck={false}
             autoComplete="off"
             className={`
-              ${buffer.trim() ? 'w-28' : 'w-32'} h-full bg-transparent relative z-10
+              w-28 h-full bg-transparent relative z-10
               text-xs font-mono
               text-text placeholder:text-text/50
               outline-none
               selection:bg-primary/30
-              transition-all duration-150
             `}
             aria-label="Command input"
             title="Digite um comando (Ex: L para Linha, R para Retângulo). Pressione Enter para executar."
@@ -194,16 +193,18 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
         </div>
 
         {/* Execute button - shows when there's content */}
-        {buffer.trim() && (
-          <button
-            onClick={handleExecuteClick}
-            className="shrink-0 p-0.5 hover:bg-surface2 rounded transition-colors text-text hover:text-primary"
-            title="Executar comando (Enter)"
-            aria-label="Executar comando"
-          >
-            <Send size={12} className="rotate-45" />
-          </button>
-        )}
+        <button
+          onClick={handleExecuteClick}
+          className={`
+            shrink-0 p-0.5 rounded transition-colors
+            ${buffer.trim() ? 'opacity-100 hover:bg-surface2 text-text hover:text-primary' : 'opacity-0 pointer-events-none'}
+          `}
+          title="Executar comando (Enter)"
+          aria-label="Executar comando"
+          disabled={!buffer.trim()}
+        >
+          <Send size={12} className="rotate-45" />
+        </button>
       </div>
 
       {/* Help button */}
