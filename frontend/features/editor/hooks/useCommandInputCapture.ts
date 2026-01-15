@@ -180,7 +180,9 @@ export function useCommandInputCapture(options: UseCommandInputCaptureOptions = 
           break;
 
         case 'Backspace':
-          if (commandState.buffer) {
+          // Only intercept Backspace when input is NOT focused
+          // When input is focused, let the native behavior handle selection deletion
+          if (!isOurInput && commandState.buffer) {
             e.preventDefault();
             e.stopPropagation();
             commandState.deleteChar();
