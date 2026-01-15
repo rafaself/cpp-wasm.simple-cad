@@ -18,6 +18,8 @@ import React, { useState } from 'react';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 import { LABELS } from '@/i18n/labels';
 
+import { CommandInput } from './CommandInput';
+
 import EditableNumber from '../../../components/EditableNumber';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
@@ -57,11 +59,11 @@ const EditorStatusBar: React.FC = () => {
   }, [activeTool, enableColorsRibbon]);
 
   return (
-    <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text-muted select-none z-50">
-      <div className="w-56 font-mono flex items-center gap-4 text-text-muted text-[10px]">
+    <div className="w-full h-8 bg-surface1 border-t border-border flex items-center justify-between px-4 text-xs text-text select-none z-50 relative">
+      <div className="font-mono flex items-center gap-4 text-text text-[10px]">
         {mousePos ? (
           <>
-            <ToolIcon size={12} />
+            <ToolIcon size={12} className="text-text" />
             <div className="flex gap-3">
               <span>
                 <span className="mr-1">X:</span>
@@ -74,25 +76,30 @@ const EditorStatusBar: React.FC = () => {
             </div>
           </>
         ) : (
-          <div className="flex items-center gap-2 opacity-50">
+          <div className="flex items-center gap-2 opacity-40">
             <ToolIcon size={12} />
             <span>—</span>
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <CommandInput />
+      </div>
+
+      <div className="flex items-center gap-2">
         <div className="relative">
           <div className="flex items-center bg-surface1 rounded border border-border">
             <button
               onClick={toggleSnap}
-              className={`flex items-center gap-1 px-2 py-0.5 hover:bg-surface2 focus-outline ${snapSettings.enabled ? 'text-primary font-bold' : 'text-text-muted'}`}
+              className={`flex items-center gap-1 px-2 py-0.5 hover:bg-surface2 focus-outline ${snapSettings.enabled ? 'text-primary font-bold' : 'text-text'}`}
+              title={snapSettings.enabled ? 'SNAP Ativo' : 'SNAP Inativo'}
             >
-              <Magnet size={14} /> SNAP
+              <Crosshair size={14} />
             </button>
             <button
               onClick={() => setShowSnapMenu(!showSnapMenu)}
-              className="px-1 py-0.5 border-l border-border hover:bg-surface2 focus-outline"
+              className="px-1 py-0.5 border-l border-border hover:bg-surface2 focus-outline text-text"
               title={LABELS.statusbar.snapOptions}
               aria-label={LABELS.statusbar.snapOptions}
             >
@@ -101,11 +108,11 @@ const EditorStatusBar: React.FC = () => {
           </div>
 
           {showSnapMenu && (
-            <div className="absolute bottom-full mb-1 left-0 w-40 bg-surface1 border border-border shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
-              <div className="text-[10px] text-text-muted uppercase mb-1 font-bold">
+            <div className="absolute bottom-full mb-1 right-0 w-40 bg-surface1 border border-border shadow-xl rounded p-2 flex flex-col gap-1 menu-transition">
+              <div className="text-[10px] text-text uppercase mb-1 font-bold">
                 {LABELS.statusbar.snapToObject}
               </div>
-              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline">
+              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline text-text text-xs">
                 <input
                   type="checkbox"
                   checked={snapSettings.endpoint}
@@ -113,7 +120,7 @@ const EditorStatusBar: React.FC = () => {
                 />{' '}
                 <Square size={12} /> {LABELS.settings.endpoints}
               </label>
-              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline">
+              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline text-text text-xs">
                 <input
                   type="checkbox"
                   checked={snapSettings.midpoint}
@@ -121,7 +128,7 @@ const EditorStatusBar: React.FC = () => {
                 />{' '}
                 <Target size={12} /> {LABELS.settings.midpoints}
               </label>
-              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline">
+              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline text-text text-xs">
                 <input
                   type="checkbox"
                   checked={snapSettings.center}
@@ -129,7 +136,7 @@ const EditorStatusBar: React.FC = () => {
                 />{' '}
                 <CircleDot size={12} /> {LABELS.settings.centers}
               </label>
-              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline">
+              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline text-text text-xs">
                 <input
                   type="checkbox"
                   checked={snapSettings.nearest}
@@ -137,7 +144,7 @@ const EditorStatusBar: React.FC = () => {
                 />{' '}
                 <Crosshair size={12} /> {LABELS.settings.nearest}
               </label>
-              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline">
+              <label className="flex items-center gap-2 hover:bg-surface2 p-1 rounded cursor-pointer focus-outline text-text text-xs">
                 <input
                   type="checkbox"
                   checked={snapSettings.grid}
@@ -148,12 +155,12 @@ const EditorStatusBar: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
+        <div className="h-4 w-px bg-text/20 mx-2" />
+
         <button
           onClick={() => executeAction('undo')}
-          className={`p-1 hover:bg-surface2 rounded focus-outline ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
+          className={`p-1 hover:bg-surface2 rounded focus-outline text-text ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
           disabled={!history.canUndo}
           title={`${LABELS.menu.undo} (Ctrl+Z)`}
           aria-label={LABELS.menu.undo}
@@ -162,7 +169,7 @@ const EditorStatusBar: React.FC = () => {
         </button>
         <button
           onClick={() => executeAction('redo')}
-          className={`p-1 hover:bg-surface2 rounded focus-outline ${history.canRedo ? '' : 'opacity-50 cursor-not-allowed'}`}
+          className={`p-1 hover:bg-surface2 rounded focus-outline text-text ${history.canRedo ? '' : 'opacity-50 cursor-not-allowed'}`}
           disabled={!history.canRedo}
           title={`${LABELS.menu.redo} (Ctrl+Y)`}
           aria-label={LABELS.menu.redo}
@@ -170,11 +177,11 @@ const EditorStatusBar: React.FC = () => {
           <Redo2 size={14} />
         </button>
 
-        <div className="h-4 w-px bg-border mx-2" />
+        <div className="h-4 w-px bg-text/20 mx-2" />
 
         <button
           onClick={() => executeAction('zoom-to-fit')}
-          className="p-1 hover:bg-surface2 rounded focus-outline"
+          className="p-1 hover:bg-surface2 rounded focus-outline text-text"
           title={LABELS.statusbar.zoomOut} // Using generic label or adding specific 'Adjust to Fit' in future
           aria-label={LABELS.statusbar.zoomOut}
         >
@@ -197,7 +204,7 @@ const EditorStatusBar: React.FC = () => {
 
         <button
           onClick={() => executeAction('zoom-out')}
-          className="p-1 hover:bg-surface2 rounded focus-outline"
+          className="p-1 hover:bg-surface2 rounded focus-outline text-text"
           title={LABELS.statusbar.zoomOut}
           aria-label={LABELS.statusbar.zoomOut}
         >
@@ -205,7 +212,7 @@ const EditorStatusBar: React.FC = () => {
         </button>
         <button
           onClick={() => executeAction('zoom-in')}
-          className="p-1 hover:bg-surface2 rounded focus-outline"
+          className="p-1 hover:bg-surface2 rounded focus-outline text-text"
           title={LABELS.statusbar.zoomIn}
           aria-label={LABELS.statusbar.zoomIn}
         >

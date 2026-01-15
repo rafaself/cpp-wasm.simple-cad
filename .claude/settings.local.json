@@ -24,7 +24,10 @@
       "Bash(git checkout:*)",
       "Bash(make:*)",
       "Bash(./engine_tests:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm build:*)",
+      "Bash(npm test:*)"
     ]
   }
 }
