@@ -1,0 +1,104 @@
+{
+  "files": [
+    {
+      "path": "packages/engine/engine/engine.h",
+      "hardLimit": 1300,
+      "reason": "Legacy engine header (pre-SRP split) exceeds hard cap; tracked for refactor."
+    },
+    {
+      "path": "packages/engine/engine/interaction/interaction_session.cpp",
+      "hardLimit": 1250,
+      "reason": "Interaction session monolithic; pending split."
+    },
+    {
+      "path": "packages/engine/tests/engine_test.cpp",
+      "hardLimit": 1000,
+      "reason": "Engine integration tests."
+    },
+    {
+      "path": "packages/engine/engine/persistence/snapshot.cpp",
+      "hardLimit": 820,
+      "reason": "Snapshot path still monolithic; refactor planned in SRP roadmap."
+    },
+    {
+      "path": "packages/engine/engine/impl/engine_snapshot.cpp",
+      "hardLimit": 850,
+      "reason": "Snapshot implementation slightly over; to be split alongside persistence/snapshot.cpp."
+    },
+    {
+      "path": "packages/engine/engine/history/history_manager.cpp",
+      "hardLimit": 870,
+      "reason": "History manager monolithic; pending SRP split into separate command handlers."
+    },
+    {
+      "path": "packages/engine/engine/render/vector_tessellation.cpp",
+      "hardLimit": 820,
+      "reason": "Render tessellation debt; pending render system split."
+    },
+    {
+      "path": "packages/engine/tests/text_commands_test.cpp",
+      "hardLimit": 1150,
+      "reason": "Large text command test suite; slated for breakup after text refactor."
+    },
+    {
+      "path": "apps/web/components/TextInputProxy.tsx",
+      "hardLimit": 520,
+      "reason": "Input proxy slightly over limit."
+    },
+    {
+      "path": "apps/web/engine/tools/text/TextInputCoordinator.ts",
+      "hardLimit": 720,
+      "reason": "Legacy text input coordinator; slated for Phase 4 SRP refactor."
+    },
+    {
+      "path": "apps/web/engine/bridge/textBridge.ts",
+      "hardLimit": 650,
+      "reason": "Historic text bridge still over the TS hard cap; pending bridge refactor."
+    },
+    {
+      "path": "apps/web/engine/core/commandBuffer.ts",
+      "hardLimit": 580,
+      "reason": "Command encoder still monolithic; slated for SRP split after governance rollout."
+    },
+    {
+      "path": "apps/web/engine/core/EngineRuntime.ts",
+      "hardLimit": 560,
+      "reason": "Runtime facade consolidation pending; keep under watch while bridge is stabilized."
+    },
+    {
+      "path": "apps/web/engine/tools/TextTool.ts",
+      "hardLimit": 700,
+      "reason": "Text tool debt known; to be broken down in dedicated text refactor."
+    },
+    {
+      "path": "apps/web/features/import/utils/dxf/dxfToShapes.test.ts",
+      "hardLimit": 530,
+      "reason": "Large DXF integration test; needs segmentation but kept for coverage in current phase."
+    },
+    {
+      "path": "apps/web/features/import/utils/dxf/dxfToSvg.ts",
+      "hardLimit": 700,
+      "reason": "DXF→SVG converter awaiting modularization; allow temporarily during governance baseline."
+    },
+    {
+      "path": "apps/web/features/import/utils/pdfToShapes.ts",
+      "hardLimit": 720,
+      "reason": "PDF import path to be broken down; tracked in import refactor backlog."
+    },
+    {
+      "path": "apps/web/features/import/utils/pdfToVectorDocument.ts",
+      "hardLimit": 560,
+      "reason": "PDF vector builder monolith; scheduled for later SRP split."
+    },
+    {
+      "path": "apps/web/utils/benchmarks/pickBenchmarks.ts",
+      "hardLimit": 540,
+      "reason": "Benchmark helper intentionally verbose; exempted while perf suite is stabilized."
+    },
+    {
+      "path": "apps/web/utils/pickResultCache.test.ts",
+      "hardLimit": 540,
+      "reason": "Large cache test fixture; to be broken up after governance baseline."
+    }
+  ]
+}

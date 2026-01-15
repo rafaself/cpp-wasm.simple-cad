@@ -4,7 +4,7 @@ services:
   # frontend:
   #   build:
   #     context: .
-  #     dockerfile: Dockerfile.frontend
+  #     dockerfile: infra/docker/Dockerfile.frontend
   #   working_dir: /workspace/frontend
   #   command: bash -lc "pnpm install && pnpm dev -- --host 0.0.0.0 --port 3000"
   #   ports:
@@ -13,7 +13,7 @@ services:
   #     - NODE_ENV=development
   #     - CHOKIDAR_USEPOLLING=1
   #   volumes:
-  #     - ./frontend:/workspace/frontend
+  #     - ./apps/web:/workspace/frontend
   #     - frontend_node_modules:/workspace/frontend/node_modules
   #   depends_on:
   #     - backend
@@ -21,7 +21,7 @@ services:
   # backend:
   #   build:
   #     context: .
-  #     dockerfile: Dockerfile.backend
+  #     dockerfile: infra/docker/Dockerfile.backend
   #   working_dir: /workspace/backend
   #   command: bash -lc "python -m venv /workspace/backend/.venv || true && . /workspace/backend/.venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
   #   ports:
@@ -29,15 +29,15 @@ services:
   #   environment:
   #     - PYTHONUNBUFFERED=1
   #   volumes:
-  #     - ./backend:/workspace/backend
+  #     - ./apps/api:/workspace/backend
   #     - backend_venv:/workspace/backend/.venv
 
   wasm-builder:
     image: emscripten/emsdk:3.1.51
     working_dir: /workspace/cpp
     volumes:
-      - ./cpp:/workspace/cpp
-      - ./frontend/public/wasm:/workspace/output
+      - ./packages/engine:/workspace/cpp
+      - ./apps/web/public/wasm:/workspace/output
     command:
       - bash
       - -lc

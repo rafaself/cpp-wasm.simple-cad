@@ -28,9 +28,12 @@ lerna-debug.log*
 # Build output
 dist/
 dist-ssr/
-build/
-cpp/build_text/
-frontend/public/wasm/engine.wasm
+**/build/
+**/build_*/
+**/coverage/
+apps/web/public/wasm/engine.wasm
+Testing/
+reports/
 
 # Local env files
 *.local
@@ -47,7 +50,6 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -80,10 +82,6 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# --- C++/WASM ---
-cpp/build/
-cpp/build_native/
 
 # --- OS ---
 Thumbs.db

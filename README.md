@@ -14,16 +14,27 @@ This repository is transitioning from a Canvas 2D MVP to a high-performance arch
 
 ```text
 .
-|-- frontend/                 # React/Vite app
-|   |-- public/wasm/          # Generated WASM artifacts (engine.js/engine.wasm)
-|   |-- features/             # Features (editor, import, settings...)
-|   |-- stores/               # Zustand stores
-|   |-- utils/                # Geometry + helpers
-|   `-- tests/                # Vitest
-|-- backend/                  # FastAPI
-|-- cpp/                      # C++ engine (CMake + Emscripten)
-|-- docs/                     # Docs and testing guides
-|-- resources/                # Reports and misc
+|-- apps/
+|   |-- web/                  # React/Vite frontend app
+|   |   |-- public/wasm/      # Generated WASM artifacts (engine.js/engine.wasm)
+|   |   |-- features/         # Features (editor, import, settings...)
+|   |   |-- stores/           # Zustand stores
+|   |   |-- utils/            # Geometry + helpers
+|   |   `-- tests/            # Vitest
+|   `-- api/                  # FastAPI backend service
+|-- packages/
+|   `-- engine/               # C++ WASM engine (CMake + Emscripten)
+|-- infra/
+|   `-- docker/               # Dockerfiles
+|-- tooling/
+|   |-- governance/           # Code governance scripts
+|   `-- scripts/              # Utility scripts
+|-- docs/
+|   |-- architecture/         # Architecture documentation
+|   |-- governance/           # Governance policies
+|   |-- plans/                # Implementation plans
+|   |-- api/                  # API documentation
+|   `-- specs/                # Requirements specifications
 `-- docker-compose.yml        # WASM builder job via emscripten/emsdk
 ```
 
@@ -32,7 +43,7 @@ This repository is transitioning from a Canvas 2D MVP to a high-performance arch
 ### 1) Frontend
 
 ```bash
-cd frontend
+cd apps/web
 pnpm install --frozen-lockfile
 pnpm dev
 ```
@@ -42,7 +53,7 @@ App: http://localhost:3000
 ### 2) Backend
 
 ```bash
-cd backend
+cd apps/api
 python -m venv venv
 # Windows:
 .\\venv\\Scripts\\activate
@@ -61,21 +72,21 @@ The WASM builder is a **build container** (not a server). It exits when the comp
 Prerequisite: Docker (Docker Desktop on Windows).
 
 ```bash
-cd frontend
+cd apps/web
 pnpm build:wasm
 ```
 
 Expected output:
 
-- frontend/public/wasm/engine.js
-- frontend/public/wasm/engine.wasm
+- apps/web/public/wasm/engine.js
+- apps/web/public/wasm/engine.wasm
 
 ## Tests
 
 ### Frontend (including WASM integration)
 
 ```bash
-cd frontend
+cd apps/web
 pnpm test
 # OR for specific tests:
 npx vitest run tests/engineRuntime.test.ts
@@ -84,7 +95,7 @@ npx vitest run tests/engineRuntime.test.ts
 ### Backend
 
 ```bash
-cd backend
+cd apps/api
 pytest
 ```
 
@@ -93,7 +104,7 @@ pytest
 Native tests are recommended for fast development (TDD) of core logic without Docker overhead.
 
 ```bash
-mkdir -p cpp/build_native && cd cpp/build_native
+mkdir -p packages/engine/build_native && cd packages/engine/build_native
 cmake ..
 make
 ctest
@@ -106,8 +117,9 @@ Optional CMake flags:
 ## Important docs
 
 - AI agent rules: AGENTS.md
-- Project structure: docs/PROJECT_STRUCTURE.md
-- WASM tech spec: resources/reports/report_5_cad-wasm-tech-spec.md
+- Architecture: docs/architecture/
+- Governance: docs/governance/ENGINE_FIRST_GOVERNANCE.md
+- API manifest: docs/api/ENGINE_API_MANIFEST.md
 
 ## Docker (WASM build helper)
 
@@ -116,7 +128,7 @@ This repo does not ship a dockerized frontend/backend today. The compose file on
 Prerequisite: Docker (Docker Desktop on Windows).
 
 ```bash
-cd frontend
+cd apps/web
 pnpm install --frozen-lockfile
 pnpm build:wasm
 ```
@@ -125,14 +137,12 @@ The command triggers the `wasm-builder` service and exits when the build finishe
 
 ## Troubleshooting (Windows / OneDrive)
 
-If you see a blank page and Vite fails with `Error: spawn EPERM` (often while loading `frontend/vite.config.ts`), your repo is likely inside OneDrive/Controlled Folder Access.
+If you see a blank page and Vite fails with `Error: spawn EPERM` (often while loading `apps/web/vite.config.ts`), your repo is likely inside OneDrive/Controlled Folder Access.
 
 Recommended fixes:
 - Move the repository out of OneDrive (e.g. `C:\\dev\\EndeavourCanvas\\`)
-- Or build the WASM artifacts via Docker: `cd frontend && pnpm build:wasm`
-
-More details: `docs/DEV_ENVIRONMENT.md`
+- Or build the WASM artifacts via Docker: `cd apps/web && pnpm build:wasm`
 
 ## Notes
 
-frontend/vite.config.ts already sets COOP/COEP headers to prepare for SharedArrayBuffer in the future.
+apps/web/vite.config.ts already sets COOP/COEP headers to prepare for SharedArrayBuffer in the future.

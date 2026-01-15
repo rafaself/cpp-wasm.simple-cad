@@ -16,14 +16,14 @@ jobs:
 
       - name: Check file sizes
         run: |
-          chmod +x scripts/check-file-size.sh
-          ./scripts/check-file-size.sh
+          chmod +x tooling/scripts/check-file-size.sh
+          ./tooling/scripts/check-file-size.sh
 
   frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: apps/web
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: apps/web/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -69,15 +69,15 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -S cpp -B cpp/build_native -DCMAKE_BUILD_TYPE=Release
+          cmake -S packages/engine -B packages/engine/build_native -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
-          cmake --build cpp/build_native --config Release
+          cmake --build packages/engine/build_native --config Release
 
       - name: Test
         run: |
-          ctest --test-dir cpp/build_native --output-on-failure
+          ctest --test-dir packages/engine/build_native --output-on-failure
 
   governance-deadcode-check:
     name: Governance Deadcode Check
@@ -96,26 +96,26 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: apps/web/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: frontend
+        working-directory: apps/web
 
       - name: Generate TS dead code report
-        run: node scripts/deadcode_ts_report.js
+        run: node tooling/governance/deadcode_ts_report.js
 
       - name: Check doc references
-        run: node scripts/check_docs_references.js
+        run: node tooling/governance/check_docs_references.js
 
       - name: Configure C++ (for symbol analysis)
-        run: cmake -S cpp -B cpp/build_native -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S packages/engine -B packages/engine/build_native -DCMAKE_BUILD_TYPE=Release
 
       - name: Build C++ (for symbol analysis)
-        run: cmake --build cpp/build_native --config Release
+        run: cmake --build packages/engine/build_native --config Release
 
       - name: Generate C++ dead code report
-        run: bash scripts/deadcode_cpp_report.sh
+        run: bash tooling/governance/deadcode_cpp_report.sh
 
       - name: Upload deadcode reports
         uses: actions/upload-artifact@v4

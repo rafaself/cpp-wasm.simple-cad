@@ -1,7 +1,7 @@
 
-FRONTEND_DIR := frontend
-CPP_DIR := cpp
-CPP_BUILD_DIR := cpp_build_test
+FRONTEND_DIR := apps/web
+CPP_DIR := packages/engine
+CPP_BUILD_DIR := packages/engine/build_test
 PNPM := pnpm --dir $(FRONTEND_DIR)
 DC := docker compose
 
@@ -47,7 +47,7 @@ test-view:
 # C++ engine tests
 ctest:
 	@mkdir -p $(CPP_BUILD_DIR)
-	@cd $(CPP_BUILD_DIR) && cmake ../$(CPP_DIR) -DCMAKE_BUILD_TYPE=Debug
+	@cd $(CPP_BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug
 	@cd $(CPP_BUILD_DIR) && make -j$$(nproc) engine_tests
 	@cd $(CPP_BUILD_DIR) && ctest --output-on-failure
 
