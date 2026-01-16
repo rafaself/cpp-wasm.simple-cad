@@ -34,7 +34,7 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
 
   // Variant Mapping
   let variant: ButtonVariant = 'ghost'; // Default for large buttons usually (or secondary)
-  // Legacy used 'bg-surface2' which is secondary.
+  // Legacy used 'bg-surface-2' which is secondary.
   variant = 'secondary';
   
   if (isActive) {

@@ -45,7 +45,7 @@ const CanvasSettings: React.FC = () => {
               e.stopPropagation();
               onReset();
             }}
-            className="p-1 rounded hover:bg-surface2 text-text-muted hover:text-text transition-colors"
+            className="p-1 rounded hover:bg-surface-2 text-text-muted hover:text-text transition-colors"
             title="Restaurar cor padrão"
           >
             <RotateCcw size={12} />
@@ -76,7 +76,7 @@ const CanvasSettings: React.FC = () => {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-surface2 border border-border rounded px-2 py-1 text-sm text-text cursor-pointer hover:border-primary/50 focus:outline-none focus:border-primary"
+        className="bg-surface-2 border border-border rounded px-2 py-1 text-sm text-text cursor-pointer hover:border-primary/50 focus:outline-none focus:border-primary"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -121,7 +121,7 @@ const CanvasSettings: React.FC = () => {
                   className={`p-1.5 rounded border transition-colors ${
                     settings.grid.showDots && !settings.grid.showLines
                       ? 'bg-primary/20 border-primary text-primary'
-                      : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-primary/50'
                   }`}
                   title="Pontos"
                 >
@@ -135,7 +135,7 @@ const CanvasSettings: React.FC = () => {
                   className={`p-1.5 rounded border transition-colors ${
                     !settings.grid.showDots && settings.grid.showLines
                       ? 'bg-primary/20 border-primary text-primary'
-                      : 'bg-surface2 border-border text-text-muted hover:border-primary/50'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-primary/50'
                   }`}
                   title="Linhas"
                 >

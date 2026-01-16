@@ -63,10 +63,10 @@ const SettingsModal: React.FC = () => {
       onUpdate={setOpen}
       maxWidth="700px"
       showCloseButton={false}
-      className="bg-surface2 h-[500px] p-0 flex flex-col overflow-hidden"
+      className="bg-surface-2 h-[500px] p-0 flex flex-col overflow-hidden"
       ariaLabel="Configuracoes"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-2">
         <h2 className="font-semibold text-base">
           Configuracoes
         </h2>
@@ -91,7 +91,7 @@ const SettingsModal: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4">{renderContent()}</div>
       </div>
 
-      <div className="px-4 py-3 border-t border-border flex justify-end gap-2 bg-surface2">
+      <div className="px-4 py-3 border-t border-border flex justify-end gap-2 bg-surface-2">
         <Button
           variant="secondary"
           size="sm"

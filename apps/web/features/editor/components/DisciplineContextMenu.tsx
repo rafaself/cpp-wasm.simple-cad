@@ -34,16 +34,16 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-surface2 border border-border rounded-md shadow-lg py-1 w-48 text-xs text-text"
+      className="fixed z-50 bg-surface-2 border border-border rounded-md shadow-lg py-1 w-48 text-xs text-text"
       style={{ top: position.y, left: position.x }}
     >
-      <div className="px-3 py-2 border-b border-border font-bold text-text-muted bg-surface2">
+      <div className="px-3 py-2 border-b border-border font-bold text-text-muted bg-surface-2">
         Arquitetura ({floorId === 'terreo' ? 'Térreo' : floorId})
       </div>
 
       {onImportPdf && (
         <button
-          className="w-full text-left px-3 py-2 hover:bg-surface2 flex items-center gap-2"
+          className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2"
           onClick={() => {
             onImportPdf();
             onClose();
@@ -56,7 +56,7 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
 
       {onImportDxf && (
         <button
-          className="w-full text-left px-3 py-2 hover:bg-surface2 flex items-center gap-2"
+          className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2"
           onClick={() => {
             onImportDxf();
             onClose();

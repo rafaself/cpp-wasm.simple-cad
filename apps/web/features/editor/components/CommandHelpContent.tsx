@@ -49,7 +49,7 @@ export const CommandHelpContent: React.FC = () => {
             {commands.map((cmd) => (
               <div
                 key={cmd.id}
-                className="flex items-center justify-between p-2 rounded bg-surface2/50 hover:bg-surface2 transition-colors"
+                className="flex items-center justify-between p-2 rounded bg-surface-2/50 hover:bg-surface-2 transition-colors"
               >
                 <div className="flex flex-col flex-1">
                   <div className="flex items-center gap-2">
@@ -68,10 +68,10 @@ export const CommandHelpContent: React.FC = () => {
         </div>
       ))}
 
-      <div className="px-2 py-3 border-t border-border bg-surface2/30 rounded">
+      <div className="px-2 py-3 border-t border-border bg-surface-2/30 rounded">
         <p className="text-xs text-text-muted text-center">
           Dica: Use{' '}
-          <kbd className="px-1.5 py-0.5 bg-surface1 border border-border rounded text-xs font-mono">
+          <kbd className="px-1.5 py-0.5 bg-surface-1 border border-border rounded text-xs font-mono">
             tab
           </kbd>{' '}
           para autocompletar comandos

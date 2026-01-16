@@ -19,8 +19,8 @@ module.exports = {
       colors: {
         // Semantic Tokens (Single Source of Truth)
         bg: 'hsl(var(--color-bg) / <alpha-value>)',
-        surface1: 'hsl(var(--color-surface-1) / <alpha-value>)',
-        surface2: 'hsl(var(--color-surface-2) / <alpha-value>)',
+        'surface-1': 'hsl(var(--color-surface-1) / <alpha-value>)',
+        'surface-2': 'hsl(var(--color-surface-2) / <alpha-value>)',
         border: 'hsl(var(--color-border) / <alpha-value>)',
         
         text: 'hsl(var(--color-text) / <alpha-value>)',

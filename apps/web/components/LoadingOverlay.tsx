@@ -32,7 +32,7 @@ const LoadingOverlay: React.FC = () => {
       aria-live="assertive"
     >
       <div
-        className={`flex flex-col items-center gap-4 p-8 rounded-2xl bg-surface2/80 border border-border/50 shadow-2xl backdrop-blur-xl transform transition-all duration-300 ${isVisible ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+        className={`flex flex-col items-center gap-4 p-8 rounded-2xl bg-surface-2/80 border border-border/50 shadow-2xl backdrop-blur-xl transform transition-all duration-300 ${isVisible ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
       >
         {/* Spinner */}
         <div className="relative w-12 h-12">

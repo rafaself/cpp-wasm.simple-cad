@@ -46,7 +46,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
       ) : (
         <div
           onClick={() => setIsEditing(true)}
-          className={`cursor-pointer hover:bg-surface2 px-1 rounded hover:text-text transition-colors flex items-center justify-center w-full h-full select-none ${displayClassName}`}
+          className={`cursor-pointer hover:bg-surface-2 px-1 rounded hover:text-text transition-colors flex items-center justify-center w-full h-full select-none ${displayClassName}`}
           title={LABELS.common.clickToEdit}
         >
           {Math.round(value)}

@@ -95,7 +95,7 @@ const EditorRibbon: React.FC = () => {
               className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
                   ? 'bg-header-tab-active text-text font-medium'
-                  : 'text-text-muted hover:text-text hover:bg-surface2'
+                  : 'text-text-muted hover:text-text hover:bg-surface-2'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
@@ -118,7 +118,7 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[82px] px-[12px] py-[6px] flex items-start bg-surface1 ribbon-scrollbar shadow-sm"
+        className="h-[82px] px-[12px] py-[6px] flex items-start bg-surface-1 ribbon-scrollbar shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
@@ -142,7 +142,7 @@ const EditorRibbon: React.FC = () => {
               <button
                 ref={overflowButtonRef}
                 onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[52px] px-2 rounded bg-surface1 hover:bg-surface2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
+                className="h-[52px] px-2 rounded bg-surface-1 hover:bg-surface-2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
                 title="Mais"
                 aria-haspopup="true"
                 aria-expanded={isOverflowOpen}
@@ -153,7 +153,7 @@ const EditorRibbon: React.FC = () => {
               {isOverflowOpen && (
                 <div
                   role="menu"
-                  className="absolute top-full right-0 mt-1 w-56 bg-surface2 border border-border rounded shadow-lg py-1 z-10"
+                  className="absolute top-full right-0 mt-1 w-56 bg-surface-2 border border-border rounded shadow-lg py-1 z-10"
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
                       e.preventDefault();
@@ -182,7 +182,7 @@ const EditorRibbon: React.FC = () => {
                         role="menuitem"
                         key={item.id}
                         onClick={handleClick}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface2 focus-outline ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2 focus-outline ${
                           isStub ? 'opacity-70' : ''
                         }`}
                         title={title}

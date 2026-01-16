@@ -18,7 +18,7 @@ const sizeStyles: Record<InputSize, string> = {
 
 const variantStyles: Record<InputVariant, string> = {
   outline: 'bg-transparent border border-border focus:border-primary focus:ring-1 focus:ring-primary/20',
-  filled: 'bg-surface2 border border-transparent focus:bg-surface1 focus:border-primary',
+  filled: 'bg-surface-2 border border-transparent focus:bg-surface-1 focus:border-primary',
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(

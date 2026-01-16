@@ -207,7 +207,7 @@ const Dialog: React.FC<DialogProps> = ({
         tabIndex={-1}
         aria-label={ariaLabel}
         className={`
-          relative bg-surface1 border border-border rounded-lg shadow-card
+          relative bg-surface-1 border border-border rounded-lg shadow-card
           transform transition-all duration-200 ease-out
           animate-in fade-in zoom-in-95
           overflow-hidden flex flex-col
@@ -271,7 +271,7 @@ export const DialogCard: React.FC<DialogCardProps> = ({
       )}
       <div className={`px-6 py-4 text-text flex-grow min-h-0 ${contentClassName}`}>{children}</div>
       {actions && (
-        <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface2/50">
+        <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface-2/50">
           {actions}
         </div>
       )}

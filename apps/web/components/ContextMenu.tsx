@@ -41,7 +41,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ isOpen, position, onClose, it
   return (
     <div
       ref={menuRef}
-      className="absolute bg-surface1 border border-border rounded-md shadow-lg z-dropdown py-1"
+      className="absolute bg-surface-1 border border-border rounded-md shadow-lg z-dropdown py-1"
       style={{ left: position.x, top: position.y }}
     >
       {items.map((item, index) => (

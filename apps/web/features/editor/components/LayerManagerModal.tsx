@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
 import { Dialog, Button } from '@/components/ui';
+import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
@@ -68,7 +69,7 @@ const LayerRow: React.FC<{
   return (
     <div
       className={`grid grid-cols-[1fr_40px_40px_40px_40px] gap-1 px-4 py-2 border-b border-border items-center text-xs cursor-pointer ${
-        isActive ? 'bg-primary/20' : 'hover:bg-surface2/40'
+        isActive ? 'bg-primary/20' : 'hover:bg-surface-2/40'
       }`}
       onClick={onSelect}
       tabIndex={0}
@@ -139,6 +140,9 @@ const LayerManagerModal: React.FC = () => {
   const setActiveLayerId = useUIStore((s) => s.setActiveLayerId);
   const runtime = useEngineRuntime();
   const layers = useEngineLayers();
+
+  // Subscribe to style changes so swatches update on undo/redo or external style commands
+  void useDocumentSignal('style');
   
   // Color Picker State
   const [activePicker, setActivePicker] = useState<{
@@ -241,11 +245,11 @@ const LayerManagerModal: React.FC = () => {
       onUpdate={setOpen}
       maxWidth="520px"
       showCloseButton={false} // Custom header
-      className="bg-surface2 h-[450px] p-0 flex flex-col overflow-hidden" // Override default padding/bg
+      className="bg-surface-2 h-[450px] p-0 flex flex-col overflow-hidden" // Override default padding/bg
       ariaLabel="Gerenciador de Camadas"
     >
       <div className="flex flex-col h-full relative" ref={modalRef}>
-        <div className="flex items-center justify-between p-3 border-b border-border bg-surface2">
+        <div className="flex items-center justify-between p-3 border-b border-border bg-surface-2">
           <h2 className="font-semibold text-sm uppercase tracking-wide">
             Gerenciador de Camadas
           </h2>
@@ -271,7 +275,7 @@ const LayerManagerModal: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr_40px_40px_40px_40px] gap-1 px-4 py-2 bg-surface2/50 text-[10px] uppercase text-text-muted font-bold border-b border-border">
+        <div className="grid grid-cols-[1fr_40px_40px_40px_40px] gap-1 px-4 py-2 bg-surface-2/50 text-[10px] uppercase text-text-muted font-bold border-b border-border">
           <div className="pl-1">Nome</div>
           <div className="text-center">Traço</div>
           <div className="text-center">Preenc</div>

@@ -57,7 +57,7 @@ const EditorSidebar: React.FC = () => {
   const activeTab = SIDEBAR_TABS.find((t) => t.id === activeTabId) || SIDEBAR_TABS[0]; // Default to properties
 
   return (
-    <aside className="w-64 bg-surface1 text-text border-l border-border flex flex-col h-full overflow-hidden">
+    <aside className="w-64 bg-surface-1 text-text border-l border-border flex flex-col h-full overflow-hidden">
       {/* Tabs Navigation */}
       <div className="shrink-0 border-b border-border">
         <SidebarTabs tabs={SIDEBAR_TABS} activeTabId={activeTabId} onTabChange={setActiveTabId} />

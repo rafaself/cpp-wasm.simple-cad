@@ -32,7 +32,7 @@ const QuickAccessToolbar: React.FC = () => {
 
   return (
     <div
-      className={`absolute z-50 bg-surface2/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
+      className={`absolute z-50 bg-surface-2/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
       style={{
         boxShadow: '0 8px 32px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(255, 255, 255, 0.02)',
       }}
@@ -41,7 +41,7 @@ const QuickAccessToolbar: React.FC = () => {
     >
       <button
         onClick={() => setOrientation((prev) => (prev === 'vertical' ? 'horizontal' : 'vertical'))}
-        className={`flex items-center justify-center text-text-muted hover:text-text hover:bg-surface2 rounded-sm transition-colors overflow-visible mt-1 ${toggleClasses}`}
+        className={`flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-2 rounded-sm transition-colors overflow-visible mt-1 ${toggleClasses}`}
         title="Alternar orientacao da barra"
         aria-label="Alternar orientação da barra"
       >
@@ -61,7 +61,7 @@ const QuickAccessToolbar: React.FC = () => {
             ${
               activeTool === item.id
                 ? 'bg-primary text-white shadow-md'
-                : 'text-text-muted hover:bg-surface2 hover:text-text'
+                : 'text-text-muted hover:bg-surface-2 hover:text-text'
             }
           `}
           title={item.label}

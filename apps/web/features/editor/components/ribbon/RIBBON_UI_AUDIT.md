@@ -48,16 +48,16 @@ ribbon/
 
 ```tsx
 // RibbonButton.tsx (linhas 65-77)
-let colorClass = 'bg-surface2 text-text border border-transparent focus-outline';
+let colorClass = 'bg-surface-2 text-text border border-transparent focus-outline';
 if (isActive) {
   colorClass = 'bg-primary text-primary-contrast border-primary/20 shadow-sm focus-outline';
 } else if (isStub) {
-  colorClass = 'bg-surface2/50 text-text-muted opacity-60 cursor-not-allowed focus-outline';
+  colorClass = 'bg-surface-2/50 text-text-muted opacity-60 cursor-not-allowed focus-outline';
 } else {
   const hoverClass =
     item.actionId === 'delete'
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
-      : 'hover:bg-surface1 hover:text-text hover:border-border/50';
+      : 'hover:bg-surface-1 hover:text-text hover:border-border/50';
   colorClass = `${colorClass} ${hoverClass}`;
 }
 
@@ -76,7 +76,7 @@ if (isActive) {
 // LayerRibbonControls.tsx - Botão de visibilidade
 <button
   onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
-  className={`w-7 h-full ${BUTTON_STYLES.centered} focus-outline ${activeLayer?.visible ? 'text-primary hover:text-primary-hover' : 'text-text-muted hover:text-text'} rounded hover:bg-surface2 transition-colors shrink-0`}
+  className={`w-7 h-full ${BUTTON_STYLES.centered} focus-outline ${activeLayer?.visible ? 'text-primary hover:text-primary-hover' : 'text-text-muted hover:text-text'} rounded hover:bg-surface-2 transition-colors shrink-0`}
   title={...}
 >
   {activeLayer?.visible ? <Eye size={13} /> : <EyeOff size={13} />}
@@ -99,17 +99,17 @@ if (isActive) {
 
 ```tsx
 // TextControls.tsx - Align Control (linha 163)
-<div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
+<div className="flex bg-surface-2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
   {alignOptions.map(...)}
 </div>
 
 // TextControls.tsx - Style Control (linha 298)
-<div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
+<div className="flex bg-surface-2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5">
   {options.map(...)}
 </div>
 
 // LayerRibbonControls.tsx (linha 72)
-<div className="flex bg-surface2 rounded border border-border/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
+<div className="flex bg-surface-2 rounded border border-border/50 p-0.5 h-full gap-0.5 shrink-0 items-center">
 ```
 
 **Solução:** Criar componente `RibbonToggleGroup`.
@@ -198,13 +198,13 @@ export const useRibbonButtonStyles = (
     return 'bg-primary text-primary-contrast border-primary/20 shadow-sm focus-outline';
   }
   if (isStub) {
-    return 'bg-surface2/50 text-text-muted opacity-60 cursor-not-allowed focus-outline';
+    return 'bg-surface-2/50 text-text-muted opacity-60 cursor-not-allowed focus-outline';
   }
   const hoverClass =
     actionId === 'delete'
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
-      : 'hover:bg-surface1 hover:text-text hover:border-border/50';
-  return `bg-surface2 text-text border border-transparent focus-outline ${hoverClass}`;
+      : 'hover:bg-surface-1 hover:text-text hover:border-border/50';
+  return `bg-surface-2 text-text border border-transparent focus-outline ${hoverClass}`;
 };
 ```
 
@@ -276,7 +276,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
   return (
     <button
       onClick={onClick}
-      className={`${sizeClass} h-full ${BUTTON_STYLES.centered} focus-outline rounded hover:bg-surface2 transition-colors ${stateClass}`}
+      className={`${sizeClass} h-full ${BUTTON_STYLES.centered} focus-outline rounded hover:bg-surface-2 transition-colors ${stateClass}`}
       title={title}
       disabled={disabled}
       aria-pressed={isToggle ? isActive : undefined}
@@ -299,7 +299,7 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
   children,
   separator = false,
 }) => (
-  <div className="flex bg-surface2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5 items-center">
+  <div className="flex bg-surface-2 rounded border border-border/50 p-0.5 ribbon-fill-h gap-0.5 items-center">
     {children}
   </div>
 );

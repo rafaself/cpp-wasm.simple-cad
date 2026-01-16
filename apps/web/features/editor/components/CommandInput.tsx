@@ -137,7 +137,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
         <div
           className={`
             flex items-center gap-1.5 h-6 px-2
-            bg-surface1 border rounded
+            bg-surface-1 border rounded
             transition-all duration-150
             ${isActive ? 'border-primary ring-1 ring-primary/30' : ''}
             ${isCapturing && !isActive ? 'border-primary/50 bg-primary/5' : ''}
@@ -198,7 +198,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
           onClick={handleExecuteClick}
           className={`
             shrink-0 p-0.5 rounded transition-colors
-            ${buffer.trim() ? 'opacity-100 hover:bg-surface2 text-text hover:text-primary' : 'opacity-0 pointer-events-none'}
+            ${buffer.trim() ? 'opacity-100 hover:bg-surface-2 text-text hover:text-primary' : 'opacity-0 pointer-events-none'}
           `}
           title={LABELS.statusbar.commandExecute}
           aria-label={LABELS.statusbar.commandExecuteLabel}
@@ -211,7 +211,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
       {/* Help button */}
       <button
         onClick={() => setHelpModalOpen(true)}
-        className="p-1 hover:bg-surface2 rounded focus-outline text-text hover:text-primary transition-colors"
+        className="p-1 hover:bg-surface-2 rounded focus-outline text-text hover:text-primary transition-colors"
         title={LABELS.statusbar.commandHelp}
         aria-label={LABELS.statusbar.commandHelpLabel}
       >
@@ -224,7 +224,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
           className="
             absolute bottom-full left-0 mb-1.5
             px-2 py-1 rounded
-            bg-surface2 border border-border
+            bg-surface-2 border border-border
             text-[10px] text-text
             whitespace-nowrap
             shadow-lg

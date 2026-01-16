@@ -31,8 +31,8 @@ const EditorTabs: React.FC = () => {
               group flex items-center gap-2 px-3 h-full rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent select-none
               ${
                 isActive
-                  ? 'bg-surface2 text-text border-border border-b-surface2 relative -mb-[1px] z-10 shadow-sm'
-                  : 'bg-transparent text-text-muted hover:bg-surface2 hover:text-text'
+                  ? 'bg-surface-2 text-text border-border border-b-surface2 relative -mb-[1px] z-10 shadow-sm'
+                  : 'bg-transparent text-text-muted hover:bg-surface-2 hover:text-text'
               }
             `}
             onClick={() => openTab(tab)}
@@ -50,7 +50,7 @@ const EditorTabs: React.FC = () => {
                 closeTab(tab);
               }}
               className={`
-                ml-1 p-0.5 rounded-full hover:bg-surface2 
+                ml-1 p-0.5 rounded-full hover:bg-surface-2 
                 ${isActive ? 'text-text-muted hover:text-red-400' : 'text-text-muted opacity-0 group-hover:opacity-100 hover:text-red-400'}
                 transition-all
               `}

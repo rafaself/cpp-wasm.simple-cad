@@ -84,7 +84,7 @@ const NextSurface: React.FC = () => {
       <div className="shrink-0">
         <EditorRibbon />
       </div>
-      <div className="flex-grow flex relative bg-surface1 overflow-hidden">
+      <div className="flex-grow flex relative bg-surface-1 overflow-hidden">
         <div className="flex-grow flex flex-col relative overflow-hidden">
           <NextCanvasArea />
           <SettingsModal />

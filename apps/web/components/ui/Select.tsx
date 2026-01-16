@@ -36,7 +36,7 @@ export const Select: React.FC<SelectProps> = ({
       matchWidth
       offset={4}
       content={
-        <div className="bg-surface2 border border-border shadow-lg rounded-md overflow-hidden max-h-64 overflow-y-auto py-1 custom-scrollbar">
+        <div className="bg-surface-2 border border-border shadow-lg rounded-md overflow-hidden max-h-64 overflow-y-auto py-1 custom-scrollbar">
           {options.map((option) => (
             <div
               key={option.value}
