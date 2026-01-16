@@ -28,6 +28,26 @@ const EngineInteractionLayer: React.FC = () => {
   // PanZoom Hook (Can coexist or be merged, currently keeping simple)
   const { isPanning, isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
 
+  // Mouse Pos Throttling
+  const mousePosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const rafRef = React.useRef<number | null>(null);
+
+  const flushMousePos = React.useCallback(() => {
+    if (mousePosRef.current) {
+      setMousePos(mousePosRef.current);
+      mousePosRef.current = null;
+    }
+    rafRef.current = null;
+  }, [setMousePos]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
+
   // Cursor Logic
   const DEFAULT_CANVAS_CURSOR = 'url(/assets/cursor-canva-default.svg) 3 3, auto';
   const cursor = isPanning ? 'grabbing' : handlerCursor || DEFAULT_CANVAS_CURSOR;
@@ -126,14 +146,17 @@ const EngineInteractionLayer: React.FC = () => {
       handler: activeHandlerName,
       isPanning: isPanningRef.current,
     }));
-    // Update Global Mouse Pos
+    // Update Global Mouse Pos (Throttled)
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const world = screenToWorld(
       { x: e.clientX - rect.left, y: e.clientY - rect.top },
       viewTransform,
     );
-    setMousePos(world);
-    setIsMouseOverCanvas(true);
+    
+    mousePosRef.current = world;
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(flushMousePos);
+    }
 
     if (isPanningRef.current) {
       updatePan(e);

@@ -29,7 +29,7 @@ interface UIState {
   // Viewport
   viewTransform: ViewTransform; // { x, y, scale }
   canvasSize: { width; height };
-  mousePos: Point | null;
+  mousePos: Point | null; // See Hot Path Rules for update policy
 
   // UI state
   isSettingsModalOpen: boolean;
@@ -197,6 +197,9 @@ const key = `entity-${id}`;
 
 // ❌ Closure creation
 items.map((item) => () => handle(item));
+
+// ❌ Direct Store Update (High Frequency)
+setMousePos(pos); // Causes re-renders at 120Hz+
 ```
 
 ### Allowed
@@ -211,7 +214,21 @@ runtime.updateTransform(world.x, world.y);
 
 // ✅ Typed arrays
 const ids = new Uint32Array([id1, id2]);
+
+// ✅ Throttled Store Update (RAF)
+mousePosRef.current = pos;
+if (!rafPending) {
+  requestAnimationFrame(() => {
+    setMousePos(mousePosRef.current);
+    rafPending = false;
+  });
+}
 ```
+
+**Policy:**
+- `mousePos` (screen/world) must live in a **ref** within the interaction layer.
+- UI components consuming `mousePos` (e.g., Status Bar) must accept throttled updates (max 60Hz via RAF).
+- **Prohibited:** Calling `setState` or Zustand setters directly inside `pointermove` handlers without throttling.
 
 ---
 
