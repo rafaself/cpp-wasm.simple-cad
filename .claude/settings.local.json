@@ -40,7 +40,11 @@
       "Bash(sudo rm -rf cpp/ frontend/ Testing/)",
       "Bash(node:*)",
       "Bash(pnpm governance:manifest:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(cd /home/rafa/dev/eletrocad-webapp/apps/web && pnpm format:check:*)",
+      "Bash(bash:*)",
+      "Bash(pnpm depcheck:*)"
     ]
   }
 }

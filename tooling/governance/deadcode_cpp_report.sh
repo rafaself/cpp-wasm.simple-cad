@@ -5,10 +5,10 @@
 
 set -u
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPORT_DIR="${ROOT}/reports"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../" && pwd)"
+REPORT_DIR="${ROOT}/tooling/reports"
 REPORT_FILE="${REPORT_DIR}/deadcode_cpp.md"
-BUILD_DIR="${ROOT}/cpp/build_native"
+BUILD_DIR="${ROOT}/packages/engine/build_native"
 ENGINE_BIN="${BUILD_DIR}/engine_tests"
 
 mkdir -p "${REPORT_DIR}"
@@ -31,7 +31,7 @@ echo "Generated: $(date -Iseconds)" >> "${REPORT_FILE}"
 echo >> "${REPORT_FILE}"
 
 if [[ ! -x "${ENGINE_BIN}" ]]; then
-  write_section "Build artifacts not found at \`${ENGINE_BIN}\`. Configure/build (`cmake -S cpp -B cpp/build_native && cmake --build cpp/build_native`) before running this report for symbol analysis."
+  write_section "Build artifacts not found at \`${ENGINE_BIN}\`. Configure/build (\`cmake -S packages/engine -B packages/engine/build_native && cmake --build packages/engine/build_native\`) before running this report for symbol analysis."
   echo "C++ dead code report written to ${REPORT_FILE}"
   exit 0
 fi
@@ -52,6 +52,6 @@ else
 fi
 
 # Grep hints for unused/dead markers
-command_result "rg hints (\"unused\" tokens in cpp/engine)" "cd \"${ROOT}\" && rg --no-heading --line-number \"unused\" cpp/engine"
+command_result "rg hints (\"unused\" tokens in packages/engine)" "cd \"${ROOT}\" && rg --no-heading --line-number \"unused\" packages/engine/engine"
 
 echo "C++ dead code report written to ${REPORT_FILE}"

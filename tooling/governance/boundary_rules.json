@@ -29,6 +29,15 @@
     { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/protocol", "reason": "Overlay uses protocol." },
     { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/types", "reason": "Overlay uses engine types." },
     { "path": "apps/web/features/editor/text/textToolController.ts", "import": "apps/web/engine/tools/TextTool", "reason": "Controller uses TextTool directly." },
-    { "path": "apps/web/features/settings/sections/DeveloperSettings.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Developer settings inspects capabilities." }
+    { "path": "apps/web/features/settings/sections/DeveloperSettings.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Developer settings inspects capabilities." },
+    { "path": "apps/web/features/editor/colors/applyColorAction.ts", "import": "apps/web/engine/core/commandBuffer", "reason": "Color action builds commands directly; needs facade." },
+    { "path": "apps/web/features/editor/colors/applyColorAction.ts", "import": "apps/web/engine/core/protocol", "reason": "Color action uses protocol types." },
+    { "path": "apps/web/features/editor/colors/colorState.ts", "import": "apps/web/engine/core/protocol", "reason": "Color state uses protocol types." },
+    { "path": "apps/web/features/editor/components/LayerManagerModal.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Layer modal builds commands directly; needs facade." },
+    { "path": "apps/web/features/editor/components/RotationTooltip.tsx", "import": "apps/web/engine/core/interactionSession", "reason": "Rotation tooltip reads interaction session state." },
+    { "path": "apps/web/features/editor/components/drawing/DrawingInspectorPanel.tsx", "import": "apps/web/engine/core/useEntityTransform", "reason": "Inspector uses entity transform hook directly." },
+    { "path": "apps/web/features/editor/components/drawing/DrawingInspectorPanel.tsx", "import": "apps/web/engine/core/protocol", "reason": "Inspector uses protocol types." },
+    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/overlayDecoder", "reason": "Selection handler uses overlay decoder for hit testing." },
+    { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Text handler builds commands directly." }
   ]
 }
