@@ -1,4 +1,10 @@
-import { EntityId, SelectionMode, OverlayBufferMeta, OrientedHandleMeta, EntityAabb } from '../protocol';
+import {
+  EntityId,
+  SelectionMode,
+  OverlayBufferMeta,
+  OrientedHandleMeta,
+  EntityAabb,
+} from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 import type { PickResult } from '@/types/picking';
