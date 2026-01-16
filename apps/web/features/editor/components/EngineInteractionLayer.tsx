@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
 
+import CenterOriginIcon from './CenterOriginIcon';
 import RotationTooltip from './RotationTooltip';
 import ShapeOverlay from './ShapeOverlay';
 
@@ -194,7 +195,7 @@ const EngineInteractionLayer: React.FC = () => {
 
   return (
     <div
-      style={{ position: 'absolute', inset: 0, zIndex: 20, touchAction: 'none', cursor }}
+      style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-canvas-hud)', touchAction: 'none', cursor }}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -226,19 +227,7 @@ const EngineInteractionLayer: React.FC = () => {
             color: centerIconSettings.color,
           }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
-            <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-          </svg>
+          <CenterOriginIcon />
         </div>
       )}
 
