@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+# Git commit-msg hook to enforce conventional commit format
+# Format: <type>(<scope>): <description>
+#
+# Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
+# Scopes: ui, engine, api, editor, settings, theme, docs, deps, etc.
+#
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Skip merge commits
+if echo "$COMMIT_MSG" | grep -qE "^Merge "; then
+  exit 0
+fi
+
+# Skip revert commits
+if echo "$COMMIT_MSG" | grep -qE "^Revert "; then
+  exit 0
+fi
+
+# Conventional commit regex
+# type(scope): description
+# type: description (scope is optional)
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9_-]+\))?: .{1,72}"
+
+FIRST_LINE=$(echo "$COMMIT_MSG" | head -n1)
+
+if ! echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
+  echo ""
+  echo "ERROR: Commit message does not follow conventional commit format."
+  echo ""
+  echo "Expected format: <type>(<scope>): <description>"
+  echo ""
+  echo "Types:"
+  echo "  feat     - New feature"
+  echo "  fix      - Bug fix"
+  echo "  docs     - Documentation changes"
+  echo "  style    - Code style (formatting, whitespace)"
+  echo "  refactor - Code refactoring"
+  echo "  perf     - Performance improvement"
+  echo "  test     - Adding/updating tests"
+  echo "  build    - Build system or dependencies"
+  echo "  ci       - CI/CD configuration"
+  echo "  chore    - Maintenance tasks"
+  echo ""
+  echo "Scopes (optional): ui, engine, api, editor, settings, theme, docs, deps"
+  echo ""
+  echo "Examples:"
+  echo "  feat(ui): add dark mode toggle"
+  echo "  fix(engine): resolve memory leak in render loop"
+  echo "  docs: update API documentation"
+  echo "  refactor(editor): simplify layer management"
+  echo ""
+  echo "Your message: $FIRST_LINE"
+  echo ""
+  exit 1
+fi
+
+# Check description length (max 72 chars for first line)
+if [ ${#FIRST_LINE} -gt 72 ]; then
+  echo ""
+  echo "WARNING: First line exceeds 72 characters (${#FIRST_LINE} chars)."
+  echo "Consider shortening the description."
+  echo ""
+fi
+
+exit 0
