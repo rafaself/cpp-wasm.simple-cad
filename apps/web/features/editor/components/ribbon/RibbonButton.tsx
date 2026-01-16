@@ -1,10 +1,13 @@
 import React from 'react';
 
+import { Button, ButtonVariant } from '@/components/ui/Button';
+import { Icon as IconPrimitive } from '@/components/ui/Icon';
+
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 import { RibbonLargeButton } from './RibbonLargeButton';
 import { RibbonSmallButton } from './RibbonSmallButton';
-import { getTooltip, getRibbonButtonColorClasses, RIBBON_ICON_SIZES } from './ribbonUtils';
+import { getTooltip } from './ribbonUtils';
 
 interface RibbonButtonProps {
   item: RibbonItem;
@@ -41,39 +44,36 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   };
 
   const widthClass = item.width ? widthClasses[item.width] : 'w-auto';
-  const heightClass = 'h-8';
-
-  // Flex Structure
-  const flexClass = 'flex flex-row items-center gap-2';
-  const justifyClass = 'justify-start px-2.5';
-
-  // Typography
-  const textClass = 'text-xs whitespace-nowrap truncate text-left flex-1';
-
-  // Colors
-  const colorClass = getRibbonButtonColorClasses({
-    isActive,
-    isStub,
-    actionId: item.actionId,
-  });
 
   const tooltip = getTooltip(item);
-  const buttonClasses = `relative rounded transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} ${justifyClass} ${colorClass}`;
+
+  // Variant Mapping
+  let variant: ButtonVariant = 'secondary';
+  if (isActive) {
+    variant = 'primary';
+  } else if (item.actionId === 'delete') {
+    // Custom handling for delete if needed, or stick to secondary with hover override
+    // Button primitive doesn't support 'hover-danger' on secondary easily without className override
+    // We can use className for specific hover effect
+  }
+
+  const hoverClass =
+    !isActive && item.actionId === 'delete'
+      ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
+      : '';
 
   return (
-    <button
-      onClick={() => !isStub && onClick(item)}
-      className={`${buttonClasses} ${textClass}`}
+    <Button
+      variant={variant}
+      size="md"
+      className={`${widthClass} justify-start px-2.5 ${hoverClass}`}
+      disabled={isStub}
+      onClick={() => onClick(item)}
       title={tooltip}
-      aria-disabled={isStub}
       aria-pressed={isTool ? isActive : undefined}
+      leftIcon={Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
     >
-      {Icon && (
-        <div className="w-5 flex items-center justify-center shrink-0">
-          <Icon size={RIBBON_ICON_SIZES.sm} className="shrink-0" />
-        </div>
-      )}
-      <span className="pointer-events-none truncate">{item.label}</span>
-    </button>
+      <span className="truncate flex-1 text-left">{item.label}</span>
+    </Button>
   );
 };

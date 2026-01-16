@@ -11,6 +11,7 @@ export interface PopoverProps {
   offset?: number;
   className?: string;
   zIndex?: string; // Should be a token like 'z-dropdown'
+  matchWidth?: boolean;
 }
 
 export const Popover: React.FC<PopoverProps> = ({
@@ -22,11 +23,12 @@ export const Popover: React.FC<PopoverProps> = ({
   offset = 4,
   className = '',
   zIndex = 'z-dropdown',
+  matchWidth = false,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState({ top: 0, left: 0, width: undefined as number | undefined });
 
   const isControlled = controlledIsOpen !== undefined;
   const show = isControlled ? controlledIsOpen : internalIsOpen;
@@ -43,9 +45,14 @@ export const Popover: React.FC<PopoverProps> = ({
       const triggerRect = triggerRef.current.getBoundingClientRect();
       const contentRect = contentRef.current.getBoundingClientRect();
       const pos = calculatePosition(triggerRect, contentRect, { placement, offset });
-      setPosition(pos);
+      
+      setPosition({
+        top: pos.top,
+        left: pos.left,
+        width: matchWidth ? triggerRect.width : undefined,
+      });
     }
-  }, [show, placement, offset]);
+  }, [show, placement, offset, matchWidth]);
 
   useEffect(() => {
     if (show) {
@@ -89,7 +96,7 @@ export const Popover: React.FC<PopoverProps> = ({
 
   return (
     <>
-      <div ref={triggerRef} onClick={handleTriggerClick} className="inline-block">
+      <div ref={triggerRef} onClick={handleTriggerClick} className="inline-block w-full">
         {children}
       </div>
       {show && (
@@ -100,6 +107,7 @@ export const Popover: React.FC<PopoverProps> = ({
             style={{
               top: position.top,
               left: position.left,
+              width: position.width,
             }}
           >
             {content}

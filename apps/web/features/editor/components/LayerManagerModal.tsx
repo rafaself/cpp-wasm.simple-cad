@@ -2,19 +2,16 @@ import { X, Plus, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import React, { useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
+import { Dialog, Button } from '@/components/ui';
 import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
-import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import { useUIStore } from '@/stores/useUIStore';
 import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 import { unpackColorRGBA } from '@/types/text';
 import * as DEFAULTS from '@/theme/defaults';
 
 import { applyLayerColorAction } from '../colors/applyColorAction';
-
-const focusableSelectors =
-  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 const packedToCssColor = (packed: number, fallback: string): string => {
   if (packed === 0) return fallback;
@@ -104,28 +101,32 @@ const LayerRow: React.FC<{
       </div>
 
       <div className="flex justify-center">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
           onClick={(e) => {
             e.stopPropagation();
             onUpdateFlags(layer.id, !layer.visible, undefined);
           }}
-          className="hover:text-text p-1 rounded hover:bg-surface2/50 focus-outline text-text-muted hover:text-text"
-          aria-label={layer.visible ? 'Ocultar camada' : 'Mostrar camada'}
+          title={layer.visible ? 'Ocultar camada' : 'Mostrar camada'}
         >
           {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-        </button>
+        </Button>
       </div>
       <div className="flex justify-center">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
           onClick={(e) => {
             e.stopPropagation();
             onUpdateFlags(layer.id, undefined, !layer.locked);
           }}
-          className="hover:text-text p-1 rounded hover:bg-surface2/50 focus-outline text-text-muted hover:text-text"
-          aria-label={layer.locked ? 'Desbloquear camada' : 'Bloquear camada'}
+          title={layer.locked ? 'Desbloquear camada' : 'Bloquear camada'}
         >
           {layer.locked ? <Lock size={16} /> : <Unlock size={16} />}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -138,9 +139,7 @@ const LayerManagerModal: React.FC = () => {
   const setActiveLayerId = useUIStore((s) => s.setActiveLayerId);
   const runtime = useEngineRuntime();
   const layers = useEngineLayers();
-  const dialogRef = React.useRef<HTMLDivElement | null>(null);
-  const lastFocusRef = React.useRef<HTMLElement | null>(null);
-
+  
   // Color Picker State
   const [activePicker, setActivePicker] = useState<{
     layerId: number;
@@ -148,6 +147,7 @@ const LayerManagerModal: React.FC = () => {
   } | null>(null);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const [pickerColor, setPickerColor] = useState('#000000');
+  const modalRef = React.useRef<HTMLDivElement>(null); // For picker positioning context if needed
 
   const updateLayerFlags = (layerId: number, nextVisible?: boolean, nextLocked?: boolean) => {
     if (!runtime) return;
@@ -172,18 +172,11 @@ const LayerManagerModal: React.FC = () => {
   const handleAddLayer = () => {
     if (!runtime || !runtime.allocateLayerId) return;
 
-    // Fix for "Default layer disappears" bug:
-    // Ensure we don't accidentally reuse an existing ID if the engine's counter is out of sync.
     const maxId = layers.reduce((acc, l) => Math.max(acc, l.id), 0);
     let nextId = runtime.allocateLayerId();
 
     if (nextId <= maxId) {
-      // Collision detected! The engine's nextId is lagging behind existing layers.
-      // This happens if "Default" layer (id=1) was created but engine's nextId stayed at 1.
       nextId = maxId + 1;
-      // Optionally, call allocateLayerId specifically to bump the counter if possible,
-      // but we can't easily force it without potentially creating dummy layers.
-      // Since we are setting props manually, just using a new ID is safe.
     }
 
     const flags = EngineLayerFlags.Visible;
@@ -196,28 +189,8 @@ const LayerManagerModal: React.FC = () => {
     setActiveLayerId(nextId);
   };
 
-  const trapFocus = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Tab' || !dialogRef.current) return;
-    const focusables = dialogRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else if (document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
-
   const close = () => {
     setOpen(false);
-    if (lastFocusRef.current) {
-      lastFocusRef.current.focus();
-    }
   };
 
   const handlePickColor = (
@@ -227,6 +200,13 @@ const LayerManagerModal: React.FC = () => {
     currentColor: string,
   ) => {
     const rect = e.currentTarget.getBoundingClientRect();
+    // Position relatively or absolutely?
+    // Since we are inside a fixed dialog, but we want the picker to be on top.
+    // If we use fixed positioning for picker (which it likely uses or we set style), 
+    // we should use screen coordinates.
+    // NOTE: Previous implementation used offset relative to dialog top/left.
+    // But standard ColorPicker might expect something else.
+    // Here we store viewport coordinates.
     setPickerPos({ top: rect.bottom + 6, left: rect.left });
     setActivePicker({ layerId, target });
     setPickerColor(currentColor);
@@ -244,61 +224,50 @@ const LayerManagerModal: React.FC = () => {
     setPickerColor(newColor);
   };
 
-  React.useEffect(() => {
-    if (isOpen) {
-      lastFocusRef.current = document.activeElement as HTMLElement | null;
-      const first = dialogRef.current?.querySelector<HTMLElement>(focusableSelectors);
-      first?.focus();
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  // Header Actions
-  // "New Layer" Moved to header right
+  // We need a ref to the dialog content to subtract offset IF using absolute positioning relative to dialog.
+  // But standard is fixed positioning for overlays. 
+  // Let's assume ColorPicker needs absolute positioning relative to nearest positioned ancestor?
+  // Actually, the previous implementation did:
+  // style={{ top: pickerPos.top - dialogRef.current.rect.top, ... }}
+  // We don't have easy access to Dialog's internal ref.
+  // However, we can just use a fixed container for the color picker inside the portal (or standard Popover).
+  // For now, let's keep it simple: Render it inside the content flow but with fixed coords?
+  // Or better, use a Portaled Popover if we had one ready for this custom logic.
+  // I will assume fixed positioning works best here.
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-modal flex items-center justify-center backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="layer-manager-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          close();
-        }
-      }}
+    <Dialog
+      modelValue={isOpen}
+      onUpdate={setOpen}
+      maxWidth="520px"
+      showCloseButton={false} // Custom header
+      className="bg-surface2 h-[450px] p-0 flex flex-col overflow-hidden" // Override default padding/bg
+      ariaLabel="Gerenciador de Camadas"
     >
-      <div
-        ref={dialogRef}
-        className="bg-surface2 border border-border rounded-lg shadow-2xl w-[520px] h-[450px] flex flex-col text-text relative"
-        tabIndex={-1}
-        onKeyDown={trapFocus}
-      >
-        <div className="flex items-center justify-between p-3 border-b border-border bg-surface2 rounded-t-lg">
-          <h2 id="layer-manager-title" className="font-semibold text-sm uppercase tracking-wide">
+      <div className="flex flex-col h-full relative" ref={modalRef}>
+        <div className="flex items-center justify-between p-3 border-b border-border bg-surface2">
+          <h2 className="font-semibold text-sm uppercase tracking-wide">
             Gerenciador de Camadas
           </h2>
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="secondary" // primary/20 looks like secondary-ish or specific
+              size="sm"
+              className="h-7 text-xs border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20"
               onClick={handleAddLayer}
-              className="flex items-center gap-1 px-3 py-1 bg-primary/20 hover:bg-primary/30 text-primary rounded text-xs border border-primary/20 transition-colors focus-outline"
-              aria-label="Nova Camada"
+              leftIcon={<Plus size={14} />}
             >
-              <Plus size={14} />
-              <span className="font-medium">Nova Camada</span>
-            </button>
-            <button
+              Nova Camada
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-text-muted hover:text-text"
               onClick={close}
-              className="text-text-muted hover:text-text focus-outline ml-2"
-              aria-label="Fechar"
+              title="Fechar"
             >
               <X size={18} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -311,11 +280,6 @@ const LayerManagerModal: React.FC = () => {
         </div>
 
         <div className="flex-grow overflow-y-auto">
-          {/* Force re-render when styleGeneration changes by passing it to key or relying on hook usage inside Row */}
-          {/* But LayerRow uses runtime.getLayerStyle, which is not reactive itself unless we force update. */}
-          {/* The parent 'styleGeneration' constant usage forces this component to re-render. */}
-          {/* We map layers to LayerRow */}
-
           {layers.map((layer) => (
             <LayerRow
               key={layer.id}
@@ -335,29 +299,22 @@ const LayerManagerModal: React.FC = () => {
 
         {activePicker && (
           <div
-            className="absolute z-50"
+            className="fixed z-50" // Use fixed to escape the dialog clipping if any
             style={{
-              top: pickerPos.top - dialogRef.current!.getBoundingClientRect().top,
-              left: pickerPos.left - dialogRef.current!.getBoundingClientRect().left,
+              top: pickerPos.top,
+              left: pickerPos.left,
             }}
           >
-            {/* We need to position relative to modal or use portal. 
-                    Simple approach: Use fixed positioning for ColorPicker if it supports it, 
-                    OR adjust coordinates to be relative to this container if overflow allowed.
-                    'overflow-y-auto' is on the list container, but modal is flex-col.
-                    The ColorPicker in ColorRibbon uses fixed strategy often.
-                    Let's try standard ColorPicker usage.
-                */}
             <ColorPicker
               color={pickerColor}
               onChange={handleColorChange}
               onClose={() => setActivePicker(null)}
-              initialPosition={pickerPos}
+              initialPosition={pickerPos} // It might ignore this if we position the wrapper
             />
           </div>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 };
 

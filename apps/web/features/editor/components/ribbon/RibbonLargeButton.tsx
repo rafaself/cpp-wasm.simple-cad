@@ -1,8 +1,11 @@
 import React from 'react';
 
+import { Button, ButtonVariant } from '@/components/ui/Button';
+import { Icon as IconPrimitive } from '@/components/ui/Icon';
+
 import { RibbonItem } from '../../ui/ribbonConfig';
 
-import { getTooltip, getRibbonButtonColorClasses, RIBBON_ICON_SIZES } from './ribbonUtils';
+import { getTooltip } from './ribbonUtils';
 
 interface RibbonLargeButtonProps {
   item: RibbonItem;
@@ -29,30 +32,35 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
 
   const widthClass = item.width ? widthClasses[item.width] : 'min-w-[64px]';
 
-  // Large Button Specific Styles
-  const heightClass = 'h-full';
-  const flexClass = 'flex flex-col justify-center items-center gap-1';
-  const textClass = 'text-[10px] leading-tight text-center line-clamp-2 break-words max-w-full';
-
-  // Colors & Interaction - using centralized utility
-  const colorClass = getRibbonButtonColorClasses({
-    isActive,
-    isStub,
-    actionId: item.actionId,
-  });
+  // Variant Mapping
+  let variant: ButtonVariant = 'ghost'; // Default for large buttons usually (or secondary)
+  // Legacy used 'bg-surface2' which is secondary.
+  variant = 'secondary';
+  
+  if (isActive) {
+    variant = 'primary';
+  }
 
   const tooltip = getTooltip(item);
 
+  const hoverClass =
+    !isActive && item.actionId === 'delete'
+      ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
+      : '';
+
   return (
-    <button
-      onClick={() => !isStub && onClick(item)}
-      className={`relative rounded transition-colors duration-200 ${widthClass} ${heightClass} ${flexClass} px-2.5 ${colorClass} ${textClass}`}
+    <Button
+      variant={variant}
+      className={`h-full flex-col justify-center gap-1 px-2.5 py-1 ${widthClass} ${hoverClass}`}
+      disabled={isStub}
+      onClick={() => onClick(item)}
       title={tooltip}
-      aria-disabled={isStub}
       aria-pressed={isTool ? isActive : undefined}
     >
-      {Icon && <Icon size={RIBBON_ICON_SIZES.lg} className="shrink-0" />}
-      <span className="pointer-events-none truncate">{item.label}</span>
-    </button>
+      {Icon && <IconPrimitive icon={Icon} size="lg" />}
+      <span className="text-[10px] leading-tight text-center line-clamp-2 break-words max-w-full pointer-events-none">
+        {item.label}
+      </span>
+    </Button>
   );
 };

@@ -1,8 +1,11 @@
 import React from 'react';
 
+import { Button, ButtonVariant } from '@/components/ui/Button';
+import { Icon as IconPrimitive } from '@/components/ui/Icon';
+
 import { RibbonItem } from '../../ui/ribbonConfig';
 
-import { getTooltip, getRibbonButtonColorClasses, RIBBON_ICON_SIZES } from './ribbonUtils';
+import { getTooltip } from './ribbonUtils';
 
 interface RibbonSmallButtonProps {
   item: RibbonItem;
@@ -25,41 +28,31 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
   const isTool = item.kind === 'tool';
   const isStub = item.status === 'stub';
 
-  // Fixed height for small buttons, forced to override defaults
-  const heightClass = '!h-[24px] min-h-[24px] max-h-[24px]';
-
-  // Flex layout
-  const flexClass = 'flex flex-row items-center gap-2';
-  const justifyClass = 'justify-start px-2.5';
-
-  // Typography
-  const textClass = 'text-xs whitespace-nowrap truncate text-left flex-1';
-
-  // Colors
-  const colorClass = getRibbonButtonColorClasses({
-    isActive,
-    isStub,
-    actionId: item.actionId,
-  });
+  // Variant Mapping
+  let variant: ButtonVariant = 'secondary';
+  if (isActive) {
+    variant = 'primary';
+  }
 
   const tooltip = getTooltip(item);
-  const buttonClasses = `relative rounded transition-colors duration-200 ${width} ${heightClass} ${flexClass} ${justifyClass} ${colorClass}`;
+
+  const hoverClass =
+    !isActive && item.actionId === 'delete'
+      ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
+      : '';
 
   return (
-    <button
-      onClick={() => !isStub && onClick(item)}
-      className={`${buttonClasses} ${textClass}`}
+    <Button
+      variant={variant}
+      size="sm"
+      className={`${width} !h-[24px] justify-start px-2.5 ${hoverClass}`}
+      disabled={isStub}
+      onClick={() => onClick(item)}
       title={tooltip}
-      aria-disabled={isStub}
       aria-pressed={isTool ? isActive : undefined}
+      leftIcon={Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
     >
-      {Icon && (
-        <div className="w-4 flex items-center justify-center shrink-0">
-          <Icon size={RIBBON_ICON_SIZES.sm} className="shrink-0" />
-        </div>
-      )}
-      <span className="pointer-events-none truncate">{item.label}</span>
-      {/* Optional: Add shortcut badge here if needed */}
-    </button>
+      <span className="truncate flex-1 text-left">{item.label}</span>
+    </Button>
   );
 };

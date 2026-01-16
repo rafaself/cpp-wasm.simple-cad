@@ -1,6 +1,7 @@
 import { X, Grid3X3, Magnet, Keyboard, Briefcase, LayoutTemplate, Terminal } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
+import { Dialog, Button } from '@/components/ui';
 import { useUIStore } from '../../stores/useUIStore';
 
 import CanvasSettings from './sections/CanvasSettings';
@@ -19,53 +20,14 @@ export type SettingsSection =
   | 'interface'
   | 'developer';
 
-const focusableSelectors =
-  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 const SettingsModal: React.FC = () => {
   const isOpen = useUIStore((s) => s.isSettingsModalOpen);
   const setOpen = useUIStore((s) => s.setSettingsModalOpen);
   const [activeSection, setActiveSection] = useState<SettingsSection>('canvas');
-  const dialogRef = React.useRef<HTMLDivElement | null>(null);
-  const lastFocusRef = React.useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      lastFocusRef.current = document.activeElement as HTMLElement | null;
-      setActiveSection('project');
-      const container = dialogRef.current;
-      if (container) {
-        const first = container.querySelector<HTMLElement>(focusableSelectors);
-        first?.focus();
-      }
-    }
-  }, [isOpen]);
-
-  const trapFocus = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Tab' || !dialogRef.current) return;
-    const focusables = dialogRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else if (document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
 
   const close = () => {
     setOpen(false);
-    if (lastFocusRef.current) {
-      lastFocusRef.current.focus();
-    }
   };
-
-  if (!isOpen) return null;
 
   const sections = [
     { id: 'project' as const, label: 'Projeto', icon: Briefcase },
@@ -96,60 +58,49 @@ const SettingsModal: React.FC = () => {
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-modal flex items-center justify-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="settings-modal-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          close();
-        }
-      }}
+    <Dialog
+      modelValue={isOpen}
+      onUpdate={setOpen}
+      maxWidth="700px"
+      showCloseButton={false}
+      className="bg-surface2 h-[500px] p-0 flex flex-col overflow-hidden"
+      ariaLabel="Configuracoes"
     >
-      <div
-        ref={dialogRef}
-        className="bg-surface2 border border-border rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-text"
-        tabIndex={-1}
-        onKeyDown={trapFocus}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 id="settings-modal-title" className="font-semibold text-base">
-            Configuracoes
-          </h2>
-          <button
-            onClick={close}
-            className="text-text-muted hover:text-text p-1 rounded hover:bg-surface2 focus-outline"
-            aria-label="Fechar"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex flex-1 overflow-hidden">
-          <SettingsSidebar
-            sections={sections}
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-          />
-
-          <div className="flex-1 overflow-y-auto p-4">{renderContent()}</div>
-        </div>
-
-        <div className="px-4 py-3 border-t border-border flex justify-end gap-2">
-          <button
-            onClick={close}
-            className="px-4 py-1.5 rounded text-sm font-medium bg-surface2 hover:bg-surface1 text-text-muted focus-outline"
-          >
-            Fechar
-          </button>
-        </div>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface2">
+        <h2 className="font-semibold text-base">
+          Configuracoes
+        </h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-text-muted hover:text-text"
+          onClick={close}
+          title="Fechar"
+        >
+          <X size={18} />
+        </Button>
       </div>
-    </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        <SettingsSidebar
+          sections={sections}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
+
+        <div className="flex-1 overflow-y-auto p-4">{renderContent()}</div>
+      </div>
+
+      <div className="px-4 py-3 border-t border-border flex justify-end gap-2 bg-surface2">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={close}
+        >
+          Fechar
+        </Button>
+      </div>
+    </Dialog>
   );
 };
 

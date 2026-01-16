@@ -15,7 +15,6 @@
     "apps/web/features/editor/components/sidebar/SidebarTabs.tsx",
     "apps/web/features/editor/components/ThemeToggle.tsx",
     "apps/web/features/editor/components/UserHint.tsx",
-    "apps/web/features/editor/components/RadiusInputModal.tsx",
     "apps/web/features/editor/components/properties/PlanProperties.tsx",
     "apps/web/features/editor/components/Header.tsx",
     "apps/web/features/editor/components/EditorRibbon.tsx",
@@ -31,13 +30,9 @@
     "apps/web/components/TextCaretOverlay.tsx",
     "apps/web/components/NumericComboField/NumericComboField.tsx",
     "apps/web/components/NumberSpinner.tsx",
-    "apps/web/components/ContextMenu.tsx",
-    "apps/web/components/LoadingOverlay.tsx",
-    "apps/web/components/CustomSelect.tsx",
     "apps/web/components/ColorPicker/index.tsx",
     "apps/web/components/ColorPicker/Swatches.tsx",
     "apps/web/components/ColorPicker/ColorInputs.tsx",
-    "apps/web/components/ui/Toast.tsx",
     "apps/web/src/styles/recipes.ts"
   ]
 }
