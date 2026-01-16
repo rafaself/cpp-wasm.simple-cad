@@ -1,8 +1,10 @@
 # AGENTS.md — Source of Truth
 
-**THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR THE PROJECT ARCHITECTURE.**
+**THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR THE PROJECT ARCHITECTURE AND AGENT GOVERNANCE.**
 
-> **Note for AI Agents:** If during development you identify inconsistencies, gaps, or improvement opportunities in this documentation, **suggest and request changes**. Documentation must evolve alongside the project.
+> **Note for AI Agents:** If you identify inconsistencies, gaps, or improvement opportunities in this documentation, **propose changes** (with exact patch blocks). Documentation must evolve alongside the project.
+
+> **Design System:** UI rules are defined in **`DESIGN.md`**. All UI work MUST follow it.
 
 ---
 
@@ -10,366 +12,434 @@
 
 ### Product
 
-High-performance vector CAD editor with world-class UX, inspired by Figma.
+High-performance vector CAD editor with world-class UX (Figma-grade), extended by domain modules (initial focus: **Electrical**).
+
+### Strategic Premise
+
+* **Atlas** is the CAD/geometry/render engine (C++/WASM) and must remain **domain-agnostic**.
+* **Electrical Core** is a separate domain kernel and must remain **CAD-engine-agnostic**.
+* The application is a composition of independent kernels integrated via **strict interfaces and transactions**.
 
 ### Development Philosophy
 
-| Principle                 | Description                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| **State of the Art**      | We pursue industry best practices. Mediocre code is unacceptable.                       |
-| **Quality > Speed**       | Fewer excellent features > many mediocre features.                                      |
-| **Performance as Design** | Performance is decided at architecture level, not as late optimization.                 |
-| **Zero Compromise on UX** | Interactions must be instantaneous (< 16ms) and fluid.                                  |
-| **Planned Extensibility** | Architecture must allow extension for: vertical domains (electrical, hydraulic) and 3D. |
+| Principle                 | Description                                                                 |
+| ------------------------- | --------------------------------------------------------------------------- |
+| **State of the Art**      | Industry best practices only. Mediocre solutions are unacceptable.          |
+| **Quality > Speed**       | Fewer excellent features > many mediocre features.                          |
+| **Performance as Design** | Performance is decided at architecture level, not as late optimization.     |
+| **Zero Compromise on UX** | Interactions must be instantaneous (< 16ms) and fluid.                      |
+| **Strict Boundaries**     | Every module has clear ownership; cross-layer shortcuts are forbidden.      |
+| **Planned Extensibility** | Architecture must allow more domains (hydraulic, civil, etc.) and 3D views. |
 
 ### Current Focus
 
-Solidify the **2D CAD foundation**: drawing tools, selection, transformation, text, and persistence. The core must be **generic**, **extensible**, and **domain-agnostic**.
+* Solidify the **2D CAD foundation**: drawing, selection, transforms, text, persistence.
+* Implement the **Electrical domain kernel** as an independent module integrated via strict contracts.
+* Adopt **2.5D now** (plan + elevation) with a clean path to **3D soon**, without rewriting the core.
 
 ---
 
-## 2. Architecture: C++ Engine-First (Strict)
+## 2. Architecture: Engine-First + Domain Plugins (Strict)
 
-The architecture follows the **Engine-First** model, where the C++ Engine (WASM) is the absolute authority over all document data.
+The architecture follows the **Engine-First** model: **Atlas (C++/WASM) is the absolute authority over CAD document geometry and rendering buffers.**
 
-### Application Layers
+Domain modules (e.g., Electrical) are separate kernels providing semantics, validation, and workflows.
+
+### 2.1 Application Layers
 
 1. **React (Presentation Layer)**
 
-   - Manages only UI state: active tool, viewport (zoom/pan), preferences, modals
-   - Captures mouse/keyboard events and dispatches to Engine via commands
-   - **Does NOT maintain document entity state**
+   * Owns only UI state: active tool, viewport, preferences, panels/modals
+   * Captures pointer/keyboard events and forwards them to runtime facades
+   * **Must not own CAD entities, geometry, or canonical document state**
+   * Must follow **`DESIGN.md`** for UI components, spacing, typography, and interaction behavior
 
-2. **WASM Bridge (Communication Layer)**
+2. **Runtime Facades (Boundary Layer)**
 
-   - Binary commands (JS → Engine): operations are serialized and sent in batch
-   - Event Stream (Engine → JS): Engine notifies changes via event polling
-   - Zero parsing overhead — direct binary communication
+   * The **only allowed entry point** for feature code
+   * Exposes:
 
-3. **C++ Engine (Domain Layer — Source of Truth)**
+     * `AtlasRuntime` (CAD/geometry/render/picking/transforms/persistence)
+     * `DomainRuntime` (electrical domain commands/queries/validation)
+     * `IntegrationRuntime` (composite transactions that touch both)
+   * Enforces:
 
-   - **Document State**: entities, geometry, properties, hierarchies
-   - **Selection**: which entities are selected
-   - **History**: complete transactional undo/redo
-   - **Spatial Index**: BVH/Quadtree for O(log n) picking
-   - **Transform System**: move, resize, rotate, vertex drag
-   - **Text Layout Engine**: line breaking, glyph positioning, rich text
-   - **Render Buffer Generation**: tessellation, text quads, grid, overlays
-   - **Draft System**: shapes under construction (ephemeral entities)
-   - **Serialization**: binary save/load
+     * command transport rules (bulk vs hot path)
+     * view synchronization
+     * boundary checks (no direct engine instances outside `frontend/engine/**`)
 
-4. **WebGL2 Renderer (Graphics Backend)**
-   - Stateless — only reads Engine buffers and renders
-   - Does not calculate geometry, does not maintain state
-   - Shaders for tessellated shapes and text quads
+3. **Atlas (C++ Engine — CAD Source of Truth)**
 
-### Data Flow
+   * CAD document state: entities, geometry, styles, layers, hierarchy
+   * Selection, picking, snapping
+   * Transform sessions (move/resize/rotate/vertex)
+   * Text layout + quads
+   * Render buffer generation for WebGL2
+   * Persistence: strict binary snapshot
+   * **2.5D-capable geometry model (Vec3-ready)**, while default view is 2D
+
+4. **Electrical Core (Domain Kernel — Domain Source of Truth)**
+
+   * Domain entities: components, pins, nets, wires semantic graph, rules, validation
+   * Electrical-specific parameters (e.g., mounting heights, conductor properties, circuits)
+   * Domain persistence (as extension blocks) + deterministic validation
+   * Provides overlays/markers as domain outputs (not React re-renders on pointermove)
+
+5. **WebGL2 Renderer (Graphics Backend)**
+
+   * Stateless: consumes Atlas render buffers and draws
+   * No geometry calculations, no entity state
+
+### 2.2 Data Flow
 
 ```
-User Input → React Event → Engine Command → Engine Update → Render Buffer → WebGL Draw
-                                   ↓
-                            Event Stream → React UI Update (if needed)
-```
-
----
-
-## 3. Responsibility Separation (Strict)
-
-### C++ Engine — Absolute Authority
-
-| Responsibility               | Description                                    |
-| ---------------------------- | ---------------------------------------------- |
-| **Document State**           | Entities, geometry, properties, hierarchies    |
-| **Selection**                | Which entities are selected                    |
-| **Undo/Redo**                | Complete transactional history                 |
-| **Picking**                  | Hit testing with spatial indexing              |
-| **Transformations**          | Move, resize, rotate, vertex drag              |
-| **Snapping**                 | Grid, object, guideline snapping               |
-| **Text Layout**              | Line breaking, glyph positioning, rich text    |
-| **Serialization**            | Binary save/load                               |
-| **Render Buffer Generation** | Shape tessellation, text quads, grid, overlays |
-| **Geometric Validation**     | Bounds, constraints, intersections             |
-| **Draft/Preview Entities**   | Shapes under construction during drag          |
-| **Grid Rendering**           | Generate grid lines/dots in render buffer      |
-| **Overlays**                 | Selection handles, snap guides, cursor hints   |
-
-### React — Interface Only
-
-| Responsibility           | Description                                 |
-| ------------------------ | ------------------------------------------- |
-| **Active Tool**          | Which tool is selected                      |
-| **Viewport**             | Zoom, pan, canvas size                      |
-| **Preferences**          | Grid settings, snap options, theme          |
-| **UI State**             | Modals, panels, loading states              |
-| **Event Capture**        | Capture mouse/keyboard → dispatch to Engine |
-| **Render Orchestration** | Call WebGL with Engine buffers              |
-
-### WebGL2 Renderer — Pure Graphics Backend
-
-| Responsibility           | What it does NOT do            |
-| ------------------------ | ------------------------------ |
-| Renders received buffers | Does not calculate geometry    |
-| Manages shaders          | Does not maintain entity state |
-| Uploads textures         | Does not do picking            |
-
----
-
-## 4. Absolute Rules (Non-Negotiable)
-
-### ❌ FORBIDDEN
-
-| Violation                                | Why It's Critical                            |
-| ---------------------------------------- | -------------------------------------------- |
-| Keep shape list in Zustand               | State duplication → desynchronization        |
-| Calculate geometry in JS                 | Numeric inconsistency, poor performance      |
-| Cache entity properties in React         | Shadow state violates single source of truth |
-| Iterate entities in JS to find something | O(n) vs O(log n) from spatial index          |
-| Do transform math in frontend            | Different precision than Engine              |
-| Store text content in React              | Engine is authority                          |
-| Re-render React on each pointermove      | Performance: use Engine directly             |
-
-### ✅ MANDATORY
-
-| Practice                      | Justification                                   |
-| ----------------------------- | ----------------------------------------------- |
-| Queries via Engine            | `pick()`, `getEntityAabb()`, `getSelectedIds()` |
-| Modifications via Commands    | Binary batch, transactional                     |
-| Transform via Session         | `begin/update/commit` pattern                   |
-| Zero-allocation in hot paths  | pointermove, drag, render loops                 |
-| Specific selectors in Zustand | Avoid unnecessary re-renders                    |
-
-### VERY IMPORTANT!
-
-**Global project rule:** There is NO backward compatibility during migrations.
-
-**Any form of backward compatibility MUST be BANNED. This is a strict, prohibitive rule.**
-
-- Do not create shims, legacy adapters, “deprecated” re-exports, alias modules, or key remapping layers to preserve old APIs/imports.
-- If something breaks due to a refactor, fix it at the call sites immediately. Breaking changes are expected and acceptable at this stage.
-- This project is in active development, so there is no requirement to support older versions.
-- Do not leave “temporary compatibility”, “migration bridge”, or “keep for legacy” comments in committed code.
-- The codebase must converge to one canonical implementation per module—no duplicate sources of truth.
-
----
-
-## 5. Performance Requirements
-
-### Targets
-
-| Metric                | Target         | Justification              |
-| --------------------- | -------------- | -------------------------- |
-| Frame time            | < 16ms (60fps) | Fluid interaction          |
-| Input latency         | < 8ms          | Instantaneous response     |
-| Picking               | O(log n)       | Spatial indexing mandatory |
-| Command batch         | < 1ms          | Binary, zero parsing       |
-| Render buffer rebuild | Incremental    | Only modified entities     |
-
-### Hot Path Rules (C++)
-
-```cpp
-// ❌ Forbidden in hot paths
-std::string, std::vector resize, new/delete, std::map lookup
-
-// ✅ Mandatory
-Fixed-size buffers, arena allocation, POD structs
-```
-
-### Hot Path Rules (JS)
-
-```typescript
-// ❌ Forbidden in hot paths
-Object creation, array spread, closure creation
-
-// ✅ Mandatory
-Reuse objects, typed arrays, direct buffer access
+User Input → React → Runtime Facades → (Atlas / Domain) → Events/Buffers → WebGL Draw
+                                      ↓
+                               Poll Events → UI Updates (cold path)
 ```
 
 ---
 
-## 6. Source of Truth & Ownership
+## 3. Canonical Ownership Model
 
-- **Engine is authoritative** for: entities, geometry, styles, selection, history/undo, text content/layout, render buffers.
-- **Frontend is transient**: tool mode, viewport, preferences, modals, pointer/key state. Zustand is UI-only.
-- **Forbidden**: canonical geometry/state in JS stores; shadow copies of engine entities; `runtime.engine.*` usage outside `frontend/engine/**`.
-- **Boundaries**: feature code must go through EngineRuntime facades (text/pick/draft/transform/io/etc.), not native engine instances.
+### 3.1 Atlas Owns (Non-negotiable)
 
----
+* All CAD geometry and styles
+* Entity identity for CAD (`EntityId`)
+* Selection state and picking tolerances
+* Transform sessions and geometry math
+* Render buffers (tessellation, overlays, text quads, grid)
+* CAD snapshot format (strict versioning)
 
-## 7. Future Extensibility
+### 3.2 Electrical Core Owns (Non-negotiable)
 
-### Preparation for Vertical Domains (Electrical, etc.)
+* Electrical identity (`ComponentId`, `PinId`, `NetId`, etc.)
+* Electrical connectivity graph and constraints
+* Domain rules/validation (DRC), numbering, BOM, reports
+* Domain parameters (including **semantic heights**)
+* Domain extension payloads stored alongside CAD snapshot
 
-| Principle               | Implementation                                            |
-| ----------------------- | --------------------------------------------------------- |
-| **Agnostic Core**       | Engine doesn't know "electrical symbols", only primitives |
-| **Entity Flags**        | Extensible flag system for domain metadata                |
-| **Layer Semantics**     | Generic layers, semantics defined externally              |
-| **Component System**    | (Future) Entities composed of components                  |
-| **Plugin Architecture** | (Future) Domain as separate module                        |
+### 3.3 Integration Owns
 
-### Preparation for 3D
-
-| Current Decision            | Future Impact                 |
-| --------------------------- | ----------------------------- |
-| Float coordinates (not int) | Extensible for Z              |
-| Transform matrix ready      | 4x4 when needed               |
-| Shader architecture         | Add 3D passes                 |
-| Render buffer format        | Extensible vertex format      |
-| Picking system              | Ray casting vs screen picking |
-
-### What to Avoid Now
-
-| Anti-Pattern                      | Why It Limits           |
-| --------------------------------- | ----------------------- |
-| Hardcode 2D assumptions in Engine | Blocks 3D extension     |
-| Domain logic in core              | Prevents plugins        |
-| Tight coupling between layers     | Hinders refactoring     |
-| String IDs in core                | Performance and interop |
+* **Atomic cross-kernel transactions**
+* Global undo/redo coherence across Atlas + Domain
+* Load/save orchestration across core snapshot + domain extension blocks
 
 ---
 
-## 8. Mandatory Synchronizations
+## 4. 2.5D Now, 3D Soon (No Technical Debt)
 
-### Viewport → Engine
+### 4.1 Coordinate System & Angles (Normative)
 
-Whenever viewport changes, **mandatory** sync with Engine:
+* **Screen Space**: pixels, **+Y Down**
+* **World Space (Plan View)**: infinite plane, units = world units (abstract), **+Y Down convention**
+* **Angles**:
 
-```typescript
-// When scale changes (zoom)
-runtime.setViewScale(viewTransform.scale);
-```
+  * Public API: **Degrees**
+  * Internal Engine: **Radians**
+  * Positive rotation: **Clockwise (CW)** due to +Y Down
 
-**Why:** Engine uses scale to calculate picking tolerance and stroke widths.
+**Rule:** The frontend must not implement canonical geometry math, picking tolerances, or deg↔rad conversions for authoritative state.
 
----
+### 4.2 Geometry Model: 3D-capable, Used as 2.5D
 
-## 9. Engine ↔ Frontend Communication
+Atlas must be **3D-capable in the data model**, even if the current view is 2D.
 
-### Commands (JS → Engine)
+* Canonical geometry types MUST be Vec3-ready (x, y, z) or equivalent.
+* The 2D editor is a **top-down projection**; Z is stored for dimensioning and future 3D visualization.
+* The renderer may ignore Z in 2D view, but Z MUST remain authoritative in Atlas for 3D computations when used.
 
-```typescript
-// Binary command buffer - zero parsing overhead
-runtime.apply([
-  { op: CommandOp.UpsertRect, id, rect: {...} },
-  { op: CommandOp.SetTextAlign, align: {...} }
-]);
-```
+### 4.3 Heights: Geometric vs Semantic (Normative)
 
-### Events (Engine → JS)
+There are two height concepts:
 
-```typescript
-// Polling-based event stream
-const { events } = runtime.pollEvents(MAX_EVENTS);
-// EventTypes: DocChanged, EntityCreated, SelectionChanged, etc.
-```
+1. **Geometric Z (Atlas, generic)**
 
-### Interactive Transform Protocol
+* Used for: true 3D length, vertical transitions, future 3D view, collision/clearance.
+* Stored as either:
 
-```typescript
-// Frame 0: Start
-runtime.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+  * constant elevation per entity/segment, or
+  * per-vertex Z (only if required later)
 
-// Frame 1..N: Update (NO React state updates!)
-runtime.updateTransform(worldX, worldY);
+2. **Semantic Height (Electrical Core, domain parameter)**
 
-// Frame N+1: Commit
-const result = runtime.commitTransform();
-// Only NOW does React receive events and update UI
-```
+* Used for: mounting height, standards compliance, documentation.
+* Example: a socket symbol may remain in plan geometry but have `mountingHeight=0.30m`.
 
----
+**Rule:** Electrical semantics must not leak into Atlas. Atlas stores only generic geometry and generic per-entity extension storage (if present).
 
-## 10. Code Quality Standards
+### 4.4 Conduit / Eletroduto Modeling (Recommended Baseline)
 
-### General
+To avoid future rewrites:
 
-- Consider Type Safety always when possible
+* Horizontal runs: **constant elevation** per run/segment
+* Elevation changes: explicit **transition entities** (riser/drop)
 
-### C++
-
-- Modern C++17/20
-- RAII mandatory
-- No raw `new`/`delete` — use containers or arenas
-- `constexpr` when possible
-- POD structs for WASM-shared data
-- Header guards + `#pragma once`
-
-### TypeScript
-
-- Strict mode mandatory
-- No unjustified `any`
-- Prefer `unknown` + type guards
-- Typed interfaces for all commands
-- No side effects in selectors
-
-### Tests
-
-- C++ tests via CTest (unit and integration)
-- Frontend tests via Vitest
-- Tests must be deterministic
-- Coverage on critical logic
+**Rationale:** this maps cleanly to later 3D visualization and avoids complex per-vertex Z editing edge cases.
 
 ---
 
-## 11. Internationalization (i18n)
+## 5. Absolute Rules (Non-Negotiable)
 
-### Current State
+### 5.1 Forbidden
 
-- **UI display text**: Portuguese (pt-BR)
-- **Code internals**: English (classes, functions, variables, comments)
+| Violation                                             | Why it is critical                               |
+| ----------------------------------------------------- | ------------------------------------------------ |
+| Store CAD entity lists/geometry in Zustand/React      | Shadow state → desync                            |
+| Compute CAD geometry/picking tolerances in JS         | Precision/behavior drift; breaks engine-first    |
+| Serialize/build command objects on pointermove        | Hot-path allocations; latency and GC spikes      |
+| Directly call native engine instances outside facades | Boundary breach; impossible governance           |
+| Add compatibility shims/adapters/legacy bridges       | Creates divergent sources of truth and conflicts |
+| Domain logic inside Atlas                             | Destroys domain pluggability                     |
+| CAD internals inside Domain core                      | Destroys engine independence                     |
 
-### Rules
+### 5.2 Mandatory
 
-| Context                       | Language   | Example                                           |
-| ----------------------------- | ---------- | ------------------------------------------------- |
-| Class/function/variable names | English    | `TextLayoutEngine`, `handlePointerDown`           |
-| Code comments                 | English    | `// Calculate bounding box`                       |
-| Console logs (dev)            | English    | `console.log('Pick result:', pick)`               |
-| UI labels, buttons, messages  | Portuguese | `"Salvar"`, `"Desfazer"`, `"Ferramenta de Texto"` |
-| Error messages (user-facing)  | Portuguese | `"Erro ao carregar arquivo"`                      |
+| Practice                                  | Justification                                           |
+| ----------------------------------------- | ------------------------------------------------------- |
+| All feature code uses Runtime Facades     | Enforces boundaries and contracts                       |
+| Transform operations use session protocol | begin/update/commit; zero allocation on pointermove     |
+| View sync is strict                       | Engine tolerances depend on current view parameters     |
+| Cross-kernel operations are atomic        | Avoid split-brain state between CAD and Electrical      |
+| Deterministic tests for critical logic    | Prevent regressions in transforms/picking/serialization |
+| UI follows DESIGN.md                      | UI consistency and predictable UX                       |
 
-### Future Scalability
+### 5.3 Compatibility Policy (Strict)
 
-- All user-facing strings must be **extractable** for future i18n
-- Use constants or a simple key-value system, NOT hardcoded inline strings
-- Prepare for English translation in future releases
+This project is in active development.
 
-```typescript
-// ✅ CORRECT: Extractable
-const LABELS = {
-  save: "Salvar",
-  undo: "Desfazer",
-  textTool: "Ferramenta de Texto",
-};
-button.textContent = LABELS.save;
+* **No backward compatibility** for internal APIs, module paths, or runtime behavior.
+* **No shims, adapters, deprecated re-exports, alias modules, or migration bridges**.
+* If a refactor breaks call sites, fix call sites immediately.
 
-// ❌ WRONG: Hardcoded inline
-button.textContent = "Salvar";
-```
+Persistence:
 
----
-
-## 12. Additional Documentation
-
-| Document                            | Content                        |
-| ----------------------------------- | ------------------------------ |
-| `docs/agents/engine-api.md`         | Complete C++ API reference     |
-| `docs/agents/frontend-patterns.md`  | Mandatory React patterns       |
-| `docs/agents/text-system.md`        | Text system                    |
-| `docs/agents/workflows.md`          | Development recipes            |
-| `docs/ENGINE_FIRST_GOVERNANCE.md`   | Engine-first governance policy |
-| `docs/DEAD_CODE_REMOVAL_PROCESS.md` | Safe dead-code process         |
-| `docs/AGENT_RUNBOOK.md`             | Agent operating checklist      |
+* Atlas snapshot format is **strictly versioned**.
+* Unsupported versions MUST fail fast (no in-engine migrations).
+* Any future migrations, if ever needed, must be done by **offline tooling**, never by runtime compatibility layers.
 
 ---
 
-## 13. How to Run Checks
+## 6. Performance Requirements
+
+### 6.1 Targets
+
+| Metric                | Target         | Notes                                               |
+| --------------------- | -------------- | --------------------------------------------------- |
+| Frame time            | < 16ms (60fps) | Fluid interaction                                   |
+| Input latency         | < 8ms          | Pointer-driven interactions must feel instantaneous |
+| Picking               | No O(n) scans  | Spatial-indexed broad phase + narrow phase          |
+| Bulk command apply    | < 1ms          | Binary command buffer processing                    |
+| Render buffer rebuild | Incremental    | Rebuild only modified entities                      |
+
+### 6.2 Hot Path Rules
+
+**C++ (Atlas hot paths):**
+
+* Forbidden: dynamic allocation, `std::string` churn, `std::vector` reallocation, `std::map` lookups
+* Mandatory: POD structs for shared data, fixed-size buffers, arenas, cache-friendly layouts
+
+**JS (interactive hot paths):**
+
+* Forbidden: object creation, array spreads, closure creation inside pointermove
+* Mandatory: direct WASM session calls, reuse buffers, typed arrays where applicable
+
+---
+
+## 7. View Synchronization (Normative)
+
+Whenever viewport changes, the frontend MUST synchronize view parameters with Atlas.
+
+* At minimum: `viewScale`
+* If supported: viewport size, DPR, pan/offset
+
+**Rule:** tolerances and hit testing are view-dependent. The frontend MUST NOT compute pixel tolerances itself.
+
+---
+
+## 8. Engine ↔ Frontend Communication (Normative)
+
+### 8.1 JS → Atlas Transport (Hybrid)
+
+Two sanctioned paths:
+
+1. **Bulk/Cold Path: Binary Command Buffer**
+
+* Use for commits, batch edits, non-per-frame changes.
+* The runtime may offer ergonomic helpers, but the **WASM boundary must receive a binary buffer**.
+
+2. **Hot Path: Direct WASM Session Calls**
+
+* Pointermove MUST call `update*` methods directly.
+* No command-object serialization on pointermove.
+
+### 8.2 Atlas → JS Events (Polling Ring Buffer)
+
+* Events are delivered via polling.
+* Atlas stores events in a **fixed-size ring buffer (2048 slots)**.
+
+**Overflow Semantics (Strict):**
+
+* On overflow, Atlas clears the queue, sets an overflow flag, and returns a single `Overflow` event.
+* The frontend MUST execute the Overflow Recovery Contract below.
+
+### 8.3 Overflow Recovery Contract (Mandatory)
+
+On receiving `Overflow`:
+
+1. Pause normal reconciliation.
+2. Perform **full resync** via Atlas + Domain queries (selection, properties, overlays, buffers).
+3. Rebind WebGL resources if needed.
+4. Acknowledge resync (e.g., `ackResync` or equivalent).
+5. Resume polling.
+
+---
+
+## 9. Interactive Session Protocols (Strict)
+
+### 9.1 Transform Sessions
+
+Transform sessions are owned by Atlas.
+
+* Frame 0: `beginTransform(...)`
+* Frame 1..N: `updateTransform(...)` (hot path; no React state updates)
+* Final: `commitTransform()` (transaction boundary)
+
+**Rule:** All transform math lives in Atlas.
+
+### 9.2 Composite Operations (Atlas + Domain)
+
+Any user action that touches both CAD geometry and Electrical semantics MUST be executed as a **single atomic integration transaction**.
+
+Examples:
+
+* Insert electrical symbol: Atlas entities + Electrical component mapping
+* Connect wire: Atlas geometry + Electrical net graph update
+* Change conduit elevation: Atlas geometric Z + Electrical rules/validation
+
+The integration layer must ensure:
+
+* commit both or rollback both
+* global undo/redo coherence
+
+---
+
+## 10. Persistence & Extension Blocks
+
+### 10.1 Atlas Snapshot (Strict)
+
+* Custom binary snapshot with **magic + version header**.
+* Unsupported versions fail fast.
+
+### 10.2 Domain Extension Blocks (Pluggable)
+
+The global project save is composed as:
+
+* `AtlasSnapshot` (CAD core)
+* `DomainExtensionBlocks[]` where each block is:
+
+  * `domainKey`
+  * `domainVersion`
+  * `payloadBytes`
+
+**Rule:** Atlas does not interpret domain payloads.
+
+### 10.3 Identity & Mapping
+
+* Atlas owns `EntityId`.
+* Electrical core owns `ComponentId/PinId/NetId`.
+* Mapping lives in the Electrical core (or as a domain extension payload), referencing `EntityId`.
+
+---
+
+## 11. Code Quality Standards
+
+### 11.1 General
+
+* Type safety is mandatory.
+* No hidden side effects in selectors.
+* Deterministic behavior is mandatory for critical workflows.
+
+### 11.2 C++
+
+* Modern C++17/20
+* RAII mandatory
+* No raw `new/delete` in core hot paths
+* POD structs for WASM-shared data
+
+### 11.3 TypeScript
+
+* Strict mode mandatory
+* No unjustified `any`
+* Prefer `unknown` + type guards
+* Frontend feature code MUST not bypass runtime facades
+
+### 11.4 Tests
+
+* C++ tests via CTest
+* Frontend tests via Vitest
+* Deterministic tests required for:
+
+  * transforms (including angle conventions)
+  * picking tolerance behavior (viewScale)
+  * overflow recovery behavior
+  * snapshot save/load (version rejection)
+
+---
+
+## 12. Internationalization (i18n)
+
+* UI display strings: **Portuguese (pt-BR)**
+* Code internals: **English**
+* All user-facing strings must be extractable (no inline hardcoding).
+
+---
+
+## 13. Documentation Topology (Mandatory)
+
+| Document                           | Purpose                                                 |
+| ---------------------------------- | ------------------------------------------------------- |
+| `AGENTS.md`                        | Architecture + boundaries + governance (this file)      |
+| `DESIGN.md`                        | UI rules, components, spacing, interaction patterns     |
+| `docs/agents/engine-api.md`        | Atlas public API reference (WASM facade contract)       |
+| `docs/agents/domain-api.md`        | Domain kernel API reference                             |
+| `docs/agents/frontend-patterns.md` | React patterns, hot path rules, rendering orchestration |
+| `docs/ENGINE_FIRST_GOVERNANCE.md`  | Boundary enforcement policy + CI gates                  |
+| `docs/AGENT_RUNBOOK.md`            | Agent operating checklist                               |
+
+---
+
+## 14. Governance Gates (CI-Required)
+
+The following checks MUST pass before merge:
+
+1. **Boundary checks**
+
+* No direct engine instance usage outside `frontend/engine/**`.
+* No cross-kernel imports (Atlas ↔ Domain) outside runtime facades.
+
+2. **Hot path checks**
+
+* Pointermove handlers must not allocate or create closures.
+* Interactive sessions must use begin/update/commit.
+
+3. **Doc drift checks**
+
+* Runtime public APIs must match `engine-api.md` and manifests.
+
+4. **Snapshot checks**
+
+* Version mismatch must fail fast.
+
+---
+
+## 15. How to Run Checks
 
 ```bash
 # Governance (budgets, boundaries, manifest)
 cd frontend && pnpm governance:check
 
-# Doc drift guard (AGENTS + governance doc)
+# Doc drift guard
 node scripts/check_docs_references.js
 
 # Regenerate engine API manifest (after bindings changes)
@@ -384,7 +454,7 @@ cd cpp/build_native && ctest --output-on-failure
 
 ---
 
-## 14. Commands (general)
+## 16. Commands (General)
 
 ```bash
 # Full build
@@ -399,7 +469,7 @@ cd frontend && pnpm dev
 
 ---
 
-## 15. Code Size Governance (SRP)
+## 17. Code Size Governance (SRP)
 
 To maintain code quality and prevent monolithic files, the following size limits are enforced.
 
@@ -414,32 +484,17 @@ To maintain code quality and prevent monolithic files, the following size limits
 
 ### Function Length Guardrails
 
-- **Review**: Any function > 80 LOC
-- **Mandatory refactor**: Any function > 120 LOC
-- **Exception**: Data-heavy switch statements with clear 1:1 case mapping
-
-### Responsibility Limits
-
-- **2 responsibilities max** for hot-path files (input handlers, render loops)
-- **3 responsibilities max** for orchestrators
-- **1 responsibility** for domain logic (pure algorithms, data structures)
+* Review: any function > 80 LOC
+* Mandatory refactor: any function > 120 LOC
+* Exception: data-heavy switches with clear 1:1 mapping
 
 ### Forbidden Patterns
 
-| Pattern                   | Why Forbidden                   |
-| ------------------------- | ------------------------------- |
-| `utils.ts` > 200 LOC      | Becomes god-file dumping ground |
-| Manager class > 500 LOC   | Hidden monolith                 |
-| Cross-layer imports       | Engine-First violation          |
-| Document state in Zustand | Engine owns document, not React |
-
-### Enforcement
-
-```bash
-# Run size check (also runs in CI)
-./scripts/loc-report.sh
-```
-
-### Documentation
+| Pattern              | Why Forbidden                 |
+| -------------------- | ----------------------------- |
+| `utils.ts` > 200 LOC | Becomes a dumping ground      |
+| Manager > 500 LOC    | Hidden monolith               |
+| Cross-layer imports  | Engine-first violation        |
+| CAD state in Zustand | Breaks single source of truth |
 
 Budgets and exceptions live in `scripts/file_size_budget.json` and `scripts/file_size_budget_exceptions.json`.
