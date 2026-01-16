@@ -25,7 +25,8 @@
     "governance:hex-ui": "node ../../tooling/governance/check_hex_ui.js",
     "governance:arbitrary": "node ../../tooling/governance/check_arbitrary_values.js",
     "governance:semantic": "node ../../tooling/governance/check_semantic_tokens.js",
-    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs && pnpm run governance:hex-ui && pnpm run governance:arbitrary && pnpm run governance:semantic && pnpm run lint"
+    "governance:legacy": "node ../../tooling/governance/check_legacy_tokens.js",
+    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs && pnpm run governance:hex-ui && pnpm run governance:arbitrary && pnpm run governance:semantic && pnpm run governance:legacy && pnpm run lint"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.6",

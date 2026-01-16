@@ -32,7 +32,7 @@ const QuickAccessToolbar: React.FC = () => {
 
   return (
     <div
-      className={`absolute z-50 bg-surface-strong/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
+      className={`absolute z-50 bg-surface2/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
       style={{
         boxShadow: '0 8px 32px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(255, 255, 255, 0.02)',
       }}

@@ -259,7 +259,7 @@ const CanvasSettings: React.FC = () => {
       {/* Color Picker Portal */}
       {activeColorPicker && (
         <>
-          <div className="fixed inset-0 z-[200]" onClick={closeColorPicker} />
+          <div className="fixed inset-0 z-modal" onClick={closeColorPicker} />
           <ColorPicker
             color={
               activeColorPicker === 'grid'

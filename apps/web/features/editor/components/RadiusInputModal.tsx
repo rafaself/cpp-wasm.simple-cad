@@ -47,7 +47,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
     <>
       {/* Backdrop for click-outside */}
       <div
-        className="fixed inset-0 z-[99] bg-transparent"
+        className="fixed inset-0 z-modal bg-transparent"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
@@ -55,7 +55,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="radius-modal-title"
-        className="fixed z-[100] bg-surface-strong border border-border shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-text"
+        className="fixed z-modal bg-surface2 border border-border shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-text"
         style={{ left: position.x, top: position.y }}
       >
         <div className="flex items-center justify-between border-b border-border pb-1 mb-1">

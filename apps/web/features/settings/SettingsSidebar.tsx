@@ -21,7 +21,7 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   onSectionChange,
 }) => {
   return (
-    <div className="w-48 border-r border-border bg-background p-2 flex flex-col gap-1">
+    <div className="w-48 border-r border-border bg-bg p-2 flex flex-col gap-1">
       {sections.map((section) => {
         const Icon = section.icon;
         const isActive = activeSection === section.id;

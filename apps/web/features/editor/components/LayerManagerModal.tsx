@@ -259,7 +259,7 @@ const LayerManagerModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm"
+      className="fixed inset-0 bg-black/50 z-modal flex items-center justify-center backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="layer-manager-title"
@@ -275,7 +275,7 @@ const LayerManagerModal: React.FC = () => {
     >
       <div
         ref={dialogRef}
-        className="bg-surface-strong border border-border rounded-lg shadow-2xl w-[520px] h-[450px] flex flex-col text-text relative"
+        className="bg-surface2 border border-border rounded-lg shadow-2xl w-[520px] h-[450px] flex flex-col text-text relative"
         tabIndex={-1}
         onKeyDown={trapFocus}
       >

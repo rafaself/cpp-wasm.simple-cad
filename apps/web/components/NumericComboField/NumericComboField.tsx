@@ -264,7 +264,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative flex items-center bg-surface-strong/60 border ${
+      className={`relative flex items-center bg-surface2/60 border ${
         isFocused ? 'border-primary/50' : 'border-border/50'
       } rounded overflow-hidden transition-colors duration-200 group ${
         disabled ? 'opacity-50 cursor-not-allowed' : ''
@@ -304,7 +304,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
 
       {/* Spinner buttons */}
       {allowArrowStep && (
-        <div className="flex flex-col h-full border-l border-border/50 w-4 bg-surface-strong/80 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex flex-col h-full border-l border-border/50 w-4 bg-surface2/80 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={(e) => handleSpinnerClick('up', e)}
@@ -339,7 +339,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
           onMouseDown={(e) => e.preventDefault()}
           tabIndex={-1}
           disabled={disabled}
-          className="flex items-center justify-center h-full w-5 border-l border-border/50 bg-surface-strong/80 hover:bg-surface2 transition-colors focus:outline-none"
+          className="flex items-center justify-center h-full w-5 border-l border-border/50 bg-surface2/80 hover:bg-surface2 transition-colors focus:outline-none"
           aria-label="Open presets"
           aria-haspopup="listbox"
         >
@@ -362,7 +362,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
             id={listboxId}
             role="listbox"
             aria-label={ariaLabel ? `${ariaLabel} presets` : 'Presets'}
-            className={`fixed bg-surface-strong border border-border shadow-xl rounded-lg z-[9999] overflow-y-auto animate-in fade-in zoom-in-95 duration-100 ease-out py-1 custom-scrollbar ${dropdownMaxHeight === 'auto' ? '' : dropdownMaxHeight === undefined ? 'max-h-64' : ''}`}
+            className={`fixed bg-surface2 border border-border shadow-xl rounded-lg z-dropdown overflow-y-auto animate-in fade-in zoom-in-95 duration-100 ease-out py-1 custom-scrollbar ${dropdownMaxHeight === 'auto' ? '' : dropdownMaxHeight === undefined ? 'max-h-64' : ''}`}
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,

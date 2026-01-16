@@ -34,7 +34,7 @@ const DisciplineContextMenu: React.FC<DisciplineContextMenuProps> = ({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-surface-strong border border-border rounded-md shadow-lg py-1 w-48 text-xs text-text"
+      className="fixed z-50 bg-surface2 border border-border rounded-md shadow-lg py-1 w-48 text-xs text-text"
       style={{ top: position.y, left: position.x }}
     >
       <div className="px-3 py-2 border-b border-border font-bold text-text-muted bg-surface2">

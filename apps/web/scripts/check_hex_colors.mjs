@@ -6,7 +6,7 @@ const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname)
 const allowlistGlobs = [
   // Canonical token sources
   'design/**',
-  'shared/styles/tokens.css',
+  'theme/tokens.css',
   'public/**',
   'assets/**',
   'tailwind.config.cjs',

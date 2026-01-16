@@ -97,7 +97,7 @@ const SettingsModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center"
+      className="fixed inset-0 bg-black/50 z-modal flex items-center justify-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-modal-title"
@@ -113,7 +113,7 @@ const SettingsModal: React.FC = () => {
     >
       <div
         ref={dialogRef}
-        className="bg-surface-strong border border-border rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-text"
+        className="bg-surface2 border border-border rounded-lg shadow-xl w-[700px] h-[500px] flex flex-col text-text"
         tabIndex={-1}
         onKeyDown={trapFocus}
       >

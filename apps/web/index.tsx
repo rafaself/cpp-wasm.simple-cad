@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import './design/index.css';
-import './theme/theme.css';
+import './theme/tokens.css';
 import { ThemeProvider } from './design/ThemeContext';
 import { applyTheme, getInitialTheme } from './theme/applyTheme';
 

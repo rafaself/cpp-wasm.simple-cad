@@ -213,9 +213,9 @@ CAD requires two distinct z-index domains.
 
 #### B) Portal Domain (global)
 
-* `--z-dropdown`: 1000
-* `--z-tooltip`: 1100
 * `--z-modal`: 2000
+* `--z-dropdown`: 2100
+* `--z-tooltip`: 2200
 * `--z-toast`: 3000
 
 Rules:

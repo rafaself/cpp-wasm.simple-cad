@@ -95,7 +95,7 @@ const EditorRibbon: React.FC = () => {
               className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
                   ? 'bg-header-tab-active text-text font-medium'
-                  : 'text-text-muted hover:text-text hover:bg-surface-muted'
+                  : 'text-text-muted hover:text-text hover:bg-surface2'
               }`}
               title={`${tab.label} (${index + 1})`}
             >
@@ -153,7 +153,7 @@ const EditorRibbon: React.FC = () => {
               {isOverflowOpen && (
                 <div
                   role="menu"
-                  className="absolute top-full right-0 mt-1 w-56 bg-surface-strong border border-border rounded shadow-lg py-1 z-10"
+                  className="absolute top-full right-0 mt-1 w-56 bg-surface2 border border-border rounded shadow-lg py-1 z-10"
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
                       e.preventDefault();
@@ -182,7 +182,7 @@ const EditorRibbon: React.FC = () => {
                         role="menuitem"
                         key={item.id}
                         onClick={handleClick}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted focus-outline ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface2 focus-outline ${
                           isStub ? 'opacity-70' : ''
                         }`}
                         title={title}

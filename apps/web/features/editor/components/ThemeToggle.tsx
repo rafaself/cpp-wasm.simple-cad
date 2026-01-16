@@ -14,7 +14,7 @@ const ThemeToggle: React.FC = () => {
   return (
     <button
       onClick={toggleTheme}
-      className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline text-muted"
+      className="p-1 hover:bg-surface2 rounded hover:text-text transition-colors focus-outline text-text-muted"
       title={LABELS.common.toggleTheme}
     >
       <div className="relative w-[14px] h-[14px]">

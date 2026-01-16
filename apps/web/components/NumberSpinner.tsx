@@ -65,7 +65,7 @@ const NumberSpinner: React.FC<NumberSpinnerProps> = ({
 
   return (
     <div
-      className={`flex items-center bg-surface-strong/60 border ${isFocused ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border/50'} rounded ${className || 'w-[60px]'} relative overflow-hidden transition-all group`}
+      className={`flex items-center bg-surface2/60 border ${isFocused ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border/50'} rounded ${className || 'w-[60px]'} relative overflow-hidden transition-all group`}
     >
       <input
         type="text"
@@ -100,7 +100,7 @@ const NumberSpinner: React.FC<NumberSpinnerProps> = ({
         </span>
       )}
 
-      <div className="flex flex-col h-full border-l border-border/50 w-4 bg-surface-strong/80 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex flex-col h-full border-l border-border/50 w-4 bg-surface2/80 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={increment}
           className="flex-1 flex items-center justify-center hover:bg-surface2 active:bg-primary/50 text-text-muted hover:text-text transition-colors border-b border-border/50"

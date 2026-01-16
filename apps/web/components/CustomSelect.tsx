@@ -83,7 +83,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed bg-surface-strong border border-border shadow-xl rounded-lg z-[9999] max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 ease-out py-1 custom-scrollbar"
+            className="fixed bg-surface2 border border-border shadow-xl rounded-lg z-dropdown max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 ease-out py-1 custom-scrollbar"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
