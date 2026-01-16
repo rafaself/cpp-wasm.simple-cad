@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 
 import { parseCommand } from './commandParser';
-import { commandRegistry, type CommandContext, type CommandResult } from './commandRegistry';
+import { commandRegistry, type CommandContext } from './commandRegistry';
 import { ensureCommandsRegistered } from './definitions';
 import { useEditorCommands, type ActionId } from './useEditorCommands';
 

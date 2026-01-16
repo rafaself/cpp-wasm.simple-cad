@@ -7,7 +7,7 @@ import type { EntityId, EntityAabb } from '../protocol';
 
 export class PickSystem {
   constructor(
-    private readonly module: WasmModule,
+    private readonly _module: WasmModule,
     private readonly engine: CadEngineInstance,
   ) {}
 

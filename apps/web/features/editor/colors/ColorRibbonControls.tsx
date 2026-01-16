@@ -124,7 +124,7 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
     disabled={disabled}
   >
     {state === StyleState.Mixed && (
-      <span className="absolute inset-0 flex items-center justify-center bg-surface2/50 text-[10px] font-medium text-text-muted">
+      <span className="absolute inset-0 flex items-center justify-center bg-surface-2/50 text-[10px] font-medium text-text-muted">
         ?
       </span>
     )}

@@ -19,7 +19,7 @@ import { useEntityTransform } from '@/engine/core/useEntityTransform';
 import { useSetEntityTransform } from '@/engine/core/useEntityTransform';
 import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
-import { EngineEntityFlags } from '@/engine/core/protocol';
+import { EngineEntityFlags } from '@/engine/core/EngineRuntime';
 
 import { TransformField } from './TransformField';
 

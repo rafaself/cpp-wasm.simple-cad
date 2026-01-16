@@ -1,4 +1,4 @@
-import { COMMAND_BUFFER_MAGIC, CommandOp } from '../commandBuffer';
+import { COMMAND_BUFFER_MAGIC, CommandOp } from '../commandTypes';
 
 import type { CadEngineInstance, DraftDimensions, WasmModule } from '../wasm-types';
 

@@ -223,7 +223,6 @@ export const tessellateSpline = (
     // Sum basis functions
     // Optimization: Only iterate relevant i where N > 0 (i around t)
     // For simplicity, iterating all (or optimise range [floor(t)-p, floor(t)])
-    const spanIndex = _knots.findIndex((k) => k > t) - 1;
 
     for (let j = 0; j <= n; j++) {
       // Using full loop for correctness first

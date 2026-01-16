@@ -166,11 +166,11 @@ export const InlinePolygonInput: React.FC<InlinePolygonInputProps> = ({
     <div
       ref={containerRef}
       className={`
-        fixed z-[10000] 
+        fixed z-toast 
         transition-all duration-100 ease-out
         ${isExiting ? 'opacity-0 scale-90' : 'opacity-100 scale-100'}
         flex flex-col gap-1.5 p-3 rounded-lg
-        bg-surface-strong border shadow-2xl
+        bg-surface-2 border shadow-2xl
         cursor-default select-none
         ${isValid ? 'border-border/50' : 'border-red-500/80 ring-1 ring-red-500/20'}
       `}

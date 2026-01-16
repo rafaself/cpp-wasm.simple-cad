@@ -17,17 +17,17 @@ export const TEXT_STYLES = {
 export const INPUT_STYLES = {
   /** Ribbon input: usage fixed height h-7 usually handled by parent or specific class */
   ribbon:
-    'w-full h-7 bg-surface2 border border-border rounded flex items-center px-2 text-xs text-text focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all placeholder:text-text-muted/50',
+    'w-full h-7 bg-surface-2 border border-border rounded flex items-center px-2 text-xs text-text focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all placeholder:text-text-muted/50',
   /** Light-themed input replacement (now generic surface1) */
   sidebar:
-    'w-full h-7 px-2 text-[11px] bg-surface1 border border-border rounded text-text focus:outline-none focus:border-primary transition-all placeholder:text-text-muted/50',
+    'w-full h-7 px-2 text-[11px] bg-surface-1 border border-border rounded text-text focus:outline-none focus:border-primary transition-all placeholder:text-text-muted/50',
   /** Disabled state */
-  disabled: 'bg-surface2/50 text-text-muted cursor-not-allowed border-transparent',
+  disabled: 'bg-surface-2/50 text-text-muted cursor-not-allowed border-transparent',
 } as const;
 
 // Base button shared classes
 const BUTTON_BASE =
-  'rounded transition-colors text-text-muted hover:text-text hover:bg-surface2 border border-transparent active:bg-surface2/80 focus:outline-none';
+  'rounded transition-colors text-text-muted hover:text-text hover:bg-surface-2 border border-transparent active:bg-surface-2/80 focus:outline-none';
 
 export const BUTTON_STYLES = {
   /** Base button style */

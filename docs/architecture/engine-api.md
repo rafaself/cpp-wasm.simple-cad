@@ -264,8 +264,17 @@ runtime.getEngineStats(): EngineStats
 ## 11. Snapping
 
 ```typescript
-// Configure
-runtime.setSnapOptions(enabled, gridEnabled, gridSize): void
+// Configure snap options
+runtime.setSnapOptions(
+  enabled: boolean,
+  gridEnabled: boolean,
+  gridSize: number,
+  tolerancePx: number,
+  endpointEnabled: boolean,
+  midpointEnabled: boolean,
+  centerEnabled: boolean,
+  nearestEnabled: boolean
+): void
 
 // Query snapped point
 runtime.getSnappedPoint(x, y): { x: number, y: number }

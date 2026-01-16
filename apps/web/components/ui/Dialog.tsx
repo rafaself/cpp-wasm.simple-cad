@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Button, ButtonVariant } from './Button';
 
 export interface DialogProps {
   /** Max width of the dialog (e.g., '500px', '80%') */
@@ -65,7 +66,6 @@ const Dialog: React.FC<DialogProps> = ({
     [isControlled, onUpdate],
   );
 
-  const open = useCallback(() => setIsOpen(true), [setIsOpen]);
   const close = useCallback(() => setIsOpen(false), [setIsOpen]);
   const toggle = useCallback(() => setIsOpen(!isOpen), [setIsOpen, isOpen]);
 
@@ -207,7 +207,7 @@ const Dialog: React.FC<DialogProps> = ({
         tabIndex={-1}
         aria-label={ariaLabel}
         className={`
-          relative bg-surface1 border border-border rounded-lg shadow-card
+          relative bg-surface-1 border border-border rounded-lg shadow-card
           transform transition-all duration-200 ease-out
           animate-in fade-in zoom-in-95
           overflow-hidden flex flex-col
@@ -271,7 +271,7 @@ export const DialogCard: React.FC<DialogCardProps> = ({
       )}
       <div className={`px-6 py-4 text-text flex-grow min-h-0 ${contentClassName}`}>{children}</div>
       {actions && (
-        <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface2/50">
+        <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0 bg-surface-2/50">
           {actions}
         </div>
       )}
@@ -294,25 +294,24 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
   className = '',
   disabled = false,
 }) => {
-  const variantClasses = {
-    primary: 'bg-primary hover:bg-primary-hover text-primary-contrast shadow-sm',
-    secondary: 'bg-secondary hover:bg-secondary-hover text-text',
-    text: 'text-text-muted hover:text-text hover:bg-surface2/50',
+  const mapVariant = (v: 'primary' | 'secondary' | 'text'): ButtonVariant => {
+    switch (v) {
+      case 'primary': return 'primary';
+      case 'secondary': return 'secondary';
+      case 'text': return 'ghost';
+      default: return 'ghost';
+    }
   };
 
   return (
-    <button
+    <Button
+      variant={mapVariant(variant)}
       onClick={onClick}
       disabled={disabled}
-      className={`
-        px-4 py-2 rounded-md text-sm font-medium transition-all
-        ${variantClasses[variant]}
-        ${disabled ? 'opacity-40 cursor-not-allowed grayscale-[0.5]' : 'active:scale-[0.98]'}
-        ${className}
-      `}
+      className={className}
     >
       {children}
-    </button>
+    </Button>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-import { CommandOp } from '@/engine/core/commandBuffer';
+import { CommandOp } from '@/engine/core/EngineRuntime';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
 
+import CenterOriginIcon from './CenterOriginIcon';
 import RotationTooltip from './RotationTooltip';
 import ShapeOverlay from './ShapeOverlay';
 
@@ -27,6 +28,26 @@ const EngineInteractionLayer: React.FC = () => {
 
   // PanZoom Hook (Can coexist or be merged, currently keeping simple)
   const { isPanning, isPanningRef, beginPan, updatePan, endPan, handleWheel } = usePanZoom();
+
+  // Mouse Pos Throttling
+  const mousePosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const rafRef = React.useRef<number | null>(null);
+
+  const flushMousePos = React.useCallback(() => {
+    if (mousePosRef.current) {
+      setMousePos(mousePosRef.current);
+      mousePosRef.current = null;
+    }
+    rafRef.current = null;
+  }, [setMousePos]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
 
   // Cursor Logic
   const DEFAULT_CANVAS_CURSOR = 'url(/assets/cursor-canva-default.svg) 3 3, auto';
@@ -126,14 +147,17 @@ const EngineInteractionLayer: React.FC = () => {
       handler: activeHandlerName,
       isPanning: isPanningRef.current,
     }));
-    // Update Global Mouse Pos
+    // Update Global Mouse Pos (Throttled)
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const world = screenToWorld(
       { x: e.clientX - rect.left, y: e.clientY - rect.top },
       viewTransform,
     );
-    setMousePos(world);
-    setIsMouseOverCanvas(true);
+    
+    mousePosRef.current = world;
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(flushMousePos);
+    }
 
     if (isPanningRef.current) {
       updatePan(e);
@@ -171,7 +195,7 @@ const EngineInteractionLayer: React.FC = () => {
 
   return (
     <div
-      style={{ position: 'absolute', inset: 0, zIndex: 20, touchAction: 'none', cursor }}
+      style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-canvas-hud)', touchAction: 'none', cursor }}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -203,19 +227,7 @@ const EngineInteractionLayer: React.FC = () => {
             color: centerIconSettings.color,
           }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
-            <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-          </svg>
+          <CenterOriginIcon />
         </div>
       )}
 

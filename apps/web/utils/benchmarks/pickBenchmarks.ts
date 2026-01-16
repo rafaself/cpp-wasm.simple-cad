@@ -20,11 +20,9 @@
 
 /* eslint-disable no-console */
 
-import { getPickProfiler } from '@/utils/pickProfiler';
-import { getPickCache, resetPickCache } from '@/utils/pickResultCache';
+import { resetPickCache } from '@/utils/pickResultCache';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
-import type { PickResult } from '@/types/picking';
 
 export interface BenchmarkResult {
   scenario: string;

@@ -74,7 +74,7 @@ export const sanitizeMTextContent = (text: string): string => {
   return parseMTextContent(text).text;
 };
 
-export const getDxfTextAlignment = (halign: number, valign: number) => {
+export const getDxfTextAlignment = (halign: number, _valign: number) => {
   // DXF 72 (Horizontal): 0=Left, 1=Center, 2=Right, 3=Aligned, 4=Middle, 5=Fit
   // DXF 73 (Vertical): 0=Baseline, 1=Bottom, 2=Middle, 3=Top
 

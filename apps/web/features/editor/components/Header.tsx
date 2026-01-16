@@ -2,8 +2,6 @@ import {
   FilePlus,
   FolderOpen,
   Save,
-  Undo2,
-  Redo2,
   Settings,
   Maximize,
   Minimize,
@@ -48,7 +46,7 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <div className="relative h-[26px] py-[2px] bg-surface-strong flex items-center justify-between px-2 select-none border-b border-border text-foreground">
+    <div className="relative h-[26px] py-[2px] bg-surface-2 flex items-center justify-between px-2 select-none border-b border-border text-text">
       <div className="flex items-center gap-1.5">
         <div className="flex items-center justify-center">
           <svg
@@ -74,23 +72,23 @@ const Header: React.FC = () => {
         </div>
         <div className="font-semibold text-xs tracking-wide mr-1">Blazar</div>
         <div className="h-4 w-px bg-border mx-0.5"></div>
-        <div className="flex items-center gap-0.5 text-muted">
+        <div className="flex items-center gap-0.5 text-text-muted">
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
+            className="p-1 hover:bg-surface-2 rounded hover:text-text transition-colors focus-outline"
             title={`${LABELS.menu.newFile} (Ctrl+N)`}
             onClick={() => executeAction('new-file', 'stub')}
           >
             <FilePlus size={14} />
           </button>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
+            className="p-1 hover:bg-surface-2 rounded hover:text-text transition-colors focus-outline"
             title={`${LABELS.menu.openFile} (Ctrl+O)`}
             onClick={() => executeAction('open-file')}
           >
             <FolderOpen size={14} />
           </button>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
+            className="p-1 hover:bg-surface-2 rounded hover:text-text transition-colors focus-outline"
             title={`${LABELS.menu.saveFile} (Ctrl+S)`}
             onClick={() => executeAction('save-file')}
           >
@@ -99,7 +97,7 @@ const Header: React.FC = () => {
 
           <div className="h-4 w-px bg-border mx-0.5"></div>
           <button
-            className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
+            className="p-1 hover:bg-surface-2 rounded hover:text-text transition-colors focus-outline"
             title={LABELS.menu.settings}
             onClick={() => executeAction('open-settings')}
           >
@@ -109,18 +107,18 @@ const Header: React.FC = () => {
       </div>
 
       {/* Project Title */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-semibold text-sm text-foreground/80 pointer-events-none text-center">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-semibold text-sm text-text/80 pointer-events-none text-center">
         {projectTitle}
       </div>
 
-      <div className="flex items-center text-muted gap-1">
+      <div className="flex items-center text-text-muted gap-1">
         <ThemeToggle />
         <Dialog
           maxWidth="400px"
           closeOnResize
           activator={({ onClick }) => (
             <button
-              className="p-1 hover:bg-surface-muted rounded hover:text-foreground transition-colors focus-outline"
+              className="p-1 hover:bg-surface-2 rounded hover:text-text transition-colors focus-outline"
               title={
                 isFullScreen
                   ? `${LABELS.common.fullScreenExit} (${fullscreenShortcut})`
@@ -142,15 +140,15 @@ const Header: React.FC = () => {
               }
             >
               <div className="flex flex-col items-center gap-4 py-2">
-                <p className="text-center text-foreground">
+                <p className="text-center text-text">
                   {isFullScreen
                     ? LABELS.common.fullScreenMessageExit
                     : LABELS.common.fullScreenMessageEnter}
                 </p>
-                <kbd className="bg-surface-strong px-4 py-2 rounded-lg text-lg font-mono font-bold border border-border text-foreground shadow-card">
+                <kbd className="bg-surface-2 px-4 py-2 rounded-lg text-lg font-mono font-bold border border-border text-text shadow-card">
                   {fullscreenShortcut}
                 </kbd>
-                <p className="text-center text-muted text-sm">
+                <p className="text-center text-text-muted text-sm">
                   {LABELS.common.fullScreenInstruction.replace(
                     '{shortcut}',
                     fullscreenShortcutReadable,

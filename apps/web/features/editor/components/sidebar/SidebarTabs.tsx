@@ -107,11 +107,11 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
   };
 
   return (
-    <div className="relative flex bg-surface1 select-none group" style={{ height: '56px' }}>
+    <div className="relative flex bg-surface-1 select-none group" style={{ height: '56px' }}>
       {/* Left Overflow Button */}
       {showIndicators && showLeftArrow && (
         <button
-          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface-1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             scrollByAmount(-100);
@@ -150,7 +150,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
                 ${
                   isActive
                     ? 'bg-primary/20 text-text active-tab-shadow'
-                    : 'text-text-muted hover:bg-surface2 hover:text-text'
+                    : 'text-text-muted hover:bg-surface-2 hover:text-text'
                 }
               `}
               title={tab.label}
@@ -170,7 +170,7 @@ const SidebarTabs: React.FC<SidebarTabsProps> = ({ tabs, activeTabId, onTabChang
       {/* Right Overflow Button */}
       {showIndicators && showRightArrow && (
         <button
-          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-surface-1/90 shadow-md border border-border/90 text-text-muted hover:text-text flex items-center justify-center transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             scrollByAmount(100);

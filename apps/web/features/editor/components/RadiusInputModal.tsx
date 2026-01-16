@@ -47,7 +47,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
     <>
       {/* Backdrop for click-outside */}
       <div
-        className="fixed inset-0 z-[99] bg-transparent"
+        className="fixed inset-0 z-modal bg-transparent"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
@@ -55,7 +55,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="radius-modal-title"
-        className="fixed z-[100] bg-surface-strong border border-border shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-text"
+        className="fixed z-modal bg-surface-2 border border-border shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-text"
         style={{ left: position.x, top: position.y }}
       >
         <div className="flex items-center justify-between border-b border-border pb-1 mb-1">
@@ -74,7 +74,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            className={`flex-grow bg-surface2 border rounded px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-primary ${isValid ? 'border-border' : 'border-red-500 text-red-400'}`}
+            className={`flex-grow bg-surface-2 border rounded px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-primary ${isValid ? 'border-border' : 'border-red-500 text-red-400'}`}
             aria-invalid={!isValid}
           />
           <span className="text-xs text-text-muted">px</span>
@@ -82,7 +82,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
         <div className="flex justify-end gap-2 mt-1">
           <button
             onClick={onCancel}
-            className="px-2 py-1 text-xs text-text-muted hover:bg-surface2 rounded transition-colors"
+            className="px-2 py-1 text-xs text-text-muted hover:bg-surface-2 rounded transition-colors"
             aria-label="Cancelar"
           >
             Cancelar
@@ -90,7 +90,7 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
           <button
             onClick={handleConfirm}
             disabled={!isValid}
-            className={`px-2 py-1 text-xs text-white rounded transition-colors ${isValid ? 'bg-primary hover:bg-primary/90' : 'bg-surface2 opacity-50 cursor-not-allowed'}`}
+            className={`px-2 py-1 text-xs text-white rounded transition-colors ${isValid ? 'bg-primary hover:bg-primary/90' : 'bg-surface-2 opacity-50 cursor-not-allowed'}`}
             aria-label="Confirmar"
           >
             OK

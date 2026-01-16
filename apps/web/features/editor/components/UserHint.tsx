@@ -19,7 +19,7 @@ const UserHint: React.FC<UserHintProps> = ({
   if (!visible) return null;
 
   return (
-    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[60]">
+    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-canvas-hud">
       <div
         className={`
         flex items-center gap-2 px-4 py-2 rounded-full shadow-lg backdrop-blur-md border pointer-events-auto menu-transition

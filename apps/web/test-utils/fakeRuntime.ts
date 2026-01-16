@@ -1,10 +1,8 @@
-import { CommandOp } from '@/engine/core/commandBuffer';
+import { CommandOp, type EngineCommand } from '@/engine/core/commandTypes';
 import { TransformMode, type TransformState } from '@/engine/core/interactionSession';
 import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 
 import { FakeEventBus } from './fakeEventBus';
-
-import type { EngineCommand } from '@/engine/core/commandBuffer';
 import type { PickResult } from '@/types/picking';
 
 type VectorLike = { size(): number; get(index: number): number; delete(): void };
@@ -287,10 +285,14 @@ export class FakeRuntime {
   getOrientedHandleMeta(): {
     generation: number;
     entityId: number;
-    blX: number; blY: number;
-    brX: number; brY: number;
-    trX: number; trY: number;
-    tlX: number; tlY: number;
+    blX: number;
+    blY: number;
+    brX: number;
+    brY: number;
+    trX: number;
+    trY: number;
+    tlX: number;
+    tlY: number;
     rotateHandleX: number;
     rotateHandleY: number;
     centerX: number;
@@ -304,10 +306,14 @@ export class FakeRuntime {
     return {
       generation: this.generation,
       entityId: 0,
-      blX: 0, blY: 0,
-      brX: 100, brY: 0,
-      trX: 100, trY: 100,
-      tlX: 0, tlY: 100,
+      blX: 0,
+      blY: 0,
+      brX: 100,
+      brY: 0,
+      trX: 100,
+      trY: 100,
+      tlX: 0,
+      tlY: 100,
       rotateHandleX: 50,
       rotateHandleY: 125,
       centerX: 50,
@@ -327,4 +333,5 @@ export class FakeRuntime {
       pivotX: 0,
       pivotY: 0,
     };
-  }}
+  }
+}

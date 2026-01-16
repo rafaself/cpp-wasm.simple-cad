@@ -3,7 +3,7 @@ import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { encodeCommandBuffer } from '../commandBuffer';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
-import type { EngineCommand } from '../commandBuffer';
+import type { EngineCommand } from '../commandTypes';
 
 export class CommandSystem {
   private static readonly INITIAL_BUFFER_SIZE = 64 * 1024; // 64KB

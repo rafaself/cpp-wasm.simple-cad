@@ -36,7 +36,7 @@ export const ShortcutsSettings: React.FC = () => {
             {bindings.map((binding) => (
               <div
                 key={binding.id}
-                className="flex items-center justify-between p-2 rounded bg-surface2/50 hover:bg-surface2 transition-colors"
+                className="flex items-center justify-between p-2 rounded bg-surface-2/50 hover:bg-surface-2 transition-colors"
               >
                 <div className="flex flex-col">
                   <span className="font-medium text-text">{binding.label}</span>
@@ -46,7 +46,7 @@ export const ShortcutsSettings: React.FC = () => {
                   {binding.keys.map((key, i) => (
                     <kbd
                       key={i}
-                      className="px-2 py-1 bg-surface2 rounded text-xs font-mono text-text border border-border shadow-sm min-w-[24px] text-center"
+                      className="px-2 py-1 bg-surface-2 rounded text-xs font-mono text-text border border-border shadow-sm min-w-[24px] text-center"
                     >
                       {key
                         .toUpperCase()

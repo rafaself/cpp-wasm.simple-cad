@@ -25,7 +25,7 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
     <div
       className={`
         flex 
-        bg-surface2 
+        bg-surface-2 
         rounded 
         border 
         border-border/50 

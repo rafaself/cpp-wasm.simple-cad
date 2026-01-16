@@ -1,4 +1,3 @@
-import { Folder } from 'lucide-react';
 import React from 'react';
 
 import { LABELS } from '@/i18n/labels';
@@ -21,7 +20,7 @@ const ProjectSettings: React.FC = () => {
             type="text"
             value={projectTitle}
             onChange={(e) => setProjectTitle(e.target.value)}
-            className="bg-surface2 border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full"
+            className="bg-surface-2 border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full"
             placeholder="Nome do projeto"
           />
         </div>

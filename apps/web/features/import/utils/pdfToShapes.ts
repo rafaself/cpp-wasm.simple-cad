@@ -2,7 +2,7 @@ import * as pdfjs from 'pdfjs-dist';
 
 import { createLogger } from '@/utils/logger';
 
-import { Shape, Point, NormalizedViewBox } from '../../../types';
+import { Shape, Point } from '../../../types';
 import { generateId } from '../../../utils/uuid';
 
 import { applyColorScheme, resolveColorScheme, type DxfColorScheme } from './dxf/colorScheme';
@@ -338,10 +338,6 @@ export const convertPdfPageToShapes = async (
           ...seg,
           points: seg.points.map((p) => applyMatrix(p, viewportMatrix)),
         }));
-
-        const isClosed =
-          finalSegments[finalSegments.length - 1].type === 'Z' ||
-          [OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].includes(fn);
 
         const isStroke = [
           OPS.stroke,

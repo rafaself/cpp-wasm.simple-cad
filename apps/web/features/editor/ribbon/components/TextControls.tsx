@@ -13,7 +13,7 @@ import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { mapFontIdToFamily } from '@/features/editor/text/textToolController';
 import { LABELS } from '@/i18n/labels';
 
-import CustomSelect from '../../../../components/CustomSelect';
+import { Select } from '@/components/ui/Select';
 import { NumericComboField } from '../../../../components/NumericComboField';
 import { INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
@@ -91,7 +91,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   };
   return (
     <RibbonControlWrapper>
-      <CustomSelect
+      <Select
         value={selectValue}
         onChange={handleChange}
         options={FONT_OPTIONS}

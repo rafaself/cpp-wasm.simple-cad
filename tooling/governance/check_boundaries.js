@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Boundary enforcement for Engine-First architecture.
- * - Blocks new runtime.engine usage outside frontend/engine/**
- * - Blocks new direct engine imports from frontend/features/**
+ * - Blocks new runtime.engine usage outside apps/web/engine/**
+ * - Blocks new direct engine imports from apps/web/features/**
  * Uses scripts/boundary_rules.json for allowlists and entrypoints.
  */
 
@@ -59,7 +59,7 @@ function walk(dir) {
 
 function normalizeImportPath(importPath, fromFile) {
   if (importPath.startsWith("@/")) {
-    return normalize(path.join("frontend", importPath.slice(2)));
+    return normalize(path.join("apps/web", importPath.slice(2)));
   }
   if (importPath.startsWith("./") || importPath.startsWith("../")) {
     const resolved = path.resolve(path.dirname(fromFile), importPath);
@@ -83,7 +83,7 @@ function checkRuntimeEngineUsage(tsFiles, runtimeAllowlist) {
 
   for (const file of tsFiles) {
     const rel = normalize(path.relative(projectRoot, file));
-    if (rel.startsWith("frontend/engine/")) continue;
+    if (rel.startsWith("apps/web/engine/")) continue;
 
     const content = fs.readFileSync(file, "utf8").split(/\r?\n/);
     content.forEach((line, idx) => {
@@ -120,7 +120,7 @@ function checkFeatureImports(tsFiles, config) {
 
   for (const file of tsFiles) {
     const rel = normalize(path.relative(projectRoot, file));
-    if (!rel.startsWith("frontend/features/")) continue;
+    if (!rel.startsWith("apps/web/features/")) continue;
 
     const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
     lines.forEach((line, idx) => {
@@ -132,7 +132,7 @@ function checkFeatureImports(tsFiles, config) {
       if (!match) return;
 
       const importPath = normalizeImportPath(match[1], file);
-      if (!importPath.startsWith("frontend/engine/")) return;
+      if (!importPath.startsWith("apps/web/engine/")) return;
 
       if (entrypoints.has(importPath)) return;
 
@@ -165,7 +165,7 @@ function main() {
 
   console.log("=== Boundary Check ===");
   if (runtimeResult.violations.length) {
-    console.log("Runtime engine access outside frontend/engine/ detected:");
+    console.log("Runtime engine access outside apps/web/engine/ detected:");
     runtimeResult.violations.forEach((v) => {
       console.log(`  ❌ ${v.file}:${v.line} -> ${v.snippet}`);
     });
@@ -173,7 +173,7 @@ function main() {
   }
 
   if (featureResult.violations.length) {
-    console.log("Direct engine imports from frontend/features/ detected:");
+    console.log("Direct engine imports from apps/web/features/ detected:");
     featureResult.violations.forEach((v) => {
       console.log(`  ❌ ${v.file}:${v.line} imports ${v.importPath}`);
     });

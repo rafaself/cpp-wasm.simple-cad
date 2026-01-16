@@ -3,7 +3,7 @@ import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 export class LayerSystem {
   constructor(
-    private readonly module: WasmModule,
+    private readonly _module: WasmModule,
     private readonly engine: CadEngineInstance,
   ) {}
 

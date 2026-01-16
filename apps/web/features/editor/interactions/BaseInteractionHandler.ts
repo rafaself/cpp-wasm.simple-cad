@@ -14,19 +14,19 @@ export abstract class BaseInteractionHandler implements InteractionHandler {
     // Optional implementation
   }
 
-  onPointerDown(ctx: InputEventContext): InteractionHandler | void {
+  onPointerDown(_ctx: InputEventContext): InteractionHandler | void {
     return undefined;
   }
 
-  onPointerMove(ctx: InputEventContext): void {
+  onPointerMove(_ctx: InputEventContext): void {
     // Optional implementation
   }
 
-  onPointerUp(ctx: InputEventContext): InteractionHandler | void {
+  onPointerUp(_ctx: InputEventContext): InteractionHandler | void {
     return undefined;
   }
 
-  onDoubleClick(ctx: InputEventContext): void {
+  onDoubleClick(_ctx: InputEventContext): void {
     // Optional implementation
   }
 

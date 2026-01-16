@@ -11,7 +11,7 @@ import { TextStyleFlags, TextAlign, TextBoxMode } from './types';
 
 import type { TextStateManager } from './TextStateManager';
 import type { TextBridge } from '@/engine/bridge/textBridge';
-import type { ApplyTextStylePayload } from '@/engine/core/commandBuffer';
+import type { ApplyTextStylePayload } from '@/engine/core/commandTypes';
 
 // import { getTextMeta } from '@/engine/core/textEngineSync'; // Removed
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { CommandOp } from '@/engine/core/commandBuffer';
+import { CommandOp } from '@/engine/core/commandTypes';
 import { SelectionMode } from '@/engine/core/protocol';
 import { InteractionHarness } from '@/test-utils/interactionHarness';
 

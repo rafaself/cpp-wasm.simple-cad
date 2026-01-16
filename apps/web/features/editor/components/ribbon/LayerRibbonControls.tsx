@@ -1,8 +1,8 @@
 import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import React, { useMemo, useEffect } from 'react';
 
-import CustomSelect from '@/components/CustomSelect';
-import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
+import { Select } from '@/components/ui/Select';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { INPUT_STYLES } from '@/src/styles/recipes';
@@ -61,7 +61,7 @@ export const LayerRibbonControls: React.FC = () => {
     <div className="ribbon-group-col px-1">
       {/* Row 1: Layer Select */}
       <div className="ribbon-row min-w-[140px]">
-        <CustomSelect
+        <Select
           value={String(activeLayerId)}
           onChange={handleLayerChange}
           options={layerOptions}

@@ -22,8 +22,12 @@
     "governance:boundaries": "node ../../tooling/governance/check_boundaries.js",
     "governance:manifest": "node ../../tooling/governance/check_engine_api_manifest.js",
     "governance:docs": "node ../../tooling/governance/check_docs_references.js",
-    "governance:hex": "node ./scripts/check_hex_colors.mjs",
-    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs && pnpm run governance:hex && pnpm run lint"
+    "governance:hex-ui": "node ../../tooling/governance/check_hex_ui.js",
+    "governance:arbitrary": "node ../../tooling/governance/check_arbitrary_values.js",
+    "governance:semantic": "node ../../tooling/governance/check_semantic_tokens.js",
+    "governance:legacy": "node ../../tooling/governance/check_legacy_tokens.js",
+    "governance:hotpath": "node ../../tooling/governance/check_hot_path.js",
+    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs && pnpm run governance:hex-ui && pnpm run governance:arbitrary && pnpm run governance:semantic && pnpm run governance:legacy && pnpm run governance:hotpath && pnpm run lint"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.6",

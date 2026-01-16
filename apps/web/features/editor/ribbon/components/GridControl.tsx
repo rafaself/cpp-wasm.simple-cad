@@ -17,7 +17,7 @@ const GridControl: React.FC<GridControlProps> = ({ openColorPicker }) => {
           className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
             settingsStore.grid.showDots
               ? 'bg-primary text-text border-primary shadow-md'
-              : 'bg-surface2 text-text-muted border-border hover:bg-surface1'
+              : 'bg-surface-2 text-text-muted border-border hover:bg-surface-1'
           }`}
         >
           Pontos
@@ -29,7 +29,7 @@ const GridControl: React.FC<GridControlProps> = ({ openColorPicker }) => {
           className={`h-6 px-2.5 rounded text-[10px] font-semibold transition-all border ${
             settingsStore.grid.showLines
               ? 'bg-primary text-text border-primary shadow-md'
-              : 'bg-surface2 text-text-muted border-border hover:bg-surface1'
+              : 'bg-surface-2 text-text-muted border-border hover:bg-surface-1'
           }`}
         >
           Linhas

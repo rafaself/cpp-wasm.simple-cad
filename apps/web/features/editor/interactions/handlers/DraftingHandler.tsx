@@ -1,8 +1,7 @@
 import React from 'react';
 
-import { CommandOp, type BeginDraftPayload } from '@/engine/core/commandBuffer';
-import { SelectionModifier } from '@/engine/core/protocol';
-import { EntityKind } from '@/engine/types';
+import { CommandOp, SelectionModifier, EntityKind } from '@/engine/core/EngineRuntime';
+import type { BeginDraftPayload } from '@/engine/core/commandTypes';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import * as DEFAULTS from '@/theme/defaults';

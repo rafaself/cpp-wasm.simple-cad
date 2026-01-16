@@ -19,7 +19,7 @@ import {
   Package,
   Scan,
 } from 'lucide-react';
-import { ComponentType, ReactNode } from 'react';
+import { ComponentType } from 'react';
 
 import { LABELS } from '@/i18n/labels';
 
