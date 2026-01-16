@@ -3,7 +3,7 @@ import React from 'react';
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import { TextInputProxy, TextInputProxyRef } from '@/components/TextInputProxy';
 import { CommandOp, SelectionMode, StyleTarget } from '@/engine/core/EngineRuntime';
-import type { EngineCommand } from '@/engine/core/commandBuffer';
+import type { EngineCommand } from '@/engine/core/commandTypes';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { TextTool, TextToolState } from '@/engine/tools/TextTool';
 import {

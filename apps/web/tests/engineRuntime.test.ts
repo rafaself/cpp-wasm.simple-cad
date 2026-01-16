@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { initCadEngineModule } from '@/engine/bridge/getCadEngineFactory';
-import { CommandOp, type EngineCommand } from '@/engine/core/commandBuffer';
+import { CommandOp, type EngineCommand } from '@/engine/core/commandTypes';
 import {
   EngineRuntime,
   type WasmModule,

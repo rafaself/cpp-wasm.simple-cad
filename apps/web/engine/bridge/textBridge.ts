@@ -15,7 +15,7 @@ import {
   type TextInsertPayload,
   type TextDeletePayload,
   type TextReplacePayload,
-} from '@/engine/core/commandBuffer';
+} from '@/engine/core/commandTypes';
 import {
   TextHitResult,
   TextCaretPosition,

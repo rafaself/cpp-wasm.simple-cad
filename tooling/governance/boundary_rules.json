@@ -10,10 +10,10 @@
     "apps/web/engine/core/engineDocumentSignals"
   ],
   "featureImportAllowlist": [
-    { "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Draft handler needs BeginDraftPayload type from commandBuffer." },
+    { "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "apps/web/engine/core/commandTypes", "reason": "Draft handler needs BeginDraftPayload type from commandTypes." },
     { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/tools/TextTool", "reason": "Text tool wiring still imports engine tool directly." },
-    { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/core/commandBuffer", "reason": "Text handler needs EngineCommand type from commandBuffer." },
-    { "path": "apps/web/features/editor/hooks/useEditorLogic.ts", "import": "apps/web/engine/core/commandBuffer", "reason": "Editor logic needs EngineCommand type from commandBuffer." },
+    { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/core/commandTypes", "reason": "Text handler needs EngineCommand type from commandTypes." },
+    { "path": "apps/web/features/editor/hooks/useEditorLogic.ts", "import": "apps/web/engine/core/commandTypes", "reason": "Editor logic needs EngineCommand type from commandTypes." },
     { "path": "apps/web/features/editor/components/NextSurface.tsx", "import": "apps/web/engine/renderer/TessellatedWasmLayer", "reason": "Renderer is consumed directly until a facade exists." },
     { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Overlay inspects capabilities." },
     { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/overlayDecoder", "reason": "Overlay uses overlay decoder." },

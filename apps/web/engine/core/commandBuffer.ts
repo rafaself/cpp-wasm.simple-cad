@@ -5,37 +5,6 @@
  * Serializes EngineCommand objects into a compact binary protocol buffer.
  */
 
-// Re-export all types for backward compatibility
-export {
-  COMMAND_BUFFER_MAGIC,
-  CommandOp,
-  type RectPayload,
-  type LinePayload,
-  type PolylinePayload,
-  type SetViewScalePayload,
-  type SetDrawOrderPayload,
-  type CirclePayload,
-  type PolygonPayload,
-  type ArrowPayload,
-  type LayerStylePayload,
-  type LayerStyleEnabledPayload,
-  type EntityStylePayload,
-  type EntityStyleClearPayload,
-  type EntityStyleEnabledPayload,
-  type TextRunPayload,
-  type TextPayload,
-  type TextCaretPayload,
-  type TextSelectionPayload,
-  type TextInsertPayload,
-  type TextDeletePayload,
-  type TextReplacePayload,
-  type TextAlignmentPayload,
-  type BeginDraftPayload,
-  type UpdateDraftPayload,
-  type ApplyTextStylePayload,
-  type EngineCommand,
-} from './commandTypes';
-
 import { COMMAND_BUFFER_MAGIC, CommandOp, type EngineCommand } from './commandTypes';
 
 // UTF-8 encoder for text content

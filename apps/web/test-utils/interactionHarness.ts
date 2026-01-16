@@ -6,7 +6,7 @@ import { screenToWorld } from '@/utils/viewportMath';
 import { FakeRuntime } from './fakeRuntime';
 
 import type { FakeTextTool } from './fakeTextTool';
-import type { EngineCommand } from '@/engine/core/commandBuffer';
+import type { EngineCommand } from '@/engine/core/commandTypes';
 import type { TextTool } from '@/engine/tools/TextTool';
 import type { InteractionHandler } from '@/features/editor/interactions/types';
 import type { ToolType, ViewTransform } from '@/types';

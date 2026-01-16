@@ -1,5 +1,5 @@
 import { CommandOp } from '@/engine/core/EngineRuntime';
-import type { EngineCommand } from '@/engine/core/commandBuffer';
+import type { EngineCommand } from '@/engine/core/commandTypes';
 import { getEngineRuntime } from '@/engine/core/singleton';
 
 import { useUIStore } from '../../../stores/useUIStore';
