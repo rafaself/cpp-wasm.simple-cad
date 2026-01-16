@@ -27,7 +27,7 @@ export const settingsCommands: CommandDefinition[] = [
     execute: (args, ctx) => {
       if (args.length === 0) {
         // Toggle - get current state and flip it
-        const currentState = useSettingsStore.getState().snapSettings.enabled;
+        const currentState = useSettingsStore.getState().snap.enabled;
         const newState = !currentState;
         ctx.setSnapEnabled(newState);
         ctx.showToast(`Snap ${newState ? 'ativado' : 'desativado'}`, 'info');

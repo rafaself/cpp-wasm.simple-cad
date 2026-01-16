@@ -128,7 +128,6 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
     setDraftValue,
     isFocused,
     isDropdownOpen,
-    openDropdown,
     closeDropdown,
     toggleDropdown,
     highlightedIndex,
@@ -136,7 +135,6 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
     handleFocus,
     handleBlur,
     handleKeyDown,
-    handleWheel,
     selectPreset,
     increment,
     decrement,
@@ -262,7 +260,6 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
 
   // Determine if current value matches a preset
   const numericValue = typeof value === 'number' ? value : null;
-  const currentInPresets = numericValue !== null && presets.includes(numericValue);
 
   return (
     <div

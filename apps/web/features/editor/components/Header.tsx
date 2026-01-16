@@ -2,8 +2,6 @@ import {
   FilePlus,
   FolderOpen,
   Save,
-  Undo2,
-  Redo2,
   Settings,
   Maximize,
   Minimize,

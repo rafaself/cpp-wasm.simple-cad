@@ -17,9 +17,8 @@ const TOOLS = [
 
 const QuickAccessToolbar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
-  const history = useUIStore((s) => s.history);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
-  const { executeAction, selectTool } = useEditorCommands();
+  const { selectTool } = useEditorCommands();
 
   const containerClasses =
     orientation === 'vertical'

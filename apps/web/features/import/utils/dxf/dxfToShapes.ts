@@ -213,8 +213,6 @@ export const convertDxfToShapes = (data: DxfData, options: DxfImportOptions): Dx
       strokeDash = dashResult;
     }
 
-    const trans = (p: DxfVector): Point => applyToPoint(matrix, p);
-
     const colorModeOverride = buildCustomColorMode();
     const shapeProps = {
       strokeColor: color,

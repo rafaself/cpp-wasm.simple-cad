@@ -28,7 +28,7 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
           ${!group.layout || group.layout === 'flex-row' ? 'flex items-stretch gap-1' : ''}
         `}
       >
-        {group.items.map((item, index) => {
+        {group.items.map((item, _index) => {
           if (item.kind === 'custom' && item.componentType) {
             const Component = item.componentType;
             return (

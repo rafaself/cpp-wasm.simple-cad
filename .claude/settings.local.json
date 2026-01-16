@@ -44,7 +44,8 @@
       "Bash(pnpm lint:*)",
       "Bash(cd /home/rafa/dev/eletrocad-webapp/apps/web && pnpm format:check:*)",
       "Bash(bash:*)",
-      "Bash(pnpm depcheck:*)"
+      "Bash(pnpm depcheck:*)",
+      "Bash(pnpm prettier:*)"
     ]
   }
 }

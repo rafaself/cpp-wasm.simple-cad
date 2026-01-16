@@ -1,4 +1,3 @@
-import { Folder } from 'lucide-react';
 import React from 'react';
 
 import { LABELS } from '@/i18n/labels';

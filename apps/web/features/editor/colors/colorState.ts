@@ -1,4 +1,4 @@
-import { StyleState } from '@/engine/core/protocol';
+import { StyleState } from '@/engine/core/EngineRuntime';
 import { LABELS } from '@/i18n/labels';
 
 export type ColorStateIndicator = {

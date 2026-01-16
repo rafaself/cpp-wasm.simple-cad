@@ -49,12 +49,7 @@ import { TransformSystem } from './runtime/TransformSystem';
 
 import type { WasmModule, CadEngineInstance, TextEntityMeta } from './wasm-types';
 import type { PickResult } from '@/types/picking';
-import type {
-  TextHitResult,
-  TextCaretPosition,
-  TextQuadBufferMeta,
-  TextureBufferMeta,
-} from '@/types/text';
+import type { TextQuadBufferMeta } from '@/types/text';
 
 export class EngineRuntime {
   // Subsystems
@@ -591,3 +586,28 @@ export class EngineRuntime {
     }
   }
 }
+
+// Re-export commonly used protocol types and enums for facade pattern
+// This reduces boundary violations by providing a single entry point
+export {
+  SelectionMode,
+  MarqueeMode,
+  StyleTarget,
+  StyleState,
+  SelectionModifier,
+  OverlayKind,
+  EngineLayerFlags,
+  EngineEntityFlags,
+  LayerPropMask,
+} from '@/engine/core/protocol';
+export { CommandOp } from '@/engine/core/commandBuffer';
+export { TransformMode } from '@/engine/core/interactionSession';
+export { EntityKind } from '@/engine/types';
+
+// Re-export commonly used types
+export type {
+  EntityId,
+  EntityTransform,
+  DocumentDigest,
+  EngineEvent,
+} from '@/engine/core/protocol';

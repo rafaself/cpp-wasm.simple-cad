@@ -32,8 +32,6 @@ export function ThemeProvider({
   );
 
   useEffect(() => {
-    const root = window.document.documentElement;
-
     // Helper to apply using our infrastructure
     const apply = (t: ThemeName) => {
       applyTheme(t, false); // Persistence handled by context state setter

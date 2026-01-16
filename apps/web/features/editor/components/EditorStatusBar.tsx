@@ -1,5 +1,4 @@
 import {
-  Magnet,
   ZoomIn,
   ZoomOut,
   Target,
@@ -28,7 +27,6 @@ import { getRibbonTabs } from '../ui/ribbonConfig';
 
 const EditorStatusBar: React.FC = () => {
   const mousePos = useUIStore((s) => s.mousePos);
-  const isMouseOverCanvas = useUIStore((s) => s.isMouseOverCanvas);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const setViewTransform = useUIStore((s) => s.setViewTransform);
   const history = useUIStore((s) => s.history);

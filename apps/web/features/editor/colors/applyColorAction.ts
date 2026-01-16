@@ -1,5 +1,4 @@
-import { CommandOp } from '@/engine/core/commandBuffer';
-import { StyleTarget, type EntityId } from '@/engine/core/protocol';
+import { CommandOp, StyleTarget, type EntityId } from '@/engine/core/EngineRuntime';
 import { packColorRGBA } from '@/types/text';
 import { parseCssColorToHexAlpha } from '@/utils/cssColor';
 import { hexToRgb } from '@/utils/color';

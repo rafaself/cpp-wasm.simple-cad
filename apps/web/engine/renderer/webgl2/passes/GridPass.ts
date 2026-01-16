@@ -308,8 +308,6 @@ export class GridPass {
     showSubdivisions: boolean,
     subdivisionCount: number,
   ): { majorSize: number; minorSize: number; showMinor: boolean } {
-    const screenBaseSize = baseSize * scale;
-
     // Target: keep major grid between 20-150 screen pixels
     const minScreenSize = 20;
     const maxScreenSize = 150;

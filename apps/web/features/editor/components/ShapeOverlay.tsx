@@ -12,10 +12,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import { supportsEngineResize } from '@/engine/core/capabilities';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
-import { OverlayKind } from '@/engine/core/protocol';
+import { OverlayKind, EntityKind } from '@/engine/core/EngineRuntime';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/useEngineSelection';
-import { EntityKind } from '@/engine/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
@@ -103,44 +102,40 @@ const ShapeOverlay: React.FC = () => {
       ? worldToScreen(rotateHandleWorld, viewTransform)
       : null;
 
-    cadDebugLog(
-      'overlay',
-      `selection overlay renderPath=${renderPath} kind=${kindLabel}`,
-      () => ({
-        selectionCount,
-        selectionIds,
-        entityId,
-        kind: kindLabel,
-        renderPath,
-        applyRotation: false,
-        isVertexOnly,
-        orientedMeta: {
-          valid: orientedMeta.valid,
-          hasResizeHandles: orientedMeta.hasResizeHandles,
-          hasRotateHandle: orientedMeta.hasRotateHandle,
-          bl: { x: orientedMeta.blX, y: orientedMeta.blY },
-          br: { x: orientedMeta.brX, y: orientedMeta.brY },
-          tr: { x: orientedMeta.trX, y: orientedMeta.trY },
-          tl: { x: orientedMeta.tlX, y: orientedMeta.tlY },
-          rotateHandle: { x: orientedMeta.rotateHandleX, y: orientedMeta.rotateHandleY },
-          center: { x: orientedMeta.centerX, y: orientedMeta.centerY },
-          rotationRad: orientedMeta.rotationRad,
-        },
-        cornersWorld,
-        cornersScreen,
-        rotateHandleWorld,
-        rotateHandleScreen,
-        selectionHandleMeta: {
-          primitiveCount: handleMeta.primitiveCount,
-          floatCount: handleMeta.floatCount,
-          firstFloats: handleSample,
-        },
-        handleFiltering: {
-          resizeHandlesRendered: orientedMeta.valid && orientedMeta.hasResizeHandles && !isVertexOnly,
-          rotateHandleRendered: orientedMeta.valid && orientedMeta.hasRotateHandle && !isVertexOnly,
-        },
-      }),
-    );
+    cadDebugLog('overlay', `selection overlay renderPath=${renderPath} kind=${kindLabel}`, () => ({
+      selectionCount,
+      selectionIds,
+      entityId,
+      kind: kindLabel,
+      renderPath,
+      applyRotation: false,
+      isVertexOnly,
+      orientedMeta: {
+        valid: orientedMeta.valid,
+        hasResizeHandles: orientedMeta.hasResizeHandles,
+        hasRotateHandle: orientedMeta.hasRotateHandle,
+        bl: { x: orientedMeta.blX, y: orientedMeta.blY },
+        br: { x: orientedMeta.brX, y: orientedMeta.brY },
+        tr: { x: orientedMeta.trX, y: orientedMeta.trY },
+        tl: { x: orientedMeta.tlX, y: orientedMeta.tlY },
+        rotateHandle: { x: orientedMeta.rotateHandleX, y: orientedMeta.rotateHandleY },
+        center: { x: orientedMeta.centerX, y: orientedMeta.centerY },
+        rotationRad: orientedMeta.rotationRad,
+      },
+      cornersWorld,
+      cornersScreen,
+      rotateHandleWorld,
+      rotateHandleScreen,
+      selectionHandleMeta: {
+        primitiveCount: handleMeta.primitiveCount,
+        floatCount: handleMeta.floatCount,
+        firstFloats: handleSample,
+      },
+      handleFiltering: {
+        resizeHandlesRendered: orientedMeta.valid && orientedMeta.hasResizeHandles && !isVertexOnly,
+        rotateHandleRendered: orientedMeta.valid && orientedMeta.hasRotateHandle && !isVertexOnly,
+      },
+    }));
   }, [
     runtime,
     selectionCount,
@@ -455,7 +450,12 @@ const ShapeOverlay: React.FC = () => {
     }
 
     const debugElements: React.ReactNode[] = [];
-    if (isCadDebugEnabled('overlay') && selectionCount === 1 && selectionIds.length === 1 && runtime) {
+    if (
+      isCadDebugEnabled('overlay') &&
+      selectionCount === 1 &&
+      selectionIds.length === 1 &&
+      runtime
+    ) {
       const entityId = selectionIds[0];
       const handleMeta = runtime.getSelectionHandleMeta();
       const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
@@ -465,13 +465,7 @@ const ShapeOverlay: React.FC = () => {
 
       handlePts.forEach((p, i) => {
         debugElements.push(
-          <circle
-            key={`dbg-handle-${i}`}
-            cx={p.x}
-            cy={p.y}
-            r={2}
-            fill="#ff9f1c"
-          />,
+          <circle key={`dbg-handle-${i}`} cx={p.x} cy={p.y} r={2} fill="#ff9f1c" />,
         );
         debugElements.push(
           <circle
@@ -496,13 +490,7 @@ const ShapeOverlay: React.FC = () => {
         ];
         orientedCorners.forEach((p, i) => {
           debugElements.push(
-            <circle
-              key={`dbg-oriented-${i}`}
-              cx={p.x}
-              cy={p.y}
-              r={3}
-              fill="#6c5ce7"
-            />,
+            <circle key={`dbg-oriented-${i}`} cx={p.x} cy={p.y} r={3} fill="#6c5ce7" />,
           );
         });
 
@@ -512,13 +500,7 @@ const ShapeOverlay: React.FC = () => {
             viewTransform,
           );
           debugElements.push(
-            <circle
-              key="dbg-oriented-rotate"
-              cx={rotate.x}
-              cy={rotate.y}
-              r={3}
-              fill="#2ec4b6"
-            />,
+            <circle key="dbg-oriented-rotate" cx={rotate.x} cy={rotate.y} r={3} fill="#2ec4b6" />,
           );
         }
       }

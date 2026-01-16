@@ -516,7 +516,7 @@ export class TextInputCoordinator {
     this.callbacks.updateCaretPosition();
   }
 
-  private emitDiagnostic(reason: string, payload: Record<string, unknown>): void {
+  private emitDiagnostic(_reason: string, _payload: Record<string, unknown>): void {
     const now =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (now - this.lastDiagnosticTs < 200) return; // prevent log spam

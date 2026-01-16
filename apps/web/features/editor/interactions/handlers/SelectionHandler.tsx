@@ -1,12 +1,15 @@
-import { CommandOp } from '@/engine/core/commandBuffer';
-import { TransformMode } from '@/engine/core/interactionSession';
-import { MarqueeMode, SelectionMode, SelectionModifier } from '@/engine/core/protocol';
+import {
+  CommandOp,
+  TransformMode,
+  MarqueeMode,
+  SelectionMode,
+  SelectionModifier,
+} from '@/engine/core/EngineRuntime';
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
 import { RotationCursor } from '@/features/editor/components/RotationCursor';
 import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
 import { MoveCursor } from '@/features/editor/components/MoveCursor';
 import {
-  getRotationCursorAngle,
   getRotationCursorAngleForHandle,
   getResizeCursorAngleForHandle,
 } from '@/features/editor/config/cursor-config';
@@ -18,11 +21,14 @@ import { PickEntityKind, PickSubTarget } from '@/types/picking';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
-import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
-import { SideHandleType, SIDE_HANDLE_INDICES, SIDE_HANDLE_TO_ENGINE_INDEX } from '../../interactions/sideHandles';
+import {
+  SideHandleType,
+  SIDE_HANDLE_INDICES,
+  SIDE_HANDLE_TO_ENGINE_INDEX,
+} from '../../interactions/sideHandles';
 
 // Helper to identify line-like entities that should use Move mode for Edge interactions
 const isLineOrArrow = (kind: PickEntityKind): boolean =>
@@ -187,7 +193,7 @@ export class SelectionHandler extends BaseInteractionHandler {
           // Use engine-based SideResize instead of client-side calculation
           const sideIndex = SIDE_HANDLE_TO_ENGINE_INDEX[sideHit.handle];
           const modifiers = buildModifierMask(event);
-          
+
           runtime.beginTransform(
             [sideHit.id],
             TransformMode.SideResize,
@@ -202,18 +208,19 @@ export class SelectionHandler extends BaseInteractionHandler {
             ctx.canvasSize.height,
             modifiers,
           );
-          
+
           this.state = {
             kind: 'transform',
             startScreen: screen,
             mode: TransformMode.SideResize,
           };
-          
+
           // Store handle info for cursor updates (use frontend index 4-7, not engine index 0-3)
           this.hoverSubTarget = PickSubTarget.ResizeHandle;
-          this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
-          
-          cadDebugLog('transform', 'side-resize-start', () => ({ 
+          this.hoverSubIndex =
+            SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+
+          cadDebugLog('transform', 'side-resize-start', () => ({
             handle: sideHit.handle,
             sideIndex,
             entityId: sideHit.id,
@@ -401,7 +408,8 @@ export class SelectionHandler extends BaseInteractionHandler {
       }
       const sideHandle = this.findSideHandle(runtime, world, tolerance);
       if (sideHandle) {
-        this.hoverSubIndex = SIDE_HANDLE_INDICES[sideHandle.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+        this.hoverSubIndex =
+          SIDE_HANDLE_INDICES[sideHandle.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
         this.updateResizeCursor(ctx);
         this.notifyChange();
         return;
@@ -428,7 +436,10 @@ export class SelectionHandler extends BaseInteractionHandler {
       // Show appropriate cursor during transform
       if (this.state.mode === TransformMode.Rotate) {
         this.updateRotationCursor(runtime, ctx);
-      } else if (this.state.mode === TransformMode.Resize || this.state.mode === TransformMode.SideResize) {
+      } else if (
+        this.state.mode === TransformMode.Resize ||
+        this.state.mode === TransformMode.SideResize
+      ) {
         this.updateResizeCursor(ctx);
       }
       // Move mode uses default system cursor
@@ -485,7 +496,8 @@ export class SelectionHandler extends BaseInteractionHandler {
         const sideHit = this.findSideHandle(runtime, world, tolerance);
         if (sideHit) {
           // Get side handle index and entity rotation
-          const sideIndex = SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+          const sideIndex =
+            SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
           const transform = runtime.getEntityTransform(sideHit.id);
           const rotationDeg = transform.valid ? transform.rotationDeg : 0;
 
@@ -680,10 +692,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     }
 
     // During other active interactions, use default cursor handling
-    if (
-      this.state.kind === 'transform' ||
-      this.state.kind === 'marquee'
-    ) {
+    if (this.state.kind === 'transform' || this.state.kind === 'marquee') {
       return null;
     }
 
@@ -719,11 +728,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         );
       } else if (this.showMoveCursor) {
         overlays.push(
-          <MoveCursor
-            key="cursor-move"
-            x={this.cursorScreenPos.x}
-            y={this.cursorScreenPos.y}
-          />,
+          <MoveCursor key="cursor-move" x={this.cursorScreenPos.x} y={this.cursorScreenPos.y} />,
         );
       }
     }

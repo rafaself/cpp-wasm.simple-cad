@@ -2,7 +2,7 @@ import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import React, { useMemo, useEffect } from 'react';
 
 import CustomSelect from '@/components/CustomSelect';
-import { EngineLayerFlags, LayerPropMask } from '@/engine/core/protocol';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { INPUT_STYLES } from '@/src/styles/recipes';

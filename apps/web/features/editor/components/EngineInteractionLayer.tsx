@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-import { CommandOp } from '@/engine/core/commandBuffer';
+import { CommandOp } from '@/engine/core/EngineRuntime';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';

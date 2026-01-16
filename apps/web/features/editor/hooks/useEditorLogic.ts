@@ -1,16 +1,15 @@
-import { CommandOp } from '@/engine/core/commandBuffer';
+import { CommandOp } from '@/engine/core/EngineRuntime';
+import type { EngineCommand } from '@/engine/core/commandBuffer';
 import { getEngineRuntime } from '@/engine/core/singleton';
 
 import { useUIStore } from '../../../stores/useUIStore';
-
-import type { EntityId } from '@/engine/core/protocol';
 
 export const useEditorLogic = () => {
   const deleteSelected = () => {
     void getEngineRuntime().then((runtime) => {
       const ids = Array.from(runtime.getSelectionIds());
       if (ids.length === 0) return;
-      const commands: import('@/engine/core/commandBuffer').EngineCommand[] = [];
+      const commands: EngineCommand[] = [];
       for (const id of ids) {
         const textMeta = runtime.getTextEntityMeta(id);
         if (textMeta) {

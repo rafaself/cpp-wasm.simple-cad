@@ -1,9 +1,8 @@
 import { X, Plus, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
-import { CommandOp } from '@/engine/core/commandBuffer';
-import { EngineLayerFlags, LayerPropMask, StyleTarget } from '@/engine/core/protocol';
+import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
@@ -12,7 +11,7 @@ import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 import { unpackColorRGBA } from '@/types/text';
 import * as DEFAULTS from '@/theme/defaults';
 
-import { applyLayerColorAction, type ColorControlTarget } from '../colors/applyColorAction';
+import { applyLayerColorAction } from '../colors/applyColorAction';
 
 const focusableSelectors =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -141,7 +140,6 @@ const LayerManagerModal: React.FC = () => {
   const layers = useEngineLayers();
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
   const lastFocusRef = React.useRef<HTMLElement | null>(null);
-  const styleGeneration = useDocumentSignal('style'); // Force re-render on style changes
 
   // Color Picker State
   const [activePicker, setActivePicker] = useState<{

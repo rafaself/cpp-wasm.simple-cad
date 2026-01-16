@@ -9,7 +9,7 @@ import { augmentParsedDxfDataWithRaw } from './dxfRawExtras';
 import { convertDxfToShapes } from './dxfToShapes';
 import { dxfToSvg } from './dxfToSvg';
 import { resolveColor, BYBLOCK_COLOR_PLACEHOLDER } from './styles';
-import { DxfWorkerInput, DxfWorkerOutput, DxfImportOptions, DxfData } from './types';
+import { DxfWorkerInput, DxfWorkerOutput, DxfData } from './types';
 
 // Extend Input Options to include mode
 export interface ExtendedDxfWorkerInput extends DxfWorkerInput {

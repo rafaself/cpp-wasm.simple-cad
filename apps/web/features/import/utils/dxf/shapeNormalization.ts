@@ -1,7 +1,7 @@
 /**
  * Shape bounds calculation and normalization utilities for DXF import.
  */
-import { Shape, Point } from '../../../../types';
+import { Shape } from '../../../../types';
 
 export interface BoundsResult {
   minX: number;
