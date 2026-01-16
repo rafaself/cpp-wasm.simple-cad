@@ -1,8 +1,19 @@
-### Description
+# Contributing to EletroCAD WebApp
 
-<!-- Describe your changes here -->
+## Development Workflow
+
+1.  **Fork and Clone**: Fork the repository and clone it locally.
+2.  **Install Dependencies**: Run `pnpm install`.
+3.  **Start Development Server**: Run `pnpm dev`.
+4.  **Run Governance Checks**: Before committing, ensure your code passes all governance checks.
+
+## UI Design & Governance
+
+We enforce strict UI design guidelines to maintain consistency and performance. Please review `DESIGN.md` for detailed specifications.
 
 ### UI Compliance Checklist
+
+Before submitting a PR, please ensure your changes meet the following criteria:
 
 #### BLOCKER (Build fails)
 - [ ] No arbitrary Tailwind values (`z-[...]`, `text-[...px]`, `gap-[...]`)

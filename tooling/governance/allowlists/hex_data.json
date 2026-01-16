@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "reason": "CAD data/ColorPicker and existing hex debt",
+  "expires": null,
+  "files": [
+    "apps/web/components/ColorPicker/",
+    "apps/web/features/import/utils/",
+    "apps/web/utils/color.ts",
+    "apps/web/features/editor/components/ShapeOverlay.tsx"
+  ]
+}

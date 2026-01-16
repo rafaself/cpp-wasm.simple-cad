@@ -207,16 +207,16 @@ CAD requires two distinct z-index domains.
 
 #### A) Canvas Domain (within editor surface)
 
-* `--z-canvas-base` (WebGL)
-* `--z-canvas-overlay` (handles, guides, marquee)
-* `--z-canvas-hud` (angle tooltip, caret)
+* `--z-canvas-base`: 0      (WebGL layer)
+* `--z-canvas-overlay`: 10  (Handles, guides, marquee)
+* `--z-canvas-hud`: 20      (Angle tooltip, caret)
 
 #### B) Portal Domain (global)
 
-* `--z-dropdown`
-* `--z-tooltip`
-* `--z-modal`
-* `--z-toast`
+* `--z-dropdown`: 1000
+* `--z-tooltip`: 1100
+* `--z-modal`: 2000
+* `--z-toast`: 3000
 
 Rules:
 
