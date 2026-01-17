@@ -6,6 +6,7 @@ import { Icon as IconPrimitive } from '@/components/ui/Icon';
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 import { getTooltip } from './ribbonUtils';
+import { isRibbonDebugEnabled } from './ribbonDebug';
 
 interface RibbonLargeButtonProps {
   item: RibbonItem;
@@ -48,10 +49,12 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
       : '';
 
+  const debugClass = isRibbonDebugEnabled() ? ' ribbon-debug-control' : '';
+
   return (
     <Button
       variant={variant}
-      className={`h-[52px] flex-col justify-center gap-1 px-2.5 py-1 ${widthClass} ${hoverClass}`}
+      className={`h-[52px] flex-col justify-center gap-1 px-2.5 py-1 ${widthClass} ${hoverClass}${debugClass}`}
       disabled={isStub}
       onClick={() => onClick(item)}
       title={tooltip}

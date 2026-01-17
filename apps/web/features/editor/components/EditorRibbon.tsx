@@ -8,6 +8,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { getRibbonTabs, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
 
 import { RibbonGroup } from './ribbon/RibbonGroup';
+import { RIBBON_DEBUG_ATTR, isRibbonDebugEnabled } from './ribbon/ribbonDebug';
 
 const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
@@ -17,6 +18,7 @@ const EditorRibbon: React.FC = () => {
   const [activeTabId, setActiveTabId] = useState<string>(() => ribbonTabs[0]?.id ?? 'home');
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
   const gridSettings = useSettingsStore((s) => s.grid);
+  const debugRibbon = isRibbonDebugEnabled();
 
   const activeActions = {
     grid: gridSettings.showDots || gridSettings.showLines,
@@ -74,6 +76,22 @@ const EditorRibbon: React.FC = () => {
     }
   }, [ribbonTabs, activeTabId]);
 
+  React.useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    const attrName = RIBBON_DEBUG_ATTR;
+    const root = document.documentElement;
+    if (debugRibbon) {
+      root.setAttribute(attrName, 'true');
+    } else {
+      root.removeAttribute(attrName);
+    }
+    return () => {
+      root.removeAttribute(attrName);
+    };
+  }, [debugRibbon]);
+
   return (
     <div className="flex flex-col bg-bg border-b border-border text-text">
       {/* Tab Headers */}
@@ -118,8 +136,11 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[82px] px-[12px] flex items-stretch bg-surface-1 ribbon-scrollbar shadow-sm"
+        className={`relative h-[82px] px-[12px] flex items-stretch bg-surface-1 ribbon-scrollbar shadow-sm${
+          debugRibbon ? ' ribbon-rail' : ''
+        }`}
       >
+        {debugRibbon && <span className="ribbon-debug-guide" aria-hidden="true" />}
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
             <RibbonGroup

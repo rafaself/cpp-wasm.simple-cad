@@ -3,6 +3,7 @@ import React from 'react';
 import { RibbonGroup as RibbonGroupType, RibbonItem } from '../../ui/ribbonConfig';
 
 import { RibbonButton } from './RibbonButton';
+import { isRibbonDebugEnabled } from './ribbonDebug';
 
 type RibbonLayout = NonNullable<RibbonGroupType['layout']>;
 
@@ -19,7 +20,7 @@ const RibbonGroupContent: React.FC<{
 }> = ({ layout, ariaLabel, children }) => {
   const effectiveLayout: RibbonLayout = (layout ?? 'flex-row') as RibbonLayout;
   return (
-    <div className="h-[64px] w-full shrink-0 overflow-hidden rounded-none">
+    <div className="ribbon-group-content h-[64px] w-full shrink-0 overflow-hidden rounded-none">
       <div
         role="group"
         aria-label={ariaLabel}
@@ -53,14 +54,21 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
   onItemClick,
 }) => {
   const displayLabel = group.label || group.id;
+  const debugMode = isRibbonDebugEnabled();
+  const rootClass = `ribbon-group flex flex-col h-full gap-0 shrink-0${
+    debugMode ? ' ribbon-debug-group' : ''
+  }`;
   return (
-    <div className="flex flex-col h-full gap-0 shrink-0">
+    <div className={rootClass}>
       <RibbonGroupContent layout={group.layout} ariaLabel={displayLabel}>
         {group.items.map((item) => {
           if (item.kind === 'custom' && item.componentType) {
             const Component = item.componentType;
+            const wrapperClass = `h-full flex items-center shrink-0${
+              debugMode ? ' ribbon-debug-control' : ''
+            }`;
             return (
-              <div key={item.id} className="h-full flex items-center shrink-0">
+              <div key={item.id} className={wrapperClass}>
                 <Component />
               </div>
             );

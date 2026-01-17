@@ -8,6 +8,7 @@ import { RibbonItem } from '../../ui/ribbonConfig';
 import { RibbonLargeButton } from './RibbonLargeButton';
 import { RibbonSmallButton } from './RibbonSmallButton';
 import { getTooltip } from './ribbonUtils';
+import { isRibbonDebugEnabled } from './ribbonDebug';
 
 interface RibbonButtonProps {
   item: RibbonItem;
@@ -62,13 +63,15 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
       : '';
 
+  const debugClass = isRibbonDebugEnabled() ? ' ribbon-debug-control' : '';
+
   const justifyClass = item.hideLabel ? 'justify-center px-0' : 'justify-start px-2.5';
 
   return (
     <Button
       variant={variant}
       size="md"
-      className={`${widthClass} ${justifyClass} ${hoverClass}`}
+      className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass}`}
       disabled={isStub}
       onClick={() => onClick(item)}
       title={tooltip}

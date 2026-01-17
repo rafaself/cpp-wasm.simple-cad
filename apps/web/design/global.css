@@ -148,6 +148,30 @@
   justify-content: center;
 }
 
+[data-ribbon-debug='true'] .ribbon-rail {
+  outline: 1px dashed rgba(244, 114, 182, 0.9);
+}
+
+[data-ribbon-debug='true'] .ribbon-group {
+  outline: 1px dashed rgba(16, 185, 129, 0.9);
+}
+
+[data-ribbon-debug='true'] .ribbon-group-content > * {
+  outline: 1px dashed rgba(14, 165, 233, 0.8);
+  outline-offset: -2px;
+}
+
+.ribbon-debug-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed rgba(59, 130, 246, 0.8);
+  pointer-events: none;
+  display: block;
+  height: 0;
+}
+
 /* Global focus/active reset for UI buttons to prevent white flashes */
 button:focus,
 button:active {

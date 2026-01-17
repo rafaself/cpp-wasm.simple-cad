@@ -2,6 +2,8 @@ import React from 'react';
 
 import { Button, ButtonVariant } from '@/components/ui/Button';
 
+import { isRibbonDebugEnabled } from './ribbonDebug';
+
 type RibbonIconButtonSize = 'sm' | 'md';
 type RibbonIconButtonVariant = 'default' | 'danger' | 'warning' | 'primary';
 
@@ -58,6 +60,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
 }) => {
   // If active, usually becomes primary
   const finalVariant = isActive ? 'primary' : VARIANT_MAP[variant];
+  const debugClass = isRibbonDebugEnabled() ? ' ribbon-debug-control' : '';
 
   return (
     <Button
@@ -65,7 +68,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
       size={SIZE_MAP[size]} // sm or icon
       onClick={onClick}
       onMouseDown={(e) => e.preventDefault()} // Prevent focus loss
-      className={`${SIZE_CLASSES[size]} p-0 ${className}`}
+      className={`${SIZE_CLASSES[size]} p-0 ${className}${debugClass}`}
       title={title}
       disabled={disabled}
       aria-pressed={isActive}
