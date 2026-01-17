@@ -41,18 +41,25 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
       : '';
 
+  const buttonWidth = item.hideLabel ? 'w-9' : width;
+  const justifyClass = item.hideLabel ? 'justify-center px-0' : 'justify-start px-2.5';
+
   return (
     <Button
       variant={variant}
       size="sm"
-      className={`${width} !h-[24px] justify-start px-2.5 ${hoverClass}`}
+      className={`${buttonWidth} !h-[24px] ${justifyClass} ${hoverClass}`}
       disabled={isStub}
       onClick={() => onClick(item)}
       title={tooltip}
       aria-pressed={isTool ? isActive : undefined}
-      leftIcon={Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
+      leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
     >
-      <span className="truncate flex-1 text-left">{item.label}</span>
+      {item.hideLabel && Icon ? (
+        <IconPrimitive icon={Icon} size="sm" />
+      ) : (
+        <span className="truncate flex-1 text-left">{item.label}</span>
+      )}
     </Button>
   );
 };

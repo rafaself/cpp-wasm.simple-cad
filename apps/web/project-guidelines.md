@@ -8,15 +8,15 @@ This document serves as the single source of truth for the project's architectur
 
 We utilize a **Feature-Based Architecture**. This means code is organized by **business domain** (features) rather than technical type (controllers, views, etc.) wherever possible.
 
-### Folder Structure (frontend/)
+### Folder Structure (`apps/web/`)
 
 ```text
-frontend/
+apps/web/
 ├── assets/             # Static assets (images, SVGs) used globally.
 ├── components/         # GLOBAL "Dumb" Components (UI Kit).
 │                       # (e.g., Button, Modal, Input, RibbonButton).
 │                       # These components know NOTHING about business logic or Stores.
-├── config/             # Global configuration and constants (no menu here).
+├── config/             # Global configuration and constants.
 ├── features/           # THE CORE. Independent modules of the application.
 │   └── editor/         # Example Feature: The CAD Editor.
 │       ├── components/ # Components specific ONLY to the Editor (Canvas, Sidebar).
@@ -25,6 +25,7 @@ frontend/
 │       └── ui/         # Ribbon config lives here.
 ├── hooks/              # Global reusable hooks (e.g., useWindowSize, useTheme).
 ├── stores/             # Global State Management (Zustand).
+├── theme/              # Design tokens and theme logic.
 ├── types/              # Global TypeScript Definitions (shared across features).
 └── utils/              # Pure functions (Math, Geometry, Formatters).
 ```
@@ -35,14 +36,14 @@ frontend/
 
 ### A. Component hierarchy
 
-1.  **Global vs. Feature:** If a component is used in _more than one feature_, it goes to `src/components`. If it is unique to a feature, it goes to `src/features/{featureName}/components`.
+1.  **Global vs. Feature:** If a component is used in _more than one feature_, it goes to `components`. If it is unique to a feature, it goes to `features/{featureName}/components`.
 2.  **Dumb vs. Smart:**
-    - **UI Components (`src/components`)** must be "Dumb". They receive data via `props` and emit events via callbacks. They **never** import the Store directly.
+    - **UI Components (`components`)** must be "Dumb". They receive data via `props` and emit events via callbacks. They **never** import the Store directly.
     - **Feature Components** can be "Smart". They can connect to the Zustand store.
 
 ### B. State Management (Zustand)
 
-1.  **Centralized Logic:** State mutations (addNode, addWall) should live inside `src/stores` actions, not inside React components.
+1.  **Centralized Logic:** State mutations (addNode, addWall) should live inside `stores` actions, not inside React components.
 2.  **Atomic Selectors:** When using `useStore`, select only the specific state you need to prevent unnecessary re-renders.
 
 ### C. Menu & Configuration
@@ -54,12 +55,12 @@ frontend/
 ### D. Styling (Tailwind CSS)
 
 1.  **Utility First:** Use Tailwind utility classes directly in JSX (`className`).
-2.  **Consistency:** Use the color constants defined in `src/config/constants.ts` (e.g., `COLOR_WALL`, `COLOR_SELECTION`) for Canvas rendering logic, and Tailwind classes for HTML UI.
+2.  **Consistency:** Use the color constants defined in `config/constants.ts` (e.g., `COLOR_WALL`, `COLOR_SELECTION`) for Canvas rendering logic, and Tailwind classes for HTML UI.
 3.  **Layouts:** Use Flexbox and Grid for layouts. Avoid absolute positioning unless creating overlays or canvas elements.
 
 ### E. TypeScript
 
-1.  **Strict Typing:** No `any`. Define interfaces in `src/types/index.ts` (if global) or locally within the feature.
+1.  **Strict Typing:** No `any`. Define interfaces in `types/index.ts` (if global) or locally within the feature.
 2.  **Props Interface:** Every component must have a defined Props interface.
 
 ---
@@ -82,7 +83,7 @@ When asked to implement a new feature (e.g., "Add a Layer Manager"):
 
 If you are an AI assistant reading this, follow these rules when generating code:
 
-1.  **Check Existing Structure:** Do not create duplicate files. Check `src/features` first.
+1.  **Check Existing Structure:** Do not create duplicate files. Check `features` first.
 2.  **Engine-First State:** The engine owns all document data; the frontend stores only UI state (tools, viewport, panels, preferences).
 3.  **Ribbon Source of Truth:** If asked to "Add a button", update `features/editor/ui/ribbonConfig.ts` and ensure it goes through `useEditorCommands`.
 4.  **Anti-regressão:** Não recrie `config/menu.ts` legado; qualquer PR que reintroduza menus antigos deve ser recusado.

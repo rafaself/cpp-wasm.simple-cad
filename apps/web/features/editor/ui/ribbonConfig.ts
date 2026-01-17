@@ -13,7 +13,7 @@ import {
   Hand,
   Ruler,
   Grid3x3,
-  ArrowUpRight,
+  MoveUpRight,
   Shapes,
   FileCode2,
   Package,
@@ -42,6 +42,7 @@ export type RibbonItem = {
   variant?: 'default' | 'large' | 'icon';
   width?: 'sm' | 'md' | 'lg' | 'auto';
   componentType?: ComponentType<any>; // For custom rendered items
+  hideLabel?: boolean;
 };
 
 export type RibbonGroup = {
@@ -71,6 +72,7 @@ const buildDrawGroups = (enableColorsRibbon: boolean): RibbonGroup[] => {
           icon: Slash,
           toolId: 'line',
           status: 'ready',
+          hideLabel: true,
         },
         {
           id: 'polyline',
@@ -79,14 +81,16 @@ const buildDrawGroups = (enableColorsRibbon: boolean): RibbonGroup[] => {
           icon: Activity,
           toolId: 'polyline',
           status: 'ready',
+          hideLabel: true,
         },
         {
           id: 'arrow',
           kind: 'tool',
           label: LABELS.tools.arrow,
-          icon: ArrowUpRight,
+          icon: MoveUpRight,
           toolId: 'arrow',
           status: 'ready',
+          hideLabel: true,
         },
         {
           id: 'rect',
@@ -95,6 +99,7 @@ const buildDrawGroups = (enableColorsRibbon: boolean): RibbonGroup[] => {
           icon: Square,
           toolId: 'rect',
           status: 'ready',
+          hideLabel: true,
         },
         {
           id: 'circle',
@@ -103,6 +108,7 @@ const buildDrawGroups = (enableColorsRibbon: boolean): RibbonGroup[] => {
           icon: Circle,
           toolId: 'circle',
           status: 'ready',
+          hideLabel: true,
         },
         {
           id: 'polygon',
@@ -111,6 +117,7 @@ const buildDrawGroups = (enableColorsRibbon: boolean): RibbonGroup[] => {
           icon: Shapes,
           toolId: 'polygon',
           status: 'ready',
+          hideLabel: true,
         },
       ],
     },

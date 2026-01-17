@@ -122,3 +122,33 @@ jobs:
         with:
           name: deadcode-reports
           path: reports/deadcode_*.md
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with Ruff
+        run: ruff check .
+
+      - name: Test (if tests exist)
+        run: |
+          # Only run pytest if tests folder exists, otherwise pass
+          if [ -d "tests" ] || [ -f "test_*.py" ]; then
+            pytest
+          else
+            echo "No tests found, skipping"
+          fi

@@ -48,7 +48,10 @@
       "Bash(pnpm prettier:*)",
       "Bash(pnpm -F web exec tsc:*)",
       "Bash(pnpm list:*)",
-      "Bash(pnpm -F blazar exec tsc:*)"
+      "Bash(pnpm -F blazar exec tsc:*)",
+      "Bash(chmod:*)",
+      "Bash(./scripts/setup-hooks.sh:*)",
+      "Bash(pnpm exec tsc --noEmit)"
     ]
   }
 }

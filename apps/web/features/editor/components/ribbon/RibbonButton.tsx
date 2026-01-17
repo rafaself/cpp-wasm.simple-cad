@@ -43,7 +43,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
     auto: 'w-auto',
   };
 
-  const widthClass = item.width ? widthClasses[item.width] : 'w-auto';
+  const widthClass = item.hideLabel ? 'w-9' : (item.width ? widthClasses[item.width] : 'w-auto');
 
   const tooltip = getTooltip(item);
 
@@ -62,18 +62,24 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
       ? 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'
       : '';
 
+  const justifyClass = item.hideLabel ? 'justify-center px-0' : 'justify-start px-2.5';
+
   return (
     <Button
       variant={variant}
       size="md"
-      className={`${widthClass} justify-start px-2.5 ${hoverClass}`}
+      className={`${widthClass} ${justifyClass} ${hoverClass}`}
       disabled={isStub}
       onClick={() => onClick(item)}
       title={tooltip}
       aria-pressed={isTool ? isActive : undefined}
-      leftIcon={Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
+      leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
     >
-      <span className="truncate flex-1 text-left">{item.label}</span>
+      {item.hideLabel && Icon ? (
+        <IconPrimitive icon={Icon} size="sm" />
+      ) : (
+        <span className="truncate flex-1 text-left">{item.label}</span>
+      )}
     </Button>
   );
 };

@@ -2,6 +2,22 @@
 
 <!-- Describe your changes here -->
 
+### Architecture & Governance Checklist
+
+#### General
+- [ ] Follows `AGENTS.md` boundaries (no cross-domain imports)
+- [ ] Tests added/updated for new logic
+- [ ] No new "dead code" introduced
+
+#### Engine (C++)
+- [ ] No dynamic allocations in hot paths (`update`, `render`)
+- [ ] Bindings exposed via `engine/bindings.cpp` (if applicable)
+- [ ] Memory safety verified (no raw pointers ownership)
+
+#### Backend (API)
+- [ ] Pydantic models updated for any contract change
+- [ ] Type hints added (mypy compliant)
+
 ### UI Compliance Checklist
 
 #### BLOCKER (Build fails)

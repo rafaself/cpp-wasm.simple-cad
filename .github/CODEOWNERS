@@ -1,0 +1,15 @@
+# Code Owners
+
+# Core Engine (C++/WASM)
+packages/engine/ @cad-engine-team
+
+# Frontend (React)
+apps/web/ @cad-frontend-team
+apps/web/engine/ @cad-engine-team
+
+# Backend (API)
+apps/api/ @cad-backend-team
+
+# CI/CD & Tooling
+.github/ @cad-infra-team
+tooling/ @cad-infra-team
