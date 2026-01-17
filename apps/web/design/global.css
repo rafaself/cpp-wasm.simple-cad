@@ -90,7 +90,7 @@
    ========================================================================== */
 
 :root {
-  --ribbon-item-height: 24px; /* Standard height for all inputs/buttons/rows */
+  --ribbon-item-height: 32px; /* Standard height for all inputs/buttons/rows */
   --ribbon-gap: 4px; /* Consistent vertical/horizontal gap */
   --ribbon-content-height: 52px; /* 24px + 4px + 24px - Height of large buttons/groups */
 }
@@ -113,7 +113,7 @@
 */
 .ribbon-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: var(--ribbon-gap);
   height: var(--ribbon-item-height);
 }

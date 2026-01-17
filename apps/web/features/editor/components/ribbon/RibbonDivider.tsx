@@ -14,7 +14,9 @@ export const RibbonDivider: React.FC<RibbonDividerProps> = ({
   className = '',
 }) => {
   const baseClass =
-    orientation === 'vertical' ? 'h-4/5 w-px bg-border/50 mx-0.5' : 'w-full h-px bg-border/50 my-1';
+    orientation === 'vertical'
+      ? 'self-stretch w-px bg-border/50 mx-0.5 my-1'
+      : 'w-full h-px bg-border/50 my-1';
 
   return <div className={`${baseClass} ${className}`} aria-hidden="true" />;
 };

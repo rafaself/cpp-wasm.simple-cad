@@ -51,7 +51,7 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
   return (
     <Button
       variant={variant}
-      className={`h-full flex-col justify-center gap-1 px-2.5 py-1 ${widthClass} ${hoverClass}`}
+      className={`h-[52px] flex-col justify-center gap-1 px-2.5 py-1 ${widthClass} ${hoverClass}`}
       disabled={isStub}
       onClick={() => onClick(item)}
       title={tooltip}

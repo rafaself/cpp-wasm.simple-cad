@@ -89,6 +89,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
     setTextFontFamily(val);
     applyTextUpdate({ fontFamily: val }, true);
   };
+
   return (
     <RibbonControlWrapper>
       <Select

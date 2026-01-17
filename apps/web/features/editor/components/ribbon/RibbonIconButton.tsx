@@ -25,8 +25,13 @@ interface RibbonIconButtonProps {
 }
 
 const SIZE_MAP: Record<RibbonIconButtonSize, 'sm' | 'icon'> = {
-  sm: 'sm', // h-6 (24px) - RibbonIconButton used w-7 (28px) usually.
-  md: 'icon', // h-8 (32px)
+  sm: 'sm', // Keep Button size sm for smaller icons
+  md: 'icon',
+};
+
+const SIZE_CLASSES: Record<RibbonIconButtonSize, string> = {
+  sm: 'h-7 w-7',
+  md: 'h-8 w-8',
 };
 
 // Map RibbonIconButton specific variants to Button primitives
@@ -53,9 +58,6 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
 }) => {
   // If active, usually becomes primary
   const finalVariant = isActive ? 'primary' : VARIANT_MAP[variant];
-  
-  // Custom class to match width if needed, or rely on Button sizes
-  const widthClass = size === 'sm' ? 'w-7' : 'w-8';
 
   return (
     <Button
@@ -63,7 +65,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
       size={SIZE_MAP[size]} // sm or icon
       onClick={onClick}
       onMouseDown={(e) => e.preventDefault()} // Prevent focus loss
-      className={`h-full ${widthClass} p-0 ${className}`}
+      className={`${SIZE_CLASSES[size]} p-0 ${className}`}
       title={title}
       disabled={disabled}
       aria-pressed={isActive}

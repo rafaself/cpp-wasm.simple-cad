@@ -7,7 +7,7 @@ import { RibbonButton } from './RibbonButton';
 type RibbonLayout = NonNullable<RibbonGroupType['layout']>;
 
 const LAYOUT_CLASSES: Record<RibbonLayout, string> = {
-  'flex-row': 'flex items-stretch gap-1 justify-center',
+  'flex-row': 'flex items-center gap-1 justify-center',
   'grid-2x3': 'grid grid-cols-3 gap-1 place-content-center items-center',
   stack: 'flex flex-col gap-1 justify-center',
 };
@@ -60,9 +60,9 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
           if (item.kind === 'custom' && item.componentType) {
             const Component = item.componentType;
             return (
-              <React.Fragment key={item.id}>
+              <div key={item.id} className="h-full flex items-center shrink-0">
                 <Component />
-              </React.Fragment>
+              </div>
             );
           }
           const isActive =
