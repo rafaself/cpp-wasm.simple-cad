@@ -4,7 +4,7 @@
 
 > **Note for AI Agents:** If you identify inconsistencies, gaps, or improvement opportunities in this documentation, **propose changes** (with exact patch blocks). Documentation must evolve alongside the project.
 
-> **Design System:** UI rules are defined in **`DESIGN.md`**. All UI work MUST follow it.
+> **Design System:** UI rules are defined in **`apps/web/project-guidelines.md`** and **`DESIGN.md`**. All UI work MUST follow it.
 
 ---
 
@@ -47,7 +47,7 @@ Domain modules (e.g., Electrical) are separate kernels providing semantics, vali
 
 ### 2.1 Application Layers
 
-1. **React (Presentation Layer)**
+1. **React (`apps/web` - Presentation Layer)**
 
    * Owns only UI state: active tool, viewport, preferences, panels/modals
    * Captures pointer/keyboard events and forwards them to runtime facades
@@ -66,9 +66,9 @@ Domain modules (e.g., Electrical) are separate kernels providing semantics, vali
 
      * command transport rules (bulk vs hot path)
      * view synchronization
-     * boundary checks (no direct engine instances outside `frontend/engine/**`)
+     * boundary checks (no direct engine instances outside `apps/web/engine/**`)
 
-3. **Atlas (C++ Engine — CAD Source of Truth)**
+3. **Atlas (`packages/engine` - C++ Engine — CAD Source of Truth)**
 
    * CAD document state: entities, geometry, styles, layers, hierarchy
    * Selection, picking, snapping
@@ -85,7 +85,13 @@ Domain modules (e.g., Electrical) are separate kernels providing semantics, vali
    * Domain persistence (as extension blocks) + deterministic validation
    * Provides overlays/markers as domain outputs (not React re-renders on pointermove)
 
-5. **WebGL2 Renderer (Graphics Backend)**
+5. **Backend (`apps/api`)**
+
+   * Provides authentication, cloud persistence, and heavy compute services.
+   * STRICTLY decoupled from the Engine C++ source.
+   * Interacts with Frontend via REST/WebSocket.
+
+6. **WebGL2 Renderer (Graphics Backend)**
 
    * Stateless: consumes Atlas render buffers and draws
    * No geometry calculations, no entity state
@@ -415,7 +421,7 @@ The following checks MUST pass before merge:
 
 1. **Boundary checks**
 
-* No direct engine instance usage outside `frontend/engine/**`.
+* No direct engine instance usage outside `apps/web/engine/**`.
 * No cross-kernel imports (Atlas ↔ Domain) outside runtime facades.
 
 2. **Hot path checks**
@@ -437,19 +443,19 @@ The following checks MUST pass before merge:
 
 ```bash
 # Governance (budgets, boundaries, manifest)
-cd frontend && pnpm governance:check
+cd apps/web && pnpm governance:check
 
 # Doc drift guard
-node scripts/check_docs_references.js
+node tooling/governance/check_docs_references.js
 
 # Regenerate engine API manifest (after bindings changes)
-node scripts/generate_engine_api_manifest.js
+node tooling/governance/generate_engine_api_manifest.js
 
 # Frontend tests
-cd frontend && pnpm test
+cd apps/web && pnpm test
 
 # C++ tests
-cd cpp/build_native && ctest --output-on-failure
+cd packages/engine/build_native && ctest --output-on-failure
 ```
 
 ---
@@ -461,10 +467,10 @@ cd cpp/build_native && ctest --output-on-failure
 make fbuild
 
 # Dev (frontend only)
-cd frontend && pnpm dev
+cd apps/web && pnpm dev
 
 # Code size report
-./scripts/loc-report.sh
+./tooling/scripts/loc-report.sh
 ```
 
 ---
@@ -477,9 +483,9 @@ To maintain code quality and prevent monolithic files, the following size limits
 
 | Area                         | Review Threshold | Mandatory Refactor |
 | ---------------------------- | ---------------- | ------------------ |
-| C++ engine (`cpp/engine/**`) | > 450 LOC        | > 800 LOC          |
-| C++ tests (`cpp/tests/**`)   | > 600 LOC        | > 1000 LOC         |
-| TS/TSX (`frontend/**`)       | > 350 LOC        | > 600 LOC          |
+| C++ engine (`packages/engine/**`) | > 450 LOC        | > 800 LOC          |
+| C++ tests (`packages/engine/tests/**`)   | > 600 LOC        | > 1000 LOC         |
+| TS/TSX (`apps/web/**`)       | > 350 LOC        | > 600 LOC          |
 | TS tests                     | > 400 LOC        | > 700 LOC          |
 
 ### Function Length Guardrails
@@ -497,4 +503,4 @@ To maintain code quality and prevent monolithic files, the following size limits
 | Cross-layer imports  | Engine-first violation        |
 | CAD state in Zustand | Breaks single source of truth |
 
-Budgets and exceptions live in `scripts/file_size_budget.json` and `scripts/file_size_budget_exceptions.json`.
+Budgets and exceptions live in `tooling/governance/file_size_budget.json` and `tooling/governance/file_size_budget_exceptions.json`.
