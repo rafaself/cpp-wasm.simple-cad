@@ -111,14 +111,14 @@ const EditorRibbon: React.FC = () => {
         })}
       </div>
 
-      {/* Toolbar Content - 90px total height per Gold Standard */}
+      {/* Toolbar Content - 82px total height with fixed slots */}
       <div
         ref={ribbonContentRef}
         onWheel={handleWheel}
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className="h-[82px] px-[12px] py-[6px] flex items-start bg-surface-1 ribbon-scrollbar shadow-sm"
+        className="h-[82px] px-[12px] flex items-stretch bg-surface-1 ribbon-scrollbar shadow-sm"
       >
         {activeGroups.map((group, groupIndex) => (
           <React.Fragment key={group.id}>
@@ -138,18 +138,21 @@ const EditorRibbon: React.FC = () => {
         {RIBBON_OVERFLOW_ITEMS.length > 0 && (
           <>
             <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
-            <div className="relative self-start h-[54px] flex items-center">
-              <button
-                ref={overflowButtonRef}
-                onClick={() => setIsOverflowOpen((open) => !open)}
-                className="h-[52px] px-2 rounded bg-surface-1 hover:bg-surface-2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
-                title="Mais"
-                aria-haspopup="true"
-                aria-expanded={isOverflowOpen}
-              >
-                <MoreHorizontal size={20} />
-                Mais
-              </button>
+            <div className="relative flex flex-col h-full shrink-0 gap-0">
+              <div className="h-[64px] flex items-center justify-center">
+                <button
+                  ref={overflowButtonRef}
+                  onClick={() => setIsOverflowOpen((open) => !open)}
+                  className="h-[52px] px-2 rounded bg-surface-1 hover:bg-surface-2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
+                  title="Mais"
+                  aria-haspopup="true"
+                  aria-expanded={isOverflowOpen}
+                >
+                  <MoreHorizontal size={20} />
+                  Mais
+                </button>
+              </div>
+              <div aria-hidden="true" className="h-[18px]" />
               {isOverflowOpen && (
                 <div
                   role="menu"

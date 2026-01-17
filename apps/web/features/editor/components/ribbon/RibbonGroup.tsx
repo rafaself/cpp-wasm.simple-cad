@@ -4,6 +4,41 @@ import { RibbonGroup as RibbonGroupType, RibbonItem } from '../../ui/ribbonConfi
 
 import { RibbonButton } from './RibbonButton';
 
+type RibbonLayout = NonNullable<RibbonGroupType['layout']>;
+
+const LAYOUT_CLASSES: Record<RibbonLayout, string> = {
+  'flex-row': 'flex items-stretch gap-1 justify-center',
+  'grid-2x3': 'grid grid-cols-3 gap-1 place-content-center items-center',
+  stack: 'flex flex-col gap-1 justify-center',
+};
+
+const RibbonGroupContent: React.FC<{
+  layout?: RibbonGroupType['layout'];
+  ariaLabel: string;
+  children: React.ReactNode;
+}> = ({ layout, ariaLabel, children }) => {
+  const effectiveLayout: RibbonLayout = (layout ?? 'flex-row') as RibbonLayout;
+  return (
+    <div className="h-[64px] w-full shrink-0 overflow-hidden rounded-none">
+      <div
+        role="group"
+        aria-label={ariaLabel}
+        className={`h-full w-full ${LAYOUT_CLASSES[effectiveLayout]}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const RibbonGroupTitle: React.FC<{ label: string }> = ({ label }) => (
+  <div className="h-[18px] flex items-center justify-center">
+    <span className="text-[10px] leading-[18px] text-text-muted font-semibold select-none whitespace-nowrap text-center uppercase tracking-wider opacity-80">
+      {label}
+    </span>
+  </div>
+);
+
 interface RibbonGroupProps {
   group: RibbonGroupType;
   activeTool: string;
@@ -17,18 +52,11 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
   activeActions = {},
   onItemClick,
 }) => {
+  const displayLabel = group.label || group.id;
   return (
-    <div className="flex flex-col h-full gap-1 shrink-0">
-      <div
-        role="group"
-        aria-label={group.label || group.id}
-        className={`flex justify-center flex-1
-          ${group.layout === 'grid-2x3' ? 'grid grid-cols-3 gap-1 content-center items-center' : ''}
-          ${group.layout === 'stack' ? 'flex flex-col gap-1 justify-center' : ''}
-          ${!group.layout || group.layout === 'flex-row' ? 'flex items-stretch gap-1' : ''}
-        `}
-      >
-        {group.items.map((item, _index) => {
+    <div className="flex flex-col h-full gap-0 shrink-0">
+      <RibbonGroupContent layout={group.layout} ariaLabel={displayLabel}>
+        {group.items.map((item) => {
           if (item.kind === 'custom' && item.componentType) {
             const Component = item.componentType;
             return (
@@ -51,14 +79,8 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
             />
           );
         })}
-      </div>
-
-      {/* Group Title */}
-      <div className="flex items-center justify-center">
-        <span className="text-[10px] text-text-muted font-semibold select-none whitespace-nowrap text-center uppercase tracking-wider opacity-80 leading-none">
-          {group.label}
-        </span>
-      </div>
+      </RibbonGroupContent>
+      <RibbonGroupTitle label={displayLabel} />
     </div>
   );
 };
