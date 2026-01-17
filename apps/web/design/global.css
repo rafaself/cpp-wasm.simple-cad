@@ -90,9 +90,27 @@
    ========================================================================== */
 
 :root {
-  --ribbon-item-height: 32px; /* Standard height for all inputs/buttons/rows */
-  --ribbon-gap: 4px; /* Consistent vertical/horizontal gap */
-  --ribbon-content-height: 52px; /* 24px + 4px + 24px - Height of large buttons/groups */
+  --ribbon-height: 82px;
+  --ribbon-group-body-height: 64px;
+  --ribbon-group-label-height: 18px;
+  --ribbon-control-height-md: 32px;
+  --ribbon-control-height-sm: 28px;
+  --ribbon-icon-btn-size-md: 32px;
+  --ribbon-icon-btn-size-sm: 28px;
+  --ribbon-group-px: 12px;
+  --ribbon-group-gap-x: 4px;
+  --ribbon-group-gap-y: 4px;
+  --ribbon-divider-inset-y: 4px;
+  --ribbon-label-font-size: 10px;
+  --ribbon-label-line-height: 18px;
+  --ribbon-control-font-size: 12px;
+  --ribbon-control-line-height: 16px;
+  --ribbon-control-radius: 6px;
+  --ribbon-divider-opacity: 0.5;
+  --ribbon-control-bg: var(--surface-2);
+  --ribbon-control-border-color: rgba(148, 163, 184, 0.4);
+  --ribbon-control-focus: rgba(59, 130, 246, 0.5);
+  --ribbon-item-height: var(--ribbon-control-height-md);
 }
 
 /* 
@@ -104,18 +122,51 @@
   flex-direction: column;
   justify-content: center;
   height: 100%;
-  gap: var(--ribbon-gap);
+  gap: var(--ribbon-group-gap-y);
 }
 
-/* 
-  Constraint: Single row of controls.
-  Forces stretch alignment so children fill the --ribbon-item-height.
-*/
+.ribbon-rail {
+  height: var(--ribbon-height);
+  padding: 0 var(--ribbon-group-px);
+  display: flex;
+  align-items: stretch;
+  position: relative;
+}
+
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  min-height: var(--ribbon-height);
+}
+
+.ribbon-group-body {
+  height: var(--ribbon-group-body-height);
+  width: 100%;
+  overflow: hidden;
+}
+
+.ribbon-group-label {
+  height: var(--ribbon-group-label-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ribbon-group-label span {
+  font-size: var(--ribbon-label-font-size);
+  line-height: var(--ribbon-label-line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
 .ribbon-row {
   display: flex;
   align-items: center;
-  gap: var(--ribbon-gap);
-  height: var(--ribbon-item-height);
+  gap: var(--ribbon-group-gap-x);
+  height: var(--ribbon-control-height-md);
 }
 
 .ribbon-row > * {
@@ -127,6 +178,32 @@
 .ribbon-row .input-wrapper,
 .ribbon-row select {
   height: 100%;
+}
+
+.ribbon-control {
+  height: var(--ribbon-control-height-sm);
+  font-size: var(--ribbon-control-font-size);
+  line-height: var(--ribbon-control-line-height);
+  border-radius: var(--ribbon-control-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background-color: var(--ribbon-control-bg);
+  border: 1px solid var(--ribbon-control-border-color);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ribbon-control:focus-within {
+  border-color: var(--ribbon-control-focus);
+  box-shadow: 0 0 0 1px var(--ribbon-control-focus);
+}
+
+.ribbon-divider-v {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--ribbon-divider-inset-y) 0;
+  background-color: rgba(148, 163, 184, var(--ribbon-divider-opacity));
 }
 
 /* 

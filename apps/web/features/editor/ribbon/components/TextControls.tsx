@@ -92,13 +92,13 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
 
   return (
     <RibbonControlWrapper>
-      <Select
-        value={selectValue}
-        onChange={handleChange}
-        options={FONT_OPTIONS}
-        placeholder={placeholder}
-        className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
-      />
+        <Select
+          value={selectValue}
+          onChange={handleChange}
+          options={FONT_OPTIONS}
+          placeholder={placeholder}
+          className={`${INPUT_STYLES.ribbon} ribbon-control ribbon-fill-h text-xs`}
+        />
     </RibbonControlWrapper>
   );
 };
@@ -128,19 +128,19 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
 
   return (
     <RibbonControlWrapper align="center">
-      <NumericComboField
-        value={fontSizeValue}
-        onCommit={handleCommit}
-        presets={fontSizePresets}
-        min={1}
-        max={999}
-        step={1}
-        stepLarge={10}
-        ariaLabel="Tamanho da Fonte"
-        className="w-full ribbon-fill-h"
-        dropdownMaxHeight="auto"
-        allowScrollWheel={true}
-      />
+        <NumericComboField
+          value={fontSizeValue}
+          onCommit={handleCommit}
+          presets={fontSizePresets}
+          min={1}
+          max={999}
+          step={1}
+          stepLarge={10}
+          ariaLabel="Tamanho da Fonte"
+          className="w-full ribbon-control ribbon-fill-h"
+          dropdownMaxHeight="auto"
+          allowScrollWheel={true}
+        />
     </RibbonControlWrapper>
   );
 };

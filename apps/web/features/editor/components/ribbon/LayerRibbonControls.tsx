@@ -65,7 +65,7 @@ export const LayerRibbonControls: React.FC = () => {
           value={String(activeLayerId)}
           onChange={handleLayerChange}
           options={layerOptions}
-          className={`${INPUT_STYLES.ribbon} ribbon-fill-h text-xs`}
+          className={`${INPUT_STYLES.ribbon} ribbon-control ribbon-fill-h text-xs`}
           placeholder="Selecione a camada..."
         />
       </div>

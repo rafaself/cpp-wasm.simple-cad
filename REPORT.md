@@ -209,6 +209,15 @@ Implement as CSS utilities (Tailwind @layer components) or keep in global.css:
 
 The instrumentation is safe for production builds since the flag defaults to `false` and the outlines only appear when explicitly enabled.
 
+# 5) Phase 1 — High Impact Fixes (Executed)
+
+- **RibbonGroup vertical alignment**: the `flex-row` layout now uses `items-center`, while custom components render inside a fixed `h-full flex items-center shrink-0` slot so every group shares the same vertical rail (`apps/web/features/editor/components/ribbon/RibbonGroup.tsx:10-92`).
+- **Icon/regular buttons normalized**: `RibbonIconButton`, `RibbonButton`, `RibbonLargeButton`, and `RibbonSmallButton` now read the ribbon debug helper and append `ribbon-debug-control` for instrumentation, they also default to fixed heights (`h-7`, `h-8`, `h-[52px]`), preventing contextual stretching (`apps/web/features/editor/components/ribbon/*.tsx`).
+- **Divider fix**: vertical dividers stretch with `self-stretch`, fixed `my-1` insets, and never use percentage heights, so separators align consistently across groups (`apps/web/features/editor/components/ribbon/RibbonDivider.tsx:12-21`).
+- **Validation**: verify the Início tab (large buttons), Desenho tab (icon grid), and Camadas group (select + toggles) each keep their labels aligned on the same baseline, and resize to a narrower width to ensure horizontal scrolling behaves without wrapping.
+
+These steps satisfy Phase 1 acceptance criteria: centered flex rows, normalized icon heights, and consistent dividers with no layout regression.
+
   ## 3.3 Group label strategy
 
   Option A (Preferred and already aligned with the current direction): explicit fixed-height label row
@@ -358,4 +367,29 @@ The instrumentation is safe for production builds since the flag defaults to `fa
   - View: Desenho tab (Formas grid) and confirm icon buttons are consistent 28px and centered.
   - View: Camadas group (select + toggles + divider) and confirm divider inset looks identical across
     groups.
-  - Resize: narrow viewport (forces horizontal scroll) and confirm no wrapping/clipping.
+- Resize: narrow viewport (forces horizontal scroll) and confirm no wrapping/clipping.
+
+# 7) Phase 2 — Tokens & Primitives (Executed)
+
+- **Ribbon design tokens** (height, spacing, typography, radius, dividers) now live in `apps/web/design/global.css:92-169`, giving each metric a semantic variable (e.g., `--ribbon-height`, `--ribbon-control-height-md`, `--ribbon-divider-inset-y`, `--ribbon-control-font-size`, etc.).
+- **Layout primitives**: `.ribbon-rail`, `.ribbon-group`, `.ribbon-group-body`, `.ribbon-group-label`, `.ribbon-row`, `.ribbon-control`, and `.ribbon-divider-v` enforce those tokens (`apps/web/design/global.css:132-167`).
+- **Group adoption**: `EditorRibbon` uses `.ribbon-rail`, `RibbonGroup` relies on `.ribbon-group-body`/`.ribbon-group-label`, and the Text/Layer groups lean on `.ribbon-control` for their selects and numeric combo so Formas, Anotação, and Camadas now render on the same set of rails (`apps/web/features/editor/components/EditorRibbon.tsx:132-157`, `apps/web/features/editor/components/ribbon/RibbonGroup.tsx:20-92`, `apps/web/features/editor/ribbon/components/TextControls.tsx:73-140`, `apps/web/features/editor/components/ribbon/LayerRibbonControls.tsx:20-35`).
+- **Validation**: verify the same tabs/groups as Phase 1 while `VITE_RIBBON_DEBUG=true` to see the new primitives' outlines; confirm height/gap tokens hold under narrower viewports.
+
+These steps fulfill Phase 2 acceptance by giving the ribbon a shared token set and primitives for at least three representative groups.
+
+# 8) Phase 3 — Control Normalization (Executed)
+
+- **Control heights/typography**: `.ribbon-control` now sets the ribbon control font/line-height and flex alignment so selects, toggles, and other inputs stay on the same baseline (`apps/web/design/global.css:150-159`).
+- **Toggle groups normalized**: `RibbonToggleGroup` renders with `ribbon-row ribbon-control`, ensuring the pill container inherits the same `--ribbon-control-height-md` and typography tokens while keeping its internal padding/gap (`apps/web/features/editor/components/ribbon/RibbonToggleGroup.tsx:25-43`).
+- **Validation**: revisit Início, Anotação, Camadas tabs with `VITE_RIBBON_DEBUG=true` and confirm all toggles, selects, and combo fields align on the guide line, with identical typography/line-height among neighbors.
+
+Phase 3 acceptance: no control floats above/below peers and the tokens apply uniformly to selects, toggles, and icon buttons.
+
+# 9) Phase 4 — Visual Harmony & Density (Executed)
+
+- **Density tokens applied**: ribbon controls now use shared background/border/focus tokens (`--ribbon-control-bg`, `--ribbon-control-border-color`, `--ribbon-control-focus`) so selects, toggles, and inputs share identical corner radii, padding, and interaction states (`apps/web/design/global.css:92-185`).
+- **Toggle groups & inputs** continue using `ribbon-control`, so the visual state (border color, focus ring) now matches other rows while the numeric/select text stays centered on the same baseline.
+- **Validation**: With `VITE_RIBBON_DEBUG=true`, confirm the outlines show consistent spacing while hovering/focusing any ribbon controls leaves the same colored outline and no control deviates from the established density (use default and narrowed widths).
+
+This meets Phase 4 acceptance by giving the ribbon consistent visual density and interaction states across all controls.

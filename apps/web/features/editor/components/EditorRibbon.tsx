@@ -136,8 +136,8 @@ const EditorRibbon: React.FC = () => {
         id={`panel-${activeTabId}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTabId}`}
-        className={`relative h-[82px] px-[12px] flex items-stretch bg-surface-1 ribbon-scrollbar shadow-sm${
-          debugRibbon ? ' ribbon-rail' : ''
+        className={`relative ribbon-rail bg-surface-1 ribbon-scrollbar shadow-sm${
+          debugRibbon ? ' ribbon-rail-debug' : ''
         }`}
       >
         {debugRibbon && <span className="ribbon-debug-guide" aria-hidden="true" />}

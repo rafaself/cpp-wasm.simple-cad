@@ -20,7 +20,7 @@ const RibbonGroupContent: React.FC<{
 }> = ({ layout, ariaLabel, children }) => {
   const effectiveLayout: RibbonLayout = (layout ?? 'flex-row') as RibbonLayout;
   return (
-    <div className="ribbon-group-content h-[64px] w-full shrink-0 overflow-hidden rounded-none">
+    <div className="ribbon-group-body w-full shrink-0 overflow-hidden rounded-none">
       <div
         role="group"
         aria-label={ariaLabel}
@@ -33,8 +33,8 @@ const RibbonGroupContent: React.FC<{
 };
 
 const RibbonGroupTitle: React.FC<{ label: string }> = ({ label }) => (
-  <div className="h-[18px] flex items-center justify-center">
-    <span className="text-[10px] leading-[18px] text-text-muted font-semibold select-none whitespace-nowrap text-center uppercase tracking-wider opacity-80">
+  <div className="ribbon-group-label">
+    <span className="text-text-muted opacity-80 leading-[18px] select-none whitespace-nowrap uppercase tracking-wider font-semibold">
       {label}
     </span>
   </div>

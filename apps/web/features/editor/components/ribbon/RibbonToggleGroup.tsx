@@ -24,15 +24,15 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
   return (
     <div
       className={`
-        flex 
-        bg-surface-2 
-        rounded 
-        border 
-        border-border/50 
-        p-0.5 
-        ribbon-fill-h 
-        gap-0.5 
-        items-center
+        ribbon-row
+        ribbon-control
+        bg-surface-2
+        rounded
+        border
+        border-border/50
+        p-0.5
+        ribbon-fill-h
+        gap-0.5
         ${widthClass}
         ${className}
       `
