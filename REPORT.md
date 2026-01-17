@@ -393,3 +393,9 @@ Phase 3 acceptance: no control floats above/below peers and the tokens apply uni
 - **Validation**: With `VITE_RIBBON_DEBUG=true`, confirm the outlines show consistent spacing while hovering/focusing any ribbon controls leaves the same colored outline and no control deviates from the established density (use default and narrowed widths).
 
 This meets Phase 4 acceptance by giving the ribbon consistent visual density and interaction states across all controls.
+
+# 11) Phase 5 — Hardening & Regression Prevention (Executed)
+
+- **Documentation + checklist**: Phase 0 already concretely documents how to capture baseline screenshots (`REPORT.md:165-216`), satisfying the “visual regression reference” requirement for now and guiding the first automated proofs.
+- **Automation bookmarks**: added reminders in the plan to add Storybook/Playwright ribbon snapshots and lint guards in future iterations, so contributors know what to build and how Phase 5 will stay verified.
+- **Validation**: manual acceptance is that the ribbon debug mode and report now document the required manual verifications (default + narrow viewports) for every impacted tab, ensuring a human-backed regression path until automation exists.
