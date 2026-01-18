@@ -19,6 +19,8 @@ export const LABELS = {
     fullScreenMessageExit: 'Você está no modo tela cheia. Para sair, pressione:',
     fullScreenInstruction: 'Use {shortcut} para entrar ou sair do modo tela cheia.',
     toggleTheme: 'Alternar Tema',
+    selectPlaceholder: 'Selecione...',
+    openPresets: 'Abrir predefinições',
   },
   colorPicker: {
     title: 'Seletor de Cor',
@@ -61,7 +63,7 @@ export const LABELS = {
     commandReady: 'Pronto',
     commandReadyHint: 'Digite um comando',
     commandPressEnter: '[Enter]',
-    commandInputLabel: 'Command input',
+    commandInputLabel: 'Entrada de comando',
     commandExecute: 'Executar comando (Enter)',
     commandExecuteLabel: 'Executar comando',
     commandHelp: 'Ajuda de Comandos (HELP)',

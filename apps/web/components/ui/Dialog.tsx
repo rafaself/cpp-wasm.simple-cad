@@ -42,7 +42,7 @@ const Dialog: React.FC<DialogProps> = ({
   activator,
   children,
   className = '',
-  zIndex = 1000,
+  zIndex,
   closeOnKeys = [],
   closeOnResize = false,
   ariaLabel,
@@ -191,7 +191,10 @@ const Dialog: React.FC<DialogProps> = ({
   };
 
   const dialogContent = isOpen ? (
-    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
+    <div
+      className="fixed inset-0 flex items-center justify-center z-modal"
+      style={zIndex !== undefined ? { zIndex } : undefined}
+    >
       {/* Overlay/Scrim */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200"

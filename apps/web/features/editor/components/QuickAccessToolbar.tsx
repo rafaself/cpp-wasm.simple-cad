@@ -1,6 +1,7 @@
 import { LayoutPanelLeft } from 'lucide-react';
 import React, { useState } from 'react';
 
+import { IconButton } from '@/components/ui';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 import { useUIStore } from '../../../stores/useUIStore';
@@ -32,46 +33,42 @@ const QuickAccessToolbar: React.FC = () => {
 
   return (
     <div
-      className={`absolute z-50 bg-surface-2/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
+      className={`absolute z-canvas-hud bg-surface-2/95 backdrop-blur-sm border border-border rounded-lg flex p-1 gap-0.5 transition-all duration-300 ${containerClasses}`}
       style={{
         boxShadow: '0 8px 32px rgba(255, 255, 255, 0.04), 0 1px 2px rgba(255, 255, 255, 0.02)',
       }}
       role="toolbar"
       aria-label="Barra de ferramentas de acesso rápido"
     >
-      <button
-        onClick={() => setOrientation((prev) => (prev === 'vertical' ? 'horizontal' : 'vertical'))}
-        className={`flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-2 rounded-sm transition-colors overflow-visible mt-1 ${toggleClasses}`}
-        title="Alternar orientacao da barra"
+      <IconButton
         aria-label="Alternar orientação da barra"
-      >
-        <div
-          className={`flex items-center justify-center transition-transform duration-200 overflow-visible ${orientation === 'vertical' ? 'rotate-90' : ''}`}
-        >
-          <LayoutPanelLeft size={12} />
-        </div>
-      </button>
+        tone="secondary"
+        size="sm"
+        className={`overflow-visible mt-1 ${toggleClasses}`}
+        onClick={() => setOrientation((prev) => (prev === 'vertical' ? 'horizontal' : 'vertical'))}
+        icon={
+          <div
+            className={`flex items-center justify-center transition-transform duration-200 overflow-visible ${
+              orientation === 'vertical' ? 'rotate-90' : ''
+            }`}
+          >
+            <LayoutPanelLeft size={12} />
+          </div>
+        }
+      />
 
       {TOOLS.map((item) => (
-        <button
+        <IconButton
           key={item.id}
-          onClick={() => selectTool(item.id, item.status)}
-          className={`
-            flex items-center justify-center w-8 h-8 rounded-md transition-all
-            ${
-              activeTool === item.id
-                ? 'bg-primary text-white shadow-md'
-                : 'text-text-muted hover:bg-surface-2 hover:text-text'
-            }
-          `}
-          title={item.label}
           aria-label={item.label}
-          aria-pressed={activeTool === item.id}
-        >
-          <div className="transform scale-90 flex items-center justify-center">
-            {getIcon(item.icon)}
-          </div>
-        </button>
+          title={item.label}
+          tone={activeTool === item.id ? 'primary' : 'secondary'}
+          pressed={activeTool === item.id}
+          size="md"
+          className="w-8 h-8"
+          onClick={() => selectTool(item.id, item.status)}
+          icon={<div className="transform scale-90 flex items-center justify-center">{getIcon(item.icon)}</div>}
+        />
       ))}
     </div>
   );

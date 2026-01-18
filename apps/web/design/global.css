@@ -50,7 +50,7 @@
 
 .focus-outline:focus-visible {
   box-shadow: var(--shadow-focus);
-  outline: 2px solid hsl(var(--color-accent));
+  outline: 2px solid hsl(var(--color-focus));
   outline-offset: 2px;
 }
 /* Custom Scrollbar Styles */
@@ -250,9 +250,13 @@
 }
 
 /* Global focus/active reset for UI buttons to prevent white flashes */
-button:focus,
-button:active {
-  outline: none !important;
+button:focus-visible {
+  outline: 2px solid hsl(var(--color-focus));
+  outline-offset: 2px;
+  box-shadow: var(--shadow-focus);
+}
+
+button:focus {
   -webkit-tap-highlight-color: transparent;
 }
 

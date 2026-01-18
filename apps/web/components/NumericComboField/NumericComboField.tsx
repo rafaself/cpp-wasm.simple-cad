@@ -15,6 +15,7 @@ import React, { useId, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useNumericComboField, type NumericComboValue } from './useNumericComboField';
+import { LABELS } from '@/i18n/labels';
 
 export interface NumericComboFieldProps {
   /** Current value (controlled) */
@@ -340,7 +341,7 @@ export const NumericComboField: React.FC<NumericComboFieldProps> = ({
           tabIndex={-1}
           disabled={disabled}
           className="flex items-center justify-center h-full w-5 border-l border-border/50 bg-surface-2/80 hover:bg-surface-2 transition-colors focus:outline-none"
-          aria-label="Open presets"
+          aria-label={LABELS.common.openPresets}
           aria-haspopup="listbox"
         >
           <ChevronDown

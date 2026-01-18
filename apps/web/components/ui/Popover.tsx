@@ -12,6 +12,7 @@ export interface PopoverProps {
   className?: string;
   zIndex?: string; // Should be a token like 'z-dropdown'
   matchWidth?: boolean;
+  closeOnEscape?: boolean;
 }
 
 export const Popover: React.FC<PopoverProps> = ({
@@ -24,6 +25,7 @@ export const Popover: React.FC<PopoverProps> = ({
   className = '',
   zIndex = 'z-dropdown',
   matchWidth = false,
+  closeOnEscape = true,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -94,6 +96,19 @@ export const Popover: React.FC<PopoverProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [show, handleOpenChange]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!show || !closeOnEscape) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleOpenChange(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [show, closeOnEscape, handleOpenChange]);
 
   // Handle trigger click
   const handleTriggerClick = (e: React.MouseEvent) => {

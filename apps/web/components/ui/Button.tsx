@@ -39,16 +39,18 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       rightIcon,
       children,
       disabled,
+      type,
       ...props
     },
     ref,
   ) => {
     const baseStyles =
-      'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
+      'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1 disabled:pointer-events-none disabled:opacity-50';
     
     return (
       <button
         ref={ref}
+        type={type ?? 'button'}
         className={`
           ${baseStyles}
           ${variantStyles[variant]}

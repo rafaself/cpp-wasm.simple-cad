@@ -1,4 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
+
+import { TextField } from '@/components/ui';
 
 interface RadiusInputModalProps {
   initialRadius: number;
@@ -41,7 +43,8 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
     }
   };
 
-  const isValid = !isNaN(parseFloat(value)) && parseFloat(value) > 0;
+  const parsed = parseFloat(value);
+  const isValid = !isNaN(parsed) && parsed > 0;
 
   return (
     <>
@@ -55,34 +58,32 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="radius-modal-title"
-        className="fixed z-modal bg-surface-2 border border-border shadow-xl rounded-md p-2 flex flex-col gap-2 w-48 text-text"
+        className="fixed z-modal bg-surface-2 border border-border shadow-xl rounded-md p-3 flex flex-col gap-3 w-56 text-text"
         style={{ left: position.x, top: position.y }}
       >
-        <div className="flex items-center justify-between border-b border-border pb-1 mb-1">
+        <div className="flex items-center justify-between border-b border-border pb-2">
           <span id="radius-modal-title" className="text-xs font-bold text-text-muted uppercase">
             Definir Raio
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-text-muted">R:</span>
-          <input
-            ref={inputRef}
-            type="number"
-            min="0.1"
-            step="any"
-            autoFocus
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className={`flex-grow bg-surface-2 border rounded px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-primary ${isValid ? 'border-border' : 'border-red-500 text-red-400'}`}
-            aria-invalid={!isValid}
-          />
-          <span className="text-xs text-text-muted">px</span>
-        </div>
+        <TextField
+          ref={inputRef}
+          inputMode="decimal"
+          type="number"
+          min="0.1"
+          step="any"
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          aria-invalid={!isValid}
+          label="R (px)"
+          errorText={isValid ? undefined : 'Informe um valor maior que zero'}
+        />
         <div className="flex justify-end gap-2 mt-1">
           <button
             onClick={onCancel}
-            className="px-2 py-1 text-xs text-text-muted hover:bg-surface-2 rounded transition-colors"
+            className="px-2 py-1 text-xs text-text-muted hover:bg-surface-2 rounded transition-colors focus-outline"
             aria-label="Cancelar"
           >
             Cancelar
@@ -90,7 +91,9 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
           <button
             onClick={handleConfirm}
             disabled={!isValid}
-            className={`px-2 py-1 text-xs text-white rounded transition-colors ${isValid ? 'bg-primary hover:bg-primary/90' : 'bg-surface-2 opacity-50 cursor-not-allowed'}`}
+            className={`px-2 py-1 text-xs text-white rounded transition-colors ${
+              isValid ? 'bg-primary hover:bg-primary/90' : 'bg-surface-2 opacity-50 cursor-not-allowed'
+            }`}
             aria-label="Confirmar"
           >
             OK
