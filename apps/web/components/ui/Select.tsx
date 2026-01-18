@@ -62,7 +62,7 @@ export const Select: React.FC<SelectProps> = ({
       <Button
         variant="outline"
         size="sm" // Use standard small size
-        className={`w-full justify-between font-normal ${className}`}
+        className={`w-full !justify-between font-normal ${className}`}
         disabled={disabled}
         rightIcon={
           <ChevronDown

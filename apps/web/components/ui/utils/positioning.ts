@@ -17,8 +17,7 @@ export function calculatePosition(
   options: PositionOptions = {}
 ): Coordinates {
   const { placement = 'bottom', offset = 4 } = options;
-  const scrollX = window.scrollX;
-  const scrollY = window.scrollY;
+
 
   let top = 0;
   let left = 0;
@@ -59,7 +58,7 @@ export function calculatePosition(
   }
 
   return {
-    top: top + scrollY,
-    left: left + scrollX,
+    top,
+    left,
   };
 }
