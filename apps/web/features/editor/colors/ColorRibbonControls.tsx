@@ -111,7 +111,7 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.preventDefault()}
-    className={`relative w-9 h-6 mx-1 rounded border transition-colors ${
+    className={`relative w-5 h-5 max-h-5 mx-1 rounded border transition-colors ${
       disabled
         ? 'opacity-50 cursor-not-allowed border-border/50'
         : state === StyleState.Mixed
