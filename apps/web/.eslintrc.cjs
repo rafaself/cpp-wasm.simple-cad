@@ -90,6 +90,21 @@ module.exports = {
     'no-case-declarations': 'off',
     'no-inner-declarations': 'off',
     'no-useless-escape': 'off',
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: "Literal[value=/\\b(text|gap|p|m|h|w)-\\[/]",
+        message: 'Arbitrary Tailwind values are forbidden; use token-backed utilities.',
+      },
+      {
+        selector: "Literal[value=/(#[0-9A-Fa-f]{3,6})/]",
+        message: 'Raw color literals are forbidden in TS/TSX; add a semantic token instead.',
+      },
+      {
+        selector: "Literal[value=/\\bz-\\d+/]",
+        message: 'Use z-index tokens (z-modal, z-dropdown, z-toast, etc.) instead of numeric z- classes.',
+      },
+    ],
   },
   overrides: [
     {
