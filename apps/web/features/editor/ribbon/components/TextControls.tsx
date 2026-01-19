@@ -91,7 +91,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   };
 
   return (
-    <RibbonControlWrapper className="!w-32">
+    <RibbonControlWrapper>
       <Select
         value={selectValue}
         onChange={handleChange}
@@ -126,25 +126,25 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
     applyTextUpdate({ fontSize: val }, true);
   };
 
-    return (
-      <RibbonControlWrapper align="center" className="!w-24">
-          <NumericComboField
-            value={fontSizeValue}
-            onCommit={handleCommit}
-            presets={fontSizePresets}
-            min={1}
-            max={999}
-            step={1}
-            stepLarge={10}
-            ariaLabel="Tamanho da Fonte"
-            className="w-full ribbon-control ribbon-fill-h"
-            dropdownMaxHeight="auto"
-            allowScrollWheel={true}
-            allowArrowStep={false}
-          />
-      </RibbonControlWrapper>
-    );
-  };
+  return (
+    <RibbonControlWrapper align="center">
+      <NumericComboField
+        value={fontSizeValue}
+        onCommit={handleCommit}
+        presets={fontSizePresets}
+        min={1}
+        max={999}
+        step={1}
+        stepLarge={10}
+        ariaLabel="Tamanho da Fonte"
+        className="w-full ribbon-control ribbon-fill-h"
+        dropdownMaxHeight="auto"
+        allowScrollWheel={true}
+        allowArrowStep={false}
+      />
+    </RibbonControlWrapper>
+  );
+};
 const alignOptions = [
   { align: 'left' as const, icon: <AlignLeft size={16} />, label: LABELS.text.alignLeft },
   {
@@ -299,33 +299,80 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
               title={option.label}
               className={mixedClass}
             />
-          );
-        })}
-      </RibbonToggleGroup>
-    </RibbonControlWrapper>
+        );
+      })}
+    </RibbonToggleGroup>
+  </RibbonControlWrapper>
+);
+};
+
+const useLinkedRowWidth = () => {
+  const [node, setNode] = React.useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = React.useState<number | undefined>();
+
+  React.useEffect(() => {
+    if (!node) {
+      setWidth(undefined);
+      return;
+    }
+
+    const updateWidth = () => {
+      const rect = node.getBoundingClientRect();
+      const next = Math.round(rect.width);
+      setWidth((prev) => (prev === next ? prev : next));
+    };
+
+    updateWidth();
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const { ResizeObserver } = window;
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(updateWidth);
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [node]);
+
+  const ref = React.useCallback((element: HTMLDivElement | null) => {
+    setNode(element);
+  }, []);
+
+  return { width, ref };
+};
+
+const ResponsiveRibbonColumn: React.FC<{
+  top: React.ReactNode;
+  bottom: React.ReactNode;
+}> = ({ top, bottom }) => {
+  const { width, ref } = useLinkedRowWidth();
+
+  return (
+    <div className="ribbon-column">
+      <div className="ribbon-row-top" style={width ? { width: `${width}px` } : undefined}>
+        {top}
+      </div>
+      <div className="ribbon-row-bottom" ref={ref}>
+        {bottom}
+      </div>
+    </div>
   );
 };
 
 export const TextFormatGroup: React.FC<TextControlProps> = (props) => (
   <div className="flex flex-row h-full gap-2 px-1 items-center">
-    {/* Left Column: Family + Style */}
-    <div className="ribbon-column">
-      <div className="ribbon-row-top">
-        <FontFamilyControl {...props} />
-      </div>
-      <div className="ribbon-row-bottom">
-        <TextStyleControl {...props} />
-      </div>
-    </div>
-
-    {/* Right Column: Size + Align */}
-    <div className="ribbon-column">
-      <div className="ribbon-row-top">
-        <FontSizeControl {...props} />
-      </div>
-      <div className="ribbon-row-bottom">
-        <TextAlignControl {...props} />
-      </div>
-    </div>
+    <ResponsiveRibbonColumn
+      top={<FontFamilyControl {...props} />}
+      bottom={<TextStyleControl {...props} />}
+    />
+    <ResponsiveRibbonColumn
+      top={<FontSizeControl {...props} />}
+      bottom={<TextAlignControl {...props} />}
+    />
   </div>
 );
