@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Undo2, Square } from 'lucide-react';
+import { Eye, EyeOff, Undo2 } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
@@ -111,7 +111,7 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.preventDefault()}
-    className={`relative w-5 h-5 max-h-5 mx-1 rounded border transition-colors ${
+    className={`relative w-5 h-5 max-h-4 mx-1 rounded border transition-colors ${
       disabled
         ? 'opacity-50 cursor-not-allowed border-border/50'
         : state === StyleState.Mixed
@@ -425,80 +425,86 @@ export const ColorRibbonControls: React.FC = () => {
 
   return (
     <div
-      className={`ribbon-group-col min-w-[140px] px-1 ${isDisabled ? 'opacity-50' : ''}`}
+      className={`ribbon-group-col gap-2 px-1 ${isDisabled ? 'opacity-50' : ''}`}
       title={isDisabled ? LABELS.colors.disabledHint : undefined}
     >
       {/* Stroke Row */}
       <div className="ribbon-row h-7 items-center justify-between">
-        <div className="flex items-center">
-          <div className="flex w-5 justify-center text-text-muted" title={LABELS.colors.stroke}>
-            <Square size={ICON_SIZE} />
+        <div className="flex flex-col gap-0.5">
+          <span
+            className="text-label font-semibold uppercase tracking-wide text-text-muted"
+            title={LABELS.colors.stroke}
+          >
+            {LABELS.colors.stroke}
+          </span>
+          <div className="flex items-center gap-1">
+            <ColorSwatchButton
+              color={strokeState.color}
+              onClick={(event) => openColorPicker(event, 'stroke')}
+              disabled={isDisabled || strokeState.supportedState === TriState.Off}
+              state={strokeState.state}
+              title={strokeTooltip}
+              showNone={noStroke}
+            />
+            <RibbonIconButton
+              icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+              onClick={handleToggleStroke}
+              title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
+              isActive={noStroke}
+              variant={noStroke ? 'danger' : 'default'}
+              size="sm"
+              disabled={isDisabled || strokeState.supportedState === TriState.Off}
+            />
+            <RibbonIconButton
+              icon={<Undo2 size={ICON_SIZE} />}
+              onClick={() => handleRestore('stroke')}
+              title={restoreStrokeTooltip}
+              size="sm"
+              disabled={
+                isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
+              }
+              className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
+            />
           </div>
-          <ColorSwatchButton
-            color={strokeState.color}
-            onClick={(event) => openColorPicker(event, 'stroke')}
-            disabled={isDisabled || strokeState.supportedState === TriState.Off}
-            state={strokeState.state}
-            title={strokeTooltip}
-            showNone={noStroke}
-          />
-        </div>
-        <div className="flex gap-0.5">
-          <RibbonIconButton
-            icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-            onClick={handleToggleStroke}
-            title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
-            isActive={noStroke}
-            variant={noStroke ? 'danger' : 'default'}
-            size="sm"
-            disabled={isDisabled || strokeState.supportedState === TriState.Off}
-          />
-          <RibbonIconButton
-            icon={<Undo2 size={ICON_SIZE} />}
-            onClick={() => handleRestore('stroke')}
-            title={restoreStrokeTooltip}
-            size="sm"
-            disabled={
-              isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
-            }
-            className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
-          />
         </div>
       </div>
 
       {/* Fill Row */}
-      <div className="ribbon-row mt-0.5 h-7 items-center justify-between">
-        <div className="flex items-center">
-          <div className="flex w-5 justify-center text-text-muted" title={LABELS.colors.fill}>
-            <Square size={ICON_SIZE} fill="currentColor" />
+      <div className="ribbon-row h-7 items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span
+            className="text-label font-semibold uppercase tracking-wide text-text-muted"
+            title={LABELS.colors.fill}
+          >
+            {LABELS.colors.fill}
+          </span>
+          <div className="flex items-center gap-1">
+            <ColorSwatchButton
+              color={fillState.color}
+              onClick={(event) => openColorPicker(event, 'fill')}
+              disabled={isDisabled || fillState.supportedState === TriState.Off}
+              showNone={noFill}
+              title={fillTooltip}
+              state={fillState.state}
+            />
+            <RibbonIconButton
+              icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+              onClick={handleToggleFill}
+              title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
+              isActive={noFill}
+              variant={noFill ? 'danger' : 'default'}
+              size="sm"
+              disabled={isDisabled || fillState.supportedState === TriState.Off}
+            />
+            <RibbonIconButton
+              icon={<Undo2 size={ICON_SIZE} />}
+              onClick={() => handleRestore('fill')}
+              title={restoreFillTooltip}
+              size="sm"
+              disabled={isDisabled || !isFillOverride || fillState.supportedState === TriState.Off}
+              className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
+            />
           </div>
-          <ColorSwatchButton
-            color={fillState.color}
-            onClick={(event) => openColorPicker(event, 'fill')}
-            disabled={isDisabled || fillState.supportedState === TriState.Off}
-            showNone={noFill}
-            title={fillTooltip}
-            state={fillState.state}
-          />
-        </div>
-        <div className="flex gap-0.5">
-          <RibbonIconButton
-            icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-            onClick={handleToggleFill}
-            title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
-            isActive={noFill}
-            variant={noFill ? 'danger' : 'default'}
-            size="sm"
-            disabled={isDisabled || fillState.supportedState === TriState.Off}
-          />
-          <RibbonIconButton
-            icon={<Undo2 size={ICON_SIZE} />}
-            onClick={() => handleRestore('fill')}
-            title={restoreFillTooltip}
-            size="sm"
-            disabled={isDisabled || !isFillOverride || fillState.supportedState === TriState.Off}
-            className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
-          />
         </div>
       </div>
 

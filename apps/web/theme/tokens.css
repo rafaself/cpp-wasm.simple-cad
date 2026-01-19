@@ -1,9 +1,19 @@
 :root {
   color-scheme: light dark;
 
+  /* --- Typography Tokens --- */
+  --text-title: 16px;
+  --text-heading: 13px;
+  --text-body: 12px;
+  --text-body-strong: 12px;
+  --text-label: 10px;
+  --text-caption: 10px;
+  --text-mono: 11px;
+
   /* --- Spacing (CAD-Optimized) --- */
   --space-0: 0px;
   --space-0_5: 2px;
+  --space-0_75: 3px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -124,4 +134,34 @@
   /* Legacy Header Support */
   --color-header-bg: 210 40% 96%;
   --color-header-tab-active: 0 0% 100%;
+}
+
+.text-title {
+  font-size: var(--text-title);
+}
+
+.text-heading {
+  font-size: var(--text-heading);
+}
+
+.text-body {
+  font-size: var(--text-body);
+}
+
+.text-body-strong {
+  font-size: var(--text-body-strong);
+}
+
+.text-label {
+  font-size: var(--text-label);
+}
+
+.text-caption {
+  font-size: var(--text-caption);
+}
+
+.text-mono {
+  font-size: var(--text-mono);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
 }

@@ -139,6 +139,7 @@ Base scale is **4px**.
 
 * `--space-0`: 0
 * `--space-0_5`: 2px (micro spacing; use sparingly)
+* `--space-0_75`: 3px (text toolbar column gap)
 * `--space-1`: 4px
 * `--space-2`: 8px
 * `--space-3`: 12px

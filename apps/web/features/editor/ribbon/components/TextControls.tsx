@@ -174,7 +174,7 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
   };
   return (
     <RibbonControlWrapper align="center">
-      <RibbonToggleGroup>
+      <RibbonToggleGroup className="w-full h-full">
         {alignOptions.map(({ align, icon, label }) => (
           <RibbonIconButton
             key={align}
@@ -283,7 +283,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 
   return (
     <RibbonControlWrapper align="center">
-      <RibbonToggleGroup>
+      <RibbonToggleGroup className="w-full h-full">
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
@@ -308,21 +308,17 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 
 export const TextFormatGroup: React.FC<TextControlProps> = (props) => (
   <div className="ribbon-group-col px-1">
-    {/* Row 1 */}
-    <div className="ribbon-row">
-      <div className="w-[140px] h-full">
+    <div className="text-toolbar-grid">
+      <div className="text-toolbar-grid-cell">
         <FontFamilyControl {...props} />
       </div>
-      <div className="w-[106px] h-full">
+      <div className="text-toolbar-grid-cell">
         <FontSizeControl {...props} />
       </div>
-    </div>
-    {/* Row 2 */}
-    <div className="ribbon-row">
-      <div className="w-[140px] h-full">
+      <div className="text-toolbar-grid-cell">
         <TextStyleControl {...props} />
       </div>
-      <div className="w-[106px] h-full">
+      <div className="text-toolbar-grid-cell">
         <TextAlignControl {...props} />
       </div>
     </div>
