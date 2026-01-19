@@ -66,9 +66,11 @@ export const Popover: React.FC<PopoverProps> = ({
 
   useEffect(() => {
     if (show) {
-      // Initial position
-      // We need a slight delay or effect to wait for content to render and have dimensions
-      requestAnimationFrame(updatePosition);
+      // Initial position (double RAF to ensure content is measured)
+      requestAnimationFrame(() => {
+        updatePosition();
+        requestAnimationFrame(updatePosition);
+      });
 
       window.addEventListener('resize', updatePosition);
       window.addEventListener('scroll', updatePosition, true);
@@ -119,7 +121,11 @@ export const Popover: React.FC<PopoverProps> = ({
 
   return (
     <>
-      <div ref={triggerRef} onClick={handleTriggerClick} className="inline-block w-full h-full">
+      <div
+        ref={triggerRef}
+        onClick={handleTriggerClick}
+        className={matchWidth ? 'inline-flex w-full' : 'inline-flex'}
+      >
         {children}
       </div>
       {show && (
