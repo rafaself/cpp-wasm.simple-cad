@@ -55,9 +55,7 @@ export const CommandHelpContent: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <code className="font-bold text-text font-mono text-sm">{cmd.name}</code>
                     {cmd.aliases.length > 0 && (
-                      <span className="text-xs text-text-muted">
-                        ({cmd.aliases.join(', ')})
-                      </span>
+                      <span className="text-xs text-text-muted">({cmd.aliases.join(', ')})</span>
                     )}
                   </div>
                   <span className="text-xs text-text-muted mt-0.5">{cmd.description}</span>

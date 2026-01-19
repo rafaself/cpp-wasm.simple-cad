@@ -17,7 +17,8 @@ const sizeStyles: Record<InputSize, string> = {
 };
 
 const variantStyles: Record<InputVariant, string> = {
-  outline: 'bg-transparent border border-border focus:border-primary focus:ring-1 focus:ring-primary/20',
+  outline:
+    'bg-transparent border border-border focus:border-primary focus:ring-1 focus:ring-primary/20',
   filled: 'bg-surface-2 border border-transparent focus:bg-surface-1 focus:border-primary',
 };
 
@@ -37,7 +38,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ) => {
     const baseStyles =
       'flex w-full rounded-md transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50';
-    
+
     const errorStyles = error ? 'border-error focus:border-error focus:ring-error/20' : '';
 
     return (

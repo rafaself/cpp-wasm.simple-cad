@@ -1,5 +1,5 @@
-
 import { describe, it, expect } from 'vitest';
+
 import { calculateSideResize, localToWorldShift, SideResizeInput } from './sideResizeGeometry';
 
 describe('sideResizeGeometry', () => {
@@ -15,10 +15,10 @@ describe('sideResizeGeometry', () => {
           localDelta: 10,
           isSymmetric: false,
           isPositiveSide: true,
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         expect(result.newDimension).toBe(110);
         expect(result.scale).toBe(1); // Normal orientation
         expect(result.centerShift).toBe(5); // Shifted right by 5 (10/2)
@@ -32,10 +32,10 @@ describe('sideResizeGeometry', () => {
           localDelta: -10,
           isSymmetric: false,
           isPositiveSide: true,
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         expect(result.newDimension).toBe(90);
         expect(result.scale).toBe(1);
         expect(result.centerShift).toBe(-5);
@@ -49,10 +49,10 @@ describe('sideResizeGeometry', () => {
           localDelta: -10, // Move left
           isSymmetric: false,
           isPositiveSide: false, // West
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         expect(result.newDimension).toBe(110);
         expect(result.scale).toBe(1); // Normal orientation (Left < Right)
         expect(result.centerShift).toBe(-5); // Center moves left
@@ -66,10 +66,10 @@ describe('sideResizeGeometry', () => {
           localDelta: 10,
           isSymmetric: false,
           isPositiveSide: false, // West
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         expect(result.newDimension).toBe(90);
         expect(result.scale).toBe(1);
         expect(result.centerShift).toBe(5);
@@ -85,10 +85,10 @@ describe('sideResizeGeometry', () => {
           localDelta: -110,
           isSymmetric: false,
           isPositiveSide: true, // East
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         // Anchor -50. Drag -60.
         // Min -60, Max -50. Size 10.
         expect(result.newDimension).toBe(10);
@@ -104,10 +104,10 @@ describe('sideResizeGeometry', () => {
           localDelta: 110,
           isSymmetric: false,
           isPositiveSide: false, // West
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         // Anchor 50. Drag 60.
         // Min 50, Max 60. Size 10.
         expect(result.newDimension).toBe(10);
@@ -126,10 +126,10 @@ describe('sideResizeGeometry', () => {
           localDelta: 10,
           isSymmetric: true,
           isPositiveSide: true,
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         expect(result.newDimension).toBe(120);
         expect(result.scale).toBe(1);
         expect(result.centerShift).toBe(0);
@@ -145,10 +145,10 @@ describe('sideResizeGeometry', () => {
           localDelta: -60,
           isSymmetric: true,
           isPositiveSide: true,
-          minSize
+          minSize,
         };
         const result = calculateSideResize(input);
-        
+
         expect(result.newDimension).toBe(20);
         expect(result.scale).toBe(-1);
         expect(result.centerShift).toBe(0);

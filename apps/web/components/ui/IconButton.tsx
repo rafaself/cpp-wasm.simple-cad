@@ -5,8 +5,10 @@ import { Button, type ButtonProps } from './Button';
 type IconButtonSize = 'sm' | 'md';
 type IconButtonTone = 'default' | 'primary' | 'danger' | 'secondary';
 
-export interface IconButtonProps
-  extends Omit<ButtonProps, 'children' | 'size' | 'variant' | 'leftIcon' | 'rightIcon'> {
+export interface IconButtonProps extends Omit<
+  ButtonProps,
+  'children' | 'size' | 'variant' | 'leftIcon' | 'rightIcon'
+> {
   icon: React.ReactNode;
   tone?: IconButtonTone;
   size?: IconButtonSize;

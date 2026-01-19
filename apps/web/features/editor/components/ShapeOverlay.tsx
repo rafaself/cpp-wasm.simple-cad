@@ -11,8 +11,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { supportsEngineResize } from '@/engine/core/capabilities';
-import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { OverlayKind, EntityKind } from '@/engine/core/EngineRuntime';
+import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useSettingsStore } from '@/stores/useSettingsStore';

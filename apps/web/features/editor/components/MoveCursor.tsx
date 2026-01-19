@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { CURSOR_DIMENSIONS } from '../config/cursor-config';
 
 interface MoveCursorProps {

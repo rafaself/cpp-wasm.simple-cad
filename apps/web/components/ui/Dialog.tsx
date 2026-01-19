@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+
 import { Button, ButtonVariant } from './Button';
 
 export interface DialogProps {
@@ -299,10 +300,14 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
 }) => {
   const mapVariant = (v: 'primary' | 'secondary' | 'text'): ButtonVariant => {
     switch (v) {
-      case 'primary': return 'primary';
-      case 'secondary': return 'secondary';
-      case 'text': return 'ghost';
-      default: return 'ghost';
+      case 'primary':
+        return 'primary';
+      case 'secondary':
+        return 'secondary';
+      case 'text':
+        return 'ghost';
+      default:
+        return 'ghost';
     }
   };
 

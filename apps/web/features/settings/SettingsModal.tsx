@@ -2,6 +2,7 @@ import { X, Grid3X3, Magnet, Keyboard, Briefcase, LayoutTemplate, Terminal } fro
 import React, { useState } from 'react';
 
 import { Dialog, Button } from '@/components/ui';
+
 import { useUIStore } from '../../stores/useUIStore';
 
 import CanvasSettings from './sections/CanvasSettings';
@@ -67,9 +68,7 @@ const SettingsModal: React.FC = () => {
       ariaLabel="Configuracoes"
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-2">
-        <h2 className="font-semibold text-base">
-          Configuracoes
-        </h2>
+        <h2 className="font-semibold text-base">Configuracoes</h2>
         <Button
           variant="ghost"
           size="icon"
@@ -92,11 +91,7 @@ const SettingsModal: React.FC = () => {
       </div>
 
       <div className="px-4 py-3 border-t border-border flex justify-end gap-2 bg-surface-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={close}
-        >
+        <Button variant="secondary" size="sm" onClick={close}>
           Fechar
         </Button>
       </div>

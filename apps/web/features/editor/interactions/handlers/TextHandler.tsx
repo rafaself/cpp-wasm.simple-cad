@@ -3,7 +3,6 @@ import React from 'react';
 import { TextCaretOverlay } from '@/components/TextCaretOverlay';
 import { TextInputProxy, TextInputProxyRef } from '@/components/TextInputProxy';
 import { CommandOp, SelectionMode, StyleTarget } from '@/engine/core/EngineRuntime';
-import type { EngineCommand } from '@/engine/core/commandTypes';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { TextTool, TextToolState } from '@/engine/tools/TextTool';
 import {
@@ -14,14 +13,15 @@ import {
 } from '@/features/editor/text/textToolController';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { packColorRGBA } from '@/types/text';
 import { PickEntityKind } from '@/types/picking';
+import { packColorRGBA } from '@/types/text';
 import { parseCssColorToHexAlpha } from '@/utils/cssColor';
 import { worldToScreen } from '@/utils/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler } from '../types';
 
+import type { EngineCommand } from '@/engine/core/commandTypes';
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { TextToolCallbacks } from '@/engine/tools/TextTool';
 

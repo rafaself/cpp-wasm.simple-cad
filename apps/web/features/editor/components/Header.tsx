@@ -1,12 +1,4 @@
-import {
-  FilePlus,
-  FolderOpen,
-  Save,
-  Settings,
-  Maximize,
-  Minimize,
-  Zap,
-} from 'lucide-react';
+import { FilePlus, FolderOpen, Save, Settings, Maximize, Minimize, Zap } from 'lucide-react';
 import React from 'react';
 
 import Dialog, { DialogCard, DialogButton } from '@/components/ui/Dialog';

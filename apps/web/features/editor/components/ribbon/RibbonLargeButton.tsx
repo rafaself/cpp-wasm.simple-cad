@@ -5,8 +5,8 @@ import { Icon as IconPrimitive } from '@/components/ui/Icon';
 
 import { RibbonItem } from '../../ui/ribbonConfig';
 
-import { getTooltip } from './ribbonUtils';
 import { isRibbonDebugEnabled } from './ribbonDebug';
+import { getTooltip } from './ribbonUtils';
 
 interface RibbonLargeButtonProps {
   item: RibbonItem;
@@ -37,7 +37,7 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
   let variant: ButtonVariant = 'ghost'; // Default for large buttons usually (or secondary)
   // Legacy used 'bg-surface-2' which is secondary.
   variant = 'secondary';
-  
+
   if (isActive) {
     variant = 'primary';
   }

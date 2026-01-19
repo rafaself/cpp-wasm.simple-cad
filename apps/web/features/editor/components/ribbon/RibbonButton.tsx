@@ -5,10 +5,10 @@ import { Icon as IconPrimitive } from '@/components/ui/Icon';
 
 import { RibbonItem } from '../../ui/ribbonConfig';
 
+import { isRibbonDebugEnabled } from './ribbonDebug';
 import { RibbonLargeButton } from './RibbonLargeButton';
 import { RibbonSmallButton } from './RibbonSmallButton';
 import { getTooltip } from './ribbonUtils';
-import { isRibbonDebugEnabled } from './ribbonDebug';
 
 interface RibbonButtonProps {
   item: RibbonItem;
@@ -44,7 +44,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
     auto: 'w-auto',
   };
 
-  const widthClass = item.hideLabel ? 'w-9' : (item.width ? widthClasses[item.width] : 'w-auto');
+  const widthClass = item.hideLabel ? 'w-9' : item.width ? widthClasses[item.width] : 'w-auto';
 
   const tooltip = getTooltip(item);
 

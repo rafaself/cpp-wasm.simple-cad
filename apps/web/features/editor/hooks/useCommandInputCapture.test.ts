@@ -101,7 +101,9 @@ describe('useCommandInputCapture', () => {
       renderHook(() => useCommandInputCapture({ inputRef }));
 
       act(() => {
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+        window.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }),
+        );
       });
 
       expect(useCommandStore.getState().buffer).toBe('');
@@ -166,7 +168,11 @@ describe('useCommandInputCapture', () => {
       useCommandStore.setState({ buffer: '' });
       renderHook(() => useCommandInputCapture({ inputRef }));
 
-      const event = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
+      const event = new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      });
       const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
 
       act(() => {
@@ -191,7 +197,11 @@ describe('useCommandInputCapture', () => {
       useCommandStore.setState({ buffer: '', isActive: false });
       renderHook(() => useCommandInputCapture({ inputRef }));
 
-      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      });
       const stopPropagationSpy = vi.spyOn(event, 'stopPropagation');
 
       act(() => {

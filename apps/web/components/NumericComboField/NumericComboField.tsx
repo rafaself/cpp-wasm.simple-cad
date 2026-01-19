@@ -14,8 +14,9 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useId, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-import { useNumericComboField, type NumericComboValue } from './useNumericComboField';
 import { LABELS } from '@/i18n/labels';
+
+import { useNumericComboField, type NumericComboValue } from './useNumericComboField';
 
 export interface NumericComboFieldProps {
   /** Current value (controlled) */

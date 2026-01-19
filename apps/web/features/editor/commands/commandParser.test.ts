@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  parseBooleanArg,
-  parseCommand,
-  parseEnumArg,
-  parseNumberArg,
-} from './commandParser';
+import { parseBooleanArg, parseCommand, parseEnumArg, parseNumberArg } from './commandParser';
 
 describe('commandParser', () => {
   describe('parseCommand', () => {

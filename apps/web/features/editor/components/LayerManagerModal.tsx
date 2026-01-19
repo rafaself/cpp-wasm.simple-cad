@@ -8,9 +8,9 @@ import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useUIStore } from '@/stores/useUIStore';
-import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
-import { unpackColorRGBA } from '@/types/text';
 import * as DEFAULTS from '@/theme/defaults';
+import { unpackColorRGBA } from '@/types/text';
+import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 
 import { applyLayerColorAction } from '../colors/applyColorAction';
 
@@ -143,7 +143,7 @@ const LayerManagerModal: React.FC = () => {
 
   // Subscribe to style changes so swatches update on undo/redo or external style commands
   void useDocumentSignal('style');
-  
+
   // Color Picker State
   const [activePicker, setActivePicker] = useState<{
     layerId: number;
@@ -206,7 +206,7 @@ const LayerManagerModal: React.FC = () => {
     const rect = e.currentTarget.getBoundingClientRect();
     // Position relatively or absolutely?
     // Since we are inside a fixed dialog, but we want the picker to be on top.
-    // If we use fixed positioning for picker (which it likely uses or we set style), 
+    // If we use fixed positioning for picker (which it likely uses or we set style),
     // we should use screen coordinates.
     // NOTE: Previous implementation used offset relative to dialog top/left.
     // But standard ColorPicker might expect something else.
@@ -229,7 +229,7 @@ const LayerManagerModal: React.FC = () => {
   };
 
   // We need a ref to the dialog content to subtract offset IF using absolute positioning relative to dialog.
-  // But standard is fixed positioning for overlays. 
+  // But standard is fixed positioning for overlays.
   // Let's assume ColorPicker needs absolute positioning relative to nearest positioned ancestor?
   // Actually, the previous implementation did:
   // style={{ top: pickerPos.top - dialogRef.current.rect.top, ... }}
@@ -250,9 +250,7 @@ const LayerManagerModal: React.FC = () => {
     >
       <div className="flex flex-col h-full relative" ref={modalRef}>
         <div className="flex items-center justify-between p-3 border-b border-border bg-surface-2">
-          <h2 className="font-semibold text-sm uppercase tracking-wide">
-            Gerenciador de Camadas
-          </h2>
+          <h2 className="font-semibold text-sm uppercase tracking-wide">Gerenciador de Camadas</h2>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary" // primary/20 looks like secondary-ish or specific

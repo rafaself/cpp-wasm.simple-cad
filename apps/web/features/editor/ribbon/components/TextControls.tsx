@@ -9,11 +9,11 @@ import {
 } from 'lucide-react';
 import React from 'react';
 
+import { Select } from '@/components/ui/Select';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { mapFontIdToFamily } from '@/features/editor/text/textToolController';
 import { LABELS } from '@/i18n/labels';
 
-import { Select } from '@/components/ui/Select';
 import { NumericComboField } from '../../../../components/NumericComboField';
 import { INPUT_STYLES } from '../../../../src/styles/recipes';
 import { useSettingsStore } from '../../../../stores/useSettingsStore';
@@ -91,14 +91,14 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   };
 
   return (
-    <RibbonControlWrapper>
-        <Select
-          value={selectValue}
-          onChange={handleChange}
-          options={FONT_OPTIONS}
-          placeholder={placeholder}
-          className={`${INPUT_STYLES.ribbon} ribbon-control ribbon-fill-h text-xs`}
-        />
+    <RibbonControlWrapper className="!w-32">
+      <Select
+        value={selectValue}
+        onChange={handleChange}
+        options={FONT_OPTIONS}
+        placeholder={placeholder}
+        className={`${INPUT_STYLES.ribbon} ribbon-control ribbon-fill-h text-xs`}
+      />
     </RibbonControlWrapper>
   );
 };
@@ -126,25 +126,25 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
     applyTextUpdate({ fontSize: val }, true);
   };
 
-  return (
-    <RibbonControlWrapper align="center">
-        <NumericComboField
-          value={fontSizeValue}
-          onCommit={handleCommit}
-          presets={fontSizePresets}
-          min={1}
-          max={999}
-          step={1}
-          stepLarge={10}
-          ariaLabel="Tamanho da Fonte"
-          className="w-full ribbon-control ribbon-fill-h"
-          dropdownMaxHeight="auto"
-          allowScrollWheel={true}
-        />
-    </RibbonControlWrapper>
-  );
-};
-
+    return (
+      <RibbonControlWrapper align="center" className="!w-24">
+          <NumericComboField
+            value={fontSizeValue}
+            onCommit={handleCommit}
+            presets={fontSizePresets}
+            min={1}
+            max={999}
+            step={1}
+            stepLarge={10}
+            ariaLabel="Tamanho da Fonte"
+            className="w-full ribbon-control ribbon-fill-h"
+            dropdownMaxHeight="auto"
+            allowScrollWheel={true}
+            allowArrowStep={false}
+          />
+      </RibbonControlWrapper>
+    );
+  };
 const alignOptions = [
   { align: 'left' as const, icon: <AlignLeft size={16} />, label: LABELS.text.alignLeft },
   {
@@ -173,8 +173,8 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
     applyTextUpdate({ align }, false);
   };
   return (
-    <RibbonControlWrapper align="center">
-      <RibbonToggleGroup className="w-full h-full">
+    <RibbonControlWrapper align="center" className="!w-fit">
+      <RibbonToggleGroup className="w-fit h-full" width="fit" variant="segmented">
         {alignOptions.map(({ align, icon, label }) => (
           <RibbonIconButton
             key={align}
@@ -282,8 +282,8 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   };
 
   return (
-    <RibbonControlWrapper align="center">
-      <RibbonToggleGroup className="w-full h-full">
+    <RibbonControlWrapper align="center" className="!w-fit">
+      <RibbonToggleGroup className="w-fit h-full" width="fit" variant="segmented">
         {options.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
@@ -307,18 +307,23 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 };
 
 export const TextFormatGroup: React.FC<TextControlProps> = (props) => (
-  <div className="ribbon-group-col px-1">
-    <div className="text-toolbar-grid">
-      <div className="text-toolbar-grid-cell">
+  <div className="flex flex-row h-full gap-2 px-1 items-center">
+    {/* Left Column: Family + Style */}
+    <div className="ribbon-column">
+      <div className="ribbon-row-top">
         <FontFamilyControl {...props} />
       </div>
-      <div className="text-toolbar-grid-cell">
-        <FontSizeControl {...props} />
-      </div>
-      <div className="text-toolbar-grid-cell">
+      <div className="ribbon-row-bottom">
         <TextStyleControl {...props} />
       </div>
-      <div className="text-toolbar-grid-cell">
+    </div>
+
+    {/* Right Column: Size + Align */}
+    <div className="ribbon-column">
+      <div className="ribbon-row-top">
+        <FontSizeControl {...props} />
+      </div>
+      <div className="ribbon-row-bottom">
         <TextAlignControl {...props} />
       </div>
     </div>

@@ -202,6 +202,38 @@
   height: 100%;
 }
 
+/* Two-row Ribbon Column Layout */
+.ribbon-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: center;
+  gap: var(--ribbon-group-gap-y);
+  /* The column width is determined by the widest child (usually bottom row) */
+  width: min-content;
+}
+
+.ribbon-row-top {
+  width: 100%;
+  min-width: 0; /* Allow shrinking if needed */
+  height: var(--ribbon-control-height-md);
+  display: flex;
+  align-items: center;
+}
+
+.ribbon-row-top > * {
+  width: 100%;
+}
+
+.ribbon-row-bottom {
+  /* Hug content */
+  width: fit-content;
+  white-space: nowrap;
+  height: var(--ribbon-control-height-md);
+  display: flex;
+  align-items: center;
+}
+
 .ribbon-control {
   height: var(--ribbon-control-height-sm);
   font-size: var(--ribbon-control-font-size);
@@ -214,6 +246,22 @@
   background-color: var(--ribbon-control-bg);
   border: 1px solid var(--ribbon-control-border-color);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ribbon-segmented-group > button {
+  border-radius: 0 !important;
+  position: relative;
+}
+
+.ribbon-segmented-group > button:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background-color: var(--ribbon-control-border-color);
+  pointer-events: none;
 }
 
 .ribbon-control:focus-within {

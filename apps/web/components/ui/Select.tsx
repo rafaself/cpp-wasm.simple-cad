@@ -3,8 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { LABELS } from '@/i18n/labels';
 
-import { Popover } from './Popover';
 import { Button } from './Button';
+import { Popover } from './Popover';
 
 export interface SelectOption {
   value: string;
@@ -46,7 +46,12 @@ export const Select: React.FC<SelectProps> = ({
     if (!isOpen && ['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
       e.preventDefault();
       setIsOpen(true);
-      setHighlighted(Math.max(0, options.findIndex((o) => o.value === value)));
+      setHighlighted(
+        Math.max(
+          0,
+          options.findIndex((o) => o.value === value),
+        ),
+      );
       return;
     }
     if (!isOpen) return;
@@ -90,7 +95,7 @@ export const Select: React.FC<SelectProps> = ({
       }}
       matchWidth
       offset={4}
-    content={
+      content={
         <div
           id={listId}
           role="listbox"

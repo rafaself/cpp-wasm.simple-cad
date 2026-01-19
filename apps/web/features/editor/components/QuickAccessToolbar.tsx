@@ -67,7 +67,11 @@ const QuickAccessToolbar: React.FC = () => {
           size="md"
           className="w-8 h-8"
           onClick={() => selectTool(item.id, item.status)}
-          icon={<div className="transform scale-90 flex items-center justify-center">{getIcon(item.icon)}</div>}
+          icon={
+            <div className="transform scale-90 flex items-center justify-center">
+              {getIcon(item.icon)}
+            </div>
+          }
         />
       ))}
     </div>

@@ -3,6 +3,7 @@ import { TransformMode, type TransformState } from '@/engine/core/interactionSes
 import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 
 import { FakeEventBus } from './fakeEventBus';
+
 import type { PickResult } from '@/types/picking';
 
 type VectorLike = { size(): number; get(index: number): number; delete(): void };

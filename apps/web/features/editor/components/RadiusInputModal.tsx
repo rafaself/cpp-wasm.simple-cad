@@ -92,7 +92,9 @@ const RadiusInputModal: React.FC<RadiusInputModalProps> = ({
             onClick={handleConfirm}
             disabled={!isValid}
             className={`px-2 py-1 text-xs text-white rounded transition-colors ${
-              isValid ? 'bg-primary hover:bg-primary/90' : 'bg-surface-2 opacity-50 cursor-not-allowed'
+              isValid
+                ? 'bg-primary hover:bg-primary/90'
+                : 'bg-surface-2 opacity-50 cursor-not-allowed'
             }`}
             aria-label="Confirmar"
           >

@@ -1,4 +1,12 @@
-export type Placement = 'top' | 'bottom' | 'left' | 'right' | 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end';
+export type Placement =
+  | 'top'
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'top-start'
+  | 'top-end'
+  | 'bottom-start'
+  | 'bottom-end';
 
 export interface PositionOptions {
   placement?: Placement;
@@ -14,10 +22,9 @@ export interface Coordinates {
 export function calculatePosition(
   triggerRect: DOMRect,
   contentRect: DOMRect,
-  options: PositionOptions = {}
+  options: PositionOptions = {},
 ): Coordinates {
   const { placement = 'bottom', offset = 4 } = options;
-
 
   let top = 0;
   let left = 0;

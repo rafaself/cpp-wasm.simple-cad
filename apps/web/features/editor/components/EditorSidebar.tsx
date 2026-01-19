@@ -3,8 +3,8 @@ import React from 'react';
 
 import { useUIStore } from '@/stores/useUIStore';
 
-import SidebarTabs, { SidebarTabConfig } from './sidebar/SidebarTabs';
 import { DrawingInspectorPanel } from './drawing/DrawingInspectorPanel';
+import SidebarTabs, { SidebarTabConfig } from './sidebar/SidebarTabs';
 
 const PlaceholderTab: React.FC<{ name: string }> = ({ name }) => (
   <div className="flex-1 flex items-center justify-center p-4 text-text-muted text-xs text-center select-none">

@@ -5,8 +5,8 @@ import { Icon as IconPrimitive } from '@/components/ui/Icon';
 
 import { RibbonItem } from '../../ui/ribbonConfig';
 
-import { getTooltip } from './ribbonUtils';
 import { isRibbonDebugEnabled } from './ribbonDebug';
+import { getTooltip } from './ribbonUtils';
 
 interface RibbonSmallButtonProps {
   item: RibbonItem;

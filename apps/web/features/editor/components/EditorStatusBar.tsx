@@ -17,13 +17,13 @@ import React, { useState } from 'react';
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 import { LABELS } from '@/i18n/labels';
 
-import { CommandInput } from './CommandInput';
-
 import EditableNumber from '../../../components/EditableNumber';
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
 import { SnapOptions } from '../../../types';
 import { getRibbonTabs } from '../ui/ribbonConfig';
+
+import { CommandInput } from './CommandInput';
 
 const EditorStatusBar: React.FC = () => {
   const mousePos = useUIStore((s) => s.mousePos);
