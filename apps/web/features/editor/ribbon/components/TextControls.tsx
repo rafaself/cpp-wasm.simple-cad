@@ -146,7 +146,7 @@ export const FontSizeControl: React.FC<TextControlProps> = ({
         className="w-full ribbon-control ribbon-fill-h"
         dropdownMaxHeight="auto"
         allowScrollWheel={true}
-        allowArrowStep={false}
+        allowArrowStep={true}
       />
     </RibbonControlWrapper>
   );
