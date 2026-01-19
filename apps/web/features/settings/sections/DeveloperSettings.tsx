@@ -16,6 +16,14 @@ const DeveloperSettings: React.FC = () => {
       <Section title="Funcionalidades Experimentais">
         <div className="flex flex-col">
           <Toggle
+            label="Ribbon V2 (IA reorganizada)"
+            checked={settings.featureFlags.enableRibbonV2}
+            onChange={settings.setRibbonV2Enabled}
+          />
+          <div className="text-xs text-text-muted px-1 pb-2">
+            Alterna a nova estrutura do ribbon com 4 abas (Início, Desenhar, Anotar, Visualizar).
+          </div>
+          <Toggle
             label={
               engineResizeSupported
                 ? 'Habilitar Redimensionamento pela Engine'

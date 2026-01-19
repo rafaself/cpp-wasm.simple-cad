@@ -90,27 +90,51 @@
    ========================================================================== */
 
 :root {
-  --ribbon-height: calc(var(--ribbon-group-body-height) + var(--ribbon-group-label-height));
-  --ribbon-group-body-height: 68px;
-  --ribbon-group-label-height: 18px;
-  --ribbon-control-height-md: 30px;
-  --ribbon-control-height-sm: 28px;
-  --ribbon-icon-btn-size-md: 32px;
-  --ribbon-icon-btn-size-sm: 28px;
-  --ribbon-group-px: 12px;
-  --ribbon-group-gap-x: 4px;
-  --ribbon-group-gap-y: 2px;
-  --ribbon-divider-inset-y: 4px;
-  --ribbon-label-font-size: 10px;
-  --ribbon-label-line-height: 18px;
-  --ribbon-control-font-size: 12px;
-  --ribbon-control-line-height: 16px;
-  --ribbon-control-radius: 6px;
+  /* ==========================================================================
+     RIBBON STANDARDIZED TOKENS (Phase 1: Grid + Metrics Standardization)
+     All values aligned to 4px baseline grid for visual consistency.
+     ========================================================================== */
+
+  /* Heights - Core ribbon structure */
+  --ribbon-group-body-height: 68px;         /* 17×4px - Main content area */
+  --ribbon-group-label-height: 18px;        /* 4.5×4px - Label area (typography exception) */
+  --ribbon-height: calc(var(--ribbon-group-body-height) + var(--ribbon-group-label-height)); /* 86px total */
+
+  /* Control Heights - Aliased to global tokens for consistency */
+  --ribbon-control-height-md: var(--height-button-md);  /* 32px = 8×4px (was 30px) */
+  --ribbon-control-height-sm: var(--height-button-sm);  /* 24px = 6×4px (was 28px) */
+  --ribbon-control-height-lg: 52px;                     /* Large button height */
+  --ribbon-icon-btn-size-md: var(--height-button-md);   /* 32px = 8×4px */
+  --ribbon-icon-btn-size-sm: var(--height-button-sm);   /* 24px = 6×4px (was 28px) */
+  --ribbon-item-height: var(--ribbon-control-height-md); /* Default control height */
+
+  /* Spacing - Aliased to global spacing tokens */
+  --ribbon-group-px: var(--space-3);           /* 12px = 3×4px - Group horizontal padding */
+  --ribbon-group-gap-x: var(--space-1);        /* 4px = 1×4px - Horizontal gap between items */
+  --ribbon-group-gap-y: var(--space-0_5);      /* 2px = 0.5×4px - Vertical gap between rows */
+  --ribbon-divider-inset-y: var(--space-1);    /* 4px = 1×4px - Divider vertical inset */
+
+  /* Typography - Aliased to global typography tokens */
+  --ribbon-label-font-size: var(--text-label);      /* 10px */
+  --ribbon-label-line-height: 18px;                 /* Matches label height */
+  --ribbon-control-font-size: var(--text-body);     /* 12px */
+  --ribbon-control-line-height: 16px;               /* 4×4px */
+
+  /* Visual - Border radius aligned to grid */
+  --ribbon-control-radius: var(--radius-sm);         /* 4px = 1×4px (was 6px) */
+
+  /* Colors */
   --ribbon-divider-opacity: 0.5;
   --ribbon-control-bg: var(--surface-2);
   --ribbon-control-border-color: rgba(148, 163, 184, 0.4);
   --ribbon-control-focus: rgba(59, 130, 246, 0.5);
-  --ribbon-item-height: var(--ribbon-control-height-md);
+
+  /* Overflow Menu */
+  --ribbon-overflow-min-width: 220px;
+  --ribbon-overflow-max-height: 320px;
+  --ribbon-overflow-trigger-min-width: 64px;
+  --ribbon-inline-menu-min-width: 180px;
+  --ribbon-tooltip-min-width: 160px;
 }
 
 /* 
@@ -140,12 +164,16 @@
   gap: 0;
   height: 100%;
   min-height: var(--ribbon-height);
+  transition:
+    width var(--duration-fast) var(--easing-default),
+    opacity var(--duration-fast) var(--easing-default);
 }
 
 .ribbon-group-body {
   height: var(--ribbon-group-body-height);
   width: 100%;
   overflow: hidden;
+  transition: width var(--duration-fast) var(--easing-default);
 }
 
 .ribbon-group-label {
@@ -193,6 +221,174 @@
 
 .ribbon-row > * {
   height: 100%;
+}
+
+.ribbon-large-label {
+  font-size: var(--ribbon-label-font-size);
+  line-height: 1.1;
+  text-align: center;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  pointer-events: none;
+}
+
+.ribbon-overflow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: var(--ribbon-height);
+}
+
+.ribbon-overflow-trigger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ribbon-group-gap-y);
+  height: var(--ribbon-control-height-lg);
+  min-width: var(--ribbon-overflow-trigger-min-width);
+}
+
+.ribbon-overflow-trigger-label {
+  font-size: var(--ribbon-label-font-size);
+  line-height: var(--ribbon-label-line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ribbon-overflow-panel {
+  background: hsl(var(--color-surface-1));
+  border: 1px solid hsl(var(--color-border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  min-width: var(--ribbon-overflow-min-width);
+  padding: var(--space-2);
+}
+
+.ribbon-overflow-search {
+  margin-bottom: var(--space-2);
+}
+
+.ribbon-overflow-search-input {
+  width: 100%;
+}
+
+.ribbon-overflow-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: var(--ribbon-overflow-max-height);
+  overflow: auto;
+}
+
+.ribbon-overflow-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ribbon-overflow-group-title {
+  font-size: var(--ribbon-label-font-size);
+  line-height: var(--ribbon-label-line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: hsl(var(--color-text-muted));
+  padding: 0 var(--space-1);
+}
+
+.ribbon-overflow-item {
+  width: 100%;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.ribbon-overflow-item-main {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ribbon-overflow-item-label {
+  font-size: var(--ribbon-control-font-size);
+}
+
+.ribbon-overflow-shortcut {
+  font-size: var(--ribbon-label-font-size);
+  color: hsl(var(--color-text-muted));
+}
+
+.ribbon-overflow-empty {
+  font-size: var(--ribbon-control-font-size);
+  color: hsl(var(--color-text-muted));
+  padding: var(--space-2);
+}
+
+.ribbon-tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0_5);
+  min-width: var(--ribbon-tooltip-min-width);
+}
+
+.ribbon-tooltip {
+  background: hsl(var(--color-surface-2));
+  color: hsl(var(--color-text));
+  border: 1px solid hsl(var(--color-border));
+  box-shadow: var(--shadow-2);
+}
+
+.ribbon-tooltip-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-body);
+  color: hsl(var(--color-text));
+}
+
+.ribbon-tooltip-shortcut {
+  font-size: var(--text-label);
+  color: hsl(var(--color-text-muted));
+}
+
+.ribbon-tooltip-description {
+  font-size: var(--text-caption);
+  color: hsl(var(--color-text-muted));
+}
+
+.ribbon-inline-popover {
+  background: hsl(var(--color-surface-1));
+  border: 1px solid hsl(var(--color-border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-2);
+  min-width: var(--ribbon-inline-menu-min-width);
+}
+
+.ribbon-inline-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ribbon-inline-menu-item {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.ribbon-inline-menu-item[data-active='true'] {
+  color: hsl(var(--color-primary));
+}
+
+.ribbon-inline-menu-item[data-mixed='true'] {
+  color: hsl(var(--color-text-muted));
 }
 
 .ribbon-row button,
@@ -295,19 +491,26 @@
   justify-content: center;
 }
 
+/* ==========================================================================
+   RIBBON DEBUG MODE (Phase 1: Enhanced with Baseline Grid)
+   Visual debugging aids for alignment and spacing verification.
+   ========================================================================== */
+
+/* Component Outlines */
 [data-ribbon-debug='true'] .ribbon-rail {
-  outline: 1px dashed rgba(244, 114, 182, 0.9);
+  outline: 1px dashed rgba(244, 114, 182, 0.9); /* Pink - rail container */
 }
 
 [data-ribbon-debug='true'] .ribbon-group {
-  outline: 1px dashed rgba(16, 185, 129, 0.9);
+  outline: 1px dashed rgba(16, 185, 129, 0.9); /* Green - groups */
 }
 
 [data-ribbon-debug='true'] .ribbon-group-content > * {
-  outline: 1px dashed rgba(14, 165, 233, 0.8);
+  outline: 1px dashed rgba(14, 165, 233, 0.8); /* Blue - controls */
   outline-offset: -2px;
 }
 
+/* Center Guide Line */
 .ribbon-debug-guide {
   position: absolute;
   left: 0;
@@ -317,6 +520,159 @@
   pointer-events: none;
   display: block;
   height: 0;
+}
+
+/* 4px Baseline Grid Overlay - NEW in Phase 1 */
+[data-ribbon-debug='true'] .ribbon-rail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(59, 130, 246, 0.08) 0,
+    rgba(59, 130, 246, 0.08) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Baseline Grid Labels - Show 4px increments */
+[data-ribbon-debug='true'] .ribbon-rail::after {
+  content: '4px Grid';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(59, 130, 246, 0.6);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Height Measurement Labels */
+[data-ribbon-debug='true'] .ribbon-group::before {
+  content: attr(data-group-height);
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(16, 185, 129, 0.8);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 1px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   RIBBON BUTTON STATE SYSTEM (Phase 2: Component Refactor)
+   Unified state classes for consistent button behavior across all variants.
+   ========================================================================== */
+
+/* Mixed State - For multi-selection with different values */
+.ribbon-btn-mixed {
+  position: relative;
+  background: repeating-linear-gradient(
+    45deg,
+    hsl(var(--color-surface-2)),
+    hsl(var(--color-surface-2)) 3px,
+    hsl(var(--color-surface-1)) 3px,
+    hsl(var(--color-surface-1)) 6px
+  );
+}
+
+.ribbon-btn-mixed::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--color-surface-2) / 0.8);
+  border-radius: inherit;
+}
+
+/* Mixed State Icon Container */
+.ribbon-btn-mixed-icon {
+  position: relative;
+  z-index: 1;
+  opacity: 0.7;
+}
+
+/* Loading State - For async actions */
+.ribbon-btn-loading {
+  position: relative;
+  pointer-events: none;
+  cursor: wait;
+}
+
+.ribbon-btn-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid hsl(var(--color-primary) / 0.3);
+  border-top-color: hsl(var(--color-primary));
+  border-radius: 50%;
+  animation: ribbon-btn-spin 0.6s linear infinite;
+  z-index: 2;
+}
+
+@keyframes ribbon-btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Stub State - Coming soon indicator */
+.ribbon-btn-stub {
+  border-style: dashed !important;
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.ribbon-btn-stub::after {
+  content: '⏱';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Intent Variants - Color coding for button purpose */
+.ribbon-btn-intent-warning:not(.ribbon-btn-active) {
+  border-color: hsl(var(--color-warning) / 0.4);
+}
+
+.ribbon-btn-intent-warning:not(.ribbon-btn-active):hover {
+  background: hsl(var(--color-warning) / 0.1);
+  border-color: hsl(var(--color-warning) / 0.6);
+}
+
+.ribbon-btn-intent-success:not(.ribbon-btn-active) {
+  border-color: hsl(var(--color-success) / 0.4);
+}
+
+.ribbon-btn-intent-success:not(.ribbon-btn-active):hover {
+  background: hsl(var(--color-success) / 0.1);
+  border-color: hsl(var(--color-success) / 0.6);
+}
+
+/* Active State Marker */
+.ribbon-btn-active {
+  position: relative;
 }
 
 /* Global focus/active reset for UI buttons to prevent white flashes */

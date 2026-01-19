@@ -1,7 +1,9 @@
-import { Eye, EyeOff, Undo2 } from 'lucide-react';
+import { Eye, EyeOff, MoreHorizontal, Undo2 } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
+import { Button } from '@/components/ui/Button';
+import { Popover } from '@/components/ui/Popover';
 import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import {
   StyleState,
@@ -35,6 +37,8 @@ import {
   useColorTargetResolver,
 } from './useColorTargetResolver';
 import { useSelectionStyleSummary } from './useSelectionStyleSummary';
+import { useRibbonLayout } from '../components/ribbon/ribbonLayout';
+import { isTierAtLeast } from '../ui/ribbonLayoutV2';
 
 /**
  * Locked context captured when color picker opens.
@@ -137,6 +141,9 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
 );
 
 export const ColorRibbonControls: React.FC = () => {
+  const { tier } = useRibbonLayout();
+  const [isStrokeMenuOpen, setIsStrokeMenuOpen] = useState(false);
+  const [isFillMenuOpen, setIsFillMenuOpen] = useState(false);
   const runtime = useEngineRuntime();
   const selectionSummary = useSelectionStyleSummary();
   const selectionIds = useEngineSelectionIds();
@@ -392,6 +399,7 @@ export const ColorRibbonControls: React.FC = () => {
     strokeState.state === StyleState.Override || strokeState.state === StyleState.Mixed;
   const isFillOverride =
     fillState.state === StyleState.Override || fillState.state === StyleState.Mixed;
+  const collapseRestores = isTierAtLeast(tier, 'tier2');
 
   const strokeTooltip = isDisabled
     ? LABELS.colors.disabledHint
@@ -455,16 +463,53 @@ export const ColorRibbonControls: React.FC = () => {
               size="sm"
               disabled={isDisabled || strokeState.supportedState === TriState.Off}
             />
-            <RibbonIconButton
-              icon={<Undo2 size={ICON_SIZE} />}
-              onClick={() => handleRestore('stroke')}
-              title={restoreStrokeTooltip}
-              size="sm"
-              disabled={
-                isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
-              }
-              className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
-            />
+            {collapseRestores ? (
+              isStrokeOverride ? (
+                <Popover
+                  isOpen={isStrokeMenuOpen}
+                  onOpenChange={setIsStrokeMenuOpen}
+                  placement="bottom"
+                  offset={6}
+                  className="ribbon-inline-popover"
+                  zIndex="z-dropdown"
+                  content={
+                    <div className="ribbon-inline-menu">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ribbon-inline-menu-item"
+                        onClick={() => {
+                          handleRestore('stroke');
+                          setIsStrokeMenuOpen(false);
+                        }}
+                      >
+                        <Undo2 size={ICON_SIZE} />
+                        <span>Restaurar Traço</span>
+                      </Button>
+                    </div>
+                  }
+                >
+                  <RibbonIconButton
+                    icon={<MoreHorizontal size={ICON_SIZE} />}
+                    onClick={() => undefined}
+                    title="Mais opções de traço"
+                    size="sm"
+                    disabled={isDisabled}
+                  />
+                </Popover>
+              ) : null
+            ) : (
+              <RibbonIconButton
+                icon={<Undo2 size={ICON_SIZE} />}
+                onClick={() => handleRestore('stroke')}
+                title={restoreStrokeTooltip}
+                size="sm"
+                disabled={
+                  isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
+                }
+                className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -496,14 +541,53 @@ export const ColorRibbonControls: React.FC = () => {
               size="sm"
               disabled={isDisabled || fillState.supportedState === TriState.Off}
             />
-            <RibbonIconButton
-              icon={<Undo2 size={ICON_SIZE} />}
-              onClick={() => handleRestore('fill')}
-              title={restoreFillTooltip}
-              size="sm"
-              disabled={isDisabled || !isFillOverride || fillState.supportedState === TriState.Off}
-              className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
-            />
+            {collapseRestores ? (
+              isFillOverride ? (
+                <Popover
+                  isOpen={isFillMenuOpen}
+                  onOpenChange={setIsFillMenuOpen}
+                  placement="bottom"
+                  offset={6}
+                  className="ribbon-inline-popover"
+                  zIndex="z-dropdown"
+                  content={
+                    <div className="ribbon-inline-menu">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ribbon-inline-menu-item"
+                        onClick={() => {
+                          handleRestore('fill');
+                          setIsFillMenuOpen(false);
+                        }}
+                      >
+                        <Undo2 size={ICON_SIZE} />
+                        <span>Restaurar Preenchimento</span>
+                      </Button>
+                    </div>
+                  }
+                >
+                  <RibbonIconButton
+                    icon={<MoreHorizontal size={ICON_SIZE} />}
+                    onClick={() => undefined}
+                    title="Mais opções de preenchimento"
+                    size="sm"
+                    disabled={isDisabled}
+                  />
+                </Popover>
+              ) : null
+            ) : (
+              <RibbonIconButton
+                icon={<Undo2 size={ICON_SIZE} />}
+                onClick={() => handleRestore('fill')}
+                title={restoreFillTooltip}
+                size="sm"
+                disabled={
+                  isDisabled || !isFillOverride || fillState.supportedState === TriState.Off
+                }
+                className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
+              />
+            )}
           </div>
         </div>
       </div>

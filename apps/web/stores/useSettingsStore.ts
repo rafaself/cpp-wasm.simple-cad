@@ -69,6 +69,7 @@ interface SettingsState {
   toolDefaults: ToolDefaults;
   featureFlags: {
     enableColorsRibbon: boolean;
+    enableRibbonV2: boolean;
     enableEngineResize: boolean;
     enablePickProfiling: boolean;
     enablePickThrottling: boolean;
@@ -123,6 +124,7 @@ interface SettingsState {
   setTextBackgroundColor: (color: string | null) => void;
   setTextBackgroundEnabled: (enabled: boolean) => void;
 
+  setRibbonV2Enabled: (enabled: boolean) => void;
   setEngineResizeEnabled: (enabled: boolean) => void;
   setEngineCapabilitiesMask: (mask: number) => void;
   setPickProfilingEnabled: (enabled: boolean) => void;
@@ -188,6 +190,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
   featureFlags: {
     enableColorsRibbon: true,
+    enableRibbonV2: false,
     enableEngineResize: false,
     enablePickProfiling: process.env.NODE_ENV !== 'production',
     enablePickThrottling: false,
@@ -368,6 +371,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         text: { ...state.toolDefaults.text, textBackgroundEnabled: enabled },
       },
     })),
+  setRibbonV2Enabled: (enabled) =>
+    set((state) => ({ featureFlags: { ...state.featureFlags, enableRibbonV2: enabled } })),
   setEngineResizeEnabled: (enabled) =>
     set((state) => {
       if (!enabled) {

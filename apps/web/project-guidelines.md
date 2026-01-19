@@ -48,8 +48,8 @@ apps/web/
 
 ### C. Menu & Configuration
 
-1.  **Data-Driven UI:** The Ribbon is defined in `features/editor/ui/ribbonConfig.ts`. This is the single source of truth for Ribbon items (READY/STUB).
-2.  **Modifying Menus:** To add/adjust a Ribbon button, edit `ribbonConfig.ts` and route actions/tools via the dispatcher (`useEditorCommands`); do not recreate legacy `config/menu.ts`.
+1.  **Data-Driven UI:** The Ribbon is defined in `features/editor/ui/ribbonConfig.ts` (V1) and `features/editor/ui/ribbonConfigV2.ts` (V2 behind `enableRibbonV2`). These configs are the single source of truth for Ribbon items (READY/STUB).
+2.  **Modifying Menus:** To add/adjust a Ribbon button, edit the active config (`ribbonConfig.ts` or `ribbonConfigV2.ts`) and route actions/tools via the dispatcher (`useEditorCommands`); do not recreate legacy `config/menu.ts`.
 3.  **Icons:** Icons for Ribbon items come from the config (Lucide components). Avoid reintroducing string-based icon maps for Ribbon.
 
 ### D. Styling (Tailwind CSS)
@@ -85,7 +85,7 @@ If you are an AI assistant reading this, follow these rules when generating code
 
 1.  **Check Existing Structure:** Do not create duplicate files. Check `features` first.
 2.  **Engine-First State:** The engine owns all document data; the frontend stores only UI state (tools, viewport, panels, preferences).
-3.  **Ribbon Source of Truth:** If asked to "Add a button", update `features/editor/ui/ribbonConfig.ts` and ensure it goes through `useEditorCommands`.
+3.  **Ribbon Source of Truth:** If asked to "Add a button", update `features/editor/ui/ribbonConfig.ts` (or `ribbonConfigV2.ts` when `enableRibbonV2` is on) and ensure it goes through `useEditorCommands`.
 4.  **Anti-regressão:** Não recrie `config/menu.ts` legado; qualquer PR que reintroduza menus antigos deve ser recusado.
 5.  **Geometry:** Do not compute authoritative shape geometry in JS; prefer engine queries and overlay buffers.
 

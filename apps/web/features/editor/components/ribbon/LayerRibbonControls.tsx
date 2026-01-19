@@ -1,6 +1,8 @@
-import { Layers, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import { Layers, Eye, EyeOff, Lock, MoreHorizontal, Unlock } from 'lucide-react';
 import React, { useMemo, useEffect } from 'react';
 
+import { Button } from '@/components/ui/Button';
+import { Popover } from '@/components/ui/Popover';
 import { Select } from '@/components/ui/Select';
 import { EngineLayerFlags, LayerPropMask } from '@/engine/core/EngineRuntime';
 import { useEngineLayers } from '@/engine/core/useEngineLayers';
@@ -11,7 +13,9 @@ import { useUIStore } from '@/stores/useUIStore';
 import { RibbonDivider } from './RibbonDivider';
 import { RibbonIconButton } from './RibbonIconButton';
 import { RibbonToggleGroup } from './RibbonToggleGroup';
+import { useRibbonLayout } from './ribbonLayout';
 import { RIBBON_ICON_SIZES } from './ribbonUtils';
+import { isTierAtLeast } from '../../ui/ribbonLayoutV2';
 
 export const LayerRibbonControls: React.FC = () => {
   const runtime = useEngineRuntime();
@@ -19,6 +23,9 @@ export const LayerRibbonControls: React.FC = () => {
   const activeLayerId = useUIStore((s) => s.activeLayerId);
   const setActiveLayerId = useUIStore((s) => s.setActiveLayerId);
   const setLayerManagerOpen = useUIStore((s) => s.setLayerManagerOpen);
+  const { tier } = useRibbonLayout();
+  const [isManagerMenuOpen, setIsManagerMenuOpen] = React.useState(false);
+  const collapseManager = isTierAtLeast(tier, 'tier2');
 
   const activeLayer = useMemo(
     () => layers.find((l) => l.id === activeLayerId),
@@ -108,12 +115,46 @@ export const LayerRibbonControls: React.FC = () => {
 
         {/* Open Manager (Properties) */}
         <RibbonToggleGroup width="fit">
-          <RibbonIconButton
-            icon={<Layers size={RIBBON_ICON_SIZES.sm} />}
-            onClick={() => setLayerManagerOpen(true)}
-            title="Gerenciador de Camadas (Propriedades)"
-            size="sm"
-          />
+          {collapseManager ? (
+            <Popover
+              isOpen={isManagerMenuOpen}
+              onOpenChange={setIsManagerMenuOpen}
+              placement="bottom"
+              offset={6}
+              className="ribbon-inline-popover"
+              zIndex="z-dropdown"
+              content={
+                <div className="ribbon-inline-menu">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ribbon-inline-menu-item"
+                    onClick={() => {
+                      setLayerManagerOpen(true);
+                      setIsManagerMenuOpen(false);
+                    }}
+                  >
+                    <Layers size={RIBBON_ICON_SIZES.sm} />
+                    <span>Gerenciador de Camadas</span>
+                  </Button>
+                </div>
+              }
+            >
+              <RibbonIconButton
+                icon={<MoreHorizontal size={RIBBON_ICON_SIZES.sm} />}
+                onClick={() => undefined}
+                title="Mais opções de camada"
+                size="sm"
+              />
+            </Popover>
+          ) : (
+            <RibbonIconButton
+              icon={<Layers size={RIBBON_ICON_SIZES.sm} />}
+              onClick={() => setLayerManagerOpen(true)}
+              title="Gerenciador de Camadas (Propriedades)"
+              size="sm"
+            />
+          )}
         </RibbonToggleGroup>
       </div>
     </div>

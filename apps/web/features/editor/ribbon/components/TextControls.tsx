@@ -4,11 +4,14 @@ import {
   AlignRight,
   Bold,
   Italic,
+  MoreHorizontal,
   Underline,
   Strikethrough,
 } from 'lucide-react';
 import React from 'react';
 
+import { Button } from '@/components/ui/Button';
+import { Popover } from '@/components/ui/Popover';
 import { Select } from '@/components/ui/Select';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { mapFontIdToFamily } from '@/features/editor/text/textToolController';
@@ -22,7 +25,10 @@ import { TextStyleFlags } from '../../../../types/text';
 import { RibbonControlWrapper } from '../../components/ribbon/RibbonControlWrapper';
 import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
 import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
+import { useRibbonLayout } from '../../components/ribbon/ribbonLayout';
+import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
+import { isTierAtLeast } from '../../ui/ribbonLayoutV2';
 
 // Familiar font names users recognize
 const FONT_OPTIONS = [
@@ -159,6 +165,8 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
   selectedTextIds,
   applyTextUpdate,
 }) => {
+  const { tier } = useRibbonLayout();
+  const [isAlignMenuOpen, setIsAlignMenuOpen] = React.useState(false);
   const textAlign = useSettingsStore((s) => s.toolDefaults.text.align);
   const setTextAlignShortcut = useSettingsStore((s) => s.setTextAlign);
   const snapshot = useResolvedTextStyleSnapshot(selectedTextIds);
@@ -167,15 +175,23 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
     : null;
 
   const activeAlign = engineAlign ?? textAlign;
+  const collapseAlign = isTierAtLeast(tier, 'tier3');
+  const primaryAlignOptions = collapseAlign
+    ? alignOptions.filter((option) => option.align !== 'right')
+    : alignOptions;
+  const overflowAlignOptions = collapseAlign
+    ? alignOptions.filter((option) => option.align === 'right')
+    : [];
 
   const handleClick = (align: 'left' | 'center' | 'right') => {
     setTextAlignShortcut(align);
     applyTextUpdate({ align }, false);
+    setIsAlignMenuOpen(false);
   };
   return (
     <RibbonControlWrapper align="center" className="!w-fit">
       <RibbonToggleGroup className="w-fit h-full" width="fit" variant="segmented">
-        {alignOptions.map(({ align, icon, label }) => (
+        {primaryAlignOptions.map(({ align, icon, label }) => (
           <RibbonIconButton
             key={align}
             icon={icon}
@@ -184,6 +200,39 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
             title={label}
           />
         ))}
+        {overflowAlignOptions.length > 0 && (
+          <Popover
+            isOpen={isAlignMenuOpen}
+            onOpenChange={setIsAlignMenuOpen}
+            placement="bottom"
+            offset={6}
+            className="ribbon-inline-popover"
+            zIndex="z-dropdown"
+            content={
+              <div className="ribbon-inline-menu">
+                {overflowAlignOptions.map(({ align, icon, label }) => (
+                  <Button
+                    key={align}
+                    variant="ghost"
+                    size="sm"
+                    className="ribbon-inline-menu-item"
+                    onClick={() => handleClick(align)}
+                    data-active={activeAlign === align}
+                  >
+                    {icon}
+                    <span>{label}</span>
+                  </Button>
+                ))}
+              </div>
+            }
+          >
+            <RibbonIconButton
+              icon={<MoreHorizontal size={RIBBON_ICON_SIZES.sm} />}
+              onClick={() => undefined}
+              title="Mais alinhamentos"
+            />
+          </Popover>
+        )}
       </RibbonToggleGroup>
     </RibbonControlWrapper>
   );
@@ -195,6 +244,8 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   selectedTextIds,
   applyTextUpdate,
 }) => {
+  const { tier } = useRibbonLayout();
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = React.useState(false);
   const {
     bold: textBold,
     italic: textItalic,
@@ -225,6 +276,7 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
   };
 
   const styleStates = engineStyles ?? fallbackStyles;
+  const collapseStyles = isTierAtLeast(tier, 'tier3');
 
   const options: Array<{
     key: StyleKey;
@@ -279,12 +331,18 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 
     const diff: TextUpdateDiff = { [option.key]: nextIntent === 'set' };
     applyTextUpdate(diff, option.recalc);
+    setIsStyleMenuOpen(false);
   };
+
+  const primaryOptions = collapseStyles ? options.filter((option) => option.key === 'bold') : options;
+  const overflowOptions = collapseStyles
+    ? options.filter((option) => option.key !== 'bold')
+    : [];
 
   return (
     <RibbonControlWrapper align="center" className="!w-fit">
       <RibbonToggleGroup className="w-fit h-full" width="fit" variant="segmented">
-        {options.map((option) => {
+        {primaryOptions.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
           // Mixed state uses custom class, active uses standard
@@ -299,11 +357,50 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
               title={option.label}
               className={mixedClass}
             />
-        );
-      })}
-    </RibbonToggleGroup>
-  </RibbonControlWrapper>
-);
+          );
+        })}
+        {overflowOptions.length > 0 && (
+          <Popover
+            isOpen={isStyleMenuOpen}
+            onOpenChange={setIsStyleMenuOpen}
+            placement="bottom"
+            offset={6}
+            className="ribbon-inline-popover"
+            zIndex="z-dropdown"
+            content={
+              <div className="ribbon-inline-menu">
+                {overflowOptions.map((option) => {
+                  const isOn = option.state === 'on';
+                  const isMixed = option.state === 'mixed';
+
+                  return (
+                    <Button
+                      key={option.key}
+                      variant="ghost"
+                      size="sm"
+                      className="ribbon-inline-menu-item"
+                      onClick={() => handleClick(option)}
+                      data-active={isOn}
+                      data-mixed={isMixed}
+                    >
+                      {option.icon}
+                      <span>{option.label}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            }
+          >
+            <RibbonIconButton
+              icon={<MoreHorizontal size={RIBBON_ICON_SIZES.sm} />}
+              onClick={() => undefined}
+              title="Mais estilos"
+            />
+          </Popover>
+        )}
+      </RibbonToggleGroup>
+    </RibbonControlWrapper>
+  );
 };
 
 const useLinkedRowWidth = () => {

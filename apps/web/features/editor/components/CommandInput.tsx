@@ -54,6 +54,22 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
     loadHistory();
   }, [loadHistory]);
 
+  useEffect(() => {
+    const handlePaletteShortcut = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k') return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      event.preventDefault();
+      inputRef.current?.focus();
+      setActive(true);
+    };
+
+    window.addEventListener('keydown', handlePaletteShortcut);
+    return () => window.removeEventListener('keydown', handlePaletteShortcut);
+  }, [setActive]);
+
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setBuffer(e.target.value);

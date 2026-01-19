@@ -45,6 +45,7 @@ interface RibbonGroupProps {
   activeTool: string;
   activeActions?: Record<string, boolean>;
   onItemClick: (item: RibbonItem) => void;
+  tabId: string;
 }
 
 export const RibbonGroup: React.FC<RibbonGroupProps> = ({
@@ -52,6 +53,7 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
   activeTool,
   activeActions = {},
   onItemClick,
+  tabId,
 }) => {
   const displayLabel = group.label || group.id;
   const debugMode = isRibbonDebugEnabled();
@@ -84,6 +86,8 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
               layout={group.layout}
               isActive={!!isActive}
               onClick={onItemClick}
+              tabId={tabId}
+              groupId={group.id}
             />
           );
         })}

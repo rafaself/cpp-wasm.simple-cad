@@ -1,33 +1,55 @@
-import { MoreHorizontal } from 'lucide-react';
 import React, { useState, useRef, useCallback } from 'react';
 
 import { useEditorCommands } from '@/features/editor/commands/useEditorCommands';
 
 import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
+import { useRibbonTabTracking } from '../../../utils/analytics/useRibbonTracking';
 import { getRibbonTabs, RIBBON_OVERFLOW_ITEMS, RibbonItem } from '../ui/ribbonConfig';
+import { getRibbonTabsV2 } from '../ui/ribbonConfigV2';
+import { computeRibbonLayoutV2, RibbonOverflowEntry } from '../ui/ribbonLayoutV2';
 
 import { RIBBON_DEBUG_ATTR, isRibbonDebugEnabled } from './ribbon/ribbonDebug';
 import { RibbonGroup } from './ribbon/RibbonGroup';
+import { RibbonOverflowMenu } from './ribbon/RibbonOverflowMenu';
+import { RibbonLayoutProvider, useRibbonLayoutTier } from './ribbon/ribbonLayout';
 
 const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
   const { executeAction, selectTool } = useEditorCommands();
   const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
-  const ribbonTabs = React.useMemo(() => getRibbonTabs(enableColorsRibbon), [enableColorsRibbon]);
+  const enableRibbonV2 = useSettingsStore((s) => s.featureFlags.enableRibbonV2);
+  const ribbonTabs = React.useMemo(
+    () => (enableRibbonV2 ? getRibbonTabsV2(enableColorsRibbon) : getRibbonTabs(enableColorsRibbon)),
+    [enableRibbonV2, enableColorsRibbon]
+  );
   const [activeTabId, setActiveTabId] = useState<string>(() => ribbonTabs[0]?.id ?? 'home');
-  const [isOverflowOpen, setIsOverflowOpen] = useState(false);
   const gridSettings = useSettingsStore((s) => s.grid);
   const debugRibbon = isRibbonDebugEnabled();
+  const { trackTabSwitch } = useRibbonTabTracking();
+  const prevActiveTabRef = useRef<string>(activeTabId);
 
   const activeActions = {
     grid: gridSettings.showDots || gridSettings.showLines,
   };
 
   const activeTab = ribbonTabs.find((t) => t.id === activeTabId) || ribbonTabs[0];
-  const activeGroups = activeTab.groups;
-  const overflowButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const ribbonContentRef = useRef<HTMLDivElement | null>(null);
+  const { tier, width } = useRibbonLayoutTier(ribbonContentRef);
+  const layoutTier = enableRibbonV2 ? tier : 'full';
+  const layout = React.useMemo(
+    () => (enableRibbonV2 ? computeRibbonLayoutV2(activeTab, layoutTier) : null),
+    [enableRibbonV2, activeTab, layoutTier],
+  );
+  const activeGroups = layout ? layout.groups : activeTab.groups;
+  const overflowItems = enableRibbonV2 ? layout?.overflow ?? [] : RIBBON_OVERFLOW_ITEMS;
+  const overflowEntries = React.useMemo<RibbonOverflowEntry[]>(
+    () =>
+      enableRibbonV2
+        ? overflowItems
+        : overflowItems.map((item) => ({ item, groupId: 'overflow', groupLabel: 'Mais' })),
+    [enableRibbonV2, overflowItems],
+  );
 
   // Convert vertical mouse wheel to horizontal scroll
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -50,6 +72,18 @@ const EditorRibbon: React.FC = () => {
     }
   };
 
+  const handleTabSwitch = useCallback(
+    (newTabId: string, method: 'click' | 'keyboard') => {
+      const oldTabId = prevActiveTabRef.current;
+      if (oldTabId !== newTabId) {
+        trackTabSwitch(oldTabId, newTabId, method);
+        prevActiveTabRef.current = newTabId;
+      }
+      setActiveTabId(newTabId);
+    },
+    [trackTabSwitch]
+  );
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input
@@ -61,14 +95,14 @@ const EditorRibbon: React.FC = () => {
         const index = parseInt(e.key, 10) - 1;
         if (ribbonTabs[index]) {
           e.preventDefault();
-          setActiveTabId(ribbonTabs[index].id);
+          handleTabSwitch(ribbonTabs[index].id, 'keyboard');
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [ribbonTabs]);
+  }, [ribbonTabs, handleTabSwitch]);
 
   React.useEffect(() => {
     if (!ribbonTabs.some((tab) => tab.id === activeTabId)) {
@@ -109,7 +143,7 @@ const EditorRibbon: React.FC = () => {
               id={`tab-${tab.id}`}
               aria-selected={isActive}
               aria-controls={`panel-${tab.id}`}
-              onClick={() => setActiveTabId(tab.id)}
+              onClick={() => handleTabSwitch(tab.id, 'click')}
               className={`relative px-3 py-1 text-xs rounded-t transition-colors focus-outline ${
                 isActive
                   ? 'bg-header-tab-active text-text font-medium'
@@ -130,99 +164,46 @@ const EditorRibbon: React.FC = () => {
       </div>
 
       {/* Toolbar Content - 82px total height with fixed slots */}
-      <div
-        ref={ribbonContentRef}
-        onWheel={handleWheel}
-        id={`panel-${activeTabId}`}
-        role="tabpanel"
-        aria-labelledby={`tab-${activeTabId}`}
-        className={`relative ribbon-rail bg-surface-1 ribbon-scrollbar shadow-sm${
-          debugRibbon ? ' ribbon-rail-debug' : ''
-        }`}
-      >
-        {debugRibbon && <span className="ribbon-debug-guide" aria-hidden="true" />}
-        {activeGroups.map((group, groupIndex) => (
-          <React.Fragment key={group.id}>
-            <RibbonGroup
-              group={group}
-              activeTool={activeTool}
-              activeActions={activeActions}
-              onItemClick={handleItemClick}
-            />
-            {groupIndex < activeGroups.length - 1 && (
-              <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
-            )}
-          </React.Fragment>
-        ))}
-
-        {/* Overflow Items Logic */}
-        {RIBBON_OVERFLOW_ITEMS.length > 0 && (
-          <>
-            <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
-            <div className="relative flex flex-col h-full shrink-0 gap-0">
-              <div className="h-[64px] flex items-center justify-center">
-                <button
-                  ref={overflowButtonRef}
-                  onClick={() => setIsOverflowOpen((open) => !open)}
-                  className="h-[52px] px-2 rounded bg-surface-1 hover:bg-surface-2 text-xs flex flex-col items-center justify-center gap-1 focus-outline"
-                  title="Mais"
-                  aria-haspopup="true"
-                  aria-expanded={isOverflowOpen}
-                >
-                  <MoreHorizontal size={20} />
-                  Mais
-                </button>
-              </div>
-              <div aria-hidden="true" className="h-[18px]" />
-              {isOverflowOpen && (
-                <div
-                  role="menu"
-                  className="absolute top-full right-0 mt-1 w-56 bg-surface-2 border border-border rounded shadow-lg py-1 z-10"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setIsOverflowOpen(false);
-                      overflowButtonRef.current?.focus();
-                    }
-                  }}
-                >
-                  {RIBBON_OVERFLOW_ITEMS.map((item) => {
-                    const isStub = item.status === 'stub';
-                    const title = isStub ? `${item.label} — Em breve (Engine-First)` : item.label;
-                    const Icon = item.icon;
-
-                    const handleClick = () => {
-                      if (item.kind === 'action' && item.actionId) {
-                        executeAction(item.actionId, item.status);
-                      } else if (item.kind === 'tool' && item.toolId) {
-                        selectTool(item.toolId, item.status);
-                      }
-                      setIsOverflowOpen(false);
-                      overflowButtonRef.current?.focus();
-                    };
-
-                    return (
-                      <button
-                        role="menuitem"
-                        key={item.id}
-                        onClick={handleClick}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2 focus-outline ${
-                          isStub ? 'opacity-70' : ''
-                        }`}
-                        title={title}
-                        aria-disabled={isStub}
-                      >
-                        {Icon ? <Icon size={14} /> : null}
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+      <RibbonLayoutProvider tier={layoutTier} width={width}>
+        <div
+          ref={ribbonContentRef}
+          onWheel={handleWheel}
+          id={`panel-${activeTabId}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${activeTabId}`}
+          data-ribbon-tier={layoutTier}
+          className={`relative ribbon-rail bg-surface-1 ribbon-scrollbar shadow-sm${
+            debugRibbon ? ' ribbon-rail-debug' : ''
+          }`}
+        >
+          {debugRibbon && <span className="ribbon-debug-guide" aria-hidden="true" />}
+          {activeGroups.map((group, groupIndex) => (
+            <React.Fragment key={group.id}>
+              <RibbonGroup
+                group={group}
+                activeTool={activeTool}
+                activeActions={activeActions}
+                onItemClick={handleItemClick}
+                tabId={activeTabId}
+              />
+              {groupIndex < activeGroups.length - 1 && (
+                <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
               )}
-            </div>
-          </>
-        )}
-      </div>
+            </React.Fragment>
+          ))}
+
+          {overflowEntries.length > 0 && (
+            <>
+              <div className="h-full w-px bg-border mx-2 opacity-50" aria-hidden="true" />
+              <RibbonOverflowMenu
+                items={overflowEntries}
+                tabId={activeTabId}
+                onItemSelect={handleItemClick}
+              />
+            </>
+          )}
+        </div>
+      </RibbonLayoutProvider>
     </div>
   );
 };

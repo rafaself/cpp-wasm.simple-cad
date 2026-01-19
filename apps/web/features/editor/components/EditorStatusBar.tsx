@@ -22,6 +22,7 @@ import { useSettingsStore } from '../../../stores/useSettingsStore';
 import { useUIStore } from '../../../stores/useUIStore';
 import { SnapOptions } from '../../../types';
 import { getRibbonTabs } from '../ui/ribbonConfig';
+import { getRibbonTabsV2 } from '../ui/ribbonConfigV2';
 
 import { CommandInput } from './CommandInput';
 
@@ -34,6 +35,7 @@ const EditorStatusBar: React.FC = () => {
   const setSnapEnabled = useSettingsStore((s) => s.setSnapEnabled);
   const setSnapOption = useSettingsStore((s) => s.setSnapOption);
   const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
+  const enableRibbonV2 = useSettingsStore((s) => s.featureFlags.enableRibbonV2);
   const [showSnapMenu, setShowSnapMenu] = useState(false);
   const { executeAction } = useEditorCommands();
 
@@ -42,8 +44,12 @@ const EditorStatusBar: React.FC = () => {
 
   const activeTool = useUIStore((s) => s.activeTool);
 
+  const ribbonTabs = React.useMemo(
+    () => (enableRibbonV2 ? getRibbonTabsV2(enableColorsRibbon) : getRibbonTabs(enableColorsRibbon)),
+    [enableRibbonV2, enableColorsRibbon]
+  );
+
   const ToolIcon = React.useMemo(() => {
-    const ribbonTabs = getRibbonTabs(enableColorsRibbon);
     for (const tab of ribbonTabs) {
       for (const group of tab.groups) {
         for (const item of group.items) {
@@ -54,7 +60,7 @@ const EditorStatusBar: React.FC = () => {
       }
     }
     return MousePointer2;
-  }, [activeTool, enableColorsRibbon]);
+  }, [activeTool, ribbonTabs]);
 
   return (
     <div className="w-full h-8 bg-surface-1 border-t border-border flex items-center justify-between px-4 text-xs text-text select-none z-50 relative">

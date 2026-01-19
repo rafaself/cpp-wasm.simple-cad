@@ -2,12 +2,14 @@ import React from 'react';
 
 import { Button, ButtonVariant } from '@/components/ui/Button';
 import { Icon as IconPrimitive } from '@/components/ui/Icon';
+import { useRibbonTracking } from '@/utils/analytics/useRibbonTracking';
 
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 import { isRibbonDebugEnabled } from './ribbonDebug';
 import { RibbonLargeButton } from './RibbonLargeButton';
 import { RibbonSmallButton } from './RibbonSmallButton';
+import { RibbonTooltip } from './RibbonTooltip';
 import { getTooltip } from './ribbonUtils';
 
 interface RibbonButtonProps {
@@ -15,12 +17,16 @@ interface RibbonButtonProps {
   layout?: 'flex-row' | 'grid-2x3' | 'stack';
   isActive: boolean;
   onClick: (item: RibbonItem) => void;
+  tabId: string;
+  groupId: string;
 }
 
-export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActive, onClick }) => {
+export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActive, onClick, tabId, groupId }) => {
+  const tracking = useRibbonTracking(tabId, groupId);
+
   // Delegate to RibbonLargeButton if variant is large
   if (item.variant === 'large') {
-    return <RibbonLargeButton item={item} isActive={isActive} onClick={onClick} />;
+    return <RibbonLargeButton item={item} isActive={isActive} onClick={onClick} tabId={tabId} groupId={groupId} />;
   }
 
   // Layout Logic
@@ -29,7 +35,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
 
   // Delegate to RibbonSmallButton for dense layouts
   if (isGrid || isStack) {
-    return <RibbonSmallButton item={item} isActive={isActive} onClick={onClick} />;
+    return <RibbonSmallButton item={item} isActive={isActive} onClick={onClick} tabId={tabId} groupId={groupId} />;
   }
 
   // Standard Button (Flex Row / Default) - h-8 (32px)
@@ -67,22 +73,48 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
 
   const justifyClass = item.hideLabel ? 'justify-center px-0' : 'justify-start px-2.5';
 
+  const handleClick = () => {
+    const itemType = item.kind === 'custom' ? 'custom' : item.kind;
+    const itemId = item.toolId || item.actionId || item.id;
+    tracking.trackClick(itemId, itemType);
+    onClick(item);
+  };
+
+  const handleMouseEnter = () => {
+    const hoverEnd = tracking.startHoverTimer(item.toolId || item.actionId || item.id);
+    return hoverEnd;
+  };
+
+  const hoverEndRef = React.useRef<(() => void) | null>(null);
+
   return (
-    <Button
-      variant={variant}
-      size="md"
-      className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass}`}
-      disabled={isStub}
-      onClick={() => onClick(item)}
-      title={tooltip}
-      aria-pressed={isTool ? isActive : undefined}
-      leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
-    >
-      {item.hideLabel && Icon ? (
-        <IconPrimitive icon={Icon} size="sm" />
-      ) : (
-        <span className="truncate flex-1 text-left">{item.label}</span>
-      )}
-    </Button>
+    <RibbonTooltip item={item}>
+      <Button
+        variant={variant}
+        size="md"
+        className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass}`}
+        disabled={isStub}
+        onClick={handleClick}
+        onMouseEnter={() => {
+          hoverEndRef.current = handleMouseEnter();
+        }}
+        onMouseLeave={() => {
+          if (hoverEndRef.current) {
+            hoverEndRef.current();
+            hoverEndRef.current = null;
+          }
+        }}
+        title={tooltip}
+        aria-pressed={isTool ? isActive : undefined}
+        aria-label={item.hideLabel ? item.label : undefined}
+        leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
+      >
+        {item.hideLabel && Icon ? (
+          <IconPrimitive icon={Icon} size="sm" />
+        ) : (
+          <span className="truncate flex-1 text-left">{item.label}</span>
+        )}
+      </Button>
+    </RibbonTooltip>
   );
 };
