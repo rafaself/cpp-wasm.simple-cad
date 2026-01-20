@@ -84,9 +84,9 @@ export const LayerRibbonControls: React.FC = () => {
           <RibbonIconButton
             icon={
               activeLayer?.visible ? (
-                <Eye size={RIBBON_ICON_SIZES.sm} />
+                <Eye size={RIBBON_ICON_SIZES.md} />
               ) : (
-                <EyeOff size={RIBBON_ICON_SIZES.sm} />
+                <EyeOff size={RIBBON_ICON_SIZES.md} />
               )
             }
             onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
@@ -94,20 +94,20 @@ export const LayerRibbonControls: React.FC = () => {
             variant={activeLayer?.visible ? 'primary' : 'default'}
             title={activeLayer?.visible ? 'Ocultar Camada' : 'Mostrar Camada'}
             disabled={!activeLayer}
-            size="sm"
+            size="md"
           />
 
           <RibbonDivider />
 
           {/* Lock Toggle */}
           <RibbonIconButton
-            icon={activeLayer?.locked ? <Lock size={12} /> : <Unlock size={12} />}
+            icon={activeLayer?.locked ? <Lock size={RIBBON_ICON_SIZES.md} /> : <Unlock size={RIBBON_ICON_SIZES.md} />}
             onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
             isActive={activeLayer?.locked ?? false}
             variant={activeLayer?.locked ? 'warning' : 'default'}
             title={activeLayer?.locked ? 'Desbloquear Camada' : 'Bloquear Camada'}
             disabled={!activeLayer}
-            size="sm"
+            size="md"
           />
         </RibbonToggleGroup>
 
@@ -148,12 +148,12 @@ export const LayerRibbonControls: React.FC = () => {
               />
             </Popover>
           ) : (
-            <RibbonIconButton
-              icon={<Layers size={RIBBON_ICON_SIZES.sm} />}
-              onClick={() => setLayerManagerOpen(true)}
-              title="Gerenciador de Camadas (Propriedades)"
-              size="sm"
-            />
+          <RibbonIconButton
+            icon={<Layers size={RIBBON_ICON_SIZES.md} />}
+            onClick={() => setLayerManagerOpen(true)}
+            title="Gerenciador de Camadas (Propriedades)"
+            size="md"
+          />
           )}
         </RibbonToggleGroup>
       </div>

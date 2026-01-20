@@ -39,6 +39,7 @@ import {
 import { useSelectionStyleSummary } from './useSelectionStyleSummary';
 import { useRibbonLayout } from '../components/ribbon/ribbonLayout';
 import { isTierAtLeast } from '../ui/ribbonLayoutV2';
+import { RIBBON_ICON_SIZES } from '../components/ribbon/ribbonUtils';
 
 /**
  * Locked context captured when color picker opens.
@@ -61,7 +62,7 @@ type ResolvedControlState = {
   applyTargets: StyleTarget[];
 };
 
-const ICON_SIZE = 16;
+const ICON_SIZE = RIBBON_ICON_SIZES.md;
 
 const packedToCssColor = (packed: number, fallback: string): string => {
   if (packed === 0) return fallback;
@@ -438,9 +439,9 @@ export const ColorRibbonControls: React.FC = () => {
     >
       {/* Stroke Row */}
       <div className="ribbon-row h-7 items-center justify-between">
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col">
           <span
-            className="text-label font-semibold uppercase tracking-wide text-text-muted"
+            className="cursor-default text-label font-semibold uppercase tracking-wide text-text-muted"
             title={LABELS.colors.stroke}
           >
             {LABELS.colors.stroke}
@@ -458,9 +459,9 @@ export const ColorRibbonControls: React.FC = () => {
               icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
               onClick={handleToggleStroke}
               title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
-              isActive={noStroke}
-              variant={noStroke ? 'danger' : 'default'}
-              size="sm"
+              isActive={false}
+              size="md"
+              className={`ribbon-icon-no-bg ${noStroke ? 'ribbon-icon-warning' : 'text-text-muted'}`}
               disabled={isDisabled || strokeState.supportedState === TriState.Off}
             />
             {collapseRestores ? (
@@ -493,7 +494,8 @@ export const ColorRibbonControls: React.FC = () => {
                     icon={<MoreHorizontal size={ICON_SIZE} />}
                     onClick={() => undefined}
                     title="Mais opções de traço"
-                    size="sm"
+                    size="md"
+                    className="ribbon-icon-no-bg text-text-muted"
                     disabled={isDisabled}
                   />
                 </Popover>
@@ -503,11 +505,11 @@ export const ColorRibbonControls: React.FC = () => {
                 icon={<Undo2 size={ICON_SIZE} />}
                 onClick={() => handleRestore('stroke')}
                 title={restoreStrokeTooltip}
-                size="sm"
+                size="md"
                 disabled={
                   isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
                 }
-                className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
+                className={`ribbon-icon-no-bg ${!isStrokeOverride ? 'pointer-events-none opacity-0' : 'text-text-muted'}`}
               />
             )}
           </div>
@@ -516,9 +518,9 @@ export const ColorRibbonControls: React.FC = () => {
 
       {/* Fill Row */}
       <div className="ribbon-row h-7 items-center justify-between">
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col">
           <span
-            className="text-label font-semibold uppercase tracking-wide text-text-muted"
+            className="cursor-default text-label font-semibold uppercase tracking-wide text-text-muted"
             title={LABELS.colors.fill}
           >
             {LABELS.colors.fill}
@@ -536,9 +538,9 @@ export const ColorRibbonControls: React.FC = () => {
               icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
               onClick={handleToggleFill}
               title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
-              isActive={noFill}
-              variant={noFill ? 'danger' : 'default'}
-              size="sm"
+              isActive={false}
+              size="md"
+              className={`ribbon-icon-no-bg ${noFill ? 'ribbon-icon-warning' : 'text-text-muted'}`}
               disabled={isDisabled || fillState.supportedState === TriState.Off}
             />
             {collapseRestores ? (
@@ -567,26 +569,27 @@ export const ColorRibbonControls: React.FC = () => {
                     </div>
                   }
                 >
-                  <RibbonIconButton
-                    icon={<MoreHorizontal size={ICON_SIZE} />}
-                    onClick={() => undefined}
-                    title="Mais opções de preenchimento"
-                    size="sm"
-                    disabled={isDisabled}
-                  />
+                <RibbonIconButton
+                  icon={<MoreHorizontal size={ICON_SIZE} />}
+                  onClick={() => undefined}
+                  title="Mais opções de preenchimento"
+                  size="md"
+                  className="ribbon-icon-no-bg text-text-muted"
+                  disabled={isDisabled}
+                />
                 </Popover>
               ) : null
             ) : (
-              <RibbonIconButton
-                icon={<Undo2 size={ICON_SIZE} />}
-                onClick={() => handleRestore('fill')}
-                title={restoreFillTooltip}
-                size="sm"
-                disabled={
-                  isDisabled || !isFillOverride || fillState.supportedState === TriState.Off
-                }
-                className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
-              />
+                <RibbonIconButton
+                  icon={<Undo2 size={ICON_SIZE} />}
+                  onClick={() => handleRestore('fill')}
+                  title={restoreFillTooltip}
+                  size="md"
+                  disabled={
+                    isDisabled || !isFillOverride || fillState.supportedState === TriState.Off
+                  }
+                  className={`ribbon-icon-no-bg ${!isFillOverride ? 'pointer-events-none opacity-0' : 'text-text-muted'}`}
+                />
             )}
           </div>
         </div>

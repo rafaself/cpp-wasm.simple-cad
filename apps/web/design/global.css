@@ -765,3 +765,12 @@ button:focus {
 .ribbon-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
 }
+.ribbon-icon-no-bg {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.ribbon-icon-warning {
+  color: hsl(var(--color-warning)) !important;
+}
