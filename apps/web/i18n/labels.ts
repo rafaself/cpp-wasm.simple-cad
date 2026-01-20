@@ -21,6 +21,8 @@ export const LABELS = {
     toggleTheme: 'Alternar Tema',
     selectPlaceholder: 'Selecione...',
     openPresets: 'Abrir predefinições',
+    moreOptions: 'Mais opções',
+    mixedValues: 'Valores mistos',
   },
   colorPicker: {
     title: 'Seletor de Cor',

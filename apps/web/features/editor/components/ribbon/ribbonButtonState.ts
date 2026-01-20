@@ -8,6 +8,7 @@
 import React from 'react'
 
 import { ButtonVariant } from '@/components/ui/Button'
+import { LABELS } from '@/i18n/labels'
 
 import { isRibbonDebugEnabled } from './ribbonDebug'
 
@@ -211,7 +212,7 @@ export function wrapMixedStateIcon(
   // Show "—" symbol for mixed state
   return React.createElement(
     'span',
-    { className: 'ribbon-btn-mixed-icon', title: 'Mixed values' },
+    { className: 'ribbon-btn-mixed-icon', title: LABELS.common.mixedValues },
     '—'
   )
 }

@@ -21,6 +21,7 @@ import React, { useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/Button'
 import { Icon } from '@/components/ui/Icon'
+import { LABELS } from '@/i18n/labels'
 import { useRibbonTracking } from '@/utils/analytics/useRibbonTracking'
 
 import { isRibbonDebugEnabled } from './ribbonDebug'
@@ -192,7 +193,7 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
         size={size === 'sm' ? 'sm' : 'md'}
         onClick={handleDropdownToggle}
         disabled={disabled}
-        title="More options"
+        title={LABELS.common.moreOptions}
         aria-haspopup="true"
         aria-expanded={isDropdownOpen}
         className={combineClasses(
