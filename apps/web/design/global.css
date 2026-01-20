@@ -89,54 +89,6 @@
    Standardizing heights, gaps, and alignment across all ribbon groups.
    ========================================================================== */
 
-:root {
-  /* ==========================================================================
-     RIBBON STANDARDIZED TOKENS (Phase 1: Grid + Metrics Standardization)
-     All values aligned to 4px baseline grid for visual consistency.
-     ========================================================================== */
-
-  /* Heights - Core ribbon structure */
-  --ribbon-group-body-height: 66px;         /* 28px rows + 4px gap + 6px padding */
-  --ribbon-group-label-height: 18px;        /* 4.5×4px - Label area (typography exception) */
-  --ribbon-height: calc(var(--ribbon-group-body-height) + var(--ribbon-group-label-height)); /* 86px total */
-
-  /* Control Heights - Aliased to global tokens for consistency */
-  --ribbon-control-height-md: 28px;         /* Ribbon row height */
-  --ribbon-control-height-sm: var(--height-button-sm);  /* 24px = 6×4px (was 28px) */
-  --ribbon-control-height-lg: 60px;                     /* Large button height */
-  --ribbon-icon-btn-size-md: var(--height-button-md);   /* 32px = 8×4px */
-  --ribbon-icon-btn-size-sm: var(--height-button-sm);   /* 24px = 6×4px (was 28px) */
-  --ribbon-item-height: var(--ribbon-control-height-md); /* Default control height */
-
-  /* Spacing - Aliased to global spacing tokens */
-  --ribbon-group-px: var(--space-3);           /* 12px = 3×4px - Group horizontal padding */
-  --ribbon-group-gap-x: var(--space-1);        /* 4px = 1×4px - Horizontal gap between items */
-  --ribbon-group-gap-y: var(--space-1);        /* 4px - Vertical gap between rows */
-  --ribbon-divider-inset-y: var(--space-1);    /* 4px = 1×4px - Divider vertical inset */
-
-  /* Typography - Aliased to global typography tokens */
-  --ribbon-label-font-size: var(--text-label);      /* 10px */
-  --ribbon-label-line-height: 18px;                 /* Matches label height */
-  --ribbon-control-font-size: var(--text-body);     /* 12px */
-  --ribbon-control-line-height: 16px;               /* 4×4px */
-
-  /* Visual - Border radius aligned to grid */
-  --ribbon-control-radius: var(--radius-sm);         /* 4px = 1×4px (was 6px) */
-
-  /* Colors */
-  --ribbon-divider-opacity: 0.5;
-  --ribbon-control-bg: var(--surface-2);
-  --ribbon-control-border-color: rgba(148, 163, 184, 0.4);
-  --ribbon-control-focus: rgba(59, 130, 246, 0.5);
-
-  /* Overflow Menu */
-  --ribbon-overflow-min-width: 220px;
-  --ribbon-overflow-max-height: 320px;
-  --ribbon-overflow-trigger-min-width: 64px;
-  --ribbon-inline-menu-min-width: 180px;
-  --ribbon-tooltip-min-width: 160px;
-}
-
 /* 
   Constraint: Container for multiple rows (e.g. Text Group, Layers Group).
   Replaces 'flex flex-col gap-1.5' with standardized gap.
@@ -477,12 +429,61 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.ribbon-segmented-group > button {
-  border-radius: 0 !important;
+.ribbon-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ribbon-cluster-gap);
+  padding: var(--ribbon-cluster-padding);
+  height: 100%;
+  background: var(--ribbon-cluster-bg);
+  border: 1px solid var(--ribbon-cluster-border);
+  border-radius: var(--ribbon-control-radius);
+  box-sizing: border-box;
+}
+
+.ribbon-cluster--segmented {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.ribbon-icon-btn-sm {
+  width: var(--ribbon-icon-btn-size-sm) !important;
+  height: var(--ribbon-icon-btn-size-sm) !important;
+}
+
+.ribbon-icon-btn-md {
+  width: var(--ribbon-icon-btn-size-md) !important;
+  height: var(--ribbon-icon-btn-size-md) !important;
+}
+
+.ribbon-icon-button {
+  border-radius: calc(var(--ribbon-control-radius) - 1px);
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ribbon-btn-toggle-on {
+  background: var(--ribbon-toggle-on-bg);
+  border-color: var(--ribbon-toggle-on-border);
+  color: var(--ribbon-toggle-on-text);
+}
+
+.ribbon-btn-toggle-on:hover {
+  background: var(--ribbon-toggle-on-bg);
+  border-color: var(--ribbon-toggle-on-border);
+}
+
+.ribbon-btn-mode {
+  color: var(--ribbon-mode-text);
+}
+
+.ribbon-cluster--segmented .ribbon-icon-button {
+  border-radius: 0;
   position: relative;
 }
 
-.ribbon-segmented-group > button:not(:last-child)::after {
+.ribbon-cluster--segmented .ribbon-icon-button:not(:last-child)::after {
   content: '';
   position: absolute;
   right: 0;
@@ -501,8 +502,40 @@
 .ribbon-divider-v {
   width: 1px;
   align-self: stretch;
-  margin: var(--ribbon-divider-inset-y) 0;
-  background-color: rgba(148, 163, 184, var(--ribbon-divider-opacity));
+  margin: 0 1px;
+  background-color: var(--ribbon-divider-color);
+  opacity: var(--ribbon-divider-opacity);
+}
+
+.ribbon-divider-h {
+  width: 100%;
+  height: 1px;
+  margin: var(--space-1) 0;
+  background-color: var(--ribbon-divider-color);
+  opacity: var(--ribbon-divider-opacity);
+}
+
+.ribbon-swatch {
+  width: var(--ribbon-swatch-size);
+  height: var(--ribbon-swatch-size);
+  border-radius: var(--ribbon-control-radius);
+  border: 1px solid var(--ribbon-control-border-color);
+  background: transparent;
+  position: relative;
+}
+
+.ribbon-swatch[data-state='mixed'] {
+  border-style: dashed;
+  border-color: var(--ribbon-toggle-on-border);
+}
+
+.ribbon-swatch-label {
+  font-size: var(--ribbon-label-font-size);
+  line-height: var(--ribbon-label-line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: hsl(var(--color-text-muted));
 }
 
 /* 
@@ -685,26 +718,26 @@
 }
 
 /* Intent Variants - Color coding for button purpose */
-.ribbon-btn-intent-warning:not(.ribbon-btn-active) {
+.ribbon-btn-intent-warning:not(.ribbon-btn-mode) {
   border-color: hsl(var(--color-warning) / 0.4);
 }
 
-.ribbon-btn-intent-warning:not(.ribbon-btn-active):hover {
+.ribbon-btn-intent-warning:not(.ribbon-btn-mode):hover {
   background: hsl(var(--color-warning) / 0.1);
   border-color: hsl(var(--color-warning) / 0.6);
 }
 
-.ribbon-btn-intent-success:not(.ribbon-btn-active) {
+.ribbon-btn-intent-success:not(.ribbon-btn-mode) {
   border-color: hsl(var(--color-success) / 0.4);
 }
 
-.ribbon-btn-intent-success:not(.ribbon-btn-active):hover {
+.ribbon-btn-intent-success:not(.ribbon-btn-mode):hover {
   background: hsl(var(--color-success) / 0.1);
   border-color: hsl(var(--color-success) / 0.6);
 }
 
-/* Active State Marker */
-.ribbon-btn-active {
+/* Mode Active Marker */
+.ribbon-btn-mode {
   position: relative;
 }
 
@@ -760,13 +793,4 @@ button:focus {
 
 .ribbon-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
-}
-.ribbon-icon-no-bg {
-  background-color: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-.ribbon-icon-warning {
-  color: hsl(var(--color-warning)) !important;
 }

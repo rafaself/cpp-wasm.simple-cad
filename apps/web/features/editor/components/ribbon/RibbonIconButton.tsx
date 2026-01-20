@@ -21,6 +21,8 @@ interface RibbonIconButtonProps {
   onClick: () => void;
   /** Whether the button is in active/pressed state */
   isActive?: boolean;
+  /** Active styling mode */
+  activeStyle?: 'mode' | 'toggle';
   /** Whether the button shows mixed state (multi-selection) */
   isMixed?: boolean;
   /** Tooltip text */
@@ -47,8 +49,8 @@ const SIZE_MAP: Record<RibbonIconButtonSize, 'sm' | 'icon'> = {
 
 // Phase 1 Aligned Sizes - Updated to match token standards
 const SIZE_CLASSES: Record<RibbonIconButtonSize, string> = {
-  sm: 'h-6 w-6',  // 24px - Aligned to --ribbon-icon-btn-size-sm
-  md: 'h-8 w-8',  // 32px - Aligned to --ribbon-icon-btn-size-md
+  sm: 'ribbon-icon-btn-sm',
+  md: 'ribbon-icon-btn-md',
 };
 
 // Map RibbonIconButton specific variants to intent
@@ -73,6 +75,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
   icon,
   onClick,
   isActive = false,
+  activeStyle = 'toggle',
   isMixed = false,
   title,
   size = 'md',
@@ -93,7 +96,8 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
   const buttonVariant = resolveButtonVariant(
     isMixed ? 'mixed' : isActive ? 'active' : 'default',
     intent,
-    isActive
+    isActive,
+    activeStyle
   );
 
   // Get state classes
@@ -101,7 +105,8 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
     isActive,
     isDisabled: disabled,
     isMixed,
-    intent
+    intent,
+    activeStyle
   });
 
   // Handle click with tracking
@@ -135,7 +140,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
           hoverEndRef.current = null;
         }
       }}
-      className={combineClasses(SIZE_CLASSES[size], 'p-0', stateClasses, className)}
+      className={combineClasses('ribbon-icon-button', SIZE_CLASSES[size], 'p-0', stateClasses, className)}
       title={title}
       disabled={disabled}
       aria-pressed={isMixed ? 'mixed' : isActive}

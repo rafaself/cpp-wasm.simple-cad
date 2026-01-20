@@ -10,7 +10,6 @@ import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { INPUT_STYLES } from '@/src/styles/recipes';
 import { useUIStore } from '@/stores/useUIStore';
 
-import { RibbonDivider } from './RibbonDivider';
 import { RibbonIconButton } from './RibbonIconButton';
 import { RibbonToggleGroup } from './RibbonToggleGroup';
 import { useRibbonLayout } from './ribbonLayout';
@@ -91,20 +90,16 @@ export const LayerRibbonControls: React.FC = () => {
             }
             onClick={() => updateLayerFlags(!activeLayer?.visible, undefined)}
             isActive={activeLayer?.visible ?? false}
-            variant={activeLayer?.visible ? 'primary' : 'default'}
             title={activeLayer?.visible ? 'Ocultar Camada' : 'Mostrar Camada'}
             disabled={!activeLayer}
             size="md"
           />
-
-          <RibbonDivider />
 
           {/* Lock Toggle */}
           <RibbonIconButton
             icon={activeLayer?.locked ? <Lock size={RIBBON_ICON_SIZES.md} /> : <Unlock size={RIBBON_ICON_SIZES.md} />}
             onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
             isActive={activeLayer?.locked ?? false}
-            variant={activeLayer?.locked ? 'warning' : 'default'}
             title={activeLayer?.locked ? 'Desbloquear Camada' : 'Bloquear Camada'}
             disabled={!activeLayer}
             size="md"

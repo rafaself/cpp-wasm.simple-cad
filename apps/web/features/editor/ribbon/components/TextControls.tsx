@@ -341,12 +341,10 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
 
   return (
     <RibbonControlWrapper align="center" className="!w-fit">
-      <RibbonToggleGroup className="w-fit h-full" width="fit" variant="segmented">
+      <RibbonToggleGroup className="w-fit h-full" width="fit">
         {primaryOptions.map((option) => {
           const isOn = option.state === 'on';
           const isMixed = option.state === 'mixed';
-          // Mixed state uses custom class, active uses standard
-          const mixedClass = isMixed ? 'bg-primary/10 text-primary border border-primary/20' : '';
 
           return (
             <RibbonIconButton
@@ -354,8 +352,8 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
               icon={option.icon}
               onClick={() => handleClick(option)}
               isActive={isOn}
+              isMixed={isMixed}
               title={option.label}
-              className={mixedClass}
             />
           );
         })}

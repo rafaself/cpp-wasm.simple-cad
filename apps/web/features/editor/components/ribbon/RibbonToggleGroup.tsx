@@ -26,31 +26,14 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
   const isSegmented = variant === 'segmented';
 
   const baseClasses = `
-    ribbon-row
-    ribbon-control
+    ribbon-cluster
     ribbon-fill-h
     ${widthClass}
   `;
 
-  const defaultClasses = `
-    bg-surface-2
-    rounded
-    border
-    border-border/50
-    p-0.5
-    gap-0.5
-  `;
+  const defaultClasses = '';
 
-  const segmentedClasses = `
-    bg-surface-2
-    rounded
-    border
-    border-border/50
-    p-0
-    gap-0
-    ribbon-segmented-group
-    overflow-hidden
-  `;
+  const segmentedClasses = 'ribbon-cluster--segmented';
 
   return (
     <div

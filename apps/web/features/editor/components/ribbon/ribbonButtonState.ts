@@ -47,6 +47,9 @@ export interface RibbonButtonStateConfig {
 
   // Size
   size?: RibbonButtonSize
+
+  // Active styling intent
+  activeStyle?: 'mode' | 'toggle'
 }
 
 // ============================================================================
@@ -78,16 +81,17 @@ export function resolveButtonState(config: RibbonButtonStateConfig): RibbonButto
 export function resolveButtonVariant(
   state: RibbonButtonState,
   intent: RibbonButtonIntent = 'default',
-  isActive: boolean = false
+  isActive: boolean = false,
+  activeStyle: 'mode' | 'toggle' = 'toggle'
 ): ButtonVariant {
   // Special states use secondary as base
-  if (state === 'disabled') return 'secondary'
-  if (state === 'loading') return 'secondary'
-  if (state === 'stub') return 'secondary'
-  if (state === 'mixed') return 'secondary'
+  if (state === 'disabled') return 'ghost'
+  if (state === 'loading') return 'ghost'
+  if (state === 'stub') return 'ghost'
+  if (state === 'mixed') return 'ghost'
 
-  // Active state always uses primary
-  if (isActive) return 'primary'
+  // Active state uses primary only for mode-style buttons
+  if (isActive && activeStyle === 'mode') return 'primary'
 
   // Map intent to variant
   switch (intent) {
@@ -96,11 +100,11 @@ export function resolveButtonVariant(
     case 'danger':
       return 'danger'
     case 'warning':
-      return 'secondary'  // Custom class applied separately
+      return 'ghost'  // Custom class applied separately
     case 'success':
-      return 'secondary'  // Custom class applied separately
+      return 'ghost'  // Custom class applied separately
     default:
-      return 'secondary'
+      return 'ghost'
   }
 }
 
@@ -120,7 +124,10 @@ export function getStateClasses(config: RibbonButtonStateConfig): string {
   if (state === 'mixed') classes.push('ribbon-btn-mixed')
   if (state === 'loading') classes.push('ribbon-btn-loading')
   if (state === 'stub') classes.push('ribbon-btn-stub')
-  if (state === 'active') classes.push('ribbon-btn-active')
+  if (state === 'active') {
+    const activeStyle = config.activeStyle ?? 'toggle'
+    classes.push(activeStyle === 'mode' ? 'ribbon-btn-mode' : 'ribbon-btn-toggle-on')
+  }
 
   // Intent classes (only for non-active states)
   if (!config.isActive && config.intent) {

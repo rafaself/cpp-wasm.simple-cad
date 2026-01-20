@@ -24,6 +24,7 @@ import { unpackColorRGBA } from '@/types/text';
 import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 
 import { RibbonIconButton } from '../components/ribbon/RibbonIconButton';
+import { RibbonToggleGroup } from '../components/ribbon/RibbonToggleGroup';
 
 import {
   applyColorAction,
@@ -183,20 +184,15 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.preventDefault()}
-    className={`relative w-5 h-5 max-h-4 mx-1 rounded border transition-colors ${
-      disabled
-        ? 'opacity-50 cursor-not-allowed border-border/50'
-        : state === StyleState.Mixed
-          ? 'border-dashed border-primary/50'
-          : 'border-border/70 hover:border-primary/50'
-    }`}
+    className={`ribbon-swatch transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary/50'}`}
+    data-state={state === StyleState.Mixed ? 'mixed' : 'solid'}
     style={state === StyleState.Mixed ? undefined : { backgroundColor: color }}
     title={title}
     aria-label={title}
     disabled={disabled}
   >
     {state === StyleState.Mixed && (
-      <span className="absolute inset-0 flex items-center justify-center bg-surface-2/50 text-[10px] font-medium text-text-muted">
+      <span className="absolute inset-0 flex items-center justify-center bg-surface-2/50 text-label font-medium text-text-muted">
         ?
       </span>
     )}
@@ -561,161 +557,147 @@ export const ColorRibbonControls: React.FC = () => {
       title={isDisabled ? LABELS.colors.disabledHint : undefined}
     >
       {/* Stroke Row */}
-      <div className="ribbon-row h-7 items-center justify-between">
-        <div className="flex flex-col">
-          <span
-            className="cursor-default text-label font-semibold uppercase tracking-wide text-text-muted"
-            title={LABELS.colors.stroke}
-          >
-            {LABELS.colors.stroke}
-          </span>
-          <div className="flex items-center gap-1">
-            <ColorSwatchButton
-              color={strokeState.color}
-              onClick={(event) => openColorPicker(event, 'stroke')}
-              disabled={isDisabled || strokeState.supportedState === TriState.Off}
-              state={strokeState.state}
-              title={strokeTooltip}
-              showNone={noStroke}
-            />
-            <RibbonIconButton
-              icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-              onClick={handleToggleStroke}
-              title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
-              isActive={false}
-              size="md"
-              className={`ribbon-icon-no-bg !w-6 ${noStroke ? 'ribbon-icon-warning' : 'text-text-muted'}`}
-              disabled={isDisabled || strokeState.supportedState === TriState.Off}
-            />
-            {collapseRestores ? (
-              isStrokeRestorable ? (
-                <Popover
-                  isOpen={isStrokeMenuOpen}
-                  onOpenChange={setIsStrokeMenuOpen}
-                  placement="bottom"
-                  offset={6}
-                  className="ribbon-inline-popover"
-                  zIndex="z-dropdown"
-                  content={
-                    <div className="ribbon-inline-menu">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ribbon-inline-menu-item"
-                        onClick={() => {
-                          handleRestore('stroke');
-                          setIsStrokeMenuOpen(false);
-                        }}
-                      >
-                        <Undo2 size={ICON_SIZE} />
-                        <span>Restaurar Traço</span>
-                      </Button>
-                    </div>
-                  }
-                >
-                  <RibbonIconButton
-                    icon={<MoreHorizontal size={ICON_SIZE} />}
-                    onClick={() => undefined}
-                    title="Mais opções de traço"
-                    size="md"
-                    className="ribbon-icon-no-bg text-text-muted"
-                    disabled={isDisabled}
-                  />
-                </Popover>
-              ) : null
-            ) : (
-              <RibbonIconButton
-                icon={<Undo2 size={ICON_SIZE} />}
-                onClick={() => handleRestore('stroke')}
-                title={restoreStrokeTooltip}
-                size="md"
-                disabled={
-                  isDisabled || !isStrokeRestorable || strokeState.supportedState === TriState.Off
+      <div className="ribbon-row items-center">
+        <span className="ribbon-swatch-label" title={LABELS.colors.stroke}>
+          {LABELS.colors.stroke}
+        </span>
+        <RibbonToggleGroup width="fit">
+          <ColorSwatchButton
+            color={strokeState.color}
+            onClick={(event) => openColorPicker(event, 'stroke')}
+            disabled={isDisabled || strokeState.supportedState === TriState.Off}
+            state={strokeState.state}
+            title={strokeTooltip}
+            showNone={noStroke}
+          />
+          <RibbonIconButton
+            icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+            onClick={handleToggleStroke}
+            title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
+            isActive={noStroke}
+            size="md"
+            disabled={isDisabled || strokeState.supportedState === TriState.Off}
+          />
+          {collapseRestores ? (
+            isStrokeRestorable ? (
+              <Popover
+                isOpen={isStrokeMenuOpen}
+                onOpenChange={setIsStrokeMenuOpen}
+                placement="bottom"
+                offset={6}
+                className="ribbon-inline-popover"
+                zIndex="z-dropdown"
+                content={
+                  <div className="ribbon-inline-menu">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ribbon-inline-menu-item"
+                      onClick={() => {
+                        handleRestore('stroke');
+                        setIsStrokeMenuOpen(false);
+                      }}
+                    >
+                      <Undo2 size={ICON_SIZE} />
+                      <span>Restaurar Traço</span>
+                    </Button>
+                  </div>
                 }
-                className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isStrokeRestorable ? 'opacity-10 pointer-events-none' : ''}`}
-              />
-            )}
-          </div>
-        </div>
+              >
+                <RibbonIconButton
+                  icon={<MoreHorizontal size={ICON_SIZE} />}
+                  onClick={() => undefined}
+                  title="Mais opções de traço"
+                  size="md"
+                  disabled={isDisabled}
+                />
+              </Popover>
+            ) : null
+          ) : (
+            <RibbonIconButton
+              icon={<Undo2 size={ICON_SIZE} />}
+              onClick={() => handleRestore('stroke')}
+              title={restoreStrokeTooltip}
+              size="md"
+              disabled={
+                isDisabled || !isStrokeRestorable || strokeState.supportedState === TriState.Off
+              }
+              className={!isStrokeRestorable ? 'opacity-10 pointer-events-none' : ''}
+            />
+          )}
+        </RibbonToggleGroup>
       </div>
 
       {/* Fill Row */}
-      <div className="ribbon-row h-7 items-center justify-between">
-        <div className="flex flex-col">
-          <span
-            className="cursor-default text-label font-semibold uppercase tracking-wide text-text-muted"
-            title={LABELS.colors.fill}
-          >
-            {LABELS.colors.fill}
-          </span>
-          <div className="flex items-center gap-1">
-            <ColorSwatchButton
-              color={fillState.color}
-              onClick={(event) => openColorPicker(event, 'fill')}
-              disabled={isDisabled || fillState.supportedState === TriState.Off}
-              showNone={noFill}
-              title={fillTooltip}
-              state={fillState.state}
-            />
-            <RibbonIconButton
-              icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-              onClick={handleToggleFill}
-              title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
-              isActive={false}
-              size="md"
-              className={`ribbon-icon-no-bg !w-6 ${noFill ? 'ribbon-icon-warning' : 'text-text-muted'}`}
-              disabled={isDisabled || fillState.supportedState === TriState.Off}
-            />
-            {collapseRestores ? (
-              isFillRestorable ? (
-                <Popover
-                  isOpen={isFillMenuOpen}
-                  onOpenChange={setIsFillMenuOpen}
-                  placement="bottom"
-                  offset={6}
-                  className="ribbon-inline-popover"
-                  zIndex="z-dropdown"
-                  content={
-                    <div className="ribbon-inline-menu">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ribbon-inline-menu-item"
-                        onClick={() => {
-                          handleRestore('fill');
-                          setIsFillMenuOpen(false);
-                        }}
-                      >
-                        <Undo2 size={ICON_SIZE} />
-                        <span>Restaurar Preenchimento</span>
-                      </Button>
-                    </div>
-                  }
-                >
+      <div className="ribbon-row items-center">
+        <span className="ribbon-swatch-label" title={LABELS.colors.fill}>
+          {LABELS.colors.fill}
+        </span>
+        <RibbonToggleGroup width="fit">
+          <ColorSwatchButton
+            color={fillState.color}
+            onClick={(event) => openColorPicker(event, 'fill')}
+            disabled={isDisabled || fillState.supportedState === TriState.Off}
+            showNone={noFill}
+            title={fillTooltip}
+            state={fillState.state}
+          />
+          <RibbonIconButton
+            icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+            onClick={handleToggleFill}
+            title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
+            isActive={noFill}
+            size="md"
+            disabled={isDisabled || fillState.supportedState === TriState.Off}
+          />
+          {collapseRestores ? (
+            isFillRestorable ? (
+              <Popover
+                isOpen={isFillMenuOpen}
+                onOpenChange={setIsFillMenuOpen}
+                placement="bottom"
+                offset={6}
+                className="ribbon-inline-popover"
+                zIndex="z-dropdown"
+                content={
+                  <div className="ribbon-inline-menu">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ribbon-inline-menu-item"
+                      onClick={() => {
+                        handleRestore('fill');
+                        setIsFillMenuOpen(false);
+                      }}
+                    >
+                      <Undo2 size={ICON_SIZE} />
+                      <span>Restaurar Preenchimento</span>
+                    </Button>
+                  </div>
+                }
+              >
                 <RibbonIconButton
                   icon={<MoreHorizontal size={ICON_SIZE} />}
                   onClick={() => undefined}
                   title="Mais opções de preenchimento"
                   size="md"
-                  className="ribbon-icon-no-bg text-text-muted"
                   disabled={isDisabled}
                 />
-                </Popover>
-              ) : null
-            ) : (
-                <RibbonIconButton
-                  icon={<Undo2 size={ICON_SIZE} />}
-                  onClick={() => handleRestore('fill')}
-                  title={restoreFillTooltip}
-                  size="md"
-                  disabled={
-                    isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
-                  }
-                  className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
-                />
-            )}
-          </div>
-        </div>
+              </Popover>
+            ) : null
+          ) : (
+            <RibbonIconButton
+              icon={<Undo2 size={ICON_SIZE} />}
+              onClick={() => handleRestore('fill')}
+              title={restoreFillTooltip}
+              size="md"
+              disabled={
+                isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
+              }
+              className={!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}
+            />
+          )}
+        </RibbonToggleGroup>
       </div>
 
       {activePicker && (

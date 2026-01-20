@@ -100,10 +100,11 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
   const variant = resolveButtonVariant(
     isActive ? 'active' : 'default',
     intent,
-    isActive
+    isActive,
+    'mode'
   )
 
-  const stateClasses = getStateClasses({ isActive, isDisabled: disabled, intent })
+  const stateClasses = getStateClasses({ isActive, isDisabled: disabled, intent, activeStyle: 'mode' })
 
   const debugClass = isRibbonDebugEnabled() ? ' ribbon-debug-control' : ''
 

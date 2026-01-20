@@ -66,6 +66,46 @@
   --icon-md: 20px;
   --icon-lg: 24px;
   --icon-xl: 32px;
+
+  /* --- Ribbon Sizing + Layout --- */
+  --ribbon-group-body-height: 66px; /* 28px rows + 4px gap + 6px padding */
+  --ribbon-group-label-height: 18px; /* Label area */
+  --ribbon-height: calc(var(--ribbon-group-body-height) + var(--ribbon-group-label-height));
+  --ribbon-control-height-md: 28px;
+  --ribbon-control-height-sm: var(--height-button-sm);
+  --ribbon-control-height-lg: 60px;
+  --ribbon-icon-btn-size-md: var(--ribbon-control-height-md);
+  --ribbon-icon-btn-size-sm: var(--ribbon-control-height-sm);
+  --ribbon-item-height: var(--ribbon-control-height-md);
+  --ribbon-group-px: var(--space-3);
+  --ribbon-group-gap-x: var(--space-1);
+  --ribbon-group-gap-y: var(--space-1);
+  --ribbon-label-font-size: var(--text-label);
+  --ribbon-label-line-height: 18px;
+  --ribbon-control-font-size: var(--text-body);
+  --ribbon-control-line-height: 16px;
+  --ribbon-control-radius: var(--radius-sm);
+  --ribbon-cluster-padding: var(--space-0_5);
+  --ribbon-cluster-gap: var(--space-0_5);
+  --ribbon-swatch-size: var(--space-5);
+  --ribbon-cluster-bg: hsl(var(--color-surface-2));
+  --ribbon-cluster-border: hsl(var(--color-border));
+  --ribbon-toggle-on-bg: hsl(var(--color-primary) / 0.16);
+  --ribbon-toggle-on-border: hsl(var(--color-primary) / 0.45);
+  --ribbon-toggle-on-text: hsl(var(--color-text));
+  --ribbon-mode-bg: hsl(var(--color-primary));
+  --ribbon-mode-text: hsl(var(--color-primary-contrast));
+  --ribbon-hover-bg: hsl(var(--color-surface-2) / 0.7);
+  --ribbon-divider-color: hsl(var(--color-border));
+  --ribbon-divider-opacity: 0.5;
+  --ribbon-control-bg: hsl(var(--color-surface-2));
+  --ribbon-control-border-color: hsl(var(--color-border) / 0.6);
+  --ribbon-control-focus: hsl(var(--color-focus) / 0.5);
+  --ribbon-overflow-min-width: 220px;
+  --ribbon-overflow-max-height: 320px;
+  --ribbon-overflow-trigger-min-width: 64px;
+  --ribbon-inline-menu-min-width: 180px;
+  --ribbon-tooltip-min-width: 160px;
   
   /* --- Colors (Base definitions) --- */
    /* Canvas background is fixed regardless of theme (always dark) */
