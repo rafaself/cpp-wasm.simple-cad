@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+
 import { Button, ButtonVariant } from './Button';
 
 export interface DialogProps {
@@ -42,7 +43,7 @@ const Dialog: React.FC<DialogProps> = ({
   activator,
   children,
   className = '',
-  zIndex = 1000,
+  zIndex,
   closeOnKeys = [],
   closeOnResize = false,
   ariaLabel,
@@ -191,7 +192,10 @@ const Dialog: React.FC<DialogProps> = ({
   };
 
   const dialogContent = isOpen ? (
-    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
+    <div
+      className="fixed inset-0 flex items-center justify-center z-modal"
+      style={zIndex !== undefined ? { zIndex } : undefined}
+    >
       {/* Overlay/Scrim */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
@@ -296,10 +300,14 @@ export const DialogButton: React.FC<DialogButtonProps> = ({
 }) => {
   const mapVariant = (v: 'primary' | 'secondary' | 'text'): ButtonVariant => {
     switch (v) {
-      case 'primary': return 'primary';
-      case 'secondary': return 'secondary';
-      case 'text': return 'ghost';
-      default: return 'ghost';
+      case 'primary':
+        return 'primary';
+      case 'secondary':
+        return 'secondary';
+      case 'text':
+        return 'ghost';
+      default:
+        return 'ghost';
     }
   };
 

@@ -22,43 +22,41 @@ export const SelectionControls: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full gap-1">
+    <div className="ribbon-group-col px-1">
       {/* Top Row */}
-      <div className="flex gap-1 flex-1">
+      <div className="ribbon-row">
         <RibbonIconButton
-          icon={<Move size={RIBBON_ICON_SIZES.sm} />}
+          icon={<Move size={RIBBON_ICON_SIZES.md} />}
           onClick={() => handleToolClick('move')}
           isActive={activeTool === 'move'}
+          activeStyle="mode"
           title="Mover"
-          size="sm"
-          className="h-full w-7"
+          size="md"
         />
         <RibbonIconButton
-          icon={<RotateCw size={RIBBON_ICON_SIZES.sm} />}
+          icon={<RotateCw size={RIBBON_ICON_SIZES.md} />}
           onClick={() => handleToolClick('rotate')}
           isActive={activeTool === 'rotate'}
+          activeStyle="mode"
           title="Rotacionar"
-          size="sm"
-          className="h-full w-7"
+          size="md"
         />
       </div>
 
       {/* Bottom Row */}
-      <div className="flex gap-1 flex-1">
+      <div className="ribbon-row">
         <RibbonIconButton
-          icon={<Copy size={RIBBON_ICON_SIZES.sm} />}
+          icon={<Copy size={RIBBON_ICON_SIZES.md} />}
           onClick={() => handleActionClick('duplicate')}
           title="Duplicar"
-          size="sm"
-          className="h-full w-7"
+          size="md"
         />
         <RibbonIconButton
-          icon={<Trash2 size={RIBBON_ICON_SIZES.sm} />}
+          icon={<Trash2 size={RIBBON_ICON_SIZES.md} />}
           onClick={() => handleActionClick('delete')}
           title="Excluir"
           variant="danger"
-          size="sm"
-          className="h-full w-7"
+          size="md"
         />
       </div>
     </div>

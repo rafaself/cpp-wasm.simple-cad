@@ -1,9 +1,8 @@
-import { CommandOp, StyleTarget, type EntityId } from '@/engine/core/EngineRuntime';
+import { CommandOp, StyleTarget, type EntityId, EngineRuntime } from '@/engine/core/EngineRuntime';
 import { packColorRGBA } from '@/types/text';
-import { parseCssColorToHexAlpha } from '@/utils/cssColor';
 import { hexToRgb } from '@/utils/color';
+import { parseCssColorToHexAlpha } from '@/utils/cssColor';
 
-import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { ColorTargetMode, ToolKind } from './useColorTargetResolver';
 
 export type ColorControlTarget = 'stroke' | 'fill';

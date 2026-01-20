@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 
+import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import {
   SelectionStyleSummary,
   StyleState,
   TriState,
   type StyleTargetSummary,
 } from '@/engine/core/protocol';
-import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 
 const EMPTY_TARGET: StyleTargetSummary = {

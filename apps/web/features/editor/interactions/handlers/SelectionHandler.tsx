@@ -5,10 +5,11 @@ import {
   SelectionMode,
   SelectionModifier,
 } from '@/engine/core/EngineRuntime';
+import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
-import { RotationCursor } from '@/features/editor/components/RotationCursor';
-import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
 import { MoveCursor } from '@/features/editor/components/MoveCursor';
+import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
+import { RotationCursor } from '@/features/editor/components/RotationCursor';
 import {
   getRotationCursorAngleForHandle,
   getResizeCursorAngleForHandle,
@@ -18,17 +19,16 @@ import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind, PickSubTarget } from '@/types/picking';
-import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
 
-import { BaseInteractionHandler } from '../BaseInteractionHandler';
-import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 import {
   SideHandleType,
   SIDE_HANDLE_INDICES,
   SIDE_HANDLE_TO_ENGINE_INDEX,
 } from '../../interactions/sideHandles';
+import { BaseInteractionHandler } from '../BaseInteractionHandler';
+import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 
 // Helper to identify line-like entities that should use Move mode for Edge interactions
 const isLineOrArrow = (kind: PickEntityKind): boolean =>

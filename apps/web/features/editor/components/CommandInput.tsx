@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useCommandExecutor, getCommandSuggestions } from '../commands/commandExecutor';
 import { ensureCommandsRegistered } from '../commands/definitions';
 import { useCommandInputCapture } from '../hooks/useCommandInputCapture';
+
 import { CommandHelpContent } from './CommandHelpContent';
 
 export interface CommandInputProps {
@@ -52,6 +53,22 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
     ensureCommandsRegistered();
     loadHistory();
   }, [loadHistory]);
+
+  useEffect(() => {
+    const handlePaletteShortcut = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k') return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      event.preventDefault();
+      inputRef.current?.focus();
+      setActive(true);
+    };
+
+    window.addEventListener('keydown', handlePaletteShortcut);
+    return () => window.removeEventListener('keydown', handlePaletteShortcut);
+  }, [setActive]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,83 +162,83 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             ${error ? 'border-red-500 ring-1 ring-red-500/30' : ''}
           `}
         >
-        <Terminal
-          size={12}
-          className={`
+          <Terminal
+            size={12}
+            className={`
             shrink-0 transition-colors duration-150
             ${isActive || isCapturing ? 'text-primary' : 'text-text'}
           `}
-        />
-        <div className="relative flex-1">
-          <input
-            ref={inputRef}
-            type="text"
-            value={buffer}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            placeholder={LABELS.statusbar.commandPlaceholder}
-            spellCheck={false}
-            autoComplete="off"
-            className={`
+          />
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              type="text"
+              value={buffer}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              placeholder={LABELS.statusbar.commandPlaceholder}
+              spellCheck={false}
+              autoComplete="off"
+              className={`
               w-28 h-full bg-transparent relative z-10
               text-xs font-mono
               text-text placeholder:text-text/50
               outline-none
               selection:bg-primary/30
             `}
-            aria-label={LABELS.statusbar.commandInputLabel}
-            title={LABELS.statusbar.commandTooltip}
-          />
-          {/* Autocomplete ghost text */}
-          {suggestion && buffer && !isNavigatingHistory && (
-            <div
-              className="
+              aria-label={LABELS.statusbar.commandInputLabel}
+              title={LABELS.statusbar.commandTooltip}
+            />
+            {/* Autocomplete ghost text */}
+            {suggestion && buffer && !isNavigatingHistory && (
+              <div
+                className="
                 absolute inset-0 flex items-center
                 text-xs font-mono text-text-muted/40
                 pointer-events-none select-none
                 overflow-hidden
               "
-              aria-hidden="true"
-            >
-              <span className="invisible">{buffer}</span>
-              <span>{suggestion.name.slice(buffer.length)}</span>
-            </div>
-          )}
-        </div>
+                aria-hidden="true"
+              >
+                <span className="invisible">{buffer}</span>
+                <span>{suggestion.name.slice(buffer.length)}</span>
+              </div>
+            )}
+          </div>
 
-        {/* Execute button - shows when there's content */}
-        <button
-          onClick={handleExecuteClick}
-          className={`
+          {/* Execute button - shows when there's content */}
+          <button
+            onClick={handleExecuteClick}
+            className={`
             shrink-0 p-0.5 rounded transition-colors
             ${buffer.trim() ? 'opacity-100 hover:bg-surface-2 text-text hover:text-primary' : 'opacity-0 pointer-events-none'}
           `}
-          title={LABELS.statusbar.commandExecute}
-          aria-label={LABELS.statusbar.commandExecuteLabel}
-          disabled={!buffer.trim()}
+            title={LABELS.statusbar.commandExecute}
+            aria-label={LABELS.statusbar.commandExecuteLabel}
+            disabled={!buffer.trim()}
+          >
+            <Send size={12} className="rotate-45" />
+          </button>
+        </div>
+
+        {/* Help button */}
+        <button
+          onClick={() => setHelpModalOpen(true)}
+          className="p-1 hover:bg-surface-2 rounded focus-outline text-text hover:text-primary transition-colors"
+          title={LABELS.statusbar.commandHelp}
+          aria-label={LABELS.statusbar.commandHelpLabel}
         >
-          <Send size={12} className="rotate-45" />
+          <HelpCircle size={14} />
         </button>
-      </div>
 
-      {/* Help button */}
-      <button
-        onClick={() => setHelpModalOpen(true)}
-        className="p-1 hover:bg-surface-2 rounded focus-outline text-text hover:text-primary transition-colors"
-        title={LABELS.statusbar.commandHelp}
-        aria-label={LABELS.statusbar.commandHelpLabel}
-      >
-        <HelpCircle size={14} />
-      </button>
-
-      {/* Suggestion tooltip */}
-      {suggestion && buffer && !error && (isActive || showCapturing) && (
-        <div
-          className="
+        {/* Suggestion tooltip */}
+        {suggestion && buffer && !error && (isActive || showCapturing) && (
+          <div
+            className="
             absolute bottom-full left-0 mb-1.5
             px-2 py-1 rounded
             bg-surface-2 border border-border
@@ -230,18 +247,18 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             shadow-lg
             animate-in fade-in slide-in-from-bottom-1 duration-150
           "
-        >
-          <span className="text-primary font-medium">{suggestion.name}</span>
-          <span className="mx-1.5 text-text/30">—</span>
-          <span>{suggestion.description}</span>
-          <span className="ml-2 text-text/60">[Enter]</span>
-        </div>
-      )}
+          >
+            <span className="text-primary font-medium">{suggestion.name}</span>
+            <span className="mx-1.5 text-text/30">—</span>
+            <span>{suggestion.description}</span>
+            <span className="ml-2 text-text/60">[Enter]</span>
+          </div>
+        )}
 
-      {/* Error tooltip */}
-      {error && (
-        <div
-          className="
+        {/* Error tooltip */}
+        {error && (
+          <div
+            className="
             absolute bottom-full left-0 mb-1.5
             px-2 py-1 rounded
             bg-red-500/90 text-white text-[10px]
@@ -249,11 +266,11 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
             shadow-lg
             animate-in fade-in slide-in-from-bottom-1 duration-150
           "
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
       </div>
 
       <Dialog
@@ -263,7 +280,10 @@ export const CommandInput: React.FC<CommandInputProps> = ({ className = '' }) =>
         showCloseButton
         ariaLabel={LABELS.statusbar.commandHelpDialogTitle}
       >
-        <DialogCard title={LABELS.statusbar.commandHelpDialogTitle} contentClassName="overflow-hidden p-0">
+        <DialogCard
+          title={LABELS.statusbar.commandHelpDialogTitle}
+          contentClassName="overflow-hidden p-0"
+        >
           <CommandHelpContent />
         </DialogCard>
       </Dialog>

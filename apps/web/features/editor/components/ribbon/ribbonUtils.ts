@@ -1,5 +1,4 @@
 import { getShortcutLabel } from '@/config/keybindings';
-
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 // ============================================================================

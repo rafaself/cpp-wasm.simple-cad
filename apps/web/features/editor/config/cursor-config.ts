@@ -18,10 +18,7 @@
  *   Side:   0=S, 1=E, 2=N, 3=W (starting from bottom)
  */
 
-import {
-  CORNER_HANDLE_CURSOR_ANGLES,
-  SIDE_HANDLE_CURSOR_ANGLES,
-} from './interaction-constants';
+import { CORNER_HANDLE_CURSOR_ANGLES, SIDE_HANDLE_CURSOR_ANGLES } from './interaction-constants';
 
 /**
  * Cursor asset paths
@@ -174,10 +171,10 @@ export function getResizeCursorAngle(handle: ResizeHandleType | number): number 
  * Each corner is 90° apart, going counter-clockwise from TR.
  */
 const ROTATION_HANDLE_CURSOR_ANGLES: Record<number, number> = {
-  0: 180,  // BL - opposite to TR
-  1: 90,   // BR - 90° clockwise from TR
-  2: 0,    // TR - base orientation
-  3: 270,  // TL - 90° counter-clockwise from TR (or -90°)
+  0: 180, // BL - opposite to TR
+  1: 90, // BR - 90° clockwise from TR
+  2: 0, // TR - base orientation
+  3: 270, // TL - 90° counter-clockwise from TR (or -90°)
 };
 
 /**
@@ -240,10 +237,10 @@ export function getRotationCursorAngle(
  */
 const HANDLE_TO_CENTER_ANGLES: Record<number, number> = {
   // Corners (indices 0-3, from engine pick)
-  0: -45,   // BL → up-right
-  1: -135,  // BR → up-left
-  2: 135,   // TR → down-left
-  3: 45,    // TL → down-right
+  0: -45, // BL → up-right
+  1: -135, // BR → up-left
+  2: 135, // TR → down-left
+  3: 45, // TL → down-right
   // Sides using ENGINE indices (0-3, from SIDE_HANDLE_TO_ENGINE_INDEX: S=0, E=1, N=2, W=3)
   // These are offset by 100 to avoid collision with corner indices
   // Use helper function to map engine side index → angle
@@ -254,10 +251,10 @@ const HANDLE_TO_CENTER_ANGLES: Record<number, number> = {
  * Engine uses: S=0, E=1, N=2, W=3
  */
 const ENGINE_SIDE_TO_CENTER_ANGLES: Record<number, number> = {
-  0: -90,   // S → up
-  1: 180,   // E → left
-  2: 90,    // N → down
-  3: 0,     // W → right
+  0: -90, // S → up
+  1: 180, // E → left
+  2: 90, // N → down
+  3: 0, // W → right
 };
 
 /**
@@ -265,10 +262,10 @@ const ENGINE_SIDE_TO_CENTER_ANGLES: Record<number, number> = {
  * Frontend uses: N=4, E=5, S=6, W=7 (from SIDE_HANDLE_INDICES)
  */
 const FRONTEND_SIDE_TO_CENTER_ANGLES: Record<number, number> = {
-  4: 90,    // N → down
-  5: 180,   // E → left
-  6: -90,   // S → up
-  7: 0,     // W → right
+  4: 90, // N → down
+  5: 180, // E → left
+  6: -90, // S → up
+  7: 0, // W → right
 };
 
 /**

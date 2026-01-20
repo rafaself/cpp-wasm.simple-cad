@@ -7,6 +7,8 @@ interface RibbonToggleGroupProps {
   className?: string;
   /** Width preset */
   width?: 'auto' | 'fit';
+  /** Styling variant */
+  variant?: 'default' | 'segmented';
 }
 
 /**
@@ -18,22 +20,26 @@ export const RibbonToggleGroup: React.FC<RibbonToggleGroupProps> = ({
   children,
   className = '',
   width = 'auto',
+  variant = 'default',
 }) => {
   const widthClass = width === 'fit' ? 'w-fit' : '';
+  const isSegmented = variant === 'segmented';
+
+  const baseClasses = `
+    ribbon-cluster
+    ribbon-fill-h
+    ${widthClass}
+  `;
+
+  const defaultClasses = '';
+
+  const segmentedClasses = 'ribbon-cluster--segmented';
 
   return (
     <div
       className={`
-        flex 
-        bg-surface-2 
-        rounded 
-        border 
-        border-border/50 
-        p-0.5 
-        ribbon-fill-h 
-        gap-0.5 
-        items-center
-        ${widthClass}
+        ${baseClasses}
+        ${isSegmented ? segmentedClasses : defaultClasses}
         ${className}
       `
         .replace(/\s+/g, ' ')

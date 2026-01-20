@@ -164,7 +164,9 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
         position: 'fixed',
         left: isPositioned ? position.x : -9999,
         top: isPositioned ? position.y : -9999,
-        zIndex: 2147483647,
+        zIndex:
+          Number(getComputedStyle(document.documentElement).getPropertyValue('--z-dropdown')) ||
+          2100,
       }}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.preventDefault()} // Prevent focus loss that could cause deselection

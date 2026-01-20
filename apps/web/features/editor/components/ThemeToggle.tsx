@@ -27,7 +27,7 @@ const ThemeToggle: React.FC = () => {
           className="absolute inset-0 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
         />
       </div>
-      <span className="sr-only">Toggle theme</span>
+      <span className="sr-only">{LABELS.common.toggleTheme}</span>
     </button>
   );
 };

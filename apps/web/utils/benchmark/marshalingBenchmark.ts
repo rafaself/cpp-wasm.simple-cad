@@ -12,8 +12,8 @@
 
 /* eslint-disable no-console */
 
-import { CommandOp, type EngineCommand } from '@/engine/core/commandTypes';
 import { encodeCommandBuffer } from '@/engine/core/commandBuffer';
+import { CommandOp, type EngineCommand } from '@/engine/core/commandTypes';
 import { getEngineRuntime } from '@/engine/core/singleton';
 
 export interface BenchmarkResult {

@@ -5,6 +5,7 @@
  */
 
 import { parseNumberArg, parseEnumArg } from '../commandParser';
+
 import type { CommandDefinition } from '../commandRegistry';
 
 const ZOOM_OPTIONS = ['FIT', 'IN', 'OUT'] as const;

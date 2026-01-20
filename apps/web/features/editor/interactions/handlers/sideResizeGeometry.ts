@@ -63,9 +63,7 @@ export function calculateSideResize(input: SideResizeInput): SideResizeOutput {
     // Drag point: original edge position + delta
     // For positive side (E/S): halfDim + delta
     // For negative side (W/N): -(halfDim + delta) = -halfDim - delta
-    const dragPoint = isPositiveSide
-      ? halfDim + localDelta
-      : -(halfDim + localDelta);
+    const dragPoint = isPositiveSide ? halfDim + localDelta : -(halfDim + localDelta);
 
     // New dimension is 2 * distance from center
     const halfWidth = Math.abs(dragPoint);
@@ -90,9 +88,7 @@ export function calculateSideResize(input: SideResizeInput): SideResizeOutput {
     const anchor = isPositiveSide ? -halfDim : halfDim;
 
     // Drag point: original edge position + delta
-    const drag = isPositiveSide
-      ? halfDim + localDelta
-      : -halfDim + localDelta;
+    const drag = isPositiveSide ? halfDim + localDelta : -halfDim + localDelta;
 
     // Use min/max to handle crossing (flip)
     // This automatically gives us the bounding box regardless of drag direction
@@ -133,7 +129,7 @@ export function calculateSideResize(input: SideResizeInput): SideResizeOutput {
  */
 export function localToWorldShift(
   shiftLocal: { x: number; y: number },
-  rotationRad: number
+  rotationRad: number,
 ): { x: number; y: number } {
   const cos = Math.cos(rotationRad);
   const sin = Math.sin(rotationRad);

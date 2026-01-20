@@ -1,9 +1,19 @@
 :root {
   color-scheme: light dark;
 
+  /* --- Typography Tokens --- */
+  --text-title: 16px;
+  --text-heading: 13px;
+  --text-body: 12px;
+  --text-body-strong: 12px;
+  --text-label: 10px;
+  --text-caption: 10px;
+  --text-mono: 11px;
+
   /* --- Spacing (CAD-Optimized) --- */
   --space-0: 0px;
   --space-0_5: 2px;
+  --space-0_75: 3px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -39,6 +49,7 @@
   --shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --shadow-4: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-focus: 0 0 0 2px hsl(var(--color-focus) / 0.35);
 
   /* --- Motion --- */
   --duration-fast: 150ms;
@@ -55,6 +66,48 @@
   --icon-md: 20px;
   --icon-lg: 24px;
   --icon-xl: 32px;
+
+  /* --- Ribbon Sizing + Layout --- */
+  --ribbon-group-body-height: 66px; /* 28px rows + 4px gap + 6px padding */
+  --ribbon-group-label-height: 18px; /* Label area */
+  --ribbon-height: calc(var(--ribbon-group-body-height) + var(--ribbon-group-label-height));
+  --ribbon-control-height-md: 28px;
+  --ribbon-control-height-sm: var(--height-button-sm);
+  --ribbon-control-height-lg: 60px;
+  --ribbon-icon-btn-size-md: calc(
+    var(--ribbon-control-height-md) - (var(--ribbon-cluster-padding) * 2)
+  );
+  --ribbon-icon-btn-size-sm: var(--ribbon-control-height-sm);
+  --ribbon-item-height: var(--ribbon-control-height-md);
+  --ribbon-group-px: var(--space-3);
+  --ribbon-group-gap-x: var(--space-1);
+  --ribbon-group-gap-y: var(--space-1);
+  --ribbon-label-font-size: var(--text-label);
+  --ribbon-label-line-height: 18px;
+  --ribbon-control-font-size: var(--text-body);
+  --ribbon-control-line-height: 16px;
+  --ribbon-control-radius: var(--radius-sm);
+  --ribbon-cluster-padding: var(--space-0_5);
+  --ribbon-cluster-gap: var(--space-0_5);
+  --ribbon-swatch-size: var(--space-5);
+  --ribbon-cluster-bg: hsl(var(--color-surface-2));
+  --ribbon-cluster-border: hsl(var(--color-border));
+  --ribbon-toggle-on-bg: hsl(var(--color-primary) / 0.16);
+  --ribbon-toggle-on-border: hsl(var(--color-primary) / 0.45);
+  --ribbon-toggle-on-text: hsl(var(--color-text));
+  --ribbon-mode-bg: hsl(var(--color-primary));
+  --ribbon-mode-text: hsl(var(--color-primary-contrast));
+  --ribbon-hover-bg: hsl(var(--color-surface-2) / 0.7);
+  --ribbon-divider-color: hsl(var(--color-border));
+  --ribbon-divider-opacity: 0.5;
+  --ribbon-control-bg: hsl(var(--color-surface-2));
+  --ribbon-control-border-color: hsl(var(--color-border) / 0.6);
+  --ribbon-control-focus: hsl(var(--color-focus) / 0.5);
+  --ribbon-overflow-min-width: 220px;
+  --ribbon-overflow-max-height: 320px;
+  --ribbon-overflow-trigger-min-width: 64px;
+  --ribbon-inline-menu-min-width: 180px;
+  --ribbon-tooltip-min-width: 160px;
   
   /* --- Colors (Base definitions) --- */
    /* Canvas background is fixed regardless of theme (always dark) */
@@ -123,4 +176,34 @@
   /* Legacy Header Support */
   --color-header-bg: 210 40% 96%;
   --color-header-tab-active: 0 0% 100%;
+}
+
+.text-title {
+  font-size: var(--text-title);
+}
+
+.text-heading {
+  font-size: var(--text-heading);
+}
+
+.text-body {
+  font-size: var(--text-body);
+}
+
+.text-body-strong {
+  font-size: var(--text-body-strong);
+}
+
+.text-label {
+  font-size: var(--text-label);
+}
+
+.text-caption {
+  font-size: var(--text-caption);
+}
+
+.text-mono {
+  font-size: var(--text-mono);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
 }

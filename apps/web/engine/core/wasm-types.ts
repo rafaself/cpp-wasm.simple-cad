@@ -1,3 +1,4 @@
+import type { TransformState } from './interactionSession';
 import type {
   ProtocolInfo,
   EntityId,
@@ -14,7 +15,6 @@ import type {
   SelectionStyleSummary,
 } from './protocol';
 import type { PickResult } from '@/types/picking';
-import type { TransformState } from './interactionSession';
 import type {
   TextCaretPosition,
   TextHitResult,

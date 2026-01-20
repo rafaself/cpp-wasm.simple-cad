@@ -6,8 +6,8 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 
-import { getEngineRuntime } from '@/engine/core/singleton';
 import { TransformMode } from '@/engine/core/interactionSession';
+import { getEngineRuntime } from '@/engine/core/singleton';
 import { useUIStore } from '@/stores/useUIStore';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';

@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+
 import { Portal } from './Portal';
 import { calculatePosition, Placement } from './utils/positioning';
 
@@ -12,6 +13,7 @@ export interface PopoverProps {
   className?: string;
   zIndex?: string; // Should be a token like 'z-dropdown'
   matchWidth?: boolean;
+  closeOnEscape?: boolean;
 }
 
 export const Popover: React.FC<PopoverProps> = ({
@@ -24,42 +26,58 @@ export const Popover: React.FC<PopoverProps> = ({
   className = '',
   zIndex = 'z-dropdown',
   matchWidth = false,
+  closeOnEscape = true,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: undefined as number | undefined });
+  const [position, setPosition] = useState({
+    top: 0,
+    left: 0,
+    width: undefined as number | undefined,
+  });
+  const [isPositioned, setIsPositioned] = useState(false);
 
   const isControlled = controlledIsOpen !== undefined;
   const show = isControlled ? controlledIsOpen : internalIsOpen;
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    if (!isControlled) {
-      setInternalIsOpen(open);
-    }
-    onOpenChange?.(open);
-  }, [isControlled, onOpenChange]);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!isControlled) {
+        setInternalIsOpen(open);
+      }
+      onOpenChange?.(open);
+    },
+    [isControlled, onOpenChange],
+  );
 
   const updatePosition = useCallback(() => {
     if (triggerRef.current && contentRef.current && show) {
       const triggerRect = triggerRef.current.getBoundingClientRect();
       const contentRect = contentRef.current.getBoundingClientRect();
-      const pos = calculatePosition(triggerRect, contentRect, { placement, offset });
-      
+      const effectiveContentRect = matchWidth
+        ? ({ width: triggerRect.width, height: contentRect.height } as DOMRect)
+        : contentRect;
+      const pos = calculatePosition(triggerRect, effectiveContentRect, { placement, offset });
+
       setPosition({
         top: pos.top,
         left: pos.left,
         width: matchWidth ? triggerRect.width : undefined,
       });
+      setIsPositioned(true);
     }
   }, [show, placement, offset, matchWidth]);
 
   useEffect(() => {
     if (show) {
-      // Initial position
-      // We need a slight delay or effect to wait for content to render and have dimensions
-      requestAnimationFrame(updatePosition);
-      
+      setIsPositioned(false);
+      // Initial position (double RAF to ensure content is measured)
+      requestAnimationFrame(() => {
+        updatePosition();
+        requestAnimationFrame(updatePosition);
+      });
+
       window.addEventListener('resize', updatePosition);
       window.addEventListener('scroll', updatePosition, true);
     }
@@ -68,6 +86,12 @@ export const Popover: React.FC<PopoverProps> = ({
       window.removeEventListener('scroll', updatePosition, true);
     };
   }, [show, updatePosition]);
+
+  useEffect(() => {
+    if (!show) {
+      setIsPositioned(false);
+    }
+  }, [show]);
 
   // Click outside
   useEffect(() => {
@@ -88,6 +112,19 @@ export const Popover: React.FC<PopoverProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [show, handleOpenChange]);
 
+  // Close on Escape
+  useEffect(() => {
+    if (!show || !closeOnEscape) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleOpenChange(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [show, closeOnEscape, handleOpenChange]);
+
   // Handle trigger click
   const handleTriggerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -96,7 +133,11 @@ export const Popover: React.FC<PopoverProps> = ({
 
   return (
     <>
-      <div ref={triggerRef} onClick={handleTriggerClick} className="inline-block w-full">
+      <div
+        ref={triggerRef}
+        onClick={handleTriggerClick}
+        className={matchWidth ? 'inline-flex w-full h-full' : 'inline-flex'}
+      >
         {children}
       </div>
       {show && (
@@ -108,6 +149,8 @@ export const Popover: React.FC<PopoverProps> = ({
               top: position.top,
               left: position.left,
               width: position.width,
+              visibility: isPositioned ? 'visible' : 'hidden',
+              pointerEvents: isPositioned ? 'auto' : 'none',
             }}
           >
             {content}

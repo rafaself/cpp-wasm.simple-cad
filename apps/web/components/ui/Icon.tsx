@@ -16,6 +16,11 @@ const sizeMap: Record<IconSize, number> = {
   xl: 32,
 };
 
-export const Icon: React.FC<IconProps> = ({ icon: IconComponent, size = 'md', className, ...props }) => {
+export const Icon: React.FC<IconProps> = ({
+  icon: IconComponent,
+  size = 'md',
+  className,
+  ...props
+}) => {
   return <IconComponent size={sizeMap[size]} className={className} {...props} />;
 };

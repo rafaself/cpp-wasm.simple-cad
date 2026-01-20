@@ -1,13 +1,16 @@
-import { Eye, EyeOff, Undo2, Square } from 'lucide-react';
+import { Eye, EyeOff, MoreHorizontal, Undo2 } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 
 import ColorPicker from '@/components/ColorPicker';
+import { Button } from '@/components/ui/Button';
+import { Popover } from '@/components/ui/Popover';
 import { useDocumentSignal } from '@/engine/core/engineDocumentSignals';
 import {
   StyleState,
   StyleTarget,
   TriState,
   type EntityId,
+  type LayerStyleSnapshot,
   type SelectionStyleSummary,
   type StyleTargetSummary,
 } from '@/engine/core/protocol';
@@ -35,6 +38,9 @@ import {
   useColorTargetResolver,
 } from './useColorTargetResolver';
 import { useSelectionStyleSummary } from './useSelectionStyleSummary';
+import { useRibbonLayout } from '../components/ribbon/ribbonLayout';
+import { isTierAtLeast } from '../ui/ribbonLayoutV2';
+import { RIBBON_ICON_SIZES } from '../components/ribbon/ribbonUtils';
 
 /**
  * Locked context captured when color picker opens.
@@ -57,13 +63,79 @@ type ResolvedControlState = {
   applyTargets: StyleTarget[];
 };
 
-const ICON_SIZE = 16;
+const ICON_SIZE = RIBBON_ICON_SIZES.md;
 
 const packedToCssColor = (packed: number, fallback: string): string => {
   if (packed === 0) return fallback;
   const { r, g, b, a } = unpackColorRGBA(packed);
   const hex = rgbToHex(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
   return a < 1 ? hexToCssRgba(hex, a) : hex;
+};
+
+const getSelectionTargetSummary = (
+  summary: SelectionStyleSummary,
+  target: StyleTarget,
+): StyleTargetSummary => {
+  switch (target) {
+    case StyleTarget.Stroke:
+      return summary.stroke;
+    case StyleTarget.Fill:
+      return summary.fill;
+    case StyleTarget.TextColor:
+      return summary.textColor;
+    case StyleTarget.TextBackground:
+      return summary.textBackground;
+    default:
+      return summary.stroke;
+  }
+};
+
+const getLayerStyleValues = (
+  layerStyle: LayerStyleSnapshot,
+  target: StyleTarget,
+): { colorRGBA: number; enabled: boolean | null } => {
+  switch (target) {
+    case StyleTarget.Stroke:
+      return {
+        colorRGBA: layerStyle.strokeRGBA,
+        enabled: layerStyle.strokeEnabled !== 0,
+      };
+    case StyleTarget.Fill:
+      return {
+        colorRGBA: layerStyle.fillRGBA,
+        enabled: layerStyle.fillEnabled !== 0,
+      };
+    case StyleTarget.TextColor:
+      return {
+        colorRGBA: layerStyle.textColorRGBA,
+        enabled: null,
+      };
+    case StyleTarget.TextBackground:
+      return {
+        colorRGBA: layerStyle.textBackgroundRGBA,
+        enabled: layerStyle.textBackgroundEnabled !== 0,
+      };
+    default:
+      return { colorRGBA: 0, enabled: null };
+  }
+};
+
+const hasTargetDiffFromLayer = (
+  summary: StyleTargetSummary,
+  layerStyle: LayerStyleSnapshot,
+  target: StyleTarget,
+): boolean => {
+  if (summary.supportedState === TriState.Off) return false;
+  const { colorRGBA, enabled } = getLayerStyleValues(layerStyle, target);
+  const enabledDiff =
+    enabled === null
+      ? false
+      : summary.enabledState === TriState.Mixed
+        ? true
+        : (summary.enabledState === TriState.On) !== enabled;
+  const colorDiff =
+    summary.state === StyleState.Mixed ? true : summary.colorRGBA !== colorRGBA;
+  return enabledDiff || colorDiff;
 };
 
 const resolveSelectionControl = (
@@ -111,7 +183,7 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.preventDefault()}
-    className={`relative w-9 h-6 mx-1 rounded border transition-colors ${
+    className={`relative w-5 h-5 max-h-4 mx-1 rounded border transition-colors ${
       disabled
         ? 'opacity-50 cursor-not-allowed border-border/50'
         : state === StyleState.Mixed
@@ -137,11 +209,17 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
 );
 
 export const ColorRibbonControls: React.FC = () => {
+  const { tier } = useRibbonLayout();
+  const [isStrokeMenuOpen, setIsStrokeMenuOpen] = useState(false);
+  const [isFillMenuOpen, setIsFillMenuOpen] = useState(false);
   const runtime = useEngineRuntime();
   const selectionSummary = useSelectionStyleSummary();
   const selectionIds = useEngineSelectionIds();
   const { mode, toolKind } = useColorTargetResolver(selectionSummary.selectionCount);
-  void useDocumentSignal('style'); // Subscribe to style changes
+  const styleGeneration = useDocumentSignal('style');
+  const layerGeneration = useDocumentSignal('layers');
+  void styleGeneration; // Subscribe to style changes
+  void layerGeneration;
 
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const setStrokeColor = useSettingsStore((s) => s.setStrokeColor);
@@ -175,6 +253,23 @@ export const ColorRibbonControls: React.FC = () => {
     () => new Map(layers.map((layer) => [layer.id, layer.name])),
     [layers],
   );
+
+  const selectionLayerId = useMemo(() => {
+    if (!runtime || selectionIds.length === 0) return null;
+    const baseLayerId = runtime.getEntityLayer(selectionIds[0]);
+    if (!layers.some((layer) => layer.id === baseLayerId)) return null;
+    for (let i = 1; i < selectionIds.length; i += 1) {
+      if (runtime.getEntityLayer(selectionIds[i]) !== baseLayerId) {
+        return null;
+      }
+    }
+    return baseLayerId;
+  }, [runtime, selectionIds, layers]);
+
+  const selectionLayerStyle = useMemo(() => {
+    if (!runtime || selectionLayerId === null) return null;
+    return runtime.style.getLayerStyle(selectionLayerId);
+  }, [runtime, selectionLayerId, styleGeneration, layerGeneration]);
 
   // Context locking: when picker is open, use locked context for color changes
   const lockedContextRef = useRef<LockedColorContext | null>(null);
@@ -388,10 +483,44 @@ export const ColorRibbonControls: React.FC = () => {
   const fillEnabled = fillState.enabledState === TriState.On;
   const noFill = !fillEnabled && !fillMixed;
 
-  const isStrokeOverride =
-    strokeState.state === StyleState.Override || strokeState.state === StyleState.Mixed;
-  const isFillOverride =
-    fillState.state === StyleState.Override || fillState.state === StyleState.Mixed;
+  const strokeRestoreFallback =
+    strokeState.state === StyleState.Override ||
+    strokeState.state === StyleState.Mixed ||
+    strokeState.enabledState !== TriState.On;
+  const fillRestoreFallback =
+    fillState.state === StyleState.Override ||
+    fillState.state === StyleState.Mixed ||
+    fillState.enabledState !== TriState.On;
+
+  const strokeDiffFromLayer = useMemo(() => {
+    if (mode !== 'selection' || !selectionLayerStyle) return null;
+    return strokeState.applyTargets.some((target) =>
+      hasTargetDiffFromLayer(
+        getSelectionTargetSummary(selectionSummary, target),
+        selectionLayerStyle,
+        target,
+      ),
+    );
+  }, [mode, selectionLayerStyle, selectionSummary, strokeState.applyTargets]);
+
+  const fillDiffFromLayer = useMemo(() => {
+    if (mode !== 'selection' || !selectionLayerStyle) return null;
+    return fillState.applyTargets.some((target) =>
+      hasTargetDiffFromLayer(
+        getSelectionTargetSummary(selectionSummary, target),
+        selectionLayerStyle,
+        target,
+      ),
+    );
+  }, [mode, selectionLayerStyle, selectionSummary, fillState.applyTargets]);
+
+  const isStrokeRestorable =
+    mode === 'selection'
+      ? (strokeDiffFromLayer ?? strokeRestoreFallback)
+      : strokeRestoreFallback;
+  const isFillRestorable =
+    mode === 'selection' ? (fillDiffFromLayer ?? fillRestoreFallback) : fillRestoreFallback;
+  const collapseRestores = isTierAtLeast(tier, 'tier2');
 
   const strokeTooltip = isDisabled
     ? LABELS.colors.disabledHint
@@ -410,95 +539,182 @@ export const ColorRibbonControls: React.FC = () => {
         : LABELS.colors.overrideTooltip;
 
   // Restore button tooltip - only show when override is active
-  const restoreStrokeTooltip = isStrokeOverride
+  const restoreStrokeLayerId = strokeState.layerId || selectionLayerId || 0;
+  const restoreFillLayerId = fillState.layerId || selectionLayerId || 0;
+
+  const restoreStrokeTooltip = isStrokeRestorable
     ? LABELS.colors.restoreTooltip.replace(
         '{layer}',
-        layerNameById.get(strokeState.layerId) || 'Desconhecida',
+        layerNameById.get(restoreStrokeLayerId) || 'Desconhecida',
       )
     : '';
-  const restoreFillTooltip = isFillOverride
+  const restoreFillTooltip = isFillRestorable
     ? LABELS.colors.restoreTooltip.replace(
         '{layer}',
-        layerNameById.get(fillState.layerId) || 'Desconhecida',
+        layerNameById.get(restoreFillLayerId) || 'Desconhecida',
       )
     : '';
 
   return (
     <div
-      className={`ribbon-group-col min-w-[140px] px-1 ${isDisabled ? 'opacity-50' : ''}`}
+      className={`ribbon-group-col gap-2 px-1 ${isDisabled ? 'opacity-50' : ''}`}
       title={isDisabled ? LABELS.colors.disabledHint : undefined}
     >
       {/* Stroke Row */}
       <div className="ribbon-row h-7 items-center justify-between">
-        <div className="flex items-center">
-          <div className="flex w-5 justify-center text-text-muted" title={LABELS.colors.stroke}>
-            <Square size={ICON_SIZE} />
+        <div className="flex flex-col gap-0">
+          <span
+            className="cursor-default text-label font-semibold uppercase tracking-wide text-text-muted leading-none"
+            title={LABELS.colors.stroke}
+          >
+            {LABELS.colors.stroke}
+          </span>
+          <div className="flex items-center gap-1 -mt-1">
+            <ColorSwatchButton
+              color={strokeState.color}
+              onClick={(event) => openColorPicker(event, 'stroke')}
+              disabled={isDisabled || strokeState.supportedState === TriState.Off}
+              state={strokeState.state}
+              title={strokeTooltip}
+              showNone={noStroke}
+            />
+            <RibbonIconButton
+              icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+              onClick={handleToggleStroke}
+              title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
+              isActive={false}
+              size="md"
+              className={`ribbon-icon-no-bg !w-6 ${noStroke ? 'ribbon-icon-warning' : 'text-text-muted'}`}
+              disabled={isDisabled || strokeState.supportedState === TriState.Off}
+            />
+            {collapseRestores ? (
+              isStrokeRestorable ? (
+                <Popover
+                  isOpen={isStrokeMenuOpen}
+                  onOpenChange={setIsStrokeMenuOpen}
+                  placement="bottom"
+                  offset={6}
+                  className="ribbon-inline-popover"
+                  zIndex="z-dropdown"
+                  content={
+                    <div className="ribbon-inline-menu">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ribbon-inline-menu-item"
+                        onClick={() => {
+                          handleRestore('stroke');
+                          setIsStrokeMenuOpen(false);
+                        }}
+                      >
+                        <Undo2 size={ICON_SIZE} />
+                        <span>Restaurar Traço</span>
+                      </Button>
+                    </div>
+                  }
+                >
+                  <RibbonIconButton
+                    icon={<MoreHorizontal size={ICON_SIZE} />}
+                    onClick={() => undefined}
+                    title="Mais opções de traço"
+                    size="md"
+                    className="ribbon-icon-no-bg text-text-muted"
+                    disabled={isDisabled}
+                  />
+                </Popover>
+              ) : null
+            ) : (
+              <RibbonIconButton
+                icon={<Undo2 size={ICON_SIZE} />}
+                onClick={() => handleRestore('stroke')}
+                title={restoreStrokeTooltip}
+                size="md"
+                disabled={
+                  isDisabled || !isStrokeRestorable || strokeState.supportedState === TriState.Off
+                }
+                className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isStrokeRestorable ? 'opacity-10 pointer-events-none' : ''}`}
+              />
+            )}
           </div>
-          <ColorSwatchButton
-            color={strokeState.color}
-            onClick={(event) => openColorPicker(event, 'stroke')}
-            disabled={isDisabled || strokeState.supportedState === TriState.Off}
-            state={strokeState.state}
-            title={strokeTooltip}
-            showNone={noStroke}
-          />
-        </div>
-        <div className="flex gap-0.5">
-          <RibbonIconButton
-            icon={noStroke ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-            onClick={handleToggleStroke}
-            title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
-            isActive={noStroke}
-            variant={noStroke ? 'danger' : 'default'}
-            size="sm"
-            disabled={isDisabled || strokeState.supportedState === TriState.Off}
-          />
-          <RibbonIconButton
-            icon={<Undo2 size={ICON_SIZE} />}
-            onClick={() => handleRestore('stroke')}
-            title={restoreStrokeTooltip}
-            size="sm"
-            disabled={
-              isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
-            }
-            className={!isStrokeOverride ? 'pointer-events-none opacity-0' : ''}
-          />
         </div>
       </div>
 
       {/* Fill Row */}
-      <div className="ribbon-row mt-0.5 h-7 items-center justify-between">
-        <div className="flex items-center">
-          <div className="flex w-5 justify-center text-text-muted" title={LABELS.colors.fill}>
-            <Square size={ICON_SIZE} fill="currentColor" />
+      <div className="ribbon-row h-7 items-center justify-between">
+        <div className="flex flex-col gap-0">
+          <span
+            className="cursor-default text-label font-semibold uppercase tracking-wide text-text-muted leading-none"
+            title={LABELS.colors.fill}
+          >
+            {LABELS.colors.fill}
+          </span>
+          <div className="flex items-center gap-1 -mt-1">
+            <ColorSwatchButton
+              color={fillState.color}
+              onClick={(event) => openColorPicker(event, 'fill')}
+              disabled={isDisabled || fillState.supportedState === TriState.Off}
+              showNone={noFill}
+              title={fillTooltip}
+              state={fillState.state}
+            />
+            <RibbonIconButton
+              icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+              onClick={handleToggleFill}
+              title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
+              isActive={false}
+              size="md"
+              className={`ribbon-icon-no-bg !w-6 ${noFill ? 'ribbon-icon-warning' : 'text-text-muted'}`}
+              disabled={isDisabled || fillState.supportedState === TriState.Off}
+            />
+            {collapseRestores ? (
+              isFillRestorable ? (
+                <Popover
+                  isOpen={isFillMenuOpen}
+                  onOpenChange={setIsFillMenuOpen}
+                  placement="bottom"
+                  offset={6}
+                  className="ribbon-inline-popover"
+                  zIndex="z-dropdown"
+                  content={
+                    <div className="ribbon-inline-menu">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ribbon-inline-menu-item"
+                        onClick={() => {
+                          handleRestore('fill');
+                          setIsFillMenuOpen(false);
+                        }}
+                      >
+                        <Undo2 size={ICON_SIZE} />
+                        <span>Restaurar Preenchimento</span>
+                      </Button>
+                    </div>
+                  }
+                >
+                <RibbonIconButton
+                  icon={<MoreHorizontal size={ICON_SIZE} />}
+                  onClick={() => undefined}
+                  title="Mais opções de preenchimento"
+                  size="md"
+                  className="ribbon-icon-no-bg text-text-muted"
+                  disabled={isDisabled}
+                />
+                </Popover>
+              ) : null
+            ) : (
+                <RibbonIconButton
+                  icon={<Undo2 size={ICON_SIZE} />}
+                  onClick={() => handleRestore('fill')}
+                  title={restoreFillTooltip}
+                  size="md"
+                  disabled={
+                    isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
+                  }
+                  className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
+                />
+            )}
           </div>
-          <ColorSwatchButton
-            color={fillState.color}
-            onClick={(event) => openColorPicker(event, 'fill')}
-            disabled={isDisabled || fillState.supportedState === TriState.Off}
-            showNone={noFill}
-            title={fillTooltip}
-            state={fillState.state}
-          />
-        </div>
-        <div className="flex gap-0.5">
-          <RibbonIconButton
-            icon={noFill ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-            onClick={handleToggleFill}
-            title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
-            isActive={noFill}
-            variant={noFill ? 'danger' : 'default'}
-            size="sm"
-            disabled={isDisabled || fillState.supportedState === TriState.Off}
-          />
-          <RibbonIconButton
-            icon={<Undo2 size={ICON_SIZE} />}
-            onClick={() => handleRestore('fill')}
-            title={restoreFillTooltip}
-            size="sm"
-            disabled={isDisabled || !isFillOverride || fillState.supportedState === TriState.Off}
-            className={!isFillOverride ? 'pointer-events-none opacity-0' : ''}
-          />
         </div>
       </div>
 

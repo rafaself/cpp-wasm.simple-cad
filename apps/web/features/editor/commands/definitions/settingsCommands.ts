@@ -7,6 +7,7 @@
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
 import { parseBooleanArg } from '../commandParser';
+
 import type { CommandDefinition } from '../commandRegistry';
 
 export const settingsCommands: CommandDefinition[] = [

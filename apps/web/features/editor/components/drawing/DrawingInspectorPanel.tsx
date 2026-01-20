@@ -15,11 +15,10 @@
 import React from 'react';
 
 import { Section } from '@/components/ui/Section';
-import { useEntityTransform } from '@/engine/core/useEntityTransform';
-import { useSetEntityTransform } from '@/engine/core/useEntityTransform';
-import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
-import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { EngineEntityFlags } from '@/engine/core/EngineRuntime';
+import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
+import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
+import { useEntityTransform, useSetEntityTransform } from '@/engine/core/useEntityTransform';
 
 import { TransformField } from './TransformField';
 

@@ -153,7 +153,7 @@ const EngineInteractionLayer: React.FC = () => {
       { x: e.clientX - rect.left, y: e.clientY - rect.top },
       viewTransform,
     );
-    
+
     mousePosRef.current = world;
     if (rafRef.current === null) {
       rafRef.current = requestAnimationFrame(flushMousePos);
@@ -195,7 +195,13 @@ const EngineInteractionLayer: React.FC = () => {
 
   return (
     <div
-      style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-canvas-hud)', touchAction: 'none', cursor }}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 'var(--z-canvas-hud)',
+        touchAction: 'none',
+        cursor,
+      }}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

@@ -1,7 +1,6 @@
 import React from 'react';
 
 import { CommandOp, SelectionModifier, EntityKind } from '@/engine/core/EngineRuntime';
-import type { BeginDraftPayload } from '@/engine/core/commandTypes';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import * as DEFAULTS from '@/theme/defaults';
@@ -11,6 +10,8 @@ import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
+
+import type { BeginDraftPayload } from '@/engine/core/commandTypes';
 
 // Reusing types from previous implementation or defining locally
 const DraftFlags = {

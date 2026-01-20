@@ -1,8 +1,9 @@
 import { CommandOp } from '@/engine/core/EngineRuntime';
-import type { EngineCommand } from '@/engine/core/commandTypes';
 import { getEngineRuntime } from '@/engine/core/singleton';
 
 import { useUIStore } from '../../../stores/useUIStore';
+
+import type { EngineCommand } from '@/engine/core/commandTypes';
 
 export const useEditorLogic = () => {
   const deleteSelected = () => {

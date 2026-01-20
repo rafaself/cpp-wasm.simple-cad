@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+
 import { Portal } from './Portal';
 import { calculatePosition, Placement } from './utils/positioning';
 
@@ -66,6 +67,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
         <Portal>
           <div
             ref={contentRef}
+            role="tooltip"
             className={`fixed z-tooltip px-2 py-1 text-xs font-medium text-white bg-surface-2 border border-border/50 rounded shadow-md pointer-events-none animate-in fade-in duration-150 ${className}`}
             style={{
               top: position.top,

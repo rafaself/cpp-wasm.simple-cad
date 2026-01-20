@@ -7,9 +7,8 @@
  * - Autocomplete suggestions for partial input
  */
 
-import type { SnapOptions, ToolType, ViewTransform } from '@/types';
-
 import type { ActionId } from './useEditorCommands';
+import type { SnapOptions, ToolType, ViewTransform } from '@/types';
 
 /**
  * Argument schema for command validation.

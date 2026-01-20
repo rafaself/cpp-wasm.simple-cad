@@ -29,6 +29,7 @@ import {
 } from '@/utils/benchmarks/pickBenchmarks';
 import { getPickProfiler } from '@/utils/pickProfiler';
 import { getPickCache, resetPickCache } from '@/utils/pickResultCache';
+
 import {
   setHotPathTimingEnabled,
   isHotPathTimingEnabled,
@@ -279,10 +280,7 @@ function help(): void {
  */
 function enableHotPathTiming(enabled: boolean): void {
   setHotPathTimingEnabled(enabled);
-  console.log(
-    `%c✅ Hot path timing ${enabled ? 'enabled' : 'disabled'}`,
-    'color: #00ff00',
-  );
+  console.log(`%c✅ Hot path timing ${enabled ? 'enabled' : 'disabled'}`, 'color: #00ff00');
   if (enabled) {
     console.log('%cMove mouse in canvas to collect timing data', 'color: #999');
   }
