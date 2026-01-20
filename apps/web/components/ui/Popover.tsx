@@ -36,6 +36,7 @@ export const Popover: React.FC<PopoverProps> = ({
     left: 0,
     width: undefined as number | undefined,
   });
+  const [isPositioned, setIsPositioned] = useState(false);
 
   const isControlled = controlledIsOpen !== undefined;
   const show = isControlled ? controlledIsOpen : internalIsOpen;
@@ -54,18 +55,23 @@ export const Popover: React.FC<PopoverProps> = ({
     if (triggerRef.current && contentRef.current && show) {
       const triggerRect = triggerRef.current.getBoundingClientRect();
       const contentRect = contentRef.current.getBoundingClientRect();
-      const pos = calculatePosition(triggerRect, contentRect, { placement, offset });
+      const effectiveContentRect = matchWidth
+        ? ({ width: triggerRect.width, height: contentRect.height } as DOMRect)
+        : contentRect;
+      const pos = calculatePosition(triggerRect, effectiveContentRect, { placement, offset });
 
       setPosition({
         top: pos.top,
         left: pos.left,
         width: matchWidth ? triggerRect.width : undefined,
       });
+      setIsPositioned(true);
     }
   }, [show, placement, offset, matchWidth]);
 
   useEffect(() => {
     if (show) {
+      setIsPositioned(false);
       // Initial position (double RAF to ensure content is measured)
       requestAnimationFrame(() => {
         updatePosition();
@@ -80,6 +86,12 @@ export const Popover: React.FC<PopoverProps> = ({
       window.removeEventListener('scroll', updatePosition, true);
     };
   }, [show, updatePosition]);
+
+  useEffect(() => {
+    if (!show) {
+      setIsPositioned(false);
+    }
+  }, [show]);
 
   // Click outside
   useEffect(() => {
@@ -137,6 +149,8 @@ export const Popover: React.FC<PopoverProps> = ({
               top: position.top,
               left: position.left,
               width: position.width,
+              visibility: isPositioned ? 'visible' : 'hidden',
+              pointerEvents: isPositioned ? 'auto' : 'none',
             }}
           >
             {content}

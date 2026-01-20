@@ -112,7 +112,7 @@ export const Select: React.FC<SelectProps> = ({
                 id={`${listId}-option-${idx}`}
                 className={`px-3 py-2 text-xs text-text cursor-pointer transition-colors ${
                   isSelected
-                    ? 'bg-primary/20 text-primary font-medium'
+                    ? 'bg-primary/20 text-primary font-medium hover:bg-primary/25'
                     : 'hover:bg-primary/10 hover:text-text'
                 } ${isActive ? 'bg-primary/15' : ''}`}
                 onMouseEnter={() => setHighlighted(idx)}
