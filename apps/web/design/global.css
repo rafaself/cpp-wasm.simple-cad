@@ -436,7 +436,7 @@
   padding: var(--ribbon-cluster-padding);
   height: 100%;
   background: var(--ribbon-cluster-bg);
-  border: 1px solid var(--ribbon-cluster-border);
+  box-shadow: inset 0 0 0 1px var(--ribbon-cluster-border);
   border-radius: var(--ribbon-control-radius);
   box-sizing: border-box;
 }

@@ -190,13 +190,14 @@ export const TextAlignControl: React.FC<TextControlProps> = ({
   };
   return (
     <RibbonControlWrapper align="center" className="!w-fit">
-      <RibbonToggleGroup className="w-fit h-full" width="fit" variant="segmented">
+      <RibbonToggleGroup className="w-fit h-full" width="fit">
         {primaryAlignOptions.map(({ align, icon, label }) => (
           <RibbonIconButton
             key={align}
             icon={icon}
             onClick={() => handleClick(align)}
             isActive={activeAlign === align}
+            activeStyle="toggle"
             title={label}
           />
         ))}
