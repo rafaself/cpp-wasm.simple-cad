@@ -483,6 +483,11 @@
   position: relative;
 }
 
+.ribbon-cluster--segmented .ribbon-icon-btn-md {
+  width: var(--ribbon-control-height-md) !important;
+  height: var(--ribbon-control-height-md) !important;
+}
+
 .ribbon-cluster--segmented .ribbon-icon-button:not(:last-child)::after {
   content: '';
   position: absolute;

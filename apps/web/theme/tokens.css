@@ -74,7 +74,9 @@
   --ribbon-control-height-md: 28px;
   --ribbon-control-height-sm: var(--height-button-sm);
   --ribbon-control-height-lg: 60px;
-  --ribbon-icon-btn-size-md: var(--ribbon-control-height-md);
+  --ribbon-icon-btn-size-md: calc(
+    var(--ribbon-control-height-md) - (var(--ribbon-cluster-padding) * 2)
+  );
   --ribbon-icon-btn-size-sm: var(--ribbon-control-height-sm);
   --ribbon-item-height: var(--ribbon-control-height-md);
   --ribbon-group-px: var(--space-3);
