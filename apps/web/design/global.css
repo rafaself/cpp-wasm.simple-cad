@@ -147,7 +147,6 @@
   justify-content: center;
   height: 100%;
   gap: var(--ribbon-group-gap-y);
-  padding-block: 3px;
 }
 
 .ribbon-rail {
@@ -173,6 +172,7 @@
   height: var(--ribbon-group-body-height);
   width: 100%;
   overflow: hidden;
+  padding-block: 3px;
   transition: width var(--duration-fast) var(--easing-default);
 }
 
@@ -232,10 +232,10 @@
 }
 
 .ribbon-stack {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--ribbon-group-gap-y);
+  display: grid;
+  grid-auto-rows: var(--ribbon-control-height-md);
+  row-gap: var(--ribbon-group-gap-y);
+  align-content: center;
   height: 100%;
 }
 

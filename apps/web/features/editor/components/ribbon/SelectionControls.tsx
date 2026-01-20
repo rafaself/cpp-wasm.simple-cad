@@ -22,9 +22,9 @@ export const SelectionControls: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full gap-1">
+    <div className="ribbon-group-col px-1">
       {/* Top Row */}
-      <div className="flex gap-1 flex-1">
+      <div className="ribbon-row">
         <RibbonIconButton
           icon={<Move size={RIBBON_ICON_SIZES.sm} />}
           onClick={() => handleToolClick('move')}
@@ -44,7 +44,7 @@ export const SelectionControls: React.FC = () => {
       </div>
 
       {/* Bottom Row */}
-      <div className="flex gap-1 flex-1">
+      <div className="ribbon-row">
         <RibbonIconButton
           icon={<Copy size={RIBBON_ICON_SIZES.sm} />}
           onClick={() => handleActionClick('duplicate')}
