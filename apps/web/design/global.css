@@ -172,7 +172,8 @@
   height: var(--ribbon-group-body-height);
   width: 100%;
   overflow: hidden;
-  padding-block: 3px;
+  padding-top: 6px;
+  padding-bottom: 2px;
   transition: width var(--duration-fast) var(--easing-default);
 }
 
