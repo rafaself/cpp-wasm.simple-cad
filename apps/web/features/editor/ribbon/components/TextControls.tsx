@@ -97,7 +97,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
   };
 
   return (
-    <RibbonControlWrapper className="min-w-[140px]">
+    <RibbonControlWrapper>
       <Select
         value={selectValue}
         onChange={handleChange}
