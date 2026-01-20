@@ -15,7 +15,7 @@ const EditorTabs: React.FC = () => {
   if (openTabs.length === 0) return null;
 
   return (
-    <div className="flex items-end bg-bg border-b border-border px-2 gap-1 overflow-x-auto no-scrollbar h-[26px] shrink-0">
+    <div className="flex items-end bg-surface-2 border-b border-border px-2 gap-1 overflow-x-auto no-scrollbar h-7 shrink-0">
       {openTabs.map((tab) => {
         const isActive = tab.floorId === activeFloorId && tab.discipline === activeDiscipline;
         const key = `${tab.floorId}-${tab.discipline}`;
@@ -28,31 +28,34 @@ const EditorTabs: React.FC = () => {
           <div
             key={key}
             className={`
-              group flex items-center gap-2 px-3 h-full rounded-t-md text-xs font-medium cursor-pointer transition-colors border-t border-x border-transparent select-none
+              group flex items-center gap-2 px-3 h-full rounded-t-md text-body font-medium cursor-pointer select-none
+              transition-colors border border-transparent
               ${
                 isActive
-                  ? 'bg-surface-2 text-text border-border border-b-surface2 relative -mb-[1px] z-10 shadow-sm'
-                  : 'bg-transparent text-text-muted hover:bg-surface-2 hover:text-text'
+                  ? 'bg-surface-1 text-text border-border border-b-transparent shadow-sm'
+                  : 'bg-transparent text-text-subtle hover:bg-surface-1 hover:text-text hover:border-border'
               }
             `}
             onClick={() => openTab(tab)}
           >
             {tab.discipline === 'architecture' ? <Workflow size={12} /> : <Lightbulb size={12} />}
             <span>{floorName}</span>
-            <span className="opacity-50 mx-1">|</span>
-            <span className="uppercase tracking-wider text-[10px]">
+            <span className="text-text-subtle text-label">|</span>
+            <span className="uppercase tracking-wider text-label text-text-subtle">
               {tab.discipline === 'architecture' ? LABELS.disciplines.shortArchitecture : 'Elé'}
             </span>
 
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 closeTab(tab);
               }}
+              aria-label={LABELS.common.close}
               className={`
-                ml-1 p-0.5 rounded-full hover:bg-surface-2 
-                ${isActive ? 'text-text-muted hover:text-red-400' : 'text-text-muted opacity-0 group-hover:opacity-100 hover:text-red-400'}
-                transition-all
+                ml-1 inline-flex items-center justify-center p-0_5 rounded-full
+                transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
+                ${isActive ? 'text-text-muted hover:text-error' : 'text-text-muted opacity-0 group-hover:opacity-100 hover:text-error'}
               `}
             >
               <X size={12} />

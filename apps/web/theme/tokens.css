@@ -150,8 +150,8 @@
   /* Surfaces */
   --color-bg: 210 40% 98%; /* #f8fafc */
   --color-surface-1: 0 0% 100%; /* #ffffff */
-  --color-surface-2: 210 40% 96%; /* #f1f5f9 */
-  --color-border: 212 23% 84%; /* #cbd5e1 */
+  --color-surface-2: 210 32% 92%; /* #e7edf5 */
+  --color-border: 214 22% 78%; /* #b8c4d6 */
 
   /* Text */
   --color-text: 222 47% 11%; /* #0f172a */
