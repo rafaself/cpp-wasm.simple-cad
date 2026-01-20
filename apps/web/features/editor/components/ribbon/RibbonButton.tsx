@@ -9,7 +9,6 @@ import { RibbonItem } from '../../ui/ribbonConfig';
 import { isRibbonDebugEnabled } from './ribbonDebug';
 import { RibbonLargeButton } from './RibbonLargeButton';
 import { RibbonSmallButton } from './RibbonSmallButton';
-import { RibbonTooltip } from './RibbonTooltip';
 import { getTooltip } from './ribbonUtils';
 
 interface RibbonButtonProps {
@@ -88,7 +87,6 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   const hoverEndRef = React.useRef<(() => void) | null>(null);
 
   return (
-    <RibbonTooltip item={item}>
       <Button
         variant={variant}
         size="md"
@@ -114,7 +112,6 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
         ) : (
           <span className="truncate flex-1 text-left">{item.label}</span>
         )}
-      </Button>
-    </RibbonTooltip>
-  );
+        </Button>
+    );
 };

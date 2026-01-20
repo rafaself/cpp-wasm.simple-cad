@@ -7,7 +7,6 @@ import { useRibbonTracking } from '@/utils/analytics/useRibbonTracking';
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 import { isRibbonDebugEnabled } from './ribbonDebug';
-import { RibbonTooltip } from './RibbonTooltip';
 import { getTooltip } from './ribbonUtils';
 
 interface RibbonSmallButtonProps {
@@ -64,7 +63,6 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
   const hoverEndRef = React.useRef<(() => void) | null>(null);
 
   return (
-    <RibbonTooltip item={item}>
       <Button
         variant={variant}
         size="sm"
@@ -91,6 +89,5 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
           <span className="truncate flex-1 text-left">{item.label}</span>
         )}
       </Button>
-    </RibbonTooltip>
   );
 };

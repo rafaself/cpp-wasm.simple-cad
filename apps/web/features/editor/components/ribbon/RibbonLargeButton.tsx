@@ -7,7 +7,6 @@ import { useRibbonTracking } from '@/utils/analytics/useRibbonTracking';
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 import { isRibbonDebugEnabled } from './ribbonDebug';
-import { RibbonTooltip } from './RibbonTooltip';
 import { getTooltip } from './ribbonUtils';
 
 interface RibbonLargeButtonProps {
@@ -68,7 +67,6 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
   const hoverEndRef = React.useRef<(() => void) | null>(null);
 
   return (
-    <RibbonTooltip item={item}>
       <Button
         variant={variant}
         className={`ribbon-large-button flex-col justify-center gap-1 px-2.5 py-1 ${widthClass} ${hoverClass}${debugClass}`}
@@ -88,7 +86,6 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
       >
         {Icon && <IconPrimitive icon={Icon} size="lg" />}
         <span className="ribbon-large-label">{item.label}</span>
-      </Button>
-    </RibbonTooltip>
-  );
+        </Button>
+    );
 };

@@ -1,6 +1,4 @@
 import { getShortcutLabel } from '@/config/keybindings';
-import { LABELS } from '@/i18n/labels';
-
 import { RibbonItem } from '../../ui/ribbonConfig';
 
 // ============================================================================
@@ -46,19 +44,4 @@ export const getTooltip = (item: RibbonItem): string => {
     : shortcut
       ? `${item.label} (${shortcut})`
       : item.label;
-};
-
-const RIBBON_DESCRIPTIONS: Record<string, string | undefined> =
-  LABELS.ribbon?.descriptions ?? {};
-
-export const getTooltipData = (
-  item: RibbonItem,
-): { label: string; shortcut?: string; description?: string } => {
-  const bindingId = getBindingId(item);
-  const shortcut = bindingId ? getShortcutLabel(bindingId) : undefined;
-  return {
-    label: item.label,
-    shortcut,
-    description: RIBBON_DESCRIPTIONS[item.id],
-  };
 };
