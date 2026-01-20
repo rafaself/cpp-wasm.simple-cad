@@ -92,7 +92,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
       <Button
         variant={variant}
         size="md"
-        className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass}`}
+        className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass} h-full`}
         disabled={isStub}
         onClick={handleClick}
         onMouseEnter={() => {

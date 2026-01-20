@@ -103,7 +103,7 @@ export const FontFamilyControl: React.FC<TextControlProps> = ({
         onChange={handleChange}
         options={FONT_OPTIONS}
         placeholder={placeholder}
-        className={`${INPUT_STYLES.ribbon} ribbon-control ribbon-fill-h text-xs`}
+        className={`${INPUT_STYLES.ribbon} ribbon-control ribbon-fill-h text-xs !h-full`}
       />
     </RibbonControlWrapper>
   );

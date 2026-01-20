@@ -8,9 +8,9 @@ import { isRibbonDebugEnabled } from './ribbonDebug';
 type RibbonLayout = NonNullable<RibbonGroupType['layout']>;
 
 const LAYOUT_CLASSES: Record<RibbonLayout, string> = {
-  'flex-row': 'flex items-center gap-1 justify-center',
-  'grid-2x3': 'grid grid-cols-3 gap-1 place-content-center items-center',
-  stack: 'flex flex-col gap-1 justify-center',
+  'flex-row': 'ribbon-flex-row',
+  'grid-2x3': 'ribbon-grid-2x3',
+  stack: 'ribbon-stack',
 };
 
 const RibbonGroupContent: React.FC<{

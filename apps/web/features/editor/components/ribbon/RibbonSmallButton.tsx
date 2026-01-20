@@ -68,7 +68,7 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
       <Button
         variant={variant}
         size="sm"
-        className={`${buttonWidth} !h-[24px] ${justifyClass} ${hoverClass}${debugClass}`}
+        className={`${buttonWidth} ${justifyClass} ${hoverClass}${debugClass} h-full`}
         disabled={isStub}
         onClick={handleClick}
         onMouseEnter={() => {

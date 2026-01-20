@@ -124,7 +124,7 @@ export const Popover: React.FC<PopoverProps> = ({
       <div
         ref={triggerRef}
         onClick={handleTriggerClick}
-        className={matchWidth ? 'inline-flex w-full' : 'inline-flex'}
+        className={matchWidth ? 'inline-flex w-full h-full' : 'inline-flex'}
       >
         {children}
       </div>

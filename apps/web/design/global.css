@@ -96,14 +96,14 @@
      ========================================================================== */
 
   /* Heights - Core ribbon structure */
-  --ribbon-group-body-height: 68px;         /* 17×4px - Main content area */
+  --ribbon-group-body-height: 66px;         /* 28px rows + 4px gap + 6px padding */
   --ribbon-group-label-height: 18px;        /* 4.5×4px - Label area (typography exception) */
   --ribbon-height: calc(var(--ribbon-group-body-height) + var(--ribbon-group-label-height)); /* 86px total */
 
   /* Control Heights - Aliased to global tokens for consistency */
-  --ribbon-control-height-md: var(--height-button-md);  /* 32px = 8×4px (was 30px) */
+  --ribbon-control-height-md: 28px;         /* Ribbon row height */
   --ribbon-control-height-sm: var(--height-button-sm);  /* 24px = 6×4px (was 28px) */
-  --ribbon-control-height-lg: 52px;                     /* Large button height */
+  --ribbon-control-height-lg: 60px;                     /* Large button height */
   --ribbon-icon-btn-size-md: var(--height-button-md);   /* 32px = 8×4px */
   --ribbon-icon-btn-size-sm: var(--height-button-sm);   /* 24px = 6×4px (was 28px) */
   --ribbon-item-height: var(--ribbon-control-height-md); /* Default control height */
@@ -111,7 +111,7 @@
   /* Spacing - Aliased to global spacing tokens */
   --ribbon-group-px: var(--space-3);           /* 12px = 3×4px - Group horizontal padding */
   --ribbon-group-gap-x: var(--space-1);        /* 4px = 1×4px - Horizontal gap between items */
-  --ribbon-group-gap-y: var(--space-0_5);      /* 2px = 0.5×4px - Vertical gap between rows */
+  --ribbon-group-gap-y: var(--space-1);        /* 4px - Vertical gap between rows */
   --ribbon-divider-inset-y: var(--space-1);    /* 4px = 1×4px - Divider vertical inset */
 
   /* Typography - Aliased to global typography tokens */
@@ -221,6 +221,42 @@
 
 .ribbon-row > * {
   height: 100%;
+}
+
+.ribbon-flex-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ribbon-group-gap-x);
+  height: 100%;
+}
+
+.ribbon-stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--ribbon-group-gap-y);
+  height: 100%;
+}
+
+.ribbon-grid-2x3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: var(--ribbon-control-height-md);
+  column-gap: var(--ribbon-group-gap-x);
+  row-gap: var(--ribbon-group-gap-y);
+  place-content: center;
+  align-items: stretch;
+  justify-items: stretch;
+  height: 100%;
+}
+
+.ribbon-grid-2x3 > * {
+  height: 100%;
+}
+
+.ribbon-large-button {
+  height: var(--ribbon-control-height-lg);
 }
 
 .ribbon-large-label {
@@ -432,7 +468,7 @@
 }
 
 .ribbon-control {
-  height: var(--ribbon-control-height-sm);
+  height: 100%;
   font-size: var(--ribbon-control-font-size);
   line-height: var(--ribbon-control-line-height);
   border-radius: var(--ribbon-control-radius);
