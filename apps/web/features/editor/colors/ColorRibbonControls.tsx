@@ -10,6 +10,7 @@ import {
   StyleTarget,
   TriState,
   type EntityId,
+  type LayerStyleSnapshot,
   type SelectionStyleSummary,
   type StyleTargetSummary,
 } from '@/engine/core/protocol';
@@ -69,6 +70,72 @@ const packedToCssColor = (packed: number, fallback: string): string => {
   const { r, g, b, a } = unpackColorRGBA(packed);
   const hex = rgbToHex(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
   return a < 1 ? hexToCssRgba(hex, a) : hex;
+};
+
+const getSelectionTargetSummary = (
+  summary: SelectionStyleSummary,
+  target: StyleTarget,
+): StyleTargetSummary => {
+  switch (target) {
+    case StyleTarget.Stroke:
+      return summary.stroke;
+    case StyleTarget.Fill:
+      return summary.fill;
+    case StyleTarget.TextColor:
+      return summary.textColor;
+    case StyleTarget.TextBackground:
+      return summary.textBackground;
+    default:
+      return summary.stroke;
+  }
+};
+
+const getLayerStyleValues = (
+  layerStyle: LayerStyleSnapshot,
+  target: StyleTarget,
+): { colorRGBA: number; enabled: boolean | null } => {
+  switch (target) {
+    case StyleTarget.Stroke:
+      return {
+        colorRGBA: layerStyle.strokeRGBA,
+        enabled: layerStyle.strokeEnabled !== 0,
+      };
+    case StyleTarget.Fill:
+      return {
+        colorRGBA: layerStyle.fillRGBA,
+        enabled: layerStyle.fillEnabled !== 0,
+      };
+    case StyleTarget.TextColor:
+      return {
+        colorRGBA: layerStyle.textColorRGBA,
+        enabled: null,
+      };
+    case StyleTarget.TextBackground:
+      return {
+        colorRGBA: layerStyle.textBackgroundRGBA,
+        enabled: layerStyle.textBackgroundEnabled !== 0,
+      };
+    default:
+      return { colorRGBA: 0, enabled: null };
+  }
+};
+
+const hasTargetDiffFromLayer = (
+  summary: StyleTargetSummary,
+  layerStyle: LayerStyleSnapshot,
+  target: StyleTarget,
+): boolean => {
+  if (summary.supportedState === TriState.Off) return false;
+  const { colorRGBA, enabled } = getLayerStyleValues(layerStyle, target);
+  const enabledDiff =
+    enabled === null
+      ? false
+      : summary.enabledState === TriState.Mixed
+        ? true
+        : (summary.enabledState === TriState.On) !== enabled;
+  const colorDiff =
+    summary.state === StyleState.Mixed ? true : summary.colorRGBA !== colorRGBA;
+  return enabledDiff || colorDiff;
 };
 
 const resolveSelectionControl = (
@@ -149,7 +216,10 @@ export const ColorRibbonControls: React.FC = () => {
   const selectionSummary = useSelectionStyleSummary();
   const selectionIds = useEngineSelectionIds();
   const { mode, toolKind } = useColorTargetResolver(selectionSummary.selectionCount);
-  void useDocumentSignal('style'); // Subscribe to style changes
+  const styleGeneration = useDocumentSignal('style');
+  const layerGeneration = useDocumentSignal('layers');
+  void styleGeneration; // Subscribe to style changes
+  void layerGeneration;
 
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
   const setStrokeColor = useSettingsStore((s) => s.setStrokeColor);
@@ -183,6 +253,23 @@ export const ColorRibbonControls: React.FC = () => {
     () => new Map(layers.map((layer) => [layer.id, layer.name])),
     [layers],
   );
+
+  const selectionLayerId = useMemo(() => {
+    if (!runtime || selectionIds.length === 0) return null;
+    const baseLayerId = runtime.getEntityLayer(selectionIds[0]);
+    if (!layers.some((layer) => layer.id === baseLayerId)) return null;
+    for (let i = 1; i < selectionIds.length; i += 1) {
+      if (runtime.getEntityLayer(selectionIds[i]) !== baseLayerId) {
+        return null;
+      }
+    }
+    return baseLayerId;
+  }, [runtime, selectionIds, layers]);
+
+  const selectionLayerStyle = useMemo(() => {
+    if (!runtime || selectionLayerId === null) return null;
+    return runtime.style.getLayerStyle(selectionLayerId);
+  }, [runtime, selectionLayerId, styleGeneration, layerGeneration]);
 
   // Context locking: when picker is open, use locked context for color changes
   const lockedContextRef = useRef<LockedColorContext | null>(null);
@@ -396,10 +483,43 @@ export const ColorRibbonControls: React.FC = () => {
   const fillEnabled = fillState.enabledState === TriState.On;
   const noFill = !fillEnabled && !fillMixed;
 
-  const isStrokeOverride =
-    strokeState.state === StyleState.Override || strokeState.state === StyleState.Mixed;
-  const isFillOverride =
-    fillState.state === StyleState.Override || fillState.state === StyleState.Mixed;
+  const strokeRestoreFallback =
+    strokeState.state === StyleState.Override ||
+    strokeState.state === StyleState.Mixed ||
+    strokeState.enabledState !== TriState.On;
+  const fillRestoreFallback =
+    fillState.state === StyleState.Override ||
+    fillState.state === StyleState.Mixed ||
+    fillState.enabledState !== TriState.On;
+
+  const strokeDiffFromLayer = useMemo(() => {
+    if (mode !== 'selection' || !selectionLayerStyle) return null;
+    return strokeState.applyTargets.some((target) =>
+      hasTargetDiffFromLayer(
+        getSelectionTargetSummary(selectionSummary, target),
+        selectionLayerStyle,
+        target,
+      ),
+    );
+  }, [mode, selectionLayerStyle, selectionSummary, strokeState.applyTargets]);
+
+  const fillDiffFromLayer = useMemo(() => {
+    if (mode !== 'selection' || !selectionLayerStyle) return null;
+    return fillState.applyTargets.some((target) =>
+      hasTargetDiffFromLayer(
+        getSelectionTargetSummary(selectionSummary, target),
+        selectionLayerStyle,
+        target,
+      ),
+    );
+  }, [mode, selectionLayerStyle, selectionSummary, fillState.applyTargets]);
+
+  const isStrokeRestorable =
+    mode === 'selection'
+      ? (strokeDiffFromLayer ?? strokeRestoreFallback)
+      : strokeRestoreFallback;
+  const isFillRestorable =
+    mode === 'selection' ? (fillDiffFromLayer ?? fillRestoreFallback) : fillRestoreFallback;
   const collapseRestores = isTierAtLeast(tier, 'tier2');
 
   const strokeTooltip = isDisabled
@@ -419,16 +539,19 @@ export const ColorRibbonControls: React.FC = () => {
         : LABELS.colors.overrideTooltip;
 
   // Restore button tooltip - only show when override is active
-  const restoreStrokeTooltip = isStrokeOverride
+  const restoreStrokeLayerId = strokeState.layerId || selectionLayerId || 0;
+  const restoreFillLayerId = fillState.layerId || selectionLayerId || 0;
+
+  const restoreStrokeTooltip = isStrokeRestorable
     ? LABELS.colors.restoreTooltip.replace(
         '{layer}',
-        layerNameById.get(strokeState.layerId) || 'Desconhecida',
+        layerNameById.get(restoreStrokeLayerId) || 'Desconhecida',
       )
     : '';
-  const restoreFillTooltip = isFillOverride
+  const restoreFillTooltip = isFillRestorable
     ? LABELS.colors.restoreTooltip.replace(
         '{layer}',
-        layerNameById.get(fillState.layerId) || 'Desconhecida',
+        layerNameById.get(restoreFillLayerId) || 'Desconhecida',
       )
     : '';
 
@@ -465,7 +588,7 @@ export const ColorRibbonControls: React.FC = () => {
               disabled={isDisabled || strokeState.supportedState === TriState.Off}
             />
             {collapseRestores ? (
-              isStrokeOverride ? (
+              isStrokeRestorable ? (
                 <Popover
                   isOpen={isStrokeMenuOpen}
                   onOpenChange={setIsStrokeMenuOpen}
@@ -507,9 +630,9 @@ export const ColorRibbonControls: React.FC = () => {
                 title={restoreStrokeTooltip}
                 size="md"
                 disabled={
-                  isDisabled || !isStrokeOverride || strokeState.supportedState === TriState.Off
+                  isDisabled || !isStrokeRestorable || strokeState.supportedState === TriState.Off
                 }
-                className={`ribbon-icon-no-bg ${!isStrokeOverride ? 'pointer-events-none opacity-0' : 'text-text-muted'}`}
+                className={`ribbon-icon-no-bg text-text-muted ${!isStrokeRestorable ? 'opacity-10 pointer-events-none' : ''}`}
               />
             )}
           </div>
@@ -544,7 +667,7 @@ export const ColorRibbonControls: React.FC = () => {
               disabled={isDisabled || fillState.supportedState === TriState.Off}
             />
             {collapseRestores ? (
-              isFillOverride ? (
+              isFillRestorable ? (
                 <Popover
                   isOpen={isFillMenuOpen}
                   onOpenChange={setIsFillMenuOpen}
@@ -586,9 +709,9 @@ export const ColorRibbonControls: React.FC = () => {
                   title={restoreFillTooltip}
                   size="md"
                   disabled={
-                    isDisabled || !isFillOverride || fillState.supportedState === TriState.Off
+                    isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
                   }
-                  className={`ribbon-icon-no-bg ${!isFillOverride ? 'pointer-events-none opacity-0' : 'text-text-muted'}`}
+                  className={`ribbon-icon-no-bg text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
                 />
             )}
           </div>
