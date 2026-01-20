@@ -584,7 +584,7 @@ export const ColorRibbonControls: React.FC = () => {
               title={noStroke ? 'Mostrar Traço' : 'Ocultar Traço'}
               isActive={false}
               size="md"
-              className={`ribbon-icon-no-bg ${noStroke ? 'ribbon-icon-warning' : 'text-text-muted'}`}
+              className={`ribbon-icon-no-bg !w-6 ${noStroke ? 'ribbon-icon-warning' : 'text-text-muted'}`}
               disabled={isDisabled || strokeState.supportedState === TriState.Off}
             />
             {collapseRestores ? (
@@ -632,7 +632,7 @@ export const ColorRibbonControls: React.FC = () => {
                 disabled={
                   isDisabled || !isStrokeRestorable || strokeState.supportedState === TriState.Off
                 }
-                className={`ribbon-icon-no-bg text-text-muted ${!isStrokeRestorable ? 'opacity-10 pointer-events-none' : ''}`}
+                className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isStrokeRestorable ? 'opacity-10 pointer-events-none' : ''}`}
               />
             )}
           </div>
@@ -663,7 +663,7 @@ export const ColorRibbonControls: React.FC = () => {
               title={noFill ? 'Mostrar Preenchimento' : 'Ocultar Preenchimento'}
               isActive={false}
               size="md"
-              className={`ribbon-icon-no-bg ${noFill ? 'ribbon-icon-warning' : 'text-text-muted'}`}
+              className={`ribbon-icon-no-bg !w-6 ${noFill ? 'ribbon-icon-warning' : 'text-text-muted'}`}
               disabled={isDisabled || fillState.supportedState === TriState.Off}
             />
             {collapseRestores ? (
@@ -711,7 +711,7 @@ export const ColorRibbonControls: React.FC = () => {
                   disabled={
                     isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
                   }
-                  className={`ribbon-icon-no-bg text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
+                  className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
                 />
             )}
           </div>
