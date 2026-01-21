@@ -121,7 +121,7 @@
   width: 100%;
   overflow: hidden;
   padding-top: 6px;
-  padding-bottom: 2px;
+  padding-bottom: 0px;
   transition: width var(--duration-fast) var(--easing-default);
 }
 
@@ -205,7 +205,26 @@
 }
 
 .ribbon-large-button {
+  width: var(--ribbon-control-width-lg);
   height: var(--ribbon-control-height-lg);
+  padding: var(--space-1) var(--space-2);
+  box-sizing: border-box;
+}
+
+.ribbon-large-button--sm {
+  width: var(--ribbon-control-width-lg-sm);
+}
+
+.ribbon-large-button--md {
+  width: var(--ribbon-control-width-lg-md);
+}
+
+.ribbon-large-button--lg {
+  width: var(--ribbon-control-width-lg-lg);
+}
+
+.ribbon-large-button--auto {
+  width: auto;
 }
 
 .ribbon-large-label {

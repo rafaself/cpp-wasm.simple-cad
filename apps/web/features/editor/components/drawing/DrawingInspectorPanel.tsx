@@ -12,13 +12,16 @@
  * - All labels in Portuguese (pt-BR)
  */
 
+import { PenTool } from 'lucide-react';
 import React from 'react';
 
+import { Icon } from '@/components/ui/Icon';
 import { Section } from '@/components/ui/Section';
 import { EngineEntityFlags } from '@/engine/core/EngineRuntime';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useEntityTransform, useSetEntityTransform } from '@/engine/core/useEntityTransform';
+import { LABELS } from '@/i18n/labels';
 
 import { TransformField } from './TransformField';
 
@@ -35,7 +38,12 @@ export const DrawingInspectorPanel: React.FC = () => {
 
   // Only show when exactly 1 entity is selected
   if (!entityId || !transform) {
-    return null;
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-text-muted -mt-8">
+        <Icon icon={PenTool} size="xxl" aria-hidden className="text-text-muted" />
+        <p className="text-body cursor-default">{LABELS.drawingInspector.emptyState}</p>
+      </div>
+    );
   }
 
   // Check if entity is locked

@@ -164,7 +164,7 @@ const EditorStatusBar: React.FC = () => {
 
         <button
           onClick={() => executeAction('undo')}
-          className={`p-1 hover:bg-surface-2 rounded focus-outline text-text ${history.canUndo ? '' : 'opacity-50 cursor-not-allowed'}`}
+          className={`p-1 rounded focus-outline text-text ${history.canUndo ? 'hover:bg-surface-2' : 'opacity-50'}`}
           disabled={!history.canUndo}
           title={`${LABELS.menu.undo} (Ctrl+Z)`}
           aria-label={LABELS.menu.undo}
@@ -173,7 +173,7 @@ const EditorStatusBar: React.FC = () => {
         </button>
         <button
           onClick={() => executeAction('redo')}
-          className={`p-1 hover:bg-surface-2 rounded focus-outline text-text ${history.canRedo ? '' : 'opacity-50 cursor-not-allowed'}`}
+          className={`p-1 rounded focus-outline text-text ${history.canRedo ? 'hover:bg-surface-2' : 'opacity-50'}`}
           disabled={!history.canRedo}
           title={`${LABELS.menu.redo} (Ctrl+Y)`}
           aria-label={LABELS.menu.redo}
