@@ -63,7 +63,7 @@ runtime.apply(commands: readonly EngineCommand[]): void
 ### Pick Point
 
 ```typescript
-const result = runtime.pick(worldX, worldY, tolerancePx): PickResult;
+const result = runtime.pickEx(worldX, worldY, tolerancePx, 0xff): PickResult;
 ```
 
 ### PickResult
@@ -75,8 +75,8 @@ interface PickResult {
   subTarget: PickSubTarget; // Body, Edge, Vertex, ResizeHandle, TextBody
   subIndex: number; // Sub-element index (e.g., which vertex)
   distance: number; // Distance to hit point
-  hitX: number; // Exact hit coordinate
-  hitY: number;
+  hitX?: number; // Optional hit coordinate
+  hitY?: number;
 }
 ```
 
@@ -99,27 +99,44 @@ interface PickResult {
 ## 5. Selection System
 
 ```typescript
-// Select entity
-runtime.selectEntity(id, mode, modifiers): void
+// Select by pick result
+runtime.selectByPick(pick, modifiers): void
 
 // Modes: Replace, Add, Remove, Toggle
-// Modifiers: Shift, Ctrl, Alt, Meta (bitmask)
+runtime.setSelection(ids, mode): void
 
 // Area selection (marquee)
-runtime.queryMarquee(x0, y0, x1, y1, mode, marqueeMode): void
+runtime.marqueeSelect(minX, minY, maxX, maxY, mode, marqueeMode): void
 // MarqueeMode: Window (fully inside) or Crossing (any intersection)
 
 // Clear selection
 runtime.clearSelection(): void
 
 // Query current selection
-runtime.getSelectedIds(): Uint32Array
-runtime.getSelectionGeneration(): number
+runtime.getSelectionIds(): Uint32Array
 ```
 
 ---
 
-## 6. Style System (Layer Defaults + Overrides)
+## 6. GeomZ (Elevation) API
+
+```typescript
+// Query geometric elevation for a single entity
+const res = runtime.tryGetEntityGeomZ(entityId);
+if (!res.ok) throw new Error('Invalid entity ID');
+
+// Set geometric elevation (cold path, undoable)
+runtime.setEntityGeomZ(entityId, z);
+```
+
+**Notes:**
+- `setEntityGeomZ` is cold-path and must not be called in pointermove loops.
+- Integration transactions should wrap Atlas + domain operations with history entry
+  boundaries (see IntegrationRuntime).
+
+---
+
+## 7. Style System (Layer Defaults + Overrides)
 
 ### Queries
 
@@ -144,7 +161,7 @@ runtime.apply([{ op: CommandOp.SetEntityStyleEnabled, enabled: { target, enabled
 
 ---
 
-## 7. Interactive Transform (Zero-Copy Pattern)
+## 8. Interactive Transform (Zero-Copy Pattern)
 
 ### Protocol
 
@@ -155,13 +172,28 @@ runtime.beginTransform(
   mode: TransformMode,    // Move, Resize, VertexDrag, EdgeDrag
   specificId: number,     // Specific ID (for vertex drag)
   vertexIndex: number,    // Vertex index (-1 if not applicable)
-  startX: number,         // Initial position
-  startY: number
+  screenX: number,
+  screenY: number,
+  viewX: number,
+  viewY: number,
+  viewScale: number,
+  viewWidth: number,
+  viewHeight: number,
+  modifiers: number
 ): void
 
 // 2. Update — modifies entities IN-PLACE in Engine
 // Does NOT update React state!
-runtime.updateTransform(worldX, worldY): void
+runtime.updateTransform(
+  screenX,
+  screenY,
+  viewX,
+  viewY,
+  viewScale,
+  viewWidth,
+  viewHeight,
+  modifiers
+): void
 
 // 3. Commit — finalize, create undo entry
 runtime.commitTransform(): CommitResult | null
@@ -191,7 +223,7 @@ interface CommitResult {
 
 ---
 
-## 8. Draft System (Ephemeral Entities)
+## 9. Draft System (Ephemeral Entities)
 
 > Shapes under construction during drag. Rendered by the same WebGL pipeline.
 
@@ -227,7 +259,7 @@ runtime.apply([{ op: CommandOp.CancelDraft }]);
 
 ---
 
-## 9. History (Undo/Redo)
+## 10. History (Undo/Redo)
 
 ```typescript
 runtime.undo(): void
@@ -235,6 +267,10 @@ runtime.redo(): void
 runtime.canUndo(): boolean
 runtime.canRedo(): boolean
 runtime.getHistoryMeta(): HistoryMeta
+runtime.beginHistoryEntry(): boolean
+runtime.commitHistoryEntry(): void
+runtime.discardHistoryEntry(): void
+runtime.rollbackHistoryEntry(): boolean
 
 interface HistoryMeta {
   depth: number;      // Total entries
@@ -247,7 +283,7 @@ interface HistoryMeta {
 
 ---
 
-## 10. Entity Queries
+## 11. Entity Queries
 
 ```typescript
 // Bounding box
@@ -255,13 +291,13 @@ runtime.getEntityAabb(id): EntityAabb
 // { minX, minY, maxX, maxY, valid }
 
 // Stats
-runtime.getEngineStats(): EngineStats
+runtime.getStats(): EngineStats
 // { rectCount, lineCount, triangleVertexCount, ... }
 ```
 
 ---
 
-## 11. Snapping
+## 12. Snapping
 
 ```typescript
 // Configure snap options
@@ -277,12 +313,12 @@ runtime.setSnapOptions(
 ): void
 
 // Query snapped point
-runtime.getSnappedPoint(x, y): { x: number, y: number }
+runtime.getSnappedPoint(x, y): Float32Array
 ```
 
 ---
 
-## 12. Serialization
+## 13. Serialization
 
 ```typescript
 // Export document
@@ -296,11 +332,11 @@ runtime.loadSnapshotBytes(bytes: Uint8Array): void
 
 ---
 
-## 13. Render Buffers
+## 14. Render Buffers
 
 ```typescript
 // Tessellated triangles
-runtime.getTriangleBufferMeta(): BufferMeta
+runtime.getPositionBufferMeta(): BufferMeta
 
 // Lines
 runtime.getLineBufferMeta(): BufferMeta
@@ -323,7 +359,7 @@ interface BufferMeta {
 
 ---
 
-## 14. Event Stream
+## 15. Event Stream
 
 ```typescript
 const { generation, events } = runtime.pollEvents(maxEvents);
@@ -351,9 +387,9 @@ interface EngineEvent {
 
 ---
 
-## 15. Text API
+## 16. Text API
 
-See `docs/agents/text-system.md` for complete documentation.
+See `docs/architecture/text-system.md` for complete documentation.
 
 Main methods:
 
@@ -368,7 +404,7 @@ runtime.hitTestText(textId, localX, localY): TextHitResult
 
 ---
 
-## 16. Extensibility Points
+## 17. Extensibility Points
 
 ### Adding New Entity Type
 
@@ -389,12 +425,12 @@ runtime.hitTestText(textId, localX, localY): TextHitResult
 
 ---
 
-## 17. Performance Considerations
+## 18. Performance Considerations
 
 | Operation           | Complexity | Notes                           |
 | ------------------- | ---------- | ------------------------------- |
-| `pick()`            | O(log n)   | Spatial index                   |
+| `pickEx()`          | O(log n)   | Spatial index                   |
 | `apply()`           | O(k)       | k = number of commands          |
-| `getSelectedIds()`  | O(1)       | Returns view of internal buffer |
+| `getSelectionIds()` | O(1)       | Cached view of internal buffer  |
 | `updateTransform()` | O(k)       | k = entities in session         |
 | `pollEvents()`      | O(1)       | Ring buffer                     |

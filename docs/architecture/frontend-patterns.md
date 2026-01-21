@@ -55,7 +55,7 @@ interface SettingsState {
 // NEVER do this:
 interface BadState {
   shapes: Shape[];              // Engine is authority
-  selectedIds: number[];        // Use runtime.getSelectedIds()
+  selectedIds: number[];        // Use runtime.getSelectionIds()
   entityProperties: Map<...>;   // Query from Engine
   textContent: string;          // Engine is authority
   caretIndex: number;           // Engine is authority
@@ -94,7 +94,7 @@ const state = useUIStore();
 
 ```typescript
 function PropertyPanel() {
-  const selectedIds = runtime.getSelectedIds();
+  const selectedIds = runtime.getSelectionIds();
 
   // Query properties at render time
   const properties = useMemo(() => {
@@ -126,23 +126,29 @@ useEffect(() => {
 const handlePointerDown = useCallback(
   (evt: React.PointerEvent) => {
     const world = screenToWorld(evt.clientX, evt.clientY, viewTransform);
-    const pick = runtime.pick(world.x, world.y, TOLERANCE);
+    const pick = runtime.pickEx(world.x, world.y, TOLERANCE, 0xff);
 
     if (pick.id !== 0) {
       // Engine decides selection
-      runtime.selectEntity(pick.id, SelectionMode.Replace, modifiers);
+      runtime.selectByPick(pick, modifiers);
       // Engine starts transformation
       runtime.beginTransform(
         [pick.id],
         TransformMode.Move,
         0,
         -1,
-        world.x,
-        world.y
+        evt.clientX,
+        evt.clientY,
+        viewTransform.x,
+        viewTransform.y,
+        viewTransform.scale,
+        canvasSize.width,
+        canvasSize.height,
+        modifiers
       );
     }
   },
-  [viewTransform]
+  [viewTransform, canvasSize]
 );
 ```
 
@@ -162,14 +168,36 @@ const handleClick = (id) => setSelected([id]);
 
 ```typescript
 // PointerDown
-runtime.beginTransform(ids, mode, specificId, vertexIndex, startX, startY);
+runtime.beginTransform(
+  ids,
+  mode,
+  specificId,
+  vertexIndex,
+  screenX,
+  screenY,
+  viewX,
+  viewY,
+  viewScale,
+  viewWidth,
+  viewHeight,
+  modifiers
+);
 setDragActive(true); // Only state update
 
 // PointerMove - NO setState!
 const handlePointerMove = (evt) => {
   if (!dragActive) return;
   const world = screenToWorld(evt.clientX, evt.clientY, viewTransform);
-  runtime.updateTransform(world.x, world.y);
+  runtime.updateTransform(
+    evt.clientX,
+    evt.clientY,
+    viewTransform.x,
+    viewTransform.y,
+    viewTransform.scale,
+    canvasSize.width,
+    canvasSize.height,
+    modifiers
+  );
   // Engine modifies entities, WebGL re-renders
   // React does NOT re-render
 };
@@ -210,7 +238,16 @@ reusablePos.x = evt.clientX;
 reusablePos.y = evt.clientY;
 
 // ✅ Direct mutation (when safe)
-runtime.updateTransform(world.x, world.y);
+runtime.updateTransform(
+  evt.clientX,
+  evt.clientY,
+  viewTransform.x,
+  viewTransform.y,
+  viewTransform.scale,
+  canvasSize.width,
+  canvasSize.height,
+  modifiers
+);
 
 // ✅ Typed arrays
 const ids = new Uint32Array([id1, id2]);
@@ -232,25 +269,43 @@ if (!rafPending) {
 
 ---
 
-## 8. Coordinate Systems
+## 8. Integration Transactions (Atlas + Domain)
 
 ```typescript
-// Coordinate system: Y-Up (mathematical)
+const integration = new IntegrationRuntime(runtime, domainRuntime);
+
+integration.runTransaction('set-elevation', ({ atlas, domain }) => {
+  atlas.setEntityGeomZ(entityId, geomZ);
+  domain.setSemanticHeight(componentId, semanticHeight);
+});
+```
+
+**Rules:**
+- Use a single integration transaction for any action that touches Atlas + domain.
+- Keep geomZ (Atlas) and semantic height (domain) separate and explicit.
+- Do not run integration transactions on hot paths (pointermove).
+
+---
+
+## 9. Coordinate Systems
+
+```typescript
+// Coordinate system: +Y Down (screen + world)
 // Screen: (0,0) top-left, Y grows downward
-// World: (0,0) center, Y grows upward
+// World: (0,0) center, Y grows downward
 
-// Screen → World
+// Screen -> World
 const worldX = (screenX - viewTransform.x) / viewTransform.scale;
-const worldY = -(screenY - viewTransform.y) / viewTransform.scale; // Note: negative
+const worldY = (screenY - viewTransform.y) / viewTransform.scale;
 
-// World → Screen
+// World -> Screen
 const screenX = worldX * viewTransform.scale + viewTransform.x;
-const screenY = -worldY * viewTransform.scale + viewTransform.y;
+const screenY = worldY * viewTransform.scale + viewTransform.y;
 ```
 
 ---
 
-## 9. Component Architecture
+## 10. Component Architecture
 
 ### Interaction Layer (EngineInteractionLayer)
 
@@ -283,7 +338,7 @@ const screenY = -worldY * viewTransform.scale + viewTransform.y;
 
 ---
 
-## 10. TypeScript Standards
+## 11. TypeScript Standards
 
 ### Mandatory
 
@@ -323,7 +378,7 @@ const uiId = crypto.randomUUID();
 
 ---
 
-## 11. Internationalization (i18n)
+## 12. Internationalization (i18n)
 
 ### Current State
 
@@ -351,13 +406,13 @@ const LABELS = {
 
 ---
 
-## 12. Performance Monitoring
+## 13. Performance Monitoring
 
 ```typescript
 // Dev-only performance marks
 if (import.meta.env.DEV) {
   performance.mark("pick-start");
-  const result = runtime.pick(x, y, tolerance);
+  const result = runtime.pickEx(x, y, tolerance, 0xff);
   performance.mark("pick-end");
   performance.measure("pick", "pick-start", "pick-end");
 }
@@ -365,7 +420,7 @@ if (import.meta.env.DEV) {
 
 ---
 
-## 13. Error Boundaries
+## 14. Error Boundaries
 
 ```typescript
 // Wrap critical components
@@ -376,10 +431,10 @@ if (import.meta.env.DEV) {
 
 ---
 
-## 14. Testing
+## 15. Testing
 
 ```bash
-cd frontend && npx vitest run
+cd apps/web && npx vitest run
 ```
 
 ### Rules

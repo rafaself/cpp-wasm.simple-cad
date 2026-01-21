@@ -22,13 +22,13 @@ constexpr std::uint32_t TAG_NIDX = fourCC('N', 'I', 'D', 'X');
 constexpr std::uint32_t TAG_HIST = fourCC('H', 'I', 'S', 'T');
 constexpr std::uint32_t TAG_STYL = fourCC('S', 'T', 'Y', 'L');
 
-constexpr std::size_t rectSnapshotBytes = 12 + 17 * 4; // Added rot, sx, sy
-constexpr std::size_t lineSnapshotBytes = 12 + 10 * 4;
-constexpr std::size_t polySnapshotBytes = 20 + 11 * 4;
-constexpr std::size_t circleSnapshotBytes = 12 + 17 * 4;
-constexpr std::size_t polygonSnapshotBytes = 12 + 17 * 4 + 4;
-constexpr std::size_t arrowSnapshotBytes = 12 + 11 * 4;
-constexpr std::size_t textSnapshotHeaderBytes = 64;
+constexpr std::size_t rectSnapshotBytes = 12 + 18 * 4; // Added rot, sx, sy, elevationZ
+constexpr std::size_t lineSnapshotBytes = 12 + 11 * 4;
+constexpr std::size_t polySnapshotBytes = 20 + 12 * 4;
+constexpr std::size_t circleSnapshotBytes = 12 + 18 * 4;
+constexpr std::size_t polygonSnapshotBytes = 12 + 18 * 4 + 4;
+constexpr std::size_t arrowSnapshotBytes = 12 + 12 * 4;
+constexpr std::size_t textSnapshotHeaderBytes = 68;
 constexpr std::size_t layerStyleSnapshotBytes = 4 * 4 + 4;
 constexpr std::size_t styleOverrideSnapshotBytes = 24;
 

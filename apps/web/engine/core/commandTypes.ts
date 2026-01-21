@@ -58,6 +58,7 @@ export type RectPayload = {
   strokeA: number;
   strokeEnabled: number; // 0 or 1
   strokeWidthPx: number;
+  elevationZ: number;
 };
 export type LinePayload = {
   x0: number;
@@ -70,6 +71,7 @@ export type LinePayload = {
   a: number;
   enabled: number;
   strokeWidthPx: number;
+  elevationZ: number;
 };
 export type PolylinePayload = {
   points: ReadonlyArray<{ x: number; y: number }>;
@@ -79,6 +81,7 @@ export type PolylinePayload = {
   a: number;
   enabled: number;
   strokeWidthPx: number;
+  elevationZ: number;
 };
 
 export type SetViewScalePayload = {
@@ -111,6 +114,7 @@ export type CirclePayload = {
   strokeA: number;
   strokeEnabled: number; // 0 or 1
   strokeWidthPx: number;
+  elevationZ: number;
 };
 export type PolygonPayload = CirclePayload & { sides: number };
 export type ArrowPayload = {
@@ -125,6 +129,7 @@ export type ArrowPayload = {
   strokeA: number;
   strokeEnabled: number; // 0 or 1
   strokeWidthPx: number;
+  elevationZ: number;
 };
 
 export type LayerStylePayload = {
@@ -171,6 +176,7 @@ export type TextPayload = {
   boxMode: number; // 0 = AutoWidth, 1 = FixedWidth
   align: number; // 0 = Left, 1 = Center, 2 = Right
   constraintWidth: number;
+  elevationZ: number;
   runs: readonly TextRunPayload[];
   content: string; // UTF-8 text
 };

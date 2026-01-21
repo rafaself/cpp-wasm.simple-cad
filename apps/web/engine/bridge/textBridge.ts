@@ -134,6 +134,7 @@ export class TextBridge {
           boxMode: payload.boxMode,
           align: payload.align,
           constraintWidth: payload.constraintWidth,
+          elevationZ: payload.elevationZ,
           runs,
           content: payload.content,
         },

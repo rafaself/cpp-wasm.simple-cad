@@ -31,22 +31,22 @@ const payloadByteLength = (cmd: EngineCommand): number => {
     case CommandOp.SetDrawOrder:
       return 8 + cmd.order.ids.length * 4; // u32 count + u32 reserved + u32 ids[]
     case CommandOp.UpsertRect:
-      return 56; // 14 floats * 4 bytes/float
+      return 60; // 15 floats * 4 bytes/float
     case CommandOp.UpsertLine:
-      return 40; // 10 floats * 4 bytes/float (includes strokeWidthPx)
+      return 44; // 11 floats * 4 bytes/float (includes strokeWidthPx)
     case CommandOp.UpsertPolyline:
-      return 32 + cmd.polyline.points.length * 8; // header (6 floats + u32 count + u32 reserved) + points
+      return 36 + cmd.polyline.points.length * 8; // header (7 floats + u32 count + u32 reserved) + points
     case CommandOp.UpsertCircle:
-      return 68; // 17 floats
+      return 72; // 18 floats
     case CommandOp.UpsertPolygon:
-      return 72; // 17 floats + u32 sides
+      return 76; // 18 floats + u32 sides
     case CommandOp.UpsertArrow:
-      return 44; // 11 floats
+      return 48; // 12 floats
     // Text commands
     case CommandOp.UpsertText: {
-      // TextPayloadHeader (28 bytes) + TextRunPayload * runCount (24 bytes each) + UTF-8 content
+      // TextPayloadHeader (28 bytes) + TextRunPayload * runCount (24 bytes each) + UTF-8 content + elevationZ
       const contentBytes = textEncoder.encode(cmd.text.content).length;
-      return 28 + cmd.text.runs.length * 24 + contentBytes;
+      return 28 + cmd.text.runs.length * 24 + contentBytes + 4;
     }
     case CommandOp.SetTextCaret:
       return 8; // textId (u32) + caretIndex (u32)
@@ -103,7 +103,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
   let o = 0;
 
   o = writeU32(view, o, COMMAND_BUFFER_MAGIC);
-  o = writeU32(view, o, 3); // version
+  o = writeU32(view, o, 4); // version
   o = writeU32(view, o, commands.length);
   o = writeU32(view, o, 0);
 
@@ -148,6 +148,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.rect.strokeA);
         o = writeF32(view, o, cmd.rect.strokeEnabled);
         o = writeF32(view, o, cmd.rect.strokeWidthPx);
+        o = writeF32(view, o, cmd.rect.elevationZ);
         break;
       case CommandOp.UpsertLine:
         o = writeF32(view, o, cmd.line.x0);
@@ -160,6 +161,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.line.a);
         o = writeF32(view, o, cmd.line.enabled);
         o = writeF32(view, o, cmd.line.strokeWidthPx);
+        o = writeF32(view, o, cmd.line.elevationZ);
         break;
       case CommandOp.UpsertPolyline:
         o = writeF32(view, o, cmd.polyline.r);
@@ -168,6 +170,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.polyline.a);
         o = writeF32(view, o, cmd.polyline.enabled);
         o = writeF32(view, o, cmd.polyline.strokeWidthPx);
+        o = writeF32(view, o, cmd.polyline.elevationZ);
         o = writeU32(view, o, cmd.polyline.points.length);
         o = writeU32(view, o, 0);
         for (const p of cmd.polyline.points) {
@@ -193,6 +196,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.circle.strokeA);
         o = writeF32(view, o, cmd.circle.strokeEnabled);
         o = writeF32(view, o, cmd.circle.strokeWidthPx);
+        o = writeF32(view, o, cmd.circle.elevationZ);
         break;
       case CommandOp.UpsertPolygon:
         o = writeF32(view, o, cmd.polygon.cx);
@@ -212,6 +216,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.polygon.strokeA);
         o = writeF32(view, o, cmd.polygon.strokeEnabled);
         o = writeF32(view, o, cmd.polygon.strokeWidthPx);
+        o = writeF32(view, o, cmd.polygon.elevationZ);
         o = writeU32(view, o, cmd.polygon.sides >>> 0);
         break;
       case CommandOp.UpsertArrow:
@@ -226,6 +231,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         o = writeF32(view, o, cmd.arrow.strokeA);
         o = writeF32(view, o, cmd.arrow.strokeEnabled);
         o = writeF32(view, o, cmd.arrow.strokeWidthPx);
+        o = writeF32(view, o, cmd.arrow.elevationZ);
         break;
       // ========== Text Commands ==========
       case CommandOp.UpsertText: {
@@ -258,6 +264,7 @@ export const encodeCommandBuffer = (commands: readonly EngineCommand[]): Uint8Ar
         // UTF-8 content
         new Uint8Array(buf, o, contentBytes.length).set(contentBytes);
         o += contentBytes.length;
+        o = writeF32(view, o, cmd.text.elevationZ);
         break;
       }
       case CommandOp.SetTextCaret:

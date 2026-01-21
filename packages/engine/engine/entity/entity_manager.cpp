@@ -332,7 +332,7 @@ void EntityManager::upsertRect(std::uint32_t id, float x, float y, float w, floa
         return;
     }
 
-    rects.push_back(RectRec{id, x, y, w, h, 0.0f, 1.0f, 1.0f, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx});
+    rects.push_back(RectRec{id, x, y, w, h, 0.0f, 1.0f, 1.0f, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx, 0.0f});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
@@ -353,7 +353,7 @@ void EntityManager::upsertLine(std::uint32_t id, float x0, float y0, float x1, f
         return;
     }
 
-    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx});
+    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx, 0.0f});
     entities[id] = EntityRef{EntityKind::Line, static_cast<std::uint32_t>(lines.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
@@ -376,7 +376,7 @@ void EntityManager::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::
         return;
     }
 
-    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, r, g, b, a, enabled, enabled, strokeWidthPx});
+    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, r, g, b, a, enabled, enabled, strokeWidthPx, 0.0f});
     entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
@@ -399,7 +399,7 @@ void EntityManager::upsertCircle(std::uint32_t id, float cx, float cy, float rx,
         return;
     }
 
-    circles.push_back(CircleRec{id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    circles.push_back(CircleRec{id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, 0.0f});
     entities[id] = EntityRef{EntityKind::Circle, static_cast<std::uint32_t>(circles.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
@@ -423,7 +423,7 @@ void EntityManager::upsertPolygon(std::uint32_t id, float cx, float cy, float rx
         return;
     }
 
-    polygons.push_back(PolygonRec{id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    polygons.push_back(PolygonRec{id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, 0.0f});
     entities[id] = EntityRef{EntityKind::Polygon, static_cast<std::uint32_t>(polygons.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
@@ -445,7 +445,7 @@ void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, 
         return;
     }
 
-    arrows.push_back(ArrowRec{id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    arrows.push_back(ArrowRec{id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, 0.0f});
     entities[id] = EntityRef{EntityKind::Arrow, static_cast<std::uint32_t>(arrows.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);

@@ -29,14 +29,21 @@ Engine is the single source of truth. Governance makes that non-negotiable via d
   - `docs/api/ENGINE_API_MANIFEST.md` (human summary)
 - `tooling/governance/check_engine_api_manifest.js` compares current bindings with the recorded `sourceHash`; CI fails on drift.
 
+## Performance Budgets
+- Budgets live in `tooling/governance/perf_budgets.json`.
+- Baselines live in `tooling/governance/perf_results.json`.
+- Fixture spec lives in `tooling/perf/fixtures/atlas_baseline_v4.json`.
+- `tooling/governance/check_perf_budgets.js` verifies results are within budget.
+
 ## Doc Drift Check
 - `tooling/governance/check_docs_references.js` ensures referenced paths in `AGENTS.md` and this document exist. CI fails if drift is detected.
 
 ## Local Commands
-- `cd frontend && pnpm governance:budgets` — file-size budgets.
-- `cd frontend && pnpm governance:boundaries` — boundary enforcement.
-- `cd frontend && pnpm governance:manifest` — Embind manifest drift.
-- `cd frontend && pnpm governance:check` — runs all governance checks.
+- `cd apps/web && pnpm governance:budgets` — file-size budgets.
+- `cd apps/web && pnpm governance:boundaries` — boundary enforcement.
+- `cd apps/web && pnpm governance:manifest` — Embind manifest drift.
+- `cd apps/web && pnpm governance:perf` — perf budget check.
+- `cd apps/web && pnpm governance:check` — runs all governance checks.
 - `node tooling/governance/check_docs_references.js` — doc reference guard.
 
 ## Exception Policy

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "seed": 1337,
+  "units": "WU",
+  "bounds": {
+    "minX": -5000,
+    "minY": -5000,
+    "maxX": 5000,
+    "maxY": 5000
+  },
+  "entities": {
+    "lines": 10000,
+    "polylines": 1000,
+    "polylinePoints": 8,
+    "texts": 2000,
+    "rects": 0,
+    "circles": 0,
+    "polygons": 0,
+    "arrows": 0
+  },
+  "activePlaneElevation": 0,
+  "notes": "Deterministic perf fixture spec for generator."
+}

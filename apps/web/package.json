@@ -27,7 +27,9 @@
     "governance:semantic": "node ../../tooling/governance/check_semantic_tokens.js",
     "governance:legacy": "node ../../tooling/governance/check_legacy_tokens.js",
     "governance:hotpath": "node ../../tooling/governance/check_hot_path.js",
-    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs && pnpm run governance:hex-ui && pnpm run governance:arbitrary && pnpm run governance:semantic && pnpm run governance:legacy && pnpm run governance:hotpath && pnpm run lint"
+    "governance:fixtures": "node ../../tooling/governance/check_fixture_versions.js",
+    "governance:perf": "node ../../tooling/governance/check_perf_budgets.js",
+    "governance:check": "pnpm run governance:budgets && pnpm run governance:boundaries && pnpm run governance:manifest && pnpm run governance:docs && pnpm run governance:hex-ui && pnpm run governance:arbitrary && pnpm run governance:semantic && pnpm run governance:legacy && pnpm run governance:hotpath && pnpm run governance:fixtures && pnpm run governance:perf && pnpm run lint"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.6",

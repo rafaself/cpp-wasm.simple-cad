@@ -40,14 +40,14 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     };
 
     pushU32(0x43445745); // Magic EWDC
-    pushU32(3);          // Version
+    pushU32(4);          // Version
     pushU32(1);          // Command Count
     pushU32(0);          // Padding
 
     // Command 1: UpsertRect
     pushU32(static_cast<std::uint32_t>(CommandOp::UpsertRect)); // Op
     pushU32(10);         // ID
-    pushU32(56);         // Payload Bytes (14 floats * 4 bytes/float)
+    pushU32(60);         // Payload Bytes (15 floats * 4 bytes/float)
     pushU32(0);          // Reserved
 
     pushF32(10.0f); // x
@@ -66,6 +66,7 @@ TEST_F(CadEngineTest, CommandBufferCycle) {
     pushF32(1.0f);  // strokeA
     pushF32(1.0f);  // strokeEnabled
     pushF32(2.0f);  // strokeWidthPx
+    pushF32(0.0f);  // elevationZ
 
     // Pass to engine
     uintptr_t ptr = reinterpret_cast<uintptr_t>(buffer.data());

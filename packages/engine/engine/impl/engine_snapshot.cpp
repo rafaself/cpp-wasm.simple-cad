@@ -153,6 +153,9 @@ void CadEngine::loadSnapshotFromPtr(std::uintptr_t ptr, std::uint32_t byteCount)
             const TextRunPayload* runsPtr = rec.runs.empty() ? nullptr : rec.runs.data();
             state().textSystem_.store.upsertText(rec.id, header, runsPtr, header.runCount, contentPtr, header.contentLength);
             state().textSystem_.store.setLayoutResult(rec.id, rec.layoutWidth, rec.layoutHeight, rec.minX, rec.minY, rec.maxX, rec.maxY);
+            if (TextRec* textRec = state().textSystem_.store.getTextMutable(rec.id)) {
+                textRec->elevationZ = rec.elevationZ;
+            }
             state().entityManager_.entities[rec.id] = EntityRef{EntityKind::Text, rec.id};
             state().entityManager_.entityFlags[rec.id] = rec.flags;
             state().entityManager_.entityLayers[rec.id] = rec.layerId;
@@ -842,6 +845,7 @@ void CadEngine::rebuildSnapshotBytes() const {
         snap.header.reserved[0] = 0;
         snap.header.reserved[1] = 0;
         snap.header.constraintWidth = rec->constraintWidth;
+        snap.elevationZ = rec->elevationZ;
         snap.layoutWidth = rec->layoutWidth;
         snap.layoutHeight = rec->layoutHeight;
         snap.minX = rec->minX;
@@ -898,4 +902,3 @@ void CadEngine::rebuildSnapshotBytes() const {
     state().snapshotBytes = engine::buildSnapshotBytes(sd);
     state().snapshotDirty = false;
 }
-

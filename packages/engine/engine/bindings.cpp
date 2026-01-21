@@ -96,6 +96,10 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("allocateLayerId", &CadEngine::allocateLayerId)
         .function("getDocumentDigest", &CadEngine::getDocumentDigest)
         .function("getHistoryMeta", &CadEngine::getHistoryMeta)
+        .function("beginHistoryEntry", &CadEngine::beginHistoryEntry)
+        .function("commitHistoryEntry", &CadEngine::commitHistoryEntry)
+        .function("discardHistoryEntry", &CadEngine::discardHistoryEntry)
+        .function("rollbackHistoryEntry", &CadEngine::rollbackHistoryEntry)
         .function("canUndo", &CadEngine::canUndo)
         .function("canRedo", &CadEngine::canRedo)
         .function("undo", &CadEngine::undo)
@@ -125,6 +129,15 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("setEntityLayer", &CadEngine::setEntityLayer)
         .function("getEntityLayer", &CadEngine::getEntityLayer)
         .function("getEntityKind", &CadEngine::getEntityKind)
+        .function("tryGetEntityGeomZ", emscripten::optional_override([](const CadEngine& self, std::uint32_t entityId) {
+            float z = 0.0f;
+            const bool ok = self.tryGetEntityGeomZ(entityId, z);
+            emscripten::val result = emscripten::val::object();
+            result.set("ok", ok);
+            result.set("z", z);
+            return result;
+        }))
+        .function("setEntityGeomZ", &CadEngine::setEntityGeomZ)
         .function("getSelectionIds", &CadEngine::getSelectionIds)
         .function("getSelectionGeneration", &CadEngine::getSelectionGeneration)
         .function("getSelectionStyleSummary", &CadEngine::getSelectionStyleSummary)

@@ -600,6 +600,7 @@ export class TextTool {
       boxMode,
       align: this.styleDefaults.align,
       constraintWidth,
+      elevationZ: 0,
       runs: [
         {
           startIndex: 0,

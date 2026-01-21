@@ -19,7 +19,7 @@
 
 ### Checklist
 
-1. **C++ Types** (`cpp/engine/types.h`)
+1. **C++ Types** (`packages/engine/engine/core/types.h`)
 
    ```cpp
    struct FooRec {
@@ -28,7 +28,7 @@
    };
    ```
 
-2. **C++ Command** (`cpp/engine/commands.h`)
+2. **C++ Command** (`packages/engine/engine/command/commands.h`)
 
    ```cpp
    enum class CommandOp : uint8_t {
@@ -37,42 +37,42 @@
    };
    ```
 
-3. **C++ Storage** (`cpp/engine/engine.h`)
+3. **C++ Storage** (`packages/engine/engine/engine.h`)
 
    ```cpp
    std::vector<FooRec> foos_;
    // ... CRUD methods
    ```
 
-4. **C++ Implementation** (`cpp/engine/entity_manager.cpp`)
+4. **C++ Implementation** (`packages/engine/engine/entity/entity_manager.cpp`)
 
    - Implement upsert, delete
    - Add to draw order
 
-5. **C++ Picking** (`cpp/engine/pick_system.cpp`)
+5. **C++ Picking** (`packages/engine/engine/interaction/pick_system.cpp`)
 
    - Add hit test for new primitive
 
-6. **C++ Snapshot** (`cpp/engine/snapshot.cpp`)
+6. **C++ Snapshot** (`packages/engine/engine/persistence/snapshot.cpp`)
 
    - Serialize/deserialize
 
-7. **C++ Bindings** (`cpp/engine/bindings.cpp`)
+7. **C++ Bindings** (`packages/engine/engine/bindings.cpp`)
 
    - Expose via Embind
 
-8. **C++ Tests** (`cpp/tests/`)
+8. **C++ Tests** (`packages/engine/tests/`)
 
    - Unit tests for CRUD and picking
 
-9. **Frontend Command** (`frontend/engine/core/commandBuffer.ts`)
+9. **Frontend Command** (`apps/web/engine/core/commandBuffer.ts`)
 
    ```typescript
    export interface FooPayload { ... }
    // Add case in payloadByteLength and encodeCommandBuffer
    ```
 
-10. **Frontend Tool** (`frontend/features/editor/hooks/useDraftHandler.ts`)
+10. **Frontend Tool** (`apps/web/features/editor/interactions/handlers/DraftingHandler.tsx`)
 
     - Add creation logic
 
@@ -110,7 +110,7 @@ If modification changes snapshot format:
 
 ### Steps
 
-1. **C++** (`cpp/engine/engine.h`)
+1. **C++** (`packages/engine/engine/engine.h`)
 
    ```cpp
    enum class TransformMode : uint8_t {
@@ -119,16 +119,16 @@ If modification changes snapshot format:
    };
    ```
 
-2. **C++ Logic** (`cpp/engine/engine.cpp`)
+2. **C++ Logic** (`packages/engine/engine/engine.cpp`)
 
    - Implement in `updateTransform()`
    - Implement in `commitTransform()`
 
-3. **Frontend Mapping** (`frontend/engine/core/interactionSession.ts`)
+3. **Frontend Mapping** (`apps/web/engine/core/interactionSession.ts`)
 
    - Add constant
 
-4. **Frontend Trigger** (`EngineInteractionLayer.tsx`)
+4. **Frontend Trigger** (`apps/web/features/editor/components/EngineInteractionLayer.tsx`)
 
    - Add condition to start
 
@@ -142,18 +142,18 @@ If modification changes snapshot format:
 
 ```typescript
 // Stats
-const stats = runtime.getEngineStats();
+const stats = runtime.getStats();
 console.log("Entities:", stats.rectCount, stats.lineCount, stats.polylineCount);
 
 // Buffers
-const triMeta = runtime.getTriangleBufferMeta();
-console.log("Triangle vertices:", triMeta.vertexCount);
+const positionMeta = runtime.getPositionBufferMeta();
+console.log("Triangle vertices:", positionMeta.vertexCount);
 ```
 
 ### Picking Debug
 
 ```typescript
-const pick = runtime.pick(worldX, worldY, tolerance);
+const pick = runtime.pickEx(worldX, worldY, tolerance, 0xff);
 console.log("Pick result:", {
   id: pick.id,
   kind: PickEntityKind[pick.kind],
@@ -182,7 +182,7 @@ console.log("Caret:", caretPos);
 ```typescript
 // Measure operation
 const t0 = performance.now();
-runtime.pick(x, y, tolerance);
+runtime.pickEx(x, y, tolerance, 0xff);
 console.log("Pick time:", performance.now() - t0, "ms");
 ```
 
@@ -195,13 +195,13 @@ console.log("Pick time:", performance.now() - t0, "ms");
 make fbuild
 
 # Frontend dev mode (hot reload)
-cd frontend && pnpm dev
+cd apps/web && pnpm dev
 
 # Rebuild WASM after C++ changes
-cd frontend && pnpm build:wasm
+cd apps/web && pnpm build:wasm
 
 # Native WASM build for C++ tests
-cd cpp
+cd packages/engine
 mkdir -p build_native && cd build_native
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
@@ -214,7 +214,7 @@ make -j$(nproc)
 ### C++ (CTest)
 
 ```bash
-cd cpp/build_native
+cd packages/engine/build_native
 ctest --output-on-failure
 
 # Specific
@@ -227,7 +227,7 @@ ctest -V
 ### Frontend (Vitest)
 
 ```bash
-cd frontend
+cd apps/web
 
 # Run all
 npx vitest run
@@ -236,7 +236,7 @@ npx vitest run
 npx vitest
 
 # Specific file
-npx vitest run src/engine/core/commandBuffer.test.ts
+npx vitest run tests/engineRuntime.test.ts
 
 # Coverage
 npx vitest run --coverage
@@ -251,16 +251,16 @@ npx vitest run --coverage
 make fbuild
 
 # 2. C++ tests must pass
-cd cpp/build_native && ctest --output-on-failure
+cd packages/engine/build_native && ctest --output-on-failure
 
 # 3. Frontend tests must pass
-cd frontend && npx vitest run
+cd apps/web && npx vitest run
 
 # 4. TypeScript check
-cd frontend && npx tsc --noEmit
+cd apps/web && npx tsc --noEmit
 
 # 5. Linting
-cd frontend && npx eslint src/
+cd apps/web && npx eslint src/
 ```
 
 ---
@@ -342,7 +342,7 @@ performance.measure("operation", "operation-start", "operation-end");
 
 ```bash
 # Clean and rebuild
-cd frontend
+cd apps/web
 rm -rf node_modules/.cache
 pnpm build:wasm
 ```
@@ -351,7 +351,7 @@ pnpm build:wasm
 
 ```bash
 # Clean rebuild
-cd cpp
+cd packages/engine
 rm -rf build_native
 mkdir build_native && cd build_native
 cmake ..
@@ -363,7 +363,7 @@ ctest
 
 ```bash
 # Clear Vite cache
-cd frontend
+cd apps/web
 rm -rf node_modules/.vite
 pnpm dev
 ```

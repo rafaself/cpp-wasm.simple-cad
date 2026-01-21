@@ -14,7 +14,7 @@ TEST(RenderTest, SimpleBuffers) {
     std::unordered_map<std::uint32_t, EntityRef> entities;
     std::vector<std::uint32_t> drawOrderIds;
 
-    rects.push_back(RectRec{1, 0, 0, 10, 10, 1, 0, 0, 1, 1, 1, 1, 1, 1, 2});
+    rects.push_back(RectRec{1, 0, 0, 10, 10, 1, 0, 0, 1, 1, 1, 1, 1, 1, 2, 0.0f});
     entities.emplace(1, EntityRef{EntityKind::Rect, 0});
     drawOrderIds.push_back(1);
 
@@ -58,7 +58,7 @@ TEST(RenderTest, LineStrokeScalesWithViewScale) {
     std::unordered_map<std::uint32_t, EntityRef> entities;
     std::vector<std::uint32_t> drawOrderIds;
 
-    lines.push_back(LineRec{1, 0.0f, 0.0f, 10.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f});
+    lines.push_back(LineRec{1, 0.0f, 0.0f, 10.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 0.0f});
     entities.emplace(1, EntityRef{EntityKind::Line, 0});
     drawOrderIds.push_back(1);
 

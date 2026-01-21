@@ -463,12 +463,14 @@ The global project save is composed as:
 | ---------------------------------- | ------------------------------------------------------- |
 | `AGENTS.md`                        | Architecture + boundaries + governance (this file)      |
 | `DESIGN.md`                        | UI rules, components, spacing, interaction patterns     |
-| `docs/agents/engine-api.md`        | Atlas public API reference (WASM facade contract)       |
-| `docs/agents/domain-api.md`        | Domain kernel API reference                             |
-| `docs/agents/frontend-patterns.md` | React patterns, hot path rules, rendering orchestration |
-| `docs/ENGINE_FIRST_GOVERNANCE.md`  | Boundary enforcement policy + CI gates                  |
-| `docs/AGENT_RUNBOOK.md`            | Agent operating checklist                               |
+| `docs/architecture/engine-api.md`  | Atlas public API reference (WASM facade contract)       |
+| `docs/architecture/domain-api.md`  | Domain kernel API reference                             |
+| `docs/architecture/frontend-patterns.md` | React patterns, hot path rules, rendering orchestration |
+| `docs/api/ENGINE_API_MANIFEST.md`  | Generated engine API manifest (ABI + binding surface)   |
+| `docs/governance/ENGINE_FIRST_GOVERNANCE.md` | Boundary enforcement policy + CI gates        |
+| `docs/governance/AGENT_RUNBOOK.md` | Agent operating checklist                               |
 | `docs/plans/2_5d_adoption_plan.md` | Canonical plan for introducing geometric Z without 3D viewport |
+| `docs/reports/2_5d_phase0_audit.md` | Phase 0 audit report (impact map + representation lock) |
 
 ---
 

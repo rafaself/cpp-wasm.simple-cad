@@ -34,6 +34,20 @@ export class EntitySystem {
     return this.engine.getEntityKind?.(entityId) ?? 0;
   }
 
+  public tryGetEntityGeomZ(entityId: EntityId): { ok: boolean; z: number } {
+    if (!this.engine.tryGetEntityGeomZ) {
+      throw new Error('[EngineRuntime] tryGetEntityGeomZ() missing in WASM build.');
+    }
+    return this.engine.tryGetEntityGeomZ(entityId);
+  }
+
+  public setEntityGeomZ(entityId: EntityId, z: number): boolean {
+    if (!this.engine.setEntityGeomZ) {
+      throw new Error('[EngineRuntime] setEntityGeomZ() missing in WASM build.');
+    }
+    return this.engine.setEntityGeomZ(entityId, z);
+  }
+
   public getDrawOrderSnapshot(): Uint32Array {
     if (!this.engine.getDrawOrderSnapshot) return new Uint32Array();
     const vec = this.engine.getDrawOrderSnapshot();

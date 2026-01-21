@@ -23,6 +23,7 @@ bool TextStore::upsertText(
     std::uint32_t contentLength
 ) {
     // Create or update TextRec
+    const bool existed = (texts_.find(id) != texts_.end());
     TextRec& rec = texts_[id];
     rec.id = id;
     rec.x = header.x;
@@ -31,6 +32,9 @@ bool TextStore::upsertText(
     rec.boxMode = static_cast<TextBoxMode>(header.boxMode);
     rec.align = static_cast<TextAlign>(header.align);
     rec.constraintWidth = header.constraintWidth;
+    if (!existed) {
+        rec.elevationZ = 0.0f;
+    }
     
     // Initialize layout results to zero (will be computed by TextLayoutEngine)
     rec.layoutWidth = 0.0f;

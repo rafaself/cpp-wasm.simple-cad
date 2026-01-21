@@ -1,0 +1,10 @@
+{
+  "fixture": "tooling/perf/fixtures/atlas_baseline_v4.json",
+  "metrics": {
+    "transform_update_us": 250,
+    "picking_query_us": 300,
+    "incremental_rebuild_ms": 2
+  },
+  "recordedAt": "2026-01-21",
+  "notes": "Baseline placeholders; update after perf harness run."
+}

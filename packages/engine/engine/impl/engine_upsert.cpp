@@ -45,7 +45,7 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
         initShapeStyleOverrides(state().entityManager_, id, true, true, a > 0.5f ? 1.0f : 0.0f);
     }
 
-    RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
+    RectRec rec{}; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
     state().pickSystem_.update(id, PickSystem::computeRectAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -80,7 +80,7 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
         initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
-    LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
+    LineRec rec{}; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
     state().pickSystem_.update(id, PickSystem::computeLineAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -115,7 +115,7 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
         initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
-    PolyRec rec; rec.offset = offset; rec.count = count;
+    PolyRec rec{}; rec.offset = offset; rec.count = count;
     state().pickSystem_.update(id, PickSystem::computePolylineAABB(rec, state().entityManager_.points));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -165,7 +165,7 @@ void CadEngine::upsertCircle(
         initShapeStyleOverrides(state().entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
     }
 
-    CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
+    CircleRec rec{}; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
     state().pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -216,7 +216,7 @@ void CadEngine::upsertPolygon(
         initShapeStyleOverrides(state().entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
     }
 
-    PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
+    PolygonRec rec{}; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
     state().pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -260,7 +260,7 @@ void CadEngine::upsertArrow(
         initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
-    ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
+    ArrowRec rec{}; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
     state().pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -273,4 +273,3 @@ void CadEngine::upsertArrow(
     }
     if (historyStarted) commitHistoryEntry();
 }
-

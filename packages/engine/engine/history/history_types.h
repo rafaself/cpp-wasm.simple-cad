@@ -36,6 +36,7 @@ struct EntitySnapshot {
     
     // Text specific
     TextPayloadHeader textHeader;  
+    float textElevationZ = 0.0f;
     std::vector<TextRunPayload> textRuns; 
     std::string textContent; 
 

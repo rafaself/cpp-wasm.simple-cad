@@ -82,6 +82,8 @@ export interface TextProperties {
   align: TextAlign;
   /** Width constraint (used when boxMode == FixedWidth) */
   constraintWidth: number;
+  /** Geometric elevation (WU) */
+  elevationZ: number;
 }
 
 /**
@@ -370,6 +372,7 @@ export function createSimpleTextPayload(
     boxMode: options?.boxMode ?? TextBoxMode.AutoWidth,
     align: options?.align ?? TextAlign.Left,
     constraintWidth: options?.constraintWidth ?? 0,
+    elevationZ: options?.elevationZ ?? 0,
     runs: [createDefaultRun(content, fontSize, colorRGBA)],
     content,
   };

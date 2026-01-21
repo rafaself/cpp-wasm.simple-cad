@@ -123,6 +123,10 @@ public:
     bool canRedo() const noexcept;
     void undo();
     void redo();
+    bool beginHistoryEntry();
+    void commitHistoryEntry();
+    void discardHistoryEntry();
+    bool rollbackHistoryEntry();
 
     engine::protocol::EventBufferMeta pollEvents(std::uint32_t maxEvents);
     void ackResync(std::uint32_t resyncGeneration);
@@ -154,6 +158,8 @@ public:
 
     // Entity transform queries and mutations (for inspector panel)
     engine::protocol::EntityTransform getEntityTransform(std::uint32_t entityId) const;
+    bool tryGetEntityGeomZ(std::uint32_t entityId, float& outZ) const;
+    bool setEntityGeomZ(std::uint32_t entityId, float z);
     void setEntityPosition(std::uint32_t entityId, float x, float y);
     void setEntitySize(std::uint32_t entityId, float width, float height);
     void setEntityRotation(std::uint32_t entityId, float rotationDeg);
@@ -216,9 +222,6 @@ private:
     void recordOrderChanged();
     void recordHistoryChanged();
     void clearHistory();
-    bool beginHistoryEntry();
-    void commitHistoryEntry();
-    void discardHistoryEntry();
     void pushHistoryEntry(HistoryEntry&& entry);
     void markEntityChange(std::uint32_t id);
     void markLayerChange();

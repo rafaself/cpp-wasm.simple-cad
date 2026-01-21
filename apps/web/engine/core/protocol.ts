@@ -308,8 +308,8 @@ export const OVERLAY_PRIMITIVE_LAYOUT = {
 } as const;
 
 export const PROTOCOL_VERSION = 4 as const;
-export const COMMAND_VERSION = 3 as const;
-export const SNAPSHOT_VERSION = 3 as const; // v3: Added rot, sx, sy to RectRec for flip support
+export const COMMAND_VERSION = 4 as const;
+export const SNAPSHOT_VERSION = 4 as const; // v4: Added elevationZ to persisted entity records
 export const EVENT_STREAM_VERSION = 1 as const;
 
 export const REQUIRED_FEATURE_FLAGS =
@@ -490,11 +490,11 @@ const computeAbiHash = (): number => {
 
   h = hashStruct(h, 0x5300000b, 18, [0, 4, 8, 12, 13, 14, 15, 16]);
 
-  h = hashStruct(h, 0x5300000c, 56, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52]);
+  h = hashStruct(h, 0x5300000c, 60, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56]);
 
-  h = hashStruct(h, 0x5300000d, 40, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36]);
+  h = hashStruct(h, 0x5300000d, 44, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40]);
 
-  h = hashStruct(h, 0x5300000e, 32, [0, 4, 8, 12, 16, 20, 24, 28]);
+  h = hashStruct(h, 0x5300000e, 36, [0, 4, 8, 12, 16, 20, 24, 28, 32]);
 
   h = hashStruct(h, 0x5300000f, 8, [0, 4]);
 
@@ -503,13 +503,13 @@ const computeAbiHash = (): number => {
   h = hashStruct(
     h,
     0x53000011,
-    68,
-    [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64],
+    72,
+    [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68],
   );
 
-  h = hashStruct(h, 0x53000012, 72, [68]);
+  h = hashStruct(h, 0x53000012, 76, [68, 72]);
 
-  h = hashStruct(h, 0x53000013, 44, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40]);
+  h = hashStruct(h, 0x53000013, 48, [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44]);
 
   h = hashStruct(h, 0x53000014, 28, [0, 4, 8, 12, 13, 16, 20, 24]);
 

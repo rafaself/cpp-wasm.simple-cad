@@ -212,6 +212,7 @@ Baseline policy (mandatory for first release):
 **Done means:**
 - Written impact map and a signed-off representation decision.
 - No unresolved open questions about baseline Z semantics.
+- Phase 0 audit report captured in `docs/reports/2_5d_phase0_audit.md`.
 
 ### Phase 1: Atlas Data Model Enablement
 **Changes:**
@@ -286,7 +287,7 @@ Baseline policy (mandatory for first release):
 
 ### Phase 5: Hardening and Governance
 **Changes:**
-- Update docs: `docs/agents/engine-api.md`, `docs/agents/domain-api.md`, `docs/agents/frontend-patterns.md`.
+- Update docs: `docs/architecture/engine-api.md`, `docs/architecture/domain-api.md`, `docs/architecture/frontend-patterns.md`.
 - Update governance checks and manifest regeneration.
 - Add a deterministic scene fixture (stored in repo) and numeric performance budgets:
   - Baseline fixture (example): 10k lines, 2k texts, 1k polylines.

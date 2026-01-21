@@ -75,6 +75,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 h = hashF32(h, r->y);
                 h = hashF32(h, r->w);
                 h = hashF32(h, r->h);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->r);
                 h = hashF32(h, r->g);
                 h = hashF32(h, r->b);
@@ -94,6 +95,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 h = hashF32(h, r->y0);
                 h = hashF32(h, r->x1);
                 h = hashF32(h, r->y1);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->r);
                 h = hashF32(h, r->g);
                 h = hashF32(h, r->b);
@@ -106,6 +108,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 const PolyRec* r = state().entityManager_.getPolyline(id);
                 if (!r) break;
                 h = hashU32(h, r->count);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->r);
                 h = hashF32(h, r->g);
                 h = hashF32(h, r->b);
@@ -136,6 +139,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 h = hashF32(h, r->cy);
                 h = hashF32(h, r->rx);
                 h = hashF32(h, r->ry);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->rot);
                 h = hashF32(h, r->sx);
                 h = hashF32(h, r->sy);
@@ -158,6 +162,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 h = hashF32(h, r->cy);
                 h = hashF32(h, r->rx);
                 h = hashF32(h, r->ry);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->rot);
                 h = hashF32(h, r->sx);
                 h = hashF32(h, r->sy);
@@ -181,6 +186,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 h = hashF32(h, r->ay);
                 h = hashF32(h, r->bx);
                 h = hashF32(h, r->by);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->head);
                 h = hashF32(h, r->sr);
                 h = hashF32(h, r->sg);
@@ -195,6 +201,7 @@ engine::protocol::DocumentDigest CadEngine::getDocumentDigest() const noexcept {
                 if (!r) break;
                 h = hashF32(h, r->x);
                 h = hashF32(h, r->y);
+                h = hashF32(h, r->elevationZ);
                 h = hashF32(h, r->rotation);
                 h = hashU32(h, static_cast<std::uint32_t>(r->boxMode));
                 h = hashU32(h, static_cast<std::uint32_t>(r->align));

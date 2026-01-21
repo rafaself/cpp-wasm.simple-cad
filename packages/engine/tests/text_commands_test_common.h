@@ -33,7 +33,7 @@ public:
 
     void writeHeader(std::uint32_t commandCount) {
         pushU32(0x43445745); // magic "EWDC"
-        pushU32(3);          // version
+        pushU32(4);          // version
         pushU32(commandCount);
         pushU32(0);          // padding
     }
