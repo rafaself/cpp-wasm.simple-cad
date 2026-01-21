@@ -80,6 +80,13 @@ Baseline policy (mandatory for first release):
 - elevationZ uses the same canonical world units (WU) as XY and MUST be finite (no NaN/Inf).
 - If a safe numeric range is required for stability, it MUST be documented and enforced.
 
+### 4.9 Topological Operations (Normative)
+- In 2D top-down mode, topological operations (trim/extend/split/fillet/boolean) MUST use projected XY intersections and MUST ignore geomZ.
+- If the operation modifies an existing entity, the result MUST preserve the primary operand's geomZ bit-exact.
+- If the operation creates new persisted geometry, the result MUST use geomZ = Active Plane Elevation unless a tool contract explicitly specifies otherwise.
+- geomZ MUST NOT be interpolated.
+- geomZ MUST NOT implicitly inherit from the snap target.
+
 ## 5. Baseline Representation Decision (Locked)
 
 ### 5.1 Decision
@@ -87,6 +94,10 @@ Baseline policy (mandatory for first release):
 - Add **elevationZ (float)** at the entity record level.
 - Constant elevation per entity is the baseline.
 - For composite/group entities, geomZ is defined at the persisted entity record level; children preserve their own geomZ unless the entity type explicitly defines inherited elevation (must be documented per type).
+- During standard transform sessions (move/rotate/scale), geomZ is preserved for all involved entities (including children).
+- Any Z change for a group/selection MUST occur only via explicit elevation commands:
+  - Recommended mode: apply `geomZ := geomZ + deltaZ` to all members.
+  - Absolute set mode is allowed only if explicitly documented per tool.
 
 ### 5.2 Out of Scope for Baseline
 - Per-vertex Z is OUT OF SCOPE for initial enablement.
@@ -102,6 +113,7 @@ Baseline policy (mandatory for first release):
 
 - Binary layouts MUST include geomZ in **all persisted entity records** (no optional Z fields).
 - Binary layouts MUST be fixed-size/packed as defined in the manifest; no branching decode in hot paths.
+- New fields (elevationZ) MUST respect packed/aligned layout; offsets and sizes MUST be validated via `static_assert(sizeof/offsetof)` in C++ and manifest/schema checks.
 - Versioned schemas MUST be updated in `engine-api.md` and manifest.
 - Pointermove paths MUST remain session calls with no allocations or serialization.
 - JS helpers may exist but MUST not introduce new object churn on hot paths.
@@ -138,6 +150,8 @@ Baseline policy (mandatory for first release):
 - Snapshot layout includes elevationZ for entities.
 - Snapshot version bump; no compatibility shims.
 - Update serializers/deserializers and version checks.
+- Provide an offline fixture/asset upgrader to update repository-managed fixtures/dev files to the new snapshot version (inject `elevationZ = 0` or default).
+  - This is **not** runtime migration; it is offline tooling only.
 
 **Done means:**
 - Save/load round-trip preserves geomZ.
