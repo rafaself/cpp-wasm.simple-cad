@@ -143,7 +143,9 @@ The project MUST adopt a single canonical measurement convention to avoid drift 
 - Atlas operates in **World Units (WU)** as its canonical internal unit.
 - External units (m/mm/cm/ft/in) MUST be converted at the **Runtime Facades / import/export** boundary, never inside Atlas.
 - Current DXF import mapping assumes **1m = 100 WU**; if this mapping changes, update import adapters and tests together.
-- Domain (Electrical) parameters that represent physical lengths/heights MUST be stored in WU or converted to WU at the boundary.
+- Domain kernels MUST remain **engine-agnostic** and MUST NOT adopt Atlas WU as a canonical internal representation.
+- Domain parameters that represent physical quantities (length/height/etc.) SHOULD be stored in domain-native units (prefer **SI**, e.g., meters)
+  and converted to/from WU only at the **IntegrationRuntime / Runtime Facades / import-export** boundary.
 
 **Numeric Precision:**
 - Atlas MUST define and document which numeric type is canonical for geometry (e.g., `float` vs `double`) and keep it consistent.
@@ -158,7 +160,8 @@ The project MUST adopt a single canonical measurement convention to avoid drift 
 
 **Rounding / Display Rules:**
 - UI formatting (decimals, unit suffix) is presentation-only and MUST NOT change canonical stored values.
-- Any “grid step” or “unit step” used by tools MUST be an Atlas-owned parameter or an Atlas-derived effective value.
+- UI MAY store user preferences (e.g., grid step in mm), but the **effective** grid/snap step used by tools MUST be computed and enforced by Atlas.
+- Preferences MUST be synchronized via Runtime Facades; the frontend MUST NOT implement independent “effective step” math.
 
 ---
 
@@ -465,6 +468,7 @@ The global project save is composed as:
 | `docs/agents/frontend-patterns.md` | React patterns, hot path rules, rendering orchestration |
 | `docs/ENGINE_FIRST_GOVERNANCE.md`  | Boundary enforcement policy + CI gates                  |
 | `docs/AGENT_RUNBOOK.md`            | Agent operating checklist                               |
+| `docs/plans/2_5d_adoption_plan.md` | Canonical plan for introducing geometric Z without 3D viewport |
 
 ---
 
@@ -479,7 +483,9 @@ The following checks MUST pass before merge:
 
 2. **Domain contamination checks**
 
-* No domain identifiers or standards references inside `packages/engine/**` (enforced by CI string scan).
+* No domain identifiers or standards references inside `packages/engine/**` (enforced by CI scan on **source code**).
+  - The scan MUST exclude docs/fixtures or use an explicit allowlist to avoid false positives.
+  - Any exception MUST be justified and recorded (allowlist entry + rationale).
 * No domain types or headers referenced by Atlas public headers.
 * Domain kernels MUST NOT import Atlas internals (only facades/contracts).
 

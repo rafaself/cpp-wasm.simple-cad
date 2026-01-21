@@ -27,6 +27,7 @@ No 3D rendering or navigation is introduced in this plan.
 ## 3. Definitions (Normative)
 
 - **Geometric Z (geomZ):** Canonical elevation stored in Atlas for each persisted entity. Used for geometry truth and future 3D.
+- **Implementation field name:** `elevationZ` is the storage field representing geomZ in persisted entity records.
 - **Draw Order (drawOrder):** Visual stacking order for 2D rendering. Independent from geomZ.
 - **Semantic Height:** Domain parameter owned by Electrical Core (mounting height, standards). Not stored in Atlas.
 - **Render Vertex Z:** Per-vertex value used by the renderer for draw order or batching. Not geometric Z.
@@ -46,25 +47,38 @@ Baseline policy (mandatory for first release):
 - Snapped XY MUST be the computed snap solution in XY derived from the chosen snap target (vertex/edge/midpoint/grid/etc.).
 - Result geomZ MUST be the Active Plane Elevation (default 0).
 - The only way to copy target geomZ is an explicit command (e.g., "match target elevation").
+- "Match target elevation" MUST be exposed only as an explicit tool mode/modifier routed via facades; it MUST NOT be an implicit default.
 
-### 4.3 Transforms
+### 4.3 Creation, Duplication, and Import
+- Creation default: new persisted entities MUST take geomZ = Active Plane Elevation at creation time.
+- Duplicate/copy/paste MUST preserve geomZ bit-exact from the source entity and MUST NOT rebind to Active Plane Elevation.
+- Import adapters MUST assign geomZ deterministically (default 0 unless explicitly specified by import metadata).
+
+### 4.4 Transforms
 - Move/translate MUST apply to XY; geomZ changes ONLY via explicit elevation APIs.
 - Rotate/scale MUST operate in XY only and MUST preserve geomZ exactly.
 - Transform math lives in Atlas; JS must not compute canonical geometry.
 
-### 4.4 Draw Order and Rendering
+### 4.5 Draw Order and Rendering
 - drawOrder remains the only 2D stacking authority.
 - geomZ MUST NOT affect draw order or visual stacking in 2D.
 - Render vertex Z MUST remain a rendering concern only.
+- Render vertex Z MUST NOT be used as input to any canonical query/command.
 
-### 4.5 Persistence and Compatibility
+### 4.6 Persistence and Compatibility
 - Snapshot layout changes MUST be explicit and versioned.
 - Older snapshot versions MUST fail fast; no runtime migration.
 - Unsupported versions MUST fail fast with a specific error code/event for frontend handling.
+- Unsupported versions MUST emit a single canonical event (e.g., `SnapshotVersionUnsupported`) including foundVersion and expected/supported version information.
+- Snapshot load MUST reject corrupted records (invalid counts/sizes or NaN/Inf fields).
 
-### 4.6 Persisted vs Ephemeral Entities
+### 4.7 Persisted vs Ephemeral Entities
 - All rules in section 4 apply to persisted CAD entities.
 - Ephemeral overlays/previews may carry render-only depth but MUST NOT persist geomZ unless committed via Atlas.
+
+### 4.8 Elevation Sanity (Normative)
+- elevationZ uses the same canonical world units (WU) as XY and MUST be finite (no NaN/Inf).
+- If a safe numeric range is required for stability, it MUST be documented and enforced.
 
 ## 5. Baseline Representation Decision (Locked)
 
@@ -72,6 +86,7 @@ Baseline policy (mandatory for first release):
 - Keep **Point2** for XY.
 - Add **elevationZ (float)** at the entity record level.
 - Constant elevation per entity is the baseline.
+- For composite/group entities, geomZ is defined at the persisted entity record level; children preserve their own geomZ unless the entity type explicitly defines inherited elevation (must be documented per type).
 
 ### 5.2 Out of Scope for Baseline
 - Per-vertex Z is OUT OF SCOPE for initial enablement.
@@ -85,11 +100,16 @@ Baseline policy (mandatory for first release):
 
 ## 6. Contract Changes (WASM + Runtime Facades)
 
-- Binary layouts MUST include geomZ in all relevant records (no optional Z fields).
+- Binary layouts MUST include geomZ in **all persisted entity records** (no optional Z fields).
 - Binary layouts MUST be fixed-size/packed as defined in the manifest; no branching decode in hot paths.
 - Versioned schemas MUST be updated in `engine-api.md` and manifest.
 - Pointermove paths MUST remain session calls with no allocations or serialization.
 - JS helpers may exist but MUST not introduce new object churn on hot paths.
+- Minimum elevation API surface (names are placeholders):
+  - `getEntityGeomZ(EntityId) -> float`
+  - `setEntityGeomZ(EntityId, z) -> void` (cold path / command buffer)
+  - `setActivePlaneElevation(z) -> void` (optional; if cached, must be derived from facade input)
+- `setEntityGeomZ` MUST be cold-path, undoable as a single atomic command, and MUST NOT be invoked from pointermove/update loops.
 
 ## 7. Implementation Phases and Acceptance Criteria
 
@@ -146,6 +166,9 @@ Baseline policy (mandatory for first release):
 **Changes:**
 - Update docs: `docs/agents/engine-api.md`, `docs/agents/domain-api.md`, `docs/agents/frontend-patterns.md`.
 - Update governance checks and manifest regeneration.
+- Add a deterministic scene fixture (stored in repo) and numeric performance budgets:
+  - Baseline fixture (example): 10k lines, 2k texts, 1k polylines.
+  - Thresholds (placeholder values, must be calibrated): transform update <= 250 us, picking query <= 300 us, incremental rebuild <= 2 ms.
 - Run performance budgets and regression tests.
 
 **Done means:**
