@@ -29,6 +29,15 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
   const isTool = item.kind === 'tool';
   const isStub = item.status === 'stub';
 
+  const widthClasses = {
+    sm: 'ribbon-large-button--sm',
+    md: 'ribbon-large-button--md',
+    lg: 'ribbon-large-button--lg',
+    auto: 'ribbon-large-button--auto',
+  };
+
+  const widthClass = item.width ? widthClasses[item.width] : '';
+
   // Variant Mapping
   let variant: ButtonVariant = 'ghost'; // Default for large buttons usually (or secondary)
   // Legacy used 'bg-surface-2' which is secondary.
@@ -59,7 +68,7 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
   return (
       <Button
         variant={variant}
-        className={`ribbon-large-button flex-col justify-center gap-1 ${hoverClass}${debugClass}`}
+        className={`ribbon-large-button ${widthClass} flex-col justify-center gap-1 ${hoverClass}${debugClass}`}
         disabled={isStub}
         onClick={handleClick}
         onMouseEnter={() => {

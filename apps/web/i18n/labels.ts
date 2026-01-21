@@ -127,6 +127,9 @@ export const LABELS = {
     disabledHint: 'Selecione um elemento ou ative uma ferramenta de desenho para editar cores',
     restoreTooltip: 'Restaurar cor da camada "{layer}"',
   },
+  drawingInspector: {
+    emptyState: 'Selecione um objeto para ver as características do desenho.',
+  },
   disciplines: {
     architecture: 'Arquitetura',
     electrical: 'Elétrica',

@@ -21,6 +21,7 @@ import { EngineEntityFlags } from '@/engine/core/EngineRuntime';
 import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useEntityTransform, useSetEntityTransform } from '@/engine/core/useEntityTransform';
+import { LABELS } from '@/i18n/labels';
 
 import { TransformField } from './TransformField';
 
@@ -40,7 +41,7 @@ export const DrawingInspectorPanel: React.FC = () => {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-text-muted -mt-8">
         <Icon icon={PenTool} size="xxl" aria-hidden className="text-text-muted" />
-        <p className="text-body cursor-default">Selecione um objeto para ver as características do desenho.</p>
+        <p className="text-body cursor-default">{LABELS.drawingInspector.emptyState}</p>
       </div>
     );
   }

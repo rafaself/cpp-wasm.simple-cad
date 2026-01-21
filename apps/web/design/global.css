@@ -211,6 +211,22 @@
   box-sizing: border-box;
 }
 
+.ribbon-large-button--sm {
+  width: var(--ribbon-control-width-lg-sm);
+}
+
+.ribbon-large-button--md {
+  width: var(--ribbon-control-width-lg-md);
+}
+
+.ribbon-large-button--lg {
+  width: var(--ribbon-control-width-lg-lg);
+}
+
+.ribbon-large-button--auto {
+  width: auto;
+}
+
 .ribbon-large-label {
   font-size: var(--ribbon-label-font-size);
   line-height: 1.1;
