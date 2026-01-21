@@ -318,6 +318,14 @@ void CadEngine::commitHistoryEntry() {
     }
 }
 
+bool CadEngine::rollbackHistoryEntry() {
+    if (!state().historyManager_.rollbackEntry(*this)) {
+        return false;
+    }
+    state().generation++;
+    return true;
+}
+
 engine::protocol::EventBufferMeta CadEngine::pollEvents(std::uint32_t maxEvents) {
     flushPendingEvents();
 
@@ -374,4 +382,3 @@ void CadEngine::ackResync(std::uint32_t resyncGeneration) {
     state().pendingOrderChanged_ = false;
     state().pendingHistoryChanged_ = false;
 }
-

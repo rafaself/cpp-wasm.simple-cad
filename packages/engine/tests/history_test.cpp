@@ -50,6 +50,34 @@ TEST(HistoryTest, UndoRedoSequence) {
     EXPECT_EQ(findRect(engine, 1), nullptr);
 }
 
+TEST(HistoryTest, GeomZPreservedThroughUndoRedo) {
+    CadEngine engine;
+    engine.clear();
+
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.2f, 0.3f, 0.4f, 1.0f);
+    ASSERT_TRUE(CadEngineTestAccessor::setEntityGeomZ(engine, 1, 2.5f));
+
+    float z = 0.0f;
+    ASSERT_TRUE(CadEngineTestAccessor::tryGetEntityGeomZ(engine, 1, z));
+    EXPECT_FLOAT_EQ(z, 2.5f);
+
+    engine.setEntityPosition(1, 10.0f, 0.0f);
+    ASSERT_TRUE(CadEngineTestAccessor::tryGetEntityGeomZ(engine, 1, z));
+    EXPECT_FLOAT_EQ(z, 2.5f);
+
+    engine.undo();
+    ASSERT_TRUE(CadEngineTestAccessor::tryGetEntityGeomZ(engine, 1, z));
+    EXPECT_FLOAT_EQ(z, 2.5f);
+
+    engine.undo();
+    ASSERT_TRUE(CadEngineTestAccessor::tryGetEntityGeomZ(engine, 1, z));
+    EXPECT_FLOAT_EQ(z, 0.0f);
+
+    engine.redo();
+    ASSERT_TRUE(CadEngineTestAccessor::tryGetEntityGeomZ(engine, 1, z));
+    EXPECT_FLOAT_EQ(z, 2.5f);
+}
+
 TEST(HistoryTest, SnapshotRoundTripUndoRedo) {
     CadEngine engine;
     engine.clear();

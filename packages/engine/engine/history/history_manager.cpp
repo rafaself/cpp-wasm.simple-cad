@@ -268,6 +268,19 @@ bool HistoryManager::commitEntry(std::uint32_t nextEntityId, std::uint32_t curre
     return true;
 }
 
+bool HistoryManager::rollbackEntry(CadEngine& engine) {
+    if (!transaction_.active) return false;
+    HistoryEntry entry = std::move(transaction_.entry);
+    transaction_.active = false;
+    transaction_.entityIndex.clear();
+
+    const bool wasSuppressed = suppressed_;
+    suppressed_ = true;
+    applyHistoryEntry(entry, false, engine);
+    suppressed_ = wasSuppressed;
+    return true;
+}
+
 void HistoryManager::applyLayerSnapshot(const std::vector<engine::LayerSnapshot>& layers) {
     std::vector<LayerRecord> records;
     std::vector<std::string> names;
@@ -426,6 +439,7 @@ bool HistoryManager::captureEntitySnapshot(std::uint32_t id, EntitySnapshot& out
             out.textHeader.boxMode = static_cast<std::uint8_t>(rec->boxMode);
             out.textHeader.align = static_cast<std::uint8_t>(rec->align);
             out.textHeader.constraintWidth = rec->constraintWidth;
+            out.textElevationZ = rec->elevationZ;
 
             const auto& runs = textSystem_.store.getRuns(id);
             out.textRuns.clear();
@@ -464,11 +478,17 @@ void HistoryManager::applyEntitySnapshot(const EntitySnapshot& snap, CadEngine& 
                 snap.rect.r, snap.rect.g, snap.rect.b, snap.rect.a,
                 snap.rect.sr, snap.rect.sg, snap.rect.sb, snap.rect.sa,
                 snap.rect.strokeEnabled, snap.rect.strokeWidthPx);
+            if (const auto it = entityManager_.entities.find(id); it != entityManager_.entities.end()) {
+                entityManager_.rects[it->second.index].elevationZ = snap.rect.elevationZ;
+            }
             break;
         case EntityKind::Line:
             engine.upsertLine(id, snap.line.x0, snap.line.y0, snap.line.x1, snap.line.y1,
                 snap.line.r, snap.line.g, snap.line.b, snap.line.a,
                 snap.line.enabled, snap.line.strokeWidthPx);
+            if (const auto it = entityManager_.entities.find(id); it != entityManager_.entities.end()) {
+                entityManager_.lines[it->second.index].elevationZ = snap.line.elevationZ;
+            }
             break;
         case EntityKind::Polyline: {
             const std::uint32_t count = static_cast<std::uint32_t>(snap.points.size());
@@ -499,6 +519,7 @@ void HistoryManager::applyEntitySnapshot(const EntitySnapshot& snap, CadEngine& 
                 pl.sb = snap.poly.sb;
                 pl.sa = snap.poly.sa;
                 pl.strokeEnabled = snap.poly.strokeEnabled;
+                pl.elevationZ = snap.poly.elevationZ;
             }
             break;
         }
@@ -508,6 +529,9 @@ void HistoryManager::applyEntitySnapshot(const EntitySnapshot& snap, CadEngine& 
                 snap.circle.r, snap.circle.g, snap.circle.b, snap.circle.a,
                 snap.circle.sr, snap.circle.sg, snap.circle.sb, snap.circle.sa,
                 snap.circle.strokeEnabled, snap.circle.strokeWidthPx);
+            if (const auto it = entityManager_.entities.find(id); it != entityManager_.entities.end()) {
+                entityManager_.circles[it->second.index].elevationZ = snap.circle.elevationZ;
+            }
             break;
         case EntityKind::Polygon:
             engine.upsertPolygon(id, snap.polygon.cx, snap.polygon.cy, snap.polygon.rx, snap.polygon.ry,
@@ -515,11 +539,17 @@ void HistoryManager::applyEntitySnapshot(const EntitySnapshot& snap, CadEngine& 
                 snap.polygon.r, snap.polygon.g, snap.polygon.b, snap.polygon.a,
                 snap.polygon.sr, snap.polygon.sg, snap.polygon.sb, snap.polygon.sa,
                 snap.polygon.strokeEnabled, snap.polygon.strokeWidthPx);
+            if (const auto it = entityManager_.entities.find(id); it != entityManager_.entities.end()) {
+                entityManager_.polygons[it->second.index].elevationZ = snap.polygon.elevationZ;
+            }
             break;
         case EntityKind::Arrow:
             engine.upsertArrow(id, snap.arrow.ax, snap.arrow.ay, snap.arrow.bx, snap.arrow.by, snap.arrow.head,
                 snap.arrow.sr, snap.arrow.sg, snap.arrow.sb, snap.arrow.sa,
                 snap.arrow.strokeEnabled, snap.arrow.strokeWidthPx);
+            if (const auto it = entityManager_.entities.find(id); it != entityManager_.entities.end()) {
+                entityManager_.arrows[it->second.index].elevationZ = snap.arrow.elevationZ;
+            }
             break;
         case EntityKind::Text: {
             const std::uint32_t runCount = static_cast<std::uint32_t>(snap.textRuns.size());
@@ -534,6 +564,9 @@ void HistoryManager::applyEntitySnapshot(const EntitySnapshot& snap, CadEngine& 
                     runCount,
                     contentLength == 0 ? "" : snap.textContent.data(),
                     contentLength);
+            if (TextRec* rec = textSystem_.store.getTextMutable(id)) {
+                rec->elevationZ = snap.textElevationZ;
+            }
             break;
         }
         default: break;
@@ -577,7 +610,7 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
         out.push_back(v);
     };
 
-    appendU32(2);
+    appendU32(3);
     appendU32(static_cast<std::uint32_t>(history_.size()));
     appendU32(static_cast<std::uint32_t>(cursor_));
     appendU32(0);
@@ -680,17 +713,20 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                         appendF32(snap.rect.r); appendF32(snap.rect.g); appendF32(snap.rect.b); appendF32(snap.rect.a);
                         appendF32(snap.rect.sr); appendF32(snap.rect.sg); appendF32(snap.rect.sb); appendF32(snap.rect.sa);
                         appendF32(snap.rect.strokeEnabled); appendF32(snap.rect.strokeWidthPx);
+                        appendF32(snap.rect.elevationZ);
                         break;
                     case EntityKind::Line:
                         appendF32(snap.line.x0); appendF32(snap.line.y0); appendF32(snap.line.x1); appendF32(snap.line.y1);
                         appendF32(snap.line.r); appendF32(snap.line.g); appendF32(snap.line.b); appendF32(snap.line.a);
                         appendF32(snap.line.enabled); appendF32(snap.line.strokeWidthPx);
+                        appendF32(snap.line.elevationZ);
                         break;
                     case EntityKind::Polyline:
                         appendU32(static_cast<std::uint32_t>(snap.points.size()));
                         appendF32(snap.poly.r); appendF32(snap.poly.g); appendF32(snap.poly.b); appendF32(snap.poly.a);
                         appendF32(snap.poly.sr); appendF32(snap.poly.sg); appendF32(snap.poly.sb); appendF32(snap.poly.sa);
                         appendF32(snap.poly.enabled); appendF32(snap.poly.strokeEnabled); appendF32(snap.poly.strokeWidthPx);
+                        appendF32(snap.poly.elevationZ);
                         for (const auto& pt : snap.points) { appendF32(pt.x); appendF32(pt.y); }
                         break;
                     case EntityKind::Circle:
@@ -699,6 +735,7 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                         appendF32(snap.circle.r); appendF32(snap.circle.g); appendF32(snap.circle.b); appendF32(snap.circle.a);
                         appendF32(snap.circle.sr); appendF32(snap.circle.sg); appendF32(snap.circle.sb); appendF32(snap.circle.sa);
                         appendF32(snap.circle.strokeEnabled); appendF32(snap.circle.strokeWidthPx);
+                        appendF32(snap.circle.elevationZ);
                         break;
                     case EntityKind::Polygon:
                         appendF32(snap.polygon.cx); appendF32(snap.polygon.cy); appendF32(snap.polygon.rx); appendF32(snap.polygon.ry);
@@ -707,12 +744,14 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                         appendF32(snap.polygon.r); appendF32(snap.polygon.g); appendF32(snap.polygon.b); appendF32(snap.polygon.a);
                         appendF32(snap.polygon.sr); appendF32(snap.polygon.sg); appendF32(snap.polygon.sb); appendF32(snap.polygon.sa);
                         appendF32(snap.polygon.strokeEnabled); appendF32(snap.polygon.strokeWidthPx);
+                        appendF32(snap.polygon.elevationZ);
                         break;
                      case EntityKind::Arrow:
                         appendF32(snap.arrow.ax); appendF32(snap.arrow.ay); appendF32(snap.arrow.bx); appendF32(snap.arrow.by);
                         appendF32(snap.arrow.head);
                         appendF32(snap.arrow.sr); appendF32(snap.arrow.sg); appendF32(snap.arrow.sb); appendF32(snap.arrow.sa);
                         appendF32(snap.arrow.strokeEnabled); appendF32(snap.arrow.strokeWidthPx);
+                        appendF32(snap.arrow.elevationZ);
                         break;
                     case EntityKind::Text: {
                         const std::uint32_t runCount = static_cast<std::uint32_t>(snap.textRuns.size());
@@ -729,6 +768,7 @@ std::vector<std::uint8_t> HistoryManager::encodeBytes() const {
                         const std::size_t o = out.size();
                         out.resize(o + contentLength);
                         if (contentLength > 0) std::memcpy(out.data() + o, snap.textContent.data(), contentLength);
+                        appendF32(snap.textElevationZ);
                         break;
                     }
                     default: break;
@@ -769,7 +809,8 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
 
     std::uint32_t ver, count, curs, reserved;
     if (!readU32Local(ver) || !readU32Local(count) || !readU32Local(curs) || !readU32Local(reserved)) return;
-    if (ver != 2) return;
+    if (ver != 2 && ver != 3) return;
+    const bool hasElevationZ = (ver >= 3);
 
     history_.resize(count);
     cursor_ = curs;
@@ -863,11 +904,21 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                             !readF32Local(snap.rect.r) || !readF32Local(snap.rect.g) || !readF32Local(snap.rect.b) || !readF32Local(snap.rect.a) ||
                             !readF32Local(snap.rect.sr) || !readF32Local(snap.rect.sg) || !readF32Local(snap.rect.sb) || !readF32Local(snap.rect.sa) ||
                             !readF32Local(snap.rect.strokeEnabled) || !readF32Local(snap.rect.strokeWidthPx)) return false;
+                        if (hasElevationZ) {
+                            if (!readF32Local(snap.rect.elevationZ)) return false;
+                        } else {
+                            snap.rect.elevationZ = 0.0f;
+                        }
                         break;
                     case EntityKind::Line:
                         if (!readF32Local(snap.line.x0) || !readF32Local(snap.line.y0) || !readF32Local(snap.line.x1) || !readF32Local(snap.line.y1) ||
                             !readF32Local(snap.line.r) || !readF32Local(snap.line.g) || !readF32Local(snap.line.b) || !readF32Local(snap.line.a) ||
                             !readF32Local(snap.line.enabled) || !readF32Local(snap.line.strokeWidthPx)) return false;
+                        if (hasElevationZ) {
+                            if (!readF32Local(snap.line.elevationZ)) return false;
+                        } else {
+                            snap.line.elevationZ = 0.0f;
+                        }
                         break;
                     case EntityKind::Polyline: {
                         std::uint32_t pc;
@@ -875,6 +926,11 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                          if (!readF32Local(snap.poly.r) || !readF32Local(snap.poly.g) || !readF32Local(snap.poly.b) || !readF32Local(snap.poly.a) ||
                              !readF32Local(snap.poly.sr) || !readF32Local(snap.poly.sg) || !readF32Local(snap.poly.sb) || !readF32Local(snap.poly.sa) ||
                              !readF32Local(snap.poly.enabled) || !readF32Local(snap.poly.strokeEnabled) || !readF32Local(snap.poly.strokeWidthPx)) return false;
+                         if (hasElevationZ) {
+                             if (!readF32Local(snap.poly.elevationZ)) return false;
+                         } else {
+                             snap.poly.elevationZ = 0.0f;
+                         }
                          snap.points.resize(pc);
                          for (auto& pt : snap.points) if (!readF32Local(pt.x) || !readF32Local(pt.y)) return false;
                          snap.poly.count = pc;
@@ -887,6 +943,11 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                             !readF32Local(snap.circle.r) || !readF32Local(snap.circle.g) || !readF32Local(snap.circle.b) || !readF32Local(snap.circle.a) ||
                             !readF32Local(snap.circle.sr) || !readF32Local(snap.circle.sg) || !readF32Local(snap.circle.sb) || !readF32Local(snap.circle.sa) ||
                             !readF32Local(snap.circle.strokeEnabled) || !readF32Local(snap.circle.strokeWidthPx)) return false;
+                        if (hasElevationZ) {
+                            if (!readF32Local(snap.circle.elevationZ)) return false;
+                        } else {
+                            snap.circle.elevationZ = 0.0f;
+                        }
                         break;
                     case EntityKind::Polygon:
                          if (!readF32Local(snap.polygon.cx) || !readF32Local(snap.polygon.cy) || !readF32Local(snap.polygon.rx) || !readF32Local(snap.polygon.ry) ||
@@ -895,12 +956,22 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                             !readF32Local(snap.polygon.r) || !readF32Local(snap.polygon.g) || !readF32Local(snap.polygon.b) || !readF32Local(snap.polygon.a) ||
                             !readF32Local(snap.polygon.sr) || !readF32Local(snap.polygon.sg) || !readF32Local(snap.polygon.sb) || !readF32Local(snap.polygon.sa) ||
                             !readF32Local(snap.polygon.strokeEnabled) || !readF32Local(snap.polygon.strokeWidthPx)) return false;
+                        if (hasElevationZ) {
+                            if (!readF32Local(snap.polygon.elevationZ)) return false;
+                        } else {
+                            snap.polygon.elevationZ = 0.0f;
+                        }
                         break;
                     case EntityKind::Arrow:
                         if (!readF32Local(snap.arrow.ax) || !readF32Local(snap.arrow.ay) || !readF32Local(snap.arrow.bx) || !readF32Local(snap.arrow.by) ||
                             !readF32Local(snap.arrow.head) ||
                             !readF32Local(snap.arrow.sr) || !readF32Local(snap.arrow.sg) || !readF32Local(snap.arrow.sb) || !readF32Local(snap.arrow.sa) ||
                             !readF32Local(snap.arrow.strokeEnabled) || !readF32Local(snap.arrow.strokeWidthPx)) return false;
+                        if (hasElevationZ) {
+                            if (!readF32Local(snap.arrow.elevationZ)) return false;
+                        } else {
+                            snap.arrow.elevationZ = 0.0f;
+                        }
                         break;
                     case EntityKind::Text: {
                         std::uint32_t runCount, contentLength;
@@ -917,6 +988,11 @@ void HistoryManager::decodeBytes(const std::uint8_t* data, std::size_t len) {
                         if (offset + contentLength > len) return false;
                          snap.textContent.assign(reinterpret_cast<const char*>(data + offset), contentLength);
                          offset += contentLength;
+                        if (hasElevationZ) {
+                            if (!readF32Local(snap.textElevationZ)) return false;
+                        } else {
+                            snap.textElevationZ = 0.0f;
+                        }
                         break;
                     }
                     default: break;

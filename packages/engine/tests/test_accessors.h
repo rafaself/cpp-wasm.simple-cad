@@ -128,4 +128,12 @@ public:
     static std::uint32_t generation(const CadEngine& engine) {
         return engine.state().generation;
     }
+
+    static bool tryGetEntityGeomZ(const CadEngine& engine, std::uint32_t id, float& outZ) {
+        return engine.tryGetEntityGeomZ(id, outZ);
+    }
+
+    static bool setEntityGeomZ(CadEngine& engine, std::uint32_t id, float z) {
+        return engine.setEntityGeomZ(id, z);
+    }
 };

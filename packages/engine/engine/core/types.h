@@ -14,7 +14,7 @@ static constexpr std::size_t defaultSnapshotCapacityBytes = 1 * 1024 * 1024;
 // Snapshot/command format constants
 static constexpr std::uint32_t snapshotMagicEwc1 = 0x31435745; // "EWC1"
 static constexpr std::uint32_t snapshotMagicEsnp = 0x504E5345; // "ESNP"
-static constexpr std::uint32_t snapshotVersionEsnp = 3; // v3: Added rot, sx, sy to RectRec
+static constexpr std::uint32_t snapshotVersionEsnp = 4; // v4: Added elevationZ to persisted entity records
 static constexpr std::uint32_t commandMagicEwdc = 0x43445745; // "EWDC"
 static constexpr std::size_t snapshotHeaderBytesV2 = 8 * 4;
 static constexpr std::size_t snapshotHeaderBytesV3 = 11 * 4;
@@ -48,8 +48,9 @@ struct RectRec {
     float sr, sg, sb, sa; // stroke RGBA (runtime-only)
     float strokeEnabled; // 0 or 1 (runtime-only)
     float strokeWidthPx; // screen-space width (runtime-only)
+    float elevationZ; // geometric elevation (canonical)
 };
-struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; float strokeWidthPx; };
+struct LineRec { std::uint32_t id; float x0; float y0; float x1; float y1; float r, g, b, a; float enabled; float strokeWidthPx; float elevationZ; };
 struct PolyRec { 
     std::uint32_t id; 
     std::uint32_t offset; 
@@ -59,6 +60,7 @@ struct PolyRec {
     float enabled; 
     float strokeEnabled; 
     float strokeWidthPx; 
+    float elevationZ; // geometric elevation (canonical)
 };
 struct Point2 { float x; float y; };
 
@@ -72,6 +74,7 @@ struct CircleRec {
     float sr, sg, sb, sa; // stroke
     float strokeEnabled;
     float strokeWidthPx;
+    float elevationZ; // geometric elevation (canonical)
 };
 
 struct PolygonRec {
@@ -85,6 +88,7 @@ struct PolygonRec {
     float sr, sg, sb, sa; // stroke
     float strokeEnabled;
     float strokeWidthPx;
+    float elevationZ; // geometric elevation (canonical)
 };
 
 struct ArrowRec {
@@ -95,6 +99,7 @@ struct ArrowRec {
     float sr, sg, sb, sa;
     float strokeEnabled;
     float strokeWidthPx;
+    float elevationZ; // geometric elevation (canonical)
 };
 
 // ============================================================================
@@ -173,7 +178,43 @@ struct TextRec {
     std::uint32_t contentLength;  // UTF-8 byte length
     std::uint32_t runsOffset;     // Index into runs array
     std::uint32_t runsCount;      // Number of runs
+    float elevationZ;             // geometric elevation (canonical)
 };
+
+static constexpr std::size_t kRectRecSize = sizeof(std::uint32_t) + 18 * sizeof(float);
+static constexpr std::size_t kRectRecElevationOffset = sizeof(std::uint32_t) + 17 * sizeof(float);
+static_assert(sizeof(RectRec) == kRectRecSize, "RectRec size mismatch");
+static_assert(offsetof(RectRec, elevationZ) == kRectRecElevationOffset, "RectRec elevationZ offset mismatch");
+
+static constexpr std::size_t kLineRecSize = sizeof(std::uint32_t) + 11 * sizeof(float);
+static constexpr std::size_t kLineRecElevationOffset = sizeof(std::uint32_t) + 10 * sizeof(float);
+static_assert(sizeof(LineRec) == kLineRecSize, "LineRec size mismatch");
+static_assert(offsetof(LineRec, elevationZ) == kLineRecElevationOffset, "LineRec elevationZ offset mismatch");
+
+static constexpr std::size_t kPolyRecSize = 3 * sizeof(std::uint32_t) + 12 * sizeof(float);
+static constexpr std::size_t kPolyRecElevationOffset = 3 * sizeof(std::uint32_t) + 11 * sizeof(float);
+static_assert(sizeof(PolyRec) == kPolyRecSize, "PolyRec size mismatch");
+static_assert(offsetof(PolyRec, elevationZ) == kPolyRecElevationOffset, "PolyRec elevationZ offset mismatch");
+
+static constexpr std::size_t kCircleRecSize = sizeof(std::uint32_t) + 18 * sizeof(float);
+static constexpr std::size_t kCircleRecElevationOffset = sizeof(std::uint32_t) + 17 * sizeof(float);
+static_assert(sizeof(CircleRec) == kCircleRecSize, "CircleRec size mismatch");
+static_assert(offsetof(CircleRec, elevationZ) == kCircleRecElevationOffset, "CircleRec elevationZ offset mismatch");
+
+static constexpr std::size_t kPolygonRecSize = 2 * sizeof(std::uint32_t) + 18 * sizeof(float);
+static constexpr std::size_t kPolygonRecElevationOffset = 2 * sizeof(std::uint32_t) + 17 * sizeof(float);
+static_assert(sizeof(PolygonRec) == kPolygonRecSize, "PolygonRec size mismatch");
+static_assert(offsetof(PolygonRec, elevationZ) == kPolygonRecElevationOffset, "PolygonRec elevationZ offset mismatch");
+
+static constexpr std::size_t kArrowRecSize = sizeof(std::uint32_t) + 12 * sizeof(float);
+static constexpr std::size_t kArrowRecElevationOffset = sizeof(std::uint32_t) + 11 * sizeof(float);
+static_assert(sizeof(ArrowRec) == kArrowRecSize, "ArrowRec size mismatch");
+static_assert(offsetof(ArrowRec, elevationZ) == kArrowRecElevationOffset, "ArrowRec elevationZ offset mismatch");
+
+static constexpr std::size_t kTextRecSize = 6 * sizeof(std::uint32_t) + 11 * sizeof(float) + 4;
+static constexpr std::size_t kTextRecElevationOffset = 6 * sizeof(std::uint32_t) + 10 * sizeof(float) + 4;
+static_assert(sizeof(TextRec) == kTextRecSize, "TextRec size mismatch");
+static_assert(offsetof(TextRec, elevationZ) == kTextRecElevationOffset, "TextRec elevationZ offset mismatch");
 
 // Caret/selection state for a text entity
 struct TextCaretState {
@@ -251,10 +292,10 @@ enum class EngineError : std::uint32_t {
 };
 
 // Command Payloads (POD)
-struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx; };
-struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx; };
+struct RectPayload { float x, y, w, h, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ; };
+struct LinePayload { float x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx, elevationZ; };
 // Polyline payload is variable length, handled manually
-struct PolylinePayloadHeader { float r, g, b, a, enabled, strokeWidthPx; std::uint32_t count; std::uint32_t reserved; };
+struct PolylinePayloadHeader { float r, g, b, a, enabled, strokeWidthPx, elevationZ; std::uint32_t count; std::uint32_t reserved; };
 
 struct DrawOrderPayloadHeader {
     std::uint32_t count;
@@ -272,6 +313,7 @@ struct CirclePayload {
     float strokeR, strokeG, strokeB, strokeA;
     float strokeEnabled;
     float strokeWidthPx;
+    float elevationZ;
 };
 
 struct PolygonPayload {
@@ -283,6 +325,7 @@ struct PolygonPayload {
     float strokeR, strokeG, strokeB, strokeA;
     float strokeEnabled;
     float strokeWidthPx;
+    float elevationZ;
     std::uint32_t sides;
 };
 
@@ -293,6 +336,7 @@ struct ArrowPayload {
     float strokeR, strokeG, strokeB, strokeA;
     float strokeEnabled;
     float strokeWidthPx;
+    float elevationZ;
 };
 
 struct LayerStylePayload {

@@ -69,14 +69,16 @@ EngineError dispatchCommand(
             if (payloadByteCount != sizeof(RectPayload)) return EngineError::InvalidPayloadSize;
             RectPayload p;
             std::memcpy(&p, payload, sizeof(RectPayload));
-            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
+            if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
+            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
             if (payloadByteCount != sizeof(LinePayload)) return EngineError::InvalidPayloadSize;
             LinePayload p;
             std::memcpy(&p, payload, sizeof(LinePayload));
-            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
+            if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
+            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolyline): {
@@ -86,6 +88,7 @@ EngineError dispatchCommand(
             const std::uint32_t count = hdr.count;
             const std::size_t expected = sizeof(PolylinePayloadHeader) + static_cast<std::size_t>(count) * 8;
             if (expected != payloadByteCount) return EngineError::InvalidPayloadSize;
+            if (!std::isfinite(hdr.elevationZ)) return EngineError::InvalidPayloadSize;
             if (count < 2) {
                 self->deleteEntity(id);
                 break;
@@ -100,28 +103,31 @@ EngineError dispatchCommand(
                 ppos += sizeof(Point2);
                 self->state().entityManager_.points.push_back(pt);
             }
-            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled, hdr.strokeWidthPx);
+            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled, hdr.strokeWidthPx, hdr.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertCircle): {
             if (payloadByteCount != sizeof(CirclePayload)) return EngineError::InvalidPayloadSize;
             CirclePayload p;
             std::memcpy(&p, payload, sizeof(CirclePayload));
-            self->upsertCircle(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
+            if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
+            self->upsertCircle(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolygon): {
             if (payloadByteCount != sizeof(PolygonPayload)) return EngineError::InvalidPayloadSize;
             PolygonPayload p;
             std::memcpy(&p, payload, sizeof(PolygonPayload));
-            self->upsertPolygon(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.sides, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
+            if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
+            self->upsertPolygon(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.sides, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertArrow): {
             if (payloadByteCount != sizeof(ArrowPayload)) return EngineError::InvalidPayloadSize;
             ArrowPayload p;
             std::memcpy(&p, payload, sizeof(ArrowPayload));
-            self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
+            if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
+            self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetLayerStyle): {
@@ -181,14 +187,20 @@ EngineError dispatchCommand(
             std::memcpy(&hdr, payload, sizeof(TextPayloadHeader));
             
             const std::size_t runsSize = static_cast<std::size_t>(hdr.runCount) * sizeof(TextRunPayload);
-            const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength;
+            const std::size_t expected = sizeof(TextPayloadHeader) + runsSize + hdr.contentLength + sizeof(float);
             if (payloadByteCount != expected) return EngineError::InvalidPayloadSize;
             
             const TextRunPayload* runs = reinterpret_cast<const TextRunPayload*>(payload + sizeof(TextPayloadHeader));
             const char* content = reinterpret_cast<const char*>(payload + sizeof(TextPayloadHeader) + runsSize);
+            float elevationZ = 0.0f;
+            std::memcpy(&elevationZ, payload + sizeof(TextPayloadHeader) + runsSize + hdr.contentLength, sizeof(float));
+            if (!std::isfinite(elevationZ)) return EngineError::InvalidPayloadSize;
             
             if (!self->upsertText(id, hdr, runs, hdr.runCount, content, hdr.contentLength)) {
                 return EngineError::InvalidOperation;
+            }
+            if (TextRec* rec = self->state().textSystem_.store.getTextMutable(id)) {
+                rec->elevationZ = elevationZ;
             }
             ENGINE_LOG_DEBUG("[DEBUG] UpsertText: successfully stored text id=%u", id);
             break;

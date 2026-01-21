@@ -29,6 +29,7 @@ public:
     bool beginEntry(std::uint32_t nextEntityId);
     void discardEntry();
     bool commitEntry(std::uint32_t nextEntityId, std::uint32_t currentGeneration, const std::vector<std::uint32_t>& currentSelection);
+    bool rollbackEntry(CadEngine& engine);
 
     // Change markers
     void markEntityChange(std::uint32_t id);

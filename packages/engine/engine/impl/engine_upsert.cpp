@@ -28,7 +28,7 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
     upsertRect(id, x, y, w, h, r, g, b, a, r, g, b, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx) {
+void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx, float elevationZ) {
     const bool historyStarted = beginHistoryEntry();
     state().renderDirty = true;
     state().snapshotDirty = true;
@@ -40,12 +40,12 @@ void CadEngine::upsertRect(std::uint32_t id, float x, float y, float w, float h,
         markDrawOrderChange();
     }
     markEntityChange(id);
-    state().entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertRect(id, x, y, w, h, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx, elevationZ);
     if (isNew) {
         initShapeStyleOverrides(state().entityManager_, id, true, true, a > 0.5f ? 1.0f : 0.0f);
     }
 
-    RectRec rec; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
+    RectRec rec{}; rec.x = x; rec.y = y; rec.w = w; rec.h = h;
     state().pickSystem_.update(id, PickSystem::computeRectAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -63,7 +63,7 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
     upsertLine(id, x0, y0, x1, y1, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
+void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ) {
     const bool historyStarted = beginHistoryEntry();
     state().renderDirty = true;
     state().snapshotDirty = true;
@@ -75,12 +75,12 @@ void CadEngine::upsertLine(std::uint32_t id, float x0, float y0, float x1, float
         markDrawOrderChange();
     }
     markEntityChange(id);
-    state().entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx);
+    state().entityManager_.upsertLine(id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx, elevationZ);
     if (isNew) {
         initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
-    LineRec rec; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
+    LineRec rec{}; rec.x0 = x0; rec.y0 = y0; rec.x1 = x1; rec.y1 = y1;
     state().pickSystem_.update(id, PickSystem::computeLineAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -98,7 +98,7 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
     upsertPolyline(id, offset, count, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 }
 
-void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
+void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ) {
     const bool historyStarted = beginHistoryEntry();
     state().renderDirty = true;
     state().snapshotDirty = true;
@@ -110,12 +110,12 @@ void CadEngine::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint
         markDrawOrderChange();
     }
     markEntityChange(id);
-    state().entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx);
+    state().entityManager_.upsertPolyline(id, offset, count, r, g, b, a, enabled, strokeWidthPx, elevationZ);
     if (isNew) {
         initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
-    PolyRec rec; rec.offset = offset; rec.count = count;
+    PolyRec rec{}; rec.offset = offset; rec.count = count;
     state().pickSystem_.update(id, PickSystem::computePolylineAABB(rec, state().entityManager_.points));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -160,12 +160,12 @@ void CadEngine::upsertCircle(
         markDrawOrderChange();
     }
     markEntityChange(id);
-    state().entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertCircle(id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ);
     if (isNew) {
         initShapeStyleOverrides(state().entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
     }
 
-    CircleRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
+    CircleRec rec{}; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy;
     state().pickSystem_.update(id, PickSystem::computeCircleAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -211,12 +211,12 @@ void CadEngine::upsertPolygon(
         markDrawOrderChange();
     }
     markEntityChange(id);
-    state().entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertPolygon(id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ);
     if (isNew) {
         initShapeStyleOverrides(state().entityManager_, id, true, true, fillA > 0.5f ? 1.0f : 0.0f);
     }
 
-    PolygonRec rec; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
+    PolygonRec rec{}; rec.cx = cx; rec.cy = cy; rec.rx = rx; rec.ry = ry; rec.rot = rot; rec.sx = sx; rec.sy = sy; rec.sides = sides;
     state().pickSystem_.update(id, PickSystem::computePolygonAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -255,12 +255,12 @@ void CadEngine::upsertArrow(
         markDrawOrderChange();
     }
     markEntityChange(id);
-    state().entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx);
+    state().entityManager_.upsertArrow(id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ);
     if (isNew) {
         initShapeStyleOverrides(state().entityManager_, id, false, true, 0.0f);
     }
 
-    ArrowRec rec; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
+    ArrowRec rec{}; rec.ax = ax; rec.ay = ay; rec.bx = bx; rec.by = by; rec.head = head;
     state().pickSystem_.update(id, PickSystem::computeArrowAABB(rec));
     if (isNew) state().pickSystem_.setZ(id, state().pickSystem_.getMaxZ());
     if (isNew) {
@@ -273,4 +273,3 @@ void CadEngine::upsertArrow(
     }
     if (historyStarted) commitHistoryEntry();
 }
-

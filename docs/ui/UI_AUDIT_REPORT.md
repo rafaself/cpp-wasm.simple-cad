@@ -539,7 +539,7 @@ Map to Tailwind config, create semantic classes:
 1. Audit all pointermove handlers to ensure no allocations, no React state updates
 2. Use RAF batching for all hot-path updates
 3. Consider moving `mousePos` to a ref or CSS variable instead of Zustand
-4. Document hot-path rules in `docs/agents/frontend-patterns.md`
+4. Document hot-path rules in `docs/architecture/frontend-patterns.md`
 
 **Evidence of Good Practice:**
 - BaseInteractionHandler RAF batching (L44-59)
@@ -964,7 +964,7 @@ WebGL draw
 **Recommendation:**
 - Profile with Chrome DevTools Performance tab during drag operations
 - Measure allocation rate and GC pauses
-- Document performance targets in `docs/agents/frontend-patterns.md`
+- Document performance targets in `docs/architecture/frontend-patterns.md`
 
 ### 6.4 Overlay Rendering Strategy
 

@@ -1,6 +1,6 @@
 # Handle Index Contract
 
-> **Source of Truth**: `cpp/engine/interaction/interaction_constants.h`
+> **Source of Truth**: `packages/engine/engine/interaction/interaction_constants.h`
 
 This document defines the canonical order of handle indices used throughout the interaction system. The C++ engine is the authority, and frontend code must follow this contract.
 
@@ -114,17 +114,17 @@ This ensures the cursor always points in the correct direction relative to the r
 
 ### C++ Engine (Source of Truth)
 
-- Constants: `cpp/engine/interaction/interaction_constants.h`
-- Pick system: `cpp/engine/interaction/pick_system.cpp`
-- Resize logic: `cpp/engine/interaction/interaction_session_update.cpp`
-- Overlay handles: `cpp/engine/impl/engine_overlay.cpp`
+- Constants: `packages/engine/engine/interaction/interaction_constants.h`
+- Pick system: `packages/engine/engine/interaction/pick_system.cpp`
+- Resize logic: `packages/engine/engine/interaction/interaction_session_update.cpp`
+- Overlay handles: `packages/engine/engine/impl/engine_overlay.cpp`
 
 ### Frontend (Must Follow Contract)
 
-- Constants mirror: `frontend/features/editor/config/interaction-constants.ts`
-- Cursor config: `frontend/features/editor/config/cursor-config.ts`
-- Side handles: `frontend/features/editor/interactions/sideHandles.ts`
-- Selection handler: `frontend/features/editor/interactions/handlers/SelectionHandler.tsx`
+- Constants mirror: `apps/web/features/editor/config/interaction-constants.ts`
+- Cursor config: `apps/web/features/editor/config/cursor-config.ts`
+- Side handles: `apps/web/features/editor/interactions/sideHandles.ts`
+- Selection handler: `apps/web/features/editor/interactions/handlers/SelectionHandler.tsx`
 
 ---
 

@@ -85,6 +85,10 @@ export type CadEngineInstance = {
   allocateLayerId?: () => number;
   getDocumentDigest?: () => DocumentDigest;
   getHistoryMeta?: () => HistoryMeta;
+  beginHistoryEntry?: () => boolean;
+  commitHistoryEntry?: () => void;
+  discardHistoryEntry?: () => void;
+  rollbackHistoryEntry?: () => boolean;
   canUndo?: () => boolean;
   canRedo?: () => boolean;
   undo?: () => void;
@@ -114,6 +118,8 @@ export type CadEngineInstance = {
   setEntityLayer(entityId: number, layerId: number): void;
   getEntityLayer(entityId: number): number;
   getEntityKind(entityId: number): number;
+  tryGetEntityGeomZ?: (entityId: EntityId) => { ok: boolean; z: number };
+  setEntityGeomZ?: (entityId: EntityId, z: number) => boolean;
 
   // Selection
   getSelectionIds(): VectorUInt32;

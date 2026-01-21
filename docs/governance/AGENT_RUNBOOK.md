@@ -8,11 +8,11 @@ Operate with smallest safe steps, no product behavior changes unless explicitly 
 - Do not touch Embind/API surfaces without manifest updates and call-site proof.
 
 ## Default Checklist (per task)
-- Read `AGENTS.md` + `docs/ENGINE_FIRST_GOVERNANCE.md` relevant sections.
-- Run governance: `cd frontend && pnpm governance:check`.
-- Run doc drift guard: `node scripts/check_docs_references.js`.
+- Read `AGENTS.md` + `docs/governance/ENGINE_FIRST_GOVERNANCE.md` relevant sections.
+- Run governance: `cd apps/web && pnpm governance:check`.
+- Run doc drift guard: `node tooling/governance/check_docs_references.js`.
 - Run tests appropriate to scope (`pnpm test`, `ctest`, or targeted suites).
-- If bindings changed: `node scripts/generate_engine_api_manifest.js`.
+- If bindings changed: `node tooling/governance/generate_engine_api_manifest.js`.
 - Summarize changes + commands run; list any ambiguities explicitly.
 
 ## Safety Practices

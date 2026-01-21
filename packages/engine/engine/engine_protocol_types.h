@@ -19,7 +19,7 @@
 struct EngineProtocolInfo {
     // Protocol versions (must be non-zero; keep in sync with TS).
     static constexpr std::uint32_t kProtocolVersion = 4;      // Handshake schema version
-    static constexpr std::uint32_t kCommandVersion = 3;       // Command buffer version (EWDC v3)
+    static constexpr std::uint32_t kCommandVersion = 4;       // Command buffer version (EWDC v4)
     static constexpr std::uint32_t kSnapshotVersion = snapshotVersionEsnp; // Snapshot format version
     static constexpr std::uint32_t kEventStreamVersion = 1;   // Event stream schema version (reserved)
     static constexpr std::uint32_t kFeatureFlags =
@@ -408,6 +408,7 @@ protected:
             static_cast<std::uint32_t>(offsetof(RectPayload, strokeA)),
             static_cast<std::uint32_t>(offsetof(RectPayload, strokeEnabled)),
             static_cast<std::uint32_t>(offsetof(RectPayload, strokeWidthPx)),
+            static_cast<std::uint32_t>(offsetof(RectPayload, elevationZ)),
         });
 
         h = hashStruct(h, 0x5300000Du, sizeof(LinePayload), {
@@ -421,6 +422,7 @@ protected:
             static_cast<std::uint32_t>(offsetof(LinePayload, a)),
             static_cast<std::uint32_t>(offsetof(LinePayload, enabled)),
             static_cast<std::uint32_t>(offsetof(LinePayload, strokeWidthPx)),
+            static_cast<std::uint32_t>(offsetof(LinePayload, elevationZ)),
         });
 
         h = hashStruct(h, 0x5300000Eu, sizeof(PolylinePayloadHeader), {
@@ -430,6 +432,7 @@ protected:
             static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, a)),
             static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, enabled)),
             static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, strokeWidthPx)),
+            static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, elevationZ)),
             static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, count)),
             static_cast<std::uint32_t>(offsetof(PolylinePayloadHeader, reserved)),
         });
@@ -461,9 +464,11 @@ protected:
             static_cast<std::uint32_t>(offsetof(CirclePayload, strokeA)),
             static_cast<std::uint32_t>(offsetof(CirclePayload, strokeEnabled)),
             static_cast<std::uint32_t>(offsetof(CirclePayload, strokeWidthPx)),
+            static_cast<std::uint32_t>(offsetof(CirclePayload, elevationZ)),
         });
 
         h = hashStruct(h, 0x53000012u, sizeof(PolygonPayload), {
+            static_cast<std::uint32_t>(offsetof(PolygonPayload, elevationZ)),
             static_cast<std::uint32_t>(offsetof(PolygonPayload, sides)),
         });
 
@@ -479,6 +484,7 @@ protected:
             static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeA)),
             static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeEnabled)),
             static_cast<std::uint32_t>(offsetof(ArrowPayload, strokeWidthPx)),
+            static_cast<std::uint32_t>(offsetof(ArrowPayload, elevationZ)),
         });
 
         h = hashStruct(h, 0x53000014u, sizeof(TextPayloadHeader), {

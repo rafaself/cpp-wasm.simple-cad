@@ -403,6 +403,112 @@ engine::protocol::EntityTransform CadEngine::getEntityTransform(std::uint32_t en
     return engine::protocol::EntityTransform{0, 0, 0, 0, 0, 0, 0};
 }
 
+bool CadEngine::tryGetEntityGeomZ(std::uint32_t entityId, float& outZ) const {
+    const auto it = state().entityManager_.entities.find(entityId);
+    if (it == state().entityManager_.entities.end()) return false;
+
+    switch (it->second.kind) {
+        case EntityKind::Rect:
+            if (it->second.index >= state().entityManager_.rects.size()) return false;
+            outZ = state().entityManager_.rects[it->second.index].elevationZ;
+            return true;
+        case EntityKind::Line:
+            if (it->second.index >= state().entityManager_.lines.size()) return false;
+            outZ = state().entityManager_.lines[it->second.index].elevationZ;
+            return true;
+        case EntityKind::Polyline:
+            if (it->second.index >= state().entityManager_.polylines.size()) return false;
+            outZ = state().entityManager_.polylines[it->second.index].elevationZ;
+            return true;
+        case EntityKind::Circle:
+            if (it->second.index >= state().entityManager_.circles.size()) return false;
+            outZ = state().entityManager_.circles[it->second.index].elevationZ;
+            return true;
+        case EntityKind::Polygon:
+            if (it->second.index >= state().entityManager_.polygons.size()) return false;
+            outZ = state().entityManager_.polygons[it->second.index].elevationZ;
+            return true;
+        case EntityKind::Arrow:
+            if (it->second.index >= state().entityManager_.arrows.size()) return false;
+            outZ = state().entityManager_.arrows[it->second.index].elevationZ;
+            return true;
+        case EntityKind::Text: {
+            const TextRec* tr = state().textSystem_.store.getText(entityId);
+            if (!tr) return false;
+            outZ = tr->elevationZ;
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+bool CadEngine::setEntityGeomZ(std::uint32_t entityId, float z) {
+    if (!std::isfinite(z)) {
+        setError(EngineError::InvalidOperation);
+        return false;
+    }
+    const auto it = state().entityManager_.entities.find(entityId);
+    if (it == state().entityManager_.entities.end()) return false;
+
+    const bool historyStarted = beginHistoryEntry();
+    markEntityChange(entityId);
+    bool updated = false;
+
+    switch (it->second.kind) {
+        case EntityKind::Rect:
+            if (it->second.index >= state().entityManager_.rects.size()) break;
+            state().entityManager_.rects[it->second.index].elevationZ = z;
+            updated = true;
+            break;
+        case EntityKind::Line:
+            if (it->second.index >= state().entityManager_.lines.size()) break;
+            state().entityManager_.lines[it->second.index].elevationZ = z;
+            updated = true;
+            break;
+        case EntityKind::Polyline:
+            if (it->second.index >= state().entityManager_.polylines.size()) break;
+            state().entityManager_.polylines[it->second.index].elevationZ = z;
+            updated = true;
+            break;
+        case EntityKind::Circle:
+            if (it->second.index >= state().entityManager_.circles.size()) break;
+            state().entityManager_.circles[it->second.index].elevationZ = z;
+            updated = true;
+            break;
+        case EntityKind::Polygon:
+            if (it->second.index >= state().entityManager_.polygons.size()) break;
+            state().entityManager_.polygons[it->second.index].elevationZ = z;
+            updated = true;
+            break;
+        case EntityKind::Arrow:
+            if (it->second.index >= state().entityManager_.arrows.size()) break;
+            state().entityManager_.arrows[it->second.index].elevationZ = z;
+            updated = true;
+            break;
+        case EntityKind::Text: {
+            TextRec* tr = state().textSystem_.store.getTextMutable(entityId);
+            if (!tr) break;
+            tr->elevationZ = z;
+            updated = true;
+            break;
+        }
+        default:
+            break;
+    }
+
+    if (!updated) {
+        if (historyStarted) discardHistoryEntry();
+        return false;
+    }
+
+    state().snapshotDirty = true;
+    recordEntityChanged(entityId, static_cast<std::uint32_t>(engine::protocol::ChangeMask::Geometry));
+    if (historyStarted) commitHistoryEntry();
+    state().generation++;
+    return true;
+}
+
 void CadEngine::setEntityPosition(std::uint32_t entityId, float x, float y) {
     const auto it = state().entityManager_.entities.find(entityId);
     if (it == state().entityManager_.entities.end()) return;
@@ -733,4 +839,3 @@ void CadEngine::setEntityScale(std::uint32_t entityId, float scaleX, float scale
     state().generation++;
     rebuildRenderBuffers();
 }
-

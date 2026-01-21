@@ -316,7 +316,7 @@ void EntityManager::deleteEntity(std::uint32_t id) noexcept {
     // External store cleanup is caller's responsibility.
 }
 
-void EntityManager::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx) {
+void EntityManager::upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx, float elevationZ) {
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Rect) {
         deleteEntity(id);
@@ -328,17 +328,18 @@ void EntityManager::upsertRect(std::uint32_t id, float x, float y, float w, floa
         existingRect.x = x; existingRect.y = y; existingRect.w = w; existingRect.h = h;
         existingRect.r = r; existingRect.g = g; existingRect.b = b; existingRect.a = a;
         existingRect.sr = sr; existingRect.sg = sg; existingRect.sb = sb; existingRect.sa = sa; existingRect.strokeEnabled = strokeEnabled; existingRect.strokeWidthPx = strokeWidthPx;
+        existingRect.elevationZ = elevationZ;
         ensureEntityMetadata(id);
         return;
     }
 
-    rects.push_back(RectRec{id, x, y, w, h, 0.0f, 1.0f, 1.0f, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx});
+    rects.push_back(RectRec{id, x, y, w, h, 0.0f, 1.0f, 1.0f, r, g, b, a, sr, sg, sb, sa, strokeEnabled, strokeWidthPx, elevationZ});
     entities[id] = EntityRef{EntityKind::Rect, static_cast<std::uint32_t>(rects.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
 }
 
-void EntityManager::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
+void EntityManager::upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ) {
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Line) {
         deleteEntity(id);
@@ -348,18 +349,18 @@ void EntityManager::upsertLine(std::uint32_t id, float x0, float y0, float x1, f
     if (it2 != entities.end()) {
         auto& l = lines[it2->second.index];
         l.x0 = x0; l.y0 = y0; l.x1 = x1; l.y1 = y1;
-        l.r = r; l.g = g; l.b = b; l.a = a; l.enabled = enabled; l.strokeWidthPx = strokeWidthPx;
+        l.r = r; l.g = g; l.b = b; l.a = a; l.enabled = enabled; l.strokeWidthPx = strokeWidthPx; l.elevationZ = elevationZ;
         ensureEntityMetadata(id);
         return;
     }
 
-    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx});
+    lines.push_back(LineRec{id, x0, y0, x1, y1, r, g, b, a, enabled, strokeWidthPx, elevationZ});
     entities[id] = EntityRef{EntityKind::Line, static_cast<std::uint32_t>(lines.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
 }
 
-void EntityManager::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx) {
+void EntityManager::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ) {
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Polyline) {
         deleteEntity(id);
@@ -372,17 +373,18 @@ void EntityManager::upsertPolyline(std::uint32_t id, std::uint32_t offset, std::
         pl.count = count;
         pl.r = r; pl.g = g; pl.b = b; pl.a = a; pl.enabled = enabled; pl.strokeWidthPx = strokeWidthPx;
         pl.sr = r; pl.sg = g; pl.sb = b; pl.sa = a; pl.strokeEnabled = enabled;
+        pl.elevationZ = elevationZ;
         ensureEntityMetadata(id);
         return;
     }
 
-    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, r, g, b, a, enabled, enabled, strokeWidthPx});
+    polylines.push_back(PolyRec{id, offset, count, r, g, b, a, r, g, b, a, enabled, enabled, strokeWidthPx, elevationZ});
     entities[id] = EntityRef{EntityKind::Polyline, static_cast<std::uint32_t>(polylines.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
 }
 
-void EntityManager::upsertCircle(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx) {
+void EntityManager::upsertCircle(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx, float elevationZ) {
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Circle) {
         deleteEntity(id);
@@ -395,17 +397,18 @@ void EntityManager::upsertCircle(std::uint32_t id, float cx, float cy, float rx,
         c.r = fillR; c.g = fillG; c.b = fillB; c.a = fillA;
         c.sr = strokeR; c.sg = strokeG; c.sb = strokeB; c.sa = strokeA;
         c.strokeEnabled = strokeEnabled; c.strokeWidthPx = strokeWidthPx;
+        c.elevationZ = elevationZ;
         ensureEntityMetadata(id);
         return;
     }
 
-    circles.push_back(CircleRec{id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    circles.push_back(CircleRec{id, cx, cy, rx, ry, rot, sx, sy, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ});
     entities[id] = EntityRef{EntityKind::Circle, static_cast<std::uint32_t>(circles.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
 }
 
-void EntityManager::upsertPolygon(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, std::uint32_t sides, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx) {
+void EntityManager::upsertPolygon(std::uint32_t id, float cx, float cy, float rx, float ry, float rot, float sx, float sy, std::uint32_t sides, float fillR, float fillG, float fillB, float fillA, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx, float elevationZ) {
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Polygon) {
         deleteEntity(id);
@@ -419,17 +422,18 @@ void EntityManager::upsertPolygon(std::uint32_t id, float cx, float cy, float rx
         p.r = fillR; p.g = fillG; p.b = fillB; p.a = fillA;
         p.sr = strokeR; p.sg = strokeG; p.sb = strokeB; p.sa = strokeA;
         p.strokeEnabled = strokeEnabled; p.strokeWidthPx = strokeWidthPx;
+        p.elevationZ = elevationZ;
         ensureEntityMetadata(id);
         return;
     }
 
-    polygons.push_back(PolygonRec{id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    polygons.push_back(PolygonRec{id, cx, cy, rx, ry, rot, sx, sy, sides, fillR, fillG, fillB, fillA, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ});
     entities[id] = EntityRef{EntityKind::Polygon, static_cast<std::uint32_t>(polygons.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);
 }
 
-void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, float by, float head, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx) {
+void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, float by, float head, float strokeR, float strokeG, float strokeB, float strokeA, float strokeEnabled, float strokeWidthPx, float elevationZ) {
     const auto it = entities.find(id);
     if (it != entities.end() && it->second.kind != EntityKind::Arrow) {
         deleteEntity(id);
@@ -441,11 +445,12 @@ void EntityManager::upsertArrow(std::uint32_t id, float ax, float ay, float bx, 
         a.ax = ax; a.ay = ay; a.bx = bx; a.by = by; a.head = head;
         a.sr = strokeR; a.sg = strokeG; a.sb = strokeB; a.sa = strokeA;
         a.strokeEnabled = strokeEnabled; a.strokeWidthPx = strokeWidthPx;
+        a.elevationZ = elevationZ;
         ensureEntityMetadata(id);
         return;
     }
 
-    arrows.push_back(ArrowRec{id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx});
+    arrows.push_back(ArrowRec{id, ax, ay, bx, by, head, strokeR, strokeG, strokeB, strokeA, strokeEnabled, strokeWidthPx, elevationZ});
     entities[id] = EntityRef{EntityKind::Arrow, static_cast<std::uint32_t>(arrows.size() - 1)};
     drawOrderIds.push_back(id);
     ensureEntityMetadata(id);

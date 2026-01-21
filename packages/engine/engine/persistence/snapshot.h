@@ -58,6 +58,7 @@ struct TextSnapshot {
     std::uint32_t layerId;
     std::uint32_t flags;
     TextPayloadHeader header;
+    float elevationZ;
     std::vector<TextRunPayload> runs;
     std::string content;
     float layoutWidth;

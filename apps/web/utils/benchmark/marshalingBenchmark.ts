@@ -69,6 +69,7 @@ function benchmarkCommandEncode(iterations: number): BenchmarkResult {
         strokeA: 1,
         strokeEnabled: 1,
         strokeWidthPx: 1,
+        elevationZ: 0,
       },
     },
   ];
@@ -102,6 +103,7 @@ function benchmarkMultiCommandEncode(iterations: number): BenchmarkResult {
         strokeA: 1,
         strokeEnabled: 1,
         strokeWidthPx: 1,
+        elevationZ: 0,
       },
     });
   }
@@ -138,6 +140,7 @@ async function benchmarkSnapshotRead(iterations: number): Promise<BenchmarkResul
         strokeA: 1,
         strokeEnabled: 1,
         strokeWidthPx: 1,
+        elevationZ: 0,
       },
     });
   }

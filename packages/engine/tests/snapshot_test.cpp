@@ -19,19 +19,22 @@ TEST(SnapshotTest, RoundTrip) {
     data.layers.push_back(layer);
 
     RectSnapshot rect{};
-    rect.rec = RectRec{1, 10.0f, 20.0f, 30.0f, 40.0f, 0.1f, 0.2f, 0.3f, 1.0f, 0.1f, 0.2f, 0.3f, 1.0f, 1.0f, 2.0f};
+    rect.rec = RectRec{1, 10.0f, 20.0f, 30.0f, 40.0f, 0.1f, 0.2f, 0.3f, 1.0f, 0.1f, 0.2f, 0.3f, 1.0f, 1.0f, 2.0f, 0.0f};
+    rect.rec.elevationZ = 1.25f;
     rect.layerId = 1;
     rect.flags = static_cast<std::uint32_t>(EntityFlags::Visible);
     data.rects.push_back(rect);
 
     LineSnapshot line{};
-    line.rec = LineRec{2, 0.0f, 0.0f, 5.0f, 5.0f, 1.0f, 0.5f, 0.25f, 1.0f, 1.0f, 1.5f};
+    line.rec = LineRec{2, 0.0f, 0.0f, 5.0f, 5.0f, 1.0f, 0.5f, 0.25f, 1.0f, 1.0f, 1.5f, 0.0f};
+    line.rec.elevationZ = -2.5f;
     line.layerId = 1;
     line.flags = static_cast<std::uint32_t>(EntityFlags::Visible);
     data.lines.push_back(line);
 
     PolySnapshot poly{};
-    poly.rec = PolyRec{3, 0, 2, 0.2f, 0.3f, 0.4f, 1.0f, 0.2f, 0.3f, 0.4f, 1.0f, 1.0f, 1.0f, 2.0f};
+    poly.rec = PolyRec{3, 0, 2, 0.2f, 0.3f, 0.4f, 1.0f, 0.2f, 0.3f, 0.4f, 1.0f, 1.0f, 1.0f, 2.0f, 0.0f};
+    poly.rec.elevationZ = 0.75f;
     poly.layerId = 1;
     poly.flags = static_cast<std::uint32_t>(EntityFlags::Visible);
     data.polylines.push_back(poly);
@@ -53,6 +56,7 @@ TEST(SnapshotTest, RoundTrip) {
     text.header.boxMode = static_cast<std::uint8_t>(TextBoxMode::AutoWidth);
     text.header.align = static_cast<std::uint8_t>(TextAlign::Left);
     text.header.constraintWidth = 0.0f;
+    text.elevationZ = 3.0f;
     text.layoutWidth = 50.0f;
     text.layoutHeight = 20.0f;
     text.minX = 5.0f;
@@ -101,4 +105,12 @@ TEST(SnapshotTest, RoundTrip) {
     EXPECT_EQ(parsed.layers[0].style.textColorRGBA, data.layers[0].style.textColorRGBA);
     EXPECT_EQ(parsed.layers[0].style.textBackgroundRGBA, data.layers[0].style.textBackgroundRGBA);
     EXPECT_EQ(parsed.styleOverrides.size(), data.styleOverrides.size());
+    ASSERT_EQ(parsed.rects.size(), 1u);
+    ASSERT_EQ(parsed.lines.size(), 1u);
+    ASSERT_EQ(parsed.polylines.size(), 1u);
+    ASSERT_EQ(parsed.texts.size(), 1u);
+    EXPECT_FLOAT_EQ(parsed.rects[0].rec.elevationZ, data.rects[0].rec.elevationZ);
+    EXPECT_FLOAT_EQ(parsed.lines[0].rec.elevationZ, data.lines[0].rec.elevationZ);
+    EXPECT_FLOAT_EQ(parsed.polylines[0].rec.elevationZ, data.polylines[0].rec.elevationZ);
+    EXPECT_FLOAT_EQ(parsed.texts[0].elevationZ, data.texts[0].elevationZ);
 }

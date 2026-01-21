@@ -16,7 +16,7 @@ TEST(CommandsTest, ParseSingle) {
     auto pushU32 = [&](uint32_t v){ uint8_t b[4]; memcpy(b,&v,4); buf.insert(buf.end(), b, b+4); };
 
     pushU32(0x43445745); // magic
-    pushU32(3); // version
+    pushU32(4); // version
     pushU32(1); // command count
     pushU32(0); // padding
 

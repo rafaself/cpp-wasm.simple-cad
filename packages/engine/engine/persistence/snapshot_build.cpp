@@ -109,6 +109,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.sa);
             appendF32(rec.rec.strokeEnabled);
             appendF32(rec.rec.strokeWidthPx);
+            appendF32(rec.rec.elevationZ);
         }
 
         for (std::size_t idx : lineOrder) {
@@ -126,6 +127,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.a);
             appendF32(rec.rec.enabled);
             appendF32(rec.rec.strokeWidthPx);
+            appendF32(rec.rec.elevationZ);
         }
 
         for (std::size_t idx : polyOrder) {
@@ -146,6 +148,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.enabled);
             appendF32(rec.rec.strokeEnabled);
             appendF32(rec.rec.strokeWidthPx);
+            appendF32(rec.rec.elevationZ);
         }
 
         for (const Point2& p : data.points) {
@@ -175,6 +178,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.sa);
             appendF32(rec.rec.strokeEnabled);
             appendF32(rec.rec.strokeWidthPx);
+            appendF32(rec.rec.elevationZ);
         }
 
         for (std::size_t idx : polygonOrder) {
@@ -200,6 +204,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.sa);
             appendF32(rec.rec.strokeEnabled);
             appendF32(rec.rec.strokeWidthPx);
+            appendF32(rec.rec.elevationZ);
         }
 
         for (std::size_t idx : arrowOrder) {
@@ -218,6 +223,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.rec.sa);
             appendF32(rec.rec.strokeEnabled);
             appendF32(rec.rec.strokeWidthPx);
+            appendF32(rec.rec.elevationZ);
         }
 
         sections.push_back(std::move(sec));
@@ -332,6 +338,7 @@ std::vector<std::uint8_t> buildSnapshotBytes(const SnapshotData& data) {
             appendF32(rec.minY);
             appendF32(rec.maxX);
             appendF32(rec.maxY);
+            appendF32(rec.elevationZ);
 
             for (const TextRunPayload& run : rec.runs) {
                 appendU32(run.startIndex);

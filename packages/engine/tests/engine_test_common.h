@@ -235,7 +235,7 @@ inline void upsertPolyline(CadEngine& engine, std::uint32_t id, const std::vecto
         sizeof(PolylinePayloadHeader) + points.size() * sizeof(Point2));
 
     appendU32(buffer, 0x43445745);
-    appendU32(buffer, 3);
+    appendU32(buffer, 4);
     appendU32(buffer, 1);
     appendU32(buffer, 0);
     appendU32(buffer, static_cast<std::uint32_t>(CommandOp::UpsertPolyline));
@@ -250,6 +250,7 @@ inline void upsertPolyline(CadEngine& engine, std::uint32_t id, const std::vecto
     header.a = 1.0f;
     header.enabled = 1.0f;
     header.strokeWidthPx = 1.0f;
+    header.elevationZ = 0.0f;
     header.count = count;
     appendBytes(buffer, &header, sizeof(header));
     for (const auto& pt : points) {

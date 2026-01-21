@@ -225,7 +225,7 @@ Undo/redo during text editing MUST be handled by the engine history system.
 
 ## 7. TextTool (Frontend)
 
-Location: `frontend/engine/tools/TextTool.ts`
+Location: `apps/web/engine/tools/TextTool.ts`
 
 ### Lifecycle
 

@@ -123,6 +123,10 @@ public:
     bool canRedo() const noexcept;
     void undo();
     void redo();
+    bool beginHistoryEntry();
+    void commitHistoryEntry();
+    void discardHistoryEntry();
+    bool rollbackHistoryEntry();
 
     engine::protocol::EventBufferMeta pollEvents(std::uint32_t maxEvents);
     void ackResync(std::uint32_t resyncGeneration);
@@ -154,6 +158,8 @@ public:
 
     // Entity transform queries and mutations (for inspector panel)
     engine::protocol::EntityTransform getEntityTransform(std::uint32_t entityId) const;
+    bool tryGetEntityGeomZ(std::uint32_t entityId, float& outZ) const;
+    bool setEntityGeomZ(std::uint32_t entityId, float z);
     void setEntityPosition(std::uint32_t entityId, float x, float y);
     void setEntitySize(std::uint32_t entityId, float width, float height);
     void setEntityRotation(std::uint32_t entityId, float rotationDeg);
@@ -216,9 +222,6 @@ private:
     void recordOrderChanged();
     void recordHistoryChanged();
     void clearHistory();
-    bool beginHistoryEntry();
-    void commitHistoryEntry();
-    void discardHistoryEntry();
     void pushHistoryEntry(HistoryEntry&& entry);
     void markEntityChange(std::uint32_t id);
     void markLayerChange();
@@ -234,11 +237,11 @@ private:
     bool pushEvent(const engine::protocol::EngineEvent& ev);
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
-    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx);
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx, float elevationZ = 0.0f);
     void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1);
-    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx);
+    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ = 0.0f);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count);
-    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx);
+    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ = 0.0f);
 
     void upsertCircle(
         std::uint32_t id,
@@ -258,7 +261,8 @@ private:
         float strokeB,
         float strokeA,
         float strokeEnabled,
-        float strokeWidthPx
+        float strokeWidthPx,
+        float elevationZ = 0.0f
     );
 
     void upsertPolygon(
@@ -280,7 +284,8 @@ private:
         float strokeB,
         float strokeA,
         float strokeEnabled,
-        float strokeWidthPx
+        float strokeWidthPx,
+        float elevationZ = 0.0f
     );
 
     void upsertArrow(
@@ -295,7 +300,8 @@ private:
         float strokeB,
         float strokeA,
         float strokeEnabled,
-        float strokeWidthPx
+        float strokeWidthPx,
+        float elevationZ = 0.0f
     );
 
 public:

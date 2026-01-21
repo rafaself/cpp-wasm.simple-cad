@@ -2,6 +2,7 @@
 #include "engine/core/util.h"
 #include "engine/core/types.h"
 #include "engine/persistence/snapshot_internal.h"
+#include <cmath>
 #include <cstring>
 #include <unordered_map>
 
@@ -125,6 +126,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.sa = readF32(ents->data, o); o += 4;
             rec.rec.strokeEnabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
+            rec.rec.elevationZ = readF32(ents->data, o); o += 4;
+            if (!std::isfinite(rec.rec.elevationZ)) return EngineError::InvalidPayloadSize;
             out.rects.push_back(rec);
         }
         out.lines.clear();
@@ -145,6 +148,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.a = readF32(ents->data, o); o += 4;
             rec.rec.enabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
+            rec.rec.elevationZ = readF32(ents->data, o); o += 4;
+            if (!std::isfinite(rec.rec.elevationZ)) return EngineError::InvalidPayloadSize;
             out.lines.push_back(rec);
         }
         out.polylines.clear();
@@ -168,6 +173,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.enabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeEnabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
+            rec.rec.elevationZ = readF32(ents->data, o); o += 4;
+            if (!std::isfinite(rec.rec.elevationZ)) return EngineError::InvalidPayloadSize;
             out.polylines.push_back(rec);
         }
         out.points.clear();
@@ -204,6 +211,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.sa = readF32(ents->data, o); o += 4;
             rec.rec.strokeEnabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
+            rec.rec.elevationZ = readF32(ents->data, o); o += 4;
+            if (!std::isfinite(rec.rec.elevationZ)) return EngineError::InvalidPayloadSize;
             out.circles.push_back(rec);
         }
         out.polygons.clear();
@@ -232,6 +241,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.sa = readF32(ents->data, o); o += 4;
             rec.rec.strokeEnabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
+            rec.rec.elevationZ = readF32(ents->data, o); o += 4;
+            if (!std::isfinite(rec.rec.elevationZ)) return EngineError::InvalidPayloadSize;
             out.polygons.push_back(rec);
         }
         out.arrows.clear();
@@ -253,6 +264,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.rec.sa = readF32(ents->data, o); o += 4;
             rec.rec.strokeEnabled = readF32(ents->data, o); o += 4;
             rec.rec.strokeWidthPx = readF32(ents->data, o); o += 4;
+            rec.rec.elevationZ = readF32(ents->data, o); o += 4;
+            if (!std::isfinite(rec.rec.elevationZ)) return EngineError::InvalidPayloadSize;
             out.arrows.push_back(rec);
         }
         if (o > ents->size) return EngineError::BufferTruncated;
@@ -366,6 +379,8 @@ EngineError parseSnapshot(const std::uint8_t* src, std::uint32_t byteCount, Snap
             rec.minY = readF32(text->data, o); o += 4;
             rec.maxX = readF32(text->data, o); o += 4;
             rec.maxY = readF32(text->data, o); o += 4;
+            rec.elevationZ = readF32(text->data, o); o += 4;
+            if (!std::isfinite(rec.elevationZ)) return EngineError::InvalidPayloadSize;
 
             std::size_t runBytes = 0;
             if (!tryMul(static_cast<std::size_t>(rec.header.runCount), textRunRecordBytes, runBytes)) {

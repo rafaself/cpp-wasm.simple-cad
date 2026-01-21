@@ -23,11 +23,12 @@ TEST_F(TextCommandsTest, UpsertText_Simple) {
     run.flags = static_cast<std::uint8_t>(TextStyleFlags::None);
 
     const std::uint32_t payloadBytes =
-        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength);
+        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength + sizeof(float));
     builder.writeCommandHeader(CommandOp::UpsertText, 1, payloadBytes);
     builder.pushBytes(&header, sizeof(header));
     builder.pushBytes(&run, sizeof(run));
     builder.pushBytes("Hello", header.contentLength);
+    builder.pushFloat(0.0f);
 
     EngineError err = applyCommands(builder);
     EXPECT_EQ(err, EngineError::Ok);
@@ -68,11 +69,12 @@ TEST_F(TextCommandsTest, UpsertText_MultipleRuns) {
     runs[1].flags = static_cast<std::uint8_t>(TextStyleFlags::Italic);
 
     const std::uint32_t payloadBytes =
-        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(runs) + header.contentLength);
+        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(runs) + header.contentLength + sizeof(float));
     builder.writeCommandHeader(CommandOp::UpsertText, 2, payloadBytes);
     builder.pushBytes(&header, sizeof(header));
     builder.pushBytes(&runs, sizeof(runs));
     builder.pushBytes("Hello", header.contentLength);
+    builder.pushFloat(0.0f);
 
     EngineError err = applyCommands(builder);
     EXPECT_EQ(err, EngineError::Ok);
@@ -118,11 +120,12 @@ TEST_F(TextCommandsTest, UpsertTextIncrementsGeneration) {
     run.flags = static_cast<std::uint8_t>(TextStyleFlags::None);
 
     const std::uint32_t payloadBytes =
-        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength);
+        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength + sizeof(float));
     builder.writeCommandHeader(CommandOp::UpsertText, 1, payloadBytes);
     builder.pushBytes(&header, sizeof(header));
     builder.pushBytes(&run, sizeof(run));
     builder.pushBytes("A", header.contentLength);
+    builder.pushFloat(0.0f);
 
     EXPECT_EQ(applyCommands(builder), EngineError::Ok);
     EXPECT_GT(CadEngineTestAccessor::generation(*engine_), genBefore);

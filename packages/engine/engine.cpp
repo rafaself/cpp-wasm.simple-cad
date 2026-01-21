@@ -209,7 +209,7 @@ void CadEngine::applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) 
     clearError();
     const double t0 = emscripten_get_now();
     const std::uint8_t* src = reinterpret_cast<const std::uint8_t*>(ptr);
-    beginHistoryEntry();
+    const bool historyStarted = beginHistoryEntry();
     
     // Use the new dispatchCommand via a callback wrapper
     auto commandCallback = [](void* ctx, std::uint32_t op, std::uint32_t id, const std::uint8_t* payload, std::uint32_t payloadByteCount) -> EngineError {
@@ -219,12 +219,12 @@ void CadEngine::applyCommandBuffer(std::uintptr_t ptr, std::uint32_t byteCount) 
     EngineError err = engine::parseCommandBuffer(src, byteCount, commandCallback, this);
     if (err != EngineError::Ok) {
         setError(err);
-        discardHistoryEntry();
+        if (historyStarted) discardHistoryEntry();
         return;
     }
 
     compactPolylinePoints();
-    commitHistoryEntry();
+    if (historyStarted) commitHistoryEntry();
     
     // Lazy rebuild
     state().renderDirty = true;

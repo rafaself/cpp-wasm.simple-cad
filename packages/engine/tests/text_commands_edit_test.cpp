@@ -160,11 +160,12 @@ TEST_F(TextCommandsTest, MultipleTextCommands) {
     run.flags = static_cast<std::uint8_t>(TextStyleFlags::None);
 
     const std::uint32_t payloadBytes =
-        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength);
+        static_cast<std::uint32_t>(sizeof(TextPayloadHeader) + sizeof(TextRunPayload) + header.contentLength + sizeof(float));
     builder.writeCommandHeader(CommandOp::UpsertText, 1, payloadBytes);
     builder.pushBytes(&header, sizeof(header));
     builder.pushBytes(&run, sizeof(run));
     builder.pushBytes("Hello", header.contentLength);
+    builder.pushFloat(0.0f);
 
     TextCaretPayload caret{};
     caret.textId = 1;

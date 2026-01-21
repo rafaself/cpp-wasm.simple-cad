@@ -229,6 +229,26 @@ export class EngineRuntime {
     return this.historySystem.getHistoryMeta();
   }
 
+  public beginHistoryEntry(): boolean {
+    return this.historySystem.beginHistoryEntry();
+  }
+
+  public commitHistoryEntry(): void {
+    this.historySystem.commitHistoryEntry();
+  }
+
+  public discardHistoryEntry(): void {
+    this.historySystem.discardHistoryEntry();
+  }
+
+  public rollbackHistoryEntry(): boolean {
+    const rolledBack = this.historySystem.rollbackHistoryEntry();
+    if (rolledBack) {
+      this.selectionSystem.forceInvalidate();
+    }
+    return rolledBack;
+  }
+
   public canUndo(): boolean {
     return this.historySystem.canUndo();
   }
@@ -551,6 +571,14 @@ export class EngineRuntime {
 
   public getEntityKind(entityId: EntityId): number {
     return this.entitySystem.getEntityKind(entityId);
+  }
+
+  public tryGetEntityGeomZ(entityId: EntityId): { ok: boolean; z: number } {
+    return this.entitySystem.tryGetEntityGeomZ(entityId);
+  }
+
+  public setEntityGeomZ(entityId: EntityId, z: number): boolean {
+    return this.entitySystem.setEntityGeomZ(entityId, z);
   }
 
   public getDrawOrderSnapshot(): Uint32Array {
