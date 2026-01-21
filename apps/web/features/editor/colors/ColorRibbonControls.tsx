@@ -185,7 +185,7 @@ const ColorSwatchButton: React.FC<ColorSwatchButtonProps> = ({
     onMouseDown={(e) => e.preventDefault()}
     className={`relative w-5 h-5 max-h-4 mx-1 rounded border transition-colors ${
       disabled
-        ? 'opacity-50 cursor-not-allowed border-border/50'
+        ? 'opacity-50 border-border/50'
         : state === StyleState.Mixed
           ? 'border-dashed border-primary/50'
           : 'border-border/70 hover:border-primary/50'
@@ -476,12 +476,12 @@ export const ColorRibbonControls: React.FC = () => {
   const strokeMixed =
     strokeState.state === StyleState.Mixed || strokeState.enabledState === TriState.Mixed;
   const strokeEnabled = strokeState.enabledState === TriState.On;
-  const noStroke = !strokeEnabled && !strokeMixed;
+  const noStroke = !isDisabled && !strokeEnabled && !strokeMixed;
 
   const fillMixed =
     fillState.state === StyleState.Mixed || fillState.enabledState === TriState.Mixed;
   const fillEnabled = fillState.enabledState === TriState.On;
-  const noFill = !fillEnabled && !fillMixed;
+  const noFill = !isDisabled && !fillEnabled && !fillMixed;
 
   const strokeRestoreFallback =
     strokeState.state === StyleState.Override ||
@@ -557,7 +557,7 @@ export const ColorRibbonControls: React.FC = () => {
 
   return (
     <div
-      className={`ribbon-group-col gap-2 px-1 ${isDisabled ? 'opacity-50' : ''}`}
+      className={`ribbon-group-col !gap-[2px] px-1 ${isDisabled ? 'opacity-50' : ''}`}
       title={isDisabled ? LABELS.colors.disabledHint : undefined}
     >
       {/* Stroke Row */}
@@ -569,7 +569,7 @@ export const ColorRibbonControls: React.FC = () => {
           >
             {LABELS.colors.stroke}
           </span>
-          <div className="flex items-center gap-1 -mt-1">
+          <div className="flex items-center gap-1 -mt-[2px]">
             <ColorSwatchButton
               color={strokeState.color}
               onClick={(event) => openColorPicker(event, 'stroke')}
@@ -648,7 +648,7 @@ export const ColorRibbonControls: React.FC = () => {
           >
             {LABELS.colors.fill}
           </span>
-          <div className="flex items-center gap-1 -mt-1">
+          <div className="flex items-center gap-1 -mt-[2px]">
             <ColorSwatchButton
               color={fillState.color}
               onClick={(event) => openColorPicker(event, 'fill')}
