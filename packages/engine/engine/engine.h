@@ -237,11 +237,11 @@ private:
     bool pushEvent(const engine::protocol::EngineEvent& ev);
 
     void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a);
-    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx);
+    void upsertRect(std::uint32_t id, float x, float y, float w, float h, float r, float g, float b, float a, float sr, float sg, float sb, float sa, float strokeEnabled, float strokeWidthPx, float elevationZ = 0.0f);
     void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1);
-    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx);
+    void upsertLine(std::uint32_t id, float x0, float y0, float x1, float y1, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ = 0.0f);
     void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count);
-    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx);
+    void upsertPolyline(std::uint32_t id, std::uint32_t offset, std::uint32_t count, float r, float g, float b, float a, float enabled, float strokeWidthPx, float elevationZ = 0.0f);
 
     void upsertCircle(
         std::uint32_t id,
@@ -261,7 +261,8 @@ private:
         float strokeB,
         float strokeA,
         float strokeEnabled,
-        float strokeWidthPx
+        float strokeWidthPx,
+        float elevationZ = 0.0f
     );
 
     void upsertPolygon(
@@ -283,7 +284,8 @@ private:
         float strokeB,
         float strokeA,
         float strokeEnabled,
-        float strokeWidthPx
+        float strokeWidthPx,
+        float elevationZ = 0.0f
     );
 
     void upsertArrow(
@@ -298,7 +300,8 @@ private:
         float strokeB,
         float strokeA,
         float strokeEnabled,
-        float strokeWidthPx
+        float strokeWidthPx,
+        float elevationZ = 0.0f
     );
 
 public:

@@ -70,10 +70,7 @@ EngineError dispatchCommand(
             RectPayload p;
             std::memcpy(&p, payload, sizeof(RectPayload));
             if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
-            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
-            if (const auto it = self->state().entityManager_.entities.find(id); it != self->state().entityManager_.entities.end()) {
-                self->state().entityManager_.rects[it->second.index].elevationZ = p.elevationZ;
-            }
+            self->upsertRect(id, p.x, p.y, p.w, p.h, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertLine): {
@@ -81,10 +78,7 @@ EngineError dispatchCommand(
             LinePayload p;
             std::memcpy(&p, payload, sizeof(LinePayload));
             if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
-            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx);
-            if (const auto it = self->state().entityManager_.entities.find(id); it != self->state().entityManager_.entities.end()) {
-                self->state().entityManager_.lines[it->second.index].elevationZ = p.elevationZ;
-            }
+            self->upsertLine(id, p.x0, p.y0, p.x1, p.y1, p.r, p.g, p.b, p.a, p.enabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolyline): {
@@ -109,10 +103,7 @@ EngineError dispatchCommand(
                 ppos += sizeof(Point2);
                 self->state().entityManager_.points.push_back(pt);
             }
-            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled, hdr.strokeWidthPx);
-            if (const auto it = self->state().entityManager_.entities.find(id); it != self->state().entityManager_.entities.end()) {
-                self->state().entityManager_.polylines[it->second.index].elevationZ = hdr.elevationZ;
-            }
+            self->upsertPolyline(id, offset, count, hdr.r, hdr.g, hdr.b, hdr.a, hdr.enabled, hdr.strokeWidthPx, hdr.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertCircle): {
@@ -120,10 +111,7 @@ EngineError dispatchCommand(
             CirclePayload p;
             std::memcpy(&p, payload, sizeof(CirclePayload));
             if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
-            self->upsertCircle(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
-            if (const auto it = self->state().entityManager_.entities.find(id); it != self->state().entityManager_.entities.end()) {
-                self->state().entityManager_.circles[it->second.index].elevationZ = p.elevationZ;
-            }
+            self->upsertCircle(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertPolygon): {
@@ -131,10 +119,7 @@ EngineError dispatchCommand(
             PolygonPayload p;
             std::memcpy(&p, payload, sizeof(PolygonPayload));
             if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
-            self->upsertPolygon(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.sides, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
-            if (const auto it = self->state().entityManager_.entities.find(id); it != self->state().entityManager_.entities.end()) {
-                self->state().entityManager_.polygons[it->second.index].elevationZ = p.elevationZ;
-            }
+            self->upsertPolygon(id, p.cx, p.cy, p.rx, p.ry, p.rot, p.sx, p.sy, p.sides, p.fillR, p.fillG, p.fillB, p.fillA, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::UpsertArrow): {
@@ -142,10 +127,7 @@ EngineError dispatchCommand(
             ArrowPayload p;
             std::memcpy(&p, payload, sizeof(ArrowPayload));
             if (!std::isfinite(p.elevationZ)) return EngineError::InvalidPayloadSize;
-            self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx);
-            if (const auto it = self->state().entityManager_.entities.find(id); it != self->state().entityManager_.entities.end()) {
-                self->state().entityManager_.arrows[it->second.index].elevationZ = p.elevationZ;
-            }
+            self->upsertArrow(id, p.ax, p.ay, p.bx, p.by, p.head, p.strokeR, p.strokeG, p.strokeB, p.strokeA, p.strokeEnabled, p.strokeWidthPx, p.elevationZ);
             break;
         }
         case static_cast<std::uint32_t>(CommandOp::SetLayerStyle): {
