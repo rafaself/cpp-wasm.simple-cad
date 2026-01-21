@@ -35,7 +35,7 @@ High-performance vector CAD editor with world-class UX (Figma-grade), extended b
 
 * Solidify the **2D CAD foundation**: drawing, selection, transforms, text, persistence.
 * Implement the **Electrical domain kernel** as an independent module integrated via strict contracts.
-* Adopt **2.5D now** (plan + elevation) with a clean path to **3D soon**, without rewriting the core.
+* Begin adopting **2.5D** (plan + elevation) with a clean path to **3D soon**, without rewriting the core.
 
 ---
 
@@ -76,7 +76,7 @@ Domain modules (e.g., Electrical) are separate kernels providing semantics, vali
    * Text layout + quads
    * Render buffer generation for WebGL2
    * Persistence: strict binary snapshot
-   * **2.5D-capable geometry model (Vec3-ready)**, while default view is 2D
+   * Target: **2.5D-capable geometry model (Vec3-ready)**; current core is still 2D while default view is 2D
 
 4. **Electrical Core (Domain Kernel — Domain Source of Truth)**
 
@@ -135,17 +135,46 @@ User Input → React → Runtime Facades → (Atlas / Domain) → Events/Buffers
 
 ## 4. 2.5D Now, 3D Soon (No Technical Debt)
 
-### 4.1 Coordinate System & Angles (Normative)
+### 4.0 Units, Precision & Tolerances (Normative)
 
-* **Screen Space**: pixels, **+Y Down**
-* **World Space (Plan View)**: infinite plane, units = world units (abstract), **+Y Down convention**
-* **Angles**:
+The project MUST adopt a single canonical measurement convention to avoid drift between UI, engine math, and domain validation.
 
-  * Public API: **Degrees**
-  * Internal Engine: **Radians**
-  * Positive rotation: **Clockwise (CW)** due to +Y Down
+**Canonical Length Unit (World Space):**
+- Atlas operates in **World Units (WU)** as its canonical internal unit.
+- External units (m/mm/cm/ft/in) MUST be converted at the **Runtime Facades / import/export** boundary, never inside Atlas.
+- Current DXF import mapping assumes **1m = 100 WU**; if this mapping changes, update import adapters and tests together.
+- Domain (Electrical) parameters that represent physical lengths/heights MUST be stored in WU or converted to WU at the boundary.
 
-**Rule:** The frontend must not implement canonical geometry math, picking tolerances, or deg↔rad conversions for authoritative state.
+**Numeric Precision:**
+- Atlas MUST define and document which numeric type is canonical for geometry (e.g., `float` vs `double`) and keep it consistent.
+- Any quantization/rounding policy for persistence MUST be explicit and deterministic.
+
+**Tolerances (Picking/Snapping):**
+- User-facing tolerances MUST be expressed in **pixels**, but computed **inside Atlas** using view parameters (scale, DPR, viewport).
+- The frontend MUST NOT implement tolerance math or “equivalent pixel radius” calculations.
+- Atlas MUST expose stable queries/commands for:
+  - current picking tolerance (effective world-space epsilon for current view)
+  - snapping radius (effective)
+
+**Rounding / Display Rules:**
+- UI formatting (decimals, unit suffix) is presentation-only and MUST NOT change canonical stored values.
+- Any “grid step” or “unit step” used by tools MUST be an Atlas-owned parameter or an Atlas-derived effective value.
+
+---
+
+### 4.1 Coordinate System & Angles (Normative) — Clarification
+
+- **Screen Space**: pixels, **+Y Down**
+- **World Space (Plan View)**: infinite plane, units = canonical world units (see §4.0), **+Y Down convention**
+- **Angles**:
+  - Public API: **Degrees**
+  - Internal Engine: **Radians**
+  - Positive rotation: **Clockwise (CW)** due to +Y Down
+
+**Rule (Strict):**
+- Feature code in `apps/web/**` MUST NOT implement canonical geometry math, picking tolerances, or deg↔rad conversions for authoritative state.
+- Any unit/angle conversion required by UI (degrees display, mm input, etc.) MUST occur only in the **Runtime Facades / bindings layer**.
+- Atlas-owned state MUST be set/query via the facade contract only (no “helper conversions” in tool handlers).
 
 ### 4.2 Geometry Model: 3D-capable, Used as 2.5D
 
@@ -154,6 +183,9 @@ Atlas must be **3D-capable in the data model**, even if the current view is 2D.
 * Canonical geometry types MUST be Vec3-ready (x, y, z) or equivalent.
 * The 2D editor is a **top-down projection**; Z is stored for dimensioning and future 3D visualization.
 * The renderer may ignore Z in 2D view, but Z MUST remain authoritative in Atlas for 3D computations when used.
+
+**Implementation note:** Core geometry records are still 2D (Point2). Z currently exists only in render vertices (draw order),
+so Vec3-ready storage is required work and should not be assumed in feature code yet.
 
 ### 4.3 Heights: Geometric vs Semantic (Normative)
 
@@ -186,6 +218,17 @@ To avoid future rewrites:
 ---
 
 ## 5. Absolute Rules (Non-Negotiable)
+
+### 5.0 Atlas Domain-Agnostic Rule (Strict)
+
+**Atlas MUST remain strictly domain-agnostic.** This is the highest-priority architectural rule.
+
+Implications (non-negotiable):
+
+* Atlas MUST NOT encode or interpret any domain concepts (e.g., socket, circuit, net, pin, wire semantics, standards).
+* Atlas MUST only handle generic CAD concerns: geometry, styles, layers, hierarchy, selection/picking/snapping, transforms, render buffers, persistence.
+* Atlas MAY store generic fields (e.g., `elevationZ`, `drawOrder`) and opaque extension blocks, but MUST NOT interpret domain payloads.
+* Domain kernels own all business rules and validation; Atlas may only validate structural integrity (e.g., snapshot version, bounds, finite floats).
 
 ### 5.1 Forbidden
 
@@ -227,6 +270,16 @@ Persistence:
 ---
 
 ## 6. Performance Requirements
+
+### 6.0 Execution Model (WASM) (Normative)
+
+Atlas execution model MUST be explicit to avoid incorrect assumptions in scheduling, polling, and renderer orchestration.
+
+- Default assumption: **single-threaded WASM** execution unless explicitly enabled and documented otherwise.
+- If pthreads/workers are introduced later:
+  - event delivery semantics (ring buffer) MUST remain deterministic
+  - synchronization points MUST be documented (what can run concurrently and what cannot)
+  - CI must include at least one stress/perf test to validate no deadlocks and stable latency
 
 ### 6.1 Targets
 
@@ -424,18 +477,37 @@ The following checks MUST pass before merge:
 * No direct engine instance usage outside `apps/web/engine/**`.
 * No cross-kernel imports (Atlas ↔ Domain) outside runtime facades.
 
-2. **Hot path checks**
+2. **Domain contamination checks**
+
+* No domain identifiers or standards references inside `packages/engine/**` (enforced by CI string scan).
+* No domain types or headers referenced by Atlas public headers.
+* Domain kernels MUST NOT import Atlas internals (only facades/contracts).
+
+3. **Hot path checks**
 
 * Pointermove handlers must not allocate or create closures.
 * Interactive sessions must use begin/update/commit.
+* Add linting for `onPointerMove`/`pointermove` to flag per-event allocations (objects/arrays/spreads).
+* Add a lightweight perf test to assert:
+  * no React state updates on hot path
+  * no command serialization on hot path
+  * stable frame time budget under a defined scene baseline
 
-3. **Doc drift checks**
+4. **Doc drift checks**
 
 * Runtime public APIs must match `engine-api.md` and manifests.
 
-4. **Snapshot checks**
+5. **Snapshot checks**
 
 * Version mismatch must fail fast.
+
+6. **Performance budget checks**
+
+* Add a deterministic scene fixture and micro-benchmarks for:
+  * picking query cost
+  * transform update cost
+  * render buffer incremental rebuild cost
+* CI MUST fail if budgets regress beyond agreed thresholds (stored as numbers, not prose).
 
 ---
 
