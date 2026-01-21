@@ -1,7 +1,7 @@
 import { LucideIcon, LucideProps } from 'lucide-react';
 import React from 'react';
 
-export type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
 
 export interface IconProps extends Omit<LucideProps, 'size'> {
   icon: LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>;
@@ -14,6 +14,7 @@ const sizeMap: Record<IconSize, number> = {
   md: 20,
   lg: 24,
   xl: 32,
+  xxl: 40,
 };
 
 export const Icon: React.FC<IconProps> = ({
