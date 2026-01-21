@@ -1,9 +1,13 @@
+import { EXPECTED_ABI_HASH } from '@/engine/core/protocol';
+
 export type CadEngineFactory<TModule> = (opts?: unknown) => Promise<TModule>;
 
 type HeapViews = {
   HEAPU8: Uint8Array;
   HEAPF32: Float32Array;
 };
+
+const WASM_VERSION_TAG = EXPECTED_ABI_HASH.toString(16).padStart(8, '0');
 
 const ensureCadEngineFactoryPromise = (): Promise<unknown> => {
   if (typeof window === 'undefined') {
@@ -13,7 +17,7 @@ const ensureCadEngineFactoryPromise = (): Promise<unknown> => {
   if (window.__cadEngineFactoryPromise) return window.__cadEngineFactoryPromise;
 
   const baseWasmUrl = getBaseWasmUrl();
-  const engineUrl = new URL('wasm/engine.js', baseWasmUrl).toString();
+  const engineUrl = buildWasmAssetUrl('engine.js', baseWasmUrl).toString();
 
   window.__cadEngineFactoryPromise = import(/* @vite-ignore */ engineUrl).then((m) => {
     const maybeDefault = (m as { default?: unknown }).default;
@@ -46,6 +50,12 @@ const getBaseWasmUrl = (): string => {
   return new URL(base, window.location.href).toString();
 };
 
+const buildWasmAssetUrl = (filename: 'engine.js' | 'engine.wasm', baseUrl: string): URL => {
+  const url = new URL(`wasm/${filename}`, baseUrl);
+  url.searchParams.set('v', WASM_VERSION_TAG);
+  return url;
+};
+
 export const getCadEngineFactory = async <TModule>(): Promise<CadEngineFactory<TModule>> => {
   const promise = ensureCadEngineFactoryPromise();
 
@@ -69,7 +79,7 @@ export const initCadEngineModule = async <TModule extends object>(): Promise<
     successCallback: (instance: WebAssembly.Instance, module?: WebAssembly.Module) => void,
   ) => {
     const baseWasmUrl = getBaseWasmUrl();
-    const wasmUrl = new URL('wasm/engine.wasm', baseWasmUrl).toString();
+    const wasmUrl = buildWasmAssetUrl('engine.wasm', baseWasmUrl).toString();
     const res = await fetch(wasmUrl, { credentials: 'same-origin' });
     if (!res.ok) throw new Error(`Failed to fetch WASM binary: ${res.status} ${res.statusText}`);
 
