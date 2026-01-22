@@ -317,7 +317,6 @@ export const getRibbonTabs = (enableColorsRibbon: boolean): RibbonTab[] => [
             actionId: 'zoom-to-fit',
             status: 'ready',
             variant: 'large',
-            width: 'md',
           },
           {
             id: 'grid',
