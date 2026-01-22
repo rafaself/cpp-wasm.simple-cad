@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include "engine/persistence/snapshot.h"
 #include "engine/entity/entity_manager.h"
+#include "engine/core/types.h"
+#include <cstring>
 
 using namespace engine;
 
@@ -113,4 +115,116 @@ TEST(SnapshotTest, RoundTrip) {
     EXPECT_FLOAT_EQ(parsed.lines[0].rec.elevationZ, data.lines[0].rec.elevationZ);
     EXPECT_FLOAT_EQ(parsed.polylines[0].rec.elevationZ, data.polylines[0].rec.elevationZ);
     EXPECT_FLOAT_EQ(parsed.texts[0].elevationZ, data.texts[0].elevationZ);
+}
+
+TEST(SnapshotTest, RejectsOldVersion) {
+    // Create a minimal valid snapshot
+    SnapshotData data;
+    engine::protocol::LayerStyleSnapshot layerStyle{};
+    layerStyle.strokeRGBA = 0xFFFFFFFFu;
+    layerStyle.fillRGBA = 0xFFFFFFFFu;
+    layerStyle.textColorRGBA = 0xFFFFFFFFu;
+    layerStyle.textBackgroundRGBA = 0x00000000u;
+    layerStyle.strokeEnabled = 1;
+    layerStyle.fillEnabled = 1;
+    layerStyle.textBackgroundEnabled = 0;
+    layerStyle.reserved = 0;
+    LayerSnapshot layer{1, 0, static_cast<std::uint32_t>(LayerFlags::Visible), "Default", layerStyle};
+    data.layers.push_back(layer);
+    data.nextId = 1;
+
+    auto bytes = buildSnapshotBytes(data);
+    ASSERT_GT(bytes.size(), 8u);
+
+    // Corrupt the version field (at offset 4) to an old version (e.g., version 1)
+    const std::uint32_t oldVersion = 1;
+    std::memcpy(bytes.data() + 4, &oldVersion, sizeof(std::uint32_t));
+
+    // Attempt to parse - should fail with UnsupportedVersion
+    SnapshotData parsed;
+    EngineError err = parseSnapshot(bytes.data(), static_cast<uint32_t>(bytes.size()), parsed);
+    EXPECT_EQ(err, EngineError::UnsupportedVersion);
+}
+
+TEST(SnapshotTest, RejectsFutureVersion) {
+    // Create a minimal valid snapshot
+    SnapshotData data;
+    engine::protocol::LayerStyleSnapshot layerStyle{};
+    layerStyle.strokeRGBA = 0xFFFFFFFFu;
+    layerStyle.fillRGBA = 0xFFFFFFFFu;
+    layerStyle.textColorRGBA = 0xFFFFFFFFu;
+    layerStyle.textBackgroundRGBA = 0x00000000u;
+    layerStyle.strokeEnabled = 1;
+    layerStyle.fillEnabled = 1;
+    layerStyle.textBackgroundEnabled = 0;
+    layerStyle.reserved = 0;
+    LayerSnapshot layer{1, 0, static_cast<std::uint32_t>(LayerFlags::Visible), "Default", layerStyle};
+    data.layers.push_back(layer);
+    data.nextId = 1;
+
+    auto bytes = buildSnapshotBytes(data);
+    ASSERT_GT(bytes.size(), 8u);
+
+    // Corrupt the version field (at offset 4) to a future version (current + 100)
+    const std::uint32_t futureVersion = snapshotVersionEsnp + 100;
+    std::memcpy(bytes.data() + 4, &futureVersion, sizeof(std::uint32_t));
+
+    // Attempt to parse - should fail with UnsupportedVersion
+    SnapshotData parsed;
+    EngineError err = parseSnapshot(bytes.data(), static_cast<uint32_t>(bytes.size()), parsed);
+    EXPECT_EQ(err, EngineError::UnsupportedVersion);
+}
+
+TEST(SnapshotTest, RejectsInvalidMagic) {
+    // Create a minimal valid snapshot
+    SnapshotData data;
+    engine::protocol::LayerStyleSnapshot layerStyle{};
+    layerStyle.strokeRGBA = 0xFFFFFFFFu;
+    layerStyle.fillRGBA = 0xFFFFFFFFu;
+    layerStyle.textColorRGBA = 0xFFFFFFFFu;
+    layerStyle.textBackgroundRGBA = 0x00000000u;
+    layerStyle.strokeEnabled = 1;
+    layerStyle.fillEnabled = 1;
+    layerStyle.textBackgroundEnabled = 0;
+    layerStyle.reserved = 0;
+    LayerSnapshot layer{1, 0, static_cast<std::uint32_t>(LayerFlags::Visible), "Default", layerStyle};
+    data.layers.push_back(layer);
+    data.nextId = 1;
+
+    auto bytes = buildSnapshotBytes(data);
+    ASSERT_GT(bytes.size(), 4u);
+
+    // Corrupt the magic field (at offset 0) to an invalid value
+    const std::uint32_t invalidMagic = 0xDEADBEEF;
+    std::memcpy(bytes.data(), &invalidMagic, sizeof(std::uint32_t));
+
+    // Attempt to parse - should fail with InvalidMagic
+    SnapshotData parsed;
+    EngineError err = parseSnapshot(bytes.data(), static_cast<uint32_t>(bytes.size()), parsed);
+    EXPECT_EQ(err, EngineError::InvalidMagic);
+}
+
+TEST(SnapshotTest, RejectsTruncatedSnapshot) {
+    // Create a minimal valid snapshot
+    SnapshotData data;
+    engine::protocol::LayerStyleSnapshot layerStyle{};
+    layerStyle.strokeRGBA = 0xFFFFFFFFu;
+    layerStyle.fillRGBA = 0xFFFFFFFFu;
+    layerStyle.textColorRGBA = 0xFFFFFFFFu;
+    layerStyle.textBackgroundRGBA = 0x00000000u;
+    layerStyle.strokeEnabled = 1;
+    layerStyle.fillEnabled = 1;
+    layerStyle.textBackgroundEnabled = 0;
+    layerStyle.reserved = 0;
+    LayerSnapshot layer{1, 0, static_cast<std::uint32_t>(LayerFlags::Visible), "Default", layerStyle};
+    data.layers.push_back(layer);
+    data.nextId = 1;
+
+    auto bytes = buildSnapshotBytes(data);
+    ASSERT_GT(bytes.size(), 10u);
+
+    // Truncate the snapshot to just 8 bytes (less than header size)
+    SnapshotData parsed;
+    EngineError err = parseSnapshot(bytes.data(), 8, parsed);
+    EXPECT_EQ(err, EngineError::BufferTruncated);
 }

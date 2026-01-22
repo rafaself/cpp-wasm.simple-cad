@@ -195,9 +195,9 @@ TEST_F(CadEngineTest, GetEntityKindReturnsCorrectType) {
         0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f);
     CadEngineTestAccessor::upsertArrow(engine, 5, 0.0f, 0.0f, 10.0f, 10.0f, 2.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 
-    EXPECT_EQ(engine.getEntityKind(1), EntityKind::Rect);
-    EXPECT_EQ(engine.getEntityKind(2), EntityKind::Line);
-    EXPECT_EQ(engine.getEntityKind(3), EntityKind::Circle);
-    EXPECT_EQ(engine.getEntityKind(4), EntityKind::Polygon);
-    EXPECT_EQ(engine.getEntityKind(5), EntityKind::Arrow);
+    EXPECT_EQ(engine.getEntityKind(1), static_cast<std::uint32_t>(EntityKind::Rect));
+    EXPECT_EQ(engine.getEntityKind(2), static_cast<std::uint32_t>(EntityKind::Line));
+    EXPECT_EQ(engine.getEntityKind(3), static_cast<std::uint32_t>(EntityKind::Circle));
+    EXPECT_EQ(engine.getEntityKind(4), static_cast<std::uint32_t>(EntityKind::Polygon));
+    EXPECT_EQ(engine.getEntityKind(5), static_cast<std::uint32_t>(EntityKind::Arrow));
 }

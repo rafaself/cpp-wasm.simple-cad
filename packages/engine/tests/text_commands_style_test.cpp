@@ -6,12 +6,15 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_MidRunInsertsZeroLengthRun) {
     CommandBufferBuilder builder;
     builder.writeHeader(1);
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 1;
-    payload.selectionStart = 2;
-    payload.selectionEnd = 2;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Bold);
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0; // set
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
     builder.writeCommandHeader(CommandOp::ApplyTextStyle, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 
@@ -30,12 +33,15 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtRunBoundaryBetweenRuns) {
     CommandBufferBuilder builder;
     builder.writeHeader(1);
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 1;
-    payload.selectionStart = 5;
-    payload.selectionEnd = 5;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Italic);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Italic);
+    payload.rangeStartLogical = 5;
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Italic);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Italic);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
     builder.writeCommandHeader(CommandOp::ApplyTextStyle, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 
@@ -54,12 +60,15 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_AtContentEnd) {
     CommandBufferBuilder builder;
     builder.writeHeader(1);
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 1;
-    payload.selectionStart = 5;
-    payload.selectionEnd = 5;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Underline);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Underline);
+    payload.rangeStartLogical = 5;
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Underline);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
     builder.writeCommandHeader(CommandOp::ApplyTextStyle, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 
@@ -77,12 +86,15 @@ TEST_F(TextCommandsTest, ApplyTextStyle_CaretOnly_OnEmptyContent) {
     CommandBufferBuilder builder;
     builder.writeHeader(1);
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 1;
-    payload.selectionStart = 0;
-    payload.selectionEnd = 0;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Bold);
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 0;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
     builder.writeCommandHeader(CommandOp::ApplyTextStyle, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 
@@ -100,24 +112,27 @@ TEST_F(TextCommandsTest, ApplyTextStyleEmitsEntityChangedWithBounds) {
     CommandBufferBuilder builder;
     builder.writeHeader(1);
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 1;
-    payload.selectionStart = 0;
-    payload.selectionEnd = 5;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Bold);
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
     builder.writeCommandHeader(CommandOp::ApplyTextStyle, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 
     EngineError err = applyCommands(builder);
     EXPECT_EQ(err, EngineError::Ok);
 
-    auto events = engine_->pollEvents(32);
+    auto eventsMeta = engine_->pollEvents(32);
     bool found = false;
-    for (std::uint32_t i = 0; i < events.count; ++i) {
-        if (events.events[i].type == static_cast<std::uint16_t>(engine::protocol::EventType::EntityChanged)) {
-            found = true;
-            break;
+    if (eventsMeta.ptr && eventsMeta.count > 0) {
+        const auto* events = reinterpret_cast<const engine::protocol::EngineEvent*>(eventsMeta.ptr);
+        for (std::uint32_t i = 0; i < eventsMeta.count; ++i) {
+            if (events[i].type == static_cast<std::uint16_t>(engine::protocol::EventType::EntityChanged)) {
+                found = true;
+                break;
+            }
         }
     }
     EXPECT_TRUE(found);
@@ -129,14 +144,17 @@ TEST_F(TextCommandsTest, ApplyTextStyle_MultipleTogglesAtCaret_SingleRun) {
     CommandBufferBuilder builder;
     builder.writeHeader(1);
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 1;
-    payload.selectionStart = 2;
-    payload.selectionEnd = 2;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold)
-        | static_cast<std::uint32_t>(TextStyleFlags::Italic);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Bold)
-        | static_cast<std::uint32_t>(TextStyleFlags::Italic);
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold)
+        | static_cast<std::uint8_t>(TextStyleFlags::Italic);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold)
+        | static_cast<std::uint8_t>(TextStyleFlags::Italic);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
     builder.writeCommandHeader(CommandOp::ApplyTextStyle, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 

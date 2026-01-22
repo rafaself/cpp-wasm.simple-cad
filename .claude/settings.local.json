@@ -63,7 +63,10 @@
       "Bash(npm run governance:semantic:*)",
       "Bash(npm run governance:arbitrary:*)",
       "Bash(npm install:*)",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(sudo cmake --build:*)",
+      "Bash(ctest:*)",
+      "Bash(cmake:*)"
     ]
   }
 }
