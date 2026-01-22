@@ -66,25 +66,25 @@ export const RibbonLargeButton: React.FC<RibbonLargeButtonProps> = ({
   const hoverEndRef = React.useRef<(() => void) | null>(null);
 
   return (
-      <Button
-        variant={variant}
-        className={`ribbon-large-button ${widthClass} flex-col justify-center gap-1 ${hoverClass}${debugClass}`}
-        disabled={isStub}
-        onClick={handleClick}
-        onMouseEnter={() => {
-          hoverEndRef.current = tracking.startHoverTimer(item.toolId || item.actionId || item.id);
-        }}
-        onMouseLeave={() => {
-          if (hoverEndRef.current) {
-            hoverEndRef.current();
-            hoverEndRef.current = null;
-          }
-        }}
-        title={tooltip}
-        aria-pressed={isTool ? isActive : undefined}
-      >
-        {Icon && <IconPrimitive icon={Icon} size="lg" />}
-        <span className="ribbon-large-label">{item.label}</span>
-        </Button>
-    );
+    <Button
+      variant={variant}
+      className={`ribbon-large-button ${widthClass} flex-col justify-center gap-1 ${hoverClass}${debugClass}`}
+      disabled={isStub}
+      onClick={handleClick}
+      onMouseEnter={() => {
+        hoverEndRef.current = tracking.startHoverTimer(item.toolId || item.actionId || item.id);
+      }}
+      onMouseLeave={() => {
+        if (hoverEndRef.current) {
+          hoverEndRef.current();
+          hoverEndRef.current = null;
+        }
+      }}
+      title={tooltip}
+      aria-pressed={isTool ? isActive : undefined}
+    >
+      {Icon && <IconPrimitive icon={Icon} size="lg" />}
+      <span className="ribbon-large-label">{item.label}</span>
+    </Button>
+  );
 };

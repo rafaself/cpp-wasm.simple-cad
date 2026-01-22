@@ -99,6 +99,46 @@
       "path": "apps/web/utils/pickResultCache.test.ts",
       "hardLimit": 540,
       "reason": "Large cache test fixture; to be broken up after governance baseline."
+    },
+    {
+      "path": "apps/web/engine/core/protocol.ts",
+      "hardLimit": 650,
+      "reason": "Engine protocol definitions; monolithic type definitions for WASM bridge interface. Pending modularization."
+    },
+    {
+      "path": "apps/web/features/editor/colors/ColorRibbonControls.tsx",
+      "hardLimit": 750,
+      "reason": "Color ribbon controls with complex state management and multiple color modes. Scheduled for component split."
+    },
+    {
+      "path": "apps/web/features/editor/components/ShapeOverlay.tsx",
+      "hardLimit": 700,
+      "reason": "Shape overlay rendering all selection handles and bounding boxes. Planned extraction of handle logic."
+    },
+    {
+      "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
+      "hardLimit": 550,
+      "reason": "Drafting handler supporting multiple tool types (line, polyline, rect, circle, polygon, arrow). Pending tool-specific handler split."
+    },
+    {
+      "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx",
+      "hardLimit": 760,
+      "reason": "Selection handler with transform sessions, multi-select, and drag operations. Slated for extraction of transform logic."
+    },
+    {
+      "path": "apps/web/utils/analytics/ribbonAnalytics.ts",
+      "hardLimit": 550,
+      "reason": "Ribbon analytics with comprehensive event tracking. Pending split into separate trackers per ribbon section."
+    },
+    {
+      "path": "packages/engine/engine/interaction/pick_system.cpp",
+      "hardLimit": 980,
+      "reason": "Picking system with spatial indexing and tolerance calculations. Planned refactor to separate spatial query layer."
+    },
+    {
+      "path": "packages/engine/engine.cpp",
+      "hardLimit": 930,
+      "reason": "Main engine implementation dispatching to subsystems. Legacy monolith tracked for SRP split."
     }
   ]
 }

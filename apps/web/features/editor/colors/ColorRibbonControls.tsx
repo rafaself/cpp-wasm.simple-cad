@@ -24,6 +24,9 @@ import { unpackColorRGBA } from '@/types/text';
 import { hexToCssRgba, rgbToHex } from '@/utils/cssColor';
 
 import { RibbonIconButton } from '../components/ribbon/RibbonIconButton';
+import { useRibbonLayout } from '../components/ribbon/ribbonLayout';
+import { RIBBON_ICON_SIZES } from '../components/ribbon/ribbonUtils';
+import { isTierAtLeast } from '../ui/ribbonLayoutV2';
 
 import {
   applyColorAction,
@@ -38,9 +41,6 @@ import {
   useColorTargetResolver,
 } from './useColorTargetResolver';
 import { useSelectionStyleSummary } from './useSelectionStyleSummary';
-import { useRibbonLayout } from '../components/ribbon/ribbonLayout';
-import { isTierAtLeast } from '../ui/ribbonLayoutV2';
-import { RIBBON_ICON_SIZES } from '../components/ribbon/ribbonUtils';
 
 /**
  * Locked context captured when color picker opens.
@@ -133,8 +133,7 @@ const hasTargetDiffFromLayer = (
       : summary.enabledState === TriState.Mixed
         ? true
         : (summary.enabledState === TriState.On) !== enabled;
-  const colorDiff =
-    summary.state === StyleState.Mixed ? true : summary.colorRGBA !== colorRGBA;
+  const colorDiff = summary.state === StyleState.Mixed ? true : summary.colorRGBA !== colorRGBA;
   return enabledDiff || colorDiff;
 };
 
@@ -515,9 +514,7 @@ export const ColorRibbonControls: React.FC = () => {
   }, [mode, selectionLayerStyle, selectionSummary, fillState.applyTargets]);
 
   const isStrokeRestorable =
-    mode === 'selection'
-      ? (strokeDiffFromLayer ?? strokeRestoreFallback)
-      : strokeRestoreFallback;
+    mode === 'selection' ? (strokeDiffFromLayer ?? strokeRestoreFallback) : strokeRestoreFallback;
   const isFillRestorable =
     mode === 'selection' ? (fillDiffFromLayer ?? fillRestoreFallback) : fillRestoreFallback;
   const collapseRestores = isTierAtLeast(tier, 'tier2');
@@ -692,27 +689,27 @@ export const ColorRibbonControls: React.FC = () => {
                     </div>
                   }
                 >
-                <RibbonIconButton
-                  icon={<MoreHorizontal size={ICON_SIZE} />}
-                  onClick={() => undefined}
-                  title="Mais opções de preenchimento"
-                  size="md"
-                  className="ribbon-icon-no-bg text-text-muted"
-                  disabled={isDisabled}
-                />
+                  <RibbonIconButton
+                    icon={<MoreHorizontal size={ICON_SIZE} />}
+                    onClick={() => undefined}
+                    title="Mais opções de preenchimento"
+                    size="md"
+                    className="ribbon-icon-no-bg text-text-muted"
+                    disabled={isDisabled}
+                  />
                 </Popover>
               ) : null
             ) : (
-                <RibbonIconButton
-                  icon={<Undo2 size={ICON_SIZE} />}
-                  onClick={() => handleRestore('fill')}
-                  title={restoreFillTooltip}
-                  size="md"
-                  disabled={
-                    isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
-                  }
-                  className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
-                />
+              <RibbonIconButton
+                icon={<Undo2 size={ICON_SIZE} />}
+                onClick={() => handleRestore('fill')}
+                title={restoreFillTooltip}
+                size="md"
+                disabled={
+                  isDisabled || !isFillRestorable || fillState.supportedState === TriState.Off
+                }
+                className={`ribbon-icon-no-bg !w-6 text-text-muted ${!isFillRestorable ? 'opacity-10 pointer-events-none' : ''}`}
+              />
             )}
           </div>
         </div>

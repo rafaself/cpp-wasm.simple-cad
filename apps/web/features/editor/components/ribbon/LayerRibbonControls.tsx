@@ -10,11 +10,12 @@ import { useEngineRuntime } from '@/engine/core/useEngineRuntime';
 import { INPUT_STYLES } from '@/src/styles/recipes';
 import { useUIStore } from '@/stores/useUIStore';
 
-import { RibbonIconButton } from './RibbonIconButton';
-import { RibbonToggleGroup } from './RibbonToggleGroup';
-import { useRibbonLayout } from './ribbonLayout';
-import { RIBBON_ICON_SIZES } from './ribbonUtils';
 import { isTierAtLeast } from '../../ui/ribbonLayoutV2';
+
+import { RibbonIconButton } from './RibbonIconButton';
+import { useRibbonLayout } from './ribbonLayout';
+import { RibbonToggleGroup } from './RibbonToggleGroup';
+import { RIBBON_ICON_SIZES } from './ribbonUtils';
 
 export const LayerRibbonControls: React.FC = () => {
   const runtime = useEngineRuntime();
@@ -97,7 +98,13 @@ export const LayerRibbonControls: React.FC = () => {
 
           {/* Lock Toggle */}
           <RibbonIconButton
-            icon={activeLayer?.locked ? <Lock size={RIBBON_ICON_SIZES.md} /> : <Unlock size={RIBBON_ICON_SIZES.md} />}
+            icon={
+              activeLayer?.locked ? (
+                <Lock size={RIBBON_ICON_SIZES.md} />
+              ) : (
+                <Unlock size={RIBBON_ICON_SIZES.md} />
+              )
+            }
             onClick={() => updateLayerFlags(undefined, !activeLayer?.locked)}
             isActive={activeLayer?.locked ?? false}
             title={activeLayer?.locked ? 'Desbloquear Camada' : 'Bloquear Camada'}
@@ -143,12 +150,12 @@ export const LayerRibbonControls: React.FC = () => {
               />
             </Popover>
           ) : (
-          <RibbonIconButton
-            icon={<Layers size={RIBBON_ICON_SIZES.md} />}
-            onClick={() => setLayerManagerOpen(true)}
-            title="Gerenciador de Camadas (Propriedades)"
-            size="md"
-          />
+            <RibbonIconButton
+              icon={<Layers size={RIBBON_ICON_SIZES.md} />}
+              onClick={() => setLayerManagerOpen(true)}
+              title="Gerenciador de Camadas (Propriedades)"
+              size="md"
+            />
           )}
         </RibbonToggleGroup>
       </div>

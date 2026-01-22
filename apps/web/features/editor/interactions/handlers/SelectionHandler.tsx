@@ -164,7 +164,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     }
 
     // Picking Logic (Hit Test)
-    const tolerance = 10 / (ctx.viewTransform.scale || 1); // 10px screen tolerance
+    const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
     const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
     cadDebugLog('selection', 'pick', () => ({
       id: res.id,
@@ -398,7 +398,7 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     // Check for hover on resize handles when not in active transform
     if (this.state.kind === 'none') {
-      const tolerance = 10 / ctx.viewTransform.scale; // Scale-aware tolerance
+      const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
       if (isCadDebugEnabled('pointer')) {
         cadDebugLog('pointer', 'move', () => ({
           screen,
@@ -458,7 +458,7 @@ export class SelectionHandler extends BaseInteractionHandler {
       this.notifyChange();
     } else if (this.state.kind === 'none') {
       // Update hover state for cursor feedback when not interacting
-      const tolerance = 10 / (ctx.viewTransform.scale || 1);
+      const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
       startTiming('pick');
       const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
       endTiming('pick');
@@ -602,7 +602,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (!runtime) return;
     if (typeof (runtime as any).getTextEntityMeta !== 'function' || !(runtime as any).text) return;
 
-    const tolerance = 10 / (viewTransform.scale || 1);
+    const tolerance = runtime.viewport.getPickingToleranceWithTransform(viewTransform);
     const pick = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
     if (pick.id === 0 || pick.kind !== PickEntityKind.Text) return;
 

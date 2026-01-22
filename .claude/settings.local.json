@@ -51,7 +51,17 @@
       "Bash(pnpm -F blazar exec tsc:*)",
       "Bash(chmod:*)",
       "Bash(./scripts/setup-hooks.sh:*)",
-      "Bash(pnpm exec tsc --noEmit)"
+      "Bash(pnpm exec tsc --noEmit)",
+      "Bash(pnpm -C apps/web typecheck:*)",
+      "Bash(pnpm -C apps/web lint:*)",
+      "Bash(pnpm -C apps/web test)",
+      "Bash(pnpm -C apps/web test NumericComboField)",
+      "Bash(pnpm -C apps/web governance:budgets:*)",
+      "Bash(pnpm -C apps/web test ViewportSystem)",
+      "Bash(pnpm -C apps/web test SelectionHandler.test)",
+      "Bash(npm run governance:boundaries:*)",
+      "Bash(npm run governance:semantic:*)",
+      "Bash(npm run governance:arbitrary:*)"
     ]
   }
 }

@@ -217,7 +217,7 @@ export class TextHandler extends BaseInteractionHandler {
     this.textTool.resyncFromEngine();
     this.checkInit(runtime);
 
-    const tolerance = 10 / (ctx.viewTransform.scale || 1);
+    const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
     const pick = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
     const state = this.state;
     const activeId = state?.activeTextId ?? null;

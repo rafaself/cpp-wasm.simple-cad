@@ -19,7 +19,7 @@
     "bench:vector-index": "node ./verification/benchmark_vector_index.mjs 65536",
     "bench:svg-to-ir": "node ./verification/benchmark_svg_to_vector_document.mjs 10000",
     "governance:budgets": "node ../../tooling/governance/check_file_size_budget.js",
-    "governance:boundaries": "node ../../tooling/governance/check_boundaries.js",
+    "governance:boundaries": "node ../../tooling/governance/check_boundaries_ast.js",
     "governance:manifest": "node ../../tooling/governance/check_engine_api_manifest.js",
     "governance:docs": "node ../../tooling/governance/check_docs_references.js",
     "governance:hex-ui": "node ../../tooling/governance/check_hex_ui.js",

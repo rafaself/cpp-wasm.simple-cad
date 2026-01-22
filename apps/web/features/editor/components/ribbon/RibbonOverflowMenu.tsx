@@ -110,17 +110,17 @@ export const RibbonOverflowMenu: React.FC<RibbonOverflowMenuProps> = ({
                       const Icon = item.icon;
 
                       return (
-                      <Button
-                        key={item.id}
-                        role="menuitem"
-                        variant="ghost"
-                        size="sm"
-                        className="ribbon-overflow-item"
-                        title={isStub ? `${item.label} — Em breve` : item.label}
-                        aria-disabled={isStub}
-                        disabled={isStub}
-                        onClick={() => handleSelect(item)}
-                      >
+                        <Button
+                          key={item.id}
+                          role="menuitem"
+                          variant="ghost"
+                          size="sm"
+                          className="ribbon-overflow-item"
+                          title={isStub ? `${item.label} — Em breve` : item.label}
+                          aria-disabled={isStub}
+                          disabled={isStub}
+                          onClick={() => handleSelect(item)}
+                        >
                           <span className="ribbon-overflow-item-main">
                             {Icon ? <Icon size={14} /> : null}
                             <span className="ribbon-overflow-item-label">{item.label}</span>

@@ -10,7 +10,7 @@ describe('colors ribbon helpers', () => {
     expect(resolveColorTargetMode(2, 'line')).toBe('selection');
     expect(resolveColorTargetMode(0, 'line')).toBe('tool');
     expect(resolveColorTargetMode(0, 'text')).toBe('tool');
-    expect(resolveColorTargetMode(0, 'select')).toBe('layer');
+    expect(resolveColorTargetMode(0, 'select')).toBe('none');
   });
 
   it('maps tooltips with exact PT-BR strings', () => {

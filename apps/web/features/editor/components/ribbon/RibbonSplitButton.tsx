@@ -16,54 +16,59 @@
  *   />
  */
 
-import { ChevronDown } from 'lucide-react'
-import React, { useRef, useState } from 'react'
+import { ChevronDown, LucideIcon } from 'lucide-react';
+import React, { useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/Button'
-import { Icon } from '@/components/ui/Icon'
-import { LABELS } from '@/i18n/labels'
-import { useRibbonTracking } from '@/utils/analytics/useRibbonTracking'
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { LABELS } from '@/i18n/labels';
+import { useRibbonTracking } from '@/utils/analytics/useRibbonTracking';
 
-import { isRibbonDebugEnabled } from './ribbonDebug'
-import { combineClasses, getStateClasses, resolveButtonVariant, type RibbonButtonIntent } from './ribbonButtonState'
+import {
+  combineClasses,
+  getStateClasses,
+  resolveButtonVariant,
+  type RibbonButtonIntent,
+} from './ribbonButtonState';
+import { isRibbonDebugEnabled } from './ribbonDebug';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface RibbonSplitButtonItem {
-  id: string
-  label: string
-  icon?: React.ComponentType<{ size?: number | string }>
-  onClick: () => void
-  disabled?: boolean
-  intent?: RibbonButtonIntent
+  id: string;
+  label: string;
+  icon?: LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>;
+  onClick: () => void;
+  disabled?: boolean;
+  intent?: RibbonButtonIntent;
 }
 
 export interface RibbonSplitButtonProps {
   // Primary action
-  label: string
-  icon?: React.ComponentType<{ size?: number | string }>
-  onClick: () => void
+  label: string;
+  icon?: LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>;
+  onClick: () => void;
 
   // Dropdown items
-  items: RibbonSplitButtonItem[]
+  items: RibbonSplitButtonItem[];
 
   // State
-  isActive?: boolean
-  disabled?: boolean
-  intent?: RibbonButtonIntent
+  isActive?: boolean;
+  disabled?: boolean;
+  intent?: RibbonButtonIntent;
 
   // Appearance
-  size?: 'sm' | 'md'
-  width?: 'sm' | 'md' | 'lg' | 'auto'
+  size?: 'sm' | 'md';
+  width?: 'sm' | 'md' | 'lg' | 'auto';
 
   // Metadata
-  title?: string
+  title?: string;
 
   // Tracking
-  tabId: string
-  groupId: string
+  tabId: string;
+  groupId: string;
 }
 
 // ============================================================================
@@ -82,63 +87,63 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
   width = 'auto',
   title,
   tabId,
-  groupId
+  groupId,
 }) => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownButtonRef = useRef<HTMLButtonElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const tracking = useRibbonTracking(tabId, groupId)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const tracking = useRibbonTracking(tabId, groupId);
 
   // Width classes
   const widthClasses = {
     sm: 'w-20',
     md: 'w-28',
     lg: 'w-36',
-    auto: 'w-auto'
-  }
+    auto: 'w-auto',
+  };
 
   // Resolve variant and classes
-  const variant = resolveButtonVariant(
-    isActive ? 'active' : 'default',
-    intent,
+  const variant = resolveButtonVariant(isActive ? 'active' : 'default', intent, isActive, 'mode');
+
+  const stateClasses = getStateClasses({
     isActive,
-    'mode'
-  )
+    isDisabled: disabled,
+    intent,
+    activeStyle: 'mode',
+  });
 
-  const stateClasses = getStateClasses({ isActive, isDisabled: disabled, intent, activeStyle: 'mode' })
-
-  const debugClass = isRibbonDebugEnabled() ? ' ribbon-debug-control' : ''
+  const debugClass = isRibbonDebugEnabled() ? ' ribbon-debug-control' : '';
 
   // Height based on size
-  const heightClass = size === 'sm' ? 'h-6' : 'h-8'
+  const heightClass = size === 'sm' ? 'h-6' : 'h-8';
 
   // Handle primary action click
   const handlePrimaryClick = () => {
-    if (disabled) return
-    tracking.trackClick(`${label}-primary`, 'action')
-    onClick()
-  }
+    if (disabled) return;
+    tracking.trackClick(`${label}-primary`, 'action');
+    onClick();
+  };
 
   // Handle dropdown toggle
   const handleDropdownToggle = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (disabled) return
-    setIsDropdownOpen(!isDropdownOpen)
-    tracking.trackClick(`${label}-dropdown`, 'action')
-  }
+    e.stopPropagation();
+    if (disabled) return;
+    setIsDropdownOpen(!isDropdownOpen);
+    tracking.trackClick(`${label}-dropdown`, 'action');
+  };
 
   // Handle dropdown item click
   const handleItemClick = (item: RibbonSplitButtonItem) => {
-    if (item.disabled) return
-    tracking.trackClick(item.id, 'action')
-    item.onClick()
-    setIsDropdownOpen(false)
-    dropdownButtonRef.current?.focus()
-  }
+    if (item.disabled) return;
+    tracking.trackClick(item.id, 'action');
+    item.onClick();
+    setIsDropdownOpen(false);
+    dropdownButtonRef.current?.focus();
+  };
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
-    if (!isDropdownOpen) return
+    if (!isDropdownOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -146,25 +151,25 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
         !dropdownRef.current.contains(e.target as Node) &&
         !dropdownButtonRef.current?.contains(e.target as Node)
       ) {
-        setIsDropdownOpen(false)
+        setIsDropdownOpen(false);
       }
-    }
+    };
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsDropdownOpen(false)
-        dropdownButtonRef.current?.focus()
+        setIsDropdownOpen(false);
+        dropdownButtonRef.current?.focus();
       }
-    }
+    };
 
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isDropdownOpen])
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isDropdownOpen]);
 
   return (
     <div className={combineClasses('relative inline-flex', widthClasses[width])}>
@@ -179,7 +184,7 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
           heightClass,
           'flex-1 rounded-r-none border-r-0 justify-start px-2.5',
           stateClasses,
-          debugClass
+          debugClass,
         )}
         leftIcon={IconComponent ? <Icon icon={IconComponent} size="sm" /> : undefined}
       >
@@ -200,7 +205,7 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
           heightClass,
           'w-6 rounded-l-none px-0 justify-center',
           stateClasses,
-          debugClass
+          debugClass,
         )}
       >
         <ChevronDown size={12} />
@@ -215,7 +220,7 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
           style={{ minWidth: '160px' }}
         >
           {items.map((item) => {
-            const ItemIcon = item.icon
+            const ItemIcon = item.icon;
             return (
               <button
                 key={item.id}
@@ -226,7 +231,7 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
                   'w-full flex items-center gap-2 px-3 py-2 text-left text-sm',
                   'hover:bg-surface-3 focus:bg-surface-3 focus-outline',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
-                  'transition-colors'
+                  'transition-colors',
                 )}
                 title={item.label}
               >
@@ -237,12 +242,12 @@ export const RibbonSplitButton: React.FC<RibbonSplitButtonProps> = ({
                 )}
                 <span className="flex-1 truncate">{item.label}</span>
               </button>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default RibbonSplitButton
+export default RibbonSplitButton;

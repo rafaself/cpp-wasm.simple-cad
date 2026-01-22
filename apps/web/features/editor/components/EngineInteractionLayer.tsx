@@ -7,7 +7,7 @@ import { useInteractionManager } from '@/features/editor/interactions/useInterac
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
-import { screenToWorld, worldToScreen } from '@/utils/viewportMath';
+import { worldToScreen } from '@/utils/viewportMath'; // worldToScreen still used for overlay rendering
 
 import CenterOriginIcon from './CenterOriginIcon';
 import RotationTooltip from './RotationTooltip';
@@ -149,10 +149,13 @@ const EngineInteractionLayer: React.FC = () => {
     }));
     // Update Global Mouse Pos (Throttled)
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const world = screenToWorld(
-      { x: e.clientX - rect.left, y: e.clientY - rect.top },
-      viewTransform,
-    );
+    const runtime = getEngineRuntime();
+    const world = runtime
+      ? runtime.viewport.screenToWorldWithTransform(
+          { x: e.clientX - rect.left, y: e.clientY - rect.top },
+          viewTransform,
+        )
+      : { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
     mousePosRef.current = world;
     if (rafRef.current === null) {

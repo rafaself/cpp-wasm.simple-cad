@@ -5,52 +5,52 @@
  * Centralized logic for button state resolution and class generation.
  */
 
-import React from 'react'
+import React from 'react';
 
-import { ButtonVariant } from '@/components/ui/Button'
-import { LABELS } from '@/i18n/labels'
+import { ButtonVariant } from '@/components/ui/Button';
+import { LABELS } from '@/i18n/labels';
 
-import { isRibbonDebugEnabled } from './ribbonDebug'
+import { isRibbonDebugEnabled } from './ribbonDebug';
 
 // ============================================================================
 // Type Definitions
 // ============================================================================
 
 export type RibbonButtonState =
-  | 'default'    // Normal state
-  | 'hover'      // Mouse over (handled by CSS)
-  | 'pressed'    // Mouse down (handled by CSS)
-  | 'active'     // Tool/action is currently active
-  | 'disabled'   // Cannot interact
-  | 'mixed'      // Multi-selection with different values
-  | 'loading'    // Async action in progress
-  | 'stub'       // Coming soon (not yet implemented)
+  | 'default' // Normal state
+  | 'hover' // Mouse over (handled by CSS)
+  | 'pressed' // Mouse down (handled by CSS)
+  | 'active' // Tool/action is currently active
+  | 'disabled' // Cannot interact
+  | 'mixed' // Multi-selection with different values
+  | 'loading' // Async action in progress
+  | 'stub'; // Coming soon (not yet implemented)
 
 export type RibbonButtonIntent =
-  | 'default'    // Normal action
-  | 'primary'    // Primary action (emphasized)
-  | 'danger'     // Destructive action
-  | 'warning'    // Caution required
-  | 'success'    // Positive action
+  | 'default' // Normal action
+  | 'primary' // Primary action (emphasized)
+  | 'danger' // Destructive action
+  | 'warning' // Caution required
+  | 'success'; // Positive action
 
-export type RibbonButtonSize = 'sm' | 'md' | 'lg'
+export type RibbonButtonSize = 'sm' | 'md' | 'lg';
 
 export interface RibbonButtonStateConfig {
   // State flags
-  isActive?: boolean
-  isDisabled?: boolean
-  isMixed?: boolean
-  isLoading?: boolean
-  isStub?: boolean
+  isActive?: boolean;
+  isDisabled?: boolean;
+  isMixed?: boolean;
+  isLoading?: boolean;
+  isStub?: boolean;
 
   // Intent
-  intent?: RibbonButtonIntent
+  intent?: RibbonButtonIntent;
 
   // Size
-  size?: RibbonButtonSize
+  size?: RibbonButtonSize;
 
   // Active styling intent
-  activeStyle?: 'mode' | 'toggle'
+  activeStyle?: 'mode' | 'toggle';
 }
 
 // ============================================================================
@@ -67,13 +67,13 @@ export function resolveButtonState(config: RibbonButtonStateConfig): RibbonButto
   // 3. Active → tool/action active
   // 4. Default → normal state
 
-  if (config.isDisabled) return 'disabled'
-  if (config.isLoading) return 'loading'
-  if (config.isStub) return 'stub'
-  if (config.isMixed) return 'mixed'
-  if (config.isActive) return 'active'
+  if (config.isDisabled) return 'disabled';
+  if (config.isLoading) return 'loading';
+  if (config.isStub) return 'stub';
+  if (config.isMixed) return 'mixed';
+  if (config.isActive) return 'active';
 
-  return 'default'
+  return 'default';
 }
 
 /**
@@ -83,29 +83,29 @@ export function resolveButtonVariant(
   state: RibbonButtonState,
   intent: RibbonButtonIntent = 'default',
   isActive: boolean = false,
-  activeStyle: 'mode' | 'toggle' = 'toggle'
+  activeStyle: 'mode' | 'toggle' = 'toggle',
 ): ButtonVariant {
   // Special states use secondary as base
-  if (state === 'disabled') return 'ghost'
-  if (state === 'loading') return 'ghost'
-  if (state === 'stub') return 'ghost'
-  if (state === 'mixed') return 'ghost'
+  if (state === 'disabled') return 'ghost';
+  if (state === 'loading') return 'ghost';
+  if (state === 'stub') return 'ghost';
+  if (state === 'mixed') return 'ghost';
 
   // Active state uses primary only for mode-style buttons
-  if (isActive && activeStyle === 'mode') return 'primary'
+  if (isActive && activeStyle === 'mode') return 'primary';
 
   // Map intent to variant
   switch (intent) {
     case 'primary':
-      return 'primary'
+      return 'primary';
     case 'danger':
-      return 'danger'
+      return 'danger';
     case 'warning':
-      return 'ghost'  // Custom class applied separately
+      return 'ghost'; // Custom class applied separately
     case 'success':
-      return 'ghost'  // Custom class applied separately
+      return 'ghost'; // Custom class applied separately
     default:
-      return 'ghost'
+      return 'ghost';
   }
 }
 
@@ -117,31 +117,31 @@ export function resolveButtonVariant(
  * Generate state-specific CSS classes
  */
 export function getStateClasses(config: RibbonButtonStateConfig): string {
-  const classes: string[] = []
+  const classes: string[] = [];
 
-  const state = resolveButtonState(config)
+  const state = resolveButtonState(config);
 
   // State classes
-  if (state === 'mixed') classes.push('ribbon-btn-mixed')
-  if (state === 'loading') classes.push('ribbon-btn-loading')
-  if (state === 'stub') classes.push('ribbon-btn-stub')
+  if (state === 'mixed') classes.push('ribbon-btn-mixed');
+  if (state === 'loading') classes.push('ribbon-btn-loading');
+  if (state === 'stub') classes.push('ribbon-btn-stub');
   if (state === 'active') {
-    const activeStyle = config.activeStyle ?? 'toggle'
-    classes.push(activeStyle === 'mode' ? 'ribbon-btn-mode' : 'ribbon-btn-toggle-on')
+    const activeStyle = config.activeStyle ?? 'toggle';
+    classes.push(activeStyle === 'mode' ? 'ribbon-btn-mode' : 'ribbon-btn-toggle-on');
   }
 
   // Intent classes (only for non-active states)
   if (!config.isActive && config.intent) {
-    if (config.intent === 'warning') classes.push('ribbon-btn-intent-warning')
-    if (config.intent === 'success') classes.push('ribbon-btn-intent-success')
+    if (config.intent === 'warning') classes.push('ribbon-btn-intent-warning');
+    if (config.intent === 'success') classes.push('ribbon-btn-intent-success');
   }
 
   // Debug class
   if (isRibbonDebugEnabled()) {
-    classes.push('ribbon-debug-control')
+    classes.push('ribbon-debug-control');
   }
 
-  return classes.join(' ')
+  return classes.join(' ');
 }
 
 /**
@@ -150,13 +150,13 @@ export function getStateClasses(config: RibbonButtonStateConfig): string {
 export function getSizeClasses(size: RibbonButtonSize = 'md'): string {
   switch (size) {
     case 'sm':
-      return 'h-6'  // 24px
+      return 'h-6'; // 24px
     case 'md':
-      return 'h-8'  // 32px
+      return 'h-8'; // 32px
     case 'lg':
-      return 'h-[52px]'  // 52px (large buttons)
+      return 'h-14'; // 56px (closest standard Tailwind height to original 52px)
     default:
-      return 'h-8'
+      return 'h-8';
   }
 }
 
@@ -168,32 +168,32 @@ export function getSizeClasses(size: RibbonButtonSize = 'md'): string {
  * Combine multiple class strings, filtering out empty strings
  */
 export function combineClasses(...classes: (string | undefined | false)[]): string {
-  return classes.filter(Boolean).join(' ')
+  return classes.filter(Boolean).join(' ');
 }
 
 /**
  * Check if button should be interactable
  */
 export function isButtonInteractable(config: RibbonButtonStateConfig): boolean {
-  return !config.isDisabled && !config.isLoading && !config.isStub
+  return !config.isDisabled && !config.isLoading && !config.isStub;
 }
 
 /**
  * Get appropriate cursor style
  */
 export function getCursorClass(config: RibbonButtonStateConfig): string {
-  if (config.isDisabled || config.isStub) return 'cursor-not-allowed'
-  if (config.isLoading) return 'cursor-wait'
-  return 'cursor-pointer'
+  if (config.isDisabled || config.isStub) return 'cursor-not-allowed';
+  if (config.isLoading) return 'cursor-wait';
+  return 'cursor-pointer';
 }
 
 /**
  * Generate aria-pressed value for toggle buttons
  */
 export function getAriaPressed(config: RibbonButtonStateConfig): boolean | 'mixed' | undefined {
-  if (config.isMixed) return 'mixed'
-  if (config.isActive !== undefined) return config.isActive
-  return undefined
+  if (config.isMixed) return 'mixed';
+  if (config.isActive !== undefined) return config.isActive;
+  return undefined;
 }
 
 // ============================================================================
@@ -203,18 +203,15 @@ export function getAriaPressed(config: RibbonButtonStateConfig): boolean | 'mixe
 /**
  * Wrap icon content for mixed state display
  */
-export function wrapMixedStateIcon(
-  icon: React.ReactNode,
-  isMixed: boolean
-): React.ReactNode {
-  if (!isMixed) return icon
+export function wrapMixedStateIcon(icon: React.ReactNode, isMixed: boolean): React.ReactNode {
+  if (!isMixed) return icon;
 
   // Show "—" symbol for mixed state
   return React.createElement(
     'span',
     { className: 'ribbon-btn-mixed-icon', title: LABELS.common.mixedValues },
-    '—'
-  )
+    '—',
+  );
 }
 
 // ============================================================================
@@ -225,22 +222,17 @@ export function wrapMixedStateIcon(
  * Validate that conflicting states are not both set
  */
 export function validateStateConfig(config: RibbonButtonStateConfig): void {
-  const activeStates = [
-    config.isDisabled,
-    config.isLoading,
-    config.isStub
-  ].filter(Boolean).length
+  const activeStates = [config.isDisabled, config.isLoading, config.isStub].filter(Boolean).length;
 
   if (activeStates > 1) {
-    console.warn(
-      '[RibbonButton] Multiple exclusive states set:',
-      { isDisabled: config.isDisabled, isLoading: config.isLoading, isStub: config.isStub }
-    )
+    console.warn('[RibbonButton] Multiple exclusive states set:', {
+      isDisabled: config.isDisabled,
+      isLoading: config.isLoading,
+      isStub: config.isStub,
+    });
   }
 
   if (config.isActive && config.isMixed) {
-    console.warn(
-      '[RibbonButton] Both isActive and isMixed set. Mixed state takes precedence.'
-    )
+    console.warn('[RibbonButton] Both isActive and isMixed set. Mixed state takes precedence.');
   }
 }

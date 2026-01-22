@@ -46,6 +46,7 @@ import { StatsSystem } from './runtime/StatsSystem';
 import { StyleSystem } from './runtime/StyleSystem';
 import { TextSystem } from './runtime/TextSystem';
 import { TransformSystem } from './runtime/TransformSystem';
+import { ViewportSystem } from './runtime/ViewportSystem';
 
 import type { WasmModule, CadEngineInstance, TextEntityMeta } from './wasm-types';
 import type { PickResult } from '@/types/picking';
@@ -61,6 +62,7 @@ export class EngineRuntime {
   public readonly render: RenderSystem;
   public readonly stats: StatsSystem;
   public readonly style: StyleSystem;
+  public readonly viewport: ViewportSystem;
   #engine: CadEngineInstance;
   private commandSystem: CommandSystem;
   private eventSystem: EventSystem;
@@ -145,11 +147,13 @@ export class EngineRuntime {
     this.renderSystem = new RenderSystem(engine);
     this.statsSystem = new StatsSystem(engine);
     this.styleSystem = new StyleSystem(engine);
+    const viewportSystem = new ViewportSystem();
 
     // Public facades (typed subsystems)
     this.text = this.textSystem;
     this.pick = this.pickSystem;
     this.draft = this.draftSystem;
+    this.viewport = viewportSystem;
     this.transform = this.transformSystem;
     this.io = this.snapshotSystem;
     this.render = this.renderSystem;

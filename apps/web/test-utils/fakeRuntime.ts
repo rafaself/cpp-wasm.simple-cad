@@ -5,6 +5,7 @@ import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 import { FakeEventBus } from './fakeEventBus';
 
 import type { PickResult } from '@/types/picking';
+import type { Point, ViewTransform } from '@/types';
 
 type VectorLike = { size(): number; get(index: number): number; delete(): void };
 
@@ -72,6 +73,42 @@ export class FakeRuntime {
       maxY: 0,
       valid: false,
     }),
+  };
+
+  viewport = {
+    screenToWorldWithTransform: (point: Point, transform: ViewTransform): Point => ({
+      x: (point.x - transform.x) / transform.scale,
+      y: -(point.y - transform.y) / transform.scale,
+    }),
+    worldToScreenWithTransform: (point: Point, transform: ViewTransform): Point => ({
+      x: point.x * transform.scale + transform.x,
+      y: -point.y * transform.scale + transform.y,
+    }),
+    getPickingToleranceWithTransform: (
+      transform: ViewTransform,
+      screenTolerancePx: number = 10,
+    ): number => {
+      return screenTolerancePx / transform.scale;
+    },
+    getSnapTolerance: (screenTolerancePx: number = 8): number => {
+      return screenTolerancePx;
+    },
+    screenToWorldDistance: (screenDistance: number): number => {
+      return screenDistance;
+    },
+    worldToScreenDistance: (worldDistance: number): number => {
+      return worldDistance;
+    },
+    isWithinTolerance: (
+      point: Point,
+      target: Point,
+      screenTolerancePx: number = 10,
+    ): boolean => {
+      const dx = point.x - target.x;
+      const dy = point.y - target.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      return distance <= screenTolerancePx;
+    },
   };
 
   engine = {

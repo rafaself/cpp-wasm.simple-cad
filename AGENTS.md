@@ -561,12 +561,11 @@ To maintain code quality and prevent monolithic files, the following size limits
 
 ### File Size Thresholds
 
-| Area                         | Review Threshold | Mandatory Refactor |
-| ---------------------------- | ---------------- | ------------------ |
-| C++ engine (`packages/engine/**`) | > 450 LOC        | > 800 LOC          |
-| C++ tests (`packages/engine/tests/**`)   | > 600 LOC        | > 1000 LOC         |
-| TS/TSX (`apps/web/**`)       | > 350 LOC        | > 600 LOC          |
-| TS tests                     | > 400 LOC        | > 700 LOC          |
+File size budgets are enforced by the governance config files:
+- `tooling/governance/file_size_budget.json`
+- `tooling/governance/file_size_budget_exceptions.json`
+
+These JSON files are the authoritative numeric thresholds; update them (and any related docs) together.
 
 ### Function Length Guardrails
 

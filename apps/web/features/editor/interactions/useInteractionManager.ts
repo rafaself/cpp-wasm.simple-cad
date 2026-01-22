@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
-import { screenToWorld } from '@/utils/viewportMath';
+// Viewport math now handled by runtime.viewport subsystem
 
 import { DraftingHandler } from './handlers/DraftingHandler';
 import { IdleHandler } from './handlers/IdleHandler';
@@ -136,14 +136,17 @@ export function useInteractionManager() {
     const clientX = e.clientX;
     const clientY = e.clientY;
     const screen = { x: clientX - rect.left, y: clientY - rect.top };
-    const world = screenToWorld(screen, viewTransform);
+    const runtime = runtimeRef.current;
+    const world = runtime
+      ? runtime.viewport.screenToWorldWithTransform(screen, viewTransform)
+      : { x: screen.x, y: screen.y };
 
     return {
       event: e,
       screenPoint: screen,
       worldPoint: world,
       snappedPoint: world,
-      runtime: runtimeRef.current,
+      runtime,
       viewTransform,
       canvasSize,
     };

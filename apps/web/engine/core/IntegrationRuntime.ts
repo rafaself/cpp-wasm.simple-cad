@@ -22,19 +22,13 @@ export type IntegrationContext<
   domain: TDomain;
 };
 
-export class IntegrationRuntime<
-  TAtlas extends AtlasIntegrationApi,
-  TDomain extends DomainRuntime,
-> {
+export class IntegrationRuntime<TAtlas extends AtlasIntegrationApi, TDomain extends DomainRuntime> {
   constructor(
     private readonly atlas: TAtlas,
     private readonly domain: TDomain,
   ) {}
 
-  public runTransaction<T>(
-    label: string,
-    fn: (ctx: IntegrationContext<TAtlas, TDomain>) => T,
-  ): T {
+  public runTransaction<T>(label: string, fn: (ctx: IntegrationContext<TAtlas, TDomain>) => T): T {
     if (!this.atlas.beginHistoryEntry()) {
       throw new Error(`[IntegrationRuntime] Failed to begin Atlas history entry for ${label}.`);
     }

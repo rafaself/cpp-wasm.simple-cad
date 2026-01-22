@@ -24,8 +24,8 @@ import { useUIStore } from '../../../../stores/useUIStore';
 import { TextStyleFlags } from '../../../../types/text';
 import { RibbonControlWrapper } from '../../components/ribbon/RibbonControlWrapper';
 import { RibbonIconButton } from '../../components/ribbon/RibbonIconButton';
-import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
 import { useRibbonLayout } from '../../components/ribbon/ribbonLayout';
+import { RibbonToggleGroup } from '../../components/ribbon/RibbonToggleGroup';
 import { RIBBON_ICON_SIZES } from '../../components/ribbon/ribbonUtils';
 import { TextControlProps, TextUpdateDiff } from '../../types/ribbon';
 import { isTierAtLeast } from '../../ui/ribbonLayoutV2';
@@ -335,10 +335,10 @@ export const TextStyleControl: React.FC<TextControlProps> = ({
     setIsStyleMenuOpen(false);
   };
 
-  const primaryOptions = collapseStyles ? options.filter((option) => option.key === 'bold') : options;
-  const overflowOptions = collapseStyles
-    ? options.filter((option) => option.key !== 'bold')
-    : [];
+  const primaryOptions = collapseStyles
+    ? options.filter((option) => option.key === 'bold')
+    : options;
+  const overflowOptions = collapseStyles ? options.filter((option) => option.key !== 'bold') : [];
 
   return (
     <RibbonControlWrapper align="center" className="!w-fit">

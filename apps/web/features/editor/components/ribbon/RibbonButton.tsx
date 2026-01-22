@@ -20,12 +20,27 @@ interface RibbonButtonProps {
   groupId: string;
 }
 
-export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActive, onClick, tabId, groupId }) => {
+export const RibbonButton: React.FC<RibbonButtonProps> = ({
+  item,
+  layout,
+  isActive,
+  onClick,
+  tabId,
+  groupId,
+}) => {
   const tracking = useRibbonTracking(tabId, groupId);
 
   // Delegate to RibbonLargeButton if variant is large
   if (item.variant === 'large') {
-    return <RibbonLargeButton item={item} isActive={isActive} onClick={onClick} tabId={tabId} groupId={groupId} />;
+    return (
+      <RibbonLargeButton
+        item={item}
+        isActive={isActive}
+        onClick={onClick}
+        tabId={tabId}
+        groupId={groupId}
+      />
+    );
   }
 
   // Layout Logic
@@ -34,7 +49,15 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
 
   // Delegate to RibbonSmallButton for dense layouts
   if (isGrid || isStack) {
-    return <RibbonSmallButton item={item} isActive={isActive} onClick={onClick} tabId={tabId} groupId={groupId} />;
+    return (
+      <RibbonSmallButton
+        item={item}
+        isActive={isActive}
+        onClick={onClick}
+        tabId={tabId}
+        groupId={groupId}
+      />
+    );
   }
 
   // Standard Button (Flex Row / Default) - h-8 (32px)
@@ -87,31 +110,31 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({ item, layout, isActi
   const hoverEndRef = React.useRef<(() => void) | null>(null);
 
   return (
-      <Button
-        variant={variant}
-        size="md"
-        className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass} h-full`}
-        disabled={isStub}
-        onClick={handleClick}
-        onMouseEnter={() => {
-          hoverEndRef.current = handleMouseEnter();
-        }}
-        onMouseLeave={() => {
-          if (hoverEndRef.current) {
-            hoverEndRef.current();
-            hoverEndRef.current = null;
-          }
-        }}
-        title={tooltip}
-        aria-pressed={isTool ? isActive : undefined}
-        aria-label={item.hideLabel ? item.label : undefined}
-        leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
-      >
-        {item.hideLabel && Icon ? (
-          <IconPrimitive icon={Icon} size="sm" />
-        ) : (
-          <span className="truncate flex-1 text-left">{item.label}</span>
-        )}
-        </Button>
-    );
+    <Button
+      variant={variant}
+      size="md"
+      className={`${widthClass} ${justifyClass} ${hoverClass}${debugClass} h-full`}
+      disabled={isStub}
+      onClick={handleClick}
+      onMouseEnter={() => {
+        hoverEndRef.current = handleMouseEnter();
+      }}
+      onMouseLeave={() => {
+        if (hoverEndRef.current) {
+          hoverEndRef.current();
+          hoverEndRef.current = null;
+        }
+      }}
+      title={tooltip}
+      aria-pressed={isTool ? isActive : undefined}
+      aria-label={item.hideLabel ? item.label : undefined}
+      leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
+    >
+      {item.hideLabel && Icon ? (
+        <IconPrimitive icon={Icon} size="sm" />
+      ) : (
+        <span className="truncate flex-1 text-left">{item.label}</span>
+      )}
+    </Button>
+  );
 };

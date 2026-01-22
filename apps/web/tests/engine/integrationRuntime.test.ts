@@ -68,9 +68,11 @@ describe('IntegrationRuntime', () => {
     const domain = createDomain(tx);
     const runtime = new IntegrationRuntime(atlas, domain);
 
-    expect(() => runtime.runTransaction('set-elevation', () => {
-      throw new Error('boom');
-    })).toThrow('boom');
+    expect(() =>
+      runtime.runTransaction('set-elevation', () => {
+        throw new Error('boom');
+      }),
+    ).toThrow('boom');
 
     expect(tx.commit).not.toHaveBeenCalled();
     expect(tx.rollback).toHaveBeenCalledTimes(1);

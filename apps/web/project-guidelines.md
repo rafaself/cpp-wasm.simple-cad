@@ -1,6 +1,6 @@
 # ElectroCad Web - Project Guidelines & Architecture
 
-This document serves as the single source of truth for the project's architecture, folder structure, and coding standards. **All future development and AI prompts must adhere to these constraints.**
+This document defines frontend-specific guidelines and folder conventions for `apps/web`. **The repo-wide architecture and governance source of truth is `AGENTS.md`**, and this document must remain consistent with it.
 
 ---
 

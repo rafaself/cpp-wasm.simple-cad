@@ -229,7 +229,7 @@ describe('NumericComboField', () => {
         />,
       );
 
-      const dropdownButton = screen.getByRole('button', { name: 'Open presets' });
+      const dropdownButton = screen.getByRole('button', { name: 'Abrir predefinições' });
       fireEvent.click(dropdownButton);
 
       await waitFor(() => {
@@ -252,7 +252,7 @@ describe('NumericComboField', () => {
         />,
       );
 
-      const dropdownButton = screen.getByRole('button', { name: 'Open presets' });
+      const dropdownButton = screen.getByRole('button', { name: 'Abrir predefinições' });
       fireEvent.click(dropdownButton);
 
       await waitFor(() => {
@@ -274,7 +274,7 @@ describe('NumericComboField', () => {
         />,
       );
 
-      const dropdownButton = screen.getByRole('button', { name: 'Open presets' });
+      const dropdownButton = screen.getByRole('button', { name: 'Abrir predefinições' });
       fireEvent.click(dropdownButton);
 
       await waitFor(() => {
@@ -303,7 +303,7 @@ describe('NumericComboField', () => {
         />,
       );
 
-      const dropdownButton = screen.getByRole('button', { name: 'Open presets' });
+      const dropdownButton = screen.getByRole('button', { name: 'Abrir predefinições' });
       fireEvent.click(dropdownButton);
 
       await waitFor(() => {
@@ -362,7 +362,7 @@ describe('NumericComboField', () => {
         />,
       );
 
-      const dropdownButton = screen.getByRole('button', { name: 'Open presets' });
+      const dropdownButton = screen.getByRole('button', { name: 'Abrir predefinições' });
       fireEvent.click(dropdownButton);
 
       await waitFor(() => {
@@ -453,7 +453,7 @@ describe('NumericComboField', () => {
       const input = screen.getByRole('combobox');
       expect(input).toHaveAttribute('aria-expanded', 'false');
 
-      const dropdownButton = screen.getByRole('button', { name: 'Open presets' });
+      const dropdownButton = screen.getByRole('button', { name: 'Abrir predefinições' });
       fireEvent.click(dropdownButton);
 
       await waitFor(() => {
