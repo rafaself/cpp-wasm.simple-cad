@@ -66,7 +66,12 @@
       "Bash(pnpm add:*)",
       "Bash(sudo cmake --build:*)",
       "Bash(ctest:*)",
-      "Bash(cmake:*)"
+      "Bash(cmake:*)",
+      "Bash(if [ -d build_test ])",
+      "Bash(then cd build_test)",
+      "Bash(else echo \"No build_test directory found. Engine tests not yet built.\")",
+      "Bash(fi)",
+      "Bash(git check-ignore:*)"
     ]
   }
 }

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Popover } from '@/components/ui/Popover';
 import { getShortcutLabel } from '@/config/keybindings';
+import { LABELS } from '@/i18n/labels';
 
 import { RibbonItem } from '../../ui/ribbonConfig';
 import { RibbonOverflowEntry } from '../../ui/ribbonLayoutV2';
@@ -80,17 +81,17 @@ export const RibbonOverflowMenu: React.FC<RibbonOverflowMenuProps> = ({
         className="ribbon-overflow-panel"
         zIndex="z-dropdown"
         content={
-          <div role="menu" aria-label="Mais comandos">
+          <div role="menu" aria-label={LABELS.ribbon.moreCommands}>
             {showSearch && (
               <div className="ribbon-overflow-search">
                 <Input
                   ref={searchRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Buscar comando"
+                  placeholder={LABELS.ribbon.searchCommand}
                   inputSize="sm"
                   variant="filled"
-                  aria-label="Buscar comando"
+                  aria-label={LABELS.ribbon.searchCommand}
                   className="ribbon-overflow-search-input"
                 />
               </div>
@@ -98,7 +99,7 @@ export const RibbonOverflowMenu: React.FC<RibbonOverflowMenuProps> = ({
 
             <div className="ribbon-overflow-scroll" ref={scrollRef}>
               {groupedItems.length === 0 ? (
-                <div className="ribbon-overflow-empty">Nenhum comando encontrado</div>
+                <div className="ribbon-overflow-empty">{LABELS.ribbon.noCommandFound}</div>
               ) : (
                 groupedItems.map(([groupLabel, entries]) => (
                   <div key={groupLabel} className="ribbon-overflow-group">

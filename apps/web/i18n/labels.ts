@@ -136,4 +136,12 @@ export const LABELS = {
     shortArchitecture: 'Arq',
     shortElectrical: 'Elé',
   },
+  floors: {
+    terreo: 'Térreo',
+  },
+  ribbon: {
+    moreCommands: 'Mais comandos',
+    searchCommand: 'Buscar comando',
+    noCommandFound: 'Nenhum comando encontrado',
+  },
 };
