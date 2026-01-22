@@ -61,7 +61,9 @@
       "Bash(pnpm -C apps/web test SelectionHandler.test)",
       "Bash(npm run governance:boundaries:*)",
       "Bash(npm run governance:semantic:*)",
-      "Bash(npm run governance:arbitrary:*)"
+      "Bash(npm run governance:arbitrary:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm add:*)"
     ]
   }
 }

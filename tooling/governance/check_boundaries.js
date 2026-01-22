@@ -8,6 +8,8 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parse } = require("@babel/parser");
+const traverse = require("@babel/traverse").default;
 
 const projectRoot = path.resolve(__dirname, "../..");
 const boundaryConfigPath = path.join(projectRoot, "tooling", "governance", "boundary_rules.json");
@@ -106,6 +108,38 @@ function checkRuntimeEngineUsage(tsFiles, runtimeAllowlist) {
   return { violations, unusedAllows: [...allowMap.keys()].filter((p) => !allowUsed.has(p)) };
 }
 
+/**
+ * Extract import sources from a TypeScript/JavaScript file using AST parsing.
+ * Handles multiline imports correctly.
+ */
+function extractImports(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const imports = [];
+
+  try {
+    const ast = parse(content, {
+      sourceType: "module",
+      plugins: ["typescript", "jsx"]
+    });
+
+    traverse(ast, {
+      ImportDeclaration(path) {
+        if (path.node.source && path.node.source.value) {
+          imports.push({
+            source: path.node.source.value,
+            line: path.node.loc?.start.line || 0
+          });
+        }
+      }
+    });
+  } catch (err) {
+    // If parsing fails, fall back to empty imports (file may have syntax errors)
+    console.warn(`Warning: Failed to parse ${filePath}: ${err.message}`);
+  }
+
+  return imports;
+}
+
 function checkFeatureImports(tsFiles, config) {
   const entrypoints = new Set(config.featureImportEntrypoints.map(normalize));
   const allowKey = (pathValue, importPath) => `${pathValue}::${importPath}`;
@@ -122,32 +156,26 @@ function checkFeatureImports(tsFiles, config) {
     const rel = normalize(path.relative(projectRoot, file));
     if (!rel.startsWith("apps/web/features/")) continue;
 
-    const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
-    lines.forEach((line, idx) => {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("import")) return;
-      if (trimmed.startsWith("//")) return;
+    const imports = extractImports(file);
 
-      const match = trimmed.match(/import[^;]*from\s+["']([^"']+)["']/);
-      if (!match) return;
+    for (const { source, line } of imports) {
+      const importPath = normalizeImportPath(source, file);
+      if (!importPath.startsWith("apps/web/engine/")) continue;
 
-      const importPath = normalizeImportPath(match[1], file);
-      if (!importPath.startsWith("apps/web/engine/")) return;
-
-      if (entrypoints.has(importPath)) return;
+      if (entrypoints.has(importPath)) continue;
 
       const key = allowKey(rel, importPath);
       if (allowMap.has(key)) {
         allowUsed.add(key);
-        return;
+        continue;
       }
 
       violations.push({
         file: rel,
-        line: idx + 1,
+        line,
         importPath
       });
-    });
+    }
   }
 
   const unusedAllows = [...allowMap.keys()].filter((k) => !allowUsed.has(k));

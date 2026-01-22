@@ -42,11 +42,15 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@babel/parser": "^7.28.6",
+    "@babel/traverse": "^7.28.6",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/node": "^22.14.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.17.0",
+    "@typescript-eslint/parser": "^7.17.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/ui": "^4.0.16",
     "autoprefixer": "^10.4.21",
@@ -64,8 +68,6 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.3",
     "vite": "^6.2.0",
-    "vitest": "^4.0.15",
-    "@typescript-eslint/eslint-plugin": "^7.17.0",
-    "@typescript-eslint/parser": "^7.17.0"
+    "vitest": "^4.0.15"
   }
 }

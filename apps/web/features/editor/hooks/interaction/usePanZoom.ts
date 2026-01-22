@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState } from 'react';
 
-import { getEngineRuntime } from '@/engine/core/singleton';
+import { getEngineRuntimeSync } from '@/engine/core/singleton';
 import { useUIStore } from '@/stores/useUIStore';
 import { calculateZoomTransform } from '@/utils/zoomHelper';
 
@@ -54,7 +54,7 @@ export function usePanZoom() {
       evt.preventDefault();
       const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
       const mouse = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-      const runtime = getEngineRuntime();
+      const runtime = getEngineRuntimeSync();
       const screenToWorldFn = runtime
         ? (point: Point, transform: ViewTransform) =>
             runtime.viewport.screenToWorldWithTransform(point, transform)

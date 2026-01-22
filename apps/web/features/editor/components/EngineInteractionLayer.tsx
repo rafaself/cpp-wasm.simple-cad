@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 
 import { CommandOp } from '@/engine/core/EngineRuntime';
-import { getEngineRuntime } from '@/engine/core/singleton';
+import { getEngineRuntime, getEngineRuntimeSync } from '@/engine/core/singleton';
 import { usePanZoom } from '@/features/editor/hooks/interaction/usePanZoom';
 import { useInteractionManager } from '@/features/editor/interactions/useInteractionManager';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -149,7 +149,7 @@ const EngineInteractionLayer: React.FC = () => {
     }));
     // Update Global Mouse Pos (Throttled)
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const runtime = getEngineRuntime();
+    const runtime = getEngineRuntimeSync();
     const world = runtime
       ? runtime.viewport.screenToWorldWithTransform(
           { x: e.clientX - rect.left, y: e.clientY - rect.top },
