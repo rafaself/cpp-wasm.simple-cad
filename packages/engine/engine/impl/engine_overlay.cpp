@@ -109,13 +109,24 @@ engine::protocol::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
         if (it->second.kind == EntityKind::Polygon) {
             if (it->second.index >= state().entityManager_.polygons.size()) continue;
             const PolygonRec& p = state().entityManager_.polygons[it->second.index];
-            const float cx = p.cx;
-            const float cy = p.cy;
-            const float hw = std::abs(p.rx * p.sx);
-            const float hh = std::abs(p.ry * p.sy);
+
+            // Phase 1: Return actual polygon vertices instead of bounding box
+            const std::uint32_t sides = std::max<std::uint32_t>(3u, p.sides);
             const float rot = p.rot;
-            pushPrimitive(engine::protocol::OverlayKind::Polygon, 4);
-            pushRotatedCorners(state().selectionOutlineData_, cx, cy, hw, hh, rot);
+            const float cosR = rot ? std::cos(rot) : 1.0f;
+            const float sinR = rot ? std::sin(rot) : 0.0f;
+            constexpr float kBase = static_cast<float>(-M_PI) / 2.0f;
+
+            pushPrimitive(engine::protocol::OverlayKind::Polygon, sides);
+            for (std::uint32_t i = 0; i < sides; i++) {
+                const float t = (static_cast<float>(i) / sides) * 2.0f * static_cast<float>(M_PI) + kBase;
+                const float dx = std::cos(t) * p.rx * p.sx;
+                const float dy = std::sin(t) * p.ry * p.sy;
+                const float x = p.cx + dx * cosR - dy * sinR;
+                const float y = p.cy + dx * sinR + dy * cosR;
+                state().selectionOutlineData_.push_back(x);
+                state().selectionOutlineData_.push_back(y);
+            }
             continue;
         }
 
@@ -223,13 +234,24 @@ engine::protocol::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
         if (it->second.kind == EntityKind::Polygon) {
             if (it->second.index >= state().entityManager_.polygons.size()) continue;
             const PolygonRec& p = state().entityManager_.polygons[it->second.index];
-            const float cx = p.cx;
-            const float cy = p.cy;
-            const float hw = std::abs(p.rx * p.sx);
-            const float hh = std::abs(p.ry * p.sy);
+
+            // Phase 1: Return actual polygon vertex grips instead of bounding box corners
+            const std::uint32_t sides = std::max<std::uint32_t>(3u, p.sides);
             const float rot = p.rot;
-            pushPrimitive(4);
-            pushRotatedCorners(state().selectionHandleData_, cx, cy, hw, hh, rot);
+            const float cosR = rot ? std::cos(rot) : 1.0f;
+            const float sinR = rot ? std::sin(rot) : 0.0f;
+            constexpr float kBase = static_cast<float>(-M_PI) / 2.0f;
+
+            pushPrimitive(sides);
+            for (std::uint32_t i = 0; i < sides; i++) {
+                const float t = (static_cast<float>(i) / sides) * 2.0f * static_cast<float>(M_PI) + kBase;
+                const float dx = std::cos(t) * p.rx * p.sx;
+                const float dy = std::sin(t) * p.ry * p.sy;
+                const float x = p.cx + dx * cosR - dy * sinR;
+                const float y = p.cy + dx * sinR + dy * cosR;
+                state().selectionHandleData_.push_back(x);
+                state().selectionHandleData_.push_back(y);
+            }
             continue;
         }
 
