@@ -172,12 +172,16 @@ function findRuntimeEngineUsage(filePath) {
   const usages = [];
 
   function visit(node) {
-    // Match: runtime.engine or runtime?.engine
-    if (ts.isPropertyAccessExpression(node)) {
+    // Match: runtime.engine or runtime?.engine (including optional chaining)
+    // Both regular property access and optional chaining use PropertyAccessExpression
+    // Optional chaining has questionDotToken set; ts.isOptionalChain() detects this
+    const isPropertyAccess = ts.isPropertyAccessExpression(node);
+
+    if (isPropertyAccess) {
       const obj = node.expression;
       const prop = node.name;
 
-      // Direct: runtime.engine
+      // Direct: runtime.engine or runtime?.engine
       if (ts.isIdentifier(obj) && obj.text === 'runtime' &&
           ts.isIdentifier(prop) && prop.text === 'engine') {
         const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
@@ -185,8 +189,10 @@ function findRuntimeEngineUsage(filePath) {
         usages.push({ line, snippet });
       }
 
-      // Chained: something.runtime.engine
-      if (ts.isPropertyAccessExpression(obj) &&
+      // Chained: something.runtime.engine or something?.runtime?.engine
+      // Check both regular and optional chaining on the nested object
+      const isNestedPropertyAccess = ts.isPropertyAccessExpression(obj);
+      if (isNestedPropertyAccess &&
           ts.isIdentifier(obj.name) && obj.name.text === 'runtime' &&
           ts.isIdentifier(prop) && prop.text === 'engine') {
         const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
