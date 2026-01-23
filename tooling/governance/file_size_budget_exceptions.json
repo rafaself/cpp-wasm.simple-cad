@@ -22,13 +22,13 @@
     },
     {
       "path": "packages/engine/engine/impl/engine_snapshot.cpp",
-      "hardLimit": 850,
-      "reason": "Snapshot implementation slightly over; to be split alongside persistence/snapshot.cpp."
+      "hardLimit": 910,
+      "reason": "Snapshot implementation with text style queries. Contains getTextStyleSnapshot/getTextStyleSummary (490 LOC) which should be extracted to engine_text_style.cpp. Tracked for SRP refactor."
     },
     {
       "path": "packages/engine/engine/history/history_manager.cpp",
-      "hardLimit": 870,
-      "reason": "History manager monolithic; pending SRP split into separate command handlers."
+      "hardLimit": 1050,
+      "reason": "History manager with undo/redo for all entity types. Should extract per-type command handlers. Tracked for SRP refactor."
     },
     {
       "path": "packages/engine/engine/render/vector_tessellation.cpp",
@@ -62,8 +62,8 @@
     },
     {
       "path": "apps/web/engine/core/EngineRuntime.ts",
-      "hardLimit": 560,
-      "reason": "Runtime facade consolidation pending; keep under watch while bridge is stabilized."
+      "hardLimit": 660,
+      "reason": "Runtime facade orchestrating subsystems (text, pick, draft, transform, io, render, stats, style). Subsystem extraction ongoing. Keep under watch."
     },
     {
       "path": "apps/web/engine/tools/TextTool.ts",

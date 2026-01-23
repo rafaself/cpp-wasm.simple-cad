@@ -71,7 +71,8 @@
       "Bash(then cd build_test)",
       "Bash(else echo \"No build_test directory found. Engine tests not yet built.\")",
       "Bash(fi)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(pnpm -C apps/web test --run)"
     ]
   }
 }

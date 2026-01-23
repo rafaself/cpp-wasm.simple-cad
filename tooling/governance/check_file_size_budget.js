@@ -20,7 +20,9 @@ const ignoreDirs = new Set([
   "dist",
   "coverage",
   "build",
-  "build_native"
+  "build_native",
+  "build_test", // CMake test build output
+  "_deps"       // CMake fetched dependencies (freetype, googletest, etc.)
 ]);
 
 const normalize = (p) => p.replace(/\\/g, "/");
