@@ -182,51 +182,91 @@ export class SelectionHandler extends BaseInteractionHandler {
     const shift = event.shiftKey;
     const ctrl = event.ctrlKey || event.metaKey;
 
-    // Phase 1: Check for polygon vertex grip hit
+    // Phase 1 & 2: Check for polygon vertex/edge grip hit
     const enablePolygonContour =
       useSettingsStore.getState().featureFlags.enablePolygonContourSelection;
-    if (
-      enablePolygonContour &&
-      res.id !== 0 &&
-      res.kind === PickEntityKind.Polygon &&
-      res.subTarget === PickSubTarget.Vertex
-    ) {
-      // Polygon vertex grip hit → begin vertex drag
-      const currentSelection = new Set(runtime.getSelectionIds());
-      if (!currentSelection.has(res.id) && !shift && !ctrl) {
-        runtime.setSelection([res.id], SelectionMode.Replace);
+    const enablePolygonEdges = useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
+
+    if (enablePolygonContour && res.id !== 0 && res.kind === PickEntityKind.Polygon) {
+      // Phase 1: Polygon vertex grip hit
+      if (res.subTarget === PickSubTarget.Vertex) {
+        const currentSelection = new Set(runtime.getSelectionIds());
+        if (!currentSelection.has(res.id) && !shift && !ctrl) {
+          runtime.setSelection([res.id], SelectionMode.Replace);
+        }
+
+        const activeIds = Array.from(runtime.getSelectionIds());
+        if (activeIds.length > 0) {
+          const modifiers = buildModifierMask(event);
+          runtime.beginTransform(
+            activeIds,
+            TransformMode.VertexDrag,
+            res.id,
+            res.subIndex, // Vertex index
+            screen.x,
+            screen.y,
+            ctx.viewTransform.x,
+            ctx.viewTransform.y,
+            ctx.viewTransform.scale,
+            ctx.canvasSize.width,
+            ctx.canvasSize.height,
+            modifiers,
+          );
+
+          cadDebugLog('transform', 'polygon-vertex-drag-begin', () => ({
+            entityId: res.id,
+            vertexIndex: res.subIndex,
+            ids: activeIds,
+          }));
+
+          this.state = {
+            kind: 'transform',
+            startScreen: screen,
+            mode: TransformMode.VertexDrag,
+          };
+          return;
+        }
       }
 
-      const activeIds = Array.from(runtime.getSelectionIds());
-      if (activeIds.length > 0) {
-        const modifiers = buildModifierMask(event);
-        runtime.beginTransform(
-          activeIds,
-          TransformMode.VertexDrag,
-          res.id,
-          res.subIndex, // Vertex index
-          screen.x,
-          screen.y,
-          ctx.viewTransform.x,
-          ctx.viewTransform.y,
-          ctx.viewTransform.scale,
-          ctx.canvasSize.width,
-          ctx.canvasSize.height,
-          modifiers,
-        );
+      // Phase 2: Polygon edge midpoint grip hit
+      if (enablePolygonEdges && res.subTarget === PickSubTarget.Edge) {
+        const currentSelection = new Set(runtime.getSelectionIds());
+        if (!currentSelection.has(res.id) && !shift && !ctrl) {
+          runtime.setSelection([res.id], SelectionMode.Replace);
+        }
 
-        cadDebugLog('transform', 'polygon-vertex-drag-begin', () => ({
-          entityId: res.id,
-          vertexIndex: res.subIndex,
-          ids: activeIds,
-        }));
+        const activeIds = Array.from(runtime.getSelectionIds());
+        if (activeIds.length > 0) {
+          const modifiers = buildModifierMask(event);
+          runtime.beginTransform(
+            activeIds,
+            TransformMode.EdgeDrag,
+            res.id,
+            res.subIndex, // Edge index
+            screen.x,
+            screen.y,
+            ctx.viewTransform.x,
+            ctx.viewTransform.y,
+            ctx.viewTransform.scale,
+            ctx.canvasSize.width,
+            ctx.canvasSize.height,
+            modifiers,
+          );
 
-        this.state = {
-          kind: 'transform',
-          startScreen: screen,
-          mode: TransformMode.VertexDrag,
-        };
-        return;
+          cadDebugLog('transform', 'polygon-edge-drag-begin', () => ({
+            entityId: res.id,
+            edgeIndex: res.subIndex,
+            ids: activeIds,
+            shiftHeld: shift,
+          }));
+
+          this.state = {
+            kind: 'transform',
+            startScreen: screen,
+            mode: TransformMode.EdgeDrag,
+          };
+          return;
+        }
       }
     }
 
@@ -490,6 +530,13 @@ export class SelectionHandler extends BaseInteractionHandler {
         this.state.mode === TransformMode.SideResize
       ) {
         this.updateResizeCursor(ctx);
+      } else if (
+        this.state.mode === TransformMode.VertexDrag ||
+        this.state.mode === TransformMode.EdgeDrag
+      ) {
+        // Vertex and edge drag: show move cursor
+        this.cursorScreenPos = ctx.screenPoint;
+        this.showMoveCursor = true;
       }
       // Move mode uses default system cursor
       this.notifyChange();
@@ -536,10 +583,18 @@ export class SelectionHandler extends BaseInteractionHandler {
         // Vertex handles (line/arrow endpoints, polyline vertices, polygon vertices) use move cursor
         this.cursorScreenPos = ctx.screenPoint;
         this.showMoveCursor = true;
+      } else if (this.hoverSubTarget === PickSubTarget.Edge) {
+        // Phase 2: Edge grips for polygons
+        const enablePolygonEdges = useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
+        if (enablePolygonEdges && res.kind === PickEntityKind.Polygon) {
+          // Polygon edge midpoint grip: show move cursor (perpendicular drag)
+          this.cursorScreenPos = ctx.screenPoint;
+          this.showMoveCursor = true;
+        } else if (isLineOrArrow(res.kind)) {
+          // Lines and arrows: Edge means "move the entire entity" - use default cursor
+        }
       } else if (this.hoverSubTarget === PickSubTarget.Body) {
         // Use default cursor for move
-      } else if (this.hoverSubTarget === PickSubTarget.Edge && isLineOrArrow(res.kind)) {
-        // Lines and arrows: Edge means "move the entire entity" - use default cursor
       } else if (supportsSideHandles(res.kind)) {
         // Check for side handles hover (only for non-line entities like rectangles)
         const sideHit = this.findSideHandle(runtime, world, tolerance);

@@ -341,8 +341,12 @@ const ShapeOverlay: React.FC = () => {
           const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
 
           // Get grips (handles)
+          // Phase 2: Include edge midpoint grips if flag enabled
+          const includeEdges =
+            enablePolygonContour &&
+            useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
           const gripsWCS = enablePolygonContour
-            ? runtime.selection.getEntityGripsWCS(entityId, false)
+            ? runtime.selection.getEntityGripsWCS(entityId, includeEdges)
             : null;
 
           const handleMeta = !enablePolygonContour ? runtime.getSelectionHandleMeta() : null;
@@ -393,25 +397,43 @@ const ShapeOverlay: React.FC = () => {
             }
           });
 
-          // Render grips (vertex handles)
+          // Render grips (vertex and edge handles)
           if (gripsWCS) {
-            // Phase 1: New grip system for polygons
+            // Phase 1 & 2: New grip system for polygons
             gripsWCS.forEach((grip, i) => {
               const screenPos = worldToScreen(grip.positionWCS, viewTransform);
-              const gripSize = grip.kind === 'vertex' ? hs : hs * 0.75; // Edge grips slightly smaller
-              const gripHalf = gripSize / 2;
 
-              selectionElements.push(
-                <rect
-                  key={`sel-grip-${i}`}
-                  x={screenPos.x - gripHalf}
-                  y={screenPos.y - gripHalf}
-                  width={gripSize}
-                  height={gripSize}
-                  className="fill-white stroke-primary"
-                  strokeWidth={1}
-                />,
-              );
+              if (grip.kind === 'vertex') {
+                // Vertex grips: 8x8 white squares with primary stroke
+                const gripHalf = hs / 2;
+                selectionElements.push(
+                  <rect
+                    key={`sel-grip-v-${i}`}
+                    x={screenPos.x - gripHalf}
+                    y={screenPos.y - gripHalf}
+                    width={hs}
+                    height={hs}
+                    className="fill-white stroke-primary"
+                    strokeWidth={1}
+                  />,
+                );
+              } else if (grip.kind === 'edge-midpoint') {
+                // Phase 2: Edge midpoint grips: 6x6 white diamonds with primary stroke
+                const edgeSize = 6;
+                const edgeHalf = edgeSize / 2;
+                selectionElements.push(
+                  <rect
+                    key={`sel-grip-e-${i}`}
+                    x={screenPos.x - edgeHalf}
+                    y={screenPos.y - edgeHalf}
+                    width={edgeSize}
+                    height={edgeSize}
+                    transform={`rotate(45, ${screenPos.x}, ${screenPos.y})`}
+                    className="fill-white stroke-primary"
+                    strokeWidth={1}
+                  />,
+                );
+              }
             });
           } else if (handles && (engineResizeEnabled || handles.primitives.length > 0)) {
             // Legacy handle system

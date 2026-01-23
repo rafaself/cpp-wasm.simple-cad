@@ -199,7 +199,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     enablePickProfiling: process.env.NODE_ENV !== 'production',
     enablePickThrottling: false,
     enablePolygonContourSelection: process.env.NODE_ENV !== 'production', // Phase 1: Dev only
-    enablePolygonEdgeGrips: false, // Phase 2: Not ready yet
+    enablePolygonEdgeGrips: process.env.NODE_ENV !== 'production', // Phase 2: Dev only
   },
   performance: {
     pickThrottleInterval: 16, // 60fps
