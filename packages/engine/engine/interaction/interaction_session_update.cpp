@@ -32,6 +32,7 @@ void InteractionSession::updateTransform(
     std::uint32_t modifiers) {
     if (!session_.active) return;
     snapGuides_.clear();
+    snapHits_.clear();
 
     const double t0 = emscripten_get_now();
     recordTransformUpdate(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
@@ -143,6 +144,12 @@ void InteractionSession::updateTransform(
                 snapCandidates_);
 
             snapCandidateCount = static_cast<std::uint32_t>(snapCandidates_.size());
+            if (snapResult.hitCount > 0) {
+                snapHits_.reserve(snapResult.hitCount);
+                for (std::uint8_t i = 0; i < snapResult.hitCount; i++) {
+                    snapHits_.push_back(snapResult.hits[i]);
+                }
+            }
             if (snapResult.snappedX && allowSnapX) {
                 totalDx += snapResult.dx;
                 snapHitCount++;

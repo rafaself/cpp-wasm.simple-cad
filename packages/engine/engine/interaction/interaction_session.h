@@ -42,6 +42,7 @@ public:
     SnapOptions snapOptions;
 
     const std::vector<SnapGuide>& getSnapGuides() const { return snapGuides_; }
+    const std::vector<SnapHit>& getSnapHits() const { return snapHits_; }
 
     // ==============================================================================
     // Accessors for Commit Results (for WASM binding)
@@ -192,6 +193,7 @@ private:
     DraftState draft_;
     TransformStats transformStats_;
     std::vector<SnapGuide> snapGuides_;
+    std::vector<SnapHit> snapHits_;
     std::vector<std::uint32_t> snapCandidates_;
     mutable std::vector<DraftSegment> draftSegments_;
 

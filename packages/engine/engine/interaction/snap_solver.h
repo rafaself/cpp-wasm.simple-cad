@@ -14,6 +14,8 @@ struct SnapResult {
     float dy{0.0f};
     bool snappedX{false};
     bool snappedY{false};
+    std::uint8_t hitCount{0};
+    SnapHit hits[2]{};
 };
 
 SnapResult computeObjectSnap(

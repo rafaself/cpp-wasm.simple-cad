@@ -261,6 +261,7 @@ engine::protocol::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
     state().snapGuideData_.clear();
 
     const auto& guides = state().interactionSession_.getSnapGuides();
+    const auto& hits = state().interactionSession_.getSnapHits();
     if (!guides.empty()) {
         state().snapGuidePrimitives_.reserve(guides.size());
         state().snapGuideData_.reserve(guides.size() * 4);
@@ -276,6 +277,21 @@ engine::protocol::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
             state().snapGuideData_.push_back(guide.y0);
             state().snapGuideData_.push_back(guide.x1);
             state().snapGuideData_.push_back(guide.y1);
+        }
+    }
+    if (!hits.empty()) {
+        state().snapGuidePrimitives_.reserve(state().snapGuidePrimitives_.size() + hits.size());
+        state().snapGuideData_.reserve(state().snapGuideData_.size() + hits.size() * 2);
+        for (const SnapHit& hit : hits) {
+            const std::uint32_t offset = static_cast<std::uint32_t>(state().snapGuideData_.size());
+            state().snapGuidePrimitives_.push_back(engine::protocol::OverlayPrimitive{
+                static_cast<std::uint16_t>(engine::protocol::OverlayKind::Point),
+                static_cast<std::uint16_t>(hit.kind),
+                1,
+                offset
+            });
+            state().snapGuideData_.push_back(hit.x);
+            state().snapGuideData_.push_back(hit.y);
         }
     }
 

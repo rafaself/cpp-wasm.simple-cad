@@ -223,6 +223,14 @@ export enum OverlayKind {
   Point = 5,
 }
 
+// OverlayPrimitive.flags for snap indicator points (OverlayKind.Point from snap overlay)
+export enum SnapTargetKind {
+  None = 0,
+  Endpoint = 1,
+  Midpoint = 2,
+  Center = 3,
+}
+
 export type OverlayPrimitive = {
   kind: number;
   flags: number;

@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 import { OverlayKind, EntityKind } from '@/engine/core/EngineRuntime';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
+import { SnapTargetKind } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -25,6 +26,21 @@ import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 const HANDLE_SIZE_PX = 8;
+const SNAP_POINT_RADIUS_PX = 4;
+
+const getSnapIndicatorStyle = (
+  kind: SnapTargetKind,
+): { shape: 'circle' | 'diamond'; fill: string; stroke: string } => {
+  switch (kind) {
+    case SnapTargetKind.Midpoint:
+      return { shape: 'diamond', fill: '#ffb020', stroke: '#ffb020' };
+    case SnapTargetKind.Center:
+      return { shape: 'circle', fill: '#ffffff', stroke: '#4caf50' };
+    case SnapTargetKind.Endpoint:
+    default:
+      return { shape: 'circle', fill: '#ff5d5d', stroke: '#ff5d5d' };
+  }
+};
 
 const ShapeOverlay: React.FC = () => {
   const selectionCount = useEngineSelectionCount();
@@ -186,9 +202,9 @@ const ShapeOverlay: React.FC = () => {
       const snap = decodeOverlayBuffer(runtime.module.HEAPU8, snapMeta);
 
       snap.primitives.forEach((prim, idx) => {
-        if (prim.count < 2) return;
         const pts = renderPoints(prim, snap.data);
         if (prim.kind === OverlayKind.Segment) {
+          if (pts.length < 2) return;
           const a = pts[0];
           const b = pts[1];
           if (!a || !b) return;
@@ -204,6 +220,7 @@ const ShapeOverlay: React.FC = () => {
             />,
           );
         } else if (prim.kind === OverlayKind.Polyline) {
+          if (pts.length < 2) return;
           const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
           snapElements.push(
             <polyline
@@ -214,6 +231,39 @@ const ShapeOverlay: React.FC = () => {
               strokeWidth={1}
             />,
           );
+        } else if (prim.kind === OverlayKind.Point) {
+          const snapKind = prim.flags as SnapTargetKind;
+          const style = getSnapIndicatorStyle(snapKind);
+          pts.forEach((p, i) => {
+            if (style.shape === 'diamond') {
+              const half = SNAP_POINT_RADIUS_PX;
+              snapElements.push(
+                <rect
+                  key={`snap-point-${idx}-${i}`}
+                  x={p.x - half}
+                  y={p.y - half}
+                  width={SNAP_POINT_RADIUS_PX * 2}
+                  height={SNAP_POINT_RADIUS_PX * 2}
+                  transform={`rotate(45, ${p.x}, ${p.y})`}
+                  fill={style.fill}
+                  stroke={style.stroke}
+                  strokeWidth={1}
+                />,
+              );
+            } else {
+              snapElements.push(
+                <circle
+                  key={`snap-point-${idx}-${i}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r={SNAP_POINT_RADIUS_PX}
+                  fill={style.fill}
+                  stroke={style.stroke}
+                  strokeWidth={1}
+                />,
+              );
+            }
+          });
         }
       });
     }
