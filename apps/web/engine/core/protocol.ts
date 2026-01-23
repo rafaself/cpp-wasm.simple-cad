@@ -296,6 +296,23 @@ export type EntityTransform = {
   valid: number;
 };
 
+/**
+ * Grip metadata for polygon vertex/edge editing.
+ * Returns positions of interactive grip points in WCS.
+ *
+ * Phase 1: Vertex grips only (edgeCount = 0)
+ * Phase 2: Adds edge midpoint grips (edgeCount = vertexCount for closed shapes)
+ */
+export type GripMeta = {
+  generation: number;
+  vertexCount: number;
+  edgeCount: number; // 0 if edges not requested
+  floatCount: number; // vertexCount*2 + edgeCount*2
+  verticesPtr: number; // Pointer to [x0,y0, x1,y1, ...] in WCS
+  edgeMidpointsPtr: number; // Pointer to edge midpoints (if edgeCount > 0)
+  valid: number; // 1 if data is valid
+};
+
 // Layout constants for OverlayPrimitive to ensure decoder matches ABI hash
 export const OVERLAY_PRIMITIVE_LAYOUT = {
   size: 12,

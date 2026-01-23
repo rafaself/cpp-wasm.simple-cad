@@ -63,6 +63,7 @@ export class EngineRuntime {
   public readonly stats: StatsSystem;
   public readonly style: StyleSystem;
   public readonly viewport: ViewportSystem;
+  public readonly selection: SelectionSystem;
   #engine: CadEngineInstance;
   private commandSystem: CommandSystem;
   private eventSystem: EventSystem;
@@ -159,6 +160,7 @@ export class EngineRuntime {
     this.render = this.renderSystem;
     this.stats = this.statsSystem;
     this.style = this.styleSystem;
+    this.selection = this.selectionSystem;
   }
 
   public resetIds(): void {

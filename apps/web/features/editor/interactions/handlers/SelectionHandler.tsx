@@ -19,6 +19,7 @@ import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind, PickSubTarget } from '@/types/picking';
+import { EntityKind } from '@/engine/core/EngineRuntime';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
 
@@ -180,6 +181,54 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Check modifiers
     const shift = event.shiftKey;
     const ctrl = event.ctrlKey || event.metaKey;
+
+    // Phase 1: Check for polygon vertex grip hit
+    const enablePolygonContour =
+      useSettingsStore.getState().featureFlags.enablePolygonContourSelection;
+    if (
+      enablePolygonContour &&
+      res.id !== 0 &&
+      res.kind === PickEntityKind.Polygon &&
+      res.subTarget === PickSubTarget.Vertex
+    ) {
+      // Polygon vertex grip hit → begin vertex drag
+      const currentSelection = new Set(runtime.getSelectionIds());
+      if (!currentSelection.has(res.id) && !shift && !ctrl) {
+        runtime.setSelection([res.id], SelectionMode.Replace);
+      }
+
+      const activeIds = Array.from(runtime.getSelectionIds());
+      if (activeIds.length > 0) {
+        const modifiers = buildModifierMask(event);
+        runtime.beginTransform(
+          activeIds,
+          TransformMode.VertexDrag,
+          res.id,
+          res.subIndex, // Vertex index
+          screen.x,
+          screen.y,
+          ctx.viewTransform.x,
+          ctx.viewTransform.y,
+          ctx.viewTransform.scale,
+          ctx.canvasSize.width,
+          ctx.canvasSize.height,
+          modifiers,
+        );
+
+        cadDebugLog('transform', 'polygon-vertex-drag-begin', () => ({
+          entityId: res.id,
+          vertexIndex: res.subIndex,
+          ids: activeIds,
+        }));
+
+        this.state = {
+          kind: 'transform',
+          startScreen: screen,
+          mode: TransformMode.VertexDrag,
+        };
+        return;
+      }
+    }
 
     // Check for client-side side handles first (Priority: Handles > Geometry)
     // This allows hitting handles that extend outside the geometry (pick returns 0)
@@ -484,7 +533,7 @@ export class SelectionHandler extends BaseInteractionHandler {
       } else if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
         this.updateResizeCursor(ctx);
       } else if (this.hoverSubTarget === PickSubTarget.Vertex) {
-        // Vertex handles (line/arrow endpoints, polyline vertices) use move cursor
+        // Vertex handles (line/arrow endpoints, polyline vertices, polygon vertices) use move cursor
         this.cursorScreenPos = ctx.screenPoint;
         this.showMoveCursor = true;
       } else if (this.hoverSubTarget === PickSubTarget.Body) {

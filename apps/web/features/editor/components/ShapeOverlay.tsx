@@ -271,9 +271,16 @@ const ShapeOverlay: React.FC = () => {
           entityKind === EntityKind.Line ||
           entityKind === EntityKind.Arrow ||
           entityKind === EntityKind.Polyline;
+
+        // Phase 1: Check if polygon should use contour selection
+        const enablePolygonContour =
+          entityKind === EntityKind.Polygon &&
+          useSettingsStore.getState().featureFlags.enablePolygonContourSelection;
+
+        const isVertexBased = isVertexOnly || enablePolygonContour;
         const orientedMeta = runtime.getOrientedHandleMeta();
 
-        if (orientedMeta.valid && !isVertexOnly) {
+        if (orientedMeta.valid && !isVertexBased) {
           // Use oriented handles (pre-rotated by engine)
           const corners = [
             worldToScreen({ x: orientedMeta.blX, y: orientedMeta.blY }, viewTransform),
@@ -325,12 +332,23 @@ const ShapeOverlay: React.FC = () => {
               />,
             );
           }
-        } else if (isVertexOnly) {
-          // Fallback to vertex-only legacy system (lines, arrows, polylines)
-          const outlineMeta = runtime.getSelectionOutlineMeta();
-          const handleMeta = runtime.getSelectionHandleMeta();
+        } else if (isVertexBased) {
+          // Vertex-based selection (lines, arrows, polylines, and Phase 1: polygons)
+          const outlineMeta = enablePolygonContour
+            ? runtime.selection.getPolygonContourMeta(entityId)
+            : runtime.getSelectionOutlineMeta();
+
           const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
-          const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
+
+          // Get grips (handles)
+          const gripsWCS = enablePolygonContour
+            ? runtime.selection.getEntityGripsWCS(entityId, false)
+            : null;
+
+          const handleMeta = !enablePolygonContour ? runtime.getSelectionHandleMeta() : null;
+          const handles = handleMeta
+            ? decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta)
+            : null;
 
           outline.primitives.forEach((prim, idx) => {
             if (prim.count < 2) return;
@@ -375,7 +393,28 @@ const ShapeOverlay: React.FC = () => {
             }
           });
 
-          if (engineResizeEnabled || handles.primitives.length > 0) {
+          // Render grips (vertex handles)
+          if (gripsWCS) {
+            // Phase 1: New grip system for polygons
+            gripsWCS.forEach((grip, i) => {
+              const screenPos = worldToScreen(grip.positionWCS, viewTransform);
+              const gripSize = grip.kind === 'vertex' ? hs : hs * 0.75; // Edge grips slightly smaller
+              const gripHalf = gripSize / 2;
+
+              selectionElements.push(
+                <rect
+                  key={`sel-grip-${i}`}
+                  x={screenPos.x - gripHalf}
+                  y={screenPos.y - gripHalf}
+                  width={gripSize}
+                  height={gripSize}
+                  className="fill-white stroke-primary"
+                  strokeWidth={1}
+                />,
+              );
+            });
+          } else if (handles && (engineResizeEnabled || handles.primitives.length > 0)) {
+            // Legacy handle system
             handles.primitives.forEach((prim, idx) => {
               if (prim.count < 1) return;
               const pts = renderPoints(prim, handles.data);

@@ -73,6 +73,8 @@ interface SettingsState {
     enableEngineResize: boolean;
     enablePickProfiling: boolean;
     enablePickThrottling: boolean;
+    enablePolygonContourSelection: boolean;
+    enablePolygonEdgeGrips: boolean;
   };
   performance: {
     pickThrottleInterval: number; // ms
@@ -130,6 +132,8 @@ interface SettingsState {
   setPickProfilingEnabled: (enabled: boolean) => void;
   setPickThrottlingEnabled: (enabled: boolean) => void;
   setPickThrottleInterval: (interval: number) => void;
+  setPolygonContourSelectionEnabled: (enabled: boolean) => void;
+  setPolygonEdgeGripsEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -194,6 +198,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     enableEngineResize: false,
     enablePickProfiling: process.env.NODE_ENV !== 'production',
     enablePickThrottling: false,
+    enablePolygonContourSelection: process.env.NODE_ENV !== 'production', // Phase 1: Dev only
+    enablePolygonEdgeGrips: false, // Phase 2: Not ready yet
   },
   performance: {
     pickThrottleInterval: 16, // 60fps
@@ -408,5 +414,15 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         ...state.performance,
         pickThrottleInterval: Math.max(8, Math.min(100, interval)),
       },
+    })),
+
+  // CAD Selection features
+  setPolygonContourSelectionEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePolygonContourSelection: enabled },
+    })),
+  setPolygonEdgeGripsEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePolygonEdgeGrips: enabled },
     })),
 }));

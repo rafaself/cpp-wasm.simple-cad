@@ -4,10 +4,13 @@ import {
   OverlayBufferMeta,
   OrientedHandleMeta,
   EntityAabb,
+  GripMeta,
 } from '../protocol';
 import { CadEngineInstance, WasmModule } from '../wasm-types';
 
 import type { PickResult } from '@/types/picking';
+import type { GripWCS } from '../gripDecoder';
+import { decodeGripMeta } from '../gripDecoder';
 
 /**
  * Selection System with caching to avoid hot-path allocations.
@@ -158,5 +161,90 @@ export class SelectionSystem {
       throw new Error('[EngineRuntime] getSelectionBounds() missing in WASM build.');
     }
     return this.engine.getSelectionBounds();
+  }
+
+  /**
+   * Get polygon contour outline for selection rendering (Phase 1).
+   * For polygons, returns the true N-sided contour.
+   * For other shapes, falls back to getSelectionOutlineMeta().
+   *
+   * @param entityId Entity to get contour for
+   * @returns Overlay buffer containing contour vertices
+   */
+  public getPolygonContourMeta(entityId: EntityId): OverlayBufferMeta {
+    // Phase 1: Check if engine has dedicated polygon contour API
+    if (typeof (this.engine as any).getPolygonContourMeta === 'function') {
+      return (this.engine as any).getPolygonContourMeta(entityId);
+    }
+
+    // Fallback: Use existing selection outline API
+    // This works for polylines and will work for polygons once engine is updated
+    return this.getSelectionOutlineMeta();
+  }
+
+  /**
+   * Get grip positions for entity (Phase 1: vertices, Phase 2: edges).
+   * Returns positions in WCS for rendering and hit-testing.
+   *
+   * @param entityId Entity to get grips for
+   * @param includeEdges Whether to include edge midpoint grips (Phase 2)
+   * @returns Array of grip positions in WCS
+   */
+  public getEntityGripsWCS(entityId: EntityId, includeEdges: boolean = false): GripWCS[] {
+    // Phase 1: Check if engine has grip metadata API
+    if (typeof (this.engine as any).getEntityGripsMeta === 'function') {
+      const meta: GripMeta = (this.engine as any).getEntityGripsMeta(entityId, includeEdges);
+      return decodeGripMeta(this.module.HEAPU8, meta);
+    }
+
+    // Fallback: Decode from selection handle meta (existing vertex handle system)
+    // This works for polylines and can be used temporarily for polygons
+    const handleMeta = this.getSelectionHandleMeta();
+    const decoded = this.decodeHandlesAsGrips(handleMeta);
+    return decoded;
+  }
+
+  /**
+   * Fallback helper: decode existing handle buffer as grip positions.
+   * Used when engine doesn't have dedicated grip API yet.
+   */
+  private decodeHandlesAsGrips(meta: OverlayBufferMeta): GripWCS[] {
+    if (!meta || meta.primitiveCount === 0 || meta.floatCount === 0) {
+      return [];
+    }
+
+    const grips: GripWCS[] = [];
+
+    // Read primitive data
+    const PRIMITIVE_STRIDE = 12;
+    const primitiveView = new DataView(
+      this.module.HEAPU8.buffer,
+      meta.primitivesPtr,
+      meta.primitiveCount * PRIMITIVE_STRIDE,
+    );
+
+    const dataView = new Float32Array(this.module.HEAPU8.buffer, meta.dataPtr, meta.floatCount);
+
+    // Each primitive represents a set of handle points
+    for (let i = 0; i < meta.primitiveCount; i++) {
+      const base = i * PRIMITIVE_STRIDE;
+      const count = primitiveView.getUint32(base + 4, true);
+      const offset = primitiveView.getUint32(base + 8, true);
+
+      // Each handle is 2 floats (x, y)
+      const pointCount = count / 2;
+      for (let j = 0; j < pointCount; j++) {
+        const idx = offset + j * 2;
+        const x = dataView[idx] ?? 0;
+        const y = dataView[idx + 1] ?? 0;
+        grips.push({
+          kind: 'vertex',
+          positionWCS: { x, y },
+          index: j,
+        });
+      }
+    }
+
+    return grips;
   }
 }
