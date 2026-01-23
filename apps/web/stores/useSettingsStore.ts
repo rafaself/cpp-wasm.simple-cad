@@ -75,6 +75,9 @@ interface SettingsState {
     enablePickThrottling: boolean;
     enablePolygonContourSelection: boolean;
     enablePolygonEdgeGrips: boolean;
+    enableGripBudget: boolean; // Phase 3: Grip budget system
+    enableGripPerformanceMonitoring: boolean; // Phase 3: Performance tracking
+    enableSnapIndicator: boolean; // Phase 3: Visual snap feedback
   };
   performance: {
     pickThrottleInterval: number; // ms
@@ -134,6 +137,9 @@ interface SettingsState {
   setPickThrottleInterval: (interval: number) => void;
   setPolygonContourSelectionEnabled: (enabled: boolean) => void;
   setPolygonEdgeGripsEnabled: (enabled: boolean) => void;
+  setGripBudgetEnabled: (enabled: boolean) => void;
+  setGripPerformanceMonitoringEnabled: (enabled: boolean) => void;
+  setSnapIndicatorEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -200,6 +206,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     enablePickThrottling: false,
     enablePolygonContourSelection: process.env.NODE_ENV !== 'production', // Phase 1: Dev only
     enablePolygonEdgeGrips: process.env.NODE_ENV !== 'production', // Phase 2: Dev only
+    enableGripBudget: true, // Phase 3: Always enabled for performance
+    enableGripPerformanceMonitoring: process.env.NODE_ENV !== 'production', // Phase 3: Dev only
+    enableSnapIndicator: true, // Phase 3: CAD-like visual feedback
   },
   performance: {
     pickThrottleInterval: 16, // 60fps
@@ -424,5 +433,19 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setPolygonEdgeGripsEnabled: (enabled) =>
     set((state) => ({
       featureFlags: { ...state.featureFlags, enablePolygonEdgeGrips: enabled },
+    })),
+
+  // Phase 3: Performance and visual features
+  setGripBudgetEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enableGripBudget: enabled },
+    })),
+  setGripPerformanceMonitoringEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enableGripPerformanceMonitoring: enabled },
+    })),
+  setSnapIndicatorEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enableSnapIndicator: enabled },
     })),
 }));

@@ -19,6 +19,8 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { worldToScreen } from '@/utils/viewportMath';
+import { calculateGripBudget, applyGripBudget } from '@/utils/gripBudget';
+import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
@@ -399,8 +401,31 @@ const ShapeOverlay: React.FC = () => {
 
           // Render grips (vertex and edge handles)
           if (gripsWCS) {
-            // Phase 1 & 2: New grip system for polygons
-            gripsWCS.forEach((grip, i) => {
+            // Phase 3: Apply grip budget for performance and visual clarity
+            const enableGripBudget = useSettingsStore.getState().featureFlags.enableGripBudget;
+            const enablePerfMonitoring =
+              useSettingsStore.getState().featureFlags.enableGripPerformanceMonitoring;
+
+            const perfMonitor = enablePerfMonitoring ? getGripPerformanceMonitor() : null;
+            const startTime = perfMonitor ? performance.now() : 0;
+
+            // Calculate grip budget based on complexity and zoom
+            const gripBudget = enableGripBudget
+              ? calculateGripBudget(gripsWCS, viewTransform, false)
+              : null;
+            const visibleGrips = gripBudget ? applyGripBudget(gripsWCS, gripBudget) : gripsWCS;
+
+            if (isCadDebugEnabled('grips') && gripBudget) {
+              cadDebugLog('grips', 'budget-decision', () => ({
+                totalGrips: gripsWCS.length,
+                visibleGrips: visibleGrips.length,
+                strategy: gripBudget.strategy,
+                reason: gripBudget.reason,
+              }));
+            }
+
+            // Phase 1 & 2: Render filtered grips
+            visibleGrips.forEach((grip, i) => {
               const screenPos = worldToScreen(grip.positionWCS, viewTransform);
 
               if (grip.kind === 'vertex') {
@@ -408,7 +433,7 @@ const ShapeOverlay: React.FC = () => {
                 const gripHalf = hs / 2;
                 selectionElements.push(
                   <rect
-                    key={`sel-grip-v-${i}`}
+                    key={`sel-grip-v-${grip.index}`}
                     x={screenPos.x - gripHalf}
                     y={screenPos.y - gripHalf}
                     width={hs}
@@ -423,7 +448,7 @@ const ShapeOverlay: React.FC = () => {
                 const edgeHalf = edgeSize / 2;
                 selectionElements.push(
                   <rect
-                    key={`sel-grip-e-${i}`}
+                    key={`sel-grip-e-${grip.index}`}
                     x={screenPos.x - edgeHalf}
                     y={screenPos.y - edgeHalf}
                     width={edgeSize}
@@ -435,6 +460,12 @@ const ShapeOverlay: React.FC = () => {
                 );
               }
             });
+
+            // Record performance metrics
+            if (perfMonitor) {
+              const renderTime = performance.now() - startTime;
+              perfMonitor.recordRender(visibleGrips.length, renderTime);
+            }
           } else if (handles && (engineResizeEnabled || handles.primitives.length > 0)) {
             // Legacy handle system
             handles.primitives.forEach((prim, idx) => {
