@@ -452,9 +452,9 @@ const ShapeOverlay: React.FC = () => {
           // Render grips (vertex and edge handles)
           if (gripsWCS) {
             // Phase 3: Apply grip budget for performance and visual clarity
-            const enableGripBudget = useSettingsStore.getState().featureFlags.enableGripBudget;
-            const enablePerfMonitoring =
-              useSettingsStore.getState().featureFlags.enableGripPerformanceMonitoring;
+            const flags = useSettingsStore.getState().featureFlags;
+            const enableGripBudget = flags.enableGripBudget;
+            const enablePerfMonitoring = flags.enableGripPerformanceMonitoring;
 
             const perfMonitor = enablePerfMonitoring ? getGripPerformanceMonitor() : null;
             const startTime = perfMonitor ? performance.now() : 0;

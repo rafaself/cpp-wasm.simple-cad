@@ -9,7 +9,7 @@
 /**
  * Performance metrics for grip rendering
  */
-interface GripPerformanceMetrics {
+export interface GripPerformanceMetrics {
   renderCount: number;
   totalRenderTimeMs: number;
   avgRenderTimeMs: number;
@@ -19,6 +19,21 @@ interface GripPerformanceMetrics {
   cacheMisses: number;
   cacheHitRate: number;
   lastUpdateTimestamp: number;
+}
+
+/**
+ * Cache statistics for debugging/monitoring
+ */
+export interface CacheStatistics {
+  size: number;
+  maxSize: number;
+  hitRate: number;
+  entries: Array<{
+    entityId: number;
+    generation: number;
+    hits: number;
+    age: number;
+  }>;
 }
 
 /**
@@ -200,12 +215,7 @@ class GripPerformanceMonitor {
   /**
    * Get cache statistics
    */
-  getCacheStats(): {
-    size: number;
-    maxSize: number;
-    hitRate: number;
-    entries: Array<{ entityId: number; generation: number; hits: number; age: number }>;
-  } {
+  getCacheStats(): CacheStatistics {
     const now = Date.now();
     const entries: Array<{ entityId: number; generation: number; hits: number; age: number }> = [];
 
@@ -289,6 +299,3 @@ export function useGripPerformanceTracking(gripCount: number): void {
     };
   }
 }
-
-// Export type for external use
-export type { GripPerformanceMetrics };

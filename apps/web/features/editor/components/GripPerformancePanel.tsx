@@ -11,11 +11,11 @@ import React, { useEffect, useState } from 'react';
 import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
-import type { GripPerformanceMetrics } from '@/utils/gripPerformance';
+import type { GripPerformanceMetrics, CacheStatistics } from '@/utils/gripPerformance';
 
 export const GripPerformancePanel: React.FC = () => {
   const [metrics, setMetrics] = useState<GripPerformanceMetrics | null>(null);
-  const [cacheStats, setCacheStats] = useState<any>(null);
+  const [cacheStats, setCacheStats] = useState<CacheStatistics | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const enableMonitoring = useSettingsStore(
