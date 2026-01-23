@@ -18,7 +18,8 @@ export const RibbonLayoutProvider: React.FC<
   <RibbonLayoutContext.Provider value={{ tier, width }}>{children}</RibbonLayoutContext.Provider>
 );
 
-export const useRibbonLayout = (): RibbonLayoutContextValue => React.useContext(RibbonLayoutContext);
+export const useRibbonLayout = (): RibbonLayoutContextValue =>
+  React.useContext(RibbonLayoutContext);
 
 export const useRibbonLayoutTier = (
   ref: React.RefObject<HTMLElement | null>,

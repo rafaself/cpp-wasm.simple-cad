@@ -12,11 +12,11 @@ Engine is the single source of truth. Governance makes that non-negotiable via d
 - Limits live in `tooling/governance/file_size_budget.json`; exceptions with rationale in `tooling/governance/file_size_budget_exceptions.json`.
 - Soft caps warn; hard caps fail CI unless an explicit exception entry exists.
 
-| Extension           | Soft | Hard | Notes                                     |
-| ------------------- | ---- | ---- | ----------------------------------------- |
-| `.cpp`, `.h`, `.hpp`| 450  | 800  | Mirrors SRP guardrails                    |
-| `.ts`, `.tsx`       | 350  | 600  | UI/bridge kept lean; engine-first focus   |
-| Tests `.ts`         | 400  | 700  | Deterministic tests, avoid bloat          |
+File size budgets are enforced by:
+- `tooling/governance/file_size_budget.json`
+- `tooling/governance/file_size_budget_exceptions.json`
+
+These JSON files are the authoritative numeric thresholds; update them (and any related docs) together.
 
 ## Boundary Rules
 - No `runtime.engine.*` usage outside `apps/web/engine/**` (enforced by `tooling/governance/check_boundaries.js` + `tooling/governance/boundary_rules.json`).

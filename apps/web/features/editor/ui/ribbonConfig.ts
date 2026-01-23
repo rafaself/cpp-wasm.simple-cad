@@ -18,6 +18,7 @@ import {
   FileCode2,
   Package,
   Scan,
+  LucideIcon,
 } from 'lucide-react';
 import { ComponentType } from 'react';
 
@@ -35,7 +36,7 @@ export type RibbonItem = {
   id: string;
   kind: RibbonItemKind;
   label: string;
-  icon?: ComponentType<any>; // Icon is optional for custom items
+  icon?: LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>; // Icon is optional for custom items
   actionId?: string;
   toolId?: string;
   status: RibbonItemStatus;

@@ -121,6 +121,46 @@ module.exports = {
       rules: {
         'no-console': 'off',
         '@typescript-eslint/no-explicit-any': 'off',
+        'no-restricted-syntax': 'off', // Tests may use raw colors for assertions
+      },
+    },
+    {
+      // Files that legitimately require raw hex colors (data tables, color pickers, import adapters, SVG overlays)
+      files: [
+        // DXF import - industry standard color tables and mappings
+        'features/import/utils/dxf/aciColors.ts', // AutoCAD Color Index - industry standard color table
+        'features/import/utils/dxf/styles.ts', // DXF style definitions with standard colors
+        'features/import/utils/dxf/colorScheme.ts', // DXF color scheme mapping
+        'features/import/utils/dxf/dxfWorker.ts', // DXF worker with default fallback colors
+        // PDF import - default colors for missing metadata
+        'features/import/utils/pdf*.ts', // PDF import utilities with fallback colors
+        // Color picker - needs raw color values by definition
+        'components/ColorPicker/**/*.{ts,tsx}',
+        // Theme defaults - base color definitions
+        'theme/defaults.ts',
+        // Color utilities - color manipulation functions
+        'utils/color.ts',
+        'utils/cssColor.ts',
+        // Visual overlays - SVG stroke/fill colors for selection handles and debugging
+        'features/editor/components/ShapeOverlay.tsx', // Selection handles and debug visualization
+        'features/editor/components/Header.tsx', // Header with brand colors
+        'features/editor/components/LayerManagerModal.tsx', // Layer preview colors
+        // Test utilities
+        'test-utils/**/*.ts',
+      ],
+      rules: {
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: "Literal[value=/\\b(text|gap|p|m|h|w)-\\[/]",
+            message: 'Arbitrary Tailwind values are forbidden; use token-backed utilities.',
+          },
+          {
+            selector: "Literal[value=/\\bz-\\d+/]",
+            message: 'Use z-index tokens (z-modal, z-dropdown, z-toast, etc.) instead of numeric z- classes.',
+          },
+          // Raw hex colors allowed in these data/picker files
+        ],
       },
     },
   ],

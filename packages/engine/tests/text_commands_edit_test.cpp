@@ -12,8 +12,8 @@ TEST_F(TextCommandsTest, DeleteText_Existing) {
     EngineError err = applyCommands(builder);
     EXPECT_EQ(err, EngineError::Ok);
 
-    const auto& em = CadEngineTestAccessor::entityManager(*engine_);
-    EXPECT_EQ(em.getText(1), nullptr);
+    const auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    EXPECT_EQ(textSystem.store.getText(1), nullptr);
 }
 
 TEST_F(TextCommandsTest, DeleteText_NonExisting) {
@@ -35,7 +35,7 @@ TEST_F(TextCommandsTest, SetTextCaret) {
 
     TextCaretPayload payload{};
     payload.textId = 1;
-    payload.caret = 2;
+    payload.caretIndex = 2;
     builder.writeCommandHeader(CommandOp::SetTextCaret, 0, sizeof(payload));
     builder.pushBytes(&payload, sizeof(payload));
 
@@ -43,7 +43,8 @@ TEST_F(TextCommandsTest, SetTextCaret) {
     EXPECT_EQ(err, EngineError::Ok);
 
     const auto caretState = CadEngineTestAccessor::textSystem(*engine_).store.getCaretState(1);
-    EXPECT_EQ(caretState.caret, 2u);
+    ASSERT_TRUE(caretState.has_value());
+    EXPECT_EQ(caretState->caretIndex, 2u);
 }
 
 TEST_F(TextCommandsTest, SetTextCaret_InvalidPayloadSize) {
@@ -74,8 +75,9 @@ TEST_F(TextCommandsTest, SetTextSelection) {
     EXPECT_EQ(err, EngineError::Ok);
 
     const auto caretState = CadEngineTestAccessor::textSystem(*engine_).store.getCaretState(1);
-    EXPECT_EQ(caretState.selectionStart, 1u);
-    EXPECT_EQ(caretState.selectionEnd, 4u);
+    ASSERT_TRUE(caretState.has_value());
+    EXPECT_EQ(caretState->selectionStart, 1u);
+    EXPECT_EQ(caretState->selectionEnd, 4u);
 }
 
 TEST_F(TextCommandsTest, InsertTextContent) {
@@ -169,7 +171,7 @@ TEST_F(TextCommandsTest, MultipleTextCommands) {
 
     TextCaretPayload caret{};
     caret.textId = 1;
-    caret.caret = 3;
+    caret.caretIndex = 3;
     builder.writeCommandHeader(CommandOp::SetTextCaret, 0, sizeof(caret));
     builder.pushBytes(&caret, sizeof(caret));
 
@@ -177,7 +179,8 @@ TEST_F(TextCommandsTest, MultipleTextCommands) {
     EXPECT_EQ(err, EngineError::Ok);
 
     const auto caretState = CadEngineTestAccessor::textSystem(*engine_).store.getCaretState(1);
-    EXPECT_EQ(caretState.caret, 3u);
+    ASSERT_TRUE(caretState.has_value());
+    EXPECT_EQ(caretState->caretIndex, 3u);
 }
 
 TEST_F(TextCommandsTest, SetTextAlignMarksTextDirtyForRelayout) {

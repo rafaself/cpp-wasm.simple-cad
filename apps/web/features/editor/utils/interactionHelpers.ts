@@ -1,23 +1,12 @@
 /**
  * Interaction Helper Utilities
  * Pure functions extracted from EngineInteractionLayer for reusability.
+ *
+ * Note: toWorldPoint removed - use runtime.viewport.screenToWorldWithTransform instead.
+ * Coordinate transformations should go through the runtime layer per engine-first principles.
  */
-
-import { screenToWorld } from '@/utils/viewportMath';
 
 import type { ViewTransform, Point } from '@/types';
-
-/**
- * Convert pointer event to world coordinates.
- */
-export const toWorldPoint = (
-  evt: React.PointerEvent<HTMLDivElement>,
-  viewTransform: ViewTransform,
-): Point => {
-  const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
-  const screen = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-  return screenToWorld(screen, viewTransform);
-};
 
 /**
  * Clamp tiny values to zero (for floating point stability).

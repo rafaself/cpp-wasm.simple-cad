@@ -11,8 +11,8 @@ import { computeRibbonLayoutV2, RibbonOverflowEntry } from '../ui/ribbonLayoutV2
 
 import { RIBBON_DEBUG_ATTR, isRibbonDebugEnabled } from './ribbon/ribbonDebug';
 import { RibbonGroup } from './ribbon/RibbonGroup';
-import { RibbonOverflowMenu } from './ribbon/RibbonOverflowMenu';
 import { RibbonLayoutProvider, useRibbonLayoutTier } from './ribbon/ribbonLayout';
+import { RibbonOverflowMenu } from './ribbon/RibbonOverflowMenu';
 
 const EditorRibbon: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
@@ -20,8 +20,9 @@ const EditorRibbon: React.FC = () => {
   const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
   const enableRibbonV2 = useSettingsStore((s) => s.featureFlags.enableRibbonV2);
   const ribbonTabs = React.useMemo(
-    () => (enableRibbonV2 ? getRibbonTabsV2(enableColorsRibbon) : getRibbonTabs(enableColorsRibbon)),
-    [enableRibbonV2, enableColorsRibbon]
+    () =>
+      enableRibbonV2 ? getRibbonTabsV2(enableColorsRibbon) : getRibbonTabs(enableColorsRibbon),
+    [enableRibbonV2, enableColorsRibbon],
   );
   const [activeTabId, setActiveTabId] = useState<string>(() => ribbonTabs[0]?.id ?? 'home');
   const gridSettings = useSettingsStore((s) => s.grid);
@@ -42,13 +43,12 @@ const EditorRibbon: React.FC = () => {
     [enableRibbonV2, activeTab, layoutTier],
   );
   const activeGroups = layout ? layout.groups : activeTab.groups;
-  const overflowItems = enableRibbonV2 ? layout?.overflow ?? [] : RIBBON_OVERFLOW_ITEMS;
   const overflowEntries = React.useMemo<RibbonOverflowEntry[]>(
     () =>
       enableRibbonV2
-        ? overflowItems
-        : overflowItems.map((item) => ({ item, groupId: 'overflow', groupLabel: 'Mais' })),
-    [enableRibbonV2, overflowItems],
+        ? (layout?.overflow ?? [])
+        : RIBBON_OVERFLOW_ITEMS.map((item) => ({ item, groupId: 'overflow', groupLabel: 'Mais' })),
+    [enableRibbonV2, layout?.overflow],
   );
 
   // Convert vertical mouse wheel to horizontal scroll
@@ -81,7 +81,7 @@ const EditorRibbon: React.FC = () => {
       }
       setActiveTabId(newTabId);
     },
-    [trackTabSwitch]
+    [trackTabSwitch],
   );
 
   React.useEffect(() => {

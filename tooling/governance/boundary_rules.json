@@ -21,6 +21,8 @@
     { "path": "apps/web/features/settings/sections/DeveloperSettings.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Developer settings inspects capabilities." },
     { "path": "apps/web/features/editor/components/RotationTooltip.tsx", "import": "apps/web/engine/core/interactionSession", "reason": "Rotation tooltip reads interaction session state." },
     { "path": "apps/web/features/editor/components/drawing/DrawingInspectorPanel.tsx", "import": "apps/web/engine/core/useEntityTransform", "reason": "Inspector uses entity transform hook directly." },
-    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/overlayDecoder", "reason": "Selection handler uses overlay decoder for hit testing." }
+    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/overlayDecoder", "reason": "Selection handler uses overlay decoder for hit testing." },
+    { "path": "apps/web/features/editor/colors/ColorRibbonControls.tsx", "import": "apps/web/engine/core/protocol", "reason": "Type-only import for protocol types needed to work with runtime.style facade data." },
+    { "path": "apps/web/features/editor/colors/useSelectionStyleSummary.ts", "import": "apps/web/engine/core/protocol", "reason": "Type-only import for protocol types needed to work with runtime.style facade data." }
   ]
 }

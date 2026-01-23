@@ -33,8 +33,8 @@ TEST_F(TextCommandsTest, UpsertText_Simple) {
     EngineError err = applyCommands(builder);
     EXPECT_EQ(err, EngineError::Ok);
 
-    const auto& em = CadEngineTestAccessor::entityManager(*engine_);
-    const auto* text = em.getText(1);
+    const auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    const auto* text = textSystem.store.getText(1);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->x, 0.0f);
 }
@@ -79,7 +79,8 @@ TEST_F(TextCommandsTest, UpsertText_MultipleRuns) {
     EngineError err = applyCommands(builder);
     EXPECT_EQ(err, EngineError::Ok);
 
-    const auto* text = CadEngineTestAccessor::entityManager(*engine_).getText(2);
+    const auto& textSystem = CadEngineTestAccessor::textSystem(*engine_);
+    const auto* text = textSystem.store.getText(2);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->x, 10.0f);
 }

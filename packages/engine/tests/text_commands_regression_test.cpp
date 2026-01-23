@@ -26,13 +26,15 @@ TEST_F(TextCommandsTest, DeleteTextRemovesFromEntityMap) {
 TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
     ASSERT_TRUE(upsertSimpleText(200, "Hello"));
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 200;
-    payload.selectionStart = 2;
-    payload.selectionEnd = 2;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    TextPayloadHeader header{};
+    payload.rangeStartLogical = 2;
+    payload.rangeEndLogical = 2;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
 
     CommandBufferBuilder builder;
     builder.writeHeader(1);
@@ -59,12 +61,15 @@ TEST_F(TextCommandsTest, PR1_VerifyCaretStyling_WithInsertion) {
 TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
     ASSERT_TRUE(upsertSimpleText(300, "Hello"));
 
-    TextApplyStylePayload payload{};
+    engine::text::ApplyTextStylePayload payload{};
     payload.textId = 300;
-    payload.selectionStart = 0;
-    payload.selectionEnd = 5;
-    payload.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    payload.styleValue = static_cast<std::uint32_t>(TextStyleFlags::Bold);
+    payload.rangeStartLogical = 0;
+    payload.rangeEndLogical = 5;
+    payload.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.flagsValue = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload.mode = 0;
+    payload.styleParamsVersion = 0;
+    payload.styleParamsLen = 0;
 
     CommandBufferBuilder builder;
     builder.writeHeader(1);
@@ -79,14 +84,17 @@ TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
     ASSERT_NE(layout1, nullptr);
 
     const float beforeY = text1->y;
-    const float beforeHeight = layout1->height;
+    const float beforeHeight = layout1->totalHeight;
 
-    TextApplyStylePayload payload2{};
+    engine::text::ApplyTextStylePayload payload2{};
     payload2.textId = 300;
-    payload2.selectionStart = 0;
-    payload2.selectionEnd = 5;
-    payload2.styleMask = static_cast<std::uint32_t>(TextStyleFlags::Bold);
-    payload2.styleValue = 0;
+    payload2.rangeStartLogical = 0;
+    payload2.rangeEndLogical = 5;
+    payload2.flagsMask = static_cast<std::uint8_t>(TextStyleFlags::Bold);
+    payload2.flagsValue = 0;
+    payload2.mode = 0;
+    payload2.styleParamsVersion = 0;
+    payload2.styleParamsLen = 0;
 
     builder.clear();
     builder.writeHeader(1);
@@ -101,5 +109,5 @@ TEST_F(TextCommandsTest, Repro_VerticalDisplacement_FontSizeChange) {
     ASSERT_NE(layout2, nullptr);
 
     EXPECT_NEAR(text2->y, beforeY, 1e-3f);
-    EXPECT_NEAR(layout2->height, beforeHeight, 1e-3f);
+    EXPECT_NEAR(layout2->totalHeight, beforeHeight, 1e-3f);
 }

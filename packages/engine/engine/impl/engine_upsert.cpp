@@ -147,7 +147,8 @@ void CadEngine::upsertCircle(
     float strokeB,
     float strokeA,
     float strokeEnabled,
-    float strokeWidthPx
+    float strokeWidthPx,
+    float elevationZ
 ) {
     const bool historyStarted = beginHistoryEntry();
     state().renderDirty = true;
@@ -198,7 +199,8 @@ void CadEngine::upsertPolygon(
     float strokeB,
     float strokeA,
     float strokeEnabled,
-    float strokeWidthPx
+    float strokeWidthPx,
+    float elevationZ
 ) {
     const bool historyStarted = beginHistoryEntry();
     state().renderDirty = true;
@@ -242,7 +244,8 @@ void CadEngine::upsertArrow(
     float strokeB,
     float strokeA,
     float strokeEnabled,
-    float strokeWidthPx
+    float strokeWidthPx,
+    float elevationZ
 ) {
     const bool historyStarted = beginHistoryEntry();
     state().renderDirty = true;

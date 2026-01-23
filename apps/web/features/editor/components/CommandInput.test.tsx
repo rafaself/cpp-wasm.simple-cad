@@ -35,7 +35,7 @@ describe('CommandInput', () => {
 
   it('renders the input field', () => {
     render(<CommandInput />);
-    expect(screen.getByRole('textbox', { name: /command input/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /entrada de comando/i })).toBeInTheDocument();
   });
 
   it('displays placeholder text', () => {

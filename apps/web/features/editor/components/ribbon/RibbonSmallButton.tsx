@@ -63,31 +63,31 @@ export const RibbonSmallButton: React.FC<RibbonSmallButtonProps> = ({
   const hoverEndRef = React.useRef<(() => void) | null>(null);
 
   return (
-      <Button
-        variant={variant}
-        size="sm"
-        className={`${buttonWidth} ${justifyClass} ${hoverClass}${debugClass} h-full`}
-        disabled={isStub}
-        onClick={handleClick}
-        onMouseEnter={() => {
-          hoverEndRef.current = tracking.startHoverTimer(item.toolId || item.actionId || item.id);
-        }}
-        onMouseLeave={() => {
-          if (hoverEndRef.current) {
-            hoverEndRef.current();
-            hoverEndRef.current = null;
-          }
-        }}
-        title={tooltip}
-        aria-pressed={isTool ? isActive : undefined}
-        aria-label={item.hideLabel ? item.label : undefined}
-        leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
-      >
-        {item.hideLabel && Icon ? (
-          <IconPrimitive icon={Icon} size="sm" />
-        ) : (
-          <span className="truncate flex-1 text-left">{item.label}</span>
-        )}
-      </Button>
+    <Button
+      variant={variant}
+      size="sm"
+      className={`${buttonWidth} ${justifyClass} ${hoverClass}${debugClass} h-full`}
+      disabled={isStub}
+      onClick={handleClick}
+      onMouseEnter={() => {
+        hoverEndRef.current = tracking.startHoverTimer(item.toolId || item.actionId || item.id);
+      }}
+      onMouseLeave={() => {
+        if (hoverEndRef.current) {
+          hoverEndRef.current();
+          hoverEndRef.current = null;
+        }
+      }}
+      title={tooltip}
+      aria-pressed={isTool ? isActive : undefined}
+      aria-label={item.hideLabel ? item.label : undefined}
+      leftIcon={!item.hideLabel && Icon ? <IconPrimitive icon={Icon} size="sm" /> : undefined}
+    >
+      {item.hideLabel && Icon ? (
+        <IconPrimitive icon={Icon} size="sm" />
+      ) : (
+        <span className="truncate flex-1 text-left">{item.label}</span>
+      )}
+    </Button>
   );
 };

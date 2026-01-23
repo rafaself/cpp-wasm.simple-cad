@@ -14,16 +14,16 @@ export {
   type RibbonHoverEvent,
   type RibbonShortcutEvent,
   type RibbonTabSwitchEvent,
-  type RibbonAnalyticsReport
-} from './ribbonAnalytics'
+  type RibbonAnalyticsReport,
+} from './ribbonAnalytics';
 
 export {
   useRibbonTracking,
   useRibbonTabTracking,
   useRibbonMisclickDetector,
   type RibbonTrackingContext,
-  type RibbonTrackingHook
-} from './useRibbonTracking'
+  type RibbonTrackingHook,
+} from './useRibbonTracking';
 
 export {
   ribbonAlignmentAudit,
@@ -31,13 +31,13 @@ export {
   exportAlignmentReportJSON,
   installAlignmentAuditDevTools,
   type GroupMeasurements,
-  type RibbonAlignmentReport
-} from './ribbonAlignmentAudit'
+  type RibbonAlignmentReport,
+} from './ribbonAlignmentAudit';
 
 export {
   generateBaselineReport,
   formatBaselineReport,
   downloadBaselineReport,
   installBaselineReportDevTools,
-  type BaselineReport
-} from './ribbonBaselineReport'
+  type BaselineReport,
+} from './ribbonBaselineReport';

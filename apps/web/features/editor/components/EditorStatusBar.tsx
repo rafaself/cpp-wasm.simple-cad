@@ -45,8 +45,9 @@ const EditorStatusBar: React.FC = () => {
   const activeTool = useUIStore((s) => s.activeTool);
 
   const ribbonTabs = React.useMemo(
-    () => (enableRibbonV2 ? getRibbonTabsV2(enableColorsRibbon) : getRibbonTabs(enableColorsRibbon)),
-    [enableRibbonV2, enableColorsRibbon]
+    () =>
+      enableRibbonV2 ? getRibbonTabsV2(enableColorsRibbon) : getRibbonTabs(enableColorsRibbon),
+    [enableRibbonV2, enableColorsRibbon],
   );
 
   const ToolIcon = React.useMemo(() => {

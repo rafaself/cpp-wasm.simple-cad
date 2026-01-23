@@ -43,6 +43,7 @@ import { ColorRibbonControls } from '../colors/ColorRibbonControls';
 import { LayerRibbonControls } from '../components/ribbon/LayerRibbonControls';
 import { SelectionControls } from '../components/ribbon/SelectionControls';
 import { TextFormattingControls } from '../components/ribbon/TextFormattingControls';
+
 import { RibbonGroup, RibbonItem, RibbonTab } from './ribbonConfig';
 
 /**

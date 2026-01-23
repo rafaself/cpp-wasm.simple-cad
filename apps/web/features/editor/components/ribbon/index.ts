@@ -17,7 +17,7 @@ export { RibbonButton } from './RibbonButton';
 export { RibbonLargeButton } from './RibbonLargeButton';
 export { RibbonSmallButton } from './RibbonSmallButton';
 export { RibbonIconButton } from './RibbonIconButton';
-export { RibbonSplitButton } from './RibbonSplitButton';  // NEW in Phase 2
+export { RibbonSplitButton } from './RibbonSplitButton'; // NEW in Phase 2
 
 // Layout Components
 export { RibbonGroup } from './RibbonGroup';
@@ -31,12 +31,7 @@ export { TextFormattingControls } from './TextFormattingControls';
 export { SelectionControls } from './SelectionControls';
 
 // Utilities
-export {
-  getTooltip,
-  getBindingId,
-  getRibbonButtonColorClasses,
-  RIBBON_ICON_SIZES,
-} from './ribbonUtils';
+export { getTooltip, getBindingId, RIBBON_ICON_SIZES } from './ribbonUtils';
 
 // State Management Utilities (NEW in Phase 2)
 export {

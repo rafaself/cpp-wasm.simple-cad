@@ -22,7 +22,7 @@ const EditorTabs: React.FC = () => {
 
         // Mocking floor name lookup - ideally this comes from a store selector or prop
         // For now, assuming 'terreo' -> 'Térreo' mapping or just capitalization
-        const floorName = tab.floorId === 'terreo' ? 'Térreo' : tab.floorId;
+        const floorName = tab.floorId === 'terreo' ? LABELS.floors.terreo : tab.floorId;
 
         return (
           <div
@@ -42,7 +42,7 @@ const EditorTabs: React.FC = () => {
             <span>{floorName}</span>
             <span className="text-text-subtle text-label">|</span>
             <span className="uppercase tracking-wider text-label text-text-subtle">
-              {tab.discipline === 'architecture' ? LABELS.disciplines.shortArchitecture : 'Elé'}
+              {tab.discipline === 'architecture' ? LABELS.disciplines.shortArchitecture : LABELS.disciplines.shortElectrical}
             </span>
 
             <button

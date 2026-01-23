@@ -132,8 +132,15 @@ describe('DraftingHandler', () => {
   it('commits polyline on double click without adding an extra point', () => {
     harness.setTool('polyline');
 
+    // First click starts the polyline
     harness.pointerDown({ x: 1, y: 1, detail: 1 });
     harness.pointerUp({ x: 1, y: 1, detail: 1 });
+
+    // Second click at different position appends a point
+    harness.pointerDown({ x: 10, y: 10, detail: 1 });
+    harness.pointerUp({ x: 10, y: 10, detail: 1 });
+
+    // Double click commits without adding another point
     harness.pointerDown({ x: 10, y: 10, detail: 2 });
     harness.pointerUp({ x: 10, y: 10, detail: 2 });
 

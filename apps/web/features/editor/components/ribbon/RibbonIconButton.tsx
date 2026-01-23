@@ -8,7 +8,7 @@ import {
   getStateClasses,
   resolveButtonVariant,
   wrapMixedStateIcon,
-  type RibbonButtonIntent
+  type RibbonButtonIntent,
 } from './ribbonButtonState';
 
 type RibbonIconButtonSize = 'sm' | 'md';
@@ -97,7 +97,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
     isMixed ? 'mixed' : isActive ? 'active' : 'default',
     intent,
     isActive,
-    activeStyle
+    activeStyle,
   );
 
   // Get state classes
@@ -106,7 +106,7 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
     isDisabled: disabled,
     isMixed,
     intent,
-    activeStyle
+    activeStyle,
   });
 
   // Handle click with tracking
@@ -140,7 +140,13 @@ export const RibbonIconButton: React.FC<RibbonIconButtonProps> = ({
           hoverEndRef.current = null;
         }
       }}
-      className={combineClasses('ribbon-icon-button', SIZE_CLASSES[size], 'p-0', stateClasses, className)}
+      className={combineClasses(
+        'ribbon-icon-button',
+        SIZE_CLASSES[size],
+        'p-0',
+        stateClasses,
+        className,
+      )}
       title={title}
       disabled={disabled}
       aria-pressed={isMixed ? 'mixed' : isActive}
