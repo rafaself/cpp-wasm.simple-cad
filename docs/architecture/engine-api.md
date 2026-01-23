@@ -114,7 +114,37 @@ runtime.clearSelection(): void
 
 // Query current selection
 runtime.getSelectionIds(): Uint32Array
+
+// Polygon contour overlay (Phase 1-3)
+runtime.selection.getPolygonContourMeta(entityId): OverlayBufferMeta
+
+// Polygon grip positions (Phase 1-3)
+runtime.selection.getEntityGripsWCS(entityId, includeEdges): GripWCS[]
 ```
+
+### GripMeta Structure (Phase 1-3)
+
+For polygon grip systems, the engine provides grip positions via `GripMeta`:
+
+```typescript
+interface GripMeta {
+  generation: number;        // Document generation for cache invalidation
+  vertexCount: number;       // Number of vertex grips
+  edgeCount: number;         // Number of edge midpoint grips (0 if not requested)
+  floatCount: number;        // Total floats (vertexCount*2 + edgeCount*2)
+  verticesPtr: number;       // WASM pointer to vertex positions [x0,y0, x1,y1, ...]
+  edgeMidpointsPtr: number;  // WASM pointer to edge midpoint positions (if edgeCount > 0)
+  valid: number;             // 1 = valid, 0 = invalid/unsupported
+}
+
+interface GripWCS {
+  kind: 'vertex' | 'edge-midpoint';
+  positionWCS: { x: number; y: number };
+  index: number;  // Vertex or edge index
+}
+```
+
+**Important**: All grip positions are in **WCS (World Coordinate System)**. Frontend must convert to screen space for rendering.
 
 ---
 
@@ -204,12 +234,22 @@ runtime.cancelTransform(): void
 
 ### TransformModes
 
-| Mode         | Usage                  |
-| ------------ | ---------------------- |
-| `Move`       | Move selected entities |
-| `Resize`     | Resize via handle      |
-| `VertexDrag` | Drag specific vertex   |
-| `EdgeDrag`   | Drag edge              |
+| Mode         | Usage                  | Polygon Support (Phase 1-3) |
+| ------------ | ---------------------- | --------------------------- |
+| `Move`       | Move selected entities | ✓ (whole polygon) |
+| `Resize`     | Resize via handle      | ✓ (bbox-based) |
+| `VertexDrag` | Drag specific vertex   | ✓ (single vertex, adjacent edges update) |
+| `EdgeDrag`   | Drag edge              | ✓ (both endpoints move, perpendicular by default) |
+
+**Polygon VertexDrag Behavior**:
+- Moves only the specified vertex (via `vertexIndex`)
+- Adjacent edges update automatically
+- Snapping applies to vertex position
+
+**Polygon EdgeDrag Behavior** (Phase 2):
+- Moves both endpoints of the edge (vertices `[i]` and `[(i+1)%N]`)
+- Default motion: perpendicular to edge direction (CAD-like)
+- Shift modifier: free drag (moves both vertices by raw delta)
 
 ### CommitResult
 

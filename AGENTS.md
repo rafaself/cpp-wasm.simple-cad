@@ -33,7 +33,7 @@ High-performance vector CAD editor with world-class UX (Figma-grade), extended b
 
 ### Current Focus
 
-* Solidify the **2D CAD foundation**: drawing, selection, transforms, text, persistence.
+* Solidify the **2D CAD foundation**: drawing, selection, transforms (including **CAD-like polygon grip editing**), text, persistence.
 * Implement the **Electrical domain kernel** as an independent module integrated via strict contracts.
 * Begin adopting **2.5D** (plan + elevation) with a clean path to **3D soon**, without rewriting the core.
 
@@ -114,6 +114,7 @@ User Input → React → Runtime Facades → (Atlas / Domain) → Events/Buffers
 * Entity identity for CAD (`EntityId`)
 * Selection state and picking tolerances
 * Transform sessions and geometry math
+* **Grip positions** (vertex grips, edge midpoint grips) — provided in WCS
 * Render buffers (tessellation, overlays, text quads, grid)
 * CAD snapshot format (strict versioning)
 
@@ -239,6 +240,7 @@ Implications (non-negotiable):
 | ----------------------------------------------------- | ------------------------------------------------ |
 | Store CAD entity lists/geometry in Zustand/React      | Shadow state → desync                            |
 | Compute CAD geometry/picking tolerances in JS         | Precision/behavior drift; breaks engine-first    |
+| **Compute grip positions or vertex coordinates in JS**| Breaks WCS-first principle; creates precision drift |
 | Serialize/build command objects on pointermove        | Hot-path allocations; latency and GC spikes      |
 | Directly call native engine instances outside facades | Boundary breach; impossible governance           |
 | Add compatibility shims/adapters/legacy bridges       | Creates divergent sources of truth and conflicts |
@@ -305,6 +307,28 @@ Atlas execution model MUST be explicit to avoid incorrect assumptions in schedul
 
 * Forbidden: object creation, array spreads, closure creation inside pointermove
 * Mandatory: direct WASM session calls, reuse buffers, typed arrays where applicable
+
+### 6.3 Grip Rendering Performance (Phase 1-3)
+
+**Polygon grip systems must maintain 60fps:**
+
+| Strategy | Performance Requirement |
+|----------|------------------------|
+| Grip computation | Engine-only (zero JS geometry math) |
+| Grip caching | LRU cache with generation-based invalidation |
+| Grip budget | Progressive disclosure for >24 vertices |
+| Rendering | <16.67ms total frame time including all grips |
+
+**Grip Budget Thresholds**:
+- ≤12 vertices: Show all vertex + edge grips
+- 13-24 vertices: Show vertex grips only
+- >24 vertices: Progressive disclosure based on zoom (20px minimum screen distance)
+
+**Cache Strategy**:
+- 100-entry LRU cache
+- 5-second TTL per entry
+- Keyed by `(entityId, generation, includeEdges)`
+- Target: 60-80% cache hit rate during editing
 
 ---
 

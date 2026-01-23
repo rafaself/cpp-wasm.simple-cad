@@ -18,24 +18,34 @@ import {
 
 /**
  * Create mock grips for testing
+ * Uses radius of 100 WU to ensure realistic screen-space edge lengths
  */
 function createMockGrips(vertexCount: number, edgeCount: number = 0): GripWCS[] {
   const grips: GripWCS[] = [];
+  const radius = 100; // World units - ensures realistic edge lengths
 
   // Add vertex grips
   for (let i = 0; i < vertexCount; i++) {
+    const angle = (i / vertexCount) * Math.PI * 2;
     grips.push({
       kind: 'vertex',
-      positionWCS: { x: Math.cos((i / vertexCount) * Math.PI * 2), y: Math.sin((i / vertexCount) * Math.PI * 2) },
+      positionWCS: {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius
+      },
       index: i,
     });
   }
 
-  // Add edge grips
+  // Add edge grips at midpoints
   for (let i = 0; i < edgeCount; i++) {
+    const angle = ((i + 0.5) / vertexCount) * Math.PI * 2;
     grips.push({
       kind: 'edge-midpoint',
-      positionWCS: { x: 0.5, y: 0.5 },
+      positionWCS: {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius
+      },
       index: i,
     });
   }

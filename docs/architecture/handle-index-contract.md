@@ -128,6 +128,66 @@ This ensures the cursor always points in the correct direction relative to the r
 
 ---
 
+## Polygon Grip Indices
+
+**Phase 1-3 Addition**: Polygons use a **grip-based system** instead of corner/side handles for CAD-like editing.
+
+### Vertex Grip Indices
+
+Vertex grips follow the polygon's **native vertex order** (counter-clockwise from first vertex):
+
+| Index | Position | Description |
+|-------|----------|-------------|
+| 0 | First Vertex | Starting point (typically bottom-right for regular polygons) |
+| 1 | Second Vertex | Next vertex in CCW order |
+| ... | ... | Continues CCW |
+| N-1 | Last Vertex | Final vertex before closing |
+
+**Example (Hexagon - 6 vertices)**:
+```
+        v2 ────── v3
+       /            \
+     v1              v4
+       \            /
+        v0 ────── v5
+```
+
+**Important**: Vertex indices are **stable** and tied to the polygon's geometry. They persist across transforms.
+
+### Edge Grip Indices
+
+Edge midpoint grips (Phase 2) are indexed by the edge they bisect:
+
+| Edge Index | Between Vertices | Description |
+|------------|------------------|-------------|
+| 0 | v0 → v1 | First edge |
+| 1 | v1 → v2 | Second edge |
+| ... | ... | Continues CCW |
+| N-1 | v(N-1) → v0 | Closing edge |
+
+**Edge Direction**: Each edge points from `vertex[i]` to `vertex[(i+1) % N]` in CCW order.
+
+### Grip Coordinate System
+
+**All grip positions are provided in WCS (World Coordinate System):**
+- Engine computes grip positions
+- Frontend converts WCS → Screen for rendering
+- No frontend geometry math
+
+### Grip Budget System (Phase 3)
+
+For polygons with many vertices, grips are progressively disclosed:
+
+| Vertex Count | Display Strategy |
+|--------------|------------------|
+| ≤12 | All vertex + edge grips shown |
+| 13-24 | Only vertex grips shown (edges hidden) |
+| >24 | Progressive disclosure based on zoom level |
+
+**Zoom Threshold**: 20px minimum screen distance between adjacent grips.
+
+---
+
 ## Validation
 
 To verify handle alignment between engine and frontend:
@@ -135,5 +195,12 @@ To verify handle alignment between engine and frontend:
 1. Pick a corner handle via engine → returns `handleIndex`
 2. Render handle at index via frontend → position should match
 3. Cursor angle for that index → should point in resize direction
+
+**For Polygon Grips**:
+
+1. Pick a vertex grip → returns `PickSubTarget.Vertex` with `subIndex = vertex index`
+2. Pick an edge grip → returns `PickSubTarget.Edge` with `subIndex = edge index`
+3. Render grip at index → position must match engine-provided WCS coordinates
+4. Transform mode selection → `VertexDrag` for vertices, `EdgeDrag` for edges
 
 If any mismatch is detected, the engine is authoritative and frontend must be corrected.
