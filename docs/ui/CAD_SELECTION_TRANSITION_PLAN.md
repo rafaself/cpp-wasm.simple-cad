@@ -1,6 +1,6 @@
 # CAD-like Selection Transition Plan: Polygons (3+ sides)
 
-> **Status**: Plan & Analysis Only
+> **Status**: Implemented (Phase 1 & 2)
 > **Created**: 2026-01-23
 > **Scope**: Migrate polygons from 4-side bounding-box selection to true-contour CAD-like selection
 

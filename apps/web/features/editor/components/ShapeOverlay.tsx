@@ -324,12 +324,8 @@ const ShapeOverlay: React.FC = () => {
           entityKind === EntityKind.Arrow ||
           entityKind === EntityKind.Polyline;
 
-        // Phase 1: Check if polygon should use contour selection
-        const enablePolygonContour =
-          entityKind === EntityKind.Polygon &&
-          useSettingsStore.getState().featureFlags.enablePolygonContourSelection;
-
-        const isVertexBased = isVertexOnly || enablePolygonContour;
+        // Polygons always use vertex-based contour selection (CAD-like behavior)
+        const isVertexBased = isVertexOnly || entityKind === EntityKind.Polygon;
         const orientedMeta = runtime.getOrientedHandleMeta();
 
         if (orientedMeta.valid && !isVertexBased) {
@@ -386,7 +382,7 @@ const ShapeOverlay: React.FC = () => {
           }
         } else if (isVertexBased) {
           // Vertex-based selection (lines, arrows, polylines, and Phase 1: polygons)
-          const outlineMeta = enablePolygonContour
+          const outlineMeta = entityKind === EntityKind.Polygon
             ? runtime.selection.getPolygonContourMeta(entityId)
             : runtime.getSelectionOutlineMeta();
 
@@ -395,13 +391,13 @@ const ShapeOverlay: React.FC = () => {
           // Get grips (handles)
           // Phase 2: Include edge midpoint grips if flag enabled
           const includeEdges =
-            enablePolygonContour &&
+            entityKind === EntityKind.Polygon &&
             useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
-          const gripsWCS = enablePolygonContour
+          const gripsWCS = entityKind === EntityKind.Polygon
             ? runtime.selection.getEntityGripsWCS(entityId, includeEdges)
             : null;
 
-          const handleMeta = !enablePolygonContour ? runtime.getSelectionHandleMeta() : null;
+          const handleMeta = entityKind !== EntityKind.Polygon ? runtime.getSelectionHandleMeta() : null;
           const handles = handleMeta
             ? decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta)
             : null;
