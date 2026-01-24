@@ -231,8 +231,8 @@ export class SelectionSystem {
       const count = primitiveView.getUint32(base + 4, true);
       const offset = primitiveView.getUint32(base + 8, true);
 
-      // Each handle is 2 floats (x, y)
-      const pointCount = count / 2;
+      // count is already the number of points (each point is 2 floats: x, y)
+      const pointCount = count;
       for (let j = 0; j < pointCount; j++) {
         const idx = offset + j * 2;
         const x = dataView[idx] ?? 0;
