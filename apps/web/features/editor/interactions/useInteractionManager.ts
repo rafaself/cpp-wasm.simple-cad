@@ -131,15 +131,14 @@ export function useInteractionManager() {
   }, [activeTool, forceUpdate]);
 
   // Input Pipeline Helper
-  const buildContext = (e: React.PointerEvent): InputEventContext => {
+  const buildContext = (e: React.PointerEvent): InputEventContext | null => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return null;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const clientX = e.clientX;
     const clientY = e.clientY;
     const screen = { x: clientX - rect.left, y: clientY - rect.top };
-    const runtime = runtimeRef.current;
-    const world = runtime
-      ? runtime.viewport.screenToWorldWithTransform(screen, viewTransform)
-      : { x: screen.x, y: screen.y };
+    const world = runtime.viewport.screenToWorldWithTransform(screen, viewTransform);
 
     return {
       event: e,
@@ -155,6 +154,7 @@ export function useInteractionManager() {
   // Event Delegates
   const onPointerDown = (e: React.PointerEvent) => {
     const ctx = buildContext(e);
+    if (!ctx) return;
     const result = handlerRef.current.onPointerDown(ctx);
     if (result) {
       const prevName = handlerRef.current.name;
@@ -174,12 +174,17 @@ export function useInteractionManager() {
   const onPointerMove = (e: React.PointerEvent) => {
     startTiming('pointermove');
     const ctx = buildContext(e);
+    if (!ctx) {
+      endTiming('pointermove');
+      return;
+    }
     handlerRef.current.onPointerMove(ctx);
     endTiming('pointermove');
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
     const ctx = buildContext(e);
+    if (!ctx) return;
     const result = handlerRef.current.onPointerUp(ctx);
     if (result) {
       const prevName = handlerRef.current.name;
@@ -199,6 +204,7 @@ export function useInteractionManager() {
   const onDoubleClick = (e: React.PointerEvent) => {
     if (handlerRef.current.onDoubleClick) {
       const ctx = buildContext(e);
+      if (!ctx) return;
       handlerRef.current.onDoubleClick(ctx);
     }
   };

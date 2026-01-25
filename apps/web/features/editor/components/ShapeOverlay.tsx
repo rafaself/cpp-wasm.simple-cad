@@ -19,7 +19,7 @@ import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/us
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
-import { worldToScreen } from '@/utils/viewportMath';
+import { worldToScreen } from '@/engine/core/viewportMath';
 import { calculateGripBudget, applyGripBudget } from '@/utils/gripBudget';
 import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 

@@ -16,7 +16,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { PickEntityKind } from '@/types/picking';
 import { packColorRGBA } from '@/types/text';
 import { parseCssColorToHexAlpha } from '@/utils/cssColor';
-import { worldToScreen } from '@/utils/viewportMath';
+import { worldToScreen } from '@/engine/core/viewportMath';
 
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler } from '../types';

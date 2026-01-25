@@ -55,13 +55,9 @@ export function usePanZoom() {
       const rect = (evt.currentTarget as HTMLDivElement).getBoundingClientRect();
       const mouse = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
       const runtime = getEngineRuntimeSync();
-      const screenToWorldFn = runtime
-        ? (point: Point, transform: ViewTransform) =>
-            runtime.viewport.screenToWorldWithTransform(point, transform)
-        : (point: Point, transform: ViewTransform) => ({
-            x: (point.x - transform.x) / transform.scale,
-            y: -(point.y - transform.y) / transform.scale,
-          });
+      if (!runtime) return;
+      const screenToWorldFn = (point: Point, transform: ViewTransform) =>
+        runtime.viewport.screenToWorldWithTransform(point, transform);
       setViewTransform((prev: ViewTransform) =>
         calculateZoomTransform(prev, mouse, evt.deltaY, screenToWorldFn),
       );

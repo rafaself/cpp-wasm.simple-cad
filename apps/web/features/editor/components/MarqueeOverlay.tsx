@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-import { worldToScreen } from '@/utils/viewportMath';
+import { worldToScreen } from '@/engine/core/viewportMath';
 
 import type { ViewTransform, Point } from '@/types';
 

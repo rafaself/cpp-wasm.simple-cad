@@ -1,7 +1,7 @@
 import { DraftingHandler } from '@/features/editor/interactions/handlers/DraftingHandler';
 import { SelectionHandler } from '@/features/editor/interactions/handlers/SelectionHandler';
 import { TextHandler } from '@/features/editor/interactions/handlers/TextHandler';
-import { screenToWorld } from '@/utils/viewportMath';
+import { screenToWorld } from '@/engine/core/viewportMath';
 
 import { FakeRuntime } from './fakeRuntime';
 
