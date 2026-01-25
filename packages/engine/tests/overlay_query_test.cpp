@@ -3,6 +3,189 @@
 #include "tests/test_accessors.h"
 #include <cmath>
 
+// =============================================================================
+// Phase 3: Polygon Contour Selection Tests
+// Validates CAD-like polygon selection with true N-vertex contours
+// =============================================================================
+
+TEST(OverlayQueryTest, PolygonContourSelection_TriangleHas3Vertices) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create a triangle (3 sides) at origin with radius 10
+    CadEngineTestAccessor::upsertPolygon(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 1.0f, 3,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // Verify outline has 3 vertices
+    const auto outline = engine.getSelectionOutlineMeta();
+    EXPECT_EQ(outline.primitiveCount, 1u);
+    EXPECT_EQ(outline.floatCount, 6u); // 3 vertices * 2 floats
+
+    const auto* outlinePrim = reinterpret_cast<const engine::protocol::OverlayPrimitive*>(outline.primitivesPtr);
+    ASSERT_NE(outlinePrim, nullptr);
+    EXPECT_EQ(outlinePrim[0].count, 3u); // Triangle = 3 vertices
+
+    // Verify handles have 3 grips
+    const auto handles = engine.getSelectionHandleMeta();
+    EXPECT_EQ(handles.primitiveCount, 1u);
+    EXPECT_EQ(handles.floatCount, 6u); // 3 grips * 2 floats
+
+    const auto* handlePrim = reinterpret_cast<const engine::protocol::OverlayPrimitive*>(handles.primitivesPtr);
+    ASSERT_NE(handlePrim, nullptr);
+    EXPECT_EQ(handlePrim[0].count, 3u); // 3 vertex grips
+}
+
+TEST(OverlayQueryTest, PolygonContourSelection_HexagonHas6Vertices) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create a hexagon (6 sides)
+    CadEngineTestAccessor::upsertPolygon(engine, 1, 50.0f, 50.0f, 20.0f, 20.0f, 0.0f, 1.0f, 1.0f, 6,
+        0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // Verify outline has 6 vertices
+    const auto outline = engine.getSelectionOutlineMeta();
+    EXPECT_EQ(outline.primitiveCount, 1u);
+    EXPECT_EQ(outline.floatCount, 12u); // 6 vertices * 2 floats
+
+    const auto* outlinePrim = reinterpret_cast<const engine::protocol::OverlayPrimitive*>(outline.primitivesPtr);
+    ASSERT_NE(outlinePrim, nullptr);
+    EXPECT_EQ(outlinePrim[0].count, 6u); // Hexagon = 6 vertices
+
+    // Verify handles have 6 grips
+    const auto handles = engine.getSelectionHandleMeta();
+    EXPECT_EQ(handles.floatCount, 12u); // 6 grips * 2 floats
+
+    const auto* handlePrim = reinterpret_cast<const engine::protocol::OverlayPrimitive*>(handles.primitivesPtr);
+    ASSERT_NE(handlePrim, nullptr);
+    EXPECT_EQ(handlePrim[0].count, 6u); // 6 vertex grips
+}
+
+TEST(OverlayQueryTest, PolygonContourSelection_OctagonHas8Vertices) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create an octagon (8 sides)
+    CadEngineTestAccessor::upsertPolygon(engine, 1, 0.0f, 0.0f, 15.0f, 15.0f, 0.0f, 1.0f, 1.0f, 8,
+        0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // Verify outline has 8 vertices
+    const auto outline = engine.getSelectionOutlineMeta();
+    EXPECT_EQ(outline.floatCount, 16u); // 8 vertices * 2 floats
+
+    const auto* outlinePrim = reinterpret_cast<const engine::protocol::OverlayPrimitive*>(outline.primitivesPtr);
+    ASSERT_NE(outlinePrim, nullptr);
+    EXPECT_EQ(outlinePrim[0].count, 8u); // Octagon = 8 vertices
+
+    // Verify handles have 8 grips
+    const auto handles = engine.getSelectionHandleMeta();
+    EXPECT_EQ(handles.floatCount, 16u); // 8 grips * 2 floats
+}
+
+TEST(OverlayQueryTest, PolygonContourSelection_12SidedPolygon) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create a dodecagon (12 sides)
+    CadEngineTestAccessor::upsertPolygon(engine, 1, 100.0f, 100.0f, 30.0f, 30.0f, 0.0f, 1.0f, 1.0f, 12,
+        1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // Verify outline has 12 vertices
+    const auto outline = engine.getSelectionOutlineMeta();
+    EXPECT_EQ(outline.floatCount, 24u); // 12 vertices * 2 floats
+
+    const auto* outlinePrim = reinterpret_cast<const engine::protocol::OverlayPrimitive*>(outline.primitivesPtr);
+    ASSERT_NE(outlinePrim, nullptr);
+    EXPECT_EQ(outlinePrim[0].count, 12u); // 12 vertices
+
+    // Verify handles have 12 grips
+    const auto handles = engine.getSelectionHandleMeta();
+    EXPECT_EQ(handles.floatCount, 24u); // 12 grips * 2 floats
+}
+
+TEST(OverlayQueryTest, PolygonOrientedHandleMeta_ReturnsInvalid) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create a pentagon (5 sides)
+    CadEngineTestAccessor::upsertPolygon(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 1.0f, 5,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // getOrientedHandleMeta should return invalid for polygons
+    // (signals frontend to use vertex-based selection, not OBB)
+    const auto orientedMeta = engine.getOrientedHandleMeta();
+    EXPECT_EQ(orientedMeta.valid, 0u); // Must be invalid for polygons
+}
+
+TEST(OverlayQueryTest, PolygonContourSelection_RotatedPolygonVerticesCorrect) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create a square-like polygon (4 sides) rotated 45 degrees
+    const std::uint32_t id = 1;
+    CadEngineTestAccessor::upsertPolygon(engine, id, 0.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 1.0f, 4,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+
+    constexpr float kRotationDeg = 45.0f;
+    engine.setEntityRotation(id, kRotationDeg);
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // Verify outline still has 4 vertices after rotation
+    const auto outline = engine.getSelectionOutlineMeta();
+    EXPECT_EQ(outline.floatCount, 8u); // 4 vertices * 2 floats
+
+    // Verify handles still have 4 grips after rotation
+    const auto handles = engine.getSelectionHandleMeta();
+    EXPECT_EQ(handles.floatCount, 8u); // 4 grips * 2 floats
+
+    // Verify the vertices are rotated correctly
+    const auto* handleData = reinterpret_cast<const float*>(handles.dataPtr);
+    ASSERT_NE(handleData, nullptr);
+
+    // For a rotated regular polygon, all vertices should be at distance rx from center
+    constexpr float expectedRadius = 10.0f;
+    for (int i = 0; i < 4; ++i) {
+        const float vx = handleData[i * 2];
+        const float vy = handleData[i * 2 + 1];
+        const float dist = std::sqrt(vx * vx + vy * vy);
+        EXPECT_NEAR(dist, expectedRadius, 0.01f);
+    }
+}
+
+TEST(OverlayQueryTest, PolygonContourSelection_MultiplePolygonsMultiSelect) {
+    CadEngine engine;
+    engine.clear();
+
+    // Create two polygons with different vertex counts
+    CadEngineTestAccessor::upsertPolygon(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 1.0f, 3,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertPolygon(engine, 2, 50.0f, 0.0f, 10.0f, 10.0f, 0.0f, 1.0f, 1.0f, 5,
+        0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+
+    const std::uint32_t ids[] = {1, 2};
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
+
+    // With multi-selection, getSelectionOutlineMeta returns both polygons
+    const auto outline = engine.getSelectionOutlineMeta();
+    EXPECT_EQ(outline.primitiveCount, 2u); // 2 polygons
+    EXPECT_EQ(outline.floatCount, 16u); // (3 + 5) vertices * 2 floats
+
+    // Verify handles for both polygons
+    const auto handles = engine.getSelectionHandleMeta();
+    EXPECT_EQ(handles.primitiveCount, 2u); // 2 primitives
+    EXPECT_EQ(handles.floatCount, 16u); // (3 + 5) grips * 2 floats
+}
+
 TEST(OverlayQueryTest, SelectionOutlineAndHandles) {
     CadEngine engine;
     engine.clear();

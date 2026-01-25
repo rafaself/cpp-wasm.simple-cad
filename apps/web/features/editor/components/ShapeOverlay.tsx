@@ -319,16 +319,15 @@ const ShapeOverlay: React.FC = () => {
         // Single selection: prefer oriented handles for corner-capable shapes
         const entityId = selectionIds[0];
         const entityKind = runtime.getEntityKind(entityId);
+        // Phase 2: Include Polygon as vertex-only (CAD-like contour selection)
         const isVertexOnly =
           entityKind === EntityKind.Line ||
           entityKind === EntityKind.Arrow ||
-          entityKind === EntityKind.Polyline;
-
-        // Polygons always use vertex-based contour selection (CAD-like behavior)
-        const isVertexBased = isVertexOnly || entityKind === EntityKind.Polygon;
+          entityKind === EntityKind.Polyline ||
+          entityKind === EntityKind.Polygon;
         const orientedMeta = runtime.getOrientedHandleMeta();
 
-        if (orientedMeta.valid && !isVertexBased) {
+        if (orientedMeta.valid && !isVertexOnly) {
           // Use oriented handles (pre-rotated by engine)
           const corners = [
             worldToScreen({ x: orientedMeta.blX, y: orientedMeta.blY }, viewTransform),
@@ -380,158 +379,172 @@ const ShapeOverlay: React.FC = () => {
               />,
             );
           }
-        } else if (isVertexBased) {
-          // Vertex-based selection (lines, arrows, polylines, and Phase 1: polygons)
-          const outlineMeta = entityKind === EntityKind.Polygon
-            ? runtime.selection.getPolygonContourMeta(entityId)
-            : runtime.getSelectionOutlineMeta();
+        } else if (isVertexOnly) {
+          // Vertex-based selection (lines, arrows, polylines, and polygons)
+          const outlineMeta =
+            entityKind === EntityKind.Polygon
+              ? runtime.selection.getPolygonContourMeta(entityId)
+              : runtime.getSelectionOutlineMeta();
 
           const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
 
-          // Get grips (handles)
-          // Phase 2: Include edge midpoint grips if flag enabled
-          const includeEdges =
-            entityKind === EntityKind.Polygon &&
-            useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
-          const gripsWCS = entityKind === EntityKind.Polygon
-            ? runtime.selection.getEntityGripsWCS(entityId, includeEdges)
-            : null;
-
-          const handleMeta = entityKind !== EntityKind.Polygon ? runtime.getSelectionHandleMeta() : null;
-          const handles = handleMeta
-            ? decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta)
-            : null;
-
-          outline.primitives.forEach((prim, idx) => {
-            if (prim.count < 2) return;
-            const pts = renderPoints(prim, outline.data);
-            const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-
-            if (prim.kind === OverlayKind.Segment) {
-              const a = pts[0];
-              const b = pts[1];
-              if (!a || !b) return;
-              selectionElements.push(
-                <line
-                  key={`sel-seg-${idx}`}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  className="stroke-primary"
-                  strokeWidth={1}
-                />,
-              );
-            } else if (prim.kind === OverlayKind.Polyline) {
-              selectionElements.push(
-                <polyline
-                  key={`sel-poly-${idx}`}
-                  points={pointsAttr}
-                  fill="transparent"
-                  className="stroke-primary"
-                  strokeWidth={1}
-                />,
-              );
-            } else {
-              selectionElements.push(
-                <polygon
-                  key={`sel-pgon-${idx}`}
-                  points={pointsAttr}
-                  fill="transparent"
-                  className="stroke-primary"
-                  strokeWidth={1}
-                />,
+          // Phase 2 fallback: If vertex data is missing, warn and skip (don't fall back to OBB)
+          if (outline.primitives.length === 0) {
+            if (process.env.NODE_ENV !== 'production') {
+              // eslint-disable-next-line no-console
+              console.warn(
+                `[ShapeOverlay] No vertex data for entity ${entityId} (kind=${EntityKind[entityKind]}); skipping overlay.`,
               );
             }
-          });
+            // Skip rendering - do NOT fall back to OBB
+          } else {
+            // Get grips (handles)
+            // Phase 2: Include edge midpoint grips if flag enabled
+            const includeEdges =
+              entityKind === EntityKind.Polygon &&
+              useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
+            const gripsWCS =
+              entityKind === EntityKind.Polygon
+                ? runtime.selection.getEntityGripsWCS(entityId, includeEdges)
+                : null;
 
-          // Render grips (vertex and edge handles)
-          if (gripsWCS) {
-            // Phase 3: Apply grip budget for performance and visual clarity
-            const flags = useSettingsStore.getState().featureFlags;
-            const enableGripBudget = flags.enableGripBudget;
-            const enablePerfMonitoring = flags.enableGripPerformanceMonitoring;
-
-            const perfMonitor = enablePerfMonitoring ? getGripPerformanceMonitor() : null;
-            const startTime = perfMonitor ? performance.now() : 0;
-
-            // Calculate grip budget based on complexity and zoom
-            const gripBudget = enableGripBudget
-              ? calculateGripBudget(gripsWCS, viewTransform, false)
+            const handleMeta =
+              entityKind !== EntityKind.Polygon ? runtime.getSelectionHandleMeta() : null;
+            const handles = handleMeta
+              ? decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta)
               : null;
-            const visibleGrips = gripBudget ? applyGripBudget(gripsWCS, gripBudget) : gripsWCS;
 
-            if (isCadDebugEnabled('grips') && gripBudget) {
-              cadDebugLog('grips', 'budget-decision', () => ({
-                totalGrips: gripsWCS.length,
-                visibleGrips: visibleGrips.length,
-                strategy: gripBudget.strategy,
-                reason: gripBudget.reason,
-              }));
-            }
+            outline.primitives.forEach((prim, idx) => {
+              if (prim.count < 2) return;
+              const pts = renderPoints(prim, outline.data);
+              const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
 
-            // Phase 1 & 2: Render filtered grips
-            visibleGrips.forEach((grip, i) => {
-              const screenPos = worldToScreen(grip.positionWCS, viewTransform);
-
-              if (grip.kind === 'vertex') {
-                // Vertex grips: 8x8 white squares with primary stroke
-                const gripHalf = hs / 2;
+              if (prim.kind === OverlayKind.Segment) {
+                const a = pts[0];
+                const b = pts[1];
+                if (!a || !b) return;
                 selectionElements.push(
-                  <rect
-                    key={`sel-grip-v-${grip.index}`}
-                    x={screenPos.x - gripHalf}
-                    y={screenPos.y - gripHalf}
-                    width={hs}
-                    height={hs}
-                    className="fill-white stroke-primary"
+                  <line
+                    key={`sel-seg-${idx}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    className="stroke-primary"
                     strokeWidth={1}
                   />,
                 );
-              } else if (grip.kind === 'edge-midpoint') {
-                // Phase 2: Edge midpoint grips: 6x6 white diamonds with primary stroke
-                const edgeSize = 6;
-                const edgeHalf = edgeSize / 2;
+              } else if (prim.kind === OverlayKind.Polyline) {
                 selectionElements.push(
-                  <rect
-                    key={`sel-grip-e-${grip.index}`}
-                    x={screenPos.x - edgeHalf}
-                    y={screenPos.y - edgeHalf}
-                    width={edgeSize}
-                    height={edgeSize}
-                    transform={`rotate(45, ${screenPos.x}, ${screenPos.y})`}
-                    className="fill-white stroke-primary"
+                  <polyline
+                    key={`sel-poly-${idx}`}
+                    points={pointsAttr}
+                    fill="transparent"
+                    className="stroke-primary"
+                    strokeWidth={1}
+                  />,
+                );
+              } else {
+                selectionElements.push(
+                  <polygon
+                    key={`sel-pgon-${idx}`}
+                    points={pointsAttr}
+                    fill="transparent"
+                    className="stroke-primary"
                     strokeWidth={1}
                   />,
                 );
               }
             });
 
-            // Record performance metrics
-            if (perfMonitor) {
-              const renderTime = performance.now() - startTime;
-              perfMonitor.recordRender(visibleGrips.length, renderTime);
-            }
-          } else if (handles && (engineResizeEnabled || handles.primitives.length > 0)) {
-            // Legacy handle system
-            handles.primitives.forEach((prim, idx) => {
-              if (prim.count < 1) return;
-              const pts = renderPoints(prim, handles.data);
-              pts.forEach((p, i) => {
-                selectionElements.push(
-                  <rect
-                    key={`sel-handle-${idx}-${i}`}
-                    x={p.x - hh}
-                    y={p.y - hh}
-                    width={hs}
-                    height={hs}
-                    className="fill-white stroke-primary"
-                    strokeWidth={1}
-                  />,
-                );
+            // Render grips (vertex and edge handles)
+            if (gripsWCS) {
+              // Phase 3: Apply grip budget for performance and visual clarity
+              const flags = useSettingsStore.getState().featureFlags;
+              const enableGripBudget = flags.enableGripBudget;
+              const enablePerfMonitoring = flags.enableGripPerformanceMonitoring;
+
+              const perfMonitor = enablePerfMonitoring ? getGripPerformanceMonitor() : null;
+              const startTime = perfMonitor ? performance.now() : 0;
+
+              // Calculate grip budget based on complexity and zoom
+              const gripBudget = enableGripBudget
+                ? calculateGripBudget(gripsWCS, viewTransform, false)
+                : null;
+              const visibleGrips = gripBudget ? applyGripBudget(gripsWCS, gripBudget) : gripsWCS;
+
+              if (isCadDebugEnabled('grips') && gripBudget) {
+                cadDebugLog('grips', 'budget-decision', () => ({
+                  totalGrips: gripsWCS.length,
+                  visibleGrips: visibleGrips.length,
+                  strategy: gripBudget.strategy,
+                  reason: gripBudget.reason,
+                }));
+              }
+
+              // Phase 1 & 2: Render filtered grips
+              visibleGrips.forEach((grip, i) => {
+                const screenPos = worldToScreen(grip.positionWCS, viewTransform);
+
+                if (grip.kind === 'vertex') {
+                  // Vertex grips: 8x8 white squares with primary stroke
+                  const gripHalf = hs / 2;
+                  selectionElements.push(
+                    <rect
+                      key={`sel-grip-v-${grip.index}`}
+                      x={screenPos.x - gripHalf}
+                      y={screenPos.y - gripHalf}
+                      width={hs}
+                      height={hs}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1}
+                    />,
+                  );
+                } else if (grip.kind === 'edge-midpoint') {
+                  // Phase 2: Edge midpoint grips: 6x6 white diamonds with primary stroke
+                  const edgeSize = 6;
+                  const edgeHalf = edgeSize / 2;
+                  selectionElements.push(
+                    <rect
+                      key={`sel-grip-e-${grip.index}`}
+                      x={screenPos.x - edgeHalf}
+                      y={screenPos.y - edgeHalf}
+                      width={edgeSize}
+                      height={edgeSize}
+                      transform={`rotate(45, ${screenPos.x}, ${screenPos.y})`}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1}
+                    />,
+                  );
+                }
               });
-            });
-          }
+
+              // Record performance metrics
+              if (perfMonitor) {
+                const renderTime = performance.now() - startTime;
+                perfMonitor.recordRender(visibleGrips.length, renderTime);
+              }
+            } else if (handles && (engineResizeEnabled || handles.primitives.length > 0)) {
+              // Legacy handle system
+              handles.primitives.forEach((prim, idx) => {
+                if (prim.count < 1) return;
+                const pts = renderPoints(prim, handles.data);
+                pts.forEach((p, i) => {
+                  selectionElements.push(
+                    <rect
+                      key={`sel-handle-${idx}-${i}`}
+                      x={p.x - hh}
+                      y={p.y - hh}
+                      width={hs}
+                      height={hs}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1}
+                    />,
+                  );
+                });
+              });
+            }
+          } // Close fallback else block
         } else {
           // Corner-capable but oriented meta is invalid: log and render safe AABB without rotation
           if (process.env.NODE_ENV !== 'production') {

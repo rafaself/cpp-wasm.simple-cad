@@ -76,7 +76,10 @@
       "Bash(git show:*)",
       "Bash(pnpm --dir apps/web test --run)",
       "Bash(pnpm --dir apps/web test)",
-      "Bash(./bin/engine_tests:*)"
+      "Bash(./bin/engine_tests:*)",
+      "Bash(pnpm --dir apps/web lint:*)",
+      "Bash(pnpm --dir apps/web exec prettier:*)",
+      "Bash(pnpm --dir apps/web test -- --run utils/__tests__/gripPerformance.test.ts)"
     ]
   }
 }
