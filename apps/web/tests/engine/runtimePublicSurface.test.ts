@@ -146,6 +146,7 @@ describe('EngineRuntime public API surface', () => {
       'undo',
       'redo',
       'pickEx',
+      'pickSideHandle',
       'pickExSmart',
       'pickExCached',
       'applyCapabilityGuards',

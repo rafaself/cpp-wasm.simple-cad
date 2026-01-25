@@ -153,6 +153,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         }))
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
+        .function("pickSideHandle", &CadEngine::pickSideHandle)
         .function("queryArea", &CadEngine::queryArea)
         .function("queryMarquee", &CadEngine::queryMarquee)
         .function("getStats", &CadEngine::getStats)

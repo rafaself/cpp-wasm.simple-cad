@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type MutableRefObject } from 'react';
 
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -14,7 +14,9 @@ import { SelectionHandler } from './handlers/SelectionHandler';
 import { TextHandler } from './handlers/TextHandler';
 import { InteractionHandler, InputEventContext, EngineRuntime } from './types';
 
-export function useInteractionManager() {
+type PointerRect = { left: number; top: number };
+
+export function useInteractionManager(pointerRectRef: MutableRefObject<PointerRect>) {
   const activeTool = useUIStore((s) => s.activeTool);
   const viewTransform = useUIStore((s) => s.viewTransform);
   const canvasSize = useUIStore((s) => s.canvasSize);
@@ -39,6 +41,16 @@ export function useInteractionManager() {
   const [, setTick] = useState(0);
 
   const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
+
+  const ctxRef = useRef<InputEventContext>({
+    event: null as unknown as React.PointerEvent,
+    screenPoint: { x: 0, y: 0 },
+    worldPoint: { x: 0, y: 0 },
+    snappedPoint: { x: 0, y: 0 },
+    runtime: null,
+    viewTransform,
+    canvasSize,
+  });
 
   // Global Event Listeners
   useEffect(() => {
@@ -134,21 +146,21 @@ export function useInteractionManager() {
   const buildContext = (e: React.PointerEvent): InputEventContext | null => {
     const runtime = runtimeRef.current;
     if (!runtime) return null;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const rect = pointerRectRef.current;
     const clientX = e.clientX;
     const clientY = e.clientY;
-    const screen = { x: clientX - rect.left, y: clientY - rect.top };
-    const world = runtime.viewport.screenToWorldWithTransform(screen, viewTransform);
-
-    return {
-      event: e,
-      screenPoint: screen,
-      worldPoint: world,
-      snappedPoint: world,
-      runtime,
-      viewTransform,
-      canvasSize,
-    };
+    const ctx = ctxRef.current;
+    const screen = ctx.screenPoint;
+    screen.x = clientX - rect.left;
+    screen.y = clientY - rect.top;
+    runtime.viewport.screenToWorldWithTransformInto(screen, viewTransform, ctx.worldPoint);
+    ctx.snappedPoint.x = ctx.worldPoint.x;
+    ctx.snappedPoint.y = ctx.worldPoint.y;
+    ctx.event = e;
+    ctx.runtime = runtime;
+    ctx.viewTransform = viewTransform;
+    ctx.canvasSize = canvasSize;
+    return ctx;
   };
 
   // Event Delegates

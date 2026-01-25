@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import * as DEFAULTS from '@/theme/defaults';
 import { hexToRgb } from '@/utils/color';
-import { cadDebugLog } from '@/utils/dev/cadDebug';
+import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 
 import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
@@ -213,10 +213,18 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     // Update local state
     if (this.activeTool === 'polyline') {
-      this.draft = { kind: 'polyline', points: [snapped], current: snapped };
+      this.draft = {
+        kind: 'polyline',
+        points: [{ x: snapped.x, y: snapped.y }],
+        current: { x: snapped.x, y: snapped.y },
+      };
     } else {
       const k = this.activeTool === 'circle' ? 'ellipse' : (this.activeTool as any);
-      this.draft = { kind: k, start: snapped, current: snapped };
+      this.draft = {
+        kind: k,
+        start: { x: snapped.x, y: snapped.y },
+        current: { x: snapped.x, y: snapped.y },
+      };
     }
   }
 
@@ -228,14 +236,19 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     const modifiers = buildModifierMask(ctx.event);
     runtime.updateDraft(snapped.x, snapped.y, modifiers);
-    cadDebugLog('draft', 'update', () => ({
-      tool: this.activeTool,
-      kind: this.draft.kind,
-      x: snapped.x,
-      y: snapped.y,
-    }));
+    if (isCadDebugEnabled('draft')) {
+      cadDebugLog('draft', 'update', {
+        tool: this.activeTool,
+        kind: this.draft.kind,
+        x: snapped.x,
+        y: snapped.y,
+      });
+    }
 
-    this.draft.current = snapped;
+    if (this.draft.current) {
+      this.draft.current.x = snapped.x;
+      this.draft.current.y = snapped.y;
+    }
   }
 
   onPointerUp(ctx: InputEventContext): InteractionHandler | void {
@@ -281,7 +294,7 @@ export class DraftingHandler extends BaseInteractionHandler {
         points: this.draft.points?.length ?? 0,
       }));
       if (this.draft.kind === 'polyline' && this.draft.points) {
-        this.draft.points.push(snapped);
+        this.draft.points.push({ x: snapped.x, y: snapped.y });
       }
       return;
     }

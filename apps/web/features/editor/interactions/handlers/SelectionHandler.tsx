@@ -5,7 +5,6 @@ import {
   SelectionMode,
   SelectionModifier,
 } from '@/engine/core/EngineRuntime';
-import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
 import { MarqueeOverlay, SelectionBoxState } from '@/features/editor/components/MarqueeOverlay';
 import { MoveCursor } from '@/features/editor/components/MoveCursor';
 import { ResizeCursor } from '@/features/editor/components/ResizeCursor';
@@ -18,16 +17,11 @@ import { ensureTextToolReady } from '@/features/editor/text/textToolController';
 import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { PickEntityKind, PickSubTarget } from '@/types/picking';
-import { EntityKind } from '@/engine/core/EngineRuntime';
+import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
+import { MouseThrottle } from '@/utils/mouseThrottle';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
 
-import {
-  SideHandleType,
-  SIDE_HANDLE_INDICES,
-  SIDE_HANDLE_TO_ENGINE_INDEX,
-} from '../../interactions/sideHandles';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 
@@ -36,7 +30,25 @@ const isLineOrArrow = (kind: PickEntityKind): boolean =>
   kind === PickEntityKind.Line || kind === PickEntityKind.Arrow;
 
 const supportsSideHandles = (kind: PickEntityKind): boolean =>
-  kind !== PickEntityKind.Line && kind !== PickEntityKind.Arrow && kind !== PickEntityKind.Polyline;
+  kind !== PickEntityKind.Line &&
+  kind !== PickEntityKind.Arrow &&
+  kind !== PickEntityKind.Polyline &&
+  kind !== PickEntityKind.Text;
+
+const SIDE_SUBINDEX_TO_ENGINE_INDEX: Record<number, number> = {
+  4: 2, // N
+  5: 1, // E
+  6: 0, // S
+  7: 3, // W
+};
+
+const EMPTY_PICK_RESULT: PickResult = {
+  id: 0,
+  kind: PickEntityKind.Unknown,
+  subTarget: PickSubTarget.None,
+  subIndex: -1,
+  distance: Infinity,
+};
 
 // Connected component to access store without prop drilling through handler
 const ConnectedMarquee: React.FC<{ box: SelectionBoxState }> = ({ box }) => {
@@ -78,6 +90,11 @@ export class SelectionHandler extends BaseInteractionHandler {
   // Track hover state for cursor updates
   private hoverSubTarget: number = PickSubTarget.None;
   private hoverSubIndex: number = -1;
+  private hoverPickThrottle: MouseThrottle | null = null;
+  private hoverPickInterval: number = -1;
+  private hoverPickResult: PickResult = EMPTY_PICK_RESULT;
+  private hoverPickFn: ((x: number, y: number, tolerance: number, mask: number) => void) | null =
+    null;
 
   // Custom cursor state
   private cursorAngle: number = 0;
@@ -86,69 +103,56 @@ export class SelectionHandler extends BaseInteractionHandler {
   private showResizeCursor: boolean = false;
   private showMoveCursor: boolean = false;
 
-  private findSideHandle(
+  private pickSideHandle(
     runtime: EngineRuntime,
     worldPoint: { x: number; y: number },
     tolerance: number,
-  ): { handle: SideHandleType; id: number } | null {
-    const selection = runtime.getSelectionIds();
-    if (selection.length !== 1) return null; // Only support single entity side-resize for now
-    const id = selection[0];
+  ): PickResult | null {
+    const res = runtime.pickSideHandle(worldPoint.x, worldPoint.y, tolerance);
+    if (!res || res.id === 0 || res.subTarget !== PickSubTarget.ResizeHandle) return null;
+    if (!supportsSideHandles(res.kind)) return null;
+    if (!(res.subIndex in SIDE_SUBINDEX_TO_ENGINE_INDEX)) return null;
+    return res;
+  }
 
-    // Check if entity supports side resizing (not Line or Arrow)
-    if (runtime.getEntityKind) {
-      const kind = runtime.getEntityKind(id) as PickEntityKind;
-      if (!supportsSideHandles(kind)) return null;
+  private ensureHoverPickThrottle(): void {
+    const settings = useSettingsStore.getState();
+    const enabled = settings.featureFlags.enablePickThrottling;
+    const interval = settings.performance.pickThrottleInterval;
+    if (!enabled) {
+      this.hoverPickThrottle = null;
+      this.hoverPickFn = null;
+      this.hoverPickInterval = -1;
+      return;
     }
+    if (this.hoverPickThrottle && this.hoverPickInterval === interval && this.hoverPickFn) return;
+    this.hoverPickThrottle = new MouseThrottle(interval, true);
+    this.hoverPickInterval = interval;
+    this.hoverPickFn = this.hoverPickThrottle.create(
+      (x: number, y: number, tolerance: number, mask: number) => {
+        if (!this.runtime) return;
+        this.hoverPickResult = this.runtime.pickExSmart(x, y, tolerance, mask);
+      },
+      { leading: true, trailing: true },
+    );
+  }
 
-    // Get Entity Transform
-    const transform = runtime.getEntityTransform(id);
-    if (!transform.valid) return null;
-
-    // Project World Point to Local Space
-    const dx = worldPoint.x - transform.posX;
-    const dy = worldPoint.y - transform.posY;
-    const rad = -(transform.rotationDeg * Math.PI) / 180; // Negative to rotate point back
-    const localX = dx * Math.cos(rad) - dy * Math.sin(rad);
-    const localY = dx * Math.sin(rad) + dy * Math.cos(rad);
-
-    const halfW = transform.width / 2;
-    const halfH = transform.height / 2;
-
-    // Hit tolerance in world units
-    const hitDist = tolerance; // "Thickness" of the handle area
-    const cornerExclusion = tolerance * 1.5; // Margin to avoid hitting corners (approx 15px)
-
-    // Check edges
-    // Top Edge (N): y approx -halfH, x within [-halfW, halfW]
-    if (Math.abs(localY - -halfH) < hitDist) {
-      if (localX > -halfW + cornerExclusion && localX < halfW - cornerExclusion) {
-        return { handle: SideHandleType.N, id };
-      }
+  private getHoverPick(
+    runtime: EngineRuntime,
+    x: number,
+    y: number,
+    tolerance: number,
+    mask: number,
+  ): PickResult {
+    const settings = useSettingsStore.getState();
+    if (!settings.featureFlags.enablePickThrottling) {
+      return runtime.pickExSmart(x, y, tolerance, mask);
     }
-
-    // Bottom Edge (S): y approx halfH
-    if (Math.abs(localY - halfH) < hitDist) {
-      if (localX > -halfW + cornerExclusion && localX < halfW - cornerExclusion) {
-        return { handle: SideHandleType.S, id };
-      }
-    }
-
-    // Right Edge (E): x approx halfW
-    if (Math.abs(localX - halfW) < hitDist) {
-      if (localY > -halfH + cornerExclusion && localY < halfH - cornerExclusion) {
-        return { handle: SideHandleType.E, id };
-      }
-    }
-
-    // Left Edge (W): x approx -halfW
-    if (Math.abs(localX - -halfW) < hitDist) {
-      if (localY > -halfH + cornerExclusion && localY < halfH - cornerExclusion) {
-        return { handle: SideHandleType.W, id };
-      }
-    }
-
-    return null;
+    this.runtime = runtime;
+    this.ensureHoverPickThrottle();
+    if (!this.hoverPickFn) return this.hoverPickResult;
+    this.hoverPickFn(x, y, tolerance, mask);
+    return this.hoverPickResult;
   }
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
@@ -156,7 +160,7 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (!runtime || event.button !== 0) return;
     this.runtime = runtime;
 
-    this.pointerDown = { x: event.clientX, y: event.clientY, world };
+    this.pointerDown = { x: event.clientX, y: event.clientY, world: { x: world.x, y: world.y } };
     if (isCadDebugEnabled('pointer')) {
       cadDebugLog('pointer', 'down', () => ({
         screen,
@@ -270,52 +274,48 @@ export class SelectionHandler extends BaseInteractionHandler {
       }
     }
 
-    // Check for client-side side handles first (Priority: Handles > Geometry)
+    // Check for side handles first (Priority: Handles > Geometry)
     // This allows hitting handles that extend outside the geometry (pick returns 0)
     // BUT skip for lines/arrows - they don't have side handles, only vertex endpoints
     const shouldCheckSideHandles = supportsSideHandles(res.kind);
     if (shouldCheckSideHandles) {
-      const sideHit = this.findSideHandle(runtime, world, tolerance);
+      const sideHit = this.pickSideHandle(runtime, world, tolerance);
       if (sideHit) {
-        const transform = runtime.getEntityTransform(sideHit.id);
-        if (transform.valid) {
-          // Use engine-based SideResize instead of client-side calculation
-          const sideIndex = SIDE_HANDLE_TO_ENGINE_INDEX[sideHit.handle];
-          const modifiers = buildModifierMask(event);
+        // Use engine-based SideResize instead of client-side calculation
+        const sideIndex = SIDE_SUBINDEX_TO_ENGINE_INDEX[sideHit.subIndex];
+        if (sideIndex === undefined) return;
+        const modifiers = buildModifierMask(event);
 
-          runtime.beginTransform(
-            [sideHit.id],
-            TransformMode.SideResize,
-            sideHit.id,
-            sideIndex, // Pass side index (0=S, 1=E, 2=N, 3=W)
-            screen.x,
-            screen.y,
-            ctx.viewTransform.x,
-            ctx.viewTransform.y,
-            ctx.viewTransform.scale,
-            ctx.canvasSize.width,
-            ctx.canvasSize.height,
-            modifiers,
-          );
+        runtime.beginTransform(
+          [sideHit.id],
+          TransformMode.SideResize,
+          sideHit.id,
+          sideIndex, // Pass side index (0=S, 1=E, 2=N, 3=W)
+          screen.x,
+          screen.y,
+          ctx.viewTransform.x,
+          ctx.viewTransform.y,
+          ctx.viewTransform.scale,
+          ctx.canvasSize.width,
+          ctx.canvasSize.height,
+          modifiers,
+        );
 
-          this.state = {
-            kind: 'transform',
-            startScreen: screen,
-            mode: TransformMode.SideResize,
-          };
+        this.state = {
+          kind: 'transform',
+          startScreen: screen,
+          mode: TransformMode.SideResize,
+        };
 
-          // Store handle info for cursor updates (use frontend index 4-7, not engine index 0-3)
-          this.hoverSubTarget = PickSubTarget.ResizeHandle;
-          this.hoverSubIndex =
-            SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+        // Store handle info for cursor updates (frontend indices 4-7)
+        this.hoverSubTarget = PickSubTarget.ResizeHandle;
+        this.hoverSubIndex = sideHit.subIndex;
 
-          cadDebugLog('transform', 'side-resize-start', () => ({
-            handle: sideHit.handle,
-            sideIndex,
-            entityId: sideHit.id,
-          }));
-          return;
-        }
+        cadDebugLog('transform', 'side-resize-start', () => ({
+          sideIndex,
+          entityId: sideHit.id,
+        }));
+        return;
       }
     }
 
@@ -447,34 +447,6 @@ export class SelectionHandler extends BaseInteractionHandler {
     this.showResizeCursor = true;
   }
 
-  private logHandleHitTest(
-    runtime: EngineRuntime,
-    worldPoint: { x: number; y: number },
-    tolerance: number,
-  ) {
-    if (!isCadDebugEnabled('overlay')) return;
-    const handleMeta = runtime.getSelectionHandleMeta();
-    const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
-    const hitResults: Array<{ index: number; x: number; y: number; dist: number; hit: boolean }> =
-      [];
-    handles.primitives.forEach((prim) => {
-      for (let i = 0; i < prim.count; i++) {
-        const idx = prim.offset + i * 2;
-        const hx = handles.data[idx] ?? 0;
-        const hy = handles.data[idx + 1] ?? 0;
-        const dx = worldPoint.x - hx;
-        const dy = worldPoint.y - hy;
-        const dist = Math.hypot(dx, dy);
-        hitResults.push({ index: i, x: hx, y: hy, dist, hit: dist <= tolerance });
-      }
-    });
-    cadDebugLog('overlay', 'handle-hit-test', () => ({
-      world: worldPoint,
-      tolerance,
-      handles: hitResults,
-    }));
-  }
-
   onPointerMove(ctx: InputEventContext): void {
     const { runtime, screenPoint: screen, worldPoint: world, event } = ctx;
     if (!runtime) return;
@@ -489,16 +461,12 @@ export class SelectionHandler extends BaseInteractionHandler {
     if (this.state.kind === 'none') {
       const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
       if (isCadDebugEnabled('pointer')) {
-        cadDebugLog('pointer', 'move', () => ({
-          screen,
-          world,
-          tolerance,
-        }));
+        cadDebugLog('pointer', 'move', { screen, world, tolerance });
       }
-      const sideHandle = this.findSideHandle(runtime, world, tolerance);
+      const sideHandle = this.pickSideHandle(runtime, world, tolerance);
       if (sideHandle) {
-        this.hoverSubIndex =
-          SIDE_HANDLE_INDICES[sideHandle.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
+        this.hoverSubTarget = PickSubTarget.ResizeHandle;
+        this.hoverSubIndex = sideHandle.subIndex;
         this.updateResizeCursor(ctx);
         this.notifyChange();
         return;
@@ -519,7 +487,9 @@ export class SelectionHandler extends BaseInteractionHandler {
           ctx.canvasSize.height,
           modifiers,
         );
-        cadDebugLog('transform', 'update', () => ({ x: screen.x, y: screen.y }));
+        if (isCadDebugEnabled('transform')) {
+          cadDebugLog('transform', 'update', { x: screen.x, y: screen.y });
+        }
       }
 
       // Show appropriate cursor during transform
@@ -546,22 +516,24 @@ export class SelectionHandler extends BaseInteractionHandler {
       const currX = event.clientX;
       const direction = currX >= downX ? 'LTR' : 'RTL';
       this.state.box = { start: this.pointerDown.world, current: world, direction };
-      cadDebugLog('selection', 'marquee-update', () => ({
-        direction,
-        x: world.x,
-        y: world.y,
-      }));
+      if (isCadDebugEnabled('selection')) {
+        cadDebugLog('selection', 'marquee-update', {
+          direction,
+          x: world.x,
+          y: world.y,
+        });
+      }
       this.notifyChange();
     } else if (this.state.kind === 'none') {
       // Update hover state for cursor feedback when not interacting
       const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
       startTiming('pick');
-      const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+      const res = this.getHoverPick(runtime, world.x, world.y, tolerance, 0xff);
       endTiming('pick');
       this.hoverSubTarget = res.subTarget;
       this.hoverSubIndex = res.subIndex;
       if (isCadDebugEnabled('pointer')) {
-        cadDebugLog('pointer', 'hover-pick', () => ({
+        cadDebugLog('pointer', 'hover-pick', {
           screen,
           world,
           tolerance,
@@ -569,10 +541,8 @@ export class SelectionHandler extends BaseInteractionHandler {
           subTarget: res.subTarget,
           subIndex: res.subIndex,
           kind: res.kind,
-        }));
+        });
       }
-      this.logHandleHitTest(runtime, world, tolerance);
-
       // Show appropriate cursor based on hover target
       // Body and Edge (for lines/arrows) use default system cursor for move
       if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
@@ -595,23 +565,6 @@ export class SelectionHandler extends BaseInteractionHandler {
         }
       } else if (this.hoverSubTarget === PickSubTarget.Body) {
         // Use default cursor for move
-      } else if (supportsSideHandles(res.kind)) {
-        // Check for side handles hover (only for non-line entities like rectangles)
-        const sideHit = this.findSideHandle(runtime, world, tolerance);
-        if (sideHit) {
-          // Get side handle index and entity rotation
-          const sideIndex =
-            SIDE_HANDLE_INDICES[sideHit.handle.toUpperCase() as keyof typeof SIDE_HANDLE_INDICES];
-          const transform = runtime.getEntityTransform(sideHit.id);
-          const rotationDeg = transform.valid ? transform.rotationDeg : 0;
-
-          // Calculate cursor angle using deterministic handle-to-center angles
-          const angle = getResizeCursorAngleForHandle(sideIndex, rotationDeg);
-
-          this.cursorAngle = angle;
-          this.cursorScreenPos = ctx.screenPoint;
-          this.showResizeCursor = true;
-        }
       }
       this.notifyChange(); // Trigger cursor update
     }

@@ -175,6 +175,8 @@ public:
     // IMPORTANT: Since Emscripten value_object bindings work best with POD structs,
     // PickResult is defined in pick_system.h and bound in bindings.cpp
     PickResult pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept;
+    // Side handle pick (selection-aware). Returns ResizeHandle with subIndex 4-7 (N,E,S,W) or id=0 if no hit.
+    PickResult pickSideHandle(float x, float y, float tolerance) const noexcept;
     // Marquee query (returns IDs only)
     std::vector<std::uint32_t> queryArea(float minX, float minY, float maxX, float maxY) const;
 

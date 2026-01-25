@@ -66,6 +66,18 @@ runtime.apply(commands: readonly EngineCommand[]): void
 const result = runtime.pickEx(worldX, worldY, tolerancePx, 0xff): PickResult;
 ```
 
+### Pick Side Handle (Selection-aware)
+
+```typescript
+const sideHit = runtime.pickSideHandle(worldX, worldY, tolerancePx): PickResult;
+```
+
+Notes:
+- Returns `id = 0` on miss.
+- Uses `subTarget = ResizeHandle` with `subIndex` in the frontend side-handle range:
+  - `4 = N`, `5 = E`, `6 = S`, `7 = W`.
+- Only active when exactly one entity is selected and the entity supports side handles.
+
 ### PickResult
 
 ```typescript

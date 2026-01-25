@@ -4,7 +4,7 @@ import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 
 import { FakeEventBus } from './fakeEventBus';
 
-import type { PickResult } from '@/types/picking';
+import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import type { Point, ViewTransform } from '@/types';
 
 type VectorLike = { size(): number; get(index: number): number; delete(): void };
@@ -80,6 +80,15 @@ export class FakeRuntime {
       x: (point.x - transform.x) / transform.scale,
       y: -(point.y - transform.y) / transform.scale,
     }),
+    screenToWorldWithTransformInto: (
+      point: Point,
+      transform: ViewTransform,
+      out: Point,
+    ): Point => {
+      out.x = (point.x - transform.x) / transform.scale;
+      out.y = -(point.y - transform.y) / transform.scale;
+      return out;
+    },
     worldToScreenWithTransform: (point: Point, transform: ViewTransform): Point => ({
       x: point.x * transform.scale + transform.x,
       y: -point.y * transform.scale + transform.y,
@@ -148,6 +157,10 @@ export class FakeRuntime {
   pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     this.lastPickArgs.push({ x, y, tolerance, mask: pickMask });
     return { ...this.pickResult };
+  }
+
+  pickSideHandle(_x: number, _y: number, _tolerance: number): PickResult {
+    return { id: 0, kind: PickEntityKind.Unknown, subTarget: PickSubTarget.None, subIndex: -1, distance: Infinity };
   }
 
   getSelectionIds(): number[] {

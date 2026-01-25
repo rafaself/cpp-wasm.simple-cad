@@ -43,6 +43,13 @@ export class PickSystem {
     return wrappedPick(x, y, tolerance, pickMask);
   }
 
+  public pickSideHandle(x: number, y: number, tolerance: number): PickResult | null {
+    if (typeof this.engine.pickSideHandle !== 'function') {
+      throw new Error('[EngineRuntime] pickSideHandle() missing in WASM build.');
+    }
+    return this.engine.pickSideHandle(x, y, tolerance);
+  }
+
   /**
    * Quick bounds check to see if there are any entities near the given point.
    * This is a fast early-out check before performing more expensive operations.

@@ -95,3 +95,64 @@ TEST_F(CadEngineTest, MoveUpdatesPickIndexForPolyline) {
     moveByScreen(engine, 6, kMoveScreenX, kMoveScreenY);
     expectPickMoved(engine, 6, 55.0f, 0.0f, 5.0f, 0.0f);
 }
+
+TEST_F(CadEngineTest, SideResizeNorthResizesRectAsymmetric) {
+    CadEngineTestAccessor::upsertRect(engine, 21, 40.0f, 40.0f, 20.0f, 10.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    sideResizeByScreenWithView(
+        engine,
+        21,
+        2, // North
+        50.0f, 40.0f,
+        50.0f, 35.0f,
+        1.0f,
+        0);
+
+    const RectRec* rect = CadEngineTestAccessor::entityManager(engine).getRect(21);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_NEAR(rect->x, 40.0f, 1e-3f);
+    EXPECT_NEAR(rect->y, 35.0f, 1e-3f);
+    EXPECT_NEAR(rect->w, 20.0f, 1e-3f);
+    EXPECT_NEAR(rect->h, 15.0f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, SideResizeNorthSymmetricKeepsCenter) {
+    CadEngineTestAccessor::upsertRect(engine, 22, 40.0f, 40.0f, 20.0f, 10.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    const auto alt = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Alt);
+
+    sideResizeByScreenWithView(
+        engine,
+        22,
+        2, // North
+        50.0f, 40.0f,
+        50.0f, 35.0f,
+        1.0f,
+        alt);
+
+    const RectRec* rect = CadEngineTestAccessor::entityManager(engine).getRect(22);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_NEAR(rect->x, 40.0f, 1e-3f);
+    EXPECT_NEAR(rect->y, 35.0f, 1e-3f);
+    EXPECT_NEAR(rect->w, 20.0f, 1e-3f);
+    EXPECT_NEAR(rect->h, 20.0f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, SideResizeNorthCrossesAnchorStillValid) {
+    CadEngineTestAccessor::upsertRect(engine, 23, 40.0f, 40.0f, 20.0f, 10.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    sideResizeByScreenWithView(
+        engine,
+        23,
+        2, // North
+        50.0f, 40.0f,
+        50.0f, 60.0f,
+        1.0f,
+        0);
+
+    const RectRec* rect = CadEngineTestAccessor::entityManager(engine).getRect(23);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_NEAR(rect->x, 40.0f, 1e-3f);
+    EXPECT_NEAR(rect->y, 50.0f, 1e-3f);
+    EXPECT_NEAR(rect->w, 20.0f, 1e-3f);
+    EXPECT_NEAR(rect->h, 10.0f, 1e-3f);
+}
