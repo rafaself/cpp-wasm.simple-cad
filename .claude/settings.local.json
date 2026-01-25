@@ -75,7 +75,8 @@
       "Bash(pnpm -C apps/web test --run)",
       "Bash(git show:*)",
       "Bash(pnpm --dir apps/web test --run)",
-      "Bash(pnpm --dir apps/web test)"
+      "Bash(pnpm --dir apps/web test)",
+      "Bash(./bin/engine_tests:*)"
     ]
   }
 }

@@ -382,15 +382,9 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
             break;
         }
         case EntityKind::Polygon: {
-            if (it->second.index >= state().entityManager_.polygons.size()) return meta;
-            const PolygonRec& p = state().entityManager_.polygons[it->second.index];
-            cx = p.cx;
-            cy = p.cy;
-            hw = std::abs(p.rx * p.sx);
-            hh = std::abs(p.ry * p.sy);
-            rotation = p.rot;
-            hasRotation = true;
-            break;
+            // Phase 1: Polygons use vertex-based selection, not OBB
+            // Return invalid to signal frontend should use getSelectionHandleMeta
+            return meta;
         }
         case EntityKind::Text: {
             // Text: get bounds from text system
