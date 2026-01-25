@@ -1,24 +1,15 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
-import { CommandOp, SelectionModifier, EntityKind } from '@/engine/core/EngineRuntime';
+import { CommandOp, EntityKind } from '@/engine/core/EngineRuntime';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import * as DEFAULTS from '@/theme/defaults';
-import { hexToRgb } from '@/utils/color';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 
-import { InlinePolygonInput } from '../../components/InlinePolygonInput';
 import { BaseInteractionHandler } from '../BaseInteractionHandler';
+import { buildModifierMask } from '../modifierMask';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
-
-import type { BeginDraftPayload } from '@/engine/core/commandTypes';
-
-// Reusing types from previous implementation or defining locally
-const DraftFlags = {
-  None: 0,
-  FillByLayer: 1 << 0,
-  StrokeByLayer: 1 << 1,
-};
+import { buildDraftStyle, clampPolygonSides, getArrowHeadSize, type ToolDefaults } from './drafting/draftStyle';
+import { PolygonModalController } from './drafting/PolygonModalController';
 
 interface DraftState {
   kind: 'none' | 'line' | 'rect' | 'ellipse' | 'arrow' | 'text' | 'polygon' | 'polyline';
@@ -26,29 +17,6 @@ interface DraftState {
   current?: { x: number; y: number };
   start?: { x: number; y: number };
 }
-
-interface ToolDefaults {
-  strokeColor?: string | null;
-  fillColor?: string | null;
-  fillEnabled?: boolean;
-  strokeEnabled?: boolean;
-  strokeWidth?: number;
-  polygonSides?: number;
-}
-
-const buildModifierMask = (event: {
-  shiftKey?: boolean;
-  ctrlKey?: boolean;
-  altKey?: boolean;
-  metaKey?: boolean;
-}): number => {
-  let mask = 0;
-  if (event.shiftKey) mask |= SelectionModifier.Shift;
-  if (event.ctrlKey) mask |= SelectionModifier.Ctrl;
-  if (event.altKey) mask |= SelectionModifier.Alt;
-  if (event.metaKey) mask |= SelectionModifier.Meta;
-  return mask;
-};
 
 export class DraftingHandler extends BaseInteractionHandler {
   name = 'drafting';
@@ -65,16 +33,16 @@ export class DraftingHandler extends BaseInteractionHandler {
   private arrowPendingCommit = false; // Arrow click-click flow (Phase 2)
 
   // Polygon Modal State
-  private polygonModalOpen = false;
-  private polygonModalCenter: { x: number; y: number } | null = null;
-  private polygonModalScreenPos: { x: number; y: number } | null = null;
-  private polygonSidesValue: number = 3;
+  private polygonModal: PolygonModalController;
 
   constructor(activeTool: string, toolDefaults: ToolDefaults) {
     super();
     this.activeTool = activeTool;
     this.toolDefaults = toolDefaults;
-    this.polygonSidesValue = Math.max(3, Math.min(24, Math.floor(toolDefaults.polygonSides ?? 3)));
+    this.polygonModal = new PolygonModalController(
+      () => this.notifyChange(),
+      clampPolygonSides(toolDefaults.polygonSides ?? 3),
+    );
   }
 
   getCursor(): string {
@@ -84,37 +52,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   private syncToolDefaults(): void {
     const defaults = useSettingsStore.getState().toolDefaults;
     this.toolDefaults = defaults;
-    this.polygonSidesValue = Math.max(3, Math.min(24, Math.floor(defaults.polygonSides ?? 3)));
-  }
-
-  // Helper to build draft styling
-  private buildDraftStyle(): Omit<BeginDraftPayload, 'kind' | 'x' | 'y' | 'sides' | 'head'> {
-    let flags = DraftFlags.None;
-    if (this.toolDefaults.fillColor === null) flags |= DraftFlags.FillByLayer;
-    if (this.toolDefaults.strokeColor === null) flags |= DraftFlags.StrokeByLayer;
-
-    const stroke = this.colorToRgb01(
-      this.toolDefaults.strokeColor ?? DEFAULTS.DEFAULT_STROKE_COLOR,
-    );
-    const fill = this.colorToRgb01(this.toolDefaults.fillColor ?? DEFAULTS.DEFAULT_FILL_COLOR);
-    return {
-      fillR: fill.r,
-      fillG: fill.g,
-      fillB: fill.b,
-      fillA: this.toolDefaults.fillEnabled !== false ? 1.0 : 0.0,
-      strokeR: stroke.r,
-      strokeG: stroke.g,
-      strokeB: stroke.b,
-      strokeA: 1.0,
-      strokeEnabled: this.toolDefaults.strokeEnabled !== false ? 1.0 : 0.0,
-      strokeWidthPx: Math.max(1, Math.min(100, this.toolDefaults.strokeWidth ?? 1)),
-      flags,
-    };
-  }
-
-  private colorToRgb01(hex: string): { r: number; g: number; b: number } {
-    const rgb = hexToRgb(hex) ?? { r: 255, g: 255, b: 255 };
-    return { r: rgb.r / 255, g: rgb.g / 255, b: rgb.b / 255 };
+    this.polygonModal.syncSides(clampPolygonSides(defaults.polygonSides ?? 3));
   }
 
   private resetDraftState(): void {
@@ -128,7 +66,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   private static readonly DRAG_THRESHOLD_PX = 5;
 
   onPointerDown(ctx: InputEventContext): InteractionHandler | void {
-    if (this.polygonModalOpen) return;
+    if (this.polygonModal.isOpen()) return;
     this.syncToolDefaults();
     this.runtime = ctx.runtime; // Capture runtime
 
@@ -183,10 +121,10 @@ export class DraftingHandler extends BaseInteractionHandler {
     } else if (this.activeTool === 'polyline') kind = EntityKind.Polyline;
     else if (this.activeTool === 'arrow') {
       kind = EntityKind.Arrow;
-      head = Math.round(Math.max(16, (this.toolDefaults.strokeWidth ?? 2) * 10) * 1.1);
+      head = getArrowHeadSize(this.toolDefaults.strokeWidth);
     } else return;
 
-    const style = this.buildDraftStyle();
+    const style = buildDraftStyle(this.toolDefaults);
     this.linePendingCommit = false;
 
     runtime.apply([
@@ -229,7 +167,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   }
 
   onPointerMove(ctx: InputEventContext): void {
-    if (this.polygonModalOpen) return;
+    if (this.polygonModal.isOpen()) return;
 
     const { runtime, snappedPoint: snapped } = ctx;
     if (!runtime || this.draft.kind === 'none') return;
@@ -252,7 +190,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   }
 
   onPointerUp(ctx: InputEventContext): InteractionHandler | void {
-    if (this.polygonModalOpen) return;
+    if (this.polygonModal.isOpen()) return;
 
     const { runtime, snappedPoint: snapped, event } = ctx;
     if (!runtime) return;
@@ -350,11 +288,8 @@ export class DraftingHandler extends BaseInteractionHandler {
     if (this.activeTool === 'polygon' && this.draft.start && isClick) {
       // Was a simple click → open inline input
       this.cancelDraft(runtime);
-      this.polygonModalOpen = true;
-      this.polygonModalCenter = snapped;
-      this.polygonModalScreenPos = { x: event.clientX, y: event.clientY };
+      this.polygonModal.openAt(snapped, { x: event.clientX, y: event.clientY });
       cadDebugLog('draft', 'polygon-modal', () => ({ x: snapped.x, y: snapped.y }));
-      this.notifyChange(); // Trigger React Render for Modal
       return;
     }
 
@@ -365,7 +300,7 @@ export class DraftingHandler extends BaseInteractionHandler {
       const cx = snapped.x;
       const cy = snapped.y;
 
-      const style = this.buildDraftStyle();
+      const style = buildDraftStyle(this.toolDefaults);
 
       // Cancel the tiny draft created on pointer down
       this.cancelDraft(runtime);
@@ -462,13 +397,13 @@ export class DraftingHandler extends BaseInteractionHandler {
   // --- Modal Logic ---
 
   private commitDefaultPolygon(runtime: any) {
-    if (!runtime || !this.polygonModalCenter) return;
+    const center = this.polygonModal.getCenter();
+    if (!runtime || !center) return;
     this.syncToolDefaults();
-    const center = this.polygonModalCenter;
-    const sides = this.polygonSidesValue;
+    const sides = this.polygonModal.getSides();
     const r = 50;
 
-    const style = this.buildDraftStyle();
+    const style = buildDraftStyle(this.toolDefaults);
     runtime.apply([
       {
         op: CommandOp.BeginDraft,
@@ -486,18 +421,14 @@ export class DraftingHandler extends BaseInteractionHandler {
     ]);
     cadDebugLog('draft', 'polygon-commit', () => ({ x: center.x, y: center.y, sides }));
 
-    this.polygonModalOpen = false;
-    this.polygonModalCenter = null;
-    this.polygonModalScreenPos = null;
-    this.notifyChange();
+    this.polygonModal.close();
     useUIStore.getState().setTool('select');
   }
 
   // --- Polygon Modal Callbacks ---
 
   private handlePolygonConfirm = (sides: number) => {
-    // Update local value
-    this.polygonSidesValue = sides;
+    this.polygonModal.setSides(sides);
     // Persist to global toolDefaults for future polygons
     useSettingsStore.getState().setPolygonSides(sides);
     // Commit the polygon
@@ -507,27 +438,13 @@ export class DraftingHandler extends BaseInteractionHandler {
   };
 
   private handlePolygonCancel = () => {
-    this.polygonModalOpen = false;
-    this.polygonModalCenter = null;
-    this.polygonModalScreenPos = null;
+    this.polygonModal.close();
     cadDebugLog('draft', 'polygon-modal-cancel');
-    this.notifyChange();
   };
 
   // --- Render Overlay (Phase 1: inline numeric input) ---
 
-  renderOverlay(): React.ReactNode {
-    if (!this.polygonModalOpen || !this.polygonModalScreenPos) {
-      return null;
-    }
-
-    return React.createElement(InlinePolygonInput, {
-      screenPosition: this.polygonModalScreenPos,
-      initialValue: this.polygonSidesValue,
-      onConfirm: this.handlePolygonConfirm,
-      onCancel: this.handlePolygonCancel,
-      minSides: 3,
-      maxSides: 30, // Updated max as requested
-    });
+  renderOverlay(): ReactNode {
+    return this.polygonModal.render(this.handlePolygonConfirm, this.handlePolygonCancel);
   }
 }

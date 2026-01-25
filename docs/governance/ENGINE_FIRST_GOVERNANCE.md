@@ -19,7 +19,7 @@ File size budgets are enforced by:
 These JSON files are the authoritative numeric thresholds; update them (and any related docs) together.
 
 ## Boundary Rules
-- No `runtime.engine.*` usage outside `apps/web/engine/**` (enforced by `tooling/governance/check_boundaries.js` + `tooling/governance/boundary_rules.json`).
+- No `runtime.engine.*` usage outside `apps/web/engine/**` (enforced by `tooling/governance/check_boundaries_ast.js` + `tooling/governance/boundary_rules.json`).
 - `apps/web/features/**` cannot import engine internals directly; use EngineRuntime facades or add a temporary, justified allowlist entry.
 - Any new violation without allowlisting fails CI.
 
@@ -35,6 +35,10 @@ These JSON files are the authoritative numeric thresholds; update them (and any 
 - Fixture spec lives in `tooling/perf/fixtures/atlas_baseline_v4.json`.
 - `tooling/governance/check_perf_budgets.js` verifies results are within budget.
 
+## Hot Path & Viewport Math Guards
+- `tooling/governance/check_hot_path.js` flags pointermove state updates, allocations, and DOM layout reads.
+- `tooling/governance/check_viewport_math.js` blocks direct `screenToWorld` usage in UI code.
+
 ## Doc Drift Check
 - `tooling/governance/check_docs_references.js` ensures referenced paths in `AGENTS.md` and this document exist. CI fails if drift is detected.
 
@@ -43,6 +47,8 @@ These JSON files are the authoritative numeric thresholds; update them (and any 
 - `cd apps/web && pnpm governance:boundaries` — boundary enforcement.
 - `cd apps/web && pnpm governance:manifest` — Embind manifest drift.
 - `cd apps/web && pnpm governance:perf` — perf budget check.
+- `cd apps/web && pnpm governance:hotpath` — hot path guardrails.
+- `cd apps/web && pnpm governance:viewport-math` — forbid UI viewport math.
 - `cd apps/web && pnpm governance:check` — runs all governance checks.
 - `node tooling/governance/check_docs_references.js` — doc reference guard.
 

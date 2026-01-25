@@ -125,8 +125,12 @@ useEffect(() => {
 ```typescript
 const handlePointerDown = useCallback(
   (evt: React.PointerEvent) => {
-    const world = screenToWorld(evt.clientX, evt.clientY, viewTransform);
-    const pick = runtime.pickEx(world.x, world.y, TOLERANCE, 0xff);
+    // Convert using runtime viewport (no local math)
+    screen.x = evt.clientX - rect.left;
+    screen.y = evt.clientY - rect.top;
+    runtime.viewport.screenToWorldWithTransformInto(screen, viewTransform, world);
+    const tolerance = runtime.viewport.getPickingToleranceWithTransform(viewTransform);
+    const pick = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
 
     if (pick.id !== 0) {
       // Engine decides selection
@@ -187,7 +191,6 @@ setDragActive(true); // Only state update
 // PointerMove - NO setState!
 const handlePointerMove = (evt) => {
   if (!dragActive) return;
-  const world = screenToWorld(evt.clientX, evt.clientY, viewTransform);
   runtime.updateTransform(
     evt.clientX,
     evt.clientY,
@@ -208,6 +211,21 @@ setDragActive(false);
 ```
 
 ---
+
+## 7. Interaction Core (Required)
+
+All pointer/key input routing is centralized in `InteractionCore`:
+
+- `apps/web/features/editor/interactions/interactionCore.ts` owns:
+  - Input pipeline (pointer/key/blur)
+  - Tool handler lifecycle (enter/leave/transition)
+  - Context reuse (no allocations on pointermove)
+- `useInteractionManager` is a thin hook around `InteractionCore`.
+- Handlers are **coordinators only**; geometry, snapping, tolerances, and transforms live in Atlas via runtime facades.
+
+If a handler needs a world point:
+- Use `runtime.viewport.screenToWorldWithTransformInto(...)` and reuse preallocated points.
+- Do not import viewport math helpers into handlers.
 
 ## 7. Hot Path Rules
 

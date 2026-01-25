@@ -3,6 +3,7 @@ const path = require('path');
 
 const HOT_PATH_FILES = [
   'apps/web/features/editor/components/EngineInteractionLayer.tsx',
+  'apps/web/features/editor/interactions/interactionCore.ts',
   'apps/web/features/editor/interactions/handlers/DraftingHandler.tsx',
   'apps/web/features/editor/interactions/handlers/SelectionHandler.tsx',
   'apps/web/features/editor/interactions/handlers/TextHandler.tsx',
@@ -14,6 +15,7 @@ const VIOLATION_PATTERNS = [
   /setMousePos\(/,
   /setState\(/,
   /useUIStore.setState/,
+  /\bnew\s+\w+/,
 ];
 
 const ROOT_DIR = path.resolve(__dirname, '../../');
@@ -31,15 +33,35 @@ HOT_PATH_FILES.forEach(relPath => {
   
   let inPointerMove = false;
   let bracketDepth = 0;
+  let pointerMoveStart = -1;
+  let inBlockComment = false;
 
   lines.forEach((line, index) => {
     // Detect start of handlePointerMove or onPointerMove
-    if (/const handlePointerMove/.test(line) || /onPointerMove/.test(line)) {
+    if ((/\bhandlePointerMove\b/.test(line) || /\bonPointerMove\b/.test(line)) && line.includes('{')) {
       inPointerMove = true;
+      pointerMoveStart = index;
       bracketDepth = 0; // Reset depth approximation
     }
 
     if (inPointerMove) {
+      const trimmed = line.trim();
+      if (inBlockComment) {
+        if (trimmed.includes('*/')) {
+          inBlockComment = false;
+        }
+        return;
+      }
+      if (trimmed.startsWith('/*')) {
+        if (!trimmed.includes('*/')) {
+          inBlockComment = true;
+        }
+        return;
+      }
+      if (trimmed.startsWith('//')) {
+        return;
+      }
+
       // Simple bracket counting to detect end of function (very approximate)
       const open = (line.match(/\{/g) || []).length;
       const close = (line.match(/\}/g) || []).length;
@@ -67,8 +89,17 @@ HOT_PATH_FILES.forEach(relPath => {
         }
       });
 
-      if (bracketDepth <= 0 && index > 0) { // Naive end detection
-         // inPointerMove = false; // logic too brittle for single pass without AST
+      if (/getBoundingClientRect\(/.test(line)) {
+        console.error(`ERROR: DOM layout read inside pointermove in ${relPath}:${index + 1}`);
+        console.error(`       ${line.trim()}`);
+        console.error(`       Cache DOMRect outside pointermove and reuse.`);
+        hasError = true;
+      }
+
+      if (pointerMoveStart >= 0 && index > pointerMoveStart && bracketDepth <= 0) {
+        inPointerMove = false;
+        pointerMoveStart = -1;
+        bracketDepth = 0;
       }
     }
   });
