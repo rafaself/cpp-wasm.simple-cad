@@ -16,7 +16,8 @@ void fillTransformLogContext(
     float viewScale,
     float viewWidth,
     float viewHeight,
-    const SnapOptions& options) {
+    const SnapOptions& options,
+    const OrthoOptions& ortho) {
     entry.viewX = viewX;
     entry.viewY = viewY;
     entry.viewScale = viewScale;
@@ -30,11 +31,14 @@ void fillTransformLogContext(
     entry.snapMidpointEnabled = options.midpointEnabled ? 1u : 0u;
     entry.snapCenterEnabled = options.centerEnabled ? 1u : 0u;
     entry.snapNearestEnabled = options.nearestEnabled ? 1u : 0u;
+    entry.orthoPersistentEnabled = ortho.persistentEnabled ? 1u : 0u;
+    entry.orthoShiftOverrideEnabled = ortho.shiftOverrideEnabled ? 1u : 0u;
 }
 
 void applyReplayContext(
     EngineState& state,
     SnapOptions& options,
+    OrthoOptions& ortho,
     const engine::protocol::TransformLogEntry& entry) {
     state.viewX = entry.viewX;
     state.viewY = entry.viewY;
@@ -49,11 +53,14 @@ void applyReplayContext(
     options.midpointEnabled = entry.snapMidpointEnabled != 0;
     options.centerEnabled = entry.snapCenterEnabled != 0;
     options.nearestEnabled = entry.snapNearestEnabled != 0;
+    ortho.persistentEnabled = entry.orthoPersistentEnabled != 0;
+    ortho.shiftOverrideEnabled = entry.orthoShiftOverrideEnabled != 0;
 }
 
 bool matchesReplayContext(
     const EngineState& state,
     const SnapOptions& options,
+    const OrthoOptions& ortho,
     const engine::protocol::TransformLogEntry& entry) {
     if (!nearlyEqual(state.viewX, entry.viewX)) return false;
     if (!nearlyEqual(state.viewY, entry.viewY)) return false;
@@ -68,6 +75,8 @@ bool matchesReplayContext(
     if (options.midpointEnabled != (entry.snapMidpointEnabled != 0)) return false;
     if (options.centerEnabled != (entry.snapCenterEnabled != 0)) return false;
     if (options.nearestEnabled != (entry.snapNearestEnabled != 0)) return false;
+    if (ortho.persistentEnabled != (entry.orthoPersistentEnabled != 0)) return false;
+    if (ortho.shiftOverrideEnabled != (entry.orthoShiftOverrideEnabled != 0)) return false;
     return true;
 }
 } // namespace
@@ -111,13 +120,14 @@ bool InteractionSession::replayTransformLog() {
     const float prevViewWidth = state.viewWidth;
     const float prevViewHeight = state.viewHeight;
     const SnapOptions prevSnapOptions = snapOptions;
+    const OrthoOptions prevOrthoOptions = orthoOptions;
 
     const bool prevReplaying = replaying_;
     replaying_ = true;
     transformLogActive_ = false;
     bool ok = true;
 
-    if (!matchesReplayContext(state, snapOptions, transformLogEntries_.front())) {
+    if (!matchesReplayContext(state, snapOptions, orthoOptions, transformLogEntries_.front())) {
         ENGINE_LOG_WARN("[WARN] Transform replay context mismatch; overriding view/snap options for replay.");
     }
 
@@ -136,7 +146,7 @@ bool InteractionSession::replayTransformLog() {
                     ids = transformLogIds_.data() + start;
                     engine_.setSelection(ids, entry.idCount, engine::protocol::SelectionMode::Replace);
                 }
-                applyReplayContext(state, snapOptions, entry);
+                applyReplayContext(state, snapOptions, orthoOptions, entry);
                 beginTransform(
                     ids,
                     entry.idCount,
@@ -155,7 +165,7 @@ bool InteractionSession::replayTransformLog() {
             }
             case engine::protocol::TransformLogEvent::Update:
                 {
-                    applyReplayContext(state, snapOptions, entry);
+                    applyReplayContext(state, snapOptions, orthoOptions, entry);
                     updateTransform(
                         entry.x,
                         entry.y,
@@ -185,6 +195,7 @@ bool InteractionSession::replayTransformLog() {
     state.viewWidth = prevViewWidth;
     state.viewHeight = prevViewHeight;
     snapOptions = prevSnapOptions;
+    orthoOptions = prevOrthoOptions;
     replaying_ = prevReplaying;
     return ok;
 }
@@ -198,6 +209,7 @@ void InteractionSession::recordTransformBegin(
     float viewWidth,
     float viewHeight,
     const SnapOptions& options,
+    const OrthoOptions& ortho,
     std::uint32_t modifiers) {
     if (!transformLogEnabled_ || replaying_) return;
 
@@ -241,7 +253,7 @@ void InteractionSession::recordTransformBegin(
     entry.x = screenX;
     entry.y = screenY;
     entry.modifiers = modifiers;
-    fillTransformLogContext(entry, viewX, viewY, viewScale, viewWidth, viewHeight, options);
+    fillTransformLogContext(entry, viewX, viewY, viewScale, viewWidth, viewHeight, options, ortho);
     transformLogEntries_.push_back(entry);
     transformLogActive_ = true;
 }
@@ -255,6 +267,7 @@ void InteractionSession::recordTransformUpdate(
     float viewWidth,
     float viewHeight,
     const SnapOptions& options,
+    const OrthoOptions& ortho,
     std::uint32_t modifiers) {
     if (!transformLogEnabled_ || !transformLogActive_ || replaying_) return;
 
@@ -272,7 +285,7 @@ void InteractionSession::recordTransformUpdate(
     entry.x = screenX;
     entry.y = screenY;
     entry.modifiers = modifiers;
-    fillTransformLogContext(entry, viewX, viewY, viewScale, viewWidth, viewHeight, options);
+    fillTransformLogContext(entry, viewX, viewY, viewScale, viewWidth, viewHeight, options, ortho);
     transformLogEntries_.push_back(entry);
 }
 

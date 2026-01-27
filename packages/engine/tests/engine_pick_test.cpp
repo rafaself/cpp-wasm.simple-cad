@@ -124,3 +124,16 @@ TEST_F(CadEngineTest, PickLineEndpointPrefersVertexOverSelectionHandles) {
     EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::Vertex);
     EXPECT_EQ(res.subIndex, 0);
 }
+
+TEST_F(CadEngineTest, PickCandidatesReturnsOverlapsSortedByZIndex) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 20.0f, 20.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 5.0f, 5.0f, 20.0f, 20.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+
+    const std::uint32_t bringFront[] = {2};
+    engine.reorderEntities(bringFront, 1, engine::protocol::ReorderAction::BringToFront, 0);
+
+    const std::vector<PickResult> candidates = engine.pickCandidates(10.0f, 10.0f, 5.0f, 0xFF);
+    ASSERT_GE(candidates.size(), 2u);
+    EXPECT_EQ(candidates[0].id, 2u);
+    EXPECT_EQ(candidates[1].id, 1u);
+}

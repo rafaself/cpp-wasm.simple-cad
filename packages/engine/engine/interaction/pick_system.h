@@ -136,6 +136,15 @@ public:
                       std::uint32_t pickMask,
                       const EntityManager& entities, const TextSystem& textSystem);
 
+    std::vector<PickResult> pickCandidates(
+        float x,
+        float y,
+        float tolerance,
+        float viewScale,
+        std::uint32_t pickMask,
+        const EntityManager& entities,
+        const TextSystem& textSystem);
+
     void queryArea(const AABB& area, std::vector<std::uint32_t>& outResults) const;
 
     PickStats getLastStats() const { return lastStats_; }

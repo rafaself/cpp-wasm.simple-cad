@@ -347,7 +347,17 @@ void InteractionSession::beginTransform(
         }
     }
 
-    recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
+    recordTransformBegin(
+        screenX,
+        screenY,
+        viewX,
+        viewY,
+        viewScale,
+        viewWidth,
+        viewHeight,
+        snapOptions,
+        orthoOptions,
+        modifiers);
 
     session_.historyActive = engine_.beginHistoryEntry();
     if (session_.historyActive) {

@@ -276,6 +276,41 @@ TEST(OverlayQueryTest, RotatedSelectionHandlesMatchObb) {
     }
 }
 
+TEST(OverlayQueryTest, OrientedHandleMetaMultiSelectionProvidesGroupHandles) {
+    CadEngine engine;
+    engine.clear();
+
+    CadEngineTestAccessor::upsertRect(engine, 1, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 2, 20.0f, 10.0f, 5.0f, 5.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+
+    const std::uint32_t ids[] = {1, 2};
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
+
+    const auto meta = engine.getOrientedHandleMeta();
+    ASSERT_EQ(meta.valid, 1u);
+    EXPECT_EQ(meta.isGroup, 1u);
+    EXPECT_EQ(meta.selectionCount, 2u);
+    EXPECT_EQ(meta.hasSideHandles, 1u);
+
+    EXPECT_FLOAT_EQ(meta.blX, 0.0f);
+    EXPECT_FLOAT_EQ(meta.blY, 0.0f);
+    EXPECT_FLOAT_EQ(meta.brX, 25.0f);
+    EXPECT_FLOAT_EQ(meta.brY, 0.0f);
+    EXPECT_FLOAT_EQ(meta.trX, 25.0f);
+    EXPECT_FLOAT_EQ(meta.trY, 15.0f);
+    EXPECT_FLOAT_EQ(meta.tlX, 0.0f);
+    EXPECT_FLOAT_EQ(meta.tlY, 15.0f);
+
+    EXPECT_FLOAT_EQ(meta.southX, 12.5f);
+    EXPECT_FLOAT_EQ(meta.southY, 0.0f);
+    EXPECT_FLOAT_EQ(meta.eastX, 25.0f);
+    EXPECT_FLOAT_EQ(meta.eastY, 7.5f);
+    EXPECT_FLOAT_EQ(meta.northX, 12.5f);
+    EXPECT_FLOAT_EQ(meta.northY, 15.0f);
+    EXPECT_FLOAT_EQ(meta.westX, 0.0f);
+    EXPECT_FLOAT_EQ(meta.westY, 7.5f);
+}
+
 TEST(OverlayQueryTest, SnapOverlayForObjectSnap) {
     CadEngine engine;
     engine.clear();

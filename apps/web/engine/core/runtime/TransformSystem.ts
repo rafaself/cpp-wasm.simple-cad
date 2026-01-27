@@ -168,6 +168,10 @@ export class TransformSystem {
     );
   }
 
+  public setOrthoOptions(persistentEnabled: boolean, shiftOverrideEnabled: boolean): void {
+    this.engine.setOrthoOptions?.(persistentEnabled, shiftOverrideEnabled);
+  }
+
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {
     if (!this.engine.getSnappedPoint) return { x, y };
     if (this.engine.getSnappedPoint) {

@@ -35,7 +35,17 @@ void InteractionSession::updateTransform(
     snapHits_.clear();
 
     const double t0 = emscripten_get_now();
-    recordTransformUpdate(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
+    recordTransformUpdate(
+        screenX,
+        screenY,
+        viewX,
+        viewY,
+        viewScale,
+        viewWidth,
+        viewHeight,
+        snapOptions,
+        orthoOptions,
+        modifiers);
     std::uint32_t snapCandidateCount = 0;
     std::uint32_t snapHitCount = 0;
     auto finalizeStats = [&]() {
@@ -81,12 +91,13 @@ void InteractionSession::updateTransform(
     if (session_.mode == TransformMode::Move || session_.mode == TransformMode::EdgeDrag) {
         const bool shiftDown = (modifiers & kShiftMask) != 0;
         const bool altDown = (modifiers & kAltMask) != 0;
+        const bool orthoActive = shiftDown || orthoOptions.persistentEnabled;
 
         if (dragStarted && altDown) {
             duplicateSelectionForDrag();
         }
 
-        if (!shiftDown) {
+        if (!orthoActive) {
             session_.axisLock = AxisLock::None;
         } else {
             const float absDx = std::abs(screenDx);

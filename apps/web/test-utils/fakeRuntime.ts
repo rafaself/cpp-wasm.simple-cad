@@ -344,6 +344,14 @@ export class FakeRuntime {
     trY: number;
     tlX: number;
     tlY: number;
+    southX: number;
+    southY: number;
+    eastX: number;
+    eastY: number;
+    northX: number;
+    northY: number;
+    westX: number;
+    westY: number;
     rotateHandleX: number;
     rotateHandleY: number;
     centerX: number;
@@ -351,6 +359,9 @@ export class FakeRuntime {
     rotationRad: number;
     hasRotateHandle: number;
     hasResizeHandles: number;
+    hasSideHandles: number;
+    selectionCount: number;
+    isGroup: number;
     valid: number;
   } {
     // Return invalid by default - tests can override if needed
@@ -365,6 +376,14 @@ export class FakeRuntime {
       trY: 100,
       tlX: 0,
       tlY: 100,
+      southX: 50,
+      southY: 0,
+      eastX: 100,
+      eastY: 50,
+      northX: 50,
+      northY: 100,
+      westX: 0,
+      westY: 50,
       rotateHandleX: 50,
       rotateHandleY: 125,
       centerX: 50,
@@ -372,6 +391,9 @@ export class FakeRuntime {
       rotationRad: 0,
       hasRotateHandle: 1,
       hasResizeHandles: 1,
+      hasSideHandles: 1,
+      selectionCount: 1,
+      isGroup: 0,
       valid: 0, // Invalid by default
     };
   }

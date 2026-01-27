@@ -198,6 +198,8 @@ export type TransformLogEntry = {
   snapMidpointEnabled: number;
   snapCenterEnabled: number;
   snapNearestEnabled: number;
+  orthoPersistentEnabled: number;
+  orthoShiftOverrideEnabled: number;
 };
 
 export type EngineEvent = {
@@ -269,6 +271,16 @@ export type OrientedHandleMeta = {
   tlX: number;
   tlY: number; // Top-Left
 
+  // Side handles in world coordinates (midpoints of edges)
+  southX: number;
+  southY: number;
+  eastX: number;
+  eastY: number;
+  northX: number;
+  northY: number;
+  westX: number;
+  westY: number;
+
   // Rotate handle position in world coordinates
   rotateHandleX: number;
   rotateHandleY: number;
@@ -283,6 +295,9 @@ export type OrientedHandleMeta = {
   // Flags
   hasRotateHandle: number; // 1 if rotate handle should be shown
   hasResizeHandles: number; // 1 if corner resize handles should be shown
+  hasSideHandles: number; // 1 if side handles should be shown
+  selectionCount: number; // number of selected entities represented
+  isGroup: number; // 1 if representing multi-selection
   valid: number; // 1 if data is valid
 };
 
@@ -588,8 +603,11 @@ const computeAbiHash = (): number => {
   h = hashStruct(
     h,
     0x53000025,
-    88,
-    [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84],
+    96,
+    [
+      0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88,
+      92,
+    ],
   );
 
   return h >>> 0;

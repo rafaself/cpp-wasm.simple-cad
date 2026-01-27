@@ -40,6 +40,7 @@ public:
     bool isDraftActive() const noexcept { return draft_.active; }
 
     SnapOptions snapOptions;
+    OrthoOptions orthoOptions;
 
     const std::vector<SnapGuide>& getSnapGuides() const { return snapGuides_; }
     const std::vector<SnapHit>& getSnapHits() const { return snapHits_; }
@@ -234,6 +235,7 @@ private:
         float viewWidth,
         float viewHeight,
         const SnapOptions& options,
+        const OrthoOptions& ortho,
         std::uint32_t modifiers);
     void recordTransformUpdate(
         float screenX,
@@ -244,6 +246,7 @@ private:
         float viewWidth,
         float viewHeight,
         const SnapOptions& options,
+        const OrthoOptions& ortho,
         std::uint32_t modifiers);
     void recordTransformCommit();
     void recordTransformCancel();

@@ -3,6 +3,8 @@
 
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
+#include "engine/interaction/interaction_constants.h"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -335,12 +337,50 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     if (ordered.empty()) {
         return meta;
     }
-    
-    // For multi-selection, return invalid (use getSelectionBounds instead)
+
+    meta.selectionCount = static_cast<std::uint32_t>(ordered.size());
+    meta.isGroup = ordered.size() > 1 ? 1u : 0u;
+
     if (ordered.size() > 1) {
+        const engine::protocol::EntityAabb bounds = getSelectionBounds();
+        if (!bounds.valid) {
+            return meta;
+        }
+
+        meta.entityId = 0;
+        meta.blX = bounds.minX;
+        meta.blY = bounds.minY;
+        meta.brX = bounds.maxX;
+        meta.brY = bounds.minY;
+        meta.trX = bounds.maxX;
+        meta.trY = bounds.maxY;
+        meta.tlX = bounds.minX;
+        meta.tlY = bounds.maxY;
+
+        meta.southX = (meta.blX + meta.brX) * 0.5f;
+        meta.southY = (meta.blY + meta.brY) * 0.5f;
+        meta.eastX = (meta.brX + meta.trX) * 0.5f;
+        meta.eastY = (meta.brY + meta.trY) * 0.5f;
+        meta.northX = (meta.tlX + meta.trX) * 0.5f;
+        meta.northY = (meta.tlY + meta.trY) * 0.5f;
+        meta.westX = (meta.blX + meta.tlX) * 0.5f;
+        meta.westY = (meta.blY + meta.tlY) * 0.5f;
+
+        meta.centerX = (bounds.minX + bounds.maxX) * 0.5f;
+        meta.centerY = (bounds.minY + bounds.maxY) * 0.5f;
+        meta.rotationRad = 0.0f;
+
+        constexpr float kRotateOffset = 25.0f;
+        meta.rotateHandleX = meta.northX;
+        meta.rotateHandleY = meta.northY + kRotateOffset;
+
+        meta.hasRotateHandle = 1u;
+        meta.hasResizeHandles = 1u;
+        meta.hasSideHandles = 1u;
+        meta.valid = 1u;
         return meta;
     }
-    
+
     const std::uint32_t entityId = ordered[0];
     const auto it = state().entityManager_.entities.find(entityId);
     if (it == state().entityManager_.entities.end()) {
@@ -355,6 +395,7 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     float rotation = 0;         // Rotation in radians
     bool hasRotation = false;
     bool hasResizeHandles = true;
+    bool hasSideHandles = true;
     
     const EntityKind kind = it->second.kind;
     
@@ -402,6 +443,7 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
             }
             // Text doesn't support resize handles (only rotate)
             hasResizeHandles = false;
+            hasSideHandles = false;
             break;
         }
         case EntityKind::Line:
@@ -438,6 +480,15 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     meta.brX = brx; meta.brY = bry;  // BR
     meta.trX = trx; meta.trY = try_; // TR
     meta.tlX = tlx; meta.tlY = tly;  // TL
+
+    meta.southX = (blx + brx) * 0.5f;
+    meta.southY = (bly + bry) * 0.5f;
+    meta.eastX = (brx + trx) * 0.5f;
+    meta.eastY = (bry + try_) * 0.5f;
+    meta.northX = (tlx + trx) * 0.5f;
+    meta.northY = (tly + try_) * 0.5f;
+    meta.westX = (blx + tlx) * 0.5f;
+    meta.westY = (bly + tly) * 0.5f;
     
     // Rotate handle position: above top edge center, offset diagonally
     // Top edge center = midpoint of TL and TR
@@ -466,6 +517,7 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     meta.rotationRad = rotation;
     meta.hasRotateHandle = hasRotation ? 1 : 0;
     meta.hasResizeHandles = hasResizeHandles ? 1 : 0;
+    meta.hasSideHandles = hasSideHandles ? 1 : 0;
     meta.valid = 1;
     
     return meta;

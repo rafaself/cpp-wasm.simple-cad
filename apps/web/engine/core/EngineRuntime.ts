@@ -280,6 +280,15 @@ export class EngineRuntime {
     return this.pickSystem.pickEx(x, y, tolerance, pickMask);
   }
 
+  public pickCandidates(
+    x: number,
+    y: number,
+    tolerance: number,
+    pickMask: number,
+  ): PickResult[] {
+    return this.pickSystem.pickCandidates(x, y, tolerance, pickMask);
+  }
+
   public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
   }
@@ -463,6 +472,10 @@ export class EngineRuntime {
       centerEnabled,
       nearestEnabled,
     );
+  }
+
+  public setOrthoOptions(persistentEnabled: boolean, shiftOverrideEnabled: boolean): void {
+    this.transformSystem.setOrthoOptions(persistentEnabled, shiftOverrideEnabled);
   }
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {
