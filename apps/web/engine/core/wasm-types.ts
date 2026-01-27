@@ -142,6 +142,7 @@ export type CadEngineInstance = {
     mode: number,
     hitMode: number,
   ) => void;
+  pickSelectionHandle: (x: number, y: number, tolerance: number) => PickResult;
   pickSideHandle: (x: number, y: number, tolerance: number) => PickResult;
   getDrawOrderSnapshot?: () => WasmU32Vector;
   reorderEntities?: (idsPtr: number, idCount: number, action: number, refId: number) => void;

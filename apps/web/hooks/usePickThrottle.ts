@@ -17,23 +17,52 @@ import { MouseThrottle } from '@/utils/mouseThrottle';
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 import type { PickResult } from '@/types/picking';
 
+// Stable empty pick result reused across calls to avoid hot-path allocations.
+const EMPTY_PICK_RESULT: PickResult = {
+  id: 0,
+  kind: 0,
+  subTarget: 0,
+  subIndex: -1,
+  distance: Infinity,
+};
+
 export function usePickThrottle(runtime: EngineRuntime | null) {
   const throttleRef = useRef<MouseThrottle | null>(null);
   const lastResultRef = useRef<PickResult | null>(null);
+  const throttledFnRef = useRef<((x: number, y: number, t: number, m: number) => void) | null>(
+    null,
+  );
+  const runtimeRef = useRef<EngineRuntime | null>(runtime);
 
   const isThrottlingEnabled = useSettingsStore((s) => s.featureFlags.enablePickThrottling);
   const throttleInterval = useSettingsStore((s) => s.performance.pickThrottleInterval);
 
+  useEffect(() => {
+    runtimeRef.current = runtime;
+  }, [runtime]);
+
   // Initialize or update throttle instance when settings change
   useEffect(() => {
     if (!isThrottlingEnabled) {
+      throttleRef.current?.cancel();
       throttleRef.current = null;
+      throttledFnRef.current = null;
       return;
     }
 
     // Create new throttle with updated interval
     try {
-      throttleRef.current = new MouseThrottle(throttleInterval, true);
+      const throttle = new MouseThrottle(throttleInterval, true);
+      throttleRef.current = throttle;
+      throttledFnRef.current = throttle.create(
+        (px: number, py: number, ptol: number, pmask: number) => {
+          const rt = runtimeRef.current;
+          if (!rt) return;
+          const result = rt.pickExSmart(px, py, ptol, pmask);
+          lastResultRef.current = result;
+        },
+        { leading: true, trailing: true },
+      );
     } catch {
       // In testing environments a mocked MouseThrottle might not be constructable
       throttleRef.current = {
@@ -41,58 +70,44 @@ export function usePickThrottle(runtime: EngineRuntime | null) {
         cancel: () => {},
         reset: () => {},
       } as unknown as MouseThrottle;
+      throttledFnRef.current = throttleRef.current.create(
+        (px: number, py: number, ptol: number, pmask: number) => {
+          const rt = runtimeRef.current;
+          if (!rt) return;
+          const result = rt.pickExSmart(px, py, ptol, pmask);
+          lastResultRef.current = result;
+        },
+        { leading: true, trailing: true },
+      );
     }
 
     return () => {
       throttleRef.current?.cancel();
       throttleRef.current = null;
+      throttledFnRef.current = null;
     };
   }, [isThrottlingEnabled, throttleInterval]);
 
   // Create throttled pick function
   const throttledPick = useCallback(
     (x: number, y: number, tolerance: number, mask: number): PickResult => {
-      if (!runtime) {
-        return {
-          id: 0,
-          kind: 0,
-          subTarget: 0,
-          subIndex: -1,
-          distance: Infinity,
-        };
-      }
+      const rt = runtimeRef.current;
+      if (!rt) return EMPTY_PICK_RESULT;
 
       // If throttling disabled, use direct smart pick
-      if (!isThrottlingEnabled || !throttleRef.current) {
-        const result = runtime.pickExSmart(x, y, tolerance, mask);
+      if (!isThrottlingEnabled || !throttledFnRef.current) {
+        const result = rt.pickExSmart(x, y, tolerance, mask);
         lastResultRef.current = result;
         return result;
       }
 
-      // Create throttled version that updates lastResult
-      const throttledFn = throttleRef.current.create(
-        (px: number, py: number, ptol: number, pmask: number) => {
-          const result = runtime.pickExSmart(px, py, ptol, pmask);
-          lastResultRef.current = result;
-        },
-        { leading: true, trailing: true },
-      );
-
       // Execute throttled pick
-      throttledFn(x, y, tolerance, mask);
+      throttledFnRef.current(x, y, tolerance, mask);
 
       // Return last known result (may be from previous call if throttled)
-      return (
-        lastResultRef.current || {
-          id: 0,
-          kind: 0,
-          subTarget: 0,
-          subIndex: -1,
-          distance: Infinity,
-        }
-      );
+      return lastResultRef.current || EMPTY_PICK_RESULT;
     },
-    [runtime, isThrottlingEnabled],
+    [isThrottlingEnabled],
   );
 
   return throttledPick;

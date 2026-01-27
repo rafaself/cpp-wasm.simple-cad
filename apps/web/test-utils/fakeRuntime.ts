@@ -173,6 +173,31 @@ export class FakeRuntime {
     return single.id !== 0 ? [single] : [];
   }
 
+  pickSelectionHandle(x: number, y: number, tolerance: number): PickResult {
+    const res = this.pickExSmart(x, y, tolerance, 0xff);
+    const isHandle =
+      res.subTarget === PickSubTarget.ResizeHandle || res.subTarget === PickSubTarget.RotateHandle;
+    if (!isHandle) {
+      return {
+        id: 0,
+        kind: PickEntityKind.Unknown,
+        subTarget: PickSubTarget.None,
+        subIndex: -1,
+        distance: Infinity,
+      };
+    }
+    if (this.selection.size === 0 || !this.selection.has(res.id)) {
+      return {
+        id: 0,
+        kind: PickEntityKind.Unknown,
+        subTarget: PickSubTarget.None,
+        subIndex: -1,
+        distance: Infinity,
+      };
+    }
+    return res;
+  }
+
   pickSideHandle(_x: number, _y: number, _tolerance: number): PickResult {
     return { id: 0, kind: PickEntityKind.Unknown, subTarget: PickSubTarget.None, subIndex: -1, distance: Infinity };
   }

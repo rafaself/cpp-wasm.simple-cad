@@ -9,18 +9,14 @@ import { BaseInteractionHandler } from '../BaseInteractionHandler';
 import { buildModifierMask } from '../modifierMask';
 import { InputEventContext, InteractionHandler, EngineRuntime } from '../types';
 import { SelectionCursorState } from './selection/SelectionCursorState';
-import { SelectionHoverPick } from './selection/SelectionHoverPick';
 import { ConnectedMarquee } from './selection/SelectionMarqueeOverlay';
 import { updateResizeCursor, updateRotationCursor } from './selection/selectionCursorHelpers';
 import { handleSelectionDoubleClick } from './selection/selectionDoubleClick';
+import { SelectionCycleController } from './selection/SelectionCycleController';
+import { SelectionTransformController } from './selection/SelectionTransformController';
 import { handleSelectionCancel, handleSelectionKeyDown } from './selection/selectionKeyHandlers';
+import { applySelectionHoverResult, handleSelectionHandleHover } from './selection/selectionHover';
 import { handleMarqueePointerUp } from './selection/selectionMarquee';
-import { pickSideHandle } from './selection/selectionPickHelpers';
-import {
-  SIDE_SUBINDEX_TO_ENGINE_INDEX,
-  isLineOrArrow,
-  supportsSideHandles,
-} from './selection/selectionConstants';
 import { SelectionInteractionState, SelectionPointerDown } from './selection/selectionTypes';
 
 export class SelectionHandler extends BaseInteractionHandler {
@@ -35,155 +31,34 @@ export class SelectionHandler extends BaseInteractionHandler {
   // Track hover state for cursor updates
   private hoverSubTarget: number = PickSubTarget.None;
   private hoverSubIndex: number = -1;
-  private hoverPick = new SelectionHoverPick();
 
   // Custom cursor state
   private cursorState = new SelectionCursorState();
 
-  private cycleState:
-    | {
-        key: string;
-        baseSelection: Set<number>;
-        lastAddedId: number | null;
-        index: number;
-      }
-    | null = null;
+  private setState = (state: SelectionInteractionState): void => {
+    this.state = state;
+  };
 
-  private resetCycleState(): void {
-    this.cycleState = null;
-  }
+  private setHover = (subTarget: number, subIndex: number): void => {
+    this.hoverSubTarget = subTarget;
+    this.hoverSubIndex = subIndex;
+  };
 
-  private collectCycleCandidateIds(
-    runtime: EngineRuntime,
-    worldX: number,
-    worldY: number,
-    tolerance: number,
-  ): number[] {
-    const candidates = runtime.pickCandidates(worldX, worldY, tolerance, 0xff);
-    if (candidates.length === 0) return [];
+  private notifyChangeBound = (): void => {
+    this.notifyChange();
+  };
 
-    const seen = new Set<number>();
-    const ids: number[] = [];
-    for (const candidate of candidates) {
-      if (candidate.id === 0) continue;
-      if (
-        candidate.subTarget === PickSubTarget.ResizeHandle ||
-        candidate.subTarget === PickSubTarget.RotateHandle
-      ) {
-        continue;
-      }
-      if (seen.has(candidate.id)) continue;
-      seen.add(candidate.id);
-      ids.push(candidate.id);
-    }
-    return ids;
-  }
+  private hoverDeps = {
+    cursorState: this.cursorState,
+    setHover: this.setHover,
+    notifyChange: this.notifyChangeBound,
+  };
 
-  private handleCtrlCycle(
-    runtime: EngineRuntime,
-    pick: PickResult,
-    worldX: number,
-    worldY: number,
-    tolerance: number,
-    shiftKey: boolean,
-  ): boolean {
-    const candidateIds = this.collectCycleCandidateIds(runtime, worldX, worldY, tolerance);
-    if (candidateIds.length < 2) {
-      this.resetCycleState();
-      return false;
-    }
-
-    const key = candidateIds.join(',');
-    const selectionIds = runtime.getSelectionIds();
-    if (!this.cycleState || this.cycleState.key !== key) {
-      this.cycleState = {
-        key,
-        baseSelection: new Set(selectionIds),
-        lastAddedId: null,
-        index: 0,
-      };
-    } else {
-      this.cycleState.index = (this.cycleState.index + 1) % candidateIds.length;
-    }
-
-    const chosenId = candidateIds[this.cycleState.index] ?? pick.id;
-    const lastAddedId = this.cycleState.lastAddedId;
-    if (
-      lastAddedId !== null &&
-      lastAddedId !== chosenId &&
-      !this.cycleState.baseSelection.has(lastAddedId)
-    ) {
-      runtime.setSelection([lastAddedId], SelectionMode.Remove);
-    }
-
-    const mode = shiftKey ? SelectionMode.Toggle : SelectionMode.Add;
-    runtime.setSelection([chosenId], mode);
-    this.cycleState.lastAddedId = chosenId;
-
-    cadDebugLog('selection', 'cycle', () => ({
-      key,
-      chosenId,
-      index: this.cycleState?.index ?? 0,
-      candidates: candidateIds,
-    }));
-    return true;
-  }
-
-  private beginTransformWithPick(
-    ctx: InputEventContext,
-    pick: PickResult,
-    startScreen: { x: number; y: number },
-    selectionModeOnDrag: SelectionMode | null,
-  ): void {
-    const { runtime, event } = ctx;
-    if (!runtime || pick.id === 0) return;
-
-    if (selectionModeOnDrag !== null) {
-      runtime.setSelection([pick.id], selectionModeOnDrag);
-    }
-
-    const activeIds = runtime.getSelectionIds();
-    if (activeIds.length === 0) return;
-
-    const modifiers = buildModifierMask(event);
-    let mode = TransformMode.Move;
-    if (pick.subTarget === PickSubTarget.ResizeHandle) {
-      mode = TransformMode.Resize;
-    } else if (pick.subTarget === PickSubTarget.RotateHandle) {
-      mode = TransformMode.Rotate;
-    } else if (pick.subTarget === PickSubTarget.Vertex) {
-      mode = TransformMode.VertexDrag;
-    } else if (pick.subTarget === PickSubTarget.Edge) {
-      mode = isLineOrArrow(pick.kind) ? TransformMode.Move : TransformMode.EdgeDrag;
-    }
-
-    runtime.beginTransform(
-      activeIds,
-      mode,
-      pick.id,
-      pick.subIndex,
-      startScreen.x,
-      startScreen.y,
-      ctx.viewTransform.x,
-      ctx.viewTransform.y,
-      ctx.viewTransform.scale,
-      ctx.canvasSize.width,
-      ctx.canvasSize.height,
-      modifiers,
-    );
-    cadDebugLog('transform', 'begin', () => ({
-      ids: activeIds,
-      mode,
-      specificId: pick.id,
-      subIndex: pick.subIndex,
-      x: startScreen.x,
-      y: startScreen.y,
-    }));
-
-    this.hoverSubTarget = pick.subTarget;
-    this.hoverSubIndex = pick.subIndex;
-    this.state = { kind: 'transform', startScreen: { x: startScreen.x, y: startScreen.y }, mode };
-  }
+  private cycleController = new SelectionCycleController();
+  private transformController = new SelectionTransformController({
+    setState: this.setState,
+    setHover: this.setHover,
+  });
 
   private getKeyContext() {
     return {
@@ -216,7 +91,10 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     // Picking Logic (Hit Test)
     const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
-    const res = runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
+    const handlePick = runtime.pickSelectionHandle(world.x, world.y, tolerance);
+    const res = handlePick && handlePick.id !== 0
+      ? handlePick
+      : runtime.pickExSmart(world.x, world.y, tolerance, 0xff);
     cadDebugLog('selection', 'pick', () => ({
       id: res.id,
       kind: PickEntityKind[res.kind] ?? res.kind,
@@ -232,19 +110,31 @@ export class SelectionHandler extends BaseInteractionHandler {
     const shift = event.shiftKey;
     const ctrl = event.ctrlKey || event.metaKey;
     if (!ctrl) {
-      this.resetCycleState();
+      this.cycleController.reset();
     }
 
     const isHandleTarget =
       res.subTarget === PickSubTarget.ResizeHandle || res.subTarget === PickSubTarget.RotateHandle;
     if (ctrl && res.id !== 0 && !isHandleTarget) {
-      const cycled = this.handleCtrlCycle(runtime, res, world.x, world.y, tolerance, shift);
+      const cycled = this.cycleController.handleCtrlCycle(
+        runtime,
+        res,
+        world.x,
+        world.y,
+        tolerance,
+        shift,
+      );
       if (cycled) {
         this.state = { kind: 'none' };
         this.pointerDown = null;
         this.notifyChange();
         return;
       }
+    }
+
+    // Side handles are now hit-tested in Atlas via pickSelectionHandle.
+    if (res.id !== 0 && this.transformController.beginSideResize(ctx, res)) {
+      return;
     }
 
     // Phase 1 & 2: Check for polygon vertex/edge grip hit
@@ -258,58 +148,13 @@ export class SelectionHandler extends BaseInteractionHandler {
       const startScreen = { x: screen.x, y: screen.y };
       // Phase 1: Polygon vertex grip hit
       if (res.subTarget === PickSubTarget.Vertex) {
-        this.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
+        this.transformController.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
         return;
       }
 
       // Phase 2: Polygon edge midpoint grip hit
       if (enablePolygonEdges && res.subTarget === PickSubTarget.Edge) {
-        this.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
-        return;
-      }
-    }
-
-    // Check for side handles first (Priority: Handles > Geometry)
-    // This allows hitting handles that extend outside the geometry (pick returns 0)
-    // BUT skip for lines/arrows - they don't have side handles, only vertex endpoints
-    const shouldCheckSideHandles = supportsSideHandles(res.kind);
-    if (shouldCheckSideHandles) {
-      const sideHit = pickSideHandle(runtime, world, tolerance);
-      if (sideHit) {
-        // Use engine-based SideResize instead of client-side calculation
-        const sideIndex = SIDE_SUBINDEX_TO_ENGINE_INDEX[sideHit.subIndex];
-        if (sideIndex === undefined) return;
-        const modifiers = buildModifierMask(event);
-
-        runtime.beginTransform(
-          [sideHit.id],
-          TransformMode.SideResize,
-          sideHit.id,
-          sideIndex, // Pass side index (0=S, 1=E, 2=N, 3=W)
-          screen.x,
-          screen.y,
-          ctx.viewTransform.x,
-          ctx.viewTransform.y,
-          ctx.viewTransform.scale,
-          ctx.canvasSize.width,
-          ctx.canvasSize.height,
-          modifiers,
-        );
-
-        this.state = {
-          kind: 'transform',
-          startScreen: { x: screen.x, y: screen.y },
-          mode: TransformMode.SideResize,
-        };
-
-        // Store handle info for cursor updates (frontend indices 4-7)
-        this.hoverSubTarget = PickSubTarget.ResizeHandle;
-        this.hoverSubIndex = sideHit.subIndex;
-
-        cadDebugLog('transform', 'side-resize-start', () => ({
-          sideIndex,
-          entityId: sideHit.id,
-        }));
+        this.transformController.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
         return;
       }
     }
@@ -343,7 +188,7 @@ export class SelectionHandler extends BaseInteractionHandler {
         return;
       }
 
-      this.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
+      this.transformController.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
       return;
     }
 
@@ -376,7 +221,7 @@ export class SelectionHandler extends BaseInteractionHandler {
       const dx = event.clientX - this.pointerDown.x;
       const dy = event.clientY - this.pointerDown.y;
       if (isDrag(dx, dy)) {
-        this.beginTransformWithPick(
+        this.transformController.beginTransformWithPick(
           ctx,
           this.state.pick,
           this.state.startScreen,
@@ -388,16 +233,8 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     // Check for hover on resize handles when not in active transform
     if (this.state.kind === 'none') {
-      const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
-      if (isCadDebugEnabled('pointer')) {
-        cadDebugLog('pointer', 'move', { screen, world, tolerance });
-      }
-      const sideHandle = pickSideHandle(runtime, world, tolerance);
-      if (sideHandle) {
-        this.hoverSubTarget = PickSubTarget.ResizeHandle;
-        this.hoverSubIndex = sideHandle.subIndex;
-        updateResizeCursor(this.cursorState, this.hoverSubIndex, runtime, ctx);
-        this.notifyChange();
+      const handled = handleSelectionHandleHover(ctx, this.hoverDeps);
+      if (handled) {
         return;
       }
     }
@@ -459,43 +296,9 @@ export class SelectionHandler extends BaseInteractionHandler {
       // Update hover state for cursor feedback when not interacting
       const tolerance = runtime.viewport.getPickingToleranceWithTransform(ctx.viewTransform);
       startTiming('pick');
-      const res = this.hoverPick.get(runtime, world.x, world.y, tolerance, 0xff);
+      const res = ctx.hoverPick(world.x, world.y, tolerance, 0xff);
       endTiming('pick');
-      this.hoverSubTarget = res.subTarget;
-      this.hoverSubIndex = res.subIndex;
-      if (isCadDebugEnabled('pointer')) {
-        cadDebugLog('pointer', 'hover-pick', {
-          screen,
-          world,
-          tolerance,
-          id: res.id,
-          subTarget: res.subTarget,
-          subIndex: res.subIndex,
-          kind: res.kind,
-        });
-      }
-      // Show appropriate cursor based on hover target
-      // Body and Edge (for lines/arrows) use default system cursor for move
-      if (this.hoverSubTarget === PickSubTarget.RotateHandle) {
-        updateRotationCursor(this.cursorState, this.hoverSubIndex, runtime, ctx);
-      } else if (this.hoverSubTarget === PickSubTarget.ResizeHandle) {
-        updateResizeCursor(this.cursorState, this.hoverSubIndex, runtime, ctx);
-      } else if (this.hoverSubTarget === PickSubTarget.Vertex) {
-        // Vertex handles (line/arrow endpoints, polyline vertices, polygon vertices) use move cursor
-        this.cursorState.showMoveAt(ctx.screenPoint);
-      } else if (this.hoverSubTarget === PickSubTarget.Edge) {
-        // Phase 2: Edge grips for polygons
-        const enablePolygonEdges = useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
-        if (enablePolygonEdges && res.kind === PickEntityKind.Polygon) {
-          // Polygon edge midpoint grip: show move cursor (perpendicular drag)
-          this.cursorState.showMoveAt(ctx.screenPoint);
-        } else if (isLineOrArrow(res.kind)) {
-          // Lines and arrows: Edge means "move the entire entity" - use default cursor
-        }
-      } else if (this.hoverSubTarget === PickSubTarget.Body) {
-        // Use default cursor for move
-      }
-      this.notifyChange(); // Trigger cursor update
+      applySelectionHoverResult(ctx, this.hoverDeps, res);
     }
   }
 

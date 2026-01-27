@@ -1,7 +1,9 @@
 import type { getEngineRuntime } from '@/engine/core/singleton';
 import type { Point, ViewTransform } from '@/types';
+import type { PickResult } from '@/types/picking';
 
 export type EngineRuntime = Awaited<ReturnType<typeof getEngineRuntime>>;
+export type HoverPickFn = (x: number, y: number, tolerance: number, mask: number) => PickResult;
 
 export interface InputEventContext {
   event: React.PointerEvent | PointerEvent;
@@ -9,6 +11,7 @@ export interface InputEventContext {
   worldPoint: Point;
   snappedPoint: Point;
   runtime: EngineRuntime | null;
+  hoverPick: HoverPickFn;
   viewTransform: ViewTransform;
   canvasSize: { width: number; height: number }; // Needed for overlays
   cancelToken?: boolean; // To check if operation should be aborted

@@ -8,9 +8,12 @@ import {
 } from 'react';
 
 import { getEngineRuntime } from '@/engine/core/singleton';
+import { usePickThrottle } from '@/hooks/usePickThrottle';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { InteractionCore } from './interactionCore';
+
+import type { EngineRuntime } from './types';
 
 type PointerRect = { left: number; top: number };
 
@@ -19,6 +22,8 @@ export function useInteractionManager(pointerRectRef: MutableRefObject<PointerRe
   const viewTransform = useUIStore((s) => s.viewTransform);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const toolDefaults = useSettingsStore((s) => s.toolDefaults);
+  const [runtime, setRuntime] = useState<EngineRuntime | null>(null);
+  const hoverPick = usePickThrottle(runtime);
   const [, setTick] = useState(0);
   const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
 
@@ -29,9 +34,14 @@ export function useInteractionManager(pointerRectRef: MutableRefObject<PointerRe
 
   useEffect(() => {
     getEngineRuntime().then((rt) => {
+      setRuntime(rt);
       coreRef.current?.setRuntime(rt);
     });
   }, []);
+
+  useEffect(() => {
+    coreRef.current?.setHoverPick(hoverPick);
+  }, [hoverPick]);
 
   useEffect(() => {
     coreRef.current?.setOnUpdate(forceUpdate);

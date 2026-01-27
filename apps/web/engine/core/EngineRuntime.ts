@@ -293,6 +293,10 @@ export class EngineRuntime {
     return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
   }
 
+  public pickSelectionHandle(x: number, y: number, tolerance: number): PickResult | null {
+    return this.pickSystem.pickSelectionHandle(x, y, tolerance);
+  }
+
   public pickSideHandle(x: number, y: number, tolerance: number): PickResult | null {
     return this.pickSystem.pickSideHandle(x, y, tolerance);
   }

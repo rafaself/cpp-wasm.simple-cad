@@ -63,6 +63,8 @@ export class InteractionHarness {
   public canvasSize: { width: number; height: number };
   public toolDefaults: any;
   public updates = 0;
+  private hoverPick = (x: number, y: number, tolerance: number, mask: number) =>
+    (this.runtime as any).pickExSmart(x, y, tolerance, mask);
 
   constructor(options: HarnessOptions = {}) {
     this.runtime = options.runtime ?? new FakeRuntime();
@@ -161,6 +163,7 @@ export class InteractionHarness {
       worldPoint,
       snappedPoint: worldPoint,
       runtime: this.runtime as any,
+      hoverPick: this.hoverPick,
       viewTransform: this.viewTransform,
       canvasSize: this.canvasSize,
     };

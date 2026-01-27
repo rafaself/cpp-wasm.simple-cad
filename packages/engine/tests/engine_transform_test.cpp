@@ -210,3 +210,45 @@ TEST_F(CadEngineTest, MultiSelectionResizeScalesAllEntities) {
     EXPECT_NEAR(rectB->w, 20.0f, 1e-3f);
     EXPECT_NEAR(rectB->h, 20.0f, 1e-3f);
 }
+
+TEST_F(CadEngineTest, MultiSelectionSideResizeScalesAllEntities) {
+    CadEngineTestAccessor::upsertRect(engine, 100, 0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    CadEngineTestAccessor::upsertRect(engine, 200, 20.0f, 0.0f, 10.0f, 10.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    std::uint32_t ids[] = { 100u, 200u };
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
+    ASSERT_EQ(engine.getSelectionIds().size(), 2u);
+
+    // Group bounds: min=(0,0) max=(30,10). Drag south handle to y=20 => scaleY 2x anchored at top.
+    engine.beginTransform(
+        ids,
+        2,
+        CadEngine::TransformMode::SideResize,
+        100,
+        0,
+        15.0f,
+        -10.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        0);
+    engine.updateTransform(15.0f, -20.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0);
+    engine.commitTransform();
+
+    const RectRec* rectA = CadEngineTestAccessor::entityManager(engine).getRect(100);
+    const RectRec* rectB = CadEngineTestAccessor::entityManager(engine).getRect(200);
+    ASSERT_NE(rectA, nullptr);
+    ASSERT_NE(rectB, nullptr);
+
+    EXPECT_NEAR(rectA->x, 0.0f, 1e-3f);
+    EXPECT_NEAR(rectA->y, 0.0f, 1e-3f);
+    EXPECT_NEAR(rectA->w, 10.0f, 1e-3f);
+    EXPECT_NEAR(rectA->h, 20.0f, 1e-3f);
+
+    EXPECT_NEAR(rectB->x, 20.0f, 1e-3f);
+    EXPECT_NEAR(rectB->y, 0.0f, 1e-3f);
+    EXPECT_NEAR(rectB->w, 10.0f, 1e-3f);
+    EXPECT_NEAR(rectB->h, 20.0f, 1e-3f);
+}

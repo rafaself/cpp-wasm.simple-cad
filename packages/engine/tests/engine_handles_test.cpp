@@ -3,6 +3,65 @@
 
 using namespace engine_test;
 
+TEST_F(CadEngineTest, PickSelectionHandleRequiresSelection) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 10.0f, 10.0f, 20.0f, 20.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    // No selection => no handle hit even at a corner.
+    {
+        PickResult res = engine.pickSelectionHandle(10.0f, 10.0f, 2.0f);
+        EXPECT_EQ(res.id, 0u);
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::None);
+    }
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    PickResult res = engine.pickSelectionHandle(10.0f, 10.0f, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+}
+
+TEST_F(CadEngineTest, PickSelectionHandleUsesOrientedMeta) {
+    // Rotated ellipse exercises rotation-aware oriented handle picking.
+    constexpr float kPiQuarter = 0.7853981633974483f;
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        kPiQuarter,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    const auto meta = engine.getOrientedHandleMeta();
+    ASSERT_EQ(meta.valid, 1u);
+
+    PickResult res = engine.pickSelectionHandle(meta.trX, meta.trY, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+    EXPECT_EQ(res.subIndex, 2);
+}
+
+TEST_F(CadEngineTest, PickSelectionHandleIncludesSideHandles) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 40.0f, 40.0f, 20.0f, 20.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    const auto meta = engine.getOrientedHandleMeta();
+    ASSERT_EQ(meta.valid, 1u);
+    ASSERT_EQ(meta.hasSideHandles, 1u);
+
+    PickResult res = engine.pickSelectionHandle(meta.northX, meta.northY, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+    EXPECT_EQ(res.subIndex, 4);
+}
+
 TEST_F(CadEngineTest, RotatedEllipseResizeHandlesAllPickable) {
     // Create a rotated ellipse: center (50,50), rx=20, ry=10, rotation=π/2 (90°)
     // After 90° rotation, the corners in world coords are:

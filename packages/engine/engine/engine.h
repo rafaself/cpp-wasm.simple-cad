@@ -180,6 +180,8 @@ public:
         float y,
         float tolerance,
         std::uint32_t pickMask) const noexcept;
+    // Selection handle pick (selection-aware, rotation-aware). Returns resize/rotate handles or id=0 if no hit.
+    PickResult pickSelectionHandle(float x, float y, float tolerance) const noexcept;
     // Side handle pick (selection-aware). Returns ResizeHandle with subIndex 4-7 (N,E,S,W) or id=0 if no hit.
     PickResult pickSideHandle(float x, float y, float tolerance) const noexcept;
     // Marquee query (returns IDs only)

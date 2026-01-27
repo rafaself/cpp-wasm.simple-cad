@@ -154,6 +154,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
         .function("pickCandidates", &CadEngine::pickCandidates)
+        .function("pickSelectionHandle", &CadEngine::pickSelectionHandle)
         .function("pickSideHandle", &CadEngine::pickSideHandle)
         .function("queryArea", &CadEngine::queryArea)
         .function("queryMarquee", &CadEngine::queryMarquee)

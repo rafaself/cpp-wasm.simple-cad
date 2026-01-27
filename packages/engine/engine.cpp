@@ -476,55 +476,9 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
 PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept {
     constexpr std::uint32_t kPickHandlesMask = 1u << 3;
     if ((pickMask & kPickHandlesMask) != 0) {
-        const auto& selection = state().selectionManager_.getOrdered();
-        if (selection.size() >= 1) {
-            bool allowSelectionHandles = true;
-            if (selection.size() == 1) {
-                const std::uint32_t id = selection.front();
-                const auto it = state().entityManager_.entities.find(id);
-                if (it != state().entityManager_.entities.end()) {
-                    const EntityKind kind = it->second.kind;
-                    if (kind == EntityKind::Line || kind == EntityKind::Polyline || kind == EntityKind::Arrow) {
-                        // Endpoint handles for line-like entities should resolve to vertex dragging.
-                        allowSelectionHandles = false;
-                    }
-                }
-            }
-
-            if (allowSelectionHandles) {
-                const engine::protocol::EntityAabb bounds = getSelectionBounds();
-                if (bounds.valid) {
-                    const float corners[4][2] = {
-                        {bounds.minX, bounds.minY},
-                        {bounds.maxX, bounds.minY},
-                        {bounds.maxX, bounds.maxY},
-                        {bounds.minX, bounds.maxY},
-                    };
-                    float bestDist = std::numeric_limits<float>::infinity();
-                    int bestIndex = -1;
-                    for (int i = 0; i < 4; ++i) {
-                        const float dx = x - corners[i][0];
-                        const float dy = y - corners[i][1];
-                        const float dist = std::sqrt(dx * dx + dy * dy);
-                        if (dist <= tolerance && dist < bestDist) {
-                            bestDist = dist;
-                            bestIndex = i;
-                        }
-                    }
-
-                    if (bestIndex >= 0) {
-                        return {
-                            selection.front(),
-                            static_cast<std::uint16_t>(PickEntityKind::Unknown),
-                            static_cast<std::uint8_t>(PickSubTarget::ResizeHandle),
-                            bestIndex,
-                            bestDist,
-                            x,
-                            y
-                        };
-                    }
-                }
-            }
+        const PickResult handlePick = pickSelectionHandle(x, y, tolerance);
+        if (handlePick.id != 0) {
+            return handlePick;
         }
     }
 
@@ -540,53 +494,9 @@ std::vector<PickResult> CadEngine::pickCandidates(
     std::vector<PickResult> results;
 
     if ((pickMask & kPickHandlesMask) != 0) {
-        const auto& selection = state().selectionManager_.getOrdered();
-        if (!selection.empty()) {
-            bool allowSelectionHandles = true;
-            if (selection.size() == 1) {
-                const std::uint32_t id = selection.front();
-                const auto it = state().entityManager_.entities.find(id);
-                if (it != state().entityManager_.entities.end()) {
-                    const EntityKind kind = it->second.kind;
-                    if (kind == EntityKind::Line || kind == EntityKind::Polyline || kind == EntityKind::Arrow) {
-                        allowSelectionHandles = false;
-                    }
-                }
-            }
-
-            if (allowSelectionHandles) {
-                const engine::protocol::EntityAabb bounds = getSelectionBounds();
-                if (bounds.valid) {
-                    const float corners[4][2] = {
-                        {bounds.minX, bounds.minY},
-                        {bounds.maxX, bounds.minY},
-                        {bounds.maxX, bounds.maxY},
-                        {bounds.minX, bounds.maxY},
-                    };
-                    float bestDist = std::numeric_limits<float>::infinity();
-                    int bestIndex = -1;
-                    for (int i = 0; i < 4; ++i) {
-                        const float dx = x - corners[i][0];
-                        const float dy = y - corners[i][1];
-                        const float dist = std::sqrt(dx * dx + dy * dy);
-                        if (dist <= tolerance && dist < bestDist) {
-                            bestDist = dist;
-                            bestIndex = i;
-                        }
-                    }
-                    if (bestIndex >= 0) {
-                        results.push_back(PickResult{
-                            selection.front(),
-                            static_cast<std::uint16_t>(PickEntityKind::Unknown),
-                            static_cast<std::uint8_t>(PickSubTarget::ResizeHandle),
-                            bestIndex,
-                            bestDist,
-                            x,
-                            y,
-                        });
-                    }
-                }
-            }
+        const PickResult handlePick = pickSelectionHandle(x, y, tolerance);
+        if (handlePick.id != 0) {
+            results.push_back(handlePick);
         }
     }
 

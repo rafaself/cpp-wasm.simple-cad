@@ -9,15 +9,26 @@ import { SelectionHandler } from './handlers/SelectionHandler';
 import { TextHandler } from './handlers/TextHandler';
 
 import type { MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import type { InteractionHandler, InputEventContext, EngineRuntime } from './types';
+import type { InteractionHandler, InputEventContext, EngineRuntime, HoverPickFn } from './types';
 import type { ToolDefaults } from './handlers/drafting/draftStyle';
 import type { ToolType, ViewTransform } from '@/types';
+import type { PickResult } from '@/types/picking';
 
 type PointerRect = { left: number; top: number };
+
+const EMPTY_PICK_RESULT: PickResult = {
+  id: 0,
+  kind: 0,
+  subTarget: 0,
+  subIndex: -1,
+  distance: Infinity,
+};
 
 export class InteractionCore {
   private handler: InteractionHandler = new IdleHandler();
   private runtime: EngineRuntime | null = null;
+  private hoverPick: HoverPickFn | null = null;
+  private fallbackHoverPick: HoverPickFn = () => EMPTY_PICK_RESULT;
   private viewTransform: ViewTransform;
   private canvasSize: { width: number; height: number };
   private toolDefaults: ToolDefaults;
@@ -39,6 +50,7 @@ export class InteractionCore {
       worldPoint: { x: 0, y: 0 },
       snappedPoint: { x: 0, y: 0 },
       runtime: null,
+      hoverPick: () => EMPTY_PICK_RESULT,
       viewTransform,
       canvasSize,
     };
@@ -53,6 +65,16 @@ export class InteractionCore {
 
   setRuntime(runtime: EngineRuntime | null): void {
     this.runtime = runtime;
+    if (!runtime) {
+      this.fallbackHoverPick = () => EMPTY_PICK_RESULT;
+      return;
+    }
+    this.fallbackHoverPick = (x, y, tolerance, mask) =>
+      runtime.pickExSmart(x, y, tolerance, mask);
+  }
+
+  setHoverPick(hoverPick: HoverPickFn): void {
+    this.hoverPick = hoverPick;
   }
 
   setViewTransform(viewTransform: ViewTransform): void {
@@ -232,6 +254,7 @@ export class InteractionCore {
     ctx.snappedPoint.y = ctx.worldPoint.y;
     ctx.event = e;
     ctx.runtime = runtime;
+    ctx.hoverPick = this.hoverPick ?? this.fallbackHoverPick;
     ctx.viewTransform = this.viewTransform;
     ctx.canvasSize = this.canvasSize;
     return ctx;
