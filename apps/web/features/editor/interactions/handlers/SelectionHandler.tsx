@@ -348,9 +348,14 @@ export class SelectionHandler extends BaseInteractionHandler {
     }
 
     // If we missed or failed to start session => Marquee
+    const startWorld = this.pointerDown?.world ?? { x: world.x, y: world.y };
     this.state = {
       kind: 'marquee',
-      box: { start: world, current: world, direction: 'LTR' },
+      box: {
+        start: { x: startWorld.x, y: startWorld.y },
+        current: { x: startWorld.x, y: startWorld.y },
+        direction: 'LTR',
+      },
       startScreen: { x: event.clientX, y: event.clientY },
     };
     cadDebugLog('selection', 'marquee-start', () => ({
@@ -438,7 +443,10 @@ export class SelectionHandler extends BaseInteractionHandler {
       const downX = this.pointerDown.x;
       const currX = event.clientX;
       const direction = currX >= downX ? 'LTR' : 'RTL';
-      this.state.box = { start: this.pointerDown.world, current: world, direction };
+      const box = this.state.box;
+      box.current.x = world.x;
+      box.current.y = world.y;
+      box.direction = direction;
       if (isCadDebugEnabled('selection')) {
         cadDebugLog('selection', 'marquee-update', {
           direction,
