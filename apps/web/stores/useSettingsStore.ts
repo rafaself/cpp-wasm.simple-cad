@@ -9,6 +9,11 @@ import { SnapOptions } from '../types';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
 
+export interface OrthoSettings {
+  persistentEnabled: boolean;
+  shiftOverrideEnabled: boolean;
+}
+
 export interface GridSettings {
   size: number;
   color: string;
@@ -65,6 +70,7 @@ export interface ToolDefaults {
 interface SettingsState {
   grid: GridSettings;
   snap: SnapSettings;
+  ortho: OrthoSettings;
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
   featureFlags: {
@@ -87,6 +93,8 @@ interface SettingsState {
   setSnapEnabled: (enabled: boolean) => void;
   setSnapOption: (option: keyof SnapOptions, value: boolean) => void;
   setSnapTolerance: (tolerancePx: number) => void;
+  setOrthoPersistentEnabled: (enabled: boolean) => void;
+  toggleOrthoPersistent: () => void;
 
   setGridSize: (size: number) => void;
   setGridColor: (color: string) => void;
@@ -162,6 +170,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     grid: false,
     tolerancePx: INTERACTION.SNAP_THRESHOLD_PX,
   },
+  ortho: {
+    persistentEnabled: false,
+    shiftOverrideEnabled: true,
+  },
   display: {
     centerAxes: {
       show: true,
@@ -218,6 +230,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
   setSnapOption: (option, value) => set((state) => ({ snap: { ...state.snap, [option]: value } })),
   setSnapTolerance: (tolerancePx) => set((state) => ({ snap: { ...state.snap, tolerancePx } })),
+  setOrthoPersistentEnabled: (enabled) =>
+    set((state) => ({ ortho: { ...state.ortho, persistentEnabled: enabled } })),
+  toggleOrthoPersistent: () =>
+    set((state) => ({ ortho: { ...state.ortho, persistentEnabled: !state.ortho.persistentEnabled } })),
 
   setGridSize: (size) => set((state) => ({ grid: { ...state.grid, size } })),
   setGridColor: (color) => set((state) => ({ grid: { ...state.grid, color } })),

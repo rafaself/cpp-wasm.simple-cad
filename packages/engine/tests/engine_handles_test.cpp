@@ -128,9 +128,9 @@ TEST_F(CadEngineTest, RotatedEllipseResizeContinuesFromCurrentState) {
         id,
         2,
         handleStartX * kViewScale,
-        handleStartY * kViewScale,
+        -handleStartY * kViewScale,
         targetWorldX * kViewScale,
-        targetWorldY * kViewScale,
+        -targetWorldY * kViewScale,
         kViewScale,
         0);
 
@@ -160,9 +160,9 @@ TEST_F(CadEngineTest, RotatedEllipseResizeContinuesFromCurrentState) {
         id,
         2,
         handleStartX2 * kViewScale,
-        handleStartY2 * kViewScale,
+        -handleStartY2 * kViewScale,
         targetWorldX2 * kViewScale,
-        targetWorldY2 * kViewScale,
+        -targetWorldY2 * kViewScale,
         kViewScale,
         0);
 
@@ -422,4 +422,109 @@ TEST_F(CadEngineTest, PickSideHandleRequiresSingleSelection) {
     PickResult res = engine.pickSideHandle(50.0f, 40.0f, 2.0f);
     EXPECT_EQ(res.id, 0u);
     EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::None);
+}
+
+TEST_F(CadEngineTest, CircleResizeRemainsUniformWithoutAlt) {
+    constexpr std::uint32_t id = 300;
+    constexpr float cx = 50.0f;
+    constexpr float cy = 50.0f;
+    constexpr float r = 10.0f;
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, id,
+        cx, cy,
+        r, r,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // TR handle at (cx + r, cy + r). Drag to a non-uniform target.
+    resizeByScreenWithView(
+        engine,
+        id,
+        2,
+        cx + r,
+        cy + r,
+        cx + r + 10.0f,
+        cy + r + 2.0f,
+        1.0f,
+        0);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_NEAR(circle->rx, circle->ry, 1e-3f);
+}
+
+TEST_F(CadEngineTest, CircleResizeAltUnlocksEllipse) {
+    constexpr std::uint32_t id = 301;
+    constexpr float cx = 50.0f;
+    constexpr float cy = 50.0f;
+    constexpr float r = 10.0f;
+    const auto altMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Alt);
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, id,
+        cx, cy,
+        r, r,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    resizeByScreenWithView(
+        engine,
+        id,
+        2,
+        cx + r,
+        cy + r,
+        cx + r + 12.0f,
+        cy + r + 1.0f,
+        1.0f,
+        altMask);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_GT(std::abs(circle->rx - circle->ry), 1e-2f);
+}
+
+TEST_F(CadEngineTest, CircleSideResizeRemainsUniformWithoutAlt) {
+    constexpr std::uint32_t id = 302;
+    constexpr float cx = 50.0f;
+    constexpr float cy = 50.0f;
+    constexpr float r = 10.0f;
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, id,
+        cx, cy,
+        r, r,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // East side handle at (cx + r, cy). Drag outward.
+    sideResizeByScreenWithView(
+        engine,
+        id,
+        1,
+        cx + r,
+        cy,
+        cx + r + 10.0f,
+        cy,
+        1.0f,
+        0);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_NEAR(circle->rx, circle->ry, 1e-3f);
 }

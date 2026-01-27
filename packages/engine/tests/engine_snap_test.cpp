@@ -111,7 +111,7 @@ TEST_F(CadEngineTest, ResizeWithShiftPreservesAspectRatio) {
 
     const std::uint32_t id = 1;
     const std::uint32_t shiftMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
-    resizeByScreenWithModifiers(engine, id, 2, 40.0f, -10.0f, shiftMask);
+    resizeByScreenWithView(engine, id, 2, 20.0f, -10.0f, 40.0f, -20.0f, 1.0f, shiftMask);
 
     const auto& em = CadEngineTestAccessor::entityManager(engine);
     const RectRec* rect = em.getRect(id);

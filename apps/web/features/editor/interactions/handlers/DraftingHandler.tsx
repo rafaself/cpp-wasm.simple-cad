@@ -31,6 +31,7 @@ export class DraftingHandler extends BaseInteractionHandler {
   private pointerDownScreen: { x: number; y: number } | null = null;
   private linePendingCommit = false;
   private arrowPendingCommit = false; // Arrow click-click flow (Phase 2)
+  private rectCirclePendingCommit = false;
 
   // Polygon Modal State
   private polygonModal: PolygonModalController;
@@ -60,6 +61,38 @@ export class DraftingHandler extends BaseInteractionHandler {
     this.pointerDownScreen = null;
     this.linePendingCommit = false;
     this.arrowPendingCommit = false;
+    this.rectCirclePendingCommit = false;
+  }
+
+  private beginLineDraft(runtime: EngineRuntime, point: { x: number; y: number }): void {
+    const style = buildDraftStyle(this.toolDefaults);
+    runtime.apply([
+      {
+        op: CommandOp.BeginDraft,
+        draft: {
+          kind: EntityKind.Line,
+          x: point.x,
+          y: point.y,
+          sides: 0,
+          head: 0,
+          ...style,
+        },
+      },
+    ]);
+    this.draft = {
+      kind: 'line',
+      start: { x: point.x, y: point.y },
+      current: { x: point.x, y: point.y },
+    };
+    this.linePendingCommit = true;
+  }
+
+  private hasDraftDelta(target: { x: number; y: number }): boolean {
+    const start = this.draft.start;
+    if (!start) return true;
+    const dx = target.x - start.x;
+    const dy = target.y - start.y;
+    return dx * dx + dy * dy > 1e-8;
   }
 
   private runtime: EngineRuntime | null = null; // Store runtime for keyboard events
@@ -107,6 +140,13 @@ export class DraftingHandler extends BaseInteractionHandler {
       return;
     }
 
+    const rectDraftActive = this.activeTool === 'rect' && this.draft.kind === 'rect';
+    const circleDraftActive = this.activeTool === 'circle' && this.draft.kind === 'ellipse';
+    if (rectDraftActive || circleDraftActive) {
+      this.pointerDownScreen = { x: ctx.event.clientX, y: ctx.event.clientY };
+      return;
+    }
+
     // ...
     let kind = 0;
     let sides = 0;
@@ -126,6 +166,7 @@ export class DraftingHandler extends BaseInteractionHandler {
 
     const style = buildDraftStyle(this.toolDefaults);
     this.linePendingCommit = false;
+    this.rectCirclePendingCommit = false;
 
     runtime.apply([
       {
@@ -246,20 +287,61 @@ export class DraftingHandler extends BaseInteractionHandler {
     const isClick = dragDistance <= DraftingHandler.DRAG_THRESHOLD_PX;
 
     if (isLine) {
-      if (event.button !== 0) return;
       if (this.draft.kind !== 'line') return;
-      if (!isClick || this.linePendingCommit) {
+      if (event.button === 2) {
+        if (this.linePendingCommit && this.hasDraftDelta(snapped)) {
+          runtime.apply([{ op: CommandOp.CommitDraft }]);
+        } else {
+          this.cancelDraft(runtime);
+        }
+        this.resetDraftState();
+        useUIStore.getState().setTool('select');
+        return;
+      }
+      if (event.button !== 0) return;
+
+      const finishRequested = event.detail >= 2;
+      const hasDelta = this.hasDraftDelta(snapped);
+
+      if (!this.linePendingCommit) {
+        if (isClick) {
+          this.linePendingCommit = true;
+          this.pointerDownScreen = null;
+          return;
+        }
+        if (hasDelta) {
+          runtime.apply([{ op: CommandOp.CommitDraft }]);
+        } else {
+          this.cancelDraft(runtime);
+        }
+        if (finishRequested) {
+          this.resetDraftState();
+          useUIStore.getState().setTool('select');
+          return;
+        }
+        this.beginLineDraft(runtime, snapped);
+        this.pointerDownScreen = null;
+        return;
+      }
+
+      if (hasDelta) {
         runtime.apply([{ op: CommandOp.CommitDraft }]);
         cadDebugLog('draft', 'commit', () => ({
           tool: this.activeTool,
           x: snapped.x,
           y: snapped.y,
         }));
+      } else {
+        this.cancelDraft(runtime);
+      }
+
+      if (finishRequested) {
         this.resetDraftState();
         useUIStore.getState().setTool('select');
         return;
       }
-      this.linePendingCommit = true;
+
+      this.beginLineDraft(runtime, snapped);
       this.pointerDownScreen = null;
       return;
     }
@@ -285,58 +367,39 @@ export class DraftingHandler extends BaseInteractionHandler {
       return;
     }
 
+    const isRectOrCircle = this.activeTool === 'rect' || this.activeTool === 'circle';
+    if (isRectOrCircle) {
+      const expectedKind = this.activeTool === 'circle' ? 'ellipse' : 'rect';
+      if (this.draft.kind !== expectedKind) return;
+      if (event.button === 2) {
+        this.cancelDraft(runtime);
+        useUIStore.getState().setTool('select');
+        return;
+      }
+      if (event.button !== 0) return;
+
+      if (!isClick || this.rectCirclePendingCommit) {
+        runtime.apply([{ op: CommandOp.CommitDraft }]);
+        cadDebugLog('draft', 'commit', () => ({
+          tool: this.activeTool,
+          x: snapped.x,
+          y: snapped.y,
+        }));
+        this.resetDraftState();
+        useUIStore.getState().setTool('select');
+        return;
+      }
+
+      this.rectCirclePendingCommit = true;
+      this.pointerDownScreen = null;
+      return;
+    }
+
     if (this.activeTool === 'polygon' && this.draft.start && isClick) {
       // Was a simple click → open inline input
       this.cancelDraft(runtime);
       this.polygonModal.openAt(snapped, { x: event.clientX, y: event.clientY });
       cadDebugLog('draft', 'polygon-modal', () => ({ x: snapped.x, y: snapped.y }));
-      return;
-    }
-
-    // Rect/Circle: simple click → create 100x100 centered shape
-    if ((this.activeTool === 'rect' || this.activeTool === 'circle') && isClick) {
-      const kind = this.activeTool === 'rect' ? EntityKind.Rect : EntityKind.Circle;
-      const r = 50; // 100x100 total size -> 50 radius/half-size
-      const cx = snapped.x;
-      const cy = snapped.y;
-
-      const style = buildDraftStyle(this.toolDefaults);
-
-      // Cancel the tiny draft created on pointer down
-      this.cancelDraft(runtime);
-
-      // Create and commit the full-size shape
-      runtime.apply([
-        {
-          op: CommandOp.BeginDraft,
-          draft: {
-            kind,
-            x: cx - r,
-            y: cy - r,
-            sides: 0,
-            head: 0,
-            ...style,
-          },
-        },
-        {
-          op: CommandOp.UpdateDraft,
-          pos: {
-            x: cx + r,
-            y: cy + r,
-            modifiers: 0,
-          },
-        },
-        { op: CommandOp.CommitDraft },
-      ]);
-
-      cadDebugLog('draft', 'click-create', () => ({
-        tool: this.activeTool,
-        x: cx,
-        y: cy,
-      }));
-
-      this.resetDraftState();
-      useUIStore.getState().setTool('select');
       return;
     }
 
@@ -386,11 +449,59 @@ export class DraftingHandler extends BaseInteractionHandler {
 
   onKeyDown(e: KeyboardEvent): void {
     if (!this.runtime) return;
-    if (this.activeTool !== 'polyline' || this.draft.kind !== 'polyline') return;
-    if (e.key === 'Enter') {
-      this.commitPolyline(this.runtime);
-    } else if (e.key === 'Escape') {
-      this.cancelDraft(this.runtime);
+    if (e.key !== 'Enter' && e.key !== 'Escape') return;
+
+    if (this.activeTool === 'polyline' && this.draft.kind === 'polyline') {
+      if (e.key === 'Enter') {
+        this.commitPolyline(this.runtime);
+      } else {
+        this.cancelDraft(this.runtime);
+      }
+      return;
+    }
+
+    if (this.activeTool === 'line' && this.draft.kind === 'line') {
+      if (e.key === 'Escape') {
+        this.cancelDraft(this.runtime);
+      } else {
+        const current = this.draft.current ?? this.draft.start;
+        if (this.linePendingCommit && current && this.hasDraftDelta(current)) {
+          this.runtime.apply([{ op: CommandOp.CommitDraft }]);
+          cadDebugLog('draft', 'commit', () => ({
+            tool: this.activeTool,
+            x: current.x,
+            y: current.y,
+          }));
+        } else {
+          this.cancelDraft(this.runtime);
+        }
+      }
+      this.resetDraftState();
+      useUIStore.getState().setTool('select');
+      return;
+    }
+
+    const isRectOrCircle = this.activeTool === 'rect' || this.activeTool === 'circle';
+    if (isRectOrCircle) {
+      const expectedKind = this.activeTool === 'circle' ? 'ellipse' : 'rect';
+      if (this.draft.kind !== expectedKind) return;
+      if (e.key === 'Escape') {
+        this.cancelDraft(this.runtime);
+      } else {
+        const current = this.draft.current;
+        if (current && this.hasDraftDelta(current)) {
+          this.runtime.apply([{ op: CommandOp.CommitDraft }]);
+          cadDebugLog('draft', 'commit', () => ({
+            tool: this.activeTool,
+            x: current.x,
+            y: current.y,
+          }));
+        } else {
+          this.cancelDraft(this.runtime);
+        }
+      }
+      this.resetDraftState();
+      useUIStore.getState().setTool('select');
     }
   }
 

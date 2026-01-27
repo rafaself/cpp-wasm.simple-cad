@@ -55,8 +55,19 @@ void InteractionSession::beginTransform(
     session_.dragThresholdPx = interaction_constants::DRAG_THRESHOLD_PX;
 
     std::vector<std::uint32_t> activeIds;
+    const auto& selectionOrdered = engine_.state().selectionManager_.getOrdered();
+    const bool selectionHasMultiple = selectionOrdered.size() > 1;
+    const bool idsHaveMultiple = ids && idCount > 1;
 
-    if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && mode != TransformMode::SideResize && specificId != 0) {
+    // Group handles should operate on the whole selection for resize/rotate.
+    if ((mode == TransformMode::Resize || mode == TransformMode::Rotate) &&
+        (selectionHasMultiple || idsHaveMultiple)) {
+        if (selectionHasMultiple) {
+            activeIds = selectionOrdered;
+        } else {
+            activeIds.assign(ids, ids + idCount);
+        }
+    } else if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && mode != TransformMode::SideResize && specificId != 0) {
         if (!entityManager_.isEntityPickable(specificId)) {
             session_.active = false;
             return;
@@ -70,8 +81,8 @@ void InteractionSession::beginTransform(
         }
         activeIds.push_back(specificId);
         session_.sideIndex = vertexIndex;  // Reuse vertexIndex for side handle index
-    } else if (!engine_.state().selectionManager_.isEmpty()) {
-        activeIds = engine_.state().selectionManager_.getOrdered();
+    } else if (!selectionOrdered.empty()) {
+        activeIds = selectionOrdered;
     } else if (ids && idCount > 0) {
         activeIds.assign(ids, ids + idCount);
     }

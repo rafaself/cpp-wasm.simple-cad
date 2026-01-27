@@ -34,6 +34,11 @@ describe('EngineInteractionLayer snap sync', () => {
         center: false,
         nearest: true,
       },
+      ortho: {
+        ...state.ortho,
+        persistentEnabled: false,
+        shiftOverrideEnabled: true,
+      },
       display: {
         ...state.display,
         centerIcon: { ...state.display.centerIcon, show: false },
@@ -79,9 +84,43 @@ describe('EngineInteractionLayer snap sync', () => {
     );
   });
 
+  it('syncs ortho options to engine', async () => {
+    useSettingsStore.setState((state) => ({
+      ...state,
+      ortho: { ...state.ortho, persistentEnabled: true, shiftOverrideEnabled: true },
+    }));
+
+    const runtime = {
+      setSnapOptions: vi.fn(),
+      setOrthoOptions: vi.fn(),
+      apply: vi.fn(),
+      viewport: { setViewTransform: vi.fn() },
+      getSelectionIds: () => [],
+      isInteractionActive: () => false,
+      draft: { getDraftDimensions: () => null },
+      module: { HEAPU8: new Uint8Array() },
+      getTransformState: () => ({
+        active: false,
+        mode: 0,
+        rotationDeltaDeg: 0,
+        pivotX: 0,
+        pivotY: 0,
+      }),
+    };
+
+    mockGetRuntime.mockResolvedValue(runtime);
+
+    render(<EngineInteractionLayer />);
+
+    await waitFor(() => {
+      expect(runtime.setOrthoOptions).toHaveBeenCalledWith(true, true);
+    });
+  });
+
   it('syncs view transform to engine', async () => {
     const runtime = {
       setSnapOptions: vi.fn(),
+      setOrthoOptions: vi.fn(),
       apply: vi.fn(),
       viewport: { setViewTransform: vi.fn() },
       getSelectionIds: () => [],

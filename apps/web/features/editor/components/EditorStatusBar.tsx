@@ -34,6 +34,8 @@ const EditorStatusBar: React.FC = () => {
   const snapSettings = useSettingsStore((s) => s.snap);
   const setSnapEnabled = useSettingsStore((s) => s.setSnapEnabled);
   const setSnapOption = useSettingsStore((s) => s.setSnapOption);
+  const orthoSettings = useSettingsStore((s) => s.ortho);
+  const toggleOrthoPersistent = useSettingsStore((s) => s.toggleOrthoPersistent);
   const enableColorsRibbon = useSettingsStore((s) => s.featureFlags.enableColorsRibbon);
   const enableRibbonV2 = useSettingsStore((s) => s.featureFlags.enableRibbonV2);
   const [showSnapMenu, setShowSnapMenu] = useState(false);
@@ -160,6 +162,17 @@ const EditorStatusBar: React.FC = () => {
             </div>
           )}
         </div>
+
+        <button
+          onClick={toggleOrthoPersistent}
+          className={`px-2 py-0.5 rounded border border-border hover:bg-surface-2 focus-outline text-[10px] font-mono ${
+            orthoSettings.persistentEnabled ? 'text-primary font-bold' : 'text-text'
+          }`}
+          title={orthoSettings.persistentEnabled ? LABELS.statusbar.orthoActive : LABELS.statusbar.orthoInactive}
+          aria-label={LABELS.statusbar.orthoToggle}
+        >
+          {LABELS.statusbar.orthoShort}
+        </button>
 
         <div className="h-4 w-px bg-text/20 mx-2" />
 

@@ -88,6 +88,14 @@ void InteractionSession::updateTransform(
     float totalDx = worldX - session_.startX;
     float totalDy = worldY - session_.startY;
 
+    const auto isApproximatelyCircle = [](float rx, float ry) noexcept {
+        const float ax = std::abs(rx);
+        const float ay = std::abs(ry);
+        const float maxR = std::max(ax, ay);
+        if (!std::isfinite(maxR) || maxR <= 1e-6f) return false;
+        return std::abs(ax - ay) <= maxR * 1e-3f;
+    };
+
     if (session_.mode == TransformMode::Move || session_.mode == TransformMode::EdgeDrag) {
         const bool shiftDown = (modifiers & kShiftMask) != 0;
         const bool altDown = (modifiers & kAltMask) != 0;
@@ -417,146 +425,392 @@ void InteractionSession::updateTransform(
         for (const auto& s : session_.snapshots) { if (s.id == id) { snap = &s; break; } }
 
         if (snap && handleIndex >= 0 && handleIndex <= 3) {
-            auto it = entityManager_.entities.find(id);
-            if (it != entityManager_.entities.end()) {
-                bool valid = false;
-                if (it->second.kind == EntityKind::Rect) {
-                    valid = true;
-                } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-                    valid = true;
+            const bool multiSelection = session_.snapshots.size() > 1;
+            if (multiSelection) {
+                const float baseMinX = session_.baseMinX;
+                const float baseMinY = session_.baseMinY;
+                const float baseMaxX = session_.baseMaxX;
+                const float baseMaxY = session_.baseMaxY;
+
+                float anchorX = baseMinX;
+                float anchorY = baseMinY;
+                float handleX = baseMaxX;
+                float handleY = baseMaxY;
+                switch (handleIndex) {
+                    case 0: // BL -> anchor TR
+                        anchorX = baseMaxX; anchorY = baseMaxY;
+                        handleX = baseMinX; handleY = baseMinY;
+                        break;
+                    case 1: // BR -> anchor TL
+                        anchorX = baseMinX; anchorY = baseMaxY;
+                        handleX = baseMaxX; handleY = baseMinY;
+                        break;
+                    case 2: // TR -> anchor BL
+                        anchorX = baseMinX; anchorY = baseMinY;
+                        handleX = baseMaxX; handleY = baseMaxY;
+                        break;
+                    case 3: // TL -> anchor BR
+                        anchorX = baseMaxX; anchorY = baseMinY;
+                        handleX = baseMinX; handleY = baseMaxY;
+                        break;
+                    default:
+                        break;
                 }
 
-                if (valid) {
-                    float centerX = 0.0f;
-                    float centerY = 0.0f;
-                    float halfW = 0.0f;
-                    float halfH = 0.0f;
-                    if (it->second.kind == EntityKind::Rect) {
-                        centerX = snap->x + snap->w * 0.5f;
-                        centerY = snap->y + snap->h * 0.5f;
-                        halfW = snap->w * 0.5f;
-                        halfH = snap->h * 0.5f;
+                const float baseDx = handleX - anchorX;
+                const float baseDy = handleY - anchorY;
+                float dx = worldX - anchorX;
+                float dy = worldY - anchorY;
+
+                const float absBaseDx = std::max(1e-6f, std::abs(baseDx));
+                const float absBaseDy = std::max(1e-6f, std::abs(baseDy));
+                const bool shiftDown = (modifiers & kShiftMask) != 0;
+                if (shiftDown) {
+                    const float aspect = absBaseDx / absBaseDy;
+                    const float relX = std::abs(dx) / absBaseDx;
+                    const float relY = std::abs(dy) / absBaseDy;
+                    if (relX >= relY) {
+                        dy = std::copysign(std::abs(dx) / std::max(1e-6f, aspect), dy);
                     } else {
-                        centerX = snap->x;
-                        centerY = snap->y;
-                        halfW = snap->w;
-                        halfH = snap->h;
+                        dx = std::copysign(std::abs(dy) * aspect, dx);
                     }
+                }
 
-                    const float rot = snap->rotation;
-                    const float cosR = std::cos(rot);
-                    const float sinR = std::sin(rot);
-                    const float dxWorld = worldX - centerX;
-                    const float dyWorld = worldY - centerY;
-                    const float localX = dxWorld * cosR + dyWorld * sinR;
-                    const float localY = -dxWorld * sinR + dyWorld * cosR;
+                auto clampScale = [](float s) noexcept {
+                    if (!std::isfinite(s)) return 1.0f;
+                    constexpr float kMinScale = 1e-4f;
+                    if (std::abs(s) >= kMinScale) return s;
+                    return std::copysign(kMinScale, s == 0.0f ? 1.0f : s);
+                };
 
-                    float anchorX = 0.0f;
-                    float anchorY = 0.0f;
-                    if (session_.resizeAnchorValid) {
-                        anchorX = session_.resizeAnchorX;
-                        anchorY = session_.resizeAnchorY;
-                    } else {
-                        switch (handleIndex) {
-                            case 0: anchorX = halfW; anchorY = halfH; break;
-                            case 1: anchorX = -halfW; anchorY = halfH; break;
-                            case 2: anchorX = -halfW; anchorY = -halfH; break;
-                            case 3: anchorX = halfW; anchorY = -halfH; break;
-                        }
-                    }
+                float scaleX = (std::abs(baseDx) > 1e-6f) ? (dx / baseDx) : 1.0f;
+                float scaleY = (std::abs(baseDy) > 1e-6f) ? (dy / baseDy) : 1.0f;
+                scaleX = clampScale(scaleX);
+                scaleY = clampScale(scaleY);
 
-                    float dx = localX - anchorX;
-                    float dy = localY - anchorY;
+                const bool altDown = (modifiers & kAltMask) != 0;
+                const float scaleXAbs = std::abs(scaleX);
+                const float scaleYAbs = std::abs(scaleY);
 
-                    const bool shiftDown = (modifiers & kShiftMask) != 0;
-                    if (shiftDown) {
-                        float baseW = session_.resizeAnchorValid ? session_.resizeBaseW : std::abs(halfW * 2.0f);
-                        float baseH = session_.resizeAnchorValid ? session_.resizeBaseH : std::abs(halfH * 2.0f);
-                        float aspect = session_.resizeAnchorValid
-                            ? session_.resizeAspect
-                            : ((baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f);
+                auto scalePoint = [&](float px, float py) noexcept -> std::pair<float, float> {
+                    return {
+                        anchorX + (px - anchorX) * scaleX,
+                        anchorY + (py - anchorY) * scaleY,
+                    };
+                };
 
-                        if (!std::isfinite(aspect) || aspect <= 1e-6f) {
-                            aspect = 1.0f;
-                        }
+                for (const auto& snapEntity : session_.snapshots) {
+                    const std::uint32_t entityId = snapEntity.id;
+                    auto entIt = entityManager_.entities.find(entityId);
+                    if (entIt == entityManager_.entities.end()) continue;
 
-                        const float absDx = std::abs(dx);
-                        const float absDy = std::abs(dy);
-                        bool useX = false;
-                        if (baseW > 1e-6f && baseH > 1e-6f) {
-                            useX = (absDx / baseW) >= (absDy / baseH);
-                        } else {
-                            useX = absDx >= absDy;
-                        }
-
-                        if (useX) {
-                            const float signY = (dy < 0.0f) ? -1.0f : 1.0f;
-                            dy = signY * (absDx / aspect);
-                        } else {
-                            const float signX = (dx < 0.0f) ? -1.0f : 1.0f;
-                            dx = signX * (absDy * aspect);
-                        }
-                    }
-
-                    if (session_.resizeAnchorValid) {
-                        const bool right = dx >= 0.0f;
-                        const bool top = dy >= 0.0f;
-                        int32_t nextHandle = 0;
-                        if (right && top) nextHandle = 2;
-                        else if (right && !top) nextHandle = 1;
-                        else if (!right && top) nextHandle = 3;
-                        else nextHandle = 0;
-                        session_.vertexIndex = nextHandle;
-                        handleIndex = nextHandle;
-                    }
-
-                    const float minX = std::min(anchorX, anchorX + dx);
-                    const float maxX = std::max(anchorX, anchorX + dx);
-                    const float minY = std::min(anchorY, anchorY + dy);
-                    const float maxY = std::max(anchorY, anchorY + dy);
-                    const float w = std::max(1e-3f, maxX - minX);
-                    const float h = std::max(1e-3f, maxY - minY);
-                    const float centerLocalX = (minX + maxX) * 0.5f;
-                    const float centerLocalY = (minY + maxY) * 0.5f;
-                    const float centerWorldX = centerX + centerLocalX * cosR - centerLocalY * sinR;
-                    const float centerWorldY = centerY + centerLocalX * sinR + centerLocalY * cosR;
-
-                    if (it->second.kind == EntityKind::Rect) {
-                        for (auto& r : entityManager_.rects) {
-                            if (r.id == id) {
-                                r.x = centerWorldX - w * 0.5f; r.y = centerWorldY - h * 0.5f;
-                                r.w = w; r.h = h;
-                                pickSystem_.update(id, PickSystem::computeRectAABB(r));
-                                refreshEntityRenderRange(id);
-                                markEntityGeometryChanged(id);
+                    switch (entIt->second.kind) {
+                        case EntityKind::Rect: {
+                            for (auto& r : entityManager_.rects) {
+                                if (r.id != entityId) continue;
+                                const float snapCenterX = snapEntity.x + snapEntity.w * 0.5f;
+                                const float snapCenterY = snapEntity.y + snapEntity.h * 0.5f;
+                                const auto [newCenterX, newCenterY] = scalePoint(snapCenterX, snapCenterY);
+                                const float newW = std::max(1e-3f, snapEntity.w * scaleXAbs);
+                                const float newH = std::max(1e-3f, snapEntity.h * scaleYAbs);
+                                r.x = newCenterX - newW * 0.5f;
+                                r.y = newCenterY - newH * 0.5f;
+                                r.w = newW;
+                                r.h = newH;
+                                pickSystem_.update(entityId, PickSystem::computeRectAABB(r));
+                                refreshEntityRenderRange(entityId);
+                                markEntityGeometryChanged(entityId);
                                 updated = true;
                                 break;
                             }
+                            break;
                         }
-                    } else if (it->second.kind == EntityKind::Circle) {
-                        for (auto& c : entityManager_.circles) {
-                            if (c.id == id) {
-                                c.cx = centerWorldX; c.cy = centerWorldY; c.rx = w * 0.5f; c.ry = h * 0.5f;
-                                pickSystem_.update(id, PickSystem::computeCircleAABB(c));
-                                refreshEntityRenderRange(id);
-                                markEntityGeometryChanged(id);
+                        case EntityKind::Circle: {
+                            for (auto& c : entityManager_.circles) {
+                                if (c.id != entityId) continue;
+                                const auto [newCx, newCy] = scalePoint(snapEntity.x, snapEntity.y);
+                                float rxScale = scaleXAbs;
+                                float ryScale = scaleYAbs;
+                                if (isApproximatelyCircle(snapEntity.w, snapEntity.h) && !altDown) {
+                                    const float uniformScale = std::max(rxScale, ryScale);
+                                    rxScale = uniformScale;
+                                    ryScale = uniformScale;
+                                }
+                                c.cx = newCx;
+                                c.cy = newCy;
+                                c.rx = std::max(1e-3f, snapEntity.w * rxScale);
+                                c.ry = std::max(1e-3f, snapEntity.h * ryScale);
+                                pickSystem_.update(entityId, PickSystem::computeCircleAABB(c));
+                                refreshEntityRenderRange(entityId);
+                                markEntityGeometryChanged(entityId);
                                 updated = true;
                                 break;
                             }
+                            break;
                         }
-                    } else if (it->second.kind == EntityKind::Polygon) {
-                        for (auto& p : entityManager_.polygons) {
-                            if (p.id == id) {
-                                p.cx = centerWorldX; p.cy = centerWorldY;
-                                p.rx = w * 0.5f; p.ry = h * 0.5f;
-                                // Note: Scale (sx, sy) can be negative to support flip transformations
-                                // No longer normalizing to positive values to preserve flip state
-
-                                pickSystem_.update(id, PickSystem::computePolygonAABB(p));
-                                refreshEntityRenderRange(id);
-                                markEntityGeometryChanged(id);
+                        case EntityKind::Polygon: {
+                            for (auto& p : entityManager_.polygons) {
+                                if (p.id != entityId) continue;
+                                const auto [newCx, newCy] = scalePoint(snapEntity.x, snapEntity.y);
+                                p.cx = newCx;
+                                p.cy = newCy;
+                                p.rx = std::max(1e-3f, snapEntity.w * scaleXAbs);
+                                p.ry = std::max(1e-3f, snapEntity.h * scaleYAbs);
+                                pickSystem_.update(entityId, PickSystem::computePolygonAABB(p));
+                                refreshEntityRenderRange(entityId);
+                                markEntityGeometryChanged(entityId);
                                 updated = true;
                                 break;
+                            }
+                            break;
+                        }
+                        case EntityKind::Line: {
+                            if (snapEntity.points.size() < 2) break;
+                            const auto [x0, y0] = scalePoint(snapEntity.points[0].x, snapEntity.points[0].y);
+                            const auto [x1, y1] = scalePoint(snapEntity.points[1].x, snapEntity.points[1].y);
+                            for (auto& l : entityManager_.lines) {
+                                if (l.id != entityId) continue;
+                                l.x0 = x0;
+                                l.y0 = y0;
+                                l.x1 = x1;
+                                l.y1 = y1;
+                                pickSystem_.update(entityId, PickSystem::computeLineAABB(l));
+                                refreshEntityRenderRange(entityId);
+                                markEntityGeometryChanged(entityId);
+                                updated = true;
+                                break;
+                            }
+                            break;
+                        }
+                        case EntityKind::Arrow: {
+                            if (snapEntity.points.size() < 2) break;
+                            const auto [ax, ay] = scalePoint(snapEntity.points[0].x, snapEntity.points[0].y);
+                            const auto [bx, by] = scalePoint(snapEntity.points[1].x, snapEntity.points[1].y);
+                            for (auto& a : entityManager_.arrows) {
+                                if (a.id != entityId) continue;
+                                a.ax = ax;
+                                a.ay = ay;
+                                a.bx = bx;
+                                a.by = by;
+                                pickSystem_.update(entityId, PickSystem::computeArrowAABB(a));
+                                refreshEntityRenderRange(entityId);
+                                markEntityGeometryChanged(entityId);
+                                updated = true;
+                                break;
+                            }
+                            break;
+                        }
+                        case EntityKind::Polyline: {
+                            for (auto& pl : entityManager_.polylines) {
+                                if (pl.id != entityId) continue;
+                                const std::uint32_t limit = std::min<std::uint32_t>(
+                                    pl.count,
+                                    static_cast<std::uint32_t>(snapEntity.points.size()));
+                                for (std::uint32_t k = 0; k < limit; ++k) {
+                                    const std::uint32_t pointIndex = pl.offset + k;
+                                    if (pointIndex >= entityManager_.points.size()) break;
+                                    const auto [px, py] = scalePoint(
+                                        snapEntity.points[k].x,
+                                        snapEntity.points[k].y);
+                                    entityManager_.points[pointIndex].x = px;
+                                    entityManager_.points[pointIndex].y = py;
+                                }
+                                pickSystem_.update(entityId, PickSystem::computePolylineAABB(pl, entityManager_.points));
+                                refreshEntityRenderRange(entityId);
+                                markEntityGeometryChanged(entityId);
+                                updated = true;
+                                break;
+                            }
+                            break;
+                        }
+                        case EntityKind::Text: {
+                            TextRec* tr = textSystem_.store.getTextMutable(entityId);
+                            if (!tr) break;
+                            const auto [newX, newY] = scalePoint(snapEntity.x, snapEntity.y);
+                            const float dxText = newX - snapEntity.x;
+                            const float dyText = newY - snapEntity.y;
+                            tr->x = newX;
+                            tr->y = newY;
+                            tr->minX += dxText;
+                            tr->maxX += dxText;
+                            tr->minY += dyText;
+                            tr->maxY += dyText;
+                            engine_.markTextQuadsDirty();
+                            pickSystem_.update(entityId, {tr->minX, tr->minY, tr->maxX, tr->maxY});
+                            refreshEntityRenderRange(entityId);
+                            markEntityGeometryChanged(entityId);
+                            updated = true;
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                }
+            } else {
+                auto it = entityManager_.entities.find(id);
+                if (it != entityManager_.entities.end()) {
+                    bool valid = false;
+                    if (it->second.kind == EntityKind::Rect) {
+                        valid = true;
+                    } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
+                        valid = true;
+                    }
+
+                    if (valid) {
+                        float centerX = 0.0f;
+                        float centerY = 0.0f;
+                        float halfW = 0.0f;
+                        float halfH = 0.0f;
+                        if (it->second.kind == EntityKind::Rect) {
+                            centerX = snap->x + snap->w * 0.5f;
+                            centerY = snap->y + snap->h * 0.5f;
+                            halfW = snap->w * 0.5f;
+                            halfH = snap->h * 0.5f;
+                        } else {
+                            centerX = snap->x;
+                            centerY = snap->y;
+                            halfW = snap->w;
+                            halfH = snap->h;
+                        }
+
+                        const float rot = snap->rotation;
+                        const float cosR = std::cos(rot);
+                        const float sinR = std::sin(rot);
+                        const float dxWorld = worldX - centerX;
+                        const float dyWorld = worldY - centerY;
+                        const float localX = dxWorld * cosR + dyWorld * sinR;
+                        const float localY = -dxWorld * sinR + dyWorld * cosR;
+
+                        float anchorX = 0.0f;
+                        float anchorY = 0.0f;
+                        if (session_.resizeAnchorValid) {
+                            anchorX = session_.resizeAnchorX;
+                            anchorY = session_.resizeAnchorY;
+                        } else {
+                            switch (handleIndex) {
+                                case 0: anchorX = halfW; anchorY = halfH; break;
+                                case 1: anchorX = -halfW; anchorY = halfH; break;
+                                case 2: anchorX = -halfW; anchorY = -halfH; break;
+                                case 3: anchorX = halfW; anchorY = -halfH; break;
+                            }
+                        }
+
+                        float dx = localX - anchorX;
+                        float dy = localY - anchorY;
+
+                        const bool shiftDown = (modifiers & kShiftMask) != 0;
+                        if (shiftDown) {
+                            float baseW = session_.resizeAnchorValid ? session_.resizeBaseW : std::abs(halfW * 2.0f);
+                            float baseH = session_.resizeAnchorValid ? session_.resizeBaseH : std::abs(halfH * 2.0f);
+                            float aspect = session_.resizeAnchorValid
+                                ? session_.resizeAspect
+                                : ((baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f);
+
+                            if (!std::isfinite(aspect) || aspect <= 1e-6f) {
+                                aspect = 1.0f;
+                            }
+
+                            const float absDx = std::abs(dx);
+                            const float absDy = std::abs(dy);
+                            bool useX = false;
+                            if (baseW > 1e-6f && baseH > 1e-6f) {
+                                useX = (absDx / baseW) >= (absDy / baseH);
+                            } else {
+                                useX = absDx >= absDy;
+                            }
+
+                            if (useX) {
+                                const float signY = (dy < 0.0f) ? -1.0f : 1.0f;
+                                dy = signY * (absDx / aspect);
+                            } else {
+                                const float signX = (dx < 0.0f) ? -1.0f : 1.0f;
+                                dx = signX * (absDy * aspect);
+                            }
+                        }
+
+                        const bool altDown = (modifiers & kAltMask) != 0;
+                        const bool circleUniformLocked =
+                            it->second.kind == EntityKind::Circle &&
+                            isApproximatelyCircle(halfW, halfH) &&
+                            !altDown;
+                        if (circleUniformLocked) {
+                            const float absDx = std::abs(dx);
+                            const float absDy = std::abs(dy);
+                            if (absDx >= absDy) {
+                                dy = std::copysign(absDx, dy);
+                            } else {
+                                dx = std::copysign(absDy, dx);
+                            }
+                        }
+
+                        if (session_.resizeAnchorValid) {
+                            const bool right = dx >= 0.0f;
+                            const bool top = dy >= 0.0f;
+                            int32_t nextHandle = 0;
+                            if (right && top) nextHandle = 2;
+                            else if (right && !top) nextHandle = 1;
+                            else if (!right && top) nextHandle = 3;
+                            else nextHandle = 0;
+                            session_.vertexIndex = nextHandle;
+                            handleIndex = nextHandle;
+                        }
+
+                        const float minX = std::min(anchorX, anchorX + dx);
+                        const float maxX = std::max(anchorX, anchorX + dx);
+                        const float minY = std::min(anchorY, anchorY + dy);
+                        const float maxY = std::max(anchorY, anchorY + dy);
+                        float w = std::max(1e-3f, maxX - minX);
+                        float h = std::max(1e-3f, maxY - minY);
+
+                        if (circleUniformLocked) {
+                            const float uniformSize = std::max(w, h);
+                            w = uniformSize;
+                            h = uniformSize;
+                        }
+
+                        const float centerLocalX = (minX + maxX) * 0.5f;
+                        const float centerLocalY = (minY + maxY) * 0.5f;
+                        const float centerWorldX = centerX + centerLocalX * cosR - centerLocalY * sinR;
+                        const float centerWorldY = centerY + centerLocalX * sinR + centerLocalY * cosR;
+
+                        if (it->second.kind == EntityKind::Rect) {
+                            for (auto& r : entityManager_.rects) {
+                                if (r.id == id) {
+                                    r.x = centerWorldX - w * 0.5f; r.y = centerWorldY - h * 0.5f;
+                                    r.w = w; r.h = h;
+                                    pickSystem_.update(id, PickSystem::computeRectAABB(r));
+                                    refreshEntityRenderRange(id);
+                                    markEntityGeometryChanged(id);
+                                    updated = true;
+                                    break;
+                                }
+                            }
+                        } else if (it->second.kind == EntityKind::Circle) {
+                            for (auto& c : entityManager_.circles) {
+                                if (c.id == id) {
+                                    c.cx = centerWorldX;
+                                    c.cy = centerWorldY;
+                                    c.rx = w * 0.5f;
+                                    c.ry = h * 0.5f;
+                                    pickSystem_.update(id, PickSystem::computeCircleAABB(c));
+                                    refreshEntityRenderRange(id);
+                                    markEntityGeometryChanged(id);
+                                    updated = true;
+                                    break;
+                                }
+                            }
+                        } else if (it->second.kind == EntityKind::Polygon) {
+                            for (auto& p : entityManager_.polygons) {
+                                if (p.id == id) {
+                                    p.cx = centerWorldX; p.cy = centerWorldY;
+                                    p.rx = w * 0.5f; p.ry = h * 0.5f;
+
+                                    pickSystem_.update(id, PickSystem::computePolygonAABB(p));
+                                    refreshEntityRenderRange(id);
+                                    markEntityGeometryChanged(id);
+                                    updated = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -749,8 +1003,12 @@ void InteractionSession::updateTransform(
                     const float localX = dxWorld * cosR + dyWorld * sinR;
                     const float localY = -dxWorld * sinR + dyWorld * cosR;
 
-                    // Check for symmetric resize (Alt modifier)
                     const bool altDown = (modifiers & kAltMask) != 0;
+                    const bool nearCircle =
+                        it->second.kind == EntityKind::Circle &&
+                        isApproximatelyCircle(halfW, halfH);
+                    const bool circleUniformLocked = nearCircle && !altDown;
+                    const bool symmetricResize = altDown && !nearCircle;
 
                     float newHalfW = halfW;
                     float newHalfH = halfH;
@@ -760,7 +1018,7 @@ void InteractionSession::updateTransform(
                     // sideIndex: 0=S (bottom), 1=E (right), 2=N (top), 3=W (left)
                     switch (sideIndex) {
                         case 0: { // South - resize height from bottom
-                            if (altDown) {
+                            if (symmetricResize) {
                                 // Symmetric: expand both top and bottom
                                 newHalfH = std::max(1e-3f, std::abs(localY));
                             } else {
@@ -773,7 +1031,7 @@ void InteractionSession::updateTransform(
                             break;
                         }
                         case 1: { // East - resize width from right
-                            if (altDown) {
+                            if (symmetricResize) {
                                 newHalfW = std::max(1e-3f, std::abs(localX));
                             } else {
                                 const float anchorX = -halfW;  // left edge
@@ -784,7 +1042,7 @@ void InteractionSession::updateTransform(
                             break;
                         }
                         case 2: { // North - resize height from top
-                            if (altDown) {
+                            if (symmetricResize) {
                                 newHalfH = std::max(1e-3f, std::abs(localY));
                             } else {
                                 const float anchorY = halfH;  // bottom edge
@@ -795,7 +1053,7 @@ void InteractionSession::updateTransform(
                             break;
                         }
                         case 3: { // West - resize width from left
-                            if (altDown) {
+                            if (symmetricResize) {
                                 newHalfW = std::max(1e-3f, std::abs(localX));
                             } else {
                                 const float anchorX = halfW;  // right edge
@@ -805,6 +1063,13 @@ void InteractionSession::updateTransform(
                             }
                             break;
                         }
+                    }
+
+                    if (circleUniformLocked) {
+                        const float uniformHalf =
+                            (sideIndex == 1 || sideIndex == 3) ? newHalfW : newHalfH;
+                        newHalfW = uniformHalf;
+                        newHalfH = uniformHalf;
                     }
 
                     // Transform new center back to world space

@@ -25,9 +25,8 @@ export const handleMarqueePointerUp = (
 
     const hitMode = direction === 'LTR' ? MarqueeMode.Window : MarqueeMode.Crossing;
 
-    let mode = SelectionMode.Replace;
-    if (event.ctrlKey || event.metaKey) mode = SelectionMode.Toggle;
-    else if (event.shiftKey) mode = SelectionMode.Add;
+    let mode = SelectionMode.Add;
+    if (event.shiftKey) mode = SelectionMode.Toggle;
 
     if (runtime.marqueeSelect) {
       runtime.marqueeSelect(x1, y1, x2, y2, mode, hitMode);
@@ -47,7 +46,7 @@ export const handleMarqueePointerUp = (
     return;
   }
 
-  if (!event.shiftKey && !event.ctrlKey) {
+  if (!event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
     runtime.clearSelection();
     cadDebugLog('selection', 'clear');
   }

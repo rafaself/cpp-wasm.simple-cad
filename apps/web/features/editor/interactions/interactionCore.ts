@@ -1,5 +1,6 @@
 import { cadDebugLog } from '@/utils/dev/cadDebug';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 
 import { DraftingHandler } from './handlers/DraftingHandler';
 import { IdleHandler } from './handlers/IdleHandler';
@@ -173,6 +174,16 @@ export class InteractionCore {
       (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
     if (isInput && e.key !== 'Escape') return;
+
+    if (e.key === 'F8' || e.code === 'F8') {
+      e.preventDefault();
+      const { ortho, toggleOrthoPersistent } = useSettingsStore.getState();
+      const nextPersistent = !ortho.persistentEnabled;
+      toggleOrthoPersistent();
+      this.runtime?.setOrthoOptions(nextPersistent, ortho.shiftOverrideEnabled);
+      cadDebugLog('tool', 'ortho-toggle', () => ({ persistentEnabled: nextPersistent }));
+      return;
+    }
 
     cadDebugLog('tool', 'keydown', () => ({
       key: e.key,

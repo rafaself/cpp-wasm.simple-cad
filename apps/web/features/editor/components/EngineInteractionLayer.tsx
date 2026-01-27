@@ -20,6 +20,7 @@ const EngineInteractionLayer: React.FC = () => {
   const setIsMouseOverCanvas = useUIStore((s) => s.setIsMouseOverCanvas);
   const canvasSize = useUIStore((s) => s.canvasSize);
   const snapOptions = useSettingsStore((s) => s.snap);
+  const orthoSettings = useSettingsStore((s) => s.ortho);
   const gridSize = useSettingsStore((s) => s.grid.size);
   const centerIconSettings = useSettingsStore((s) => s.display.centerIcon);
 
@@ -125,6 +126,12 @@ const EngineInteractionLayer: React.FC = () => {
     snapOptions.nearest,
     gridSize,
   ]);
+
+  useEffect(() => {
+    getEngineRuntime().then((rt) => {
+      rt.setOrthoOptions?.(orthoSettings.persistentEnabled, orthoSettings.shiftOverrideEnabled);
+    });
+  }, [orthoSettings.persistentEnabled, orthoSettings.shiftOverrideEnabled]);
 
   useEffect(() => {
     getEngineRuntime().then((rt) => {

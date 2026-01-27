@@ -19,9 +19,8 @@ describe('SelectionHandler', () => {
     harness.pointerUp({ x: 10, y: 10 });
 
     expect(harness.runtime.getSelectionIds()).toEqual([42]);
-    expect(harness.runtime.transformSessions.begun).toBe(1);
-    expect(harness.runtime.transformSessions.lastBegin?.mode).toBe(TransformMode.Move);
-    expect(harness.runtime.transformSessions.committed).toBe(1);
+    expect(harness.runtime.transformSessions.begun).toBe(0);
+    expect(harness.runtime.transformSessions.committed).toBe(0);
   });
 
   it('starts resize when dragging a resize handle', () => {
@@ -61,7 +60,7 @@ describe('SelectionHandler', () => {
     harness.pointerMove({ x: 10, y: 0, shiftKey: true });
     harness.pointerUp({ x: 10, y: 0, shiftKey: true });
 
-    expect(harness.runtime.marqueeCalls[0].mode).toBe(SelectionMode.Add);
+    expect(harness.runtime.marqueeCalls[0].mode).toBe(SelectionMode.Toggle);
     expect(new Set(harness.runtime.getSelectionIds())).toEqual(new Set([1, 2, 3]));
   });
 
@@ -88,10 +87,50 @@ describe('SelectionHandler', () => {
   it('escape cancels active transform and resets state', () => {
     harness.runtime.setPickResult({ id: 9, subIndex: 0 });
     harness.pointerDown({ x: 2, y: 2 });
+    harness.pointerMove({ x: 10, y: 10 });
 
     harness.keyDown('Escape');
 
     expect(harness.runtime.transformSessions.cancelled).toBe(1);
     expect(harness.runtime.getSelectionIds()).toEqual([9]);
+  });
+
+  it('adds to selection by default on consecutive clicks', () => {
+    harness.runtime.setPickResult({ id: 1, subIndex: 0 });
+    harness.pointerDown({ x: 0, y: 0 });
+    harness.pointerUp({ x: 0, y: 0 });
+
+    harness.runtime.setPickResult({ id: 2, subIndex: 0 });
+    harness.pointerDown({ x: 5, y: 5 });
+    harness.pointerUp({ x: 5, y: 5 });
+
+    expect(new Set(harness.runtime.getSelectionIds())).toEqual(new Set([1, 2]));
+  });
+
+  it('toggles selection with shift click without starting a transform', () => {
+    harness.runtime.setSelection([1, 2], SelectionMode.Replace);
+    harness.runtime.setPickResult({ id: 1, subIndex: 0 });
+
+    harness.pointerDown({ x: 0, y: 0, shiftKey: true });
+    harness.pointerUp({ x: 0, y: 0, shiftKey: true });
+
+    expect(harness.runtime.transformSessions.begun).toBe(0);
+    expect(harness.runtime.getSelectionIds()).toEqual([2]);
+  });
+
+  it('cycles overlapping entities with ctrl click', () => {
+    harness.runtime.setPickResult({ id: 1, subTarget: PickSubTarget.Body, subIndex: -1 });
+    harness.runtime.setPickCandidates([
+      { id: 1, kind: PickEntityKind.Rect, subTarget: PickSubTarget.Body, subIndex: -1, distance: 0 },
+      { id: 2, kind: PickEntityKind.Circle, subTarget: PickSubTarget.Body, subIndex: -1, distance: 0 },
+    ]);
+
+    harness.pointerDown({ x: 10, y: 10, ctrlKey: true });
+    harness.pointerUp({ x: 10, y: 10, ctrlKey: true });
+    expect(harness.runtime.getSelectionIds()).toEqual([1]);
+
+    harness.pointerDown({ x: 10, y: 10, ctrlKey: true });
+    harness.pointerUp({ x: 10, y: 10, ctrlKey: true });
+    expect(harness.runtime.getSelectionIds()).toEqual([2]);
   });
 });

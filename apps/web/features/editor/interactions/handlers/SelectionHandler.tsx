@@ -1,6 +1,7 @@
 import { CommandOp, TransformMode, SelectionMode } from '@/engine/core/EngineRuntime';
+import { isDrag } from '@/features/editor/utils/interactionHelpers';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { PickEntityKind, PickSubTarget } from '@/types/picking';
+import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
 import { startTiming, endTiming } from '@/utils/dev/hotPathTiming';
 
@@ -38,6 +39,151 @@ export class SelectionHandler extends BaseInteractionHandler {
 
   // Custom cursor state
   private cursorState = new SelectionCursorState();
+
+  private cycleState:
+    | {
+        key: string;
+        baseSelection: Set<number>;
+        lastAddedId: number | null;
+        index: number;
+      }
+    | null = null;
+
+  private resetCycleState(): void {
+    this.cycleState = null;
+  }
+
+  private collectCycleCandidateIds(
+    runtime: EngineRuntime,
+    worldX: number,
+    worldY: number,
+    tolerance: number,
+  ): number[] {
+    const candidates = runtime.pickCandidates(worldX, worldY, tolerance, 0xff);
+    if (candidates.length === 0) return [];
+
+    const seen = new Set<number>();
+    const ids: number[] = [];
+    for (const candidate of candidates) {
+      if (candidate.id === 0) continue;
+      if (
+        candidate.subTarget === PickSubTarget.ResizeHandle ||
+        candidate.subTarget === PickSubTarget.RotateHandle
+      ) {
+        continue;
+      }
+      if (seen.has(candidate.id)) continue;
+      seen.add(candidate.id);
+      ids.push(candidate.id);
+    }
+    return ids;
+  }
+
+  private handleCtrlCycle(
+    runtime: EngineRuntime,
+    pick: PickResult,
+    worldX: number,
+    worldY: number,
+    tolerance: number,
+    shiftKey: boolean,
+  ): boolean {
+    const candidateIds = this.collectCycleCandidateIds(runtime, worldX, worldY, tolerance);
+    if (candidateIds.length < 2) {
+      this.resetCycleState();
+      return false;
+    }
+
+    const key = candidateIds.join(',');
+    const selectionIds = runtime.getSelectionIds();
+    if (!this.cycleState || this.cycleState.key !== key) {
+      this.cycleState = {
+        key,
+        baseSelection: new Set(selectionIds),
+        lastAddedId: null,
+        index: 0,
+      };
+    } else {
+      this.cycleState.index = (this.cycleState.index + 1) % candidateIds.length;
+    }
+
+    const chosenId = candidateIds[this.cycleState.index] ?? pick.id;
+    const lastAddedId = this.cycleState.lastAddedId;
+    if (
+      lastAddedId !== null &&
+      lastAddedId !== chosenId &&
+      !this.cycleState.baseSelection.has(lastAddedId)
+    ) {
+      runtime.setSelection([lastAddedId], SelectionMode.Remove);
+    }
+
+    const mode = shiftKey ? SelectionMode.Toggle : SelectionMode.Add;
+    runtime.setSelection([chosenId], mode);
+    this.cycleState.lastAddedId = chosenId;
+
+    cadDebugLog('selection', 'cycle', () => ({
+      key,
+      chosenId,
+      index: this.cycleState?.index ?? 0,
+      candidates: candidateIds,
+    }));
+    return true;
+  }
+
+  private beginTransformWithPick(
+    ctx: InputEventContext,
+    pick: PickResult,
+    startScreen: { x: number; y: number },
+    selectionModeOnDrag: SelectionMode | null,
+  ): void {
+    const { runtime, event } = ctx;
+    if (!runtime || pick.id === 0) return;
+
+    if (selectionModeOnDrag !== null) {
+      runtime.setSelection([pick.id], selectionModeOnDrag);
+    }
+
+    const activeIds = runtime.getSelectionIds();
+    if (activeIds.length === 0) return;
+
+    const modifiers = buildModifierMask(event);
+    let mode = TransformMode.Move;
+    if (pick.subTarget === PickSubTarget.ResizeHandle) {
+      mode = TransformMode.Resize;
+    } else if (pick.subTarget === PickSubTarget.RotateHandle) {
+      mode = TransformMode.Rotate;
+    } else if (pick.subTarget === PickSubTarget.Vertex) {
+      mode = TransformMode.VertexDrag;
+    } else if (pick.subTarget === PickSubTarget.Edge) {
+      mode = isLineOrArrow(pick.kind) ? TransformMode.Move : TransformMode.EdgeDrag;
+    }
+
+    runtime.beginTransform(
+      activeIds,
+      mode,
+      pick.id,
+      pick.subIndex,
+      startScreen.x,
+      startScreen.y,
+      ctx.viewTransform.x,
+      ctx.viewTransform.y,
+      ctx.viewTransform.scale,
+      ctx.canvasSize.width,
+      ctx.canvasSize.height,
+      modifiers,
+    );
+    cadDebugLog('transform', 'begin', () => ({
+      ids: activeIds,
+      mode,
+      specificId: pick.id,
+      subIndex: pick.subIndex,
+      x: startScreen.x,
+      y: startScreen.y,
+    }));
+
+    this.hoverSubTarget = pick.subTarget;
+    this.hoverSubIndex = pick.subIndex;
+    this.state = { kind: 'transform', startScreen: { x: startScreen.x, y: startScreen.y }, mode };
+  }
 
   private getKeyContext() {
     return {
@@ -85,6 +231,21 @@ export class SelectionHandler extends BaseInteractionHandler {
     // Check modifiers
     const shift = event.shiftKey;
     const ctrl = event.ctrlKey || event.metaKey;
+    if (!ctrl) {
+      this.resetCycleState();
+    }
+
+    const isHandleTarget =
+      res.subTarget === PickSubTarget.ResizeHandle || res.subTarget === PickSubTarget.RotateHandle;
+    if (ctrl && res.id !== 0 && !isHandleTarget) {
+      const cycled = this.handleCtrlCycle(runtime, res, world.x, world.y, tolerance, shift);
+      if (cycled) {
+        this.state = { kind: 'none' };
+        this.pointerDown = null;
+        this.notifyChange();
+        return;
+      }
+    }
 
     // Phase 1 & 2: Check for polygon vertex/edge grip hit
     const enablePolygonContour =
@@ -92,85 +253,19 @@ export class SelectionHandler extends BaseInteractionHandler {
     const enablePolygonEdges = useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
 
     if (enablePolygonContour && res.id !== 0 && res.kind === PickEntityKind.Polygon) {
+      const currentSelection = new Set(runtime.getSelectionIds());
+      const selectionModeOnDrag = currentSelection.has(res.id) ? null : SelectionMode.Add;
+      const startScreen = { x: screen.x, y: screen.y };
       // Phase 1: Polygon vertex grip hit
       if (res.subTarget === PickSubTarget.Vertex) {
-        const currentSelection = new Set(runtime.getSelectionIds());
-        if (!currentSelection.has(res.id) && !shift && !ctrl) {
-          runtime.setSelection([res.id], SelectionMode.Replace);
-        }
-
-        const activeIds = Array.from(runtime.getSelectionIds());
-        if (activeIds.length > 0) {
-          const modifiers = buildModifierMask(event);
-          runtime.beginTransform(
-            activeIds,
-            TransformMode.VertexDrag,
-            res.id,
-            res.subIndex, // Vertex index
-            screen.x,
-            screen.y,
-            ctx.viewTransform.x,
-            ctx.viewTransform.y,
-            ctx.viewTransform.scale,
-            ctx.canvasSize.width,
-            ctx.canvasSize.height,
-            modifiers,
-          );
-
-          cadDebugLog('transform', 'polygon-vertex-drag-begin', () => ({
-            entityId: res.id,
-            vertexIndex: res.subIndex,
-            ids: activeIds,
-          }));
-
-          this.state = {
-            kind: 'transform',
-            startScreen: screen,
-            mode: TransformMode.VertexDrag,
-          };
-          return;
-        }
+        this.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
+        return;
       }
 
       // Phase 2: Polygon edge midpoint grip hit
       if (enablePolygonEdges && res.subTarget === PickSubTarget.Edge) {
-        const currentSelection = new Set(runtime.getSelectionIds());
-        if (!currentSelection.has(res.id) && !shift && !ctrl) {
-          runtime.setSelection([res.id], SelectionMode.Replace);
-        }
-
-        const activeIds = Array.from(runtime.getSelectionIds());
-        if (activeIds.length > 0) {
-          const modifiers = buildModifierMask(event);
-          runtime.beginTransform(
-            activeIds,
-            TransformMode.EdgeDrag,
-            res.id,
-            res.subIndex, // Edge index
-            screen.x,
-            screen.y,
-            ctx.viewTransform.x,
-            ctx.viewTransform.y,
-            ctx.viewTransform.scale,
-            ctx.canvasSize.width,
-            ctx.canvasSize.height,
-            modifiers,
-          );
-
-          cadDebugLog('transform', 'polygon-edge-drag-begin', () => ({
-            entityId: res.id,
-            edgeIndex: res.subIndex,
-            ids: activeIds,
-            shiftHeld: shift,
-          }));
-
-          this.state = {
-            kind: 'transform',
-            startScreen: screen,
-            mode: TransformMode.EdgeDrag,
-          };
-          return;
-        }
+        this.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
+        return;
       }
     }
 
@@ -203,7 +298,7 @@ export class SelectionHandler extends BaseInteractionHandler {
 
         this.state = {
           kind: 'transform',
-          startScreen: screen,
+          startScreen: { x: screen.x, y: screen.y },
           mode: TransformMode.SideResize,
         };
 
@@ -220,83 +315,36 @@ export class SelectionHandler extends BaseInteractionHandler {
     }
 
     if (res.id !== 0) {
-      // Hit something!
-      const currentSelection = new Set(runtime.getSelectionIds());
+      const currentSelectionIds = runtime.getSelectionIds();
+      const currentSelection = new Set(currentSelectionIds);
       const clickedSelected = currentSelection.has(res.id);
+      const startScreen = { x: screen.x, y: screen.y };
 
-      if (!clickedSelected && !shift && !ctrl) {
-        runtime.setSelection([res.id], SelectionMode.Replace);
-        cadDebugLog('selection', 'replace', () => ({
-          ids: Array.from(runtime.getSelectionIds()),
-        }));
-      } else if (ctrl) {
-        // Cycle/Toggle? Logic handled on Up usually for toggles to avoid deselecting on drag start.
-      }
+      const selectionModeOnClick = shift
+        ? SelectionMode.Toggle
+        : clickedSelected
+          ? null
+          : SelectionMode.Add;
+      const selectionModeOnDrag = clickedSelected ? null : SelectionMode.Add;
 
-      const activeIds = Array.from(runtime.getSelectionIds());
-      if (activeIds.length > 0) {
-        const modifiers = buildModifierMask(event);
-        let mode = TransformMode.Move;
+      const isBodyTarget =
+        res.subTarget === PickSubTarget.Body ||
+        res.subTarget === PickSubTarget.TextBody ||
+        res.subTarget === PickSubTarget.None;
 
-        // Custom Side Handle Logic
-        // If we hit the body or nothing specific (but inside selection), check if we hit a side handle
-        // We prioritize explicit handles (corners) from engine. If engine returns Body, we check side handles.
-        if (res.subTarget === PickSubTarget.ResizeHandle) {
-          mode = TransformMode.Resize;
-        } else if (res.subTarget === PickSubTarget.RotateHandle) {
-          // Use engine-based rotation (supports continuous rotation past ±180°)
-          mode = TransformMode.Rotate;
-        } else if (res.subTarget === PickSubTarget.Vertex) {
-          mode = TransformMode.VertexDrag;
-        } else if (res.subTarget === PickSubTarget.Edge) {
-          // Lines and arrows: Edge means "move the entire entity"
-          // Polylines: Edge means "move a segment" (EdgeDrag)
-          if (isLineOrArrow(res.kind)) {
-            mode = TransformMode.Move;
-          } else {
-            mode = TransformMode.EdgeDrag;
-          }
-        }
-
-        if (res.subTarget === PickSubTarget.ResizeHandle && activeIds.length === 1) {
-          const transform = runtime.getEntityTransform(activeIds[0]);
-          const bounds = runtime.getSelectionBounds();
-          cadDebugLog('transform', 'resize-start-snapshot', () => ({
-            id: activeIds[0],
-            handleIndex: res.subIndex,
-            screen,
-            world,
-            transform,
-            bounds,
-          }));
-        }
-
-        // Use beginTransform instead of beginSession
-        runtime.beginTransform(
-          activeIds,
-          mode,
-          res.id,
-          res.subIndex, // Pass subIndex (vertex/handle index)
-          screen.x,
-          screen.y,
-          ctx.viewTransform.x,
-          ctx.viewTransform.y,
-          ctx.viewTransform.scale,
-          ctx.canvasSize.width,
-          ctx.canvasSize.height,
-          modifiers,
-        );
-        cadDebugLog('transform', 'begin', () => ({
-          ids: activeIds,
-          mode,
-          specificId: res.id,
-          subIndex: res.subIndex,
-          x: screen.x,
-          y: screen.y,
-        }));
-        this.state = { kind: 'transform', startScreen: screen, mode };
+      if (isBodyTarget) {
+        this.state = {
+          kind: 'pending',
+          pick: res,
+          startScreen,
+          selectionModeOnClick,
+          selectionModeOnDrag,
+        };
         return;
       }
+
+      this.beginTransformWithPick(ctx, res, startScreen, selectionModeOnDrag);
+      return;
     }
 
     // If we missed or failed to start session => Marquee
@@ -318,6 +366,20 @@ export class SelectionHandler extends BaseInteractionHandler {
 
     // Reset all custom cursor states by default
     this.cursorState.reset();
+
+    if (this.state.kind === 'pending' && this.pointerDown) {
+      const dx = event.clientX - this.pointerDown.x;
+      const dy = event.clientY - this.pointerDown.y;
+      if (isDrag(dx, dy)) {
+        this.beginTransformWithPick(
+          ctx,
+          this.state.pick,
+          this.state.startScreen,
+          this.state.selectionModeOnDrag,
+        );
+      }
+      return;
+    }
 
     // Check for hover on resize handles when not in active transform
     if (this.state.kind === 'none') {
@@ -445,6 +507,17 @@ export class SelectionHandler extends BaseInteractionHandler {
 
       this.state = { kind: 'none' };
       this.pointerDown = null;
+      return;
+    }
+
+    if (this.state.kind === 'pending') {
+      const { pick, selectionModeOnClick } = this.state;
+      if (selectionModeOnClick !== null && pick.id !== 0) {
+        runtime.setSelection([pick.id], selectionModeOnClick);
+      }
+      this.state = { kind: 'none' };
+      this.pointerDown = null;
+      this.notifyChange();
       return;
     }
 

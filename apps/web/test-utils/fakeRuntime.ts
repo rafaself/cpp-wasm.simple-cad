@@ -35,6 +35,7 @@ export class FakeRuntime {
     hitX: 0,
     hitY: 0,
   };
+  pickCandidatesResults: PickResult[] = [];
   lastPickArgs: Array<{ x: number; y: number; tolerance: number; mask: number }> = [];
   selection = new Set<number>();
   marqueeReturnIds: number[] = [];
@@ -144,6 +145,10 @@ export class FakeRuntime {
     this.pickResult = { ...this.pickResult, ...result };
   }
 
+  setPickCandidates(results: PickResult[]): void {
+    this.pickCandidatesResults = results.map((r) => ({ ...r }));
+  }
+
   setMarqueeReturn(ids: number[]): void {
     this.marqueeReturnIds = [...ids];
   }
@@ -157,6 +162,15 @@ export class FakeRuntime {
   pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     this.lastPickArgs.push({ x, y, tolerance, mask: pickMask });
     return { ...this.pickResult };
+  }
+
+  pickCandidates(x: number, y: number, tolerance: number, pickMask: number): PickResult[] {
+    this.lastPickArgs.push({ x, y, tolerance, mask: pickMask });
+    if (this.pickCandidatesResults.length > 0) {
+      return this.pickCandidatesResults.map((r) => ({ ...r }));
+    }
+    const single = this.pickExSmart(x, y, tolerance, pickMask);
+    return single.id !== 0 ? [single] : [];
   }
 
   pickSideHandle(_x: number, _y: number, _tolerance: number): PickResult {

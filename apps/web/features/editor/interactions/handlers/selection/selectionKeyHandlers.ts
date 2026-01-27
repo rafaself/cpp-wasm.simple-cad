@@ -31,6 +31,7 @@ export const handleSelectionKeyDown = (
       }
       cadDebugLog('selection', 'clear');
       setState({ kind: 'none' });
+      clearPointerDown();
     }
     notifyChange();
     return;
