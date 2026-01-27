@@ -1,401 +1,128 @@
-# 1) Ribbon Architecture Map (What exists)
-
-  ## 1.1 Identify the “core” components
-
-  - EditorRibbon (Ribbon container + tabs)
-      - Renders tab headers + active tab content; horizontally scrollable group row.
-      - File: apps/web/features/editor/components/EditorRibbon.tsx:12
-      - Groups come from config: apps/web/features/editor/ui/ribbonConfig.ts:55
-  - RibbonGroup (Group container + layout switch)
-      - Responsible for rendering one group with fixed slots and a layout mode (flex-row / grid-2x3 /
-        stack).
-      - File: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:49
-  - RibbonGroupContent (Group “body” slot)
-      - Fixed-height “content area” wrapper + overflow handling.
-      - File: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:15
-  - RibbonGroupTitle (Group label slot)
-      - Fixed-height label row, vertically centered.
-      - File: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:34
-  - Buttons
-      - RibbonButton (default row button; delegates based on layout/variant)
-          - File: apps/web/features/editor/components/ribbon/RibbonButton.tsx:19
-      - RibbonLargeButton (vertical big button used for “large” items)
-          - File: apps/web/features/editor/components/ribbon/RibbonLargeButton.tsx:16
-      - RibbonSmallButton (dense grid/stack button, forced 24px height)
-          - File: apps/web/features/editor/components/ribbon/RibbonSmallButton.tsx:18
-      - RibbonIconButton (icon-only button used by toggle groups)
-          - File: apps/web/features/editor/components/ribbon/RibbonIconButton.tsx:49
-  - Inputs / controls
-      - Select (dropdown built on Button + Popover)
-          - File: apps/web/components/ui/Select.tsx:16
-      - Ribbon “input recipe” used by selects/inputs (height/padding/typography)
-          - File: apps/web/src/styles/recipes.ts:17
-      - Numeric control in text group (combo field)
-          - File: apps/web/features/editor/ribbon/components/TextControls.tsx:129
-  - Toggle container
-      - RibbonToggleGroup
-          - File: apps/web/features/editor/components/ribbon/RibbonToggleGroup.tsx:17 (exists; used
-            widely)
-  - Divider
-      - RibbonDivider
-          - File: apps/web/features/editor/components/ribbon/RibbonDivider.tsx:12
-  - Ribbon layout utilities (CSS)
-      - .ribbon-row, .ribbon-group-col, .ribbon-fill-h etc.
-      - File: apps/web/design/global.css:102
-
-  ## 1.2 Layout metrics (current)
-
-  - EditorRibbon content rail
-      - Display: flex row of groups, scrollable (horizontal).
-      - Height strategy: fixed h-[82px].
-      - Padding strategy: px-[12px] (no vertical padding on the rail currently).
-      - File: apps/web/features/editor/components/EditorRibbon.tsx:114
-  - RibbonGroup
-      - Outer: flex flex-col h-full.
-      - Slotting:
-          - Content slot: h-[64px], overflow-hidden.
-          - Label slot: h-[18px], label uses leading-[18px].
-      - File: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:22, apps/web/features/editor/
-        components/ribbon/RibbonGroup.tsx:35
-  - RibbonGroup layout modes
-      - flex-row: flex items-center gap-1 justify-center.
-      - grid-2x3: grid grid-cols-3 ... items-center.
-      - stack: flex flex-col ... justify-center.
-      - File: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:9
-  - RibbonButton (default)
-      - Uses Button size="md" (h-8 from primitive) unless overridden.
-      - File: apps/web/features/editor/components/ribbon/RibbonButton.tsx:63
-  - RibbonLargeButton
-      - Now fixed: h-[52px] and column layout.
-      - File: apps/web/features/editor/components/ribbon/RibbonLargeButton.tsx:52
-  - RibbonSmallButton
-      - Forces !h-[24px] (dense).
-      - File: apps/web/features/editor/components/ribbon/RibbonSmallButton.tsx:49
-  - RibbonIconButton
-      - Now fixed per size:
-          - sm: h-7 w-7
-          - md: h-8 w-8
-      - Override still possible via className="h-full" etc.
-      - File: apps/web/features/editor/components/ribbon/RibbonIconButton.tsx:32
-  - RibbonDivider
-      - Vertical: self-stretch w-px ... my-1 (fixed inset, no proportional height).
-      - Horizontal: w-full h-px ... my-1.
-      - File: apps/web/features/editor/components/ribbon/RibbonDivider.tsx:16
-  - CSS utilities
-      - .ribbon-row: fixed height via CSS var; now align-items: center.
-      - --ribbon-item-height: 32px.
-      - File: apps/web/design/global.css:92, apps/web/design/global.css:114
-
-  ———
-
-  # 2) Misalignment Diagnosis (Root Causes + Code Evidence)
-
-  ## 2.1 Misalignment classes (evidence-based)
-
-  1. Flex-row groups stretching children
-
-  - Symptom: controls appear “stuck” to top or unevenly distributed in a group row.
-  - Root cause: parent alignment items-stretch in a flex-row rail forces children to fill height
-    inconsistently vs fixed-height controls.
-  - Where: this was the pattern in the old RibbonGroup mapping; current fix is items-center.
-  - File evidence (current): apps/web/features/editor/components/ribbon/RibbonGroup.tsx:9
-  - Why: mixed h-* children + stretch parent yields inconsistent vertical baselines.
-  - Severity: High.
-
-  2. Icon buttons defaulting to h-full
-
-  - Symptom: icon buttons render as 64px tall in some groups and 28/32px elsewhere.
-  - Root cause: h-full makes height dependent on the closest constrained parent (group content slot vs
-    row slot).
-  - Where (current fix): size is now explicit and h-full must be opt-in via className.
-  - File evidence: apps/web/features/editor/components/ribbon/RibbonIconButton.tsx:62
-  - Severity: High.
-
-  3. Vertical divider proportional height (h-4/5)
-
-  - Symptom: dividers “telegraph” different paddings/heights across groups; looks uneven.
-  - Root cause: percentage height depends on parent computed height/padding; visually inconsistent.
-  - Where (current fix): self-stretch + fixed my-1 inset.
-  - File evidence: apps/web/features/editor/components/ribbon/RibbonDivider.tsx:16
-  - Severity: Medium.
-
-  4. Custom controls inserted without a normalization slot
-
-  - Symptom: custom blocks (layers/colors/text group controls) can sit off-center and/or size
-    themselves differently from adjacent items.
-  - Root cause: no enforced wrapper enforcing h-full + items-center + shrink-0.
-  - Where (current fix): wrapped with className="h-full flex items-center shrink-0".
-  - File evidence: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:60
-  - Severity: High.
-
-  5. Large buttons filling the entire group body
-
-  - Symptom: big buttons (ex: Text tool) visually “kiss” the top edge of the ribbon body slot.
-  - Root cause: RibbonLargeButton previously used h-full, so it filled the whole 64px content slot.
-  - Where (current fix): h-[52px] so it is vertically centered within the 64px slot when parent uses
-    items-center.
-  - File evidence: apps/web/features/editor/components/ribbon/RibbonLargeButton.tsx:52
-  - Severity: High (because it breaks perceived padding).
-
-  ## 2.2 Cross-component inconsistencies to watch (confirmed in code)
-
-  - Select vs other controls height strategy
-      - Select uses Button size="sm" (base h-6), but callers override with INPUT_STYLES.ribbon (h-7)
-        and/or ribbon-fill-h (100%).
-      - Files: apps/web/components/ui/Select.tsx:60, apps/web/src/styles/recipes.ts:17, apps/web/
-        design/global.css:136
-      - Risk: order-of-classes and wrapper height can cause “compact” vs “full-rail” behaviors.
-  - Dense small buttons hard-coded to 24px
-      - RibbonSmallButton uses !h-[24px].
-      - File: apps/web/features/editor/components/ribbon/RibbonSmallButton.tsx:49
-      - Risk: mixing 24px buttons with 32px rails requires explicit centering (now handled by items-
-        center and .ribbon-row).
-
-  ———
-
-  # 3) Ribbon Standardization Proposal (Minimal Design System)
-
-  ## 3.1 Sizing tokens (explicit)
-
-  I recommend consolidating Ribbon-only tokens in one place (either apps/web/design/global.css
-  under :root or @layer components):
-
-  - --ribbon-height: 82px (matches EditorRibbon rail)
-  - --ribbon-group-body-height: 64px
-  - --ribbon-group-label-height: 18px
-  - --ribbon-control-height-md: 32px (row baseline)
-  - --ribbon-control-height-sm: 28px
-  - --ribbon-icon-btn-size-md: 32px (h-8 w-8)
-  - --ribbon-icon-btn-size-sm: 28px (h-7 w-7)
-  - Spacing:
-      - --ribbon-group-px: 12px (current px-[12px] on rail)
-      - --ribbon-group-gap-x: 4px
-      - --ribbon-group-gap-y: 4px
-      - --ribbon-divider-inset-y: 4px (maps to my-1)
-  - Typography:
-      - --ribbon-label-font-size: 10px
-      - --ribbon-label-line-height: 18px
-      - --ribbon-control-font-size: 12px (or existing text-xs)
-      - --ribbon-control-line-height: 16px (typical for text-xs)
-  - Corners/borders:
-      - --ribbon-control-radius: 6px (maps to rounded-md)
-      - --ribbon-divider-opacity: 0.5 (maps to bg-border/50)
-
-  Justification: right now heights are split between Tailwind literals (h-[82px], h-[64px], h-8, h-7)
-  + CSS vars (--ribbon-item-height). Formalizing prevents future drift.
-
-## 3.2 Layout primitives (enforceable)
-
-Implement as CSS utilities (Tailwind @layer components) or keep in global.css:
-
-  - .ribbon-rail → fixed height, horizontal scroll, consistent padding.
-  - .ribbon-group → flex flex-col h-full.
-  - .ribbon-group-body → fixed height, overflow hidden.
-  - .ribbon-group-label → fixed height, centered, standardized typography.
-  - .ribbon-row → always display:flex; align-items:center; height: var(--ribbon-control-height-md).
-  - .ribbon-col → flex flex-col justify-center gap: var(--ribbon-group-gap-y).
-  - .ribbon-control → base typography/padding/height normalization for selects/inputs.
-  - .ribbon-divider-v → self-stretch w-px my-* inset (no percentages).
-  - RibbonIconButton rule: fixed size by prop; fill only via explicit class override.
-
-# 4) Phase 0 — Baseline Instrumentation (Executed)
-
-- **Debug flag**: ribbon outlines are enabled by setting `VITE_RIBBON_DEBUG=true` before starting `pnpm dev` or by evaluating `window.__RIBBON_DEBUG__ = true` in the console before the ribbon mounts.
-  - The ribbon rail, each group, and every control get dashed outlines when the flag is active (`apps/web/design/global.css:151-167`).
-  - Ribbon groups now carry `ribbon-group`/`ribbon-group-content` classes and honor the debug outline rules in the global CSS.
-  - Icon, large, and small buttons automatically append `ribbon-debug-control` when the debug flag is set, so no component changes are required to see their bounding boxes (`apps/web/features/editor/components/ribbon/*.tsx`).
-- **Center guide**: a dashed horizontal guide line is rendered at the ribbon domain center when debug mode is active (`apps/web/features/editor/components/EditorRibbon.tsx:114-122`).
-- **Baseline capture instructions**: run `VITE_RIBBON_DEBUG=true pnpm dev`, navigate to the relevant tabs (e.g., Início default tab, Desenho/Formas, Texto/Camadas), and take screenshots at the default and a narrower viewport width for future regression comparison.
-
-The instrumentation is safe for production builds since the flag defaults to `false` and the outlines only appear when explicitly enabled.
-
-# 5) Phase 1 — High Impact Fixes (Executed)
-
-- **RibbonGroup vertical alignment**: the `flex-row` layout now uses `items-center`, while custom components render inside a fixed `h-full flex items-center shrink-0` slot so every group shares the same vertical rail (`apps/web/features/editor/components/ribbon/RibbonGroup.tsx:10-92`).
-- **Icon/regular buttons normalized**: `RibbonIconButton`, `RibbonButton`, `RibbonLargeButton`, and `RibbonSmallButton` now read the ribbon debug helper and append `ribbon-debug-control` for instrumentation, they also default to fixed heights (`h-7`, `h-8`, `h-[52px]`), preventing contextual stretching (`apps/web/features/editor/components/ribbon/*.tsx`).
-- **Divider fix**: vertical dividers stretch with `self-stretch`, fixed `my-1` insets, and never use percentage heights, so separators align consistently across groups (`apps/web/features/editor/components/ribbon/RibbonDivider.tsx:12-21`).
-- **Validation**: verify the Início tab (large buttons), Desenho tab (icon grid), and Camadas group (select + toggles) each keep their labels aligned on the same baseline, and resize to a narrower width to ensure horizontal scrolling behaves without wrapping.
-
-These steps satisfy Phase 1 acceptance criteria: centered flex rows, normalized icon heights, and consistent dividers with no layout regression.
-
-  ## 3.3 Group label strategy
-
-  Option A (Preferred and already aligned with the current direction): explicit fixed-height label row
-  under fixed-height content row.
-
-  - It guarantees consistent baseline across groups without needing absolute positioning tricks.
-  - Enforced by construction in RibbonGroup.
-  - File: apps/web/features/editor/components/ribbon/RibbonGroup.tsx:15
-
-  ———
-
-  # 4) Implementation Plan (Phased, Incremental, With Acceptance Criteria)
-
-  ## Phase 0 — Baseline & Instrumentation
-
-  - Add a RIBBON_DEBUG flag (env or feature flag) to toggle outline classes on:
-      - rail (EditorRibbon)
-      - group body + label slots (RibbonGroup)
-      - key controls (RibbonIconButton, Select)
-  - Add an optional horizontal guide line at the vertical center of the rail.
-  - Capture baseline screenshots (manual or Playwright):
-      - Início tab
-      - Desenho tab (Formas grid)
-      - Camadas group
-      - Anotação/Text group
-      - Standard + narrow viewport widths
-        Acceptance:
-  - Debug mode is off by default and has zero runtime cost when disabled.
-  - Baseline images exist for comparison.
-
-  ## Phase 1 — High Impact / Low Risk Fixes (layout correctness)
-
-  Already implemented in codebase (see Phase 1 patch section below):
-
-  - flex-row: items-center (not stretch)
-  - custom slot wrapper
-  - RibbonIconButton fixed sizes
-  - RibbonDivider fixed inset + stretch
-  - plus: RibbonLargeButton no longer h-full (prevents “touching top”)
-    Acceptance:
-  - Icon buttons are always 28/32px.
-  - Large buttons visually respect top/bottom breathing room in the 64px body slot.
-  - Custom controls sit centered in the same vertical rail.
-
-  ## Phase 2 — Tokens + primitives
-
-  - Replace hard-coded heights in multiple places with a single token set (prefer CSS vars + Tailwind
-    utilities).
-  - Migrate a few representative groups:
-      - Formas (grid)
-      - Camadas (select + toggles + divider)
-      - Anotação (text controls)
-        Acceptance:
-  - At least two control types (select + icon button) consume shared tokens.
-  - No per-tab “fixes”.
-
-  ## Phase 3 — Control normalization
-
-  - Normalize typography + line-height:
-      - group label
-      - select label text
-      - button labels (default/large/small)
-  - Ensure all “row controls” align on the same centerline:
-      - selects, toggle groups, icon buttons
-        Acceptance:
-  - No visible vertical drift when switching tabs.
-  - No control is clipped in rows/groups.
-
-  ## Phase 4 — Visual harmony & density
-
-  - Standardize radius, borders, hover/active/disabled/focus states across ribbon controls.
-    Acceptance:
-  - Ribbon looks cohesive and “single system”.
-
-  ## Phase 5 — Hardening
-
-  - Add Playwright screenshot tests for the ribbon rail (no new dependencies beyond what you already
-    use).
-  - Add lightweight guardrails:
-      - forbid h-full in RibbonIconButton unless explicitly requested by prop/class
-      - enforce .ribbon-row usage inside custom groups
-        Acceptance:
-  - Alignment regressions are caught automatically.
-
-  ———
-
-  # 5) Decisions & Trade-offs (Mandatory)
-
-  - Why IconButton should not default to h-full
-      - It makes size dependent on parent slot height (64px group body vs 32px row), which is exactly
-        how drift happens. Fixed per-size avoids “contextual stretching”. (apps/web/features/editor/
-        components/ribbon/RibbonIconButton.tsx:62)
-  - Why RibbonGroup should prefer items-center in flex-row
-      - A ribbon row is a “rail”: controls must opt into stretching; the default should be consistent
-        center alignment to handle mixed heights safely. (apps/web/features/editor/components/ribbon/
-        RibbonGroup.tsx:9)
-  - Why divider height should not be proportional
-      - Percentage heights expose differences in parent padding/box sizing; fixed inset + stretch
-        reads consistent across groups. (apps/web/features/editor/components/ribbon/
-        RibbonDivider.tsx:16)
-  - Why custom components must be normalized via a wrapper slot
-      - Otherwise each custom component becomes its own “layout system” (some align top, some center,
-        some size to content). The wrapper enforces the same rail rules without changing the custom
-        component internals. (apps/web/features/editor/components/ribbon/RibbonGroup.tsx:60)
-  - Why RibbonLargeButton should not be h-full
-      - Large buttons should be visually centered within the group body slot; h-full defeats
-        “perceived padding” and causes the “touching top edge” issue. (apps/web/features/editor/
-        components/ribbon/RibbonLargeButton.tsx:52)
-
-  ———
-
-  # 6) Recommended Initial Patch (Preferred)
-
-  Phase 1 is effectively implemented. Key deltas (diff-style excerpts):
-
-  --- a/apps/web/features/editor/components/ribbon/RibbonGroup.tsx
-  +++ b/apps/web/features/editor/components/ribbon/RibbonGroup.tsx
-  @@
-  -  'flex-row': 'flex items-stretch gap-1 justify-center',
-  +  'flex-row': 'flex items-center gap-1 justify-center',
-  @@
-  -  return <React.Fragment key={item.id}><Component /></React.Fragment>
-  +  return <div key={item.id} className="h-full flex items-center shrink-0"><Component /></div>
-
-  --- a/apps/web/features/editor/components/ribbon/RibbonIconButton.tsx
-  +++ b/apps/web/features/editor/components/ribbon/RibbonIconButton.tsx
-  @@
-  -  className={`h-full ${widthClass} p-0 ${className}`}
-  +  className={`${SIZE_CLASSES[size]} p-0 ${className}`}
-
-  --- a/apps/web/features/editor/components/ribbon/RibbonDivider.tsx
-  +++ b/apps/web/features/editor/components/ribbon/RibbonDivider.tsx
-  @@
-  -  orientation === 'vertical' ? 'h-4/5 w-px ...' : ...
-  +  orientation === 'vertical' ? 'self-stretch w-px bg-border/50 mx-0.5 my-1' : ...
-
-  --- a/apps/web/features/editor/components/ribbon/RibbonLargeButton.tsx
-  +++ b/apps/web/features/editor/components/ribbon/RibbonLargeButton.tsx
-  @@
-  -  className={`h-full flex-col ...`}
-  +  className={`h-[52px] flex-col ...`}
-
-  ## Validation checklist (manual)
-
-  - View: Início tab (large buttons like Text/Arquivo) and confirm they no longer touch the top of the
-    group body slot.
-  - View: Desenho tab (Formas grid) and confirm icon buttons are consistent 28px and centered.
-  - View: Camadas group (select + toggles + divider) and confirm divider inset looks identical across
-    groups.
-- Resize: narrow viewport (forces horizontal scroll) and confirm no wrapping/clipping.
-
-# 7) Phase 2 — Tokens & Primitives (Executed)
-
-- **Ribbon design tokens** (height, spacing, typography, radius, dividers) now live in `apps/web/design/global.css:92-169`, giving each metric a semantic variable (e.g., `--ribbon-height`, `--ribbon-control-height-md`, `--ribbon-divider-inset-y`, `--ribbon-control-font-size`, etc.).
-- **Layout primitives**: `.ribbon-rail`, `.ribbon-group`, `.ribbon-group-body`, `.ribbon-group-label`, `.ribbon-row`, `.ribbon-control`, and `.ribbon-divider-v` enforce those tokens (`apps/web/design/global.css:132-167`).
-- **Group adoption**: `EditorRibbon` uses `.ribbon-rail`, `RibbonGroup` relies on `.ribbon-group-body`/`.ribbon-group-label`, and the Text/Layer groups lean on `.ribbon-control` for their selects and numeric combo so Formas, Anotação, and Camadas now render on the same set of rails (`apps/web/features/editor/components/EditorRibbon.tsx:132-157`, `apps/web/features/editor/components/ribbon/RibbonGroup.tsx:20-92`, `apps/web/features/editor/ribbon/components/TextControls.tsx:73-140`, `apps/web/features/editor/components/ribbon/LayerRibbonControls.tsx:20-35`).
-- **Validation**: verify the same tabs/groups as Phase 1 while `VITE_RIBBON_DEBUG=true` to see the new primitives' outlines; confirm height/gap tokens hold under narrower viewports.
-
-These steps fulfill Phase 2 acceptance by giving the ribbon a shared token set and primitives for at least three representative groups.
-
-# 8) Phase 3 — Control Normalization (Executed)
-
-- **Control heights/typography**: `.ribbon-control` now sets the ribbon control font/line-height and flex alignment so selects, toggles, and other inputs stay on the same baseline (`apps/web/design/global.css:150-159`).
-- **Toggle groups normalized**: `RibbonToggleGroup` renders with `ribbon-row ribbon-control`, ensuring the pill container inherits the same `--ribbon-control-height-md` and typography tokens while keeping its internal padding/gap (`apps/web/features/editor/components/ribbon/RibbonToggleGroup.tsx:25-43`).
-- **Validation**: revisit Início, Anotação, Camadas tabs with `VITE_RIBBON_DEBUG=true` and confirm all toggles, selects, and combo fields align on the guide line, with identical typography/line-height among neighbors.
-
-Phase 3 acceptance: no control floats above/below peers and the tokens apply uniformly to selects, toggles, and icon buttons.
-
-# 9) Phase 4 — Visual Harmony & Density (Executed)
-
-- **Density tokens applied**: ribbon controls now use shared background/border/focus tokens (`--ribbon-control-bg`, `--ribbon-control-border-color`, `--ribbon-control-focus`) so selects, toggles, and inputs share identical corner radii, padding, and interaction states (`apps/web/design/global.css:92-185`).
-- **Toggle groups & inputs** continue using `ribbon-control`, so the visual state (border color, focus ring) now matches other rows while the numeric/select text stays centered on the same baseline.
-- **Validation**: With `VITE_RIBBON_DEBUG=true`, confirm the outlines show consistent spacing while hovering/focusing any ribbon controls leaves the same colored outline and no control deviates from the established density (use default and narrowed widths).
-
-This meets Phase 4 acceptance by giving the ribbon consistent visual density and interaction states across all controls.
-
-# 11) Phase 5 — Hardening & Regression Prevention (Executed)
-
-- **Documentation + checklist**: Phase 0 already concretely documents how to capture baseline screenshots (`REPORT.md:165-216`), satisfying the “visual regression reference” requirement for now and guiding the first automated proofs.
-- **Automation bookmarks**: added reminders in the plan to add Storybook/Playwright ribbon snapshots and lint guards in future iterations, so contributors know what to build and how Phase 5 will stay verified.
-- **Validation**: manual acceptance is that the ribbon debug mode and report now document the required manual verifications (default + narrow viewports) for every impacted tab, ensuring a human-backed regression path until automation exists.
+Plan to Align Shape Creation and Editing with AutoCAD UX
+
+To ensure the creation, selection, manipulation, and editing of shapes mirror AutoCAD’s user experience, we need a detailed correction plan focusing on each aspect. Below we outline changes for shape creation workflows, selection behavior, transformation/manipulation, and editing that will bring the application in line with AutoCAD’s familiar UX.
+Shape Creation Improvements
+
+    Two-Point Shape Definition: Require explicit two-point input for rectangle and circle creation, similar to AutoCAD’s “first corner – opposite corner” workflow. In the current implementation, a quick click (no drag) on the canvas auto-creates a 100×100 shape. This should be adjusted so that a shape is only created after the user specifies the second point (via drag or second click), matching AutoCAD’s behavior where a rectangle or circle needs a second corner/radius point. A single quick click with no drag should not commit a full-size shape (it can either do nothing or enter a mode waiting for the second point). This aligns with AutoCAD’s rectangle command which always asks for an opposite corner.
+
+    Default Shape Size Removal: Remove or modify the hard-coded default size (100×100) for rect/circle on click. Instead, if a user clicks a point and releases without dragging, consider one of two approaches: (a) do nothing and continue waiting for an opposite point (the shape draft remains pending until second point is set), or (b) use that click as first corner and enter a state expecting the second corner (possibly with a rubber-band preview). AutoCAD would not finalize a shape on a single click, so our app should not either – it should wait for the second coordinate or allow the user to input dimensions manually if we support that.
+
+    Consistent Line/Polyline Tools: Ensure the line drawing tool and polyline tool behaviors are clear and mirror AutoCAD’s. AutoCAD’s Line command allows sequential segments (each additional click starts a new segment from last point until the user presses Enter to finish). In our app, currently the Line tool ends after the second point (one segment) while Polyline continues with multiple points. To mimic AutoCAD, we have two options:
+
+        Allow the Line tool to create one segment at a time (as now) but automatically re-arm for another segment until canceled (so it behaves like repeated single-segment lines, which is slightly different from AutoCAD’s continuous mode).
+
+        Or keep Line as single-segment and encourage use of Polyline for continuous segments. Given our separation of tools, it may be acceptable to leave this as-is, but we should document it. In either case, ensure that a polyline continues adding points until the user double-clicks or right-clicks to finish (which we have: double-click or right-click commits the polyline).
+
+    Polygon Tool Sides Input: AutoCAD’s polygon command asks for number of sides before placement. Our implementation already triggers an inline modal for polygon sides when the user clicks without dragging. We should maintain this behavior, as it aligns with AutoCAD prompting for sides count. The flow would be: user selects Polygon tool -> first click sets center -> app asks for number of sides (via modal, as done) -> user enters sides and continues to define the polygon (e.g., by dragging radius). This ensures the polygon feature matches AutoCAD UX where sides count is specified upfront.
+
+    Dynamic Dimensions Feedback: AutoCAD provides dynamic feedback (lengths, angles) while drawing shapes. We should ensure our app shows similar feedback during drafting. The code suggests we have “DraftDimensions” or overlays for in-progress shapes. For example, when drawing a line or rectangle, display a small tooltip or overlay with the current length or width×height. This improves accuracy and mimics AutoCAD’s dynamic input fields. If not already implemented, add dimension labels to the draft overlay (our ShapeOverlay component mentions dimension labels for draft shapes, so we should utilize that). Also, consider an ortho mode toggle: AutoCAD’s F8 Ortho constrains drawing to horizontal/vertical. We could allow a similar constraint (e.g., hold Shift while drawing to lock horizontal/vertical direction, as many CAD programs do).
+
+    Snapping Behavior: Ensure object snaps (endpoints, midpoints, etc.) function during creation just like AutoCAD. The code has a snap guide overlay in red. We should verify that when the user hovers near key points (e.g., ends of existing shapes) during drawing, the draft shape snaps to those points. Improving snap visual cues (perhaps changing color or marker) will make it more obvious, similar to AutoCAD’s snap markers. Also, support polar tracking if possible (AutoCAD shows dashed alignment lines at common angles). Our SnapOverlay mechanism can be extended to show alignment when drawing lines at 0°, 90°, etc., if not already.
+
+Shape Selection Behavior
+
+    Cumulative Selection by Default: Change selection mode so that clicking additional shapes adds to the current selection set by default, without requiring a modifier key. In AutoCAD’s default settings, PICKADD = 1 which means “cumulative selection is on” and you can select multiple objects one after another. Our current implementation replaces the selection on each click unless Shift/Ctrl is held. We should invert this behavior to mirror AutoCAD’s modern UX:
+
+        A normal click on a non-selected object should add it to the existing selection set (not replace it).
+
+        Consequently, we should not clear the previous selection unless the user intentionally starts a new selection (e.g., by clicking empty space with no modifier). This likely means defaulting to SelectionMode.Add (or a logic equivalent to AutoCAD’s PICKADD=1). We can achieve this by changing the default mode in our selection handler from Replace to Add, except when a new selection is explicitly started (e.g., after clearing).
+
+    Use Shift for Removal (Toggle Off): Adopt AutoCAD’s convention that Shift-click removes an object from the selection. In AutoCAD, if an object is already selected, Shift+click will deselect it (and if it’s not selected, Shift+click will add it; essentially Shift toggles the selection state of an item). We should implement this toggle behavior. Concretely:
+
+        If the user Shift-clicks a selected shape, remove it from the selection.
+
+        If the user Shift-clicks an unselected shape, add it to selection (this is actually redundant if we make normal click additive, but supporting it makes the behavior robust and matches the “toggle” concept).
+
+        In our code, currently Shift is treated as “Add” (never remove), and Ctrl/Meta is treated as “Toggle”. We should modify this logic so that Shift acts as a toggle. We can remove special-casing of Ctrl for toggle and use Shift for all toggling. This is more intuitive for CAD users: “Use Shift to add to selection” off (default) means Shift is for removal in practice, and multiple selection is implicit.
+
+        Example scenario after change: User selects one object (A) by clicking it. User then clicks another object (B) – B becomes selected in addition to A (no key needed). If user wants to deselect A while keeping B, they Shift-click A to remove it. This workflow will closely replicate AutoCAD’s selection interactions.
+
+    Maintain Window/Crossing Select: Continue supporting the drag-select behavior that distinguishes left-to-right vs right-to-left drags for selection. This is already implemented: the code uses direction === 'LTR' ? Window : Crossing to decide the selection mode when the user drags a marquee. We should ensure this works exactly like AutoCAD:
+
+        Window selection (blue outline) – dragging rightward selects only objects entirely inside the rectangle.
+
+        Crossing selection (green outline) – dragging leftward selects objects that intersect the rectangle (even partially).
+
+        Confirm the visual cues (perhaps use different styles or colors for the marquee rectangle) to match user expectation (AutoCAD uses blue solid outline for window, green dashed for crossing). If not already styled, add a CSS differentiation for selectionBox.direction in our MarqueeOverlay. The engine already returns direction ('LTR' or 'RTL'), so we can style accordingly.
+
+        No major code changes needed for logic since hitMode is set properly, but do test that partially intersecting shapes are indeed picked in crossing mode. If any issues, adjust the engine’s queryMarquee or marqueeSelect accordingly.
+
+    Clicking Empty Space: Ensure that clicking on blank space with no modifiers clears the current selection, as is standard in AutoCAD (clicking away deselects everything). Our code already does this: on pointer up, if it was a click with no drag and no Shift/Ctrl, it calls runtime.clearSelection(). We should keep that. However, with the new default additive selection, we should double-check one nuance: If multiple objects are selected and the user wants to start a brand new selection, the typical way is to either press Escape (which we handle via Escape key clearing selection) or click in empty space (clears selection). That flow is fine. Just ensure Shift-clicking empty space does nothing (which is expected – AutoCAD does nothing if you Shift-click empty area, it leaves current selection intact). Our code currently does exactly that (it only clears if no Shift/Ctrl). So that part is aligned with AutoCAD already.
+
+    Overlapping Object Selection (Cycle): AutoCAD provides a way to cycle through overlapping objects (when multiple lie under the cursor) – typically by pressing Shift + Space or using a selection cycling interface. In our app, we have a pickExSmart that might already pick top-most or nearest object, but we don’t yet expose cycling. As a future improvement (to truly match AutoCAD UX), we could implement a cycle mechanism: e.g., if user hovers and hits a key or repeatedly clicks on the same spot with a modifier, alternate which object is selected. This is an enhancement outside basic selection, but noting it in the plan ensures parity with AutoCAD in complex drawings. We might utilize Ctrl-click for this (since we’re freeing Ctrl from multi-select duty). For example, if multiple entities overlap where the user clicked, each Ctrl+click could iterate through those entities. This wasn’t in the original code (the comment “// Cycle/Toggle? Logic handled on Up” hints at intended toggle, but not fully realized). Implementing this would significantly improve selection in dense drawings, akin to AutoCAD’s selection cycling.
+
+Shape Manipulation & Transformation
+
+    Move (Noun-Verb Selection): Verify that once shapes are selected, the user can click and drag to move them immediately, as in AutoCAD’s noun-verb selection paradigm. The current code initiates a transform session on pointer down if a selected entity is clicked, which covers moving on drag. We need to ensure this is smooth:
+
+        If the user clicks on a selected object (on its body, not on a handle) and drags, it should move all selected objects (in AutoCAD, clicking any object and dragging moves that object only by default unless others are also selected – but since our selection can be multi, dragging one of the selected should move the whole selection set). Our activeIds approach does move the whole selection group together via runtime.beginTransform with mode Move.
+
+        Make sure the cursor provides feedback (e.g., a moving cursor icon or the object “ghost” moves with cursor). Possibly improve the cursor icon by using our MoveCursor component (imported in code) to show a move icon at the pointer during drag.
+
+        After releasing the drag, the objects remain selected. AutoCAD keeps them selected after a move, so do we (our code does not clear selection on move, it only clears on explicit clear or delete, so that’s good).
+
+    Grips for Resize/Stretch: Implement resizing of shapes via corner and edge “grips” to simulate AutoCAD’s grip stretching. In AutoCAD, when you select an object, blue grip squares appear at strategic points (e.g., endpoints, midpoints, corners) that the user can drag to stretch or scale the object. Our app already renders resize handles for certain shapes:
+
+        For single selected shapes that have an oriented bounding box (e.g., rectangles, images, etc.), we show four corner handles if hasResizeHandles is true. These correspond to AutoCAD’s corner grips. Dragging a corner handle in our app currently triggers a TransformMode.Resize on the engine side, which likely scales the shape from the opposite corner. We should verify that this behaves like stretching in AutoCAD: for example, dragging a rectangle’s corner should resize the rectangle accordingly (changing width and height).
+
+        We also implemented side handles (midpoint of edges) detection in code (findSideHandle in SelectionHandler) for single objects. When the user hovers near the midpoint of an edge of a shape, and clicks, we initiate a TransformMode.SideResize (as seen in beginTransform call with side index). This should allow stretching in one direction (horizontal or vertical) akin to dragging an edge grip in AutoCAD. We need to ensure the engine actually performs a non-uniform scale or stretch in that single axis. Test that dragging a side handle only changes that dimension of the shape.
+
+        Correction needed: At present, the UI for side handles might not be visible – we render corner handles and a rotate handle, but no distinct UI element for midpoints in the overlay (except for multi-selection box corners, which we do render). We rely on hovering near an edge to trigger side-resize. To improve UX (and match AutoCAD’s midpoint grips), we should consider drawing small squares at the midpoint of each side of the bounding box for eligible shapes. AutoCAD shows grips at midpoints of lines and polyline segments as well. We can repurpose the existing sideHandles logic to visually indicate those points (perhaps smaller squares or a different color). This will make the feature discoverable (currently it’s hidden unless you know to hover near edges). Once visible, dragging those midpoint handles will perform a stretch in one axis.
+
+    Uniform vs Non-Uniform Scaling: AutoCAD distinguishes uniform scaling (via the SCALE command with a factor applied equally in X and Y) versus stretching (moving grips independently). In our app, dragging corner handles currently will not preserve aspect ratio (it effectively stretches width and height independently, determined by cursor movement). This means, for example, a square could be turned into a rectangle by dragging one corner non-diagonally. AutoCAD’s grip editing on a rectangle (which is just a polyline) would indeed allow making it non-square (since it’s moving a vertex). So this non-uniform behavior is acceptable for objects that are basically vertex-defined (polylines, rectangles). However, for inherently uniform shapes like circles, we need special handling:
+
+        A Circle in AutoCAD has only one grip at its center (plus quadrant grips if turned on) – you cannot directly drag its radius via a grip (you’d use Scale command or stretch via surrounding geometry). In our app, if a circle is treated as an Ellipse entity (as indicated by using 'ellipse' kind for circle drafts), dragging a corner handle might turn the circle into an ellipse (different X/Y radii). This deviates from AutoCAD, which would require an explicit ellipse command for that shape. To preserve UX consistency, consider locking circles to uniform scaling: when the user tries to resize a circle, we apply equal scaling to X and Y axes so it remains a circle. This could be done by modifying the engine to maintain aspect ratio for Circle entities or by intercepting the drag in the frontend (e.g., if the selected shape is a Circle and user drags a corner, take the delta and apply the smaller of the two deltas to both width and height). If preserving circle integrity is important, implement this constraint. If we decide it’s acceptable to let circles become ellipses (since our engine might unify them), we should at least ensure the UX communicates that (perhaps by changing the shape type to Ellipse internally and updating icons).
+
+        For most other shapes (rectangles, etc.), non-uniform resize via corner is fine (it’s equivalent to stretching two sides at once in AutoCAD). But we might offer uniform scaling on demand. In many design programs, holding Shift while dragging a corner enforces uniform scaling. We can adopt that convention: if user holds Shift and drags a corner handle, lock the aspect ratio. This isn’t an AutoCAD native behavior (since grips in AutoCAD don’t do uniform scale by modifier; uniform scaling is a separate command), but it would be a usability improvement that doesn’t conflict with any AutoCAD key (Shift is unused during grip drag in AutoCAD). This would give users fine control: drag normally = free stretch, drag with Shift = scale proportionally.
+
+    Rotate Interaction: Provide a means to rotate selected shapes similar to AutoCAD’s Rotate command. AutoCAD requires selecting a base point and then specifying rotation angle or dragging. Our app already includes a rotate handle UI (a circular handle displayed above the shape’s bounding box when applicable). We should:
+
+        Ensure the rotate handle appears for all shape types that can rotate. The code uses orientedMeta.hasRotateHandle which likely is true for shapes that are not purely vertex lines. This means for rectangles, images, etc. It might not appear for lines/polylines, which is fine (lines can be rotated via endpoints or via command).
+
+        Verify that dragging the rotate handle initiates a rotation transform (TransformMode.Rotate is set when a rotate handle sub-target is picked). The engine should rotate around the shape’s center (since that’s how the orientedMeta is defined). AutoCAD’s rotate command lets the user choose any base point, but by default many UI tools use the object’s center for convenience. Using the center is acceptable for UX (and more intuitive for a UI handle). If we want to allow a custom base point, we could implement an alternate rotate workflow (like a rotate tool where first click = base point, second = reference point). That can be future enhancement; the rotate handle approach covers most needs.
+
+        Make sure to show the rotation angle or some visual cue while rotating (perhaps we already have snap overlays for common angles or at least the object rotates live with the cursor). If not, adding a tooltip with current angle relative to start would mimic AutoCAD’s dynamic input (AutoCAD shows the angle on the status bar or dynamic input field as you rotate).
+
+    Multi-Object Transformations: In AutoCAD, if multiple objects are selected, moving them all is straightforward, but scaling or rotating them together uses the collective selection as input to the Scale/Rotate command (which asks for a base point that the user specifies each time). Our app, however, provides a unified bounding box for multi-selections with handles on its corners. This is a more modern UX (similar to Illustrator or PowerPoint) allowing group scaling and rotating. We should ensure this behaves predictably:
+
+        When multiple objects are selected, dragging a corner of the group bounding box should scale all objects as a group (maintaining their relative positions). The engine likely handles this if it treats the multi-selection bounding box drag as scaling each object relative to the group center. Test group resize: e.g., select two shapes and drag the group’s corner handle – both should resize proportional to the drag. If the engine doesn’t natively support multi-entity scale, we may have to implement it (e.g., apply a scale transform to each selected entity relative to the group center). AutoCAD doesn’t do this via grips, but doing so in our app is a beneficial extension of UX (group transform).
+
+        Similarly, the rotate handle for a multi-selection (if we choose to show one – currently we draw only corner squares for multi-selection, no explicit rotate handle on group in our overlay) could be implemented. We might add a rotate circle at the top of the bounding box for multi-selection as well. Rotating that would rotate all objects about the group’s centroid. This is an improvement over AutoCAD (which would require a separate rotate command and specifying base point every time), so it’s a welcome UX feature as long as it’s clear to the user.
+
+        Note: AutoCAD shows grips on each object even in multi-select (so one could move individual ones or stretch them individually by selecting that grip). Our approach of a unified group box is different but more aligned with general GUI design. We should continue with the unified approach, as it’s easier in a webapp context. Just ensure all group handles (corners) and potential rotate handle function as expected.
+
+    Pan and Zoom Consistency: Although not directly about shapes, ensure that basic viewport interactions like panning (middle-mouse drag or right-click drag) and zooming (mouse wheel) work as in AutoCAD. The user should be able to navigate while in the middle of a command (AutoCAD allows you to pan/zoom during shape creation or selection without canceling the command). Our architecture uses an engine viewport that likely handles this, but we should confirm that panning/zooming doesn’t unexpectedly cancel an ongoing draft or selection. If it does, consider changing it (e.g., allow on-the-fly navigation with persistent state).
+
+Shape Editing and Finalizing
+
+    Editing Vertices (Stretch command equivalents): AutoCAD allows editing an object’s shape by moving its vertices (grips). Our application should enable similar vertex-level editing:
+
+        For a Line or Polyline, selecting it should show grips at least on the vertices (endpoints of a line, all vertices of a polyline). Our overlay already draws handles for vertex-capable shapes in a “vertex only” mode (yellow circles in debug, but in normal mode likely small squares on vertices). We need to ensure these grips are interactive: the user should be able to click and drag a vertex grip to a new location, thereby stretching the connected segments. The code supports this via PickSubTarget.Vertex leading to TransformMode.VertexDrag for polylines. Test this: select a polyline, drag one of its vertices – it should move just that vertex, altering the shape. This corresponds to AutoCAD’s Stretch command when used on a corner (or direct grip editing).
+
+        For lines/arrows (simple two-point entities), dragging an endpoint should shorten/lengthen or move the line accordingly (the code likely treats this as VertexDrag as well, or as an EdgeDrag that moves the whole line if you drag somewhere on the line body). Ensure that dragging an endpoint of a line moves just that endpoint (the other stays put), which is the expected behavior (stretching the line). If currently the whole line moves when you try to drag an endpoint (due to isLineOrArrow logic making Edge = Move), that would be incorrect for editing – we should adjust so that clicking exactly on the endpoint (vertex) is distinguished from clicking on the line body (edge). The engine’s PickSubTarget should differentiate endpoint vs edge, and indeed we have PickSubTarget.Vertex for endpoints. So as long as the picking tolerance and logic are correct, dragging near the line’s endpoint should engage vertex move (stretch) whereas dragging the middle of the line engages move. Fine-tune the pick tolerance if needed to make this selection reliable.
+
+        Implement a way to add or remove vertices on polylines if needed. AutoCAD uses commands (PEDIT) or CTRL+click on grips (in newer versions) to add a vertex. We could introduce a simple method: e.g., a context menu or a modifier-click. Perhaps: if no vertex is at the click point but an edge is clicked with a modifier, insert a new vertex at that location. Or provide an “Edit Polyline” tool button that allows adding/deleting vertices. This is a more advanced edit feature; if time permits, including it will further align our editing capabilities with AutoCAD’s (which is highly flexible in editing polylines). For now, documenting this as a future enhancement is fine.
+
+    Properties and Attributes Editing: AutoCAD has a Properties palette to numerically edit an object’s attributes (layer, color, length, etc.). In our UI, we should ensure there is a way to edit shape properties after creation:
+
+        Appearance: We have an appearance editor (perhaps a sidebar or modal) to change color, line style, etc. The code mentions isEditingAppearance state. Make sure that when a shape is selected, the user can invoke an appearance panel or tools (maybe via a toolbar or double-click) to change colors, similar to AutoCAD’s layer/color dropdowns.
+
+        Geometric properties: If possible, allow precise editing of size/position. For example, selecting a rectangle could show its width/height in a properties panel where the user can type exact values (AutoCAD users often type precise coordinates or use the Properties palette to set exact lengths). We can tie this into our state: whenever a single shape is selected, populate a form with its parameters (for a rectangle: width, height, rotation, coordinates of center or basepoint). Editing those and applying could call engine functions to update the shape. Even if not in the initial scope, planning for this feature will cater to advanced users needing precision beyond drag-and-drop.
+
+        Text editing: We have a special case for text entities – double-clicking text enters an edit mode. This mimics AutoCAD’s MTEXT editor (though ours is inline). Continue to refine this: e.g., support multi-line text editing, font changes, etc., via a pop-up or sidebar. The plan should ensure consistency: double-click opens editor, pressing Escape or clicking outside finishes editing (we already set setEngineTextEditActive etc. to handle this). This is already on track, just keep it aligned with user expectations.
+
+    Keyboard Shortcuts and Commands: Align common editing keys with AutoCAD:
+
+        Delete key: Already implemented to delete selected entities. After deletion, AutoCAD typically deselects those (since they’re gone). Our code clears the selection after deleting, which is fine.
+
+        Escape: Cancel current action or deselect all. We handle Escape to cancel transforms or clear selection. This should be preserved. Test that if the user is in the middle of drawing (draft mode) and presses Escape, it cancels the draft as well (the DraftingHandler’s onCancel calls CancelDraft – good).
+
+        Undo/Redo: Although not mentioned, it’s a crucial part of editing UX. AutoCAD uses Ctrl+Z / Ctrl+Y. We should ensure undo/redo stack is functional for all these create/edit actions. If the engine has an undo system, wire it to these keys or provide buttons.
+
+        Copy/Paste: AutoCAD allows copying via CO command or Ctrl+C (to clipboard) and Ctrl+V. In a web app context, implementing clipboard copy-paste of shapes might be complex, but we can implement an internal copy-paste: e.g., Ctrl+C duplicates the selected objects in memory, and Ctrl+V places a copy (perhaps attached to cursor for placement). Alternatively, provide a Copy command in UI that when invoked, duplicates the selection (like AutoCAD’s COPY command where you pick a base point and place the copies). Planning to add a copy tool or keyboard shortcut would enhance editing. For now, the user can achieve similar by Alt-dragging to copy (if we implement Alt-drag = duplicate on move, which is a common UI pattern though not from AutoCAD). This is an optional nice-to-have to consider.
+
+    Object Snaps in Edits: Just as in creation, when moving or stretching existing shapes, object snaps should be available. For example, if dragging a vertex of a shape, snapping it to another shape’s vertex or midpoint is crucial for precision (AutoCAD always uses snaps during edit moves). Our snap overlay should function during transforms (the interactionActive flag likely covers both draft and transform states). We should test and ensure that when dragging a shape or its vertex, the snap guide appears and the movement snaps to target points. If not, we may need to explicitly call an engine snap function during transforms. This is vital for identical UX – precision modeling requires snap in all phases of editing.
+
+    Finalize and Confirm Actions: AutoCAD often requires pressing Enter or Space to confirm certain actions (like finishing a command). In our UI, most actions are mouse-driven, but it’s good to confirm that multi-step operations have a clear completion. E.g., for polyline drawing, we end on double-click or right-click (which is analogous to Enter). For polygon (center-radius), after the modal for sides and setting radius, it commits automatically. These should be communicated to the user (perhaps via tooltip or an instruction in the status bar like “Right-click or double-click to finish”). Having a small on-screen hint or status text can guide the user, similar to AutoCAD’s command line instructions. We might implement a status text area that updates with the current expected action (especially for complex tools).
+
+By executing the above plan – adjusting default behaviors, adding or modifying handle interactions, and refining input methods – the application’s shape creation and editing experience will closely resemble AutoCAD’s UX. These changes emphasize predictable, CAD-standard interactions: requiring clear point inputs for shape creation, intuitive selection accumulation and removal, and grip-based direct manipulation for moving, scaling, and rotating objects (analogous to using AutoCAD’s grips and commands in combination). Furthermore, we maintain useful modern enhancements (like group bounding-box transforms and on-canvas rotation handles) to provide a user-friendly experience that still feels familiar to AutoCAD users. Following this detailed correction plan will eliminate current UX inconsistencies and significantly improve the efficiency and comfort for users transitioning from AutoCAD to our application.
