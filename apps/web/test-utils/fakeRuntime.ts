@@ -4,7 +4,7 @@ import { SelectionMode, type EntityTransform } from '@/engine/core/protocol';
 
 import { FakeEventBus } from './fakeEventBus';
 
-import type { PickResult } from '@/types/picking';
+import { PickEntityKind, PickSubTarget, type PickResult } from '@/types/picking';
 import type { Point, ViewTransform } from '@/types';
 
 type VectorLike = { size(): number; get(index: number): number; delete(): void };
@@ -35,6 +35,7 @@ export class FakeRuntime {
     hitX: 0,
     hitY: 0,
   };
+  pickCandidatesResults: PickResult[] = [];
   lastPickArgs: Array<{ x: number; y: number; tolerance: number; mask: number }> = [];
   selection = new Set<number>();
   marqueeReturnIds: number[] = [];
@@ -80,6 +81,15 @@ export class FakeRuntime {
       x: (point.x - transform.x) / transform.scale,
       y: -(point.y - transform.y) / transform.scale,
     }),
+    screenToWorldWithTransformInto: (
+      point: Point,
+      transform: ViewTransform,
+      out: Point,
+    ): Point => {
+      out.x = (point.x - transform.x) / transform.scale;
+      out.y = -(point.y - transform.y) / transform.scale;
+      return out;
+    },
     worldToScreenWithTransform: (point: Point, transform: ViewTransform): Point => ({
       x: point.x * transform.scale + transform.x,
       y: -point.y * transform.scale + transform.y,
@@ -135,6 +145,10 @@ export class FakeRuntime {
     this.pickResult = { ...this.pickResult, ...result };
   }
 
+  setPickCandidates(results: PickResult[]): void {
+    this.pickCandidatesResults = results.map((r) => ({ ...r }));
+  }
+
   setMarqueeReturn(ids: number[]): void {
     this.marqueeReturnIds = [...ids];
   }
@@ -148,6 +162,44 @@ export class FakeRuntime {
   pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     this.lastPickArgs.push({ x, y, tolerance, mask: pickMask });
     return { ...this.pickResult };
+  }
+
+  pickCandidates(x: number, y: number, tolerance: number, pickMask: number): PickResult[] {
+    this.lastPickArgs.push({ x, y, tolerance, mask: pickMask });
+    if (this.pickCandidatesResults.length > 0) {
+      return this.pickCandidatesResults.map((r) => ({ ...r }));
+    }
+    const single = this.pickExSmart(x, y, tolerance, pickMask);
+    return single.id !== 0 ? [single] : [];
+  }
+
+  pickSelectionHandle(x: number, y: number, tolerance: number): PickResult {
+    const res = this.pickExSmart(x, y, tolerance, 0xff);
+    const isHandle =
+      res.subTarget === PickSubTarget.ResizeHandle || res.subTarget === PickSubTarget.RotateHandle;
+    if (!isHandle) {
+      return {
+        id: 0,
+        kind: PickEntityKind.Unknown,
+        subTarget: PickSubTarget.None,
+        subIndex: -1,
+        distance: Infinity,
+      };
+    }
+    if (this.selection.size === 0 || !this.selection.has(res.id)) {
+      return {
+        id: 0,
+        kind: PickEntityKind.Unknown,
+        subTarget: PickSubTarget.None,
+        subIndex: -1,
+        distance: Infinity,
+      };
+    }
+    return res;
+  }
+
+  pickSideHandle(_x: number, _y: number, _tolerance: number): PickResult {
+    return { id: 0, kind: PickEntityKind.Unknown, subTarget: PickSubTarget.None, subIndex: -1, distance: Infinity };
   }
 
   getSelectionIds(): number[] {
@@ -331,6 +383,14 @@ export class FakeRuntime {
     trY: number;
     tlX: number;
     tlY: number;
+    southX: number;
+    southY: number;
+    eastX: number;
+    eastY: number;
+    northX: number;
+    northY: number;
+    westX: number;
+    westY: number;
     rotateHandleX: number;
     rotateHandleY: number;
     centerX: number;
@@ -338,6 +398,9 @@ export class FakeRuntime {
     rotationRad: number;
     hasRotateHandle: number;
     hasResizeHandles: number;
+    hasSideHandles: number;
+    selectionCount: number;
+    isGroup: number;
     valid: number;
   } {
     // Return invalid by default - tests can override if needed
@@ -352,6 +415,14 @@ export class FakeRuntime {
       trY: 100,
       tlX: 0,
       tlY: 100,
+      southX: 50,
+      southY: 0,
+      eastX: 100,
+      eastY: 50,
+      northX: 50,
+      northY: 100,
+      westX: 0,
+      westY: 50,
       rotateHandleX: 50,
       rotateHandleY: 125,
       centerX: 50,
@@ -359,6 +430,9 @@ export class FakeRuntime {
       rotationRad: 0,
       hasRotateHandle: 1,
       hasResizeHandles: 1,
+      hasSideHandles: 1,
+      selectionCount: 1,
+      isGroup: 0,
       valid: 0, // Invalid by default
     };
   }

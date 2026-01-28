@@ -173,6 +173,43 @@ inline void resizeByScreenWithView(
     engine.commitTransform();
 }
 
+inline void sideResizeByScreenWithView(
+    CadEngine& engine,
+    std::uint32_t id,
+    std::int32_t sideIndex,
+    float startScreenX,
+    float startScreenY,
+    float endScreenX,
+    float endScreenY,
+    float viewScale,
+    std::uint32_t modifiers) {
+    std::uint32_t ids[] = { id };
+    engine.beginTransform(
+        ids,
+        1,
+        CadEngine::TransformMode::SideResize,
+        id,
+        sideIndex,
+        startScreenX,
+        startScreenY,
+        0.0f,
+        0.0f,
+        viewScale,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.updateTransform(
+        endScreenX,
+        endScreenY,
+        0.0f,
+        0.0f,
+        viewScale,
+        0.0f,
+        0.0f,
+        modifiers);
+    engine.commitTransform();
+}
+
 inline void vertexDragByScreenWithModifiers(
     CadEngine& engine,
     std::uint32_t id,

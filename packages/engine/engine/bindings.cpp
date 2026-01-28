@@ -153,10 +153,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         }))
         .function("pick", &CadEngine::pick)
         .function("pickEx", &CadEngine::pickEx)
+        .function("pickCandidates", &CadEngine::pickCandidates)
+        .function("pickSelectionHandle", &CadEngine::pickSelectionHandle)
+        .function("pickSideHandle", &CadEngine::pickSideHandle)
         .function("queryArea", &CadEngine::queryArea)
         .function("queryMarquee", &CadEngine::queryMarquee)
         .function("getStats", &CadEngine::getStats)
         .function("setSnapOptions", &CadEngine::setSnapOptions)
+        .function("setOrthoOptions", &CadEngine::setOrthoOptions)
         .function("getSnappedPoint", emscripten::optional_override([](const CadEngine& self, float x, float y) {
             auto p = self.getSnappedPoint(x, y);
              return emscripten::val::array(std::vector<float>{p.first, p.second});
@@ -372,6 +376,14 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("trY", &engine::protocol::OrientedHandleMeta::trY)
         .field("tlX", &engine::protocol::OrientedHandleMeta::tlX)
         .field("tlY", &engine::protocol::OrientedHandleMeta::tlY)
+        .field("southX", &engine::protocol::OrientedHandleMeta::southX)
+        .field("southY", &engine::protocol::OrientedHandleMeta::southY)
+        .field("eastX", &engine::protocol::OrientedHandleMeta::eastX)
+        .field("eastY", &engine::protocol::OrientedHandleMeta::eastY)
+        .field("northX", &engine::protocol::OrientedHandleMeta::northX)
+        .field("northY", &engine::protocol::OrientedHandleMeta::northY)
+        .field("westX", &engine::protocol::OrientedHandleMeta::westX)
+        .field("westY", &engine::protocol::OrientedHandleMeta::westY)
         .field("rotateHandleX", &engine::protocol::OrientedHandleMeta::rotateHandleX)
         .field("rotateHandleY", &engine::protocol::OrientedHandleMeta::rotateHandleY)
         .field("centerX", &engine::protocol::OrientedHandleMeta::centerX)
@@ -379,6 +391,9 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("rotationRad", &engine::protocol::OrientedHandleMeta::rotationRad)
         .field("hasRotateHandle", &engine::protocol::OrientedHandleMeta::hasRotateHandle)
         .field("hasResizeHandles", &engine::protocol::OrientedHandleMeta::hasResizeHandles)
+        .field("hasSideHandles", &engine::protocol::OrientedHandleMeta::hasSideHandles)
+        .field("selectionCount", &engine::protocol::OrientedHandleMeta::selectionCount)
+        .field("isGroup", &engine::protocol::OrientedHandleMeta::isGroup)
         .field("valid", &engine::protocol::OrientedHandleMeta::valid);
 
     emscripten::value_object<engine::protocol::EntityAabb>("EntityAabb")
@@ -406,6 +421,11 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("height", &DraftDimensions::height)
         .field("centerX", &DraftDimensions::centerX)
         .field("centerY", &DraftDimensions::centerY)
+        .field("length", &DraftDimensions::length)
+        .field("segmentLength", &DraftDimensions::segmentLength)
+        .field("angleDeg", &DraftDimensions::angleDeg)
+        .field("radius", &DraftDimensions::radius)
+        .field("diameter", &DraftDimensions::diameter)
         .field("kind", &DraftDimensions::kind)
         .field("active", &DraftDimensions::active);
 
@@ -473,6 +493,7 @@ EMSCRIPTEN_BINDINGS(cad_engine_module) {
         .field("constraintWidth", &CadEngine::TextEntityMeta::constraintWidth)
         .field("rotation", &CadEngine::TextEntityMeta::rotation);
 
+    emscripten::register_vector<PickResult>("VectorPickResult");
     emscripten::register_vector<std::uint32_t>("VectorUInt32");
     emscripten::register_vector<CadEngine::TextSelectionRect>("VectorTextSelectionRect");
     emscripten::register_vector<CadEngine::TextEntityMeta>("VectorTextEntityMeta");

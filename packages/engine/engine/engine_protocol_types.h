@@ -676,6 +676,8 @@ protected:
             static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapMidpointEnabled)),
             static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapCenterEnabled)),
             static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, snapNearestEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, orthoPersistentEnabled)),
+            static_cast<std::uint32_t>(offsetof(engine::protocol::TransformLogEntry, orthoShiftOverrideEnabled)),
         });
 
         return h;

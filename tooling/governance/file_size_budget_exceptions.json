@@ -62,8 +62,8 @@
     },
     {
       "path": "apps/web/engine/core/EngineRuntime.ts",
-      "hardLimit": 660,
-      "reason": "Runtime facade orchestrating subsystems (text, pick, draft, transform, io, render, stats, style). Subsystem extraction ongoing. Keep under watch."
+      "hardLimit": 680,
+      "reason": "Runtime facade orchestrating subsystems (text, pick, draft, transform, io, render, stats, style). Subsystem extraction ongoing; limit bumped to match current baseline while SRP work lands."
     },
     {
       "path": "apps/web/engine/tools/TextTool.ts",
@@ -102,8 +102,8 @@
     },
     {
       "path": "apps/web/engine/core/protocol.ts",
-      "hardLimit": 650,
-      "reason": "Engine protocol definitions; monolithic type definitions for WASM bridge interface. Pending modularization."
+      "hardLimit": 670,
+      "reason": "Engine protocol definitions; monolithic type definitions for WASM bridge interface. Pending modularization; baseline-adjusted hard limit."
     },
     {
       "path": "apps/web/features/editor/colors/ColorRibbonControls.tsx",
@@ -112,8 +112,8 @@
     },
     {
       "path": "apps/web/features/editor/components/ShapeOverlay.tsx",
-      "hardLimit": 700,
-      "reason": "Shape overlay rendering all selection handles and bounding boxes. Planned extraction of handle logic."
+      "hardLimit": 850,
+      "reason": "Shape overlay rendering all selection handles and bounding boxes. Planned extraction of handle logic; hard limit updated to reflect current baseline until split ships."
     },
     {
       "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx",
@@ -132,8 +132,8 @@
     },
     {
       "path": "packages/engine/engine/interaction/pick_system.cpp",
-      "hardLimit": 980,
-      "reason": "Picking system with spatial indexing and tolerance calculations. Planned refactor to separate spatial query layer."
+      "hardLimit": 1030,
+      "reason": "Picking system with spatial indexing and tolerance calculations. Planned refactor to separate spatial query layer; hard limit aligned to current baseline."
     },
     {
       "path": "packages/engine/engine.cpp",

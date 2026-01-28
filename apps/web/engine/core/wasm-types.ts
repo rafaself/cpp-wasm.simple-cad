@@ -61,6 +61,12 @@ export type TextEntityMeta = {
   rotation: number;
 };
 
+type WasmPickResultVector = {
+  size: () => number;
+  get: (index: number) => PickResult;
+  delete: () => void;
+};
+
 type WasmTextMetaVector = {
   size: () => number;
   get: (index: number) => TextEntityMeta;
@@ -136,12 +142,20 @@ export type CadEngineInstance = {
     mode: number,
     hitMode: number,
   ) => void;
+  pickSelectionHandle: (x: number, y: number, tolerance: number) => PickResult;
+  pickSideHandle: (x: number, y: number, tolerance: number) => PickResult;
   getDrawOrderSnapshot?: () => WasmU32Vector;
   reorderEntities?: (idsPtr: number, idCount: number, action: number, refId: number) => void;
   pick: (x: number, y: number, tolerance: number) => EntityId;
 
   // New extended pick
   pickEx?: (x: number, y: number, tolerance: number, pickMask: number) => PickResult;
+  pickCandidates?: (
+    x: number,
+    y: number,
+    tolerance: number,
+    pickMask: number,
+  ) => WasmPickResultVector;
   queryArea?: (minX: number, minY: number, maxX: number, maxY: number) => WasmU32Vector;
   queryMarquee?: (
     minX: number,
@@ -252,6 +266,7 @@ export type CadEngineInstance = {
     centerEnabled: boolean,
     nearestEnabled: boolean,
   ) => void;
+  setOrthoOptions?: (persistentEnabled: boolean, shiftOverrideEnabled: boolean) => void;
   getSnappedPoint?: (x: number, y: number) => Float32Array;
 
   // Draft System
@@ -271,6 +286,11 @@ export type DraftDimensions = {
   height: number;
   centerX: number;
   centerY: number;
+  length: number;
+  segmentLength: number;
+  angleDeg: number;
+  radius: number;
+  diameter: number;
   kind: number;
   active: boolean;
 };

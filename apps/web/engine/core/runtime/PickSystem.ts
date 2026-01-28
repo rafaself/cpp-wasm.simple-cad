@@ -43,6 +43,36 @@ export class PickSystem {
     return wrappedPick(x, y, tolerance, pickMask);
   }
 
+  public pickCandidates(x: number, y: number, tolerance: number, pickMask: number): PickResult[] {
+    if (typeof this.engine.pickCandidates === 'function') {
+      const vec = this.engine.pickCandidates(x, y, tolerance, pickMask);
+      const count = vec.size();
+      const out: PickResult[] = [];
+      for (let i = 0; i < count; i += 1) {
+        out.push(vec.get(i));
+      }
+      vec.delete();
+      return out;
+    }
+
+    const single = this.pickEx(x, y, tolerance, pickMask);
+    return single.id !== 0 ? [single] : [];
+  }
+
+  public pickSideHandle(x: number, y: number, tolerance: number): PickResult | null {
+    if (typeof this.engine.pickSideHandle !== 'function') {
+      throw new Error('[EngineRuntime] pickSideHandle() missing in WASM build.');
+    }
+    return this.engine.pickSideHandle(x, y, tolerance);
+  }
+
+  public pickSelectionHandle(x: number, y: number, tolerance: number): PickResult | null {
+    if (typeof this.engine.pickSelectionHandle !== 'function') {
+      throw new Error('[EngineRuntime] pickSelectionHandle() missing in WASM build.');
+    }
+    return this.engine.pickSelectionHandle(x, y, tolerance);
+  }
+
   /**
    * Quick bounds check to see if there are any entities near the given point.
    * This is a fast early-out check before performing more expensive operations.

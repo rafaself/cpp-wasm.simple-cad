@@ -3,6 +3,65 @@
 
 using namespace engine_test;
 
+TEST_F(CadEngineTest, PickSelectionHandleRequiresSelection) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 10.0f, 10.0f, 20.0f, 20.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    // No selection => no handle hit even at a corner.
+    {
+        PickResult res = engine.pickSelectionHandle(10.0f, 10.0f, 2.0f);
+        EXPECT_EQ(res.id, 0u);
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::None);
+    }
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    PickResult res = engine.pickSelectionHandle(10.0f, 10.0f, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+}
+
+TEST_F(CadEngineTest, PickSelectionHandleUsesOrientedMeta) {
+    // Rotated ellipse exercises rotation-aware oriented handle picking.
+    constexpr float kPiQuarter = 0.7853981633974483f;
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        kPiQuarter,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    const auto meta = engine.getOrientedHandleMeta();
+    ASSERT_EQ(meta.valid, 1u);
+
+    PickResult res = engine.pickSelectionHandle(meta.trX, meta.trY, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+    EXPECT_EQ(res.subIndex, 2);
+}
+
+TEST_F(CadEngineTest, PickSelectionHandleIncludesSideHandles) {
+    CadEngineTestAccessor::upsertRect(engine, 1, 40.0f, 40.0f, 20.0f, 20.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    const auto meta = engine.getOrientedHandleMeta();
+    ASSERT_EQ(meta.valid, 1u);
+    ASSERT_EQ(meta.hasSideHandles, 1u);
+
+    PickResult res = engine.pickSelectionHandle(meta.northX, meta.northY, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+    EXPECT_EQ(res.subIndex, 4);
+}
+
 TEST_F(CadEngineTest, RotatedEllipseResizeHandlesAllPickable) {
     // Create a rotated ellipse: center (50,50), rx=20, ry=10, rotation=π/2 (90°)
     // After 90° rotation, the corners in world coords are:
@@ -128,9 +187,9 @@ TEST_F(CadEngineTest, RotatedEllipseResizeContinuesFromCurrentState) {
         id,
         2,
         handleStartX * kViewScale,
-        handleStartY * kViewScale,
+        -handleStartY * kViewScale,
         targetWorldX * kViewScale,
-        targetWorldY * kViewScale,
+        -targetWorldY * kViewScale,
         kViewScale,
         0);
 
@@ -160,9 +219,9 @@ TEST_F(CadEngineTest, RotatedEllipseResizeContinuesFromCurrentState) {
         id,
         2,
         handleStartX2 * kViewScale,
-        handleStartY2 * kViewScale,
+        -handleStartY2 * kViewScale,
         targetWorldX2 * kViewScale,
-        targetWorldY2 * kViewScale,
+        -targetWorldY2 * kViewScale,
         kViewScale,
         0);
 
@@ -315,4 +374,216 @@ TEST_F(CadEngineTest, NonRotatedEllipseHandlesStillWork) {
         EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
         EXPECT_EQ(res.subIndex, 2);
     }
+}
+
+TEST_F(CadEngineTest, PickSideHandleDetectsEllipseEdges) {
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    const float tolerance = 2.0f;
+
+    {
+        PickResult res = engine.pickSideHandle(50.0f, 40.0f, tolerance); // N
+        EXPECT_EQ(res.id, id);
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+        EXPECT_EQ(res.subIndex, 4);
+    }
+    {
+        PickResult res = engine.pickSideHandle(70.0f, 50.0f, tolerance); // E
+        EXPECT_EQ(res.id, id);
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+        EXPECT_EQ(res.subIndex, 5);
+    }
+    {
+        PickResult res = engine.pickSideHandle(50.0f, 60.0f, tolerance); // S
+        EXPECT_EQ(res.id, id);
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+        EXPECT_EQ(res.subIndex, 6);
+    }
+    {
+        PickResult res = engine.pickSideHandle(30.0f, 50.0f, tolerance); // W
+        EXPECT_EQ(res.id, id);
+        EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+        EXPECT_EQ(res.subIndex, 7);
+    }
+}
+
+TEST_F(CadEngineTest, PickSideHandleRespectsRotation) {
+    constexpr float kPiHalf = 1.5707963267948966f; // π/2
+    const float cx = 50.0f;
+    const float cy = 50.0f;
+    const float rx = 20.0f;
+    const float ry = 10.0f;
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        cx, cy,
+        rx, ry,
+        kPiHalf,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    const std::uint32_t id = 1;
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    const float cosR = std::cos(kPiHalf);
+    const float sinR = std::sin(kPiHalf);
+    const float localX = 0.0f;
+    const float localY = -ry; // N edge in local space
+    const float worldX = cx + localX * cosR - localY * sinR;
+    const float worldY = cy + localX * sinR + localY * cosR;
+
+    PickResult res = engine.pickSideHandle(worldX, worldY, 2.0f);
+    EXPECT_EQ(res.id, id);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::ResizeHandle);
+    EXPECT_EQ(res.subIndex, 4);
+}
+
+TEST_F(CadEngineTest, PickSideHandleRequiresSingleSelection) {
+    CadEngineTestAccessor::upsertCircle(
+        engine, 1,
+        50.0f, 50.0f,
+        20.0f, 10.0f,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    CadEngineTestAccessor::upsertCircle(
+        engine, 2,
+        100.0f, 100.0f,
+        10.0f, 5.0f,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+
+    std::uint32_t ids[] = { 1, 2 };
+    engine.setSelection(ids, 2, engine::protocol::SelectionMode::Replace);
+
+    PickResult res = engine.pickSideHandle(50.0f, 40.0f, 2.0f);
+    EXPECT_EQ(res.id, 0u);
+    EXPECT_EQ(static_cast<PickSubTarget>(res.subTarget), PickSubTarget::None);
+}
+
+TEST_F(CadEngineTest, CircleResizeRemainsUniformWithoutAlt) {
+    constexpr std::uint32_t id = 300;
+    constexpr float cx = 50.0f;
+    constexpr float cy = 50.0f;
+    constexpr float r = 10.0f;
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, id,
+        cx, cy,
+        r, r,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // TR handle at (cx + r, cy + r). Drag to a non-uniform target.
+    resizeByScreenWithView(
+        engine,
+        id,
+        2,
+        cx + r,
+        cy + r,
+        cx + r + 10.0f,
+        cy + r + 2.0f,
+        1.0f,
+        0);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_NEAR(circle->rx, circle->ry, 1e-3f);
+}
+
+TEST_F(CadEngineTest, CircleResizeAltUnlocksEllipse) {
+    constexpr std::uint32_t id = 301;
+    constexpr float cx = 50.0f;
+    constexpr float cy = 50.0f;
+    constexpr float r = 10.0f;
+    const auto altMask = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Alt);
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, id,
+        cx, cy,
+        r, r,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    resizeByScreenWithView(
+        engine,
+        id,
+        2,
+        cx + r,
+        cy + r,
+        cx + r + 12.0f,
+        cy + r + 1.0f,
+        1.0f,
+        altMask);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_GT(std::abs(circle->rx - circle->ry), 1e-2f);
+}
+
+TEST_F(CadEngineTest, CircleSideResizeRemainsUniformWithoutAlt) {
+    constexpr std::uint32_t id = 302;
+    constexpr float cx = 50.0f;
+    constexpr float cy = 50.0f;
+    constexpr float r = 10.0f;
+
+    CadEngineTestAccessor::upsertCircle(
+        engine, id,
+        cx, cy,
+        r, r,
+        0.0f,
+        1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f
+    );
+    engine.setSelection(&id, 1, engine::protocol::SelectionMode::Replace);
+
+    // East side handle at (cx + r, cy). Drag outward.
+    sideResizeByScreenWithView(
+        engine,
+        id,
+        1,
+        cx + r,
+        cy,
+        cx + r + 10.0f,
+        cy,
+        1.0f,
+        0);
+
+    const CircleRec* circle = CadEngineTestAccessor::entityManager(engine).getCircle(id);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_NEAR(circle->rx, circle->ry, 1e-3f);
 }

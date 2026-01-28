@@ -102,6 +102,7 @@ namespace {
         }
         return { minX, minY, maxX, maxY };
     }
+
 } // namespace
 
 std::vector<std::uint32_t> CadEngine::queryArea(float minX, float minY, float maxX, float maxY) const {

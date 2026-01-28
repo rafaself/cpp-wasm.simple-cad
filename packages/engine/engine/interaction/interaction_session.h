@@ -40,8 +40,10 @@ public:
     bool isDraftActive() const noexcept { return draft_.active; }
 
     SnapOptions snapOptions;
+    OrthoOptions orthoOptions;
 
     const std::vector<SnapGuide>& getSnapGuides() const { return snapGuides_; }
+    const std::vector<SnapHit>& getSnapHits() const { return snapHits_; }
 
     // ==============================================================================
     // Accessors for Commit Results (for WASM binding)
@@ -192,6 +194,7 @@ private:
     DraftState draft_;
     TransformStats transformStats_;
     std::vector<SnapGuide> snapGuides_;
+    std::vector<SnapHit> snapHits_;
     std::vector<std::uint32_t> snapCandidates_;
     mutable std::vector<DraftSegment> draftSegments_;
 
@@ -216,6 +219,11 @@ private:
 
     // Helper to refresh render range in engine
     void refreshEntityRenderRange(std::uint32_t id);
+
+    // Side-resize update split out to keep hot-path logic modular and within budgets.
+    bool updateSideResize(float worldX, float worldY, std::uint32_t modifiers);
+    // Rotation update split out for SRP and file-size governance.
+    bool updateRotate(float worldX, float worldY, std::uint32_t modifiers);
     
     // ==============================================================================
     // Phantom Entity Helpers (Draft System)
@@ -232,6 +240,7 @@ private:
         float viewWidth,
         float viewHeight,
         const SnapOptions& options,
+        const OrthoOptions& ortho,
         std::uint32_t modifiers);
     void recordTransformUpdate(
         float screenX,
@@ -242,6 +251,7 @@ private:
         float viewWidth,
         float viewHeight,
         const SnapOptions& options,
+        const OrthoOptions& ortho,
         std::uint32_t modifiers);
     void recordTransformCommit();
     void recordTransformCancel();

@@ -198,6 +198,8 @@ export type TransformLogEntry = {
   snapMidpointEnabled: number;
   snapCenterEnabled: number;
   snapNearestEnabled: number;
+  orthoPersistentEnabled: number;
+  orthoShiftOverrideEnabled: number;
 };
 
 export type EngineEvent = {
@@ -221,6 +223,14 @@ export enum OverlayKind {
   Segment = 3,
   Rect = 4,
   Point = 5,
+}
+
+// OverlayPrimitive.flags for snap indicator points (OverlayKind.Point from snap overlay)
+export enum SnapTargetKind {
+  None = 0,
+  Endpoint = 1,
+  Midpoint = 2,
+  Center = 3,
 }
 
 export type OverlayPrimitive = {
@@ -261,6 +271,16 @@ export type OrientedHandleMeta = {
   tlX: number;
   tlY: number; // Top-Left
 
+  // Side handles in world coordinates (midpoints of edges)
+  southX: number;
+  southY: number;
+  eastX: number;
+  eastY: number;
+  northX: number;
+  northY: number;
+  westX: number;
+  westY: number;
+
   // Rotate handle position in world coordinates
   rotateHandleX: number;
   rotateHandleY: number;
@@ -275,6 +295,9 @@ export type OrientedHandleMeta = {
   // Flags
   hasRotateHandle: number; // 1 if rotate handle should be shown
   hasResizeHandles: number; // 1 if corner resize handles should be shown
+  hasSideHandles: number; // 1 if side handles should be shown
+  selectionCount: number; // number of selected entities represented
+  isGroup: number; // 1 if representing multi-selection
   valid: number; // 1 if data is valid
 };
 
@@ -294,6 +317,23 @@ export type EntityTransform = {
   rotationDeg: number;
   hasRotation: number;
   valid: number;
+};
+
+/**
+ * Grip metadata for polygon vertex/edge editing.
+ * Returns positions of interactive grip points in WCS.
+ *
+ * Phase 1: Vertex grips only (edgeCount = 0)
+ * Phase 2: Adds edge midpoint grips (edgeCount = vertexCount for closed shapes)
+ */
+export type GripMeta = {
+  generation: number;
+  vertexCount: number;
+  edgeCount: number; // 0 if edges not requested
+  floatCount: number; // vertexCount*2 + edgeCount*2
+  verticesPtr: number; // Pointer to [x0,y0, x1,y1, ...] in WCS
+  edgeMidpointsPtr: number; // Pointer to edge midpoints (if edgeCount > 0)
+  valid: number; // 1 if data is valid
 };
 
 // Layout constants for OverlayPrimitive to ensure decoder matches ABI hash
@@ -563,8 +603,11 @@ const computeAbiHash = (): number => {
   h = hashStruct(
     h,
     0x53000025,
-    88,
-    [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84],
+    96,
+    [
+      0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88,
+      92,
+    ],
   );
 
   return h >>> 0;

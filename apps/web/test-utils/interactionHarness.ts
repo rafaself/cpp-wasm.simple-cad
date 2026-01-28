@@ -1,7 +1,7 @@
 import { DraftingHandler } from '@/features/editor/interactions/handlers/DraftingHandler';
 import { SelectionHandler } from '@/features/editor/interactions/handlers/SelectionHandler';
 import { TextHandler } from '@/features/editor/interactions/handlers/TextHandler';
-import { screenToWorld } from '@/utils/viewportMath';
+import { screenToWorld } from '@/engine/core/viewportMath';
 
 import { FakeRuntime } from './fakeRuntime';
 
@@ -63,6 +63,8 @@ export class InteractionHarness {
   public canvasSize: { width: number; height: number };
   public toolDefaults: any;
   public updates = 0;
+  private hoverPick = (x: number, y: number, tolerance: number, mask: number) =>
+    (this.runtime as any).pickExSmart(x, y, tolerance, mask);
 
   constructor(options: HarnessOptions = {}) {
     this.runtime = options.runtime ?? new FakeRuntime();
@@ -161,6 +163,7 @@ export class InteractionHarness {
       worldPoint,
       snappedPoint: worldPoint,
       runtime: this.runtime as any,
+      hoverPick: this.hoverPick,
       viewTransform: this.viewTransform,
       canvasSize: this.canvasSize,
     };

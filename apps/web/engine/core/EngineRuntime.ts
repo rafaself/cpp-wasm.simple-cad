@@ -63,6 +63,7 @@ export class EngineRuntime {
   public readonly stats: StatsSystem;
   public readonly style: StyleSystem;
   public readonly viewport: ViewportSystem;
+  public readonly selection: SelectionSystem;
   #engine: CadEngineInstance;
   private commandSystem: CommandSystem;
   private eventSystem: EventSystem;
@@ -159,6 +160,7 @@ export class EngineRuntime {
     this.render = this.renderSystem;
     this.stats = this.statsSystem;
     this.style = this.styleSystem;
+    this.selection = this.selectionSystem;
   }
 
   public resetIds(): void {
@@ -278,8 +280,25 @@ export class EngineRuntime {
     return this.pickSystem.pickEx(x, y, tolerance, pickMask);
   }
 
+  public pickCandidates(
+    x: number,
+    y: number,
+    tolerance: number,
+    pickMask: number,
+  ): PickResult[] {
+    return this.pickSystem.pickCandidates(x, y, tolerance, pickMask);
+  }
+
   public pickExSmart(x: number, y: number, tolerance: number, pickMask: number): PickResult {
     return this.pickSystem.pickExSmart(x, y, tolerance, pickMask);
+  }
+
+  public pickSelectionHandle(x: number, y: number, tolerance: number): PickResult | null {
+    return this.pickSystem.pickSelectionHandle(x, y, tolerance);
+  }
+
+  public pickSideHandle(x: number, y: number, tolerance: number): PickResult | null {
+    return this.pickSystem.pickSideHandle(x, y, tolerance);
   }
 
   public pickExCached(
@@ -457,6 +476,10 @@ export class EngineRuntime {
       centerEnabled,
       nearestEnabled,
     );
+  }
+
+  public setOrthoOptions(persistentEnabled: boolean, shiftOverrideEnabled: boolean): void {
+    this.transformSystem.setOrthoOptions(persistentEnabled, shiftOverrideEnabled);
   }
 
   public getSnappedPoint(x: number, y: number): { x: number; y: number } {

@@ -55,23 +55,40 @@ void InteractionSession::beginTransform(
     session_.dragThresholdPx = interaction_constants::DRAG_THRESHOLD_PX;
 
     std::vector<std::uint32_t> activeIds;
+    const auto& selectionOrdered = engine_.state().selectionManager_.getOrdered();
+    const bool selectionHasMultiple = selectionOrdered.size() > 1;
+    const bool idsHaveMultiple = ids && idCount > 1;
+    const bool groupHandleMode =
+        (mode == TransformMode::Resize || mode == TransformMode::Rotate || mode == TransformMode::SideResize) &&
+        (selectionHasMultiple || idsHaveMultiple);
 
-    if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && mode != TransformMode::SideResize && specificId != 0) {
-        if (!entityManager_.isEntityPickable(specificId)) {
-            session_.active = false;
-            return;
+    if (mode == TransformMode::SideResize) {
+        // SideResize reuses vertexIndex to carry the side handle index (0=S, 1=E, 2=N, 3=W).
+        session_.sideIndex = vertexIndex;
+    }
+
+    // Group handles should operate on the whole selection for resize/rotate/side-resize.
+    if (groupHandleMode) {
+        if (selectionHasMultiple) {
+            activeIds = selectionOrdered;
+        } else {
+            activeIds.assign(ids, ids + idCount);
         }
-        activeIds.push_back(specificId);
     } else if (mode == TransformMode::SideResize && specificId != 0) {
-        // SideResize: use specificId, vertexIndex contains sideIndex (0=S, 1=E, 2=N, 3=W)
+        // Single-entity side resize uses specificId and sideIndex.
         if (!entityManager_.isEntityPickable(specificId)) {
             session_.active = false;
             return;
         }
         activeIds.push_back(specificId);
-        session_.sideIndex = vertexIndex;  // Reuse vertexIndex for side handle index
-    } else if (!engine_.state().selectionManager_.isEmpty()) {
-        activeIds = engine_.state().selectionManager_.getOrdered();
+    } else if (mode != TransformMode::Move && mode != TransformMode::EdgeDrag && specificId != 0) {
+        if (!entityManager_.isEntityPickable(specificId)) {
+            session_.active = false;
+            return;
+        }
+        activeIds.push_back(specificId);
+    } else if (!selectionOrdered.empty()) {
+        activeIds = selectionOrdered;
     } else if (ids && idCount > 0) {
         activeIds.assign(ids, ids + idCount);
     }
@@ -288,66 +305,86 @@ void InteractionSession::beginTransform(
 
     if (session_.mode == TransformMode::SideResize && session_.specificId != 0 &&
         session_.sideIndex >= 0 && session_.sideIndex <= 3) {
-        // Initialize side resize state
-        const TransformSnapshot* snap = nullptr;
-        for (const auto& s : session_.snapshots) {
-            if (s.id == session_.specificId) {
-                snap = &s;
-                break;
-            }
-        }
-        if (snap) {
-            auto it = entityManager_.entities.find(session_.specificId);
-            if (it != entityManager_.entities.end()) {
-                float halfW = 0.0f;
-                float halfH = 0.0f;
-                bool valid = false;
-
-                if (it->second.kind == EntityKind::Rect) {
-                    halfW = snap->w * 0.5f;
-                    halfH = snap->h * 0.5f;
-                    valid = true;
-                } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
-                    halfW = snap->w;
-                    halfH = snap->h;
-                    valid = true;
+        // Multi-selection side resize uses group bounds; single-entity uses local handles.
+        if (session_.snapshots.size() > 1) {
+            const float baseW = std::max(1e-6f, session_.baseMaxX - session_.baseMinX);
+            const float baseH = std::max(1e-6f, session_.baseMaxY - session_.baseMinY);
+            session_.resizeBaseW = baseW;
+            session_.resizeBaseH = baseH;
+            session_.resizeAspect = baseW / baseH;
+            session_.resizeAnchorValid = true;
+        } else {
+            // Initialize side resize state
+            const TransformSnapshot* snap = nullptr;
+            for (const auto& s : session_.snapshots) {
+                if (s.id == session_.specificId) {
+                    snap = &s;
+                    break;
                 }
+            }
+            if (snap) {
+                auto it = entityManager_.entities.find(session_.specificId);
+                if (it != entityManager_.entities.end()) {
+                    float halfW = 0.0f;
+                    float halfH = 0.0f;
+                    bool valid = false;
 
-                if (valid) {
-                    const float baseW = std::max(1e-6f, halfW * 2.0f);
-                    const float baseH = std::max(1e-6f, halfH * 2.0f);
-                    session_.resizeBaseW = baseW;
-                    session_.resizeBaseH = baseH;
-                    session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
-                    session_.resizeAnchorValid = true;
+                    if (it->second.kind == EntityKind::Rect) {
+                        halfW = snap->w * 0.5f;
+                        halfH = snap->h * 0.5f;
+                        valid = true;
+                    } else if (it->second.kind == EntityKind::Circle || it->second.kind == EntityKind::Polygon) {
+                        halfW = snap->w;
+                        halfH = snap->h;
+                        valid = true;
+                    }
 
-                    // Set anchor on opposite side
-                    // sideIndex: 0=S, 1=E, 2=N, 3=W
-                    // Anchor on opposite side in local space
-                    switch (session_.sideIndex) {
-                        case 0: // South -> anchor at North (top edge)
-                            session_.resizeAnchorX = 0.0f;
-                            session_.resizeAnchorY = -halfH;
-                            break;
-                        case 1: // East -> anchor at West (left edge)
-                            session_.resizeAnchorX = -halfW;
-                            session_.resizeAnchorY = 0.0f;
-                            break;
-                        case 2: // North -> anchor at South (bottom edge)
-                            session_.resizeAnchorX = 0.0f;
-                            session_.resizeAnchorY = halfH;
-                            break;
-                        case 3: // West -> anchor at East (right edge)
-                            session_.resizeAnchorX = halfW;
-                            session_.resizeAnchorY = 0.0f;
-                            break;
+                    if (valid) {
+                        const float baseW = std::max(1e-6f, halfW * 2.0f);
+                        const float baseH = std::max(1e-6f, halfH * 2.0f);
+                        session_.resizeBaseW = baseW;
+                        session_.resizeBaseH = baseH;
+                        session_.resizeAspect = (baseW > 1e-6f && baseH > 1e-6f) ? (baseW / baseH) : 1.0f;
+                        session_.resizeAnchorValid = true;
+
+                        // Set anchor on opposite side
+                        // sideIndex: 0=S, 1=E, 2=N, 3=W
+                        // Anchor on opposite side in local space
+                        switch (session_.sideIndex) {
+                            case 0: // South -> anchor at North (top edge)
+                                session_.resizeAnchorX = 0.0f;
+                                session_.resizeAnchorY = -halfH;
+                                break;
+                            case 1: // East -> anchor at West (left edge)
+                                session_.resizeAnchorX = -halfW;
+                                session_.resizeAnchorY = 0.0f;
+                                break;
+                            case 2: // North -> anchor at South (bottom edge)
+                                session_.resizeAnchorX = 0.0f;
+                                session_.resizeAnchorY = halfH;
+                                break;
+                            case 3: // West -> anchor at East (right edge)
+                                session_.resizeAnchorX = halfW;
+                                session_.resizeAnchorY = 0.0f;
+                                break;
+                        }
                     }
                 }
             }
         }
     }
 
-    recordTransformBegin(screenX, screenY, viewX, viewY, viewScale, viewWidth, viewHeight, snapOptions, modifiers);
+    recordTransformBegin(
+        screenX,
+        screenY,
+        viewX,
+        viewY,
+        viewScale,
+        viewWidth,
+        viewHeight,
+        snapOptions,
+        orthoOptions,
+        modifiers);
 
     session_.historyActive = engine_.beginHistoryEntry();
     if (session_.historyActive) {

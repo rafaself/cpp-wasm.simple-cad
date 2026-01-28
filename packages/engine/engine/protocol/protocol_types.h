@@ -309,6 +309,13 @@ struct OrientedHandleMeta {
     float brX, brY;  // Bottom-Right
     float trX, trY;  // Top-Right
     float tlX, tlY;  // Top-Left
+
+    // Side handles in world coordinates (midpoints of each edge)
+    // Order: South, East, North, West
+    float southX, southY;
+    float eastX, eastY;
+    float northX, northY;
+    float westX, westY;
     
     // Rotate handle position in world coordinates
     float rotateHandleX;
@@ -324,6 +331,9 @@ struct OrientedHandleMeta {
     // Flags
     std::uint32_t hasRotateHandle;   // 1 if rotate handle should be shown
     std::uint32_t hasResizeHandles;  // 1 if corner resize handles should be shown
+    std::uint32_t hasSideHandles;    // 1 if side handles should be shown
+    std::uint32_t selectionCount;    // Number of selected entities represented
+    std::uint32_t isGroup;           // 1 if representing a multi-selection group
     std::uint32_t valid;             // 1 if data is valid
 };
 
@@ -408,6 +418,8 @@ struct TransformLogEntry {
     std::uint32_t snapMidpointEnabled;
     std::uint32_t snapCenterEnabled;
     std::uint32_t snapNearestEnabled;
+    std::uint32_t orthoPersistentEnabled;
+    std::uint32_t orthoShiftOverrideEnabled;
 };
 
 // =============================================================================

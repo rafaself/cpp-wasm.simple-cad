@@ -464,16 +464,7 @@ std::uint32_t CadEngine::getEntityLayer(std::uint32_t entityId) const {
 std::uint32_t CadEngine::getEntityKind(std::uint32_t entityId) const {
     auto it = state().entityManager_.entities.find(entityId);
     if (it != state().entityManager_.entities.end()) {
-        switch (it->second.kind) {
-            case EntityKind::Rect: return static_cast<std::uint32_t>(PickEntityKind::Rect);
-            case EntityKind::Line: return static_cast<std::uint32_t>(PickEntityKind::Line);
-            case EntityKind::Polyline: return static_cast<std::uint32_t>(PickEntityKind::Polyline);
-            case EntityKind::Circle: return static_cast<std::uint32_t>(PickEntityKind::Circle);
-            case EntityKind::Polygon: return static_cast<std::uint32_t>(PickEntityKind::Polygon);
-            case EntityKind::Arrow: return static_cast<std::uint32_t>(PickEntityKind::Arrow);
-            case EntityKind::Text: return static_cast<std::uint32_t>(PickEntityKind::Text);
-            default: return static_cast<std::uint32_t>(PickEntityKind::Unknown);
-        }
+        return static_cast<std::uint32_t>(it->second.kind);
     }
     return 0;
 }
@@ -485,59 +476,55 @@ std::uint32_t CadEngine::pick(float x, float y, float tolerance) const noexcept 
 PickResult CadEngine::pickEx(float x, float y, float tolerance, std::uint32_t pickMask) const noexcept {
     constexpr std::uint32_t kPickHandlesMask = 1u << 3;
     if ((pickMask & kPickHandlesMask) != 0) {
-        const auto& selection = state().selectionManager_.getOrdered();
-        if (selection.size() >= 1) {
-            bool allowSelectionHandles = true;
-            if (selection.size() == 1) {
-                const std::uint32_t id = selection.front();
-                const auto it = state().entityManager_.entities.find(id);
-                if (it != state().entityManager_.entities.end()) {
-                    const EntityKind kind = it->second.kind;
-                    if (kind == EntityKind::Line || kind == EntityKind::Polyline || kind == EntityKind::Arrow) {
-                        // Endpoint handles for line-like entities should resolve to vertex dragging.
-                        allowSelectionHandles = false;
-                    }
-                }
-            }
-
-            if (allowSelectionHandles) {
-                const engine::protocol::EntityAabb bounds = getSelectionBounds();
-                if (bounds.valid) {
-                    const float corners[4][2] = {
-                        {bounds.minX, bounds.minY},
-                        {bounds.maxX, bounds.minY},
-                        {bounds.maxX, bounds.maxY},
-                        {bounds.minX, bounds.maxY},
-                    };
-                    float bestDist = std::numeric_limits<float>::infinity();
-                    int bestIndex = -1;
-                    for (int i = 0; i < 4; ++i) {
-                        const float dx = x - corners[i][0];
-                        const float dy = y - corners[i][1];
-                        const float dist = std::sqrt(dx * dx + dy * dy);
-                        if (dist <= tolerance && dist < bestDist) {
-                            bestDist = dist;
-                            bestIndex = i;
-                        }
-                    }
-
-                    if (bestIndex >= 0) {
-                        return {
-                            selection.front(),
-                            static_cast<std::uint16_t>(PickEntityKind::Unknown),
-                            static_cast<std::uint8_t>(PickSubTarget::ResizeHandle),
-                            bestIndex,
-                            bestDist,
-                            x,
-                            y
-                        };
-                    }
-                }
-            }
+        const PickResult handlePick = pickSelectionHandle(x, y, tolerance);
+        if (handlePick.id != 0) {
+            return handlePick;
         }
     }
 
     return state().pickSystem_.pickEx(x, y, tolerance, state().viewScale, pickMask, state().entityManager_, state().textSystem_);
+}
+
+std::vector<PickResult> CadEngine::pickCandidates(
+    float x,
+    float y,
+    float tolerance,
+    std::uint32_t pickMask) const noexcept {
+    constexpr std::uint32_t kPickHandlesMask = 1u << 3;
+    std::vector<PickResult> results;
+
+    if ((pickMask & kPickHandlesMask) != 0) {
+        const PickResult handlePick = pickSelectionHandle(x, y, tolerance);
+        if (handlePick.id != 0) {
+            results.push_back(handlePick);
+        }
+    }
+
+    std::vector<PickResult> engineCandidates = state().pickSystem_.pickCandidates(
+        x,
+        y,
+        tolerance,
+        state().viewScale,
+        pickMask,
+        state().entityManager_,
+        state().textSystem_);
+
+    for (const PickResult& candidate : engineCandidates) {
+        bool duplicate = false;
+        for (const PickResult& existing : results) {
+            if (existing.id == candidate.id &&
+                existing.subTarget == candidate.subTarget &&
+                existing.subIndex == candidate.subIndex) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+            results.push_back(candidate);
+        }
+    }
+
+    return results;
 }
 
 // Query methods (queryArea, queryMarquee, getEntityAabb) moved to engine/engine_query.cpp
@@ -903,6 +890,11 @@ void CadEngine::setSnapOptions(bool enabled, bool gridEnabled, float gridSize, f
     state().interactionSession_.snapOptions.midpointEnabled = midpointEnabled;
     state().interactionSession_.snapOptions.centerEnabled = centerEnabled;
     state().interactionSession_.snapOptions.nearestEnabled = nearestEnabled;
+}
+
+void CadEngine::setOrthoOptions(bool persistentEnabled, bool shiftOverrideEnabled) {
+    state().interactionSession_.orthoOptions.persistentEnabled = persistentEnabled;
+    state().interactionSession_.orthoOptions.shiftOverrideEnabled = shiftOverrideEnabled;
 }
 
 std::pair<float, float> CadEngine::getSnappedPoint(float x, float y) const {

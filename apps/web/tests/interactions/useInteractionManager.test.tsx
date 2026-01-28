@@ -17,7 +17,8 @@ vi.mock('@/engine/core/singleton', () => ({
 }));
 
 const Surface: React.FC = () => {
-  const { handlers, activeHandlerName } = useInteractionManager();
+  const rectRef = React.useRef({ left: 0, top: 0 });
+  const { handlers, activeHandlerName } = useInteractionManager(rectRef);
   return (
     <div
       data-testid="surface"
@@ -93,6 +94,10 @@ describe('useInteractionManager', () => {
     runtime.setPickResult({ id: 11, subIndex: 0 });
     const { getByTestId } = render(<Surface />);
     await waitFor(() => expect(getByTestId('surface').textContent).toBe('select'));
+    await waitFor(() => expect(mockGetRuntime).toHaveBeenCalled());
+    await act(async () => {
+      await mockGetRuntime.mock.results[0].value;
+    });
 
     fireEvent.pointerDown(getByTestId('surface'), { clientX: 0, clientY: 0, button: 0 });
     expect(runtime.transformSessions.lastBegin?.mode).toBe(TransformMode.Move);

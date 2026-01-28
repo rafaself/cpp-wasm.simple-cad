@@ -58,6 +58,10 @@ export const LABELS = {
     snapOptions: 'Opções de Snap',
     snapToGrid: 'Snap à Grade',
     snapToObject: 'Snap ao Objeto',
+    orthoToggle: 'Alternar Orto (F8)',
+    orthoActive: 'Orto Ativo',
+    orthoInactive: 'Orto Inativo',
+    orthoShort: 'ORTO',
     coordinates: 'Coordenadas',
     commandPlaceholder: 'Comando...',
     commandTooltip:
@@ -73,6 +77,14 @@ export const LABELS = {
     commandHelp: 'Ajuda de Comandos (HELP)',
     commandHelpLabel: 'Ajuda de Comandos',
     commandHelpDialogTitle: 'Comandos Disponíveis',
+  },
+  snapIndicator: {
+    endpoint: 'Extremidade',
+    midpoint: 'Ponto médio',
+    center: 'Centro',
+    nearest: 'Mais próximo',
+    grid: 'Grade',
+    none: '',
   },
   sidebar: {
     layers: 'Camadas',

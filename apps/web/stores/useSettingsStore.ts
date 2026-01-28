@@ -9,6 +9,11 @@ import { SnapOptions } from '../types';
 
 export type SnapSettings = SnapOptions & { tolerancePx: number };
 
+export interface OrthoSettings {
+  persistentEnabled: boolean;
+  shiftOverrideEnabled: boolean;
+}
+
 export interface GridSettings {
   size: number;
   color: string;
@@ -65,6 +70,7 @@ export interface ToolDefaults {
 interface SettingsState {
   grid: GridSettings;
   snap: SnapSettings;
+  ortho: OrthoSettings;
   display: DisplaySettings;
   toolDefaults: ToolDefaults;
   featureFlags: {
@@ -73,6 +79,11 @@ interface SettingsState {
     enableEngineResize: boolean;
     enablePickProfiling: boolean;
     enablePickThrottling: boolean;
+    enablePolygonContourSelection: boolean;
+    enablePolygonEdgeGrips: boolean;
+    enableGripBudget: boolean; // Phase 3: Grip budget system
+    enableGripPerformanceMonitoring: boolean; // Phase 3: Performance tracking
+    enableSnapIndicator: boolean; // Phase 3: Visual snap feedback
   };
   performance: {
     pickThrottleInterval: number; // ms
@@ -82,6 +93,8 @@ interface SettingsState {
   setSnapEnabled: (enabled: boolean) => void;
   setSnapOption: (option: keyof SnapOptions, value: boolean) => void;
   setSnapTolerance: (tolerancePx: number) => void;
+  setOrthoPersistentEnabled: (enabled: boolean) => void;
+  toggleOrthoPersistent: () => void;
 
   setGridSize: (size: number) => void;
   setGridColor: (color: string) => void;
@@ -130,6 +143,11 @@ interface SettingsState {
   setPickProfilingEnabled: (enabled: boolean) => void;
   setPickThrottlingEnabled: (enabled: boolean) => void;
   setPickThrottleInterval: (interval: number) => void;
+  setPolygonContourSelectionEnabled: (enabled: boolean) => void;
+  setPolygonEdgeGripsEnabled: (enabled: boolean) => void;
+  setGripBudgetEnabled: (enabled: boolean) => void;
+  setGripPerformanceMonitoringEnabled: (enabled: boolean) => void;
+  setSnapIndicatorEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -151,6 +169,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     nearest: false,
     grid: false,
     tolerancePx: INTERACTION.SNAP_THRESHOLD_PX,
+  },
+  ortho: {
+    persistentEnabled: false,
+    shiftOverrideEnabled: true,
   },
   display: {
     centerAxes: {
@@ -194,6 +216,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     enableEngineResize: false,
     enablePickProfiling: process.env.NODE_ENV !== 'production',
     enablePickThrottling: false,
+    enablePolygonContourSelection: process.env.NODE_ENV !== 'production', // Phase 1: Dev only
+    enablePolygonEdgeGrips: process.env.NODE_ENV !== 'production', // Phase 2: Dev only
+    enableGripBudget: true, // Phase 3: Always enabled for performance
+    enableGripPerformanceMonitoring: process.env.NODE_ENV !== 'production', // Phase 3: Dev only
+    enableSnapIndicator: true, // Phase 3: CAD-like visual feedback
   },
   performance: {
     pickThrottleInterval: 16, // 60fps
@@ -203,6 +230,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setSnapEnabled: (enabled) => set((state) => ({ snap: { ...state.snap, enabled } })),
   setSnapOption: (option, value) => set((state) => ({ snap: { ...state.snap, [option]: value } })),
   setSnapTolerance: (tolerancePx) => set((state) => ({ snap: { ...state.snap, tolerancePx } })),
+  setOrthoPersistentEnabled: (enabled) =>
+    set((state) => ({ ortho: { ...state.ortho, persistentEnabled: enabled } })),
+  toggleOrthoPersistent: () =>
+    set((state) => ({ ortho: { ...state.ortho, persistentEnabled: !state.ortho.persistentEnabled } })),
 
   setGridSize: (size) => set((state) => ({ grid: { ...state.grid, size } })),
   setGridColor: (color) => set((state) => ({ grid: { ...state.grid, color } })),
@@ -408,5 +439,29 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         ...state.performance,
         pickThrottleInterval: Math.max(8, Math.min(100, interval)),
       },
+    })),
+
+  // CAD Selection features
+  setPolygonContourSelectionEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePolygonContourSelection: enabled },
+    })),
+  setPolygonEdgeGripsEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enablePolygonEdgeGrips: enabled },
+    })),
+
+  // Phase 3: Performance and visual features
+  setGripBudgetEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enableGripBudget: enabled },
+    })),
+  setGripPerformanceMonitoringEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enableGripPerformanceMonitoring: enabled },
+    })),
+  setSnapIndicatorEnabled: (enabled) =>
+    set((state) => ({
+      featureFlags: { ...state.featureFlags, enableSnapIndicator: enabled },
     })),
 }));

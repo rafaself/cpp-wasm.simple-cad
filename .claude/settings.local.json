@@ -72,7 +72,14 @@
       "Bash(else echo \"No build_test directory found. Engine tests not yet built.\")",
       "Bash(fi)",
       "Bash(git check-ignore:*)",
-      "Bash(pnpm -C apps/web test --run)"
+      "Bash(pnpm -C apps/web test --run)",
+      "Bash(git show:*)",
+      "Bash(pnpm --dir apps/web test --run)",
+      "Bash(pnpm --dir apps/web test)",
+      "Bash(./bin/engine_tests:*)",
+      "Bash(pnpm --dir apps/web lint:*)",
+      "Bash(pnpm --dir apps/web exec prettier:*)",
+      "Bash(pnpm --dir apps/web test -- --run utils/__tests__/gripPerformance.test.ts)"
     ]
   }
 }

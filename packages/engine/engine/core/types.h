@@ -485,6 +485,16 @@ struct SnapOptions {
     float tolerancePx = 10.0f;
 };
 
+struct OrthoOptions {
+    // Persistent ortho mode (e.g., F8 toggle). Disabled by default to
+    // preserve existing behavior until the frontend explicitly enables it.
+    bool persistentEnabled = false;
+
+    // When enabled, holding Shift applies ortho constraints (0/90 degrees)
+    // instead of the legacy 45-degree polar snap.
+    bool shiftOverrideEnabled = false;
+};
+
 // Reserved entity ID for the phantom draft entity (never allocated normally)
 static constexpr std::uint32_t DRAFT_ENTITY_ID = 0xFFFFFFFE;
 
@@ -493,6 +503,11 @@ struct DraftDimensions {
     float minX, minY, maxX, maxY;  // Bounding box
     float width, height;           // Computed dimensions
     float centerX, centerY;        // Center point for label positioning
+    float length;                  // Total length (line/polyline) or diagonal
+    float segmentLength;           // Current segment length (polyline drafting)
+    float angleDeg;                // Current segment angle in degrees (CW+)
+    float radius;                  // Radius for circle-like drafts
+    float diameter;                // Diameter for circle-like drafts
     std::uint32_t kind;            // EntityKind
     bool active;                   // Whether draft is active
 };

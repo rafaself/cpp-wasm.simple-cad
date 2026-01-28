@@ -930,6 +930,61 @@ PickResult PickSystem::pickEx(
     return { 0, (uint16_t)PickEntityKind::Unknown, (uint8_t)PickSubTarget::None, -1, std::numeric_limits<float>::infinity() };
 }
 
+std::vector<PickResult> PickSystem::pickCandidates(
+    float x,
+    float y,
+    float tolerance,
+    float viewScale,
+    std::uint32_t pickMask,
+    const EntityManager& entities,
+    const TextSystem& textSystem) {
+    lastStats_.candidatesChecked = 0;
+    lastStats_.indexCellsQueried = 0;
+
+    const AABB queryBounds{x - tolerance, y - tolerance, x + tolerance, y + tolerance};
+    std::vector<std::uint32_t> candidates;
+    index_.query(queryBounds, candidates);
+    lastStats_.indexCellsQueried = 1;
+    if (candidates.empty()) {
+        return {};
+    }
+
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+
+    std::vector<PickCandidate> hits;
+    hits.reserve(candidates.size());
+
+    for (const std::uint32_t id : candidates) {
+        lastStats_.candidatesChecked++;
+        PickCandidate current;
+        if (checkCandidate(id, x, y, tolerance, viewScale, pickMask, entities, textSystem, current)) {
+            hits.push_back(current);
+        }
+    }
+
+    if (hits.empty()) {
+        return {};
+    }
+
+    std::sort(hits.begin(), hits.end());
+
+    std::vector<PickResult> results;
+    results.reserve(hits.size());
+    for (const PickCandidate& hit : hits) {
+        results.push_back(PickResult{
+            hit.id,
+            static_cast<std::uint16_t>(hit.kind),
+            static_cast<std::uint8_t>(hit.subTarget),
+            hit.subIndex,
+            hit.distance,
+            x,
+            y,
+        });
+    }
+    return results;
+}
+
 void PickSystem::queryArea(const AABB& area, std::vector<std::uint32_t>& outResults) const {
     lastStats_.candidatesChecked = 0;
     lastStats_.indexCellsQueried = 0;

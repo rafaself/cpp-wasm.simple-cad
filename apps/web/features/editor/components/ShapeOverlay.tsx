@@ -13,16 +13,34 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supportsEngineResize } from '@/engine/core/capabilities';
 import { OverlayKind, EntityKind } from '@/engine/core/EngineRuntime';
 import { decodeOverlayBuffer } from '@/engine/core/overlayDecoder';
+import { SnapTargetKind } from '@/engine/core/protocol';
 import { getEngineRuntime } from '@/engine/core/singleton';
 import { useEngineSelectionCount, useEngineSelectionIds } from '@/engine/core/useEngineSelection';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { cadDebugLog, isCadDebugEnabled } from '@/utils/dev/cadDebug';
-import { worldToScreen } from '@/utils/viewportMath';
+import { worldToScreen } from '@/engine/core/viewportMath';
+import { calculateGripBudget, applyGripBudget } from '@/utils/gripBudget';
+import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 
 import type { EngineRuntime } from '@/engine/core/EngineRuntime';
 
 const HANDLE_SIZE_PX = 8;
+const SNAP_POINT_RADIUS_PX = 4;
+
+const getSnapIndicatorStyle = (
+  kind: SnapTargetKind,
+): { shape: 'circle' | 'diamond'; fill: string; stroke: string } => {
+  switch (kind) {
+    case SnapTargetKind.Midpoint:
+      return { shape: 'diamond', fill: '#ffb020', stroke: '#ffb020' };
+    case SnapTargetKind.Center:
+      return { shape: 'circle', fill: '#ffffff', stroke: '#4caf50' };
+    case SnapTargetKind.Endpoint:
+    default:
+      return { shape: 'circle', fill: '#ff5d5d', stroke: '#ff5d5d' };
+  }
+};
 
 const ShapeOverlay: React.FC = () => {
   const selectionCount = useEngineSelectionCount();
@@ -184,9 +202,9 @@ const ShapeOverlay: React.FC = () => {
       const snap = decodeOverlayBuffer(runtime.module.HEAPU8, snapMeta);
 
       snap.primitives.forEach((prim, idx) => {
-        if (prim.count < 2) return;
         const pts = renderPoints(prim, snap.data);
         if (prim.kind === OverlayKind.Segment) {
+          if (pts.length < 2) return;
           const a = pts[0];
           const b = pts[1];
           if (!a || !b) return;
@@ -202,6 +220,7 @@ const ShapeOverlay: React.FC = () => {
             />,
           );
         } else if (prim.kind === OverlayKind.Polyline) {
+          if (pts.length < 2) return;
           const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
           snapElements.push(
             <polyline
@@ -212,6 +231,39 @@ const ShapeOverlay: React.FC = () => {
               strokeWidth={1}
             />,
           );
+        } else if (prim.kind === OverlayKind.Point) {
+          const snapKind = prim.flags as SnapTargetKind;
+          const style = getSnapIndicatorStyle(snapKind);
+          pts.forEach((p, i) => {
+            if (style.shape === 'diamond') {
+              const half = SNAP_POINT_RADIUS_PX;
+              snapElements.push(
+                <rect
+                  key={`snap-point-${idx}-${i}`}
+                  x={p.x - half}
+                  y={p.y - half}
+                  width={SNAP_POINT_RADIUS_PX * 2}
+                  height={SNAP_POINT_RADIUS_PX * 2}
+                  transform={`rotate(45, ${p.x}, ${p.y})`}
+                  fill={style.fill}
+                  stroke={style.stroke}
+                  strokeWidth={1}
+                />,
+              );
+            } else {
+              snapElements.push(
+                <circle
+                  key={`snap-point-${idx}-${i}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r={SNAP_POINT_RADIUS_PX}
+                  fill={style.fill}
+                  stroke={style.stroke}
+                  strokeWidth={1}
+                />,
+              );
+            }
+          });
         }
       });
     }
@@ -267,10 +319,12 @@ const ShapeOverlay: React.FC = () => {
         // Single selection: prefer oriented handles for corner-capable shapes
         const entityId = selectionIds[0];
         const entityKind = runtime.getEntityKind(entityId);
+        // Phase 2: Include Polygon as vertex-only (CAD-like contour selection)
         const isVertexOnly =
           entityKind === EntityKind.Line ||
           entityKind === EntityKind.Arrow ||
-          entityKind === EntityKind.Polyline;
+          entityKind === EntityKind.Polyline ||
+          entityKind === EntityKind.Polygon;
         const orientedMeta = runtime.getOrientedHandleMeta();
 
         if (orientedMeta.valid && !isVertexOnly) {
@@ -326,74 +380,171 @@ const ShapeOverlay: React.FC = () => {
             );
           }
         } else if (isVertexOnly) {
-          // Fallback to vertex-only legacy system (lines, arrows, polylines)
-          const outlineMeta = runtime.getSelectionOutlineMeta();
-          const handleMeta = runtime.getSelectionHandleMeta();
+          // Vertex-based selection (lines, arrows, polylines, and polygons)
+          const outlineMeta =
+            entityKind === EntityKind.Polygon
+              ? runtime.selection.getPolygonContourMeta(entityId)
+              : runtime.getSelectionOutlineMeta();
+
           const outline = decodeOverlayBuffer(runtime.module.HEAPU8, outlineMeta);
-          const handles = decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta);
 
-          outline.primitives.forEach((prim, idx) => {
-            if (prim.count < 2) return;
-            const pts = renderPoints(prim, outline.data);
-            const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-
-            if (prim.kind === OverlayKind.Segment) {
-              const a = pts[0];
-              const b = pts[1];
-              if (!a || !b) return;
-              selectionElements.push(
-                <line
-                  key={`sel-seg-${idx}`}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  className="stroke-primary"
-                  strokeWidth={1}
-                />,
-              );
-            } else if (prim.kind === OverlayKind.Polyline) {
-              selectionElements.push(
-                <polyline
-                  key={`sel-poly-${idx}`}
-                  points={pointsAttr}
-                  fill="transparent"
-                  className="stroke-primary"
-                  strokeWidth={1}
-                />,
-              );
-            } else {
-              selectionElements.push(
-                <polygon
-                  key={`sel-pgon-${idx}`}
-                  points={pointsAttr}
-                  fill="transparent"
-                  className="stroke-primary"
-                  strokeWidth={1}
-                />,
+          // Phase 2 fallback: If vertex data is missing, warn and skip (don't fall back to OBB)
+          if (outline.primitives.length === 0) {
+            if (process.env.NODE_ENV !== 'production') {
+              // eslint-disable-next-line no-console
+              console.warn(
+                `[ShapeOverlay] No vertex data for entity ${entityId} (kind=${EntityKind[entityKind]}); skipping overlay.`,
               );
             }
-          });
+            // Skip rendering - do NOT fall back to OBB
+          } else {
+            // Get grips (handles)
+            // Phase 2: Include edge midpoint grips if flag enabled
+            const includeEdges =
+              entityKind === EntityKind.Polygon &&
+              useSettingsStore.getState().featureFlags.enablePolygonEdgeGrips;
+            const gripsWCS =
+              entityKind === EntityKind.Polygon
+                ? runtime.selection.getEntityGripsWCS(entityId, includeEdges)
+                : null;
 
-          if (engineResizeEnabled || handles.primitives.length > 0) {
-            handles.primitives.forEach((prim, idx) => {
-              if (prim.count < 1) return;
-              const pts = renderPoints(prim, handles.data);
-              pts.forEach((p, i) => {
+            const handleMeta =
+              entityKind !== EntityKind.Polygon ? runtime.getSelectionHandleMeta() : null;
+            const handles = handleMeta
+              ? decodeOverlayBuffer(runtime.module.HEAPU8, handleMeta)
+              : null;
+
+            outline.primitives.forEach((prim, idx) => {
+              if (prim.count < 2) return;
+              const pts = renderPoints(prim, outline.data);
+              const pointsAttr = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
+              if (prim.kind === OverlayKind.Segment) {
+                const a = pts[0];
+                const b = pts[1];
+                if (!a || !b) return;
                 selectionElements.push(
-                  <rect
-                    key={`sel-handle-${idx}-${i}`}
-                    x={p.x - hh}
-                    y={p.y - hh}
-                    width={hs}
-                    height={hs}
-                    className="fill-white stroke-primary"
+                  <line
+                    key={`sel-seg-${idx}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    className="stroke-primary"
                     strokeWidth={1}
                   />,
                 );
-              });
+              } else if (prim.kind === OverlayKind.Polyline) {
+                selectionElements.push(
+                  <polyline
+                    key={`sel-poly-${idx}`}
+                    points={pointsAttr}
+                    fill="transparent"
+                    className="stroke-primary"
+                    strokeWidth={1}
+                  />,
+                );
+              } else {
+                selectionElements.push(
+                  <polygon
+                    key={`sel-pgon-${idx}`}
+                    points={pointsAttr}
+                    fill="transparent"
+                    className="stroke-primary"
+                    strokeWidth={1}
+                  />,
+                );
+              }
             });
-          }
+
+            // Render grips (vertex and edge handles)
+            if (gripsWCS) {
+              // Phase 3: Apply grip budget for performance and visual clarity
+              const flags = useSettingsStore.getState().featureFlags;
+              const enableGripBudget = flags.enableGripBudget;
+              const enablePerfMonitoring = flags.enableGripPerformanceMonitoring;
+
+              const perfMonitor = enablePerfMonitoring ? getGripPerformanceMonitor() : null;
+              const startTime = perfMonitor ? performance.now() : 0;
+
+              // Calculate grip budget based on complexity and zoom
+              const gripBudget = enableGripBudget
+                ? calculateGripBudget(gripsWCS, viewTransform, false)
+                : null;
+              const visibleGrips = gripBudget ? applyGripBudget(gripsWCS, gripBudget) : gripsWCS;
+
+              if (isCadDebugEnabled('grips') && gripBudget) {
+                cadDebugLog('grips', 'budget-decision', () => ({
+                  totalGrips: gripsWCS.length,
+                  visibleGrips: visibleGrips.length,
+                  strategy: gripBudget.strategy,
+                  reason: gripBudget.reason,
+                }));
+              }
+
+              // Phase 1 & 2: Render filtered grips
+              visibleGrips.forEach((grip, i) => {
+                const screenPos = worldToScreen(grip.positionWCS, viewTransform);
+
+                if (grip.kind === 'vertex') {
+                  // Vertex grips: 8x8 white squares with primary stroke
+                  const gripHalf = hs / 2;
+                  selectionElements.push(
+                    <rect
+                      key={`sel-grip-v-${grip.index}`}
+                      x={screenPos.x - gripHalf}
+                      y={screenPos.y - gripHalf}
+                      width={hs}
+                      height={hs}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1}
+                    />,
+                  );
+                } else if (grip.kind === 'edge-midpoint') {
+                  // Phase 2: Edge midpoint grips: 6x6 white diamonds with primary stroke
+                  const edgeSize = 6;
+                  const edgeHalf = edgeSize / 2;
+                  selectionElements.push(
+                    <rect
+                      key={`sel-grip-e-${grip.index}`}
+                      x={screenPos.x - edgeHalf}
+                      y={screenPos.y - edgeHalf}
+                      width={edgeSize}
+                      height={edgeSize}
+                      transform={`rotate(45, ${screenPos.x}, ${screenPos.y})`}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1}
+                    />,
+                  );
+                }
+              });
+
+              // Record performance metrics
+              if (perfMonitor) {
+                const renderTime = performance.now() - startTime;
+                perfMonitor.recordRender(visibleGrips.length, renderTime);
+              }
+            } else if (handles && (engineResizeEnabled || handles.primitives.length > 0)) {
+              // Legacy handle system
+              handles.primitives.forEach((prim, idx) => {
+                if (prim.count < 1) return;
+                const pts = renderPoints(prim, handles.data);
+                pts.forEach((p, i) => {
+                  selectionElements.push(
+                    <rect
+                      key={`sel-handle-${idx}-${i}`}
+                      x={p.x - hh}
+                      y={p.y - hh}
+                      width={hs}
+                      height={hs}
+                      className="fill-white stroke-primary"
+                      strokeWidth={1}
+                    />,
+                  );
+                });
+              });
+            }
+          } // Close fallback else block
         } else {
           // Corner-capable but oriented meta is invalid: log and render safe AABB without rotation
           if (process.env.NODE_ENV !== 'production') {

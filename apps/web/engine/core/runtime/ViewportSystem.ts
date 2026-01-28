@@ -53,6 +53,16 @@ export class ViewportSystem {
   }
 
   /**
+   * Convert screen coordinates to world coordinates with explicit transform.
+   * Writes into the provided output object to avoid allocations in hot paths.
+   */
+  screenToWorldWithTransformInto(point: Point, transform: ViewTransform, out: Point): Point {
+    out.x = (point.x - transform.x) / transform.scale;
+    out.y = -(point.y - transform.y) / transform.scale;
+    return out;
+  }
+
+  /**
    * Convert world coordinates to screen coordinates.
    * Uses the current viewport transform.
    */

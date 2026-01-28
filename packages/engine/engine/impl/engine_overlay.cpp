@@ -3,6 +3,8 @@
 
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
+#include "engine/interaction/interaction_constants.h"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -109,13 +111,24 @@ engine::protocol::OverlayBufferMeta CadEngine::getSelectionOutlineMeta() const {
         if (it->second.kind == EntityKind::Polygon) {
             if (it->second.index >= state().entityManager_.polygons.size()) continue;
             const PolygonRec& p = state().entityManager_.polygons[it->second.index];
-            const float cx = p.cx;
-            const float cy = p.cy;
-            const float hw = std::abs(p.rx * p.sx);
-            const float hh = std::abs(p.ry * p.sy);
+
+            // Phase 1: Return actual polygon vertices instead of bounding box
+            const std::uint32_t sides = std::max<std::uint32_t>(3u, p.sides);
             const float rot = p.rot;
-            pushPrimitive(engine::protocol::OverlayKind::Polygon, 4);
-            pushRotatedCorners(state().selectionOutlineData_, cx, cy, hw, hh, rot);
+            const float cosR = rot ? std::cos(rot) : 1.0f;
+            const float sinR = rot ? std::sin(rot) : 0.0f;
+            constexpr float kBase = static_cast<float>(-M_PI) / 2.0f;
+
+            pushPrimitive(engine::protocol::OverlayKind::Polygon, sides);
+            for (std::uint32_t i = 0; i < sides; i++) {
+                const float t = (static_cast<float>(i) / sides) * 2.0f * static_cast<float>(M_PI) + kBase;
+                const float dx = std::cos(t) * p.rx * p.sx;
+                const float dy = std::sin(t) * p.ry * p.sy;
+                const float x = p.cx + dx * cosR - dy * sinR;
+                const float y = p.cy + dx * sinR + dy * cosR;
+                state().selectionOutlineData_.push_back(x);
+                state().selectionOutlineData_.push_back(y);
+            }
             continue;
         }
 
@@ -223,13 +236,24 @@ engine::protocol::OverlayBufferMeta CadEngine::getSelectionHandleMeta() const {
         if (it->second.kind == EntityKind::Polygon) {
             if (it->second.index >= state().entityManager_.polygons.size()) continue;
             const PolygonRec& p = state().entityManager_.polygons[it->second.index];
-            const float cx = p.cx;
-            const float cy = p.cy;
-            const float hw = std::abs(p.rx * p.sx);
-            const float hh = std::abs(p.ry * p.sy);
+
+            // Phase 1: Return actual polygon vertex grips instead of bounding box corners
+            const std::uint32_t sides = std::max<std::uint32_t>(3u, p.sides);
             const float rot = p.rot;
-            pushPrimitive(4);
-            pushRotatedCorners(state().selectionHandleData_, cx, cy, hw, hh, rot);
+            const float cosR = rot ? std::cos(rot) : 1.0f;
+            const float sinR = rot ? std::sin(rot) : 0.0f;
+            constexpr float kBase = static_cast<float>(-M_PI) / 2.0f;
+
+            pushPrimitive(sides);
+            for (std::uint32_t i = 0; i < sides; i++) {
+                const float t = (static_cast<float>(i) / sides) * 2.0f * static_cast<float>(M_PI) + kBase;
+                const float dx = std::cos(t) * p.rx * p.sx;
+                const float dy = std::sin(t) * p.ry * p.sy;
+                const float x = p.cx + dx * cosR - dy * sinR;
+                const float y = p.cy + dx * sinR + dy * cosR;
+                state().selectionHandleData_.push_back(x);
+                state().selectionHandleData_.push_back(y);
+            }
             continue;
         }
 
@@ -261,6 +285,7 @@ engine::protocol::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
     state().snapGuideData_.clear();
 
     const auto& guides = state().interactionSession_.getSnapGuides();
+    const auto& hits = state().interactionSession_.getSnapHits();
     if (!guides.empty()) {
         state().snapGuidePrimitives_.reserve(guides.size());
         state().snapGuideData_.reserve(guides.size() * 4);
@@ -276,6 +301,21 @@ engine::protocol::OverlayBufferMeta CadEngine::getSnapOverlayMeta() const {
             state().snapGuideData_.push_back(guide.y0);
             state().snapGuideData_.push_back(guide.x1);
             state().snapGuideData_.push_back(guide.y1);
+        }
+    }
+    if (!hits.empty()) {
+        state().snapGuidePrimitives_.reserve(state().snapGuidePrimitives_.size() + hits.size());
+        state().snapGuideData_.reserve(state().snapGuideData_.size() + hits.size() * 2);
+        for (const SnapHit& hit : hits) {
+            const std::uint32_t offset = static_cast<std::uint32_t>(state().snapGuideData_.size());
+            state().snapGuidePrimitives_.push_back(engine::protocol::OverlayPrimitive{
+                static_cast<std::uint16_t>(engine::protocol::OverlayKind::Point),
+                static_cast<std::uint16_t>(hit.kind),
+                1,
+                offset
+            });
+            state().snapGuideData_.push_back(hit.x);
+            state().snapGuideData_.push_back(hit.y);
         }
     }
 
@@ -297,12 +337,50 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     if (ordered.empty()) {
         return meta;
     }
-    
-    // For multi-selection, return invalid (use getSelectionBounds instead)
+
+    meta.selectionCount = static_cast<std::uint32_t>(ordered.size());
+    meta.isGroup = ordered.size() > 1 ? 1u : 0u;
+
     if (ordered.size() > 1) {
+        const engine::protocol::EntityAabb bounds = getSelectionBounds();
+        if (!bounds.valid) {
+            return meta;
+        }
+
+        meta.entityId = 0;
+        meta.blX = bounds.minX;
+        meta.blY = bounds.minY;
+        meta.brX = bounds.maxX;
+        meta.brY = bounds.minY;
+        meta.trX = bounds.maxX;
+        meta.trY = bounds.maxY;
+        meta.tlX = bounds.minX;
+        meta.tlY = bounds.maxY;
+
+        meta.southX = (meta.blX + meta.brX) * 0.5f;
+        meta.southY = (meta.blY + meta.brY) * 0.5f;
+        meta.eastX = (meta.brX + meta.trX) * 0.5f;
+        meta.eastY = (meta.brY + meta.trY) * 0.5f;
+        meta.northX = (meta.tlX + meta.trX) * 0.5f;
+        meta.northY = (meta.tlY + meta.trY) * 0.5f;
+        meta.westX = (meta.blX + meta.tlX) * 0.5f;
+        meta.westY = (meta.blY + meta.tlY) * 0.5f;
+
+        meta.centerX = (bounds.minX + bounds.maxX) * 0.5f;
+        meta.centerY = (bounds.minY + bounds.maxY) * 0.5f;
+        meta.rotationRad = 0.0f;
+
+        constexpr float kRotateOffset = 25.0f;
+        meta.rotateHandleX = meta.northX;
+        meta.rotateHandleY = meta.northY + kRotateOffset;
+
+        meta.hasRotateHandle = 1u;
+        meta.hasResizeHandles = 1u;
+        meta.hasSideHandles = 1u;
+        meta.valid = 1u;
         return meta;
     }
-    
+
     const std::uint32_t entityId = ordered[0];
     const auto it = state().entityManager_.entities.find(entityId);
     if (it == state().entityManager_.entities.end()) {
@@ -317,6 +395,7 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     float rotation = 0;         // Rotation in radians
     bool hasRotation = false;
     bool hasResizeHandles = true;
+    bool hasSideHandles = true;
     
     const EntityKind kind = it->second.kind;
     
@@ -344,15 +423,9 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
             break;
         }
         case EntityKind::Polygon: {
-            if (it->second.index >= state().entityManager_.polygons.size()) return meta;
-            const PolygonRec& p = state().entityManager_.polygons[it->second.index];
-            cx = p.cx;
-            cy = p.cy;
-            hw = std::abs(p.rx * p.sx);
-            hh = std::abs(p.ry * p.sy);
-            rotation = p.rot;
-            hasRotation = true;
-            break;
+            // Phase 1: Polygons use vertex-based selection, not OBB
+            // Return invalid to signal frontend should use getSelectionHandleMeta
+            return meta;
         }
         case EntityKind::Text: {
             // Text: get bounds from text system
@@ -370,6 +443,7 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
             }
             // Text doesn't support resize handles (only rotate)
             hasResizeHandles = false;
+            hasSideHandles = false;
             break;
         }
         case EntityKind::Line:
@@ -406,6 +480,15 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     meta.brX = brx; meta.brY = bry;  // BR
     meta.trX = trx; meta.trY = try_; // TR
     meta.tlX = tlx; meta.tlY = tly;  // TL
+
+    meta.southX = (blx + brx) * 0.5f;
+    meta.southY = (bly + bry) * 0.5f;
+    meta.eastX = (brx + trx) * 0.5f;
+    meta.eastY = (bry + try_) * 0.5f;
+    meta.northX = (tlx + trx) * 0.5f;
+    meta.northY = (tly + try_) * 0.5f;
+    meta.westX = (blx + tlx) * 0.5f;
+    meta.westY = (bly + tly) * 0.5f;
     
     // Rotate handle position: above top edge center, offset diagonally
     // Top edge center = midpoint of TL and TR
@@ -434,6 +517,7 @@ engine::protocol::OrientedHandleMeta CadEngine::getOrientedHandleMeta() const {
     meta.rotationRad = rotation;
     meta.hasRotateHandle = hasRotation ? 1 : 0;
     meta.hasResizeHandles = hasResizeHandles ? 1 : 0;
+    meta.hasSideHandles = hasSideHandles ? 1 : 0;
     meta.valid = 1;
     
     return meta;

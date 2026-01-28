@@ -2,6 +2,7 @@
 #include "engine/engine.h"
 #include "engine/internal/engine_state.h"
 #include <algorithm>
+#include <cmath>
 
 // ============================================================================
 // Draft Implementation (Phantom Entity System)
@@ -48,7 +49,26 @@ void InteractionSession::updateDraft(float x, float y, std::uint32_t modifiers) 
     if (!draft_.active) return;
     applyGridSnap(x, y, snapOptions);
     const bool shiftDown = (modifiers & static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift)) != 0;
-    if (shiftDown) {
+    const bool orthoShift = shiftDown && orthoOptions.shiftOverrideEnabled;
+    const bool orthoActive = orthoOptions.persistentEnabled || orthoShift;
+    if (orthoActive) {
+        auto applyOrtho = [&](float anchorX, float anchorY) {
+            const float dx = x - anchorX;
+            const float dy = y - anchorY;
+            if (std::abs(dx) >= std::abs(dy)) {
+                y = anchorY;
+            } else {
+                x = anchorX;
+            }
+        };
+        if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Line) ||
+            draft_.kind == static_cast<std::uint32_t>(EntityKind::Arrow)) {
+            applyOrtho(draft_.startX, draft_.startY);
+        } else if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
+            const Point2& anchor = draft_.points.back();
+            applyOrtho(anchor.x, anchor.y);
+        }
+    } else if (shiftDown) {
         auto snapAngle = [&](float anchorX, float anchorY) {
             const float vecX = x - anchorX;
             const float vecY = y - anchorY;
@@ -90,18 +110,30 @@ void InteractionSession::appendDraftPoint(float x, float y, std::uint32_t modifi
     if (!draft_.active) return;
     applyGridSnap(x, y, snapOptions);
     const bool shiftDown = (modifiers & static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift)) != 0;
-    if (shiftDown && draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
+    const bool orthoShift = shiftDown && orthoOptions.shiftOverrideEnabled;
+    const bool orthoActive = orthoOptions.persistentEnabled || orthoShift;
+    if (draft_.kind == static_cast<std::uint32_t>(EntityKind::Polyline) && !draft_.points.empty()) {
         const Point2& anchor = draft_.points.back();
-        const float vecX = x - anchor.x;
-        const float vecY = y - anchor.y;
-        const float len = std::sqrt(vecX * vecX + vecY * vecY);
-        if (len > 1e-6f) {
-            constexpr float kPi = 3.14159265358979323846f;
-            constexpr float kStep = kPi * 0.25f;
-            const float angle = std::atan2(vecY, vecX);
-            const float snapped = std::round(angle / kStep) * kStep;
-            x = anchor.x + std::cos(snapped) * len;
-            y = anchor.y + std::sin(snapped) * len;
+        if (orthoActive) {
+            const float dx = x - anchor.x;
+            const float dy = y - anchor.y;
+            if (std::abs(dx) >= std::abs(dy)) {
+                y = anchor.y;
+            } else {
+                x = anchor.x;
+            }
+        } else if (shiftDown) {
+            const float vecX = x - anchor.x;
+            const float vecY = y - anchor.y;
+            const float len = std::sqrt(vecX * vecX + vecY * vecY);
+            if (len > 1e-6f) {
+                constexpr float kPi = 3.14159265358979323846f;
+                constexpr float kStep = kPi * 0.25f;
+                const float angle = std::atan2(vecY, vecX);
+                const float snapped = std::round(angle / kStep) * kStep;
+                x = anchor.x + std::cos(snapped) * len;
+                y = anchor.y + std::sin(snapped) * len;
+            }
         }
     }
     draft_.points.push_back({x, y});
@@ -403,6 +435,66 @@ DraftDimensions InteractionSession::getDraftDimensions() const {
     dims.height = dims.maxY - dims.minY;
     dims.centerX = (dims.minX + dims.maxX) / 2.0f;
     dims.centerY = (dims.minY + dims.maxY) / 2.0f;
+
+    constexpr float kRadToDeg = 57.29577951308232f;
+    const auto segmentLength = [](float ax, float ay, float bx, float by) {
+        const float dx = bx - ax;
+        const float dy = by - ay;
+        return std::sqrt(dx * dx + dy * dy);
+    };
+    const auto segmentAngleDeg = [&](float ax, float ay, float bx, float by) {
+        const float dx = bx - ax;
+        const float dy = by - ay;
+        if (std::abs(dx) <= 1e-6f && std::abs(dy) <= 1e-6f) return 0.0f;
+        return std::atan2(dy, dx) * kRadToDeg;
+    };
+
+    switch (static_cast<EntityKind>(draft_.kind)) {
+        case EntityKind::Line:
+        case EntityKind::Arrow: {
+            const float len = segmentLength(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            dims.length = len;
+            dims.segmentLength = len;
+            dims.angleDeg = segmentAngleDeg(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            break;
+        }
+        case EntityKind::Polyline: {
+            float total = 0.0f;
+            if (draft_.points.size() >= 2) {
+                for (std::size_t i = 1; i < draft_.points.size(); ++i) {
+                    const Point2& a = draft_.points[i - 1];
+                    const Point2& b = draft_.points[i];
+                    total += segmentLength(a.x, a.y, b.x, b.y);
+                }
+            }
+            if (!draft_.points.empty()) {
+                const Point2& anchor = draft_.points.back();
+                const float segLen = segmentLength(anchor.x, anchor.y, draft_.currentX, draft_.currentY);
+                dims.segmentLength = segLen;
+                dims.angleDeg = segmentAngleDeg(anchor.x, anchor.y, draft_.currentX, draft_.currentY);
+                if (segLen > 1e-6f) {
+                    total += segLen;
+                }
+            }
+            dims.length = total;
+            break;
+        }
+        case EntityKind::Circle:
+        case EntityKind::Polygon: {
+            const float r = std::min(std::abs(dims.width), std::abs(dims.height)) * 0.5f;
+            dims.radius = r;
+            dims.diameter = r * 2.0f;
+            dims.length = std::sqrt(dims.width * dims.width + dims.height * dims.height);
+            dims.angleDeg = segmentAngleDeg(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            break;
+        }
+        case EntityKind::Rect:
+        default: {
+            dims.length = std::sqrt(dims.width * dims.width + dims.height * dims.height);
+            dims.angleDeg = segmentAngleDeg(draft_.startX, draft_.startY, draft_.currentX, draft_.currentY);
+            break;
+        }
+    }
 
     return dims;
 }

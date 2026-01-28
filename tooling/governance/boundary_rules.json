@@ -10,7 +10,6 @@
     "apps/web/engine/core/engineDocumentSignals"
   ],
   "featureImportAllowlist": [
-    { "path": "apps/web/features/editor/interactions/handlers/DraftingHandler.tsx", "import": "apps/web/engine/core/commandTypes", "reason": "Draft handler needs BeginDraftPayload type from commandTypes." },
     { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/tools/TextTool", "reason": "Text tool wiring still imports engine tool directly." },
     { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/core/commandTypes", "reason": "Text handler needs EngineCommand type from commandTypes." },
     { "path": "apps/web/features/editor/hooks/useEditorLogic.ts", "import": "apps/web/engine/core/commandTypes", "reason": "Editor logic needs EngineCommand type from commandTypes." },
@@ -21,8 +20,15 @@
     { "path": "apps/web/features/settings/sections/DeveloperSettings.tsx", "import": "apps/web/engine/core/capabilities", "reason": "Developer settings inspects capabilities." },
     { "path": "apps/web/features/editor/components/RotationTooltip.tsx", "import": "apps/web/engine/core/interactionSession", "reason": "Rotation tooltip reads interaction session state." },
     { "path": "apps/web/features/editor/components/drawing/DrawingInspectorPanel.tsx", "import": "apps/web/engine/core/useEntityTransform", "reason": "Inspector uses entity transform hook directly." },
-    { "path": "apps/web/features/editor/interactions/handlers/SelectionHandler.tsx", "import": "apps/web/engine/core/overlayDecoder", "reason": "Selection handler uses overlay decoder for hit testing." },
     { "path": "apps/web/features/editor/colors/ColorRibbonControls.tsx", "import": "apps/web/engine/core/protocol", "reason": "Type-only import for protocol types needed to work with runtime.style facade data." },
-    { "path": "apps/web/features/editor/colors/useSelectionStyleSummary.ts", "import": "apps/web/engine/core/protocol", "reason": "Type-only import for protocol types needed to work with runtime.style facade data." }
+    { "path": "apps/web/features/editor/colors/useSelectionStyleSummary.ts", "import": "apps/web/engine/core/protocol", "reason": "Type-only import for protocol types needed to work with runtime.style facade data." },
+    { "path": "apps/web/features/editor/__tests__/polygonGripIntegration.test.ts", "import": "apps/web/engine/core/gripDecoder", "reason": "Grip integration test decodes engine grip payloads directly; pending test facade." },
+    { "path": "apps/web/features/editor/components/EngineInteractionLayer.tsx", "import": "apps/web/engine/core/viewportMath", "reason": "Viewport math helpers are consumed directly by the interaction layer until a facade helper is added." },
+    { "path": "apps/web/features/editor/components/MarqueeOverlay.tsx", "import": "apps/web/engine/core/viewportMath", "reason": "Marquee overlay uses shared viewport math helpers; facade extraction pending." },
+    { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/protocol", "reason": "Shape overlay currently needs protocol types and is tracked for refactor." },
+    { "path": "apps/web/features/editor/components/ShapeOverlay.tsx", "import": "apps/web/engine/core/viewportMath", "reason": "Shape overlay uses viewport math helpers directly; to be replaced by facade utilities." },
+    { "path": "apps/web/features/editor/components/SnapIndicator.tsx", "import": "apps/web/engine/core/viewportMath", "reason": "Snap indicator uses viewport math helpers directly; tracked for facade extraction." },
+    { "path": "apps/web/features/editor/interactions/handlers/TextHandler.tsx", "import": "apps/web/engine/core/viewportMath", "reason": "Text handler uses viewport math helpers directly; facade extraction pending." },
+    { "path": "apps/web/features/editor/interactions/handlers/drafting/draftStyle.ts", "import": "apps/web/engine/core/commandTypes", "reason": "Draft style helpers use command type definitions; awaiting type-only facade." }
   ]
 }

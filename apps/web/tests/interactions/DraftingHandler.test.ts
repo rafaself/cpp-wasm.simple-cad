@@ -32,6 +32,14 @@ describe('DraftingHandler', () => {
     expect(commits).toHaveLength(1);
   });
 
+  it('does not auto-create a rect on single click without a second point', () => {
+    harness.pointerDown({ x: 0, y: 0 });
+    harness.pointerUp({ x: 0, y: 0 });
+
+    const commits = harness.getCommands().filter((c) => c.op === CommandOp.CommitDraft);
+    expect(commits).toHaveLength(0);
+  });
+
   it('requires a second click to commit a line', () => {
     harness.setTool('line');
 
@@ -46,6 +54,22 @@ describe('DraftingHandler', () => {
 
     commits = harness.getCommands().filter((c) => c.op === CommandOp.CommitDraft);
     expect(commits).toHaveLength(1);
+  });
+
+  it('continues line drawing across multiple segments', () => {
+    harness.setTool('line');
+
+    harness.pointerDown({ x: 0, y: 0 });
+    harness.pointerUp({ x: 0, y: 0 });
+
+    harness.pointerDown({ x: 10, y: 0 });
+    harness.pointerUp({ x: 10, y: 0 });
+
+    harness.pointerDown({ x: 20, y: 0 });
+    harness.pointerUp({ x: 20, y: 0 });
+
+    const commits = harness.getCommands().filter((c) => c.op === CommandOp.CommitDraft);
+    expect(commits).toHaveLength(2);
   });
 
   it('cancels draft via helper without affecting selection', () => {

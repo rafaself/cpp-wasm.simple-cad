@@ -46,6 +46,8 @@ files.forEach(file => {
   if (file.includes('shared/styles/tokens.css')) return;
   // Skip the new tokens definition file
   if (file.includes('theme/tokens.css')) return;
+  // Skip legacy-compatible global token definitions.
+  if (file.includes('design/global.css')) return;
   
   const content = fs.readFileSync(file, 'utf8');
   const lines = content.split('\n');

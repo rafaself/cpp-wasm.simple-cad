@@ -136,3 +136,42 @@ TEST_F(CadEngineTest, DraftPolygonShiftCreatesProportional) {
     EXPECT_NEAR(polygon->rx, 50.0f, 1e-3f);
     EXPECT_NEAR(polygon->ry, 50.0f, 1e-3f);
 }
+
+TEST_F(CadEngineTest, DraftDimensionsReportsLineMetrics) {
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Line);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    engine.beginDraft(payload);
+
+    engine.updateDraft(3.0f, 4.0f, 0);
+    const DraftDimensions dims = engine.getDraftDimensions();
+
+    EXPECT_TRUE(dims.active);
+    EXPECT_NEAR(dims.length, 5.0f, 1e-3f);
+    EXPECT_NEAR(dims.segmentLength, 5.0f, 1e-3f);
+    EXPECT_NEAR(dims.angleDeg, 53.1301f, 1e-3f);
+}
+
+TEST_F(CadEngineTest, DraftLineShiftUsesOrthoWhenOverrideEnabled) {
+    engine.setOrthoOptions(false, true);
+
+    BeginDraftPayload payload{};
+    payload.kind = static_cast<std::uint32_t>(EntityKind::Line);
+    payload.x = 0.0f;
+    payload.y = 0.0f;
+    payload.strokeEnabled = 1.0f;
+    payload.strokeWidthPx = 1.0f;
+    engine.beginDraft(payload);
+
+    const auto shift = static_cast<std::uint32_t>(engine::protocol::SelectionModifier::Shift);
+    engine.updateDraft(10.0f, 6.0f, shift);
+    const std::uint32_t id = engine.commitDraft();
+
+    const LineRec* line = CadEngineTestAccessor::entityManager(engine).getLine(id);
+    ASSERT_NE(line, nullptr);
+    EXPECT_NEAR(line->x1, 10.0f, 1e-3f);
+    EXPECT_NEAR(line->y1, 0.0f, 1e-3f);
+}

@@ -129,6 +129,10 @@ public:
         return engine.state().generation;
     }
 
+    static const std::vector<std::uint32_t>& selectionOrder(const CadEngine& engine) {
+        return engine.state().selectionManager_.getOrdered();
+    }
+
     static bool tryGetEntityGeomZ(const CadEngine& engine, std::uint32_t id, float& outZ) {
         return engine.tryGetEntityGeomZ(id, outZ);
     }
