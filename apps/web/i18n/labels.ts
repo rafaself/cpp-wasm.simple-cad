@@ -78,6 +78,14 @@ export const LABELS = {
     commandHelpLabel: 'Ajuda de Comandos',
     commandHelpDialogTitle: 'Comandos Disponíveis',
   },
+  snapIndicator: {
+    endpoint: 'Extremidade',
+    midpoint: 'Ponto médio',
+    center: 'Centro',
+    nearest: 'Mais próximo',
+    grid: 'Grade',
+    none: '',
+  },
   sidebar: {
     layers: 'Camadas',
     newLayer: 'Nova Camada',

@@ -99,7 +99,8 @@ void InteractionSession::updateTransform(
     if (session_.mode == TransformMode::Move || session_.mode == TransformMode::EdgeDrag) {
         const bool shiftDown = (modifiers & kShiftMask) != 0;
         const bool altDown = (modifiers & kAltMask) != 0;
-        const bool orthoActive = shiftDown || orthoOptions.persistentEnabled;
+        const bool orthoShift = shiftDown && orthoOptions.shiftOverrideEnabled;
+        const bool orthoActive = orthoOptions.persistentEnabled || orthoShift; // Respect shiftOverrideEnabled flag before activating Shift-lock.
 
         if (dragStarted && altDown) {
             duplicateSelectionForDrag();

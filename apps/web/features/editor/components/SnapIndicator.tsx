@@ -10,6 +10,7 @@
 import React, { useMemo } from 'react';
 
 import { worldToScreen } from '@/engine/core/viewportMath';
+import { LABELS } from '@/i18n/labels';
 
 import type { ViewTransform } from '@/types';
 
@@ -42,16 +43,10 @@ const SNAP_STYLES: Record<
 };
 
 /**
- * Snap type labels for tooltip
+ * Snap type tooltip labels must use the pt-BR label map so they stay
+ * extractable and consistent with the rest of the UI.
  */
-const SNAP_LABELS: Record<SnapTargetType, string> = {
-  endpoint: 'Endpoint',
-  midpoint: 'Midpoint',
-  center: 'Center',
-  nearest: 'Nearest',
-  grid: 'Grid',
-  none: '',
-};
+const SNAP_LABELS: Record<SnapTargetType, string> = LABELS.snapIndicator;
 
 export const SnapIndicator: React.FC<SnapIndicatorProps> = ({
   positionWCS,
