@@ -8,8 +8,8 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { getGripPerformanceMonitor } from '@/utils/gripPerformance';
 
 import type { GripPerformanceMetrics, CacheStatistics } from '@/utils/gripPerformance';
 
@@ -18,9 +18,7 @@ export const GripPerformancePanel: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStatistics | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const enableMonitoring = useSettingsStore(
-    (s) => s.featureFlags.enableGripPerformanceMonitoring,
-  );
+  const enableMonitoring = useSettingsStore((s) => s.featureFlags.enableGripPerformanceMonitoring);
 
   useEffect(() => {
     if (!enableMonitoring) return;
@@ -49,7 +47,7 @@ export const GripPerformancePanel: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] max-w-sm">
+    <div className="fixed bottom-4 right-4 z-canvas-hud max-w-sm">
       <div className="rounded-lg border bg-surface-2 shadow-2xl">
         {/* Header */}
         <div
@@ -146,7 +144,7 @@ export const GripPerformancePanel: React.FC = () => {
                         : 'bg-red-500'
                   }`}
                 />
-                <span className="text-[10px] text-text-muted">
+                <span className="text-xs text-text-muted">
                   {metrics.maxRenderTimeMs < 16.67
                     ? '60 FPS'
                     : metrics.maxRenderTimeMs < 33.33

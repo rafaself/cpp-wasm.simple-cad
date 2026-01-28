@@ -136,6 +136,8 @@ set(ENGINE_SOURCES
   engine/interaction/interaction_session.cpp
   engine/interaction/interaction_session_begin.cpp
   engine/interaction/interaction_session_update.cpp
+  engine/interaction/interaction_session_rotate.cpp
+  engine/interaction/interaction_session_side_resize.cpp
   engine/interaction/interaction_draft.cpp
   engine/interaction/interaction_log.cpp
   # Persistence
@@ -146,6 +148,8 @@ set(ENGINE_SOURCES
   engine/impl/engine_digest.cpp
   engine/impl/engine_style.cpp
   engine/impl/engine_query.cpp
+  engine/impl/engine_selection_handle.cpp
+  engine/impl/engine_side_handle.cpp
   engine/impl/engine_overlay.cpp
   engine/impl/engine_text.cpp
   engine/impl/engine_snapshot.cpp
