@@ -134,15 +134,3 @@ pnpm build:wasm
 ```
 
 The command triggers the `wasm-builder` service and exits when the build finishes.
-
-## Troubleshooting (Windows / OneDrive)
-
-If you see a blank page and Vite fails with `Error: spawn EPERM` (often while loading `apps/web/vite.config.ts`), your repo is likely inside OneDrive/Controlled Folder Access.
-
-Recommended fixes:
-- Move the repository out of OneDrive (e.g. `C:\\dev\\EndeavourCanvas\\`)
-- Or build the WASM artifacts via Docker: `cd apps/web && pnpm build:wasm`
-
-## Notes
-
-apps/web/vite.config.ts already sets COOP/COEP headers to prepare for SharedArrayBuffer in the future.
