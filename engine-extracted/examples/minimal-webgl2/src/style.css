@@ -1,0 +1,53 @@
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 10% 10%, #f4f9ff 0%, #e6edf7 45%, #dae3f1 100%);
+  color: #0d1b2a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+}
+
+#gl-canvas,
+#overlay-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#overlay-canvas {
+  pointer-events: none;
+}
+
+#debug-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  min-width: 260px;
+  max-width: 340px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #a6b5c9;
+  background: rgba(245, 250, 255, 0.92);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.16);
+  pointer-events: none;
+}
