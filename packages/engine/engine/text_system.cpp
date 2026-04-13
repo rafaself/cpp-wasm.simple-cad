@@ -436,6 +436,21 @@ bool buildTextQuads(
         yOffset -= line.lineHeight;
     }
 
+    // Apply rotation to all generated vertices around the text anchor point
+    if (text.rotation != 0.0f && !out.empty()) {
+        const float cosR = std::cos(text.rotation);
+        const float sinR = std::sin(text.rotation);
+        constexpr std::size_t floatsPerVertex = 9; // x, y, z, u, v, r, g, b, a
+        for (std::size_t i = 0; i < out.size(); i += floatsPerVertex) {
+            float& vx = out[i];
+            float& vy = out[i + 1];
+            const float dx = vx - baseX;
+            const float dy = vy - baseY;
+            vx = baseX + dx * cosR - dy * sinR;
+            vy = baseY + dx * sinR + dy * cosR;
+        }
+    }
+
     return true;
 }
 } // namespace
